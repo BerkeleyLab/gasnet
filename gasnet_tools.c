@@ -1610,10 +1610,10 @@ extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_
   } 
 
   if (divisor > 0) {
-    snprintf(buf, bufsz, "%s%llu%s", neg, (unsigned long long)(val/divisor), unit);
+    snprintf(buf, bufsz, "%s%"PRId64"%s", neg, (val/divisor), unit);
   } else if (divisor == -1) {
     if (*neg) val = -val;
-    snprintf(buf, bufsz, "0x%llx", (unsigned long long)val);
+    snprintf(buf, bufsz, "0x%"PRIx64, val);
   } else gasneti_fatalerror("internal error in gasneti_format_number");
   return buf;
 }
@@ -2006,16 +2006,16 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
       } else {                                                                                  \
         gasneti_assert(newval.rlim_cur <= newval.rlim_max);                                     \
         newval.rlim_cur = newval.rlim_max;                                                      \
-        snprintf(newvalstr, sizeof(newvalstr), "%llu", (unsigned long long)newval.rlim_cur);    \
+        snprintf(newvalstr, sizeof(newvalstr), "%"PRIu64, (uint64_t)newval.rlim_cur);           \
       }                                                                                         \
       if (newval.rlim_cur != oldval.rlim_cur) {                                                 \
         if (set_fp(res, &newval)) {                                                             \
-          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit:                                        \
-            "#setrlimit"(%s, %s) failed: %s", lim_desc, newvalstr, strerror(errno));            \
+          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit: "#setrlimit"(%s, %s) failed: %s",      \
+                               lim_desc, newvalstr, strerror(errno));                           \
         } else {                                                                                \
-          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit:                                        \
-          "#setrlimit"(%s, %s) raised limit from %llu", lim_desc, newvalstr,                    \
-          (unsigned long long)oldval.rlim_cur);                                                 \
+          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit: "#setrlimit"(%s, %s)"                  \
+                               " raised limit from %"PRIu64,                                    \
+                               lim_desc, newvalstr, (uint64_t)oldval.rlim_cur);                 \
           success = 1;                                                                          \
         }                                                                                       \
       }                                                                                         \
@@ -2099,15 +2099,14 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
         gasneti_fatalerror("Failed to open /proc/meminfo in gasneti_getPhysMemSz()");
 
       while (fgets(line, _BUFSZ, fp)) {
-        unsigned long memul = 0;
-        unsigned long long memull = 0;
+        uint64_t memval = 0;
         /* MemTotal: on 2.4 and 2.6 kernels - preferred because less chance of scanf overflow */
-        if (sscanf(line, "MemTotal: %lu kB", &memul) > 0 && memul > 0) {
-          retval = ((uint64_t)memul) * 1024;
+        if (sscanf(line, "MemTotal: %"SCNu64" kB", &memval) > 0 && memval > 0) {
+          retval = memval * 1024;
         }
         /* Mem: only on 2.4 kernels */
-        else if (sscanf(line, "Mem: %llu", &memull) > 0 && memull > 0 && !retval) {
-          retval = (uint64_t)memull;
+        else if (sscanf(line, "Mem: %"SCNu64, &memval) > 0 && memval > 0 && !retval) {
+          retval = memval;
         }
       }
       fclose(fp);
@@ -2932,11 +2931,11 @@ retry_calibration:;
   if (lo > hi || 
       max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
     fprintf(stderr, "WARNING: GASNet timer calibration detected non-linear timer behavior: "
-                    "max_err_tick=%ld max_err_wcns=%ld ticks_res=%ld ref_res=%ld lo=%ld hi=%ld. See docs for GASNET_TSC_RATE."
+                    "max_err_tick=%"PRIu64" max_err_wcns=%"PRIu64" ticks_res=%"PRIu64" ref_res=%"PRIu64" lo=%"PRIu64" hi=%"PRIu64". See docs for GASNET_TSC_RATE."
                     "%s\n",
-                    (long)max_err_tick, (long)max_err_wcns, 
-                    (long)ticks_res, (long)ref_res,
-                    (long)(1e9 * lo), (long)(1e9 * hi), 
+                    max_err_tick, max_err_wcns, 
+                    ticks_res, ref_res,
+                    (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
@@ -2961,9 +2960,9 @@ retry_calibration:;
     sum += (lo1[i] - hi0[i]) / delta;
   }
   double mean = sum / (2 * count);
-  fprintf(stderr, "TICKS: range: %ld +/- %ld  mean: %ld  offset: %ld\n",
-          (long)(1e9 * mid),  (long)(1e9 * half_width),
-          (long)(1e9 * mean), (long)(1e9 * (mean-mid)));
+  fprintf(stderr, "TICKS: range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64"\n",
+          (uint64_t)(1e9 * mid),  (uint64_t)(1e9 * half_width),
+          (uint64_t)(1e9 * mean), (int64_t)(1e9 * (mean-mid)));
   fprintf(stderr, "TICKS: calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
   #endif
 

@@ -185,9 +185,9 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   #endif
 
   GASNETI_TRACE_PRINTF(C, 
-      ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
+      ("mmap %s("GASNETI_LADDRFMT", %"PRIuPTR"): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
         (segbase == NULL?"":"fixed"),
-        GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
+        GASNETI_LADDRSTR(segbase), segsize,
         gasneti_ticks_to_ns(t2-t1)/1000.0,
         GASNETI_LADDRSTR(ptr),
         (ptr == MAP_FAILED?"  MAP_FAILED: ":""),
@@ -199,9 +199,9 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
     #elif PLATFORM_OS_SOLARIS
       if (mmap_errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
     #endif
-    gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
+    gasneti_fatalerror("unexpected error in mmap%s for size %"PRIuPTR": %s\n", 
                        (segbase == NULL?"":" fixed"),
-                       (unsigned long)segsize, strerror(mmap_errno));
+                       segsize, strerror(mmap_errno));
   }
 
   if ((ptr != (void*)GASNETI_PAGE_ALIGNDOWN(ptr)) && (ptr != MAP_FAILED)) {
@@ -215,12 +215,12 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
          return MAP_FAILED; // Caller will retry
       }
     #endif
-      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s" GASNETI_BUG3480_MSG,
-	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(mmap_errno));
+      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %"PRIuPTR": %s" GASNETI_BUG3480_MSG,
+	      GASNETI_LADDRSTR(segbase), segsize, strerror(mmap_errno));
   }
   if (segbase && segbase != ptr) {
-    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu\n",
-	    GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
+    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %"PRIuPTR"\n",
+	    GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), segsize);
   }
   return ptr;
 }
@@ -457,8 +457,8 @@ extern void *gasneti_huge_mmap(void *addr, uintptr_t size) {
 
 extern void gasneti_huge_munmap(void *addr, uintptr_t size) {
   if (munmap(addr, huge_pagesz(addr, size)) != 0)
-    gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
-                       GASNETI_LADDRSTR(addr), (unsigned long)size, strerror(errno));
+    gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%"PRIuPTR") failed: %s\n",
+                       GASNETI_LADDRSTR(addr), size, strerror(errno));
 }
 
 #endif /* defined(GASNETI_USE_HUGETLBFS) */
@@ -753,9 +753,9 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   t2 = gasneti_ticks_now();
 
   GASNETI_TRACE_PRINTF(C, 
-      ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
+      ("mmap %s("GASNETI_LADDRFMT", %"PRIuPTR"): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
         (segbase == NULL?"":"fixed"),
-        GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
+        GASNETI_LADDRSTR(segbase), segsize,
         gasneti_ticks_to_ns(t2-t1)/1000.0,
         GASNETI_LADDRSTR(ptr),
         (ptr == MAP_FAILED?"  MAP_FAILED: ":""),
@@ -777,16 +777,16 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
       #elif PLATFORM_OS_SOLARIS
         if (mmap_errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
       #endif
-      gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
+      gasneti_fatalerror("unexpected error in mmap%s for size %"PRIuPTR": %s\n", 
                          (segbase == NULL?"":" fixed"),
-                         (unsigned long)segsize, strerror(mmap_errno));
+                         segsize, strerror(mmap_errno));
     }
 
     if (!segbase) {
-      gasneti_fatalerror("mmap failed for size %lu: %s", (unsigned long)segsize, strerror(mmap_errno));
+      gasneti_fatalerror("mmap failed for size %"PRIuPTR": %s", segsize, strerror(mmap_errno));
     } else {
-      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s" GASNETI_BUG3480_MSG,
-              GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(mmap_errno));
+      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %"PRIuPTR": %s" GASNETI_BUG3480_MSG,
+              GASNETI_LADDRSTR(segbase), segsize, strerror(mmap_errno));
     }
   }
 
@@ -798,8 +798,8 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 #if !GASNETI_PSHM_MAP_FIXED_IGNORED
   if (segbase && (segbase != ptr) && (ptr != MAP_FAILED)) {
     gasneti_cleanup_shm();
-    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu",
-            GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
+    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %"PRIuPTR,
+            GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), segsize);
   }
 #endif
 
@@ -938,13 +938,13 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
     gasneti_huge_munmap(segbase, segsize);
   #else
     if (munmap(segbase, segsize) != 0) 
-      gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
-	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
+      gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%"PRIuPTR") failed: %s\n",
+	      GASNETI_LADDRSTR(segbase), segsize, strerror(errno));
   #endif
   t2 = gasneti_ticks_now();
 
-  GASNETI_TRACE_PRINTF(D,("munmap("GASNETI_LADDRFMT", %lu): %.3fus\n", 
-     GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
+  GASNETI_TRACE_PRINTF(D,("munmap("GASNETI_LADDRFMT", %"PRIuPTR"): %.3fus\n", 
+     GASNETI_LADDRSTR(segbase), segsize,
      gasneti_ticks_to_ns(t2-t1)/1000.0) );
 }
 #endif
@@ -981,8 +981,8 @@ static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize) {
   #if GASNET_PSHM
     gasneti_cleanup_shm();
   #endif
-    gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s",
-            GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
+    gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %"PRIuPTR": %s",
+            GASNETI_LADDRSTR(segbase), segsize, strerror(errno));
   }
 
   return ptr;
@@ -1418,8 +1418,8 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
                                                   GASNETI_MMAP_LIMIT : 
                                                   MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));
-    GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%lu",
-      GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
+    GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%"PRIuPTR,
+      GASNETI_LADDRSTR(gasneti_segment.addr), gasneti_segment.size));
 
     se.seginfo = gasneti_segment;
   #if PLATFORM_OS_DARWIN
@@ -1458,12 +1458,12 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       }
       snprintf(segstats, sizeof(segstats),
           "Segment stats: "
-          "maxsize = %lu   "
-          "minsize = %lu   "
+          "maxsize = %"PRIuPTR"   "
+          "minsize = %"PRIuPTR"   "
           "maxbase = "GASNETI_LADDRFMT"   "
           "minend = "GASNETI_LADDRFMT"   "
           "maxheapend = "GASNETI_LADDRFMT"   ",
-          (unsigned long)maxsize, (unsigned long)minsize,
+          maxsize, minsize,
           GASNETI_LADDRSTR(maxbase), GASNETI_LADDRSTR(minend), GASNETI_LADDRSTR(maxheapend));
       segstats[sizeof(segstats)-1] = '\0';
       GASNETI_TRACE_MSG(C, segstats);
@@ -1504,10 +1504,10 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
             fprintf(stderr, "%s\n%s\n", wmsg, segstats);
             for (i=0;i < gasneti_nodes; i++) {
               fprintf(stderr, " %i: seg=["GASNETI_LADDRFMT","GASNETI_LADDRFMT"]"
-                              " size=%lu heapend="GASNETI_LADDRFMT"\n", i,
+                              " size=%"PRIuPTR" heapend="GASNETI_LADDRFMT"\n", i,
                       GASNETI_LADDRSTR(gasneti_segexch[i].seginfo.addr), 
                       GASNETI_LADDRSTR(((uintptr_t)gasneti_segexch[i].seginfo.addr)+gasneti_segexch[i].seginfo.size), 
-                      (unsigned long)gasneti_segexch[i].seginfo.size,
+                      gasneti_segexch[i].seginfo.size,
                       GASNETI_LADDRSTR(gasneti_segexch[i].u.heapend));
               fflush(stderr);
             }
@@ -1534,10 +1534,8 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     gasneti_MaxLocalSegmentSize = GASNETI_PAGE_ALIGNDOWN(MIN(localSegmentLimit, GASNETI_MALLOCSEGMENT_LIMIT));
     gasneti_MaxGlobalSegmentSize = gasneti_MaxLocalSegmentSize;
   #endif
-  GASNETI_TRACE_PRINTF(C, ("MaxLocalSegmentSize = %lu   "
-                     "MaxGlobalSegmentSize = %lu",
-                     (unsigned long)gasneti_MaxLocalSegmentSize, 
-                     (unsigned long)gasneti_MaxGlobalSegmentSize));
+  GASNETI_TRACE_PRINTF(C, ("MaxLocalSegmentSize = %"PRIuPTR"   MaxGlobalSegmentSize = %"PRIuPTR,
+                           gasneti_MaxLocalSegmentSize, gasneti_MaxGlobalSegmentSize));
   gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
   gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
   gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
@@ -1628,8 +1626,8 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
           gasneti_fatalerror("minheapoffset too large to accomodate a segment");
         maxsegsz = (uintptr_t)endofseg - (uintptr_t)segbase;
         if (segsize > maxsegsz) {
-          GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested segsize (%lu=>%lu) to accomodate minheapoffset",
-            (unsigned long)segsize, (unsigned long)maxsegsz));
+          GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested segsize (%"PRIuPTR"=>%"PRIuPTR") to accomodate minheapoffset",
+            segsize, maxsegsz));
           segsize = maxsegsz;
         }
       }
@@ -1682,8 +1680,8 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   #endif /* GASNETI_MMAP_OR_PSHM */
   gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
   gasneti_assert(segsize % GASNET_PAGESIZE == 0);
-  GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
-    GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
+  GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%"PRIuPTR,
+    GASNETI_LADDRSTR(segbase), segsize));
 
   /*  gather segment information */
   gasneti_segment.addr = segbase;
@@ -1720,8 +1718,8 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
             gasneti_nodeinfo[node].offset = (uintptr_t)segbase - (uintptr_t)seginfo[node].addr;
 
-            GASNETI_TRACE_PRINTF(C, ("Remote segment %d: segbase="GASNETI_LADDRFMT"  segsize=%lu",
-                                     (int)node, GASNETI_LADDRSTR(segbase), (unsigned long)size));
+            GASNETI_TRACE_PRINTF(C, ("Remote segment %d: segbase="GASNETI_LADDRFMT"  segsize=%"PRIuPTR,
+                                     (int)node, GASNETI_LADDRSTR(segbase), size));
         }
     }
 
@@ -1948,12 +1946,12 @@ void gasneti_auxseg_init(void) {
 
   gasneti_auxseg_sz = gasneti_auxseg_total_alignedsz.optimalsz;
   #if GASNET_SEGMENT_EVERYTHING
-    GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_init(): gasneti_auxseg_sz = %lu", (unsigned long)gasneti_auxseg_sz));
+    GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_init(): gasneti_auxseg_sz = %"PRIuPTR, gasneti_auxseg_sz));
   #else
     /* TODO: implement request downsizing down to minsz */
     if (gasneti_auxseg_sz >= gasneti_MaxGlobalSegmentSize)
-      gasneti_fatalerror("GASNet internal auxseg size (%llu bytes) exceeds available segment size (%llu bytes)",
-        (unsigned long long)gasneti_auxseg_sz, (unsigned long long)gasneti_MaxGlobalSegmentSize);
+      gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available segment size (%"PRIuPTR" bytes)",
+        gasneti_auxseg_sz, gasneti_MaxGlobalSegmentSize);
 
     #if GASNETI_AUXSEG_PRESERVE_POW2_FULLSEGSZ
       if (!GASNETI_POWEROFTWO(gasneti_MaxLocalSegmentSize) && 
@@ -1963,12 +1961,9 @@ void gasneti_auxseg_init(void) {
         gasneti_MaxLocalSegmentSize -= gasneti_auxseg_sz;
         gasneti_MaxGlobalSegmentSize -= gasneti_auxseg_sz;
       }
-    GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_init(): gasneti_auxseg_sz = %lu: "
-                   "MaxLocalSegmentSize = %lu   "
-                   "MaxGlobalSegmentSize = %lu",
-                   (unsigned long)gasneti_auxseg_sz,
-                   (unsigned long)gasneti_MaxLocalSegmentSize, 
-                   (unsigned long)gasneti_MaxGlobalSegmentSize));
+    GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_init(): gasneti_auxseg_sz = %"PRIuPTR": "
+                   "MaxLocalSegmentSize = %"PRIuPTR"   MaxGlobalSegmentSize = %"PRIuPTR,
+                   gasneti_auxseg_sz, gasneti_MaxLocalSegmentSize, gasneti_MaxGlobalSegmentSize));
   #endif
   gasneti_assert(gasneti_auxseg_sz % GASNET_PAGESIZE == 0);
 }
@@ -2059,8 +2054,8 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz) {
     #endif
         result = client_request_sz + gasneti_auxseg_sz;
   #endif
-  GASNETI_TRACE_PRINTF(C,("gasneti_auxseg_preattach(%lu) => %lu",
-                    (unsigned long)client_request_sz, (unsigned long)result));
+  GASNETI_TRACE_PRINTF(C,("gasneti_auxseg_preattach(%"PRIuPTR") => %"PRIuPTR,
+                          client_request_sz, result));
   return result;
 }
 
@@ -2137,10 +2132,10 @@ void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn) {
       }
     #endif
   }
-  GASNETI_TRACE_PRINTF(C,("gasneti_auxseg_attach() clientsegment => ("GASNETI_LADDRFMT".."GASNETI_LADDRFMT") (%lu bytes)",
+  GASNETI_TRACE_PRINTF(C,("gasneti_auxseg_attach() clientsegment => ("GASNETI_LADDRFMT".."GASNETI_LADDRFMT") (%"PRIuPTR" bytes)",
                   GASNETI_LADDRSTR(gasneti_seginfo_client[gasneti_mynode].addr), 
                   GASNETI_LADDRSTR(gasneti_seginfo_client_ub[gasneti_mynode]),
-                  (unsigned long)gasneti_seginfo_client[gasneti_mynode].size));
+                  gasneti_seginfo_client[gasneti_mynode].size));
 
   if (numfns > 0) {
     for (j=0; j < gasneti_nodes; j++) {
@@ -2151,10 +2146,10 @@ void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn) {
     }
 
     for (i=0; i < numfns; i++) {
-      GASNETI_TRACE_PRINTF(C,("gasneti_auxseg_attach() fn[%i] => ("GASNETI_LADDRFMT".."GASNETI_LADDRFMT") (%lu bytes)",
+      GASNETI_TRACE_PRINTF(C,("gasneti_auxseg_attach() fn[%i] => ("GASNETI_LADDRFMT".."GASNETI_LADDRFMT") (%"PRIuPTR" bytes)",
                       i, GASNETI_LADDRSTR(si[gasneti_mynode].addr), 
                       GASNETI_LADDRSTR(((uintptr_t)si[gasneti_mynode].addr)+si[gasneti_mynode].size),
-                      (unsigned long)si[gasneti_mynode].size));
+                      si[gasneti_mynode].size));
       (gasneti_auxsegfns[i])(si);
       if (i+1 < numfns) {
         for (j=0; j < gasneti_nodes; j++) {

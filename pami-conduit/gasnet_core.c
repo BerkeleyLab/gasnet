@@ -227,8 +227,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
   void *segbase = NULL;
   
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
-                          numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR", minheapoffset=%"PRIuPTR")",
+                          numentries, segsize, minheapoffset));
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -920,7 +920,7 @@ static int gasnetc_am_init(void) {
   conf[0].name = PAMI_CONTEXT_DISPATCH_ID_MAX;
   rc = PAMI_Context_query(gasnetc_context, conf, 1);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_query() for DISPATCH_ID_MAX");
-  GASNETI_TRACE_PRINTF(C,("DISPATCH_ID_MAX = %ld", (long)conf[0].value.intval));
+  GASNETI_TRACE_PRINTF(C,("DISPATCH_ID_MAX = %"PRIuPTR, (uintptr_t)conf[0].value.intval));
   gasneti_assert_always(conf[0].value.intval >= (GASNETC_NUM_DISP-1));
 
   memset(&hints, 0, sizeof(hints));
@@ -945,11 +945,11 @@ static int gasnetc_am_init(void) {
   rc = PAMI_Dispatch_query(gasnetc_context, GASNETC_DISP_NOOP, conf, 2);
   GASNETC_PAMI_CHECK(rc, "querying DISPATCH immediate limits");
   gasnetc_send_imm_max = conf[0].value.intval;
-  GASNETI_TRACE_PRINTF(C,("PAMI_DISPATCH_SEND_IMMEDIATE_MAX = %ld",
-                          (long)gasnetc_send_imm_max));
+  GASNETI_TRACE_PRINTF(C,("PAMI_DISPATCH_SEND_IMMEDIATE_MAX = %"PRIuPTR,
+                          (uintptr_t)gasnetc_send_imm_max));
   gasnetc_recv_imm_max = conf[1].value.intval;
-  GASNETI_TRACE_PRINTF(C,("PAMI_DISPATCH_RECV_IMMEDIATE_MAX = %ld",
-                          (long)gasnetc_recv_imm_max));
+  GASNETI_TRACE_PRINTF(C,("PAMI_DISPATCH_RECV_IMMEDIATE_MAX = %"PRIuPTR,
+                          (uintptr_t)gasnetc_recv_imm_max));
 
   /* Register dispatch fn for AMShort */
   hints.long_header = (gasnetc_recv_imm_max >= sizeof(gasnetc_shortmsg_t))

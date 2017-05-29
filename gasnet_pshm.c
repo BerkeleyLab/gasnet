@@ -580,8 +580,8 @@ gasneti_pshmnet_init(void *region, size_t regionlen, gasneti_pshm_rank_t pshmnod
 
   if (regionlen < (szonce + szpernode * pshmnodes))
     gasneti_fatalerror("Internal error: not enough memory for pshmnet: \n"
-                       " given %lu effective bytes, but need %lu", 
-                       (unsigned long)regionlen, (unsigned long)(szonce + szpernode * pshmnodes));
+                       " given %"PRIuPTR" effective bytes, but need %"PRIuPTR, 
+                       (uintptr_t)regionlen, (uintptr_t)(szonce + szpernode * pshmnodes));
 
   vnet = gasneti_malloc(sizeof(gasneti_pshmnet_t));
   vnet->nodecount = pshmnodes;

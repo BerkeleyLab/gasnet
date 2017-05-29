@@ -1683,8 +1683,8 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
         uintptr_t l_addr = sr_desc->sg_list[j].addr;
         size_t    len    = sr_desc->sg_list[j].length;
 	unsigned  lkey   = sr_desc->sg_list[j].lkey;
-        GASNETI_TRACE_PRINTF(D,("  %i: lkey=0x%08x len=%lu local=[%p-%p] remote=N/A\n",
-			        j, lkey, (unsigned long)len,
+        GASNETI_TRACE_PRINTF(D,("  %i: lkey=0x%08x len=%"PRIuPTR" local=[%p-%p] remote=N/A\n",
+			        j, lkey, (uintptr_t)len,
 			        (void *)l_addr, (void *)(l_addr + (len - 1))));
       }
       break;
@@ -1695,8 +1695,8 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
         uintptr_t l_addr = sr_desc->sg_list[j].addr;
         size_t    len    = sr_desc->sg_list[j].length;
 	unsigned  lkey   = sr_desc->sg_list[j].lkey;
-        GASNETI_TRACE_PRINTF(D,("  %i: lkey=0x%08x len=%lu local=[%p-%p] remote=[%p-%p]\n",
-			        j, lkey, (unsigned long)len,
+        GASNETI_TRACE_PRINTF(D,("  %i: lkey=0x%08x len=%"PRIuPTR" local=[%p-%p] remote=[%p-%p]\n",
+			        j, lkey, (uintptr_t)len,
 				(void *)l_addr, (void *)(l_addr + (len - 1)),
 				(void *)r_addr, (void *)(r_addr + (len - 1))));
 	r_addr += len;
@@ -1709,8 +1709,8 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
         uintptr_t l_addr = sr_desc->sg_list[j].addr;
         size_t    len    = sr_desc->sg_list[j].length;
 	unsigned  lkey   = sr_desc->sg_list[j].lkey;
-        GASNETI_TRACE_PRINTF(D,("  %i: lkey=0x%08x len=%lu local=[%p-%p] remote=[%p-%p]\n",
-			        j, lkey, (unsigned long)len,
+        GASNETI_TRACE_PRINTF(D,("  %i: lkey=0x%08x len=%"PRIuPTR" local=[%p-%p] remote=[%p-%p]\n",
+			        j, lkey, (uintptr_t)len,
 				(void *)l_addr, (void *)(l_addr + (len - 1)),
 				(void *)r_addr, (void *)(r_addr + (len - 1))));
 	r_addr += len;

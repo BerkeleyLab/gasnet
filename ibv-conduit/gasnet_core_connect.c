@@ -1589,10 +1589,8 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
     m -= (sv >> 2);
     sv += m;
     rto = (sa >> 3) + (sv >> 1); /* or "+sv" for a+4v version */
-    GASNETI_TRACE_PRINTF(D, ("UD connection SRTT: m=%llu, ns avg=%llu ns, var=%llu ns",
-                             (long long)om,
-                             (unsigned long long)(sa >> 3),
-                             (unsigned long long)(sv >> 2)));
+    GASNETI_TRACE_PRINTF(D, ("UD connection SRTT: m=%"PRId64", ns avg=%"PRId64" ns, var=%"PRId64" ns",
+                             om, (sa >> 3), (sv >> 2)));
   } else {
     /* Don't use an ambiguous rtt value to update estimates.
      * Instead we carry over the current (possibly backed-off) RTO.
@@ -2414,8 +2412,8 @@ dump_conn_write(int fd, const char *buf, size_t len)
   /* TODO: loop w/ retry on short writes? */
   ssize_t rc = write(fd, buf, len);
   if_pf (rc != len) {
-    gasneti_fatalerror("Write to connection file failed or truncated: rc=%ld errno=%s(%i)",
-                       (long int)rc, strerror(errno), errno);
+    gasneti_fatalerror("Write to connection file failed or truncated: rc=%"PRIdPTR" errno=%s(%i)",
+                       (intptr_t)rc, strerror(errno), errno);
   }
 }
 

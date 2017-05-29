@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
     else {
       MSG("Physical memory size estimated to be: %s", sz_str);
       if (val > (1ULL<<50) || val < (1ULL<<20)) 
-        ERR("gasnett_getPhysMemSz() got a ridiculous result: %llu bytes", (unsigned long long)val);
+        ERR("gasnett_getPhysMemSz() got a ridiculous result: %" PRIu64 " bytes", val);
     }
   }
 
@@ -171,12 +171,12 @@ int main(int argc, char **argv) {
       int64_t y;
       gasnett_format_number(x, tmp_str, sizeof(tmp_str), 1);
       y = gasnett_parse_int(tmp_str, 1);
-      if (x != y) ERR("gasnett_format_number/gasnett_parse_int memsz mismatch: %lld != %lld (%s)",
-                      (long long)x, (long long)y, tmp_str);
+      if (x != y) ERR("gasnett_format_number/gasnett_parse_int memsz mismatch: %" PRId64 " != %" PRId64 " (%s)",
+                      x, y, tmp_str);
       gasnett_format_number(x, tmp_str, sizeof(tmp_str), 0);
       y = gasnett_parse_int(tmp_str, 0);
-      if (x != y) ERR("gasnett_format_number/gasnett_parse_int mismatch: %lld != %lld (%s)",
-                      (long long)x, (long long)y, tmp_str);
+      if (x != y) ERR("gasnett_format_number/gasnett_parse_int mismatch: %" PRId64 " != %" PRId64 " (%s)",
+                      x, y, tmp_str);
     }
   }
 
@@ -245,14 +245,14 @@ int main(int argc, char **argv) {
         do {
           gasnett_tick_t next = gasnett_ticks_now();
           if (next < last) 
-            ERR("gasnett_ticks_to_us not monotonic! !(%llu <= %llu)",
-                 (unsigned long long)last, (unsigned long long)next);
+            ERR("gasnett_ticks_to_us not monotonic! !(%" PRIu64 " <= %" PRIu64 ")",
+                 (uint64_t)last, (uint64_t)next);
           if (next <= GASNETT_TICK_MIN) 
-            ERR("gasnett_ticks_to_us()=%llu <= GASNETT_TICK_MIN=%llu",
-                 (unsigned long long)next, (unsigned long long)GASNETT_TICK_MIN);
+            ERR("gasnett_ticks_to_us()=%" PRIu64 " <= GASNETT_TICK_MIN=%" PRIu64,
+                 (uint64_t)next, (uint64_t)GASNETT_TICK_MIN);
           if (next >= GASNETT_TICK_MAX) 
-            ERR("gasnett_ticks_to_us()=%llu >= GASNETT_TICK_MAX=%llu",
-                 (unsigned long long)next, (unsigned long long)GASNETT_TICK_MAX);
+            ERR("gasnett_ticks_to_us()=%" PRIu64 " >= GASNETT_TICK_MAX=%" PRIu64,
+                 (uint64_t)next, (uint64_t)GASNETT_TICK_MAX);
           d_junk *= 1.0001;
           last = next;
         } while (gasnett_ticks_to_us(last-start) < us_delay);
@@ -287,8 +287,8 @@ int main(int argc, char **argv) {
                             + 0.0005 * ns_delay
                             + 1000 * granularity;
       if (elapsed_plus < ns_delay)
-        ERR("gasnett_nsleep(%llu) returned at least %llu nanoseconds too early",
-            (unsigned long long)ns_delay, (unsigned long long)(ns_delay - elapsed_plus));
+        ERR("gasnett_nsleep(%" PRIu64 ") returned at least %" PRIu64 " nanoseconds too early",
+            ns_delay, (uint64_t)(ns_delay - elapsed_plus));
     }
   }
 
@@ -1211,9 +1211,9 @@ void * thread_fn(void *arg) {
       THREAD_BARRIER();
       oldval = gasnett_atomic64_read(&counter64,0);
       if (oldval != goal) 
-        ERR("failed 64-bit compare-and-swap test: counter=%llu expecting=%llu", (unsigned long long)oldval, (unsigned long long)goal);
+        ERR("failed 64-bit compare-and-swap test: counter=%" PRIu64 " expecting=%" PRIu64, oldval, goal);
       if (woncnt != share) 
-        ERR("failed 64-bit compare-and-swap test: woncnt=%llu share=%llu", (unsigned long long)woncnt, (unsigned long long)share);
+        ERR("failed 64-bit compare-and-swap test: woncnt=%" PRIu64 " share=%" PRIu64, woncnt, share);
     }
   }
 

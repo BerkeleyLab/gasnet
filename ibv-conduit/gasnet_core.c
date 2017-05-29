@@ -691,9 +691,9 @@ static void gasnetc_physmem_check(const char *reason, uintptr_t limit) {
     gasneti_format_number(GASNETC_PHYSMEM_MIN, min_display, sizeof(min_display), 1);
     gasneti_format_number(limit, limit_display, sizeof(limit_display), 1);
     gasneti_fatalerror(
-            "%s yields GASNET_PHYSMEM_MAX of %llu (%s), "
+            "%s yields GASNET_PHYSMEM_MAX of %"PRIuPTR" (%s), "
             "which is less than the minimum supported value of %s.",
-            reason, (unsigned long long)limit, limit_display, min_display);
+            reason, limit, limit_display, min_display);
   }
 }
 
@@ -748,7 +748,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     }
   }
 
-  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PHYSMEM_MAX=%llu", (unsigned long long)limit));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PHYSMEM_MAX=%"PRIu64, limit));
 
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
@@ -919,8 +919,8 @@ static int gasnetc_load_settings(void) {
   }
   if_pf (gasnetc_amrdma_cycle > (GASNETI_ATOMIC_MAX >> 2)) {
     fprintf(stderr,
-            "WARNING: GASNET_AMRDMA_CYCLE reduced from the requested value, 0x%lx, to the maximum supported value, 0x%lx.\n",
-            (unsigned long)gasnetc_amrdma_cycle, (unsigned long)(GASNETI_ATOMIC_MAX >> 2));
+            "WARNING: GASNET_AMRDMA_CYCLE reduced from the requested value, 0x%"PRIx64", to the maximum supported value, 0x%"PRIx64".\n",
+            (uint64_t)gasnetc_amrdma_cycle, (uint64_t)(GASNETI_ATOMIC_MAX >> 2));
     gasnetc_amrdma_cycle = (GASNETI_ATOMIC_MAX >> 2);
   }
 
@@ -934,15 +934,15 @@ static int gasnetc_load_settings(void) {
     if (!gasnetc_pin_maxsz) {
       /* 0=automatic (default).  Will setup later */
     } else if (!GASNETI_POWEROFTWO(gasnetc_pin_maxsz)) {
-      gasneti_fatalerror("GASNET_PIN_MAXSZ (%llu) is not a power of 2", (unsigned long long)gasnetc_pin_maxsz);
+      gasneti_fatalerror("GASNET_PIN_MAXSZ (%"PRIu64") is not a power of 2", gasnetc_pin_maxsz);
     } else if (gasnetc_pin_maxsz < GASNET_PAGESIZE) {
-      gasneti_fatalerror("GASNET_PIN_MAXSZ (%lu) is less than GASNET_PAGESIZE (%lu)",
-                         (unsigned long)gasnetc_pin_maxsz, (unsigned long)GASNET_PAGESIZE);
+      gasneti_fatalerror("GASNET_PIN_MAXSZ (%"PRIu64") is less than GASNET_PAGESIZE (%lu)",
+                         gasnetc_pin_maxsz, (unsigned long)GASNET_PAGESIZE);
     }
   #else
     GASNETC_ENVINT(gasnetc_putinmove_limit, GASNET_PUTINMOVE_LIMIT, GASNETC_DEFAULT_PUTINMOVE_LIMIT, 0, 1);
     if_pf (gasnetc_putinmove_limit > GASNETC_PUTINMOVE_LIMIT_MAX) {
-      gasneti_fatalerror("GASNET_PUTINMOVE_LIMIT (%lu) is larger than the max permitted (%lu)", (unsigned long)gasnetc_putinmove_limit, (unsigned long)GASNETC_PUTINMOVE_LIMIT_MAX);
+      gasneti_fatalerror("GASNET_PUTINMOVE_LIMIT (%"PRIuPTR") is larger than the max permitted (%"PRIuPTR")", (uintptr_t)gasnetc_putinmove_limit, (uintptr_t)GASNETC_PUTINMOVE_LIMIT_MAX);
     }
   #endif
   gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", 0);
@@ -1043,7 +1043,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_USE_XRC                  = %d", gasnetc_use_xrc));
 #endif
 #if GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PIN_MAXSZ                = %"PRIu64"%s", gasnetc_pin_maxsz,
 				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
 #endif
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
@@ -1055,7 +1055,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %"PRIu64"", (uint64_t)gasnetc_amrdma_cycle));
 #if GASNETC_USE_RCV_THREAD
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
@@ -1709,7 +1709,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     size_t reserved_mem = GASNETC_MIN_FH_MEM;
 
     if_pf (gasnetc_pin_info.memory < reserved_mem) {
-      gasneti_fatalerror("Pinnable memory (%lu) is less than reserved minimum %lu\n", (unsigned long)gasnetc_pin_info.memory, (unsigned long)reserved_mem);
+      gasneti_fatalerror("Pinnable memory (%"PRIuPTR") is less than reserved minimum %"PRIuPTR, 
+                         (uintptr_t)gasnetc_pin_info.memory, (uintptr_t)reserved_mem);
     }
     uintptr_t limit = gasneti_mmapLimit(
                                   (gasnetc_pin_info.memory - reserved_mem),
@@ -1787,8 +1788,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   int numreg = 0;
   gasnet_node_t i;
   
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
-                          numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR", minheapoffset=%"PRIuPTR")",
+                          numentries, segsize, minheapoffset));
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -2991,15 +2992,14 @@ static void gasnetc_exit_body(void) {
     gasneti_getheapstats(&stats);
     GASNETI_TRACE_PRINTF(I, ("Conduit-internal memory use (%scludes segment):",
                              GASNETC_PIN_SEGMENT ? "in" : "ex"));
-    GASNETI_TRACE_PRINTF(I, ("  allocated: %12llu bytes in %8llu objects",
-                             (long long unsigned)stats.live_bytes,
-                             (long long unsigned)stats.live_objects));
-    GASNETI_TRACE_PRINTF(I, ("     pinned: %12llu bytes in %8llu objects",
-                             (long long unsigned)gasnetc_pinned_bytes,
-                             (long long unsigned)gasnetc_pinned_blocks));
-    GASNETI_TRACE_PRINTF(I, ("      total: %12llu bytes in %8llu objects",
-                             (long long unsigned)(stats.live_bytes + gasnetc_pinned_bytes),
-                             (long long unsigned)(stats.live_objects + gasnetc_pinned_blocks)));
+    GASNETI_TRACE_PRINTF(I, ("  allocated: %12"PRIu64" bytes in %8"PRIu64" objects",
+                             stats.live_bytes, stats.live_objects));
+    GASNETI_TRACE_PRINTF(I, ("     pinned: %12"PRIu64" bytes in %8"PRIu64" objects",
+                             (uint64_t)gasnetc_pinned_bytes,
+                             (uint64_t)gasnetc_pinned_blocks));
+    GASNETI_TRACE_PRINTF(I, ("      total: %12"PRIu64" bytes in %8"PRIu64" objects",
+                             (uint64_t)(stats.live_bytes + gasnetc_pinned_bytes),
+                             (uint64_t)(stats.live_objects + gasnetc_pinned_blocks)));
   }
  #if PLATFORM_OS_LINUX
   { FILE *fp;

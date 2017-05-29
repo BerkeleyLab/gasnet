@@ -202,7 +202,7 @@ extern void gasneti_format_strides(char *buf, size_t count, const size_t *list) 
   int i;
   strcpy(p,"["); p++;
   for (i=0; i < count; i++) {
-    sprintf(p, "%lu", (unsigned long)list[i]);
+    sprintf(p, "%"PRIuPTR, (uintptr_t)list[i]);
     if (i < count-1) strcat(p, ", ");
     p += strlen(p);
     gasneti_assert(p-buf < bufsz);
@@ -1178,8 +1178,8 @@ extern void gasneti_trace_finish(void) {
       #define DUMP_CTR(type,name,desc)                     \
         if (GASNETI_STATS_ENABLED(type)) {                 \
           gasneti_statctr_t *p = &gasneti_stat_ctr_##name; \
-          gasneti_stats_printf(" %-25s %6llu",             \
-                #name" "#desc":", (unsigned long long)*p); \
+          gasneti_stats_printf(" %-25s %6"PRIu64,          \
+                #name" "#desc":", *p);                     \
           AGGRNAME(ctr,type) += *p;                        \
         }
       #define DUMP_INTVAL(type,name,desc)                           \
@@ -1189,14 +1189,11 @@ extern void gasneti_trace_finish(void) {
           if (!p->count)                                            \
             gasneti_stats_printf(" %-25s %6i", #name":", 0);        \
           else                                                      \
-            gasneti_stats_printf(" %-25s %6llu  avg/min/max/total"  \
-                                 " %s = %llu/%llu/%llu/%llu",       \
-                  #name":", (unsigned long long)p->count,           \
-                  pdesc,                                            \
-                  (unsigned long long)CALC_AVG(p->sumval,p->count), \
-                  (unsigned long long)p->minval,                    \
-                  (unsigned long long)p->maxval,                    \
-                  (unsigned long long)p->sumval);                   \
+            gasneti_stats_printf(" %-25s %6"PRIu64"  avg/min/max/total"  \
+                                 " %s = %"PRIu64"/%"PRIu64"/%"PRIu64"/%"PRIu64, \
+                  #name":", p->count, pdesc,                        \
+                  CALC_AVG(p->sumval,p->count),                     \
+                  p->minval, p->maxval, p->sumval);                 \
           ACCUM((&AGGRNAME(intval,type)), p);                       \
         }
       #define DUMP_TIMEVAL(type,name,desc)                                   \
@@ -1206,10 +1203,9 @@ extern void gasneti_trace_finish(void) {
           if (!p->count)                                                     \
             gasneti_stats_printf(" %-25s %6i", #name":", 0);                 \
           else                                                               \
-            gasneti_stats_printf(" %-25s %6llu  avg/min/max/total"           \
+            gasneti_stats_printf(" %-25s %6"PRIu64"  avg/min/max/total"      \
                                  " %s (us) = %.3f/%.3f/%.3f/%.3f",           \
-                  #name":", (unsigned long long)p->count,                    \
-                  pdesc,                                                     \
+                  #name":", p->count, pdesc,                                 \
                   gasneti_ticks_to_ns(CALC_AVG(p->sumval, p->count))/1000.0, \
                   gasneti_ticks_to_ns(p->minval)/1000.0,                     \
                   gasneti_ticks_to_ns(p->maxval)/1000.0,                     \
@@ -1227,13 +1223,11 @@ extern void gasneti_trace_finish(void) {
           if (!p->count)                                                        \
             gasneti_stats_printf("%-25s  %6i","Total "#name":",0);              \
           else                                                                  \
-            gasneti_stats_printf("%-25s  %6llu  avg/min/max/total"              \
-                                 " sz = %llu/%llu/%llu/%llu", "Total "#name":", \
-              (unsigned long long)p->count,                                     \
-              (unsigned long long)CALC_AVG(p->sumval, p->count),                \
-              (unsigned long long)p->minval,                                    \
-              (unsigned long long)p->maxval,                                    \
-              (unsigned long long)p->sumval);                                   \
+            gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total"         \
+                                 " sz = %"PRIu64"/%"PRIu64"/%"PRIu64"/%"PRIu64, \
+                                 "Total "#name":",                              \
+                                 p->count, CALC_AVG(p->sumval,p->count),        \
+                                 p->minval, p->maxval, p->sumval);              \
         }                                                                       \
       } while (0)
       DUMP_AGGR_SZ(G,gets);
@@ -1245,14 +1239,14 @@ extern void gasneti_trace_finish(void) {
         if (!try_succ->count)
           gasneti_stats_printf("%-25s  %6i","Total try sync. calls:",0);
         else
-          gasneti_stats_printf("%-25s  %6llu  try success rate = %f%%  \n",
-            "Total try sync. calls:",  (unsigned long long)try_succ->count,
+          gasneti_stats_printf("%-25s  %6"PRIu64"  try success rate = %f%%  \n",
+            "Total try sync. calls:",  try_succ->count,
             (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
         if (!wait_time->count)
           gasneti_stats_printf("%-25s  %6i","Total wait sync. calls:",0);
         else
-          gasneti_stats_printf("%-25s  %6llu  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total wait sync. calls:", (unsigned long long)wait_time->count,
+          gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
+            "Total wait sync. calls:", wait_time->count,
             gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
             gasneti_ticks_to_ns(wait_time->minval)/1000.0,
             gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
@@ -1264,21 +1258,21 @@ extern void gasneti_trace_finish(void) {
         if (!try_succ->count)
           gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
         else
-          gasneti_stats_printf("%-25s  %6llu  collective try success rate = %f%%  \n",
-            "Total coll. try syncs:",  (unsigned long long)try_succ->count,
+          gasneti_stats_printf("%-25s  %6"PRIu64"  collective try success rate = %f%%  \n",
+            "Total coll. try syncs:",  try_succ->count,
             (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
         if (!wait_time->count)
           gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
         else
-          gasneti_stats_printf("%-25s  %6llu  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total coll. wait syncs:", (unsigned long long)wait_time->count,
+          gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
+            "Total coll. wait syncs:", wait_time->count,
             gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
             gasneti_ticks_to_ns(wait_time->minval)/1000.0,
             gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
             gasneti_ticks_to_ns(wait_time->sumval)/1000.0);
       }
       if (GASNETI_STATS_ENABLED(A)) 
-        gasneti_stats_printf("%-25s  %6llu", "Total AM's:", (unsigned long long)AGGRNAME(ctr,A));
+        gasneti_stats_printf("%-25s  %6"PRIu64, "Total AM's:", AGGRNAME(ctr,A));
 
       gasneti_stats_printf("--------------------------------------------------------------------------------");
     }
@@ -1319,16 +1313,16 @@ extern void gasneti_trace_finish(void) {
       fprintf(fp, "# Private memory utilization:\n");
       fprintf(fp, "# ---------------------------\n");
       fprintf(fp, "#\n");
-      fprintf(fp, "# malloc() space total:        %10lu bytes, in %10lu objects\n",
-        (long unsigned)stats.allocated_bytes, (long unsigned)stats.allocated_objects);
-      fprintf(fp, "# malloc() space in-use:       %10lu bytes, in %10lu objects\n",
-        (unsigned long)stats.live_bytes, (unsigned long)stats.live_objects);
-      fprintf(fp, "# malloc() space freed:        %10lu bytes, in %10lu objects\n",
-        (unsigned long)stats.freed_bytes, (unsigned long)stats.freed_objects);
-      fprintf(fp, "# malloc() space peak usage:   %10lu bytes,    %10lu objects\n",
-        (unsigned long)stats.live_bytes_max, (unsigned long)stats.live_objects_max);
-      fprintf(fp, "# malloc() system overhead: >= %10lu bytes\n",
-        (unsigned long)stats.overhead_bytes);
+      fprintf(fp, "# malloc() space total:        %10"PRIu64" bytes, in %10"PRIu64" objects\n",
+                  stats.allocated_bytes, stats.allocated_objects);
+      fprintf(fp, "# malloc() space in-use:       %10"PRIu64" bytes, in %10"PRIu64" objects\n",
+                  stats.live_bytes, stats.live_objects);
+      fprintf(fp, "# malloc() space freed:        %10"PRIu64" bytes, in %10"PRIu64" objects\n",
+                  stats.freed_bytes, stats.freed_objects);
+      fprintf(fp, "# malloc() space peak usage:   %10"PRIu64" bytes,    %10"PRIu64" objects\n",
+                  stats.live_bytes_max, stats.live_objects_max);
+      fprintf(fp, "# malloc() system overhead: >= %10"PRIu64" bytes\n",
+                  stats.overhead_bytes);
       fprintf(fp, "#\n");
 
       gasneti_memcheck_all(); /* check ring sanity */

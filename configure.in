@@ -739,6 +739,7 @@ AC_DEFUN([GASNET_C99_TEST],
      int a = 1; // C99 comment
      for (int i=0; i < 100; i++) a += i; // Conditional expression declaration
      int i = a; // mid-block decl
+     int x = (int)(0x1234567812345678LL + 0x8765432187654321ULL + i); // (U)LL-suffix 64-bit integer literals
    }
 ])
 dnl The following is required for $CC (when compiling libgasnet) and optional for clients compiling gasnet.h

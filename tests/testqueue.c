@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     if (!maxsz) maxsz = 2*1024*1024; /* 2 MB default */
 
     #ifdef GASNET_SEGMENT_EVERYTHING
-      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
+      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %"PRIuPTR" on GASNET_SEGMENT_EVERYTHING",(uintptr_t)TEST_SEGSZ); gasnet_exit(1); }
     #endif
     GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), 
                               TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));

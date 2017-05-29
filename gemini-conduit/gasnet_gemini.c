@@ -791,8 +791,8 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 			       &my_mem_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
-	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s", 
-		count, segment_start, segment_size, gasnetc_gni_rc_string(status));
+	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %"PRIxPTR", code %s", 
+		count, segment_start, (uintptr_t)segment_size, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -1096,8 +1096,8 @@ uintptr_t gasnetc_init_messaging(void)
 			       &am_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
-	gasnetc_GNIT_Log("MemRegister am fault %d at  %p %lx, code %s",
-		count, am_mmap_ptr, am_mmap_bytes, gasnetc_gni_rc_string(status));
+	gasnetc_GNIT_Log("MemRegister am fault %d at  %p %"PRIxPTR", code %s",
+		count, am_mmap_ptr, (uintptr_t)am_mmap_bytes, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -1350,8 +1350,8 @@ extern void gasnetc_trace_finish(void) {
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_HIT, &hit);
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_MISS, &miss);
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_EVICTED, &evict);
-    GASNETI_STATS_PRINTF(C,("UDREG size=%d hit/miss/evict: %lu/%lu/%lu\n", max_memreg,
-                            (unsigned long)hit, (unsigned long)miss, (unsigned long)evict));
+    GASNETI_STATS_PRINTF(C,("UDREG size=%d hit/miss/evict: %"PRIu64"/%"PRIu64"/%"PRIu64"\n", max_memreg,
+                            hit, miss, evict));
   }
 #endif
 }
@@ -2020,22 +2020,22 @@ GASNETI_NEVER_INLINE(print_post_desc,
 static void print_post_desc(const char *title, gni_post_descriptor_t *cmd)) {
   const int in_seg = gasneti_in_segment(gasneti_mynode, (void *) cmd->local_addr, cmd->length);
   printf("r %d %s-segment %s, desc addr %p\n", gasneti_mynode, (in_seg?"in":"non"), title, cmd);
-  printf("r %d status: %ld\n", gasneti_mynode, cmd->status);
+  printf("r %d status: %"PRIu64"\n", gasneti_mynode, cmd->status);
   printf("r %d cq_mode_complete: 0x%x\n", gasneti_mynode, cmd->cq_mode_complete);
   printf("r %d type: %d (%s)\n", gasneti_mynode, cmd->type, gasnetc_post_type_string(cmd->type));
   printf("r %d cq_mode: 0x%x\n", gasneti_mynode, cmd->cq_mode);
   printf("r %d dlvr_mode: 0x%x\n", gasneti_mynode, cmd->dlvr_mode);
-  printf("r %d local_address: %p(0x%lx, 0x%lx)\n", gasneti_mynode, (void *) cmd->local_addr, 
+  printf("r %d local_address: %p(0x%"PRIx64", 0x%"PRIx64")\n", gasneti_mynode, (void *) cmd->local_addr, 
 	 cmd->local_mem_hndl.qword1, cmd->local_mem_hndl.qword2);
-  printf("r %d remote_address: %p(0x%lx, 0x%lx)\n", gasneti_mynode, (void *) cmd->remote_addr, 
+  printf("r %d remote_address: %p(0x%"PRIx64", 0x%"PRIx64")\n", gasneti_mynode, (void *) cmd->remote_addr, 
 	 cmd->remote_mem_hndl.qword1, cmd->remote_mem_hndl.qword2);
-  printf("r %d length: 0x%lx\n", gasneti_mynode, cmd->length);
+  printf("r %d length: 0x%"PRIx64"\n", gasneti_mynode, cmd->length);
   printf("r %d rdma_mode: 0x%x\n", gasneti_mynode, cmd->rdma_mode);
   printf("r %d src_cq_hndl: %p\n", gasneti_mynode, cmd->src_cq_hndl);
-  printf("r %d sync: (0x%lx,0x%lx)\n", gasneti_mynode, cmd->sync_flag_value, cmd->sync_flag_addr);
+  printf("r %d sync: (0x%"PRIx64",0x%"PRIx64")\n", gasneti_mynode, cmd->sync_flag_value, cmd->sync_flag_addr);
   printf("r %d amo_cmd: %d\n", gasneti_mynode, cmd->amo_cmd);
-  printf("r %d amo: 0x%lx, 0x%lx\n", gasneti_mynode, cmd->first_operand, cmd->second_operand);
-  printf("r %d cqwrite_value: 0x%lx\n", gasneti_mynode, cmd->cqwrite_value);
+  printf("r %d amo: 0x%"PRIx64", 0x%"PRIx64"\n", gasneti_mynode, cmd->first_operand, cmd->second_operand);
+  printf("r %d cqwrite_value: 0x%"PRIx64"\n", gasneti_mynode, cmd->cqwrite_value);
 }
 
 static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
