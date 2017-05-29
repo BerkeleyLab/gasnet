@@ -2108,8 +2108,8 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
                            int                    numentries,
                            uintptr_t              segsize)
 {
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu)",
-                          numentries, (unsigned long)segsize));
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
+                          numentries, segsize));
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
