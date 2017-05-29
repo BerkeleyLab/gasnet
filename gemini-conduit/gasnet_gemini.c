@@ -1621,8 +1621,6 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[dest];
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
-  gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int my_slot;
   unsigned int remote_slot;
   const unsigned int slots = MAX(1, ((length + am_slotsz - 1) >> am_slot_bits));
@@ -1659,6 +1657,8 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
 
   r->u.request_bits = mask;
 
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gni_post_descriptor_t *pd = &gpd->pd;
   pd->remote_addr = (uint64_t) peer->remote_request_base + (remote_slot << am_slot_bits);
   pd->sync_flag_value = build_notify(notify_request, r - reply_pool, remote_slot);
   
