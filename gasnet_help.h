@@ -118,6 +118,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #if GASNET_SEGMENT_EVERYTHING
   #define gasneti_in_clientsegment(node,ptr,nbytes) (gasneti_assert((node) < gasneti_nodes), 1)
   #define gasneti_in_auxsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
+  #define gasneti_in_fullsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
 #else
   #define gasneti_in_clientsegment(node,ptr,nbytes) \
     (gasneti_assert((node) < gasneti_nodes),        \
@@ -129,15 +130,14 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
      ((ptr) >= gasneti_seginfo_aux[node].addr &&      \
       ((((uintptr_t)(ptr))+(nbytes)) <=      \
        (((uintptr_t)gasneti_seginfo_aux[node].addr)+gasneti_seginfo_aux[node].size))))
+  // TODO: following defn asserts the node check twice
+  #define gasneti_in_fullsegment(node,ptr,nbytes) \
+    (gasneti_in_clientsegment(node,ptr,nbytes) || gasneti_in_auxsegment(node,ptr,nbytes))
 #endif
 
 #ifdef _INCLUDED_GASNET_INTERNAL_H
- #if 0 // TODO-EX: restore or remove?
-  /* default for GASNet implementation is to check against entire seg */
+  /* default for GASNet implementation is to check against union of client and aux segments */
   #define gasneti_in_segment gasneti_in_fullsegment
- #else
-  #define gasneti_in_segment gasneti_in_clientsegment
- #endif
 #else
   /* default for client is to check against just the client seg */
   #define gasneti_in_segment gasneti_in_clientsegment
