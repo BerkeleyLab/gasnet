@@ -15,7 +15,7 @@ static gasnetex_segment_t     mysegment;
 
 int peer = -1;
 int flag = 0;
-int iters = 100;
+uint64_t iters = 100;
 gasnetex_hsl_t globallock = GASNETEX_HSL_INITIALIZER;
 
 void okhandler3(gasnetex_token_t token) {
@@ -196,8 +196,8 @@ done:
 
 void * thread_fn(void *arg) {
   int id = (int)(uintptr_t)arg;
-  int iters2 = iters*100;
-  int i;
+  uint64_t iters2 = iters*100;
+  uint64_t i;
 
   counter = 0; repcounter = 0;
   PTHREAD_BARRIER(NUM_THREADS);
@@ -219,8 +219,8 @@ void * thread_fn(void *arg) {
     PTHREAD_LOCALBARRIER(NUM_THREADS);
 
     if (counter != (NUM_THREADS * iters2)) 
-      ERR("failed hsl test: counter=%llu expecting=%llu", 
-          (unsigned long long)counter, (unsigned long long)(NUM_THREADS * iters2));
+      ERR("failed hsl test: counter=%"PRIu64" expecting=%"PRIu64, 
+          counter, (NUM_THREADS * iters2));
 
   PTHREAD_BARRIER(NUM_THREADS);
   counter = 0; repcounter = 0;
@@ -234,8 +234,8 @@ void * thread_fn(void *arg) {
     PTHREAD_BARRIER(NUM_THREADS);
 
     if (counter != (NUM_THREADS * iters)) 
-      ERR("failed hsl test: counter=%llu expecting=%llu", 
-          (unsigned long long)counter, (unsigned long long)(NUM_THREADS * iters));
+      ERR("failed hsl test: counter=%"PRIu64" expecting=%"PRIu64, 
+          counter, (NUM_THREADS * iters));
 
   PTHREAD_BARRIER(NUM_THREADS);
   counter = 0; repcounter = 0;
@@ -259,8 +259,8 @@ void * thread_fn(void *arg) {
     PTHREAD_BARRIER(NUM_THREADS);
 
     if (counter != (2 * NUM_THREADS * iters)) 
-      ERR("failed hsl test: counter=%llu expecting=%llu", 
-          (unsigned long long)counter, (unsigned long long)(2 * NUM_THREADS * iters));
+      ERR("failed hsl test: counter=%"PRIu64" expecting=%"PRIu64, 
+          counter, (2 * NUM_THREADS * iters));
 
   PTHREAD_BARRIER(NUM_THREADS);
   counter = 0; repcounter = 0;

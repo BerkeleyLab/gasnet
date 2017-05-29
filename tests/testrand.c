@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
     TEST_SRAND(seed);
 
     #ifdef GASNET_SEGMENT_EVERYTHING
-      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
+      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %"PRIuPTR" on GASNET_SEGMENT_EVERYTHING",(uintptr_t)TEST_SEGSZ); gasnet_exit(1); }
     #endif
     GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
     test_init("testrand",1, "nbytes (segsz) (seed)");

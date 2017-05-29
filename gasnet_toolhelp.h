@@ -199,7 +199,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   int gasneti_count0s_uint64_t(uint64_t x) {
   #if 0
     x |= (x >> 4); x |= (x >> 2); x |= (x >> 1);
-    x &= 0x0101010101010101UL;
+    x &= 0x0101010101010101ULL;
     x += (x >> 32); x += (x >> 16); x += (x >> 8);
     return sizeof(x) - (x & 0xf);
   #else
@@ -620,7 +620,7 @@ typedef enum {
 /* Wrappers for thread-local data storage
    See README-tools for usage information.
 */
-#define _GASNETI_THREADKEY_MAGIC 0xFF00ABCDEF573921ULL
+#define _GASNETI_THREADKEY_MAGIC ((uint64_t)0xFF00ABCDEF573921ULL)
 
 #if GASNETI_THREADS
   #if GASNETI_HAVE_TLS_SUPPORT /* use __thread, if available */
