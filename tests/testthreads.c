@@ -653,7 +653,7 @@ test_amlongasync(threaddata_t *tdata)
 	do {
 		len = RANDOM_SIZE();
 	} while ((len > gasnet_AMMaxLongRequest()) || (len > gasnet_AMMaxLongReply())
-              || (len > TEST_SEGZ_PER_THREAD))
+              || (len > TEST_SEGZ_PER_THREAD));
 
 	tdata->flag = -1;
         gasnett_local_wmb();
