@@ -71,6 +71,14 @@ GASNETT_BEGIN_EXTERNC
   #define assert(x) assert_always(x)
 #endif
 
+#ifndef _CONCAT
+#define _CONCAT_HELPER(a,b) a ## b
+#define _CONCAT(a,b) _CONCAT_HELPER(a,b)
+#endif
+
+#define test_static_assert(cond) \
+static const char *_CONCAT(static_assert_,__LINE__)[ (cond) ?1:-1] = { "Static assertion: " #cond };
+
 /* ------------------------------------------------------------------------------------ */
 /* generic message output utility
    test_makeMsg(baseformatargs, msgpred, isfatal, msgeval): 
@@ -679,19 +687,15 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   #ifndef TEST_MAXTHREADS
     #define TEST_MAXTHREADS      GASNETT_MAX_THREADS
   #endif
-  #ifndef TEST_SEGZ_PER_THREAD
-    #define TEST_SEGZ_PER_THREAD (64*1024)
+  #ifndef TEST_SEGZ_PER_THREAD  // provides a default per-thread segsize when TEST_SEGSZ not defined
+    #define TEST_SEGZ_PER_THREAD ((uintptr_t)64*1024)
   #endif
-  #ifndef TEST_SEGSZ
-    #ifdef TEST_SEGSZ_EXPR
+  #ifndef TEST_SEGSZ // TEST_SEGSZ provides a statically-known override value
+    #ifdef TEST_SEGSZ_EXPR // TEST_SEGSZ_EXPR provides a value not statically known
       #define TEST_SEGSZ  alignup(TEST_SEGSZ_EXPR,PAGESZ)
     #else
       #define TEST_SEGSZ  alignup(TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD,PAGESZ)
-    #endif
-  #endif
-  #ifndef TEST_SEGSZ_EXPR
-    #if TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
-      #error "TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)"
+      test_static_assert(TEST_SEGSZ >= (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD));
     #endif
   #endif
 #else
@@ -704,9 +708,10 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   #endif
 #endif
 #ifndef TEST_SEGSZ_EXPR
-  #if (TEST_SEGSZ % PAGESZ) != 0 || TEST_SEGSZ <= 0
-    #error Bad TEST_SEGSZ
-  #endif
+  // validate TEST_SEGSZ properties, when the value is statically-known
+  test_static_assert(TEST_SEGSZ > 0);
+  test_static_assert(TEST_SEGSZ % PAGESZ == 0);
+  test_static_assert(TEST_SEGSZ_REQUEST % PAGESZ == 0);
 #endif
 
 #define TEST_MINHEAPOFFSET  alignup(128*4096,PAGESZ)
