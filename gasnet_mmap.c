@@ -1371,7 +1371,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif /* GASNETI_MMAP_OR_PSHM */
 
 // State between segmentInit() and segmentAttach()
+#ifdef GASNETI_MMAP_OR_PSHM
 static gasnet_seginfo_t gasneti_presegment = {0,0};
+#endif
 #if GASNET_ALIGNED_SEGMENTS
 uintptr_t gasneti_maxbase;
 #endif
@@ -1575,11 +1577,13 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   }
 
   // PART V: Discard the pre-segment if not supporting GASNet-1's attach
+#ifdef GASNETI_MMAP_OR_PSHM
   if (!legacy_mode) {
     if (gasneti_presegment.addr) gasneti_do_munmap(gasneti_presegment.addr, gasneti_presegment.size);
     gasneti_presegment.addr = NULL;
     gasneti_presegment.size = 0;
   }
+#endif
 
 #ifdef GASNETI_MMAP_OR_PSHM
   gasneti_free(gasneti_segexch);
@@ -1632,6 +1636,10 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
   }
   #else /* !GASNETI_MMAP_OR_PSHM */
     /* for the T3E, and other platforms which don't support mmap */
+    // TODO_EX: if we think non-mmap support remains important:
+    //    + move to segmentInit and use presegment
+    //    + perform full binary search
+    //    + use hidden base (as in gasneti_malloc_aligned) to support free
     segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE);
     while (!segbase) {
       segsize = GASNETI_PAGE_ALIGNDOWN(segsize/2);
@@ -1706,9 +1714,11 @@ void gasneti_segmentAttach(uintptr_t segsize,
   gasneti_pshmnet_bootstrapBarrier();
 #endif
 
-  /* in "legacy_mode" we consume the presegment, otherwise working from scratch */
   gasnet_seginfo_t local_segment = {0,0};
+#ifdef GASNETI_MMAP_OR_PSHM
+  /* in "legacy_mode" we consume the presegment, otherwise working from scratch */
   if (flags & GASNETI_FLAG_INIT_LEGACY) local_segment = gasneti_presegment;
+#endif
   
   gasneti_segmentAttachLocal(&local_segment, segsize, exchangefn);
 
