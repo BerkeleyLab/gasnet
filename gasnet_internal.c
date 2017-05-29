@@ -1864,7 +1864,7 @@ gasnetex_segment_t     gasneti_thunk_segment  = NULL;
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_attach_done && gasneti_in_segment(gasneti_mynode,ptr,1))
+        if (gasneti_attach_done && gasneti_in_segment(NULL/*team*/,gasneti_mynode,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif

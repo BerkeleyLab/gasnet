@@ -153,7 +153,7 @@ gasnete_get_bulk_inner(void *dest, gasnetex_rank_t node, void *src, size_t nbyte
 {
   size_t chunksz;
 
-  chunksz = gasneti_in_segment(gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+  chunksz = gasneti_in_segment(NULL/*team*/, gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
   if (nbytes > 2*chunksz) {
     /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
@@ -248,7 +248,7 @@ gasnete_put_bulk_inner(gasnetex_rank_t node, void *dest, void *src, size_t nbyte
 {
   size_t chunksz;
 
-  chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+  chunksz = gasneti_in_segment(NULL/*team*/, gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
   if (nbytes > 2*chunksz) {
     /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */

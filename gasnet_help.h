@@ -116,23 +116,23 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #if GASNET_SEGMENT_EVERYTHING
-  #define gasneti_in_clientsegment(node,ptr,nbytes) (gasneti_assert((node) < gasneti_nodes), 1)
-  #define gasneti_in_auxsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
-  #define gasneti_in_fullsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
+  #define gasneti_in_clientsegment(team,rank,ptr,nbytes) (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_auxsegment(team,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_fullsegment(team,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
 #else
-  #define gasneti_in_clientsegment(node,ptr,nbytes) \
-    (gasneti_assert((node) < gasneti_nodes),        \
-     ((ptr) >= gasneti_seginfo[node].addr && \
+  #define gasneti_in_clientsegment(team,rank,ptr,nbytes) \
+    (gasneti_assert((rank) < gasneti_nodes),        \
+     ((ptr) >= gasneti_seginfo[rank].addr && \
       ((((uintptr_t)(ptr))+(nbytes)) <=      \
-       (((uintptr_t)gasneti_seginfo[node].addr)+gasneti_seginfo[node].size))))
-  #define gasneti_in_auxsegment(node,ptr,nbytes) \
-    (gasneti_assert((node) < gasneti_nodes),      \
-     ((ptr) >= gasneti_seginfo_aux[node].addr &&      \
+       (((uintptr_t)gasneti_seginfo[rank].addr)+gasneti_seginfo[rank].size))))
+  #define gasneti_in_auxsegment(team,rank,ptr,nbytes) \
+    (gasneti_assert((rank) < gasneti_nodes),      \
+     ((ptr) >= gasneti_seginfo_aux[rank].addr &&      \
       ((((uintptr_t)(ptr))+(nbytes)) <=      \
-       (((uintptr_t)gasneti_seginfo_aux[node].addr)+gasneti_seginfo_aux[node].size))))
-  // TODO: following defn asserts the node check twice
-  #define gasneti_in_fullsegment(node,ptr,nbytes) \
-    (gasneti_in_clientsegment(node,ptr,nbytes) || gasneti_in_auxsegment(node,ptr,nbytes))
+       (((uintptr_t)gasneti_seginfo_aux[rank].addr)+gasneti_seginfo_aux[rank].size))))
+  // TODO: following defn asserts the rank check twice
+  #define gasneti_in_fullsegment(team,rank,ptr,nbytes) \
+    (gasneti_in_clientsegment(team,rank,ptr,nbytes) || gasneti_in_auxsegment(team,rank,ptr,nbytes))
 #endif
 
 #ifdef _INCLUDED_GASNET_INTERNAL_H
@@ -145,13 +145,14 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 #ifdef GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET
   /* in-segment check for internal put/gets that may exploit outofseg support */
-  #define gasneti_in_segment_allowoutseg(node,ptr,nbytes) \
-          (gasneti_assert((node) < gasneti_nodes), 1)
+  #define gasneti_in_segment_allowoutseg(team,rank,ptr,nbytes) \
+          (gasneti_assert((rank) < gasneti_nodes), 1)
 #else
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
-#define _gasneti_boundscheck(rank,ptr,nbytes,nodetest,segtest) do {            \
+#define _gasneti_boundscheck(team,rank,ptr,nbytes,nodetest,segtest) do {       \
+    gasnetex_team_member_t _team = (team);                                     \
     gasnetex_rank_t _node = (rank); /* TODO-EX: team support */                \
     const void *_ptr = (const void *)(ptr);                                    \
     size_t _nbytes = (size_t)(nbytes);                                         \
@@ -159,7 +160,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
       gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
                          (unsigned long)_node, (unsigned long)gasneti_nodes,   \
                          gasneti_current_loc);                                 \
-    if_pf (_ptr == NULL || !segtest(_node,_ptr,_nbytes))                       \
+    if_pf (_ptr == NULL || !segtest(_team,_node,_ptr,_nbytes))                 \
       gasneti_fatalerror("Remote address out of range "                        \
          "(node=%lu ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"        \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
@@ -189,13 +190,13 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 #if GASNET_NDEBUG
-  #define gasneti_boundscheck(node,ptr,nbytes) 
-  #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes)
+  #define gasneti_boundscheck(team,rank,ptr,nbytes) 
+  #define gasneti_boundscheck_allowoutseg(team,rank,ptr,nbytes)
 #else
-  #define gasneti_boundscheck(node,ptr,nbytes) \
-         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
-  #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes) \
-         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
+  #define gasneti_boundscheck(team,rank,ptr,nbytes) \
+         _gasneti_boundscheck(team,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
+  #define gasneti_boundscheck_allowoutseg(team,rank,ptr,nbytes) \
+         _gasneti_boundscheck(team,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
 #endif
 
 /* make a GASNet core API call - if it fails, print error message and abort */

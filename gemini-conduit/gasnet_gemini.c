@@ -2088,8 +2088,8 @@ void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
 
 GASNETI_NEVER_INLINE(print_post_desc,
 static void print_post_desc(const char *title, gni_post_descriptor_t *cmd)) {
-  const int in_seg = gasneti_in_segment(gasneti_mynode, (void *) cmd->local_addr, cmd->length);
-  const int in_aux = gasneti_in_auxsegment(gasneti_mynode, (void *) cmd->local_addr, cmd->length);
+  const int in_seg = gasneti_in_segment(NULL/*team*/, gasneti_mynode, (void *) cmd->local_addr, cmd->length);
+  const int in_aux = gasneti_in_auxsegment(NULL/*team*/, gasneti_mynode, (void *) cmd->local_addr, cmd->length);
   printf("r %d %s-segment %s, desc addr %p\n", gasneti_mynode, (in_seg?"in":(in_aux?"aux":"non")), title, cmd);
   printf("r %d status: %"PRIu64"\n", gasneti_mynode, cmd->status);
   printf("r %d cq_mode_complete: 0x%x\n", gasneti_mynode, cmd->cq_mode_complete);
@@ -2164,11 +2164,11 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd
 // TODO-EX: this is our auxseg support until real multi-segment support arrives
 GASNETI_INLINE(gasnetc_local_mh)
 gni_mem_handle_t gasnetc_local_mh(void *addr) {
-  return  gasneti_in_auxsegment(gasneti_mynode,addr,0) ? my_aux_handle : my_mem_handle;
+  return  gasneti_in_auxsegment(NULL/*team*/,gasneti_mynode,addr,0) ? my_aux_handle : my_mem_handle;
 }
 GASNETI_INLINE(gasnetc_remote_mh)
 gni_mem_handle_t gasnetc_remote_mh(peer_struct_t * const peer, void *addr) {
-  return  gasneti_in_auxsegment(peer->pe,addr,0) ? peer->aux_handle : peer->mem_handle;
+  return  gasneti_in_auxsegment(NULL/*team*/,peer->pe,addr,0) ? peer->aux_handle : peer->mem_handle;
 }
 
 /* Perform an rdma/fma Put with no concern for local completion.
@@ -2195,7 +2195,7 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
   pd->length = nbytes;
 
   /* confirm that the destination is in-segment on the far end */
-  gasneti_boundscheck(node, dest_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, dest_addr, nbytes);
 
   /* Start with defaults suitable for FMA or in-segment case */
   pd->local_addr = (uint64_t) source_addr;
@@ -2209,8 +2209,8 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
 #endif
     status = myPostFma(peer->ep_handle, gpd);
   } else { /* Using RDMA, which requires local memory registration */
-    if_pf (!gasneti_in_segment(gasneti_mynode, source_addr, nbytes) &&
-           !gasneti_in_auxsegment(gasneti_mynode, source_addr, nbytes)) {
+    if_pf (!gasneti_in_segment(NULL/*team*/, gasneti_mynode, source_addr, nbytes) &&
+           !gasneti_in_auxsegment(NULL/*team*/, gasneti_mynode, source_addr, nbytes)) {
       /* Use a bounce buffer or mem-reg according to size.
        * Use of gpd->u.immedate would only be reachable if
        *     (put_fma_rdma_cutover < IMMEDIATE_BOUNCE_SIZE),
@@ -2265,7 +2265,7 @@ gasnetc_rdma_put_lc(gasnetex_rank_t node,
   pd->length = nbytes;
 
   /* confirm that the destination is in-segment on the far end */
-  gasneti_boundscheck(node, dest_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, dest_addr, nbytes);
 
   /* Start with defaults suitable for FMA or in-segment case */
   pd->local_addr = (uint64_t) source_addr;
@@ -2332,7 +2332,7 @@ void gasnetc_rdma_put_buff(gasnetex_rank_t node,
   gasneti_assert(!node_is_local(node));
 
   /* confirm that the destination is in-segment on the far end */
-  gasneti_boundscheck(node, dest_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, dest_addr, nbytes);
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2400,15 +2400,15 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
   pd->length = nbytes;
 
   /* confirm that the source is in-segment on the far end */
-  gasneti_boundscheck(node, source_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, source_addr, nbytes);
 
   /* Start with defaults suitable for in-segment case */
   pd->local_addr = (uint64_t) dest_addr;
   pd->local_mem_hndl = gasnetc_local_mh(dest_addr);
 
   /* check where the local addr is */
-  if_pf (!gasneti_in_segment(gasneti_mynode, dest_addr, nbytes) &&
-         !gasneti_in_auxsegment(gasneti_mynode, dest_addr, nbytes)) {
+  if_pf (!gasneti_in_segment(NULL/*team*/, gasneti_mynode, dest_addr, nbytes) &&
+         !gasneti_in_auxsegment(NULL/*team*/, gasneti_mynode, dest_addr, nbytes)) {
     /* dest not (entirely) in segment */
     /* if (nbytes <= gasnetc_get_bounce_register_cutover)  then use bounce buffer
      * else mem-register
@@ -2470,7 +2470,7 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
   pd->local_mem_hndl = my_aux_handle;
 
   /* confirm that the source is in-segment on the far end */
-  gasneti_boundscheck(node, (void*)pd->remote_addr, pd->length);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, (void*)pd->remote_addr, pd->length);
 
   /* must always use immediate or bounce buffer */
   if (length <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
@@ -2512,7 +2512,7 @@ int gasnetc_rdma_get_buff(gasnetex_rank_t node,
   gasneti_assert(nbytes  <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
 
   /* confirm that the source is in-segment on the far end */
-  gasneti_boundscheck(node, source_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, source_addr, nbytes);
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2548,7 +2548,7 @@ void gasnetc_fetchop_u64(
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-  gasneti_boundscheck(node, source_addr, 8);
+  gasneti_boundscheck(NULL /*TODO-EX: team,rank */, node, source_addr, 8);
 
   pd->type = GNI_POST_AMO;
   pd->amo_cmd = cmd;

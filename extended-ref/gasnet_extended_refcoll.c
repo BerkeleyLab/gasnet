@@ -138,12 +138,12 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   gasneti_assert(dstlen > 0);
   if ((dstimage == td->my_image) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
     if (!dstisv) {
-      gasneti_boundscheck(gasneti_mynode, dst, dstlen);
+      gasneti_boundscheck(NULL/*team*/, gasneti_mynode, dst, dstlen);
     } else {
       void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(team,dst, flags);
       size_t limit = team->my_images;
       for (i = 0; i < limit; ++i, ++p) {
-        gasneti_boundscheck(gasneti_mynode, *p, dstlen);
+        gasneti_boundscheck(NULL/*team*/, gasneti_mynode, *p, dstlen);
       }
     }
   }
@@ -152,12 +152,12 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   gasneti_assert(srclen > 0);
   if ((srcimage == td->my_image) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     if (!srcisv) {
-      gasneti_boundscheck(gasneti_mynode, src, srclen);
+      gasneti_boundscheck(NULL/*team*/, gasneti_mynode, src, srclen);
     } else {
       void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(team, src, flags);
       size_t limit = team->my_images;
       for (i = 0; i < limit; ++i, ++p) {
-        gasneti_boundscheck(gasneti_mynode, *p, srclen);
+        gasneti_boundscheck(NULL/*team*/, gasneti_mynode, *p, srclen);
       }
     }
   }

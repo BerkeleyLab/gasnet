@@ -937,7 +937,7 @@ can *prove* the current thread has a handle for the current op:
 #define GASNETE_COLL_ALWAYS_IN_SEGMENT 1
 #else
 #define gasnete_coll_in_segment(_node,_addr,_len) \
-gasneti_in_fullsegment(_node, _addr, _len)
+gasneti_in_fullsegment(NULL/*team*/, _node, _addr, _len)
 #define GASNETE_COLL_ALWAYS_IN_SEGMENT 0
 #endif
 

@@ -2523,7 +2523,7 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
   //     All uses of loc_auxseg are a temporary hack
   //     The idea is to allow a negative (base+seg) which gets mapped later to aux_reg
   //     This will be replaced by general multi-registration support later
-  const int loc_auxseg = gasneti_in_auxsegment(gasneti_mynode, (void*)loc_addr, len);
+  const int loc_auxseg = gasneti_in_auxsegment(NULL/*team*/, gasneti_mynode, (void*)loc_addr, len);
 
   if_pf (!gasnetc_unpinned(loc_addr) || loc_auxseg) {
     /* loc_addr is in-segment */
@@ -4129,7 +4129,7 @@ extern int gasnetc_rdma_put(
   //     All uses of rem_auxseg are a temporary hack
   //     The idea is to allow a negative rkey_index which gets mapped later to aux_reg
   //     This will be replaced by general multi-registration support later
-  const int rem_auxseg = gasneti_in_auxsegment(gasnetc_epid2node(epid), dst_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(NULL/*team*/, gasnetc_epid2node(epid), dst_ptr, nbytes);
 
   gasneti_assert(offset < gasneti_seginfo[gasnetc_epid2node(epid)].size || rem_auxseg);
   gasneti_assert(nbytes != 0);
@@ -4251,8 +4251,8 @@ extern int gasnetc_rdma_get(
   //     All uses of {loc,rem_}auxseg are a temporary hack
   //     The idea is to allow a negative [lr]key_index which gets mapped later to aux_reg
   //     This will be replaced by general multi-registration support later
-  const int loc_auxseg = gasneti_in_auxsegment(gasneti_mynode, dst_ptr, nbytes);
-  const int rem_auxseg = gasneti_in_auxsegment(gasnetc_epid2node(epid), src_ptr, nbytes);
+  const int loc_auxseg = gasneti_in_auxsegment(NULL/*team*/, gasneti_mynode, dst_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(NULL/*team*/, gasnetc_epid2node(epid), src_ptr, nbytes);
 
   gasneti_assert(offset < gasneti_seginfo[gasnetc_epid2node(epid)].size || rem_auxseg);
   gasneti_assert(nbytes != 0);
