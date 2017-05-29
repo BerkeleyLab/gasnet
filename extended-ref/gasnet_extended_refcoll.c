@@ -134,6 +134,34 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
   gasneti_assert(((flags & GASNET_COLL_SINGLE)?1:0) ^ ((flags & GASNET_COLL_LOCAL)?1:0));
 
+  /* Bounds check any local portion of dst/dstlist which user claims is in-segment */
+  gasneti_assert(dstlen > 0);
+  if ((dstimage == td->my_image) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
+    if (!dstisv) {
+      gasneti_boundscheck(gasneti_mynode, dst, dstlen);
+    } else {
+      void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(team,dst, flags);
+      size_t limit = team->my_images;
+      for (i = 0; i < limit; ++i, ++p) {
+        gasneti_boundscheck(gasneti_mynode, *p, dstlen);
+      }
+    }
+  }
+
+  /* Bounds check any local portion of src/srclist which user claims is in-segment */
+  gasneti_assert(srclen > 0);
+  if ((srcimage == td->my_image) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
+    if (!srcisv) {
+      gasneti_boundscheck(gasneti_mynode, src, srclen);
+    } else {
+      void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(team, src, flags);
+      size_t limit = team->my_images;
+      for (i = 0; i < limit; ++i, ++p) {
+        gasneti_boundscheck(gasneti_mynode, *p, srclen);
+      }
+    }
+  }
+
   /* XXX: TO DO
    * + check that team handle is valid (requires a teams interface)
    * + check that mynode is a member of the team (requires a teams interface)

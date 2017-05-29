@@ -2194,6 +2194,9 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
 
+  /* confirm that the destination is in-segment on the far end */
+  gasneti_boundscheck(node, dest_addr, nbytes);
+
   /* Start with defaults suitable for FMA or in-segment case */
   pd->local_addr = (uint64_t) source_addr;
   pd->local_mem_hndl = gasnetc_local_mh(source_addr);
@@ -2261,6 +2264,9 @@ gasnetc_rdma_put_lc(gasnetex_rank_t node,
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
 
+  /* confirm that the destination is in-segment on the far end */
+  gasneti_boundscheck(node, dest_addr, nbytes);
+
   /* Start with defaults suitable for FMA or in-segment case */
   pd->local_addr = (uint64_t) source_addr;
   pd->local_mem_hndl = my_mem_handle;
@@ -2324,6 +2330,9 @@ void gasnetc_rdma_put_buff(gasnetex_rank_t node,
   gni_return_t status;
 
   gasneti_assert(!node_is_local(node));
+
+  /* confirm that the destination is in-segment on the far end */
+  gasneti_boundscheck(node, dest_addr, nbytes);
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2389,6 +2398,9 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
   pd->remote_addr = (uint64_t) source_addr;
   pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = nbytes;
+
+  /* confirm that the source is in-segment on the far end */
+  gasneti_boundscheck(node, source_addr, nbytes);
 
   /* Start with defaults suitable for in-segment case */
   pd->local_addr = (uint64_t) dest_addr;
@@ -2457,6 +2469,9 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
   pd->length = length;
   pd->local_mem_hndl = my_aux_handle;
 
+  /* confirm that the source is in-segment on the far end */
+  gasneti_boundscheck(node, (void*)pd->remote_addr, pd->length);
+
   /* must always use immediate or bounce buffer */
   if (length <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
     buffer = gpd->u.immediate;
@@ -2496,6 +2511,9 @@ int gasnetc_rdma_get_buff(gasnetex_rank_t node,
   gasneti_assert(!node_is_local(node));
   gasneti_assert(nbytes  <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
 
+  /* confirm that the source is in-segment on the far end */
+  gasneti_boundscheck(node, source_addr, nbytes);
+
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
@@ -2529,6 +2547,8 @@ void gasnetc_fetchop_u64(
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
+
+  gasneti_boundscheck(node, source_addr, 8);
 
   pd->type = GNI_POST_AMO;
   pd->amo_cmd = cmd;
