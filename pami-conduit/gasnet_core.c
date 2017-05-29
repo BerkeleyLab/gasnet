@@ -373,7 +373,7 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
   if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, team_p, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE#
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     // TODO-EX: clearly segment_p should be initialized here
     if (GASNET_OK != gasnetc_attach_segment(segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
