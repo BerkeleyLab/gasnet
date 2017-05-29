@@ -180,13 +180,14 @@ main(int argc, char **argv)
 {
 	int		i;
         const char *getopt_str;
-        int opt_p=0, opt_g=0, opt_a=0, opt_m=0;
+        int opt_p=0, opt_g=0, opt_m=0;
+        int opt_S=0, opt_M=0, opt_L=0;
 
         #if TEST_MPI
           init_test_mpi(&argc, &argv);
-          getopt_str = "pgamlvtdi:";
+          getopt_str = "pgSMLamlvtdi:";
         #else
-          getopt_str = "pgalvtdi:";
+          getopt_str = "pgSMLalvtdi:";
         #endif
 
 	GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testthreads", 0));
@@ -204,13 +205,16 @@ main(int argc, char **argv)
         #else
           #define TEST_THREAD_USAGE  "\n\n"
         #endif
-	test_init("testthreads",0, "[ -pgalvtd ] [ -i <iters> ]"
+	test_init("testthreads",0, "[ -pgSMLalvtd ] [ -i <iters> ]"
             TEST_THREAD_USAGE
 	    "no options means run all tests with "_STRINGIFY(DEFAULT_ITERS)" iterations\n"
 	    "options:                                      \n"
 	    "  -p  use puts                                   \n"
 	    "  -g  use gets                                   \n"
-	    "  -a  use Active Messages                        \n"
+	    "  -S  use Active Message Shorts                  \n"
+	    "  -M  use Active Message Mediums                 \n"
+	    "  -L  use Active Message Longs                   \n"
+	    "  -a  use all Active Messages (-S -M -L)         \n"
 	    "  -l  use local Active Messages                  \n"
             TEST_MPI_USAGE
 	    "  -v  output information about actions taken     \n"
@@ -222,7 +226,10 @@ main(int argc, char **argv)
           switch (i) {
 		case 'p': opt_p = 1; break;
 		case 'g': opt_g = 1; break;
-		case 'a': opt_a = 1; break;
+		case 'S': opt_S = 1; break;
+		case 'M': opt_M = 1; break;
+		case 'L': opt_L = 1; break;
+		case 'a': opt_S = opt_M = opt_L = 1; break;
                 case 'm': opt_m = 1; break;
 		case 'l': AM_loopback = 1; break;
 		case 'i': iters = atoi(optarg); break;
@@ -235,11 +242,9 @@ main(int argc, char **argv)
 
         if (opt_p) test_functions[functions_num++] = test_put;
         if (opt_g) test_functions[functions_num++] = test_get;
-        if (opt_a) {
-          test_functions[functions_num++] = test_amshort;
-          test_functions[functions_num++] = test_ammedium;
-          test_functions[functions_num++] = test_amlong;
-        }
+        if (opt_S) test_functions[functions_num++] = test_amshort;
+        if (opt_M) test_functions[functions_num++] = test_ammedium;
+        if (opt_L) test_functions[functions_num++] = test_amlong;
         #if TEST_MPI
           if (opt_m) test_functions[functions_num++] = test_mpi;
         #endif
