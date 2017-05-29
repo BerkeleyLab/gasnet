@@ -1211,7 +1211,8 @@ extern int gasnetc_AMRequestShortM(
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,(gasnetex_token_t)gasnetc_loopback_token,args,numargs);
+    gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
+    GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,token,args,numargs);
   } else
 #endif
   {
@@ -1273,12 +1274,13 @@ extern int gasnetc_AMRequestMediumM(
 #else
   if (rank == gasneti_mynode) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS]
+    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
-    GASNETI_RUN_HANDLER_MEDIUM(1,handler,handler_fn,(gasnetex_token_t)gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
+    gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
+    GASNETI_RUN_HANDLER_MEDIUM(1,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
   } else
 #endif
   {
@@ -1351,7 +1353,8 @@ extern int gasnetc_AMRequestLongM(
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
-    GASNETI_RUN_HANDLER_LONG(1,handler,handler_fn,(gasnetex_token_t)gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
+    gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
+    GASNETI_RUN_HANDLER_LONG(1,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
   } else
 #endif
   {
