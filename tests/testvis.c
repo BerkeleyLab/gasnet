@@ -11,7 +11,7 @@
 #ifndef TEST_SEGSZ
   /* select a larger than default segment, 
      because this test needs plenty of memory to play with */
-  #define TEST_SEGSZ_EXPR          (16*1048576)
+  #define TEST_SEGSZ          (16*1048576)
 #endif
 #include <test.h>
 
