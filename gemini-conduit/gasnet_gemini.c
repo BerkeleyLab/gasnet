@@ -1410,7 +1410,7 @@ extern void gasnetc_trace_finish(void) {
 }
 
 static GASNETI_MALLOC
-void *gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
+void *gasnetc_alloc_bounce_buffer(gasnetex_flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(bounce_buffer_pool);
   void *buf = gasneti_lifo_pop(pool_p);
@@ -1418,16 +1418,16 @@ void *gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
-    int stall = 0;
-    goto first;
-    do {
-      GASNETI_WAITHOOK();
-      stall = 1;
-first:
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-      buf = gasneti_lifo_pop(pool_p);
-    } while (!buf);
-    if_pf (stall) GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+    buf = gasneti_lifo_pop(pool_p);
+    if_pf (!buf && !(flags & GASNETEX_FLAG_IMMEDIATE)) {
+      do {
+        GASNETI_WAITHOOK();
+        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        buf = gasneti_lifo_pop(pool_p);
+      } while (!buf);
+      GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
+    }
   }
   return(buf);
 }
@@ -1571,17 +1571,20 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
 }
 
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t t,
-                                                               size_t length)
+                                                               size_t length,
+                                                               gasnetex_flags_t flags)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gasnetc_token_t *token = (gasnetc_token_t *)t;
   peer_struct_t * const peer = &peer_data[token->source];
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
-  gni_post_descriptor_t *pd = &gpd->pd;
   gasnetc_notify_t notify = token->notify;
   gasnetc_packet_t *packet;
-  uint32_t flags = 0;
+  uint32_t gpd_flags = 0;
+
+  // Unlike the AMRequest path, it is safe (and easier) to acquire gpd first
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+  if_pf (!gpd) goto out_immediate_1;
 
   /* Find space to construct the Reply.
    * NOTE that we don't *need* registered memory.
@@ -1622,18 +1625,20 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t 
 
     if (length > req_len) {
       /* need a bounce buffer */
-      packet = (gasnetc_packet_t *) gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
-      flags = GC_POST_UNBOUNCE;
+      packet = (gasnetc_packet_t *) gasnetc_alloc_bounce_buffer(flags GASNETC_DIDX_PASS);
+      if_pf (!packet) goto out_immediate_2;
+      gpd_flags = GC_POST_UNBOUNCE;
     }
   }
 
   /* modify the notify type and clear its AM header bits */
+  gni_post_descriptor_t *pd = &gpd->pd;
   gasneti_assert(notify_get_type(notify) == notify_request);
   pd->sync_flag_value = (notify & 0xffffffffUL) + build_notify((notify_reply - notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base +
                                 GASNETC_MSG_MAXSIZE * notify_get_initiator_slot(notify));
-  gasnetc_format_am_gpd(gpd, packet, peer, length, flags);
+  gasnetc_format_am_gpd(gpd, packet, peer, length, gpd_flags);
   gasneti_assert(token->need_reply);
   token->need_reply = 0;
   /* If Medium payload is in-use, then defer sending Reply until Request returns (avoids overwrite race) */
@@ -1641,7 +1646,12 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t 
     gasneti_assert(GC_CMD_AM_MEDIUM == gasnetc_am_command(notify));
     token->deferred_reply = gpd;
   }
-  return(gpd);
+  return gpd;
+
+out_immediate_2:
+  gasnetc_free_post_descriptor(gpd);
+out_immediate_1:
+  return NULL;
 }
 
 // Spin poll until (!_condition), but with some added complications.
@@ -2277,7 +2287,7 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
           /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
           (!gasnetc_register_gpd(gpd, GNI_MEM_READ_ONLY) &&
            (pd->length = nbytes = gasnetc_put_bounce_register_cutover))) {
-        void * const buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+        void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
         pd->local_mem_hndl = my_aux_handle;
         gpd->flags |= GC_POST_UNBOUNCE;
@@ -2347,7 +2357,7 @@ gasnetc_rdma_put_lc(gasnetex_rank_t node,
     } else
   #endif
     {
-      void * const buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+      void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
       pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
       pd->local_mem_hndl = my_aux_handle;
       gpd->flags |= GC_POST_UNBOUNCE;
@@ -2480,7 +2490,7 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
                (!gasnetc_register_gpd(gpd, GNI_MEM_READWRITE) &&
                 (pd->length = nbytes = gasnetc_get_bounce_register_cutover))) {
       gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
-      pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+      pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
       pd->local_mem_hndl = my_aux_handle;
       gpd->gpd_get_src = pd->local_addr;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
@@ -2535,7 +2545,7 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
   } else {
     gasneti_assert(length <= gasnetc_get_bounce_register_cutover);
     gpd->flags |= GC_POST_UNBOUNCE;
-    buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+    buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
   }
 
   pd->local_addr = (uint64_t) buffer;
