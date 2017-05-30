@@ -1704,8 +1704,9 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   }
  
   uintptr_t mmap_limit;
-  #if GASNET_SEGMENT_FAST
   {
+    uintptr_t local_limit;
+  #if GASNET_SEGMENT_FAST
     /* Reserved memory needed by firehose on each node */
     /* NOTE: We reserve this memory even when firehose is disabled, since the disable
      * is only made available for debugging. */
@@ -1715,17 +1716,20 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
       gasneti_fatalerror("Pinnable memory (%"PRIuPTR") is less than reserved minimum %"PRIuPTR, 
                          (uintptr_t)gasnetc_pin_info.memory, (uintptr_t)reserved_mem);
     }
-    mmap_limit = gasneti_mmapLimit(
-                                  (gasnetc_pin_info.memory - reserved_mem),
-                                  (uint64_t)-1,
-                                  &gasnetc_bootstrapExchange_ib,
-                                  &gasnetc_bootstrapBarrier_ib);
-  }
+    local_limit = (gasnetc_pin_info.memory - reserved_mem);
   #else
-    mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+    local_limit = (uintptr_t)-1;
+  #endif
+
+  #ifdef GASNETI_MMAP_OR_PSHM
+    mmap_limit = gasneti_mmapLimit(
+                                  local_limit, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
+  #else
+    mmap_limit = local_limit; // No better info available
   #endif
+  }
 
   /* Determine largest allowable single memory registration */
   if (!gasnetc_pin_maxsz) {
@@ -2291,6 +2295,10 @@ gasnetc_shutdown(void) {
       }
     }
   #endif
+
+    if (hca->aux_reg.len) {
+      gasnetc_unpin(hca, &hca->aux_reg);
+    }
 
     rc = ibv_dealloc_pd(hca->pd);
     GASNETC_IBV_CHECK(rc, "from ibv_dealloc_pd()");

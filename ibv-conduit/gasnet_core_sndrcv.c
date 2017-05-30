@@ -3965,7 +3965,6 @@ extern int gasnetc_sndrcv_shutdown(void) {
     gasnetc_unpin_unmap(hca, &hca->snd_reg);
     gasnetc_unpin_unmap(hca, &hca->rcv_reg);
     gasnetc_unpin_unmap(hca, &hca->amrdma_reg);
-    gasnetc_unpin_unmap(hca, &hca->aux_reg);
   }
 
   return GASNET_OK;
