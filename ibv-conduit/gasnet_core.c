@@ -1702,7 +1702,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
  
   #if GASNET_SEGMENT_FAST
-  {
     /* Reserved memory needed by firehose on each node */
     /* NOTE: We reserve this memory even when firehose is disabled, since the disable
      * is only made available for debugging. */
@@ -1712,18 +1711,22 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_fatalerror("Pinnable memory (%"PRIuPTR") is less than reserved minimum %"PRIuPTR, 
                          (uintptr_t)gasnetc_pin_info.memory, (uintptr_t)reserved_mem);
     }
-    uintptr_t limit = gasneti_mmapLimit(
-                                  (gasnetc_pin_info.memory - reserved_mem),
-                                  (uint64_t)-1,
-                                  &gasnetc_bootstrapExchange_ib,
-                                  &gasnetc_bootstrapBarrier_ib);
-    gasneti_segmentInit(limit, &gasnetc_bootstrapExchange_ib);
-  }
+    uintptr_t local_limit = (gasnetc_pin_info.memory - reserved_mem);
   #elif GASNET_SEGMENT_LARGE
+    uintptr_t local_limit = (uintptr_t)-1;
+  #endif
+
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   {
-    uintptr_t limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+    #ifdef GASNETI_MMAP_OR_PSHM
+      uintptr_t limit = gasneti_mmapLimit(
+                                  local_limit, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
+    #else
+      uintptr_t limit = local_limit; // No better info available
+    #endif
+
     gasneti_segmentInit(limit, &gasnetc_bootstrapExchange_ib);
   }
   #elif GASNET_SEGMENT_EVERYTHING
