@@ -37,11 +37,11 @@ void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt
   }
 }
 
-gasnetex_hsl_t inchsl = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t inchsl = GASNETEX_HSL_INITIALIZER;
 #define INC(var) do {           \
-    gasnetex_hsl_lock(&inchsl);   \
+    gex_HSL_Lock(&inchsl);   \
     var++;                      \
-    gasnetex_hsl_unlock(&inchsl); \
+    gex_HSL_Unlock(&inchsl); \
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */

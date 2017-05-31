@@ -936,13 +936,13 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
 GASNETI_NEVER_INLINE(gasnetc_dump_cqs,
 void gasnetc_dump_cqs(struct ibv_wc *comp, gasnetc_hca_t *hca, const int is_snd)) {
-  static gasnetex_hsl_t lock = GASNETEX_HSL_INITIALIZER;
+  static gex_HSL_t lock = GASNETEX_HSL_INITIALIZER;
   enum ibv_wc_status status = IBV_WC_SUCCESS;
   int count = 0;
   const char *label;
   int max_other_cq;
 
-  gasnetex_hsl_lock(&lock);
+  gex_HSL_Lock(&lock);
 
   if (is_snd) {
   #if GASNETC_DYNAMIC_CONNECT && !GASNETC_USE_CONN_THREAD
@@ -995,7 +995,7 @@ void gasnetc_dump_cqs(struct ibv_wc *comp, gasnetc_hca_t *hca, const int is_snd)
   if (count > max_other_cq) {
     fprintf(stderr, "@ %d> - %s CQ contains impossibly large WCE count with status %d\n", gasneti_mynode, label, status);
   }
-  gasnetex_hsl_unlock(&lock);
+  gex_HSL_Unlock(&lock);
 }
 
 /* Try to pull completed entries (if any) from the send CQ(s). */

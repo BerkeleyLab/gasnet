@@ -847,7 +847,7 @@ static void lifo_test(int id) {
 }
 /* ------------------------------------------------------------------------------------ */
 static int pf_cnt_boolean, pf_cnt_counted;
-static gasnetex_hsl_t pf_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t pf_lock = GASNETEX_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gasnetex_token_t token, void *buf, size_t nbytes) {
@@ -861,10 +861,10 @@ static void progressfn_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
 static void progressfn_tester(int *counter) {
   static int active = 0; /* protocol provides mutual exclusion & recursion protection */
   int iamactive = 0;
-  gasnetex_hsl_lock(&pf_lock);
+  gex_HSL_Lock(&pf_lock);
     (*counter)++;
     if (!active) { active = 1; iamactive = 1; }
-  gasnetex_hsl_unlock(&pf_lock);
+  gex_HSL_Unlock(&pf_lock);
   if (!iamactive) return;
 
   /* do some work that should be legal inside a progress fn */

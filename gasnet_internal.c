@@ -32,7 +32,7 @@ int gasneti_VerboseErrors = 1;
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
     #define _gasneti_atomic_lock_initializer	GASNETEX_HSL_INITIALIZER
-    #define _gasneti_atomic_lock_init(x)	gasnetex_hsl_init(x)
+    #define _gasneti_atomic_lock_init(x)	gex_HSL_Init(x)
     #define _gasneti_atomic_lock_malloc		gasneti_malloc
     GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_hsl_atomic_, gasnet_hsl_)
     #undef _gasneti_atomic_lock_initializer

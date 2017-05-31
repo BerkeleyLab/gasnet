@@ -356,12 +356,12 @@ void gasnet_FetchGexObjects( gasnetex_client_t      *client_p,
 /* ------------------------------------------------------------------------------------ */
 /* Handler-safe locks */
 
-#define gasnet_hsl_t    	gasnetex_hsl_t
-#define gasnet_hsl_init	        gasnetex_hsl_init
-#define gasnet_hsl_destroy	gasnetex_hsl_destroy
-#define gasnet_hsl_lock         gasnetex_hsl_lock
-#define gasnet_hsl_unlock	gasnetex_hsl_unlock
-#define gasnet_hsl_trylock	gasnetex_hsl_trylock
+#define gasnet_hsl_t    	gex_HSL_t
+#define gasnet_hsl_init	        gex_HSL_Init
+#define gasnet_hsl_destroy	gex_HSL_Destroy
+#define gasnet_hsl_lock         gex_HSL_Lock
+#define gasnet_hsl_unlock	gex_HSL_Unlock
+#define gasnet_hsl_trylock	gex_HSL_Trylock
 #define GASNET_HSL_INITIALIZER	GASNETEX_HSL_INITIALIZER
 
 /* ------------------------------------------------------------------------------------ */

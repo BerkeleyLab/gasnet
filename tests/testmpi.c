@@ -212,9 +212,9 @@ void mpi_barrier(threaddata_t *tdata) {
   #define MPI_LOCK()
   #define MPI_UNLOCK()
 #else
-  static gasnetex_hsl_t  mpi_hsl = GASNETEX_HSL_INITIALIZER;
-  #define MPI_LOCK()   gasnetex_hsl_lock(&mpi_hsl)
-  #define MPI_UNLOCK() gasnetex_hsl_unlock(&mpi_hsl)
+  static gex_HSL_t  mpi_hsl = GASNETEX_HSL_INITIALIZER;
+  #define MPI_LOCK()   gex_HSL_Lock(&mpi_hsl)
+  #define MPI_UNLOCK() gex_HSL_Unlock(&mpi_hsl)
 #endif
 
 

@@ -1336,7 +1336,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
   gasnete_coll_p2p_t *p2p, **prev_p;
   int i;
   
-  gasnetex_hsl_lock(&team->p2p_lock);
+  gex_HSL_Lock(&team->p2p_lock);
 
   /* Search table, which is sorted by sequence */
   prev_p = &(team->p2p_table[slot_nr]);
@@ -1388,7 +1388,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
     p2p->team_id = team_id;
 #endif
     p2p->sequence = sequence;
-    gasnetex_hsl_init(&p2p->lock);
+    gex_HSL_Init(&p2p->lock);
         
     team->p2p_freelist = p2p->p2p_next;
         
@@ -1406,7 +1406,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
 #endif
   }
       
-  gasnetex_hsl_unlock(&team->p2p_lock);
+  gex_HSL_Unlock(&team->p2p_lock);
       
   gasneti_assert(p2p != NULL);
   gasneti_assert(p2p->state != NULL);
@@ -1420,7 +1420,7 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
   gasneti_assert(p2p != NULL);
   gasneti_assert(p2p->team_id == team->team_id);
 
-  gasnetex_hsl_lock(&team->p2p_lock);
+  gex_HSL_Lock(&team->p2p_lock);
 
   *(p2p->p2p_prev_p) = p2p->p2p_next;
   if (p2p->p2p_next) {
@@ -1439,7 +1439,7 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
   p2p->p2p_prev_p = &p2p->p2p_next;
 #endif
 
-  gasnetex_hsl_unlock(&team->p2p_lock);
+  gex_HSL_Unlock(&team->p2p_lock);
 }
 
 /*Management of the Intervals for Segments*/
@@ -1447,7 +1447,7 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
 /* If we need more than 2^32 segments (which should be rare)
    The collective will need to get broken up into multiple collectives
 */
-static gasnetex_hsl_t gasnete_coll_p2p_seg_free_list_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t gasnete_coll_p2p_seg_free_list_lock = GASNETEX_HSL_INITIALIZER;
 static gasnete_coll_seg_interval_t *gasnet_coll_p2p_seg_interval_free_list = NULL;
 
 
@@ -1455,7 +1455,7 @@ gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval(void) {
   gasnete_coll_seg_interval_t *curr_interval;
 
            
-  gasnetex_hsl_lock(&gasnete_coll_p2p_seg_free_list_lock);
+  gex_HSL_Lock(&gasnete_coll_p2p_seg_free_list_lock);
   if(gasnet_coll_p2p_seg_interval_free_list == NULL) {
     /*if the free list is empty allocate a new one*/
     curr_interval = gasneti_malloc(sizeof(gasnete_coll_seg_interval_t));
@@ -1464,22 +1464,22 @@ gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval(void) {
     curr_interval = gasnet_coll_p2p_seg_interval_free_list;
     gasnet_coll_p2p_seg_interval_free_list = gasnet_coll_p2p_seg_interval_free_list->next;
   }
-  gasnetex_hsl_unlock(&gasnete_coll_p2p_seg_free_list_lock);
+  gex_HSL_Unlock(&gasnete_coll_p2p_seg_free_list_lock);
   return curr_interval;
 }
     
 void gasnete_coll_p2p_free_seg_interval(gasnete_coll_seg_interval_t* interval) {
-  gasnetex_hsl_lock(&gasnete_coll_p2p_seg_free_list_lock);
+  gex_HSL_Lock(&gasnete_coll_p2p_seg_free_list_lock);
   interval->next = gasnet_coll_p2p_seg_interval_free_list;
   gasnet_coll_p2p_seg_interval_free_list = interval;
-  gasnetex_hsl_unlock(&gasnete_coll_p2p_seg_free_list_lock);
+  gex_HSL_Unlock(&gasnete_coll_p2p_seg_free_list_lock);
 }
 
 extern void gasnete_coll_p2p_add_seg_interval(gasnete_coll_p2p_t *p2p, uint32_t seg_id) {
       
   gasnete_coll_seg_interval_t *curr_interval,*new_interval,*prev;
   gasneti_assert(p2p !=NULL);
-  gasnetex_hsl_lock(&p2p->lock);
+  gex_HSL_Lock(&p2p->lock);
   if(p2p->seg_intervals==NULL) {
     /*head of the current interval list is empty*/
     curr_interval = gasnet_coll_p2p_alloc_seg_interval();
@@ -1528,7 +1528,7 @@ extern void gasnete_coll_p2p_add_seg_interval(gasnete_coll_p2p_t *p2p, uint32_t 
       }
     }
   }
-  gasnetex_hsl_unlock(&p2p->lock);
+  gex_HSL_Unlock(&p2p->lock);
 }
 /*return the next segment interval in the list*/
 /*results are undefined if the seg_intervals list null*/
@@ -1538,7 +1538,7 @@ extern uint32_t gasnete_coll_p2p_next_seg_interval(gasnete_coll_p2p_t *p2p) {
   gasneti_assert(p2p!=NULL);
   gasneti_assert(p2p->seg_intervals !=NULL);
   /*march through the intervals to find the next interval*/
-  gasnetex_hsl_lock(&p2p->lock);
+  gex_HSL_Lock(&p2p->lock);
   if(p2p->seg_intervals->start != p2p->seg_intervals->end) {
     /* the interval contains information for more than one segment*/
     /*read a segment and return it*/
@@ -1552,7 +1552,7 @@ extern uint32_t gasnete_coll_p2p_next_seg_interval(gasnete_coll_p2p_t *p2p) {
     p2p->seg_intervals = p2p->seg_intervals->next;
     gasnete_coll_p2p_free_seg_interval(curr_interval);
   }
-  gasnetex_hsl_unlock(&p2p->lock);
+  gex_HSL_Unlock(&p2p->lock);
   return ret;
 }
 /* Delivers a long payload and updates 1 or more states
@@ -1714,9 +1714,9 @@ GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, buf, nbytes);
   if (decrement) {
     gasneti_sync_writes();
-    gasnetex_hsl_lock(&p2p->lock);
+    gex_HSL_Lock(&p2p->lock);
     --(p2p->state[0]);
-    gasnetex_hsl_unlock(&p2p->lock);
+    gex_HSL_Unlock(&p2p->lock);
   }
 }
 MEDIUM_HANDLER(gasnete_coll_p2p_memcpy_reqh,4,5,
@@ -1881,10 +1881,10 @@ void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
     tmp[i].addr = dstlist[i];
     tmp[i].sent = 0;
   }
-  gasnetex_hsl_lock(&p2p->lock);
+  gex_HSL_Lock(&p2p->lock);
   /* Record the number of Mediums we know we'll receive. */
   p2p->state[0] += count * ((nbytes + gasnetex_lub_AMRequestMedium() - 1) / gasnetex_lub_AMRequestMedium());
-  gasnetex_hsl_unlock(&p2p->lock);
+  gex_HSL_Unlock(&p2p->lock);
   gasnete_coll_p2p_eager_putM(op, node, tmp, count, sizeof(*tmp), offset, 1);
 }
 
@@ -1899,9 +1899,9 @@ void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
 /* Check completion of a gasnete_coll_p2p_memcpy (on rcvr) */
 int gasnete_coll_p2p_send_done(gasnete_coll_p2p_t *p2p) {
   int result;
-  gasnetex_hsl_lock(&p2p->lock);
+  gex_HSL_Lock(&p2p->lock);
   result = !p2p->state[0];
-  gasnetex_hsl_unlock(&p2p->lock);
+  gex_HSL_Unlock(&p2p->lock);
   return result;
 }
 
@@ -2120,7 +2120,7 @@ extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count 
 }
 
 /*
-static gasnetex_hsl_t gasnete_coll_tree_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t gasnete_coll_tree_lock = GASNETEX_HSL_INITIALIZER;
 */
 	
 /* XXX: should per-team */
@@ -2145,7 +2145,7 @@ extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG) {
  if (tree) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-  /*  gasnetex_hsl_lock(&gasnete_coll_tree_lock);*/
+  /*  gex_HSL_Lock(&gasnete_coll_tree_lock);*/
 #if 0
   /* The following two release functions do nothing  */
   gasnete_coll_tree_geom_release(tree->geom->base_geom);
@@ -2153,7 +2153,7 @@ extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD
 #endif
   *(gasnete_coll_tree_data_t **)tree = td->tree_data_freelist;
   td->tree_data_freelist = tree;
-  /* gasnetex_hsl_unlock(&gasnete_coll_tree_lock);*/
+  /* gex_HSL_Unlock(&gasnete_coll_tree_lock);*/
  }
 }
 

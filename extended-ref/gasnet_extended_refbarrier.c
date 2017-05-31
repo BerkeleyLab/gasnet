@@ -690,7 +690,7 @@ static void gasnete_pshmbarrier_init(gasnete_coll_team_t team) {
  */
 
 typedef struct {
-  gasnetex_hsl_t amdbarrier_lock;
+  gex_HSL_t amdbarrier_lock;
   gasnetex_rank_t *amdbarrier_peers; /* precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
   gasnete_pshmbarrier_data_t *amdbarrier_pshm; /* non-NULL if using hierarchical code */
@@ -711,7 +711,7 @@ static void gasnete_amdbarrier_notify_reqh(gasnetex_token_t token,
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
 
-  gasnetex_hsl_lock(&barrier_data->amdbarrier_lock);
+  gex_HSL_Lock(&barrier_data->amdbarrier_lock);
   { 
     /* Note we might not receive the steps in the numbered order.
      * We record the value received on the first one to actually arrive.
@@ -733,7 +733,7 @@ static void gasnete_amdbarrier_notify_reqh(gasnetex_token_t token,
     barrier_data->amdbarrier_recv_flags[phase] = recv_flags;
     barrier_data->amdbarrier_recv_value[phase] = recv_value;
   }
-  gasnetex_hsl_unlock(&barrier_data->amdbarrier_lock);
+  gex_HSL_Unlock(&barrier_data->amdbarrier_lock);
 
   gasneti_assert(barrier_data->amdbarrier_step_done[phase][step] == 0);
   barrier_data->amdbarrier_step_done[phase][step] = 1;
@@ -752,7 +752,7 @@ static int gasnete_amdbarrier_kick_pshm(gasnete_coll_team_t team) {
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
   int done = (barrier_data->amdbarrier_step >= 0);
 
-  if (!done && !gasnetex_hsl_trylock(&barrier_data->amdbarrier_lock)) {
+  if (!done && !gex_HSL_Trylock(&barrier_data->amdbarrier_lock)) {
     done = (barrier_data->amdbarrier_step >= 0);
     if (!done) {
       PSHM_BDATA_DECL(pshm_bdata, barrier_data->amdbarrier_pshm);
@@ -768,7 +768,7 @@ static int gasnete_amdbarrier_kick_pshm(gasnete_coll_team_t team) {
         }
         gasneti_sync_writes();
         barrier_data->amdbarrier_step = 0;
-        gasnetex_hsl_unlock(&barrier_data->amdbarrier_lock); /* Cannot send while holding HSL */
+        gex_HSL_Unlock(&barrier_data->amdbarrier_lock); /* Cannot send while holding HSL */
         if (barrier_data->amdbarrier_size && !barrier_data->amdbarrier_passive) {
           gasnete_amdbarrier_send(team, phase, 0, value, flags);
         } else {
@@ -777,7 +777,7 @@ static int gasnete_amdbarrier_kick_pshm(gasnete_coll_team_t team) {
         return 1;
       }
     }
-    gasnetex_hsl_unlock(&barrier_data->amdbarrier_lock);
+    gex_HSL_Unlock(&barrier_data->amdbarrier_lock);
   }
 
   return done;
@@ -805,7 +805,7 @@ void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
   }
 #endif
 
-  if (gasnetex_hsl_trylock(&barrier_data->amdbarrier_lock))
+  if (gex_HSL_Trylock(&barrier_data->amdbarrier_lock))
     return; /* another thread is currently in kick */
 
   {
@@ -814,11 +814,11 @@ void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
 
 #if GASNETI_PSHM_BARRIER_HIER
     if_pf (step < 0) { /* local notify has not completed */
-      gasnetex_hsl_unlock(&barrier_data->amdbarrier_lock);
+      gex_HSL_Unlock(&barrier_data->amdbarrier_lock);
       return;
     } else if (barrier_data->amdbarrier_passive) {
       gasnete_barrier_pf_disable(team);
-      gasnetex_hsl_unlock(&barrier_data->amdbarrier_lock);
+      gex_HSL_Unlock(&barrier_data->amdbarrier_lock);
       return;
     }
     gasneti_assert(!barrier_data->amdbarrier_passive);
@@ -867,7 +867,7 @@ void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
     } 
   }
 
-  gasnetex_hsl_unlock(&barrier_data->amdbarrier_lock);
+  gex_HSL_Unlock(&barrier_data->amdbarrier_lock);
 
   for ( ; numsteps; numsteps--) {
     gasnete_amdbarrier_send(team, phase, ++step, value, flags);
@@ -1108,7 +1108,7 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
 
   gasneti_leak(barrier_data);
   team->barrier_data = barrier_data;
-  gasnetex_hsl_init(&barrier_data->amdbarrier_lock);
+  gex_HSL_Init(&barrier_data->amdbarrier_lock);
 
   barrier_data->amdbarrier_recv_flags[0] = GASNET_BARRIERFLAG_ANONYMOUS;
   barrier_data->amdbarrier_recv_flags[1] = GASNET_BARRIERFLAG_ANONYMOUS;
@@ -1738,7 +1738,7 @@ typedef struct {
   int amcbarrier_pshm_notify_done; /* must kick the pshm barrier while zero */
 #endif
   /*  global state on master */
-  gasnetex_hsl_t amcbarrier_lock;
+  gex_HSL_t amcbarrier_lock;
   int volatile amcbarrier_consensus_value[2]; /*  consensus ambarrier value */
   int volatile amcbarrier_consensus_flags[2]; /*  consensus ambarrier flags */
   int volatile amcbarrier_count[2];/*  count of how many remotes have notified (on master) */
@@ -1752,7 +1752,7 @@ static void gasnete_amcbarrier_notify_reqh(gasnetex_token_t token,
 
   gasneti_assert(gasneti_mynode == barrier_data->amcbarrier_master);
   
-  gasnetex_hsl_lock(&barrier_data->amcbarrier_lock);
+  gex_HSL_Lock(&barrier_data->amcbarrier_lock);
   { int count = barrier_data->amcbarrier_count[phase];
     const int consensus_flags = barrier_data->amcbarrier_consensus_flags[phase];
     const int consensus_value = barrier_data->amcbarrier_consensus_value[phase];
@@ -1770,7 +1770,7 @@ static void gasnete_amcbarrier_notify_reqh(gasnetex_token_t token,
     if (count == barrier_data->amcbarrier_max) gasneti_sync_writes(); /* about to signal, ensure we flush state */
     barrier_data->amcbarrier_count[phase] = count;
   }
-  gasnetex_hsl_unlock(&barrier_data->amcbarrier_lock);
+  gex_HSL_Unlock(&barrier_data->amcbarrier_lock);
 }
 
 static void gasnete_amcbarrier_done_reqh(gasnetex_token_t token,
@@ -1816,13 +1816,13 @@ static int gasnete_amcbarrier_kick_pshm(gasnete_coll_team_t team) {
   gasnete_coll_amcbarrier_t *barrier_data = team->barrier_data;
   int done = barrier_data->amcbarrier_pshm_notify_done;
 
-  if (!done && !gasnetex_hsl_trylock(&barrier_data->amcbarrier_lock)) {
+  if (!done && !gex_HSL_Trylock(&barrier_data->amcbarrier_lock)) {
     done = barrier_data->amcbarrier_pshm_notify_done;
     if (!done) {
       PSHM_BDATA_DECL(pshm_bdata, barrier_data->amcbarrier_pshm);
       if (gasnete_pshmbarrier_kick(pshm_bdata)) {
         barrier_data->amcbarrier_pshm_notify_done = 1;
-        gasnetex_hsl_unlock(&barrier_data->amcbarrier_lock); /* Cannot send while holding HSL */
+        gex_HSL_Unlock(&barrier_data->amcbarrier_lock); /* Cannot send while holding HSL */
         gasnete_amcbarrier_send(team,
                                 barrier_data->amcbarrier_phase,
                                 pshm_bdata->shared->value,
@@ -1830,7 +1830,7 @@ static int gasnete_amcbarrier_kick_pshm(gasnete_coll_team_t team) {
         return 1;
       }
     }
-    gasnetex_hsl_unlock(&barrier_data->amcbarrier_lock);
+    gex_HSL_Unlock(&barrier_data->amcbarrier_lock);
   }
 
   return done;
@@ -1856,7 +1856,7 @@ void gasnete_amcbarrier_kick(gasnete_coll_team_t team) {
     int gotit = 0;
     int flags = 0;
     int value = 0;
-    gasnetex_hsl_lock(&barrier_data->amcbarrier_lock);
+    gex_HSL_Lock(&barrier_data->amcbarrier_lock);
       if (barrier_data->amcbarrier_count[phase] == barrier_data->amcbarrier_max) {
         flags = barrier_data->amcbarrier_consensus_flags[phase];
         value = barrier_data->amcbarrier_consensus_value[phase];
@@ -1865,7 +1865,7 @@ void gasnete_amcbarrier_kick(gasnete_coll_team_t team) {
         barrier_data->amcbarrier_count[phase] = 0;
         barrier_data->amcbarrier_consensus_flags[phase] = GASNET_BARRIERFLAG_ANONYMOUS;
       }
-    gasnetex_hsl_unlock(&barrier_data->amcbarrier_lock);
+    gex_HSL_Unlock(&barrier_data->amcbarrier_lock);
 
     if (gotit) { /*  ambarrier is complete */
       int i;
@@ -2028,7 +2028,7 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team, gasnetex_rank_t *n
 #endif
 
   gasneti_leak(barrier_data);
-  gasnetex_hsl_init(&barrier_data->amcbarrier_lock);
+  gex_HSL_Init(&barrier_data->amcbarrier_lock);
 
   barrier_data->amcbarrier_consensus_flags[0] = GASNET_BARRIERFLAG_ANONYMOUS;
   barrier_data->amcbarrier_consensus_flags[1] = GASNET_BARRIERFLAG_ANONYMOUS;

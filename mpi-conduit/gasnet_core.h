@@ -80,7 +80,7 @@ extern int gasnetc_EPRegisterHandlers(
   #define GASNETC_HSL_ERRCHECK_TAGDYN  ((uint64_t)0xB82F6C0DE19C8F3DULL)
 #endif
 
-typedef struct _gasnetex_hsl_t {
+typedef struct gasneti_hsl_s {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
@@ -91,9 +91,9 @@ typedef struct _gasnetex_hsl_t {
     uint64_t tag;
     int islocked;
     gasneti_tick_t timestamp;
-    struct _gasnetex_hsl_t *next;
+    struct gasneti_hsl_s *next;
   #endif
-} gasnetex_hsl_t;
+} gex_HSL_t;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -125,23 +125,23 @@ typedef struct _gasnetex_hsl_t {
 
 #if GASNETC_NULL_HSL
   /* HSL's unnecessary - compile away to nothing */
-  #define gasnetex_hsl_init(hsl)
-  #define gasnetex_hsl_destroy(hsl)
-  #define gasnetex_hsl_lock(hsl)
-  #define gasnetex_hsl_unlock(hsl)
-  #define gasnetex_hsl_trylock(hsl)	GASNET_OK
+  #define gex_HSL_Init(hsl)
+  #define gex_HSL_Destroy(hsl)
+  #define gex_HSL_Lock(hsl)
+  #define gex_HSL_Unlock(hsl)
+  #define gex_HSL_Trylock(hsl)	GASNET_OK
 #else
-  extern void gasnetc_hsl_init   (gasnetex_hsl_t *hsl);
-  extern void gasnetc_hsl_destroy(gasnetex_hsl_t *hsl);
-  extern void gasnetc_hsl_lock   (gasnetex_hsl_t *hsl);
-  extern void gasnetc_hsl_unlock (gasnetex_hsl_t *hsl);
-  extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
+  extern void gasnetc_hsl_init   (gex_HSL_t *hsl);
+  extern void gasnetc_hsl_destroy(gex_HSL_t *hsl);
+  extern void gasnetc_hsl_lock   (gex_HSL_t *hsl);
+  extern void gasnetc_hsl_unlock (gex_HSL_t *hsl);
+  extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) GASNETI_WARN_UNUSED_RESULT;
 
-  #define gasnetex_hsl_init    gasnetc_hsl_init
-  #define gasnetex_hsl_destroy gasnetc_hsl_destroy
-  #define gasnetex_hsl_lock    gasnetc_hsl_lock
-  #define gasnetex_hsl_unlock  gasnetc_hsl_unlock
-  #define gasnetex_hsl_trylock gasnetc_hsl_trylock
+  #define gex_HSL_Init    gasnetc_hsl_init
+  #define gex_HSL_Destroy gasnetc_hsl_destroy
+  #define gex_HSL_Lock    gasnetc_hsl_lock
+  #define gex_HSL_Unlock  gasnetc_hsl_unlock
+  #define gex_HSL_Trylock gasnetc_hsl_trylock
 #endif
 
 #if GASNET_PSHM && GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
