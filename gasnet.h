@@ -76,8 +76,8 @@ int gasnet_attach( gasnet_handlerentry_t *table, int numentries,
                          table, numentries, segsize);
 }
 
-GASNETT_INLINE(gasnet_FetchGexObjects)
-void gasnet_FetchGexObjects( gex_Client_t      *client_p,
+GASNETT_INLINE(gasnet_QueryGexObjects)
+void gasnet_QueryGexObjects( gex_Client_t      *client_p,
                              gex_EP_t          *endpoint_p,
                              gex_TM_t          *tm_p,
                              gex_Segment_t     *segment_p) {

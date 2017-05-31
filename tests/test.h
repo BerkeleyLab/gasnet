@@ -817,7 +817,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     /* do regular attach, then setup seg_everything segment */
     GASNET_Safe(gasnet_attach(table, numentries, segsize, minheapoffset));
     gex_TM_t tm;
-    gasnet_FetchGexObjects(NULL,NULL,&tm,NULL);
+    gasnet_QueryGexObjects(NULL,NULL,&tm,NULL);
     return _test_create_test_segment(tm, segsize);
   }
   #undef gasnet_attach
