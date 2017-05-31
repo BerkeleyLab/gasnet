@@ -213,7 +213,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
-			gasnetex_wait_syncnbi_puts();
+			gex_NBI_WaitPuts();
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -234,7 +234,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gasnetex_get_nbi(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
-			gasnetex_wait_syncnbi_gets();
+			gex_NBI_WaitGets();
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -268,7 +268,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -288,7 +288,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 	 		gasnetex_get_nbi(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -573,7 +573,7 @@ int main(int argc, char **argv)
            gasnetex_put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
            gasnetex_wait_all(h, 2*warm_iters);
-           gasnetex_wait_syncnbi_all();
+           gex_NBI_WaitAll();
            test_free(h);
         }
 

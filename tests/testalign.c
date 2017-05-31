@@ -166,7 +166,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		for (i = 0; i < iters; i++) {
 			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -188,7 +188,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		for (i = 0; i < iters; i++) {
 	 		gasnetex_get_nbi(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}

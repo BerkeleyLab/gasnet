@@ -288,41 +288,41 @@ int _gasnetex_put_nbi  (gex_TM_t tm,
 #endif
 
 
-GASNETI_INLINE(_gasnetex_test_syncnbi_gets) GASNETI_WARN_UNUSED_RESULT
-int _gasnetex_test_syncnbi_gets(GASNETI_THREAD_FARG_ALONE) {
+GASNETI_INLINE(_gex_NBI_TestGets) GASNETI_WARN_UNUSED_RESULT
+int _gex_NBI_TestGets(GASNETI_THREAD_FARG_ALONE) {
   int retval = gasnete_test_syncnbi_gets(GASNETI_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI_GETS,retval);
   return retval;
 }
-#define gasnetex_test_syncnbi_gets()   \
-       _gasnetex_test_syncnbi_gets(GASNETI_THREAD_GET_ALONE)
+#define gex_NBI_TestGets()   \
+       _gex_NBI_TestGets(GASNETI_THREAD_GET_ALONE)
 
-GASNETI_INLINE(_gasnetex_test_syncnbi_puts) GASNETI_WARN_UNUSED_RESULT
-int _gasnetex_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
+GASNETI_INLINE(_gex_NBI_TestPuts) GASNETI_WARN_UNUSED_RESULT
+int _gex_NBI_TestPuts(GASNETI_THREAD_FARG_ALONE) {
   int retval = gasnete_test_syncnbi_puts(GASNETI_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI_PUTS,retval);
   return retval;
 }
-#define gasnetex_test_syncnbi_puts()   \
-       _gasnetex_test_syncnbi_puts(GASNETI_THREAD_GET_ALONE)
+#define gex_NBI_TestPuts()   \
+       _gex_NBI_TestPuts(GASNETI_THREAD_GET_ALONE)
 
-GASNETI_INLINE(_gasnetex_test_syncnbi) GASNETI_WARN_UNUSED_RESULT
-int _gasnetex_test_syncnbi(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+GASNETI_INLINE(_gex_NBI_Test) GASNETI_WARN_UNUSED_RESULT
+int _gex_NBI_Test(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   int retval = gasnete_test_syncnbi_mask(mask, flags GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI,retval);
   return retval;
 }
-#define gasnetex_test_syncnbi(mask, flags)   \
-       _gasnetex_test_syncnbi(mask, flags GASNETI_THREAD_GET)
+#define gex_NBI_Test(mask, flags)   \
+       _gex_NBI_Test(mask, flags GASNETI_THREAD_GET)
 
-GASNETI_INLINE(_gasnetex_test_syncnbi_all) GASNETI_WARN_UNUSED_RESULT
-int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
+GASNETI_INLINE(_gex_NBI_TestAll) GASNETI_WARN_UNUSED_RESULT
+int _gex_NBI_TestAll(GASNETI_THREAD_FARG_ALONE) {
   int retval = gasnete_test_syncnbi_mask(GASNETEX_EVENTID_ALL, 0 GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI_ALL,retval);
   return retval;
 }
-#define gasnetex_test_syncnbi_all()   \
-       _gasnetex_test_syncnbi_all(GASNETI_THREAD_GET_ALONE)
+#define gex_NBI_TestAll()   \
+       _gex_NBI_TestAll(GASNETI_THREAD_GET_ALONE)
 
 
 #ifndef gasnete_wait_syncnbi_gets
@@ -331,7 +331,7 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_THREAD_SWALLOW
 #endif
 
-#define gasnetex_wait_syncnbi_gets() do {                                                        \
+#define gex_NBI_WaitGets() do {                                                        \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
   gasneti_AMPoll(); /* ensure at least one poll */                                               \
   gasnete_wait_syncnbi_gets(GASNETI_THREAD_GET_ALONE);                                           \
@@ -344,7 +344,7 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_THREAD_SWALLOW
 #endif
 
-#define gasnetex_wait_syncnbi_puts() do {                                                        \
+#define gex_NBI_WaitPuts() do {                                                        \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
   gasneti_AMPoll(); /* ensure at least one poll */                                               \
   gasnete_wait_syncnbi_puts(GASNETI_THREAD_GET_ALONE);                                           \
@@ -356,7 +356,7 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
     gasneti_pollwhile(gasnete_test_syncnbi_mask(mask, flagsTI) == GASNET_ERR_NOT_READY)
 #endif
 
-#define gasnetex_wait_syncnbi(mask, flags) do {                                                  \
+#define gex_NBI_Wait(mask, flags) do {                                                  \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
   gasneti_AMPoll(); /* ensure at least one poll */                                               \
   gasnete_wait_syncnbi_mask(mask, flags GASNETI_THREAD_GET);                                     \
@@ -369,7 +369,7 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_THREAD_SWALLOW
 #endif
 
-#define gasnetex_wait_syncnbi_all() do {                                                         \
+#define gex_NBI_WaitAll() do {                                                         \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
   gasneti_AMPoll(); /* ensure at least one poll */                                               \
   gasnete_wait_syncnbi_all(GASNETI_THREAD_GET_ALONE);                                            \
@@ -388,8 +388,8 @@ extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecu
 extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
-#define gasnetex_begin_nbi_accessregion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
-#define gasnetex_end_nbi_accessregion(flags)   gasnete_end_nbi_accessregion(flags GASNETI_THREAD_GET)
+#define gex_NBI_BeginAccessRegion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
+#define gex_NBI_EndAccessRegion(flags)   gasnete_end_nbi_accessregion(flags GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*

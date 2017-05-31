@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \
-                gasnetex_wait_syncnbi_all();                                                       \
+                gex_NBI_WaitAll();                                                       \
               } while (0)
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();

@@ -203,7 +203,7 @@ void put_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_NOW, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "put: gap - put_nbi", PRINT_GAP);
@@ -218,7 +218,7 @@ void put_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "put: G   - put_nbi", PRINT_BIG_G);
@@ -326,7 +326,7 @@ void get_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 	 		gasnetex_get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "get: gap - get_nbi", PRINT_GAP);
@@ -341,7 +341,7 @@ void get_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 	 		gasnetex_get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
     		print_stat(myproc, &st, "get: G   - get_nbi", PRINT_BIG_G);

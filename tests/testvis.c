@@ -1028,7 +1028,7 @@ void doit(int iters, int runtests) {
 
       /* sync */
       gasnetex_wait_all(handles, numops);
-      gasnetex_wait_syncnbi_all();
+      gex_NBI_WaitAll();
 
       /* gets */
       for(i=0; i < numops; i++) {
@@ -1063,7 +1063,7 @@ void doit(int iters, int runtests) {
 
       /* sync */
       gasnetex_wait_all(handles, numops);
-      gasnetex_wait_syncnbi_all();
+      gex_NBI_WaitAll();
 
       for(i=0; i < numops; i++) {
         if (ops[i].vsrc != NULL) {

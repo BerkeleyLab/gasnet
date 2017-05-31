@@ -321,11 +321,11 @@ void doit2(int partner, int *partnerseg) {
       int tmp = mynode + i;
       gasnetex_put_nbi(myteam, partner, partnerseg+i, &tmp, sizeof(int), GASNETEX_EVENT_NOW, 0);
     }
-    gasnetex_wait_syncnbi_puts();
+    gex_NBI_WaitPuts();
     for (i=0; i < 100; i++) {
       gasnetex_get_nbi(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gasnetex_wait_syncnbi_gets();
+    gex_NBI_WaitGets();
     for (i=0; i < 100; i++) {
       if (vals[i] != mynode + i) {
         MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
@@ -358,7 +358,7 @@ void doit3(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       gasnetex_put_nbi_val(myteam, partner, partnerseg+i+200, 1000 + mynode + i, sizeof(int), 0);
     }
-    gasnetex_wait_syncnbi_puts();
+    gex_NBI_WaitPuts();
 
     for (i=0; i < 100; i++) {
       int tmp1 = gasnetex_get_val(myteam, partner, partnerseg+i, sizeof(int), 0);
@@ -381,7 +381,7 @@ void doit3(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       gasnetex_put_nbi_val(myteam, partner, partnerbase2+i+200, 100 + mynode + i, sizeof(unsigned char), 0);
     }
-    gasnetex_wait_syncnbi_puts();
+    gex_NBI_WaitPuts();
 
     for (i=0; i < 100; i++) {
       unsigned int tmp1 = (unsigned int)gasnetex_get_val(myteam, partner, partnerbase2+i, sizeof(unsigned char), 0);
@@ -504,27 +504,27 @@ void doit5(int partner, int *partnerseg) {
           }
         }
         gasnetex_put_nbi(myteam, partner, rsegpos, localpos, sz, GASNETEX_EVENT_DEFER, 0);
-        gasnetex_wait_syncnbi_puts();
+        gex_NBI_WaitPuts();
 
         gasnetex_put_nbi(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_EVENT_NOW, 0);
         memset(localpos, 0xCC, sz); /* clear */
-        gasnetex_wait_syncnbi_puts();
+        gex_NBI_WaitPuts();
 
         gasnetex_put_nbi(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_EVENT_DEFER, 0);
-        gasnetex_wait_syncnbi_puts();
+        gex_NBI_WaitPuts();
 
         gasnetex_put_nbi(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_EVENT_NOW, 0);
         memset(segpos, 0xCC, sz); /* clear */
-        gasnetex_wait_syncnbi_puts();
+        gex_NBI_WaitPuts();
 
         gasnetex_get_nbi(myteam, localpos, partner, rsegpos, sz, 0);
-        gasnetex_wait_syncnbi_gets();
+        gex_NBI_WaitGets();
         gasnetex_get_nbi(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
-        gasnetex_wait_syncnbi_gets();
+        gex_NBI_WaitGets();
         gasnetex_get_nbi(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
-        gasnetex_wait_syncnbi_gets();
+        gex_NBI_WaitGets();
         gasnetex_get_nbi(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
-        gasnetex_wait_syncnbi_gets();
+        gex_NBI_WaitGets();
 
         for (j=0; j < elems*2; j++) {
           int ok;

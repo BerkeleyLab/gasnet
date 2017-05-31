@@ -155,7 +155,7 @@ void *workerthread(void *args) {
             case 14: gasnetex_get_nbi(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
             case 15: gasnetex_put_nbi(myteam, peer, peerseg, p, lim, GASNETEX_EVENT_NOW, 0); break;
             case 16: gasnetex_get_nbi(myteam, p, peer, peerseg, lim, 0); break;
-            case 17: gasnetex_wait_syncnbi_all(); break;
+            case 17: gex_NBI_WaitAll(); break;
           }
         }
       }

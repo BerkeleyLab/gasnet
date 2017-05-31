@@ -174,7 +174,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0);
 			}
-			gasnetex_wait_syncnbi_puts();
+			gex_NBI_WaitPuts();
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -193,7 +193,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 			    gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gasnetex_wait_syncnbi_gets();
+			gex_NBI_WaitGets();
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -413,7 +413,7 @@ int main(int argc, char **argv)
            gasnetex_put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
            gasnetex_wait_all(h, warm_iters*2);
-           gasnetex_wait_syncnbi_all();
+           gex_NBI_WaitAll();
            test_free(h);
         }
 

@@ -376,7 +376,7 @@ void do_bulkputs(void) {
     if (do_puts && do_bulk && do_implicit) {
       QUEUE_TEST("gasnetex_put_nbi/bulk", 
                  gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0), 
-                 gasnetex_wait_syncnbi_all(), (void)0, 0);
+                 gex_NBI_WaitAll(), (void)0, 0);
     }
 }
 void do_nonbulkputgets(void) {
@@ -395,13 +395,13 @@ void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_implicit) {
       QUEUE_TEST("gasnetex_put_nbi", 
                  gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_NOW, 0), 
-                 gasnetex_wait_syncnbi_all(), (void)0, 0);
+                 gex_NBI_WaitAll(), (void)0, 0);
     }
 
     if (do_gets && do_implicit) {
       QUEUE_TEST("gasnetex_get_nbi", 
                  gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
-                 gasnetex_wait_syncnbi_all(), (void)0, 0);
+                 gex_NBI_WaitAll(), (void)0, 0);
     }
 }
 void do_valueputgets(void) {
@@ -415,7 +415,7 @@ void do_valueputgets(void) {
     if (do_puts && do_value && do_implicit) {
       QUEUE_TEST("gasnetex_put_nbi_val",
                  gasnetex_put_nbi_val(myteam, peerproc, tgtmem, regval, payload, 0),
-                 gasnetex_wait_syncnbi_all(),
+                 gex_NBI_WaitAll(),
                  (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 

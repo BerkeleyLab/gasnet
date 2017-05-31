@@ -470,19 +470,19 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle sync operations */
 
-#define gasnet_try_syncnbi_gets() (gasnet_AMPoll(),gasnetex_test_syncnbi_gets())
-#define gasnet_try_syncnbi_puts() (gasnet_AMPoll(),gasnetex_test_syncnbi_puts())
-#define gasnet_try_syncnbi_all()  (gasnet_AMPoll(),gasnetex_test_syncnbi_all ())
+#define gasnet_try_syncnbi_gets() (gasnet_AMPoll(),gex_NBI_TestGets())
+#define gasnet_try_syncnbi_puts() (gasnet_AMPoll(),gex_NBI_TestPuts())
+#define gasnet_try_syncnbi_all()  (gasnet_AMPoll(),gex_NBI_TestAll ())
 
-#define gasnet_wait_syncnbi_gets() gasnetex_wait_syncnbi_gets()
-#define gasnet_wait_syncnbi_puts() gasnetex_wait_syncnbi_puts()
-#define gasnet_wait_syncnbi_all()  gasnetex_wait_syncnbi_all ()
+#define gasnet_wait_syncnbi_gets() gex_NBI_WaitGets()
+#define gasnet_wait_syncnbi_puts() gex_NBI_WaitPuts()
+#define gasnet_wait_syncnbi_all()  gex_NBI_WaitAll ()
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle access regions */
 
-#define gasnet_begin_nbi_accessregion() gasnetex_begin_nbi_accessregion(0)
-#define gasnet_end_nbi_accessregion()   gasnetex_end_nbi_accessregion(0)
+#define gasnet_begin_nbi_accessregion() gex_NBI_BeginAccessRegion(0)
+#define gasnet_end_nbi_accessregion()   gex_NBI_EndAccessRegion(0)
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN
