@@ -36,7 +36,7 @@ volatile int flag = 0;
 
 void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
-  gasnetex_AMReplyMedium0(token, hidx_pong_medhandler, source_addr, 0, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, hidx_pong_medhandler, source_addr, 0, GASNETEX_EVENT_NOW, 0);
 }
 void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   flag++;
@@ -44,7 +44,7 @@ void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 
 void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
-  gasnetex_AMReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg, GASNETEX_EVENT_NOW, 0);
 }
 void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   flag++;
@@ -106,9 +106,9 @@ void testAMSrcAddr(void) {
       void *source_addr = addr_tbl[i];
       int goal = flag + 1;
 
-      gasnetex_AMRequestMedium1(myteam, peer, hidx_ping_medhandler, source_addr, 0, GASNETEX_EVENT_NOW, 0, i);
+      gex_AM_RequestMedium1(myteam, peer, hidx_ping_medhandler, source_addr, 0, GASNETEX_EVENT_NOW, 0, i);
       GASNET_BLOCKUNTIL(flag == goal); ++goal;
-      gasnetex_AMRequestLong1(myteam, peer, hidx_ping_longhandler, source_addr, 0, peerseg, GASNETEX_EVENT_NOW, 0, i);
+      gex_AM_RequestLong1(myteam, peer, hidx_ping_longhandler, source_addr, 0, peerseg, GASNETEX_EVENT_NOW, 0, i);
       GASNET_BLOCKUNTIL(flag == goal); ++goal;
     }
 

@@ -105,7 +105,7 @@ void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes,
                      gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Request (pre-reply)", buf, nbytes, iter, chunkidx);
-  gasnetex_AMReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0, iter, chunkidx);
+  gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0, iter, chunkidx);
   validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, chunkidx);
 }
 void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes,
@@ -125,7 +125,7 @@ void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
     srcbuf = longreplysrc+chunkidx*nbytes;
     memcpy(srcbuf, buf, nbytes);
   }
-  gasnetex_AMReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, peerrepseg+chunkidx*nbytes, GASNETEX_EVENT_NOW, 0, iter, chunkidx);
+  gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, peerrepseg+chunkidx*nbytes, GASNETEX_EVENT_NOW, 0, iter, chunkidx);
 }
 
 void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
@@ -307,7 +307,7 @@ void *doit(void *id) {
         if (domed && sz <= maxmed) { /* test Medium AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
-            gasnetex_AMRequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcseg+chunkidx*sz, sz,
+            gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcseg+chunkidx*sz, sz,
                                       GASNETEX_EVENT_NOW, 0, iter, chunkidx);
           }
           /* wait for completion */
@@ -318,7 +318,7 @@ void *doit(void *id) {
          if (dolong) { /* test Long AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
-            gasnetex_AMRequestLong2(myteam, peerproc, hidx_ping_longhandler, srcseg+chunkidx*sz, sz,
+            gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, srcseg+chunkidx*sz, sz,
                                     peerreqseg+chunkidx*sz,  GASNETEX_EVENT_NOW, 0, iter, chunkidx);
           }
           /* wait for completion */

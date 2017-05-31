@@ -125,13 +125,13 @@ enum {
         flag++;                                                    \
         break;                                                     \
       case op_srep:                                                \
-        DO_CALL(gasnetex_AMReplyShort##args, SARGS(token,args));   \
+        DO_CALL(gex_AM_ReplyShort##args, SARGS(token,args));   \
         break;                                                     \
       case op_mrep:                                                \
-        DO_CALL(gasnetex_AMReplyMedium##args, MARGS(token,args));  \
+        DO_CALL(gex_AM_ReplyMedium##args, MARGS(token,args));  \
         break;                                                     \
       case op_lrep:                                                \
-        DO_CALL(gasnetex_AMReplyLong##args, LARGS(token,args,1));  \
+        DO_CALL(gex_AM_ReplyLong##args, LARGS(token,args,1));  \
         break;                                                     \
       default:                                                     \
         FATALERR("Invalid operation = %d", (int)operation);        \
@@ -157,13 +157,13 @@ enum {
     int goal = flag + 1;                                             \
     randomize();                                                     \
     arg1 = op_srep;                                                  \
-      DO_CALL(gasnetex_AMRequestShort##args,SARGS(DEST(peer),args)); \
+      DO_CALL(gex_AM_RequestShort##args,SARGS(DEST(peer),args)); \
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
     arg1 = op_mrep;                                                  \
-      DO_CALL(gasnetex_AMRequestMedium##args,MARGS(DEST(peer),args));\
+      DO_CALL(gex_AM_RequestMedium##args,MARGS(DEST(peer),args));\
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
     arg1 = op_lrep;                                                  \
-      DO_CALL(gasnetex_AMRequestLong##args,LARGS(DEST(peer),args,0));\
+      DO_CALL(gex_AM_RequestLong##args,LARGS(DEST(peer),args,0));\
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
   }
 
@@ -178,14 +178,14 @@ enum {
 volatile int flag = 0;
 HFOREACH(HDEFN)
 void ping_shorthandler(gasnetex_token_t token) {
-    gasnetex_AMReplyShort0(token, hidx_pong_shorthandler, 0);
+    gex_AM_ReplyShort0(token, hidx_pong_shorthandler, 0);
 }
 void pong_shorthandler(gasnetex_token_t token) {
 	  flag++;
 }
 void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
     MSGCHECK(MSZ(0));
-    gasnetex_AMReplyMedium0(token, hidx_pong_medhandler, rand_payload, nbytes, GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyMedium0(token, hidx_pong_medhandler, rand_payload, nbytes, GASNETEX_EVENT_NOW, 0);
 }
 void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
     MSGCHECK(MSZ(0));
@@ -193,7 +193,7 @@ void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
     MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
-    gasnetex_AMReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + LSZ(0), GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + LSZ(0), GASNETEX_EVENT_NOW, 0);
 }
 void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
     MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
@@ -275,13 +275,13 @@ int main(int argc, char **argv) {
     int goal = flag + 1;
     randomize();
 
-    gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler, 0);
+    gex_AM_RequestShort0(myteam, peer, hidx_ping_shorthandler, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
 
-    gasnetex_AMRequestMedium0(myteam, peer, hidx_ping_medhandler, rand_payload, MSZ(0), GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestMedium0(myteam, peer, hidx_ping_medhandler, rand_payload, MSZ(0), GASNETEX_EVENT_NOW, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
 
-    gasnetex_AMRequestLong0(myteam, peer, hidx_ping_longhandler, rand_payload, LSZ(0), peerseg, GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestLong0(myteam, peer, hidx_ping_longhandler, rand_payload, LSZ(0), peerseg, GASNETEX_EVENT_NOW, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
   }
 

@@ -437,7 +437,7 @@ ping_shorthandler(gasnetex_token_t token, harg_t idx)
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
-	gasnetex_AMReplyShort1(token, hidx_pong_shorthandler, 0, idx);
+	gex_AM_ReplyShort1(token, hidx_pong_shorthandler, 0, idx);
 }
 
 void 
@@ -465,7 +465,7 @@ ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx, ha
         assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(gasnet_mynode()) ||
                (uintptr_t)buf >= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
-	gasnetex_AMReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0, idx);
+	gex_AM_ReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0, idx);
 }
 void 
 pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
@@ -504,7 +504,7 @@ ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx, h
         assert(buf == tt_addr_map[target_id]);
         assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
-	gasnetex_AMReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GASNETEX_EVENT_NOW, 0, idx);
+	gex_AM_ReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GASNETEX_EVENT_NOW, 0, idx);
 }
 
 void 
@@ -588,7 +588,7 @@ test_amshort(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d", tdata->tid, peer);
 	tdata->flag = -1;
         gasnett_local_wmb();
-	gasnetex_AMRequestShort1(myteam, node, hidx_ping_shorthandler, 0, tdata->ltid);
+	gex_AM_RequestShort1(myteam, node, hidx_ping_shorthandler, 0, tdata->ltid);
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
@@ -610,7 +610,7 @@ test_ammedium(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
         gasnett_local_wmb();
-	gasnetex_AMRequestMedium2(myteam, node, hidx_ping_medhandler, laddr, len,
+	gex_AM_RequestMedium2(myteam, node, hidx_ping_medhandler, laddr, len,
                                   GASNETEX_EVENT_NOW, 0, tdata->ltid,
                                   (harg_t)MIN((size_t)0xfffffffU,
                                               gasnetex_max_AMReplyMedium(myteam,node,GASNETEX_EVENT_NOW,0,1)));
@@ -639,7 +639,7 @@ test_amlong(threaddata_t *tdata)
         gasnett_local_wmb();
 	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 
-	gasnetex_AMRequestLong3(myteam, node, hidx_ping_longhandler, laddr, len, raddr,
+	gex_AM_RequestLong3(myteam, node, hidx_ping_longhandler, laddr, len, raddr,
                                 GASNETEX_EVENT_NOW, 0, tdata->ltid, peer,
                                 (harg_t)MIN((size_t)0xfffffffU,
                                             gasnetex_max_AMReplyLong(myteam,node,GASNETEX_EVENT_NOW,0,1)));

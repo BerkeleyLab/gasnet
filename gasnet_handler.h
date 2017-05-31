@@ -86,26 +86,26 @@
    as required for the platform.
 */
 
-/* AM send call macros (use instead of direct calls to e.g. gasnetex_AMRequestShort2)
+/* AM send call macros (use instead of direct calls to e.g. gex_AM_RequestShort2)
   Usage: cnt32 = the number of args needed for AM call on PTR32 platform
          cnt64 = the number of args needed for AM call on PTR64 platform
          args = parenthesized argument list for AM request/reply call,
            with any pointer args wrapped in a PACK() macro
  */
 #if PLATFORM_ARCH_32
-  #define SHORT_REQ(cnt32, cnt64, args) gasnetex_AMRequestShort ## cnt32 args
-  #define SHORT_REP(cnt32, cnt64, args) gasnetex_AMReplyShort ## cnt32 args
-  #define MEDIUM_REQ(cnt32, cnt64, args) gasnetex_AMRequestMedium ## cnt32 args
-  #define MEDIUM_REP(cnt32, cnt64, args) gasnetex_AMReplyMedium ## cnt32 args
-  #define LONG_REQ(cnt32, cnt64, args) gasnetex_AMRequestLong ## cnt32 args
-  #define LONG_REP(cnt32, cnt64, args) gasnetex_AMReplyLong ## cnt32 args
+  #define SHORT_REQ(cnt32, cnt64, args) gex_AM_RequestShort ## cnt32 args
+  #define SHORT_REP(cnt32, cnt64, args) gex_AM_ReplyShort ## cnt32 args
+  #define MEDIUM_REQ(cnt32, cnt64, args) gex_AM_RequestMedium ## cnt32 args
+  #define MEDIUM_REP(cnt32, cnt64, args) gex_AM_ReplyMedium ## cnt32 args
+  #define LONG_REQ(cnt32, cnt64, args) gex_AM_RequestLong ## cnt32 args
+  #define LONG_REP(cnt32, cnt64, args) gex_AM_ReplyLong ## cnt32 args
 #elif PLATFORM_ARCH_64
-  #define SHORT_REQ(cnt32, cnt64, args) gasnetex_AMRequestShort ## cnt64 args
-  #define SHORT_REP(cnt32, cnt64, args) gasnetex_AMReplyShort ## cnt64 args
-  #define MEDIUM_REQ(cnt32, cnt64, args) gasnetex_AMRequestMedium ## cnt64 args
-  #define MEDIUM_REP(cnt32, cnt64, args) gasnetex_AMReplyMedium ## cnt64 args
-  #define LONG_REQ(cnt32, cnt64, args) gasnetex_AMRequestLong ## cnt64 args
-  #define LONG_REP(cnt32, cnt64, args) gasnetex_AMReplyLong ## cnt64 args
+  #define SHORT_REQ(cnt32, cnt64, args) gex_AM_RequestShort ## cnt64 args
+  #define SHORT_REP(cnt32, cnt64, args) gex_AM_ReplyShort ## cnt64 args
+  #define MEDIUM_REQ(cnt32, cnt64, args) gex_AM_RequestMedium ## cnt64 args
+  #define MEDIUM_REP(cnt32, cnt64, args) gex_AM_ReplyMedium ## cnt64 args
+  #define LONG_REQ(cnt32, cnt64, args) gex_AM_RequestLong ## cnt64 args
+  #define LONG_REP(cnt32, cnt64, args) gex_AM_ReplyLong ## cnt64 args
 #endif
 
 /* pointer packing/unpacking helper macros */

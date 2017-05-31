@@ -200,7 +200,7 @@ void gasnetc_bootstrapBarrier_gni(void))
     for (i = 0; i < gasnetc_dissem_peers; ++i) { /* EMPTY for all but first per supernode */
       const uint32_t mask = 2 << i; /* (distance << 1) */
 
-      gasnetex_AMRequestShort1(NULL, gasnetc_dissem_peer[i],
+      gex_AM_RequestShort1(NULL, gasnetc_dissem_peer[i],
                                gasneti_handleridx(gasnetc_sys_barrier_reqh),
                                0, phase | mask);
 
@@ -281,7 +281,7 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
       do {
         const size_t to_xfer = MIN(nbytes, GASNETC_SYS_EXCHANGE_MAX);
 
-        gasnetex_AMRequestMedium2(NULL, gasnetc_dissem_peer[step],
+        gex_AM_RequestMedium2(NULL, gasnetc_dissem_peer[step],
                                   gasneti_handleridx(gasnetc_sys_exchange_reqh),
                                   temp + offset, to_xfer, GASNETEX_EVENT_NOW, 0,
                                   phase | (step << 1) | (seq << 6), len);
@@ -1047,7 +1047,7 @@ extern void gasnetc_exit(int exitcode) {
       gasnetex_rank_t peer = (distance >= gasneti_nodes - gasneti_mynode)
                                 ? gasneti_mynode - (gasneti_nodes - distance)
                                 : gasneti_mynode + distance;
-      gasnetex_AMRequestShort1(NULL, peer, gasneti_handleridx(gasnetc_exit_reqh), 0, exitcode);
+      gex_AM_RequestShort1(NULL, peer, gasneti_handleridx(gasnetc_exit_reqh), 0, exitcode);
     }
     if (pre_attach) gasneti_attach_done = 0;
 

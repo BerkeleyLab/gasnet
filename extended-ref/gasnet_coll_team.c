@@ -378,7 +378,7 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
     
     /* send out team_id */
     for(i=1; i<total_ranks; i++) {
-      gasnetex_AMRequestShort(NULL, rel2act_map[i],
+      gex_AM_RequestShort(NULL, rel2act_map[i],
                                   gasneti_handleridx(gasnete_coll_teamid_reqh), 0,
                                   new_team_id);
     }

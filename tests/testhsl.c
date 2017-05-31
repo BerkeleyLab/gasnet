@@ -30,7 +30,7 @@ void badhandler1(gasnetex_token_t token) {
 }
 void badhandler2(gasnetex_token_t token) {
   gex_HSL_Lock(&globallock);
-  gasnetex_AMReplyShort0(token, 250, 0);
+  gex_AM_ReplyShort0(token, 250, 0);
 }
 
 uint64_t counter = 0;
@@ -38,7 +38,7 @@ void increq(gasnetex_token_t token) {
   gex_HSL_Lock(&globallock);
   counter++;
   gex_HSL_Unlock(&globallock);
-  gasnetex_AMReplyShort0(token, 222, 0);
+  gex_AM_ReplyShort0(token, 222, 0);
 }
 gex_HSL_t replock = GEX_HSL_INITIALIZER;
 uint64_t repcounter = 0;
@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
     BARRIER();
     MSG0("testing legal AM cases...");
 
-    gasnetex_AMRequestShort0(myteam, peer, 203, 0);
+    gex_AM_RequestShort0(myteam, peer, 203, 0);
     GASNET_BLOCKUNTIL(flag == 1);
 
     BARRIER();
@@ -139,16 +139,16 @@ int main(int argc, char **argv) {
         gasnet_AMPoll();
       break;
       case 8:
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 231, 0);
+        gex_AM_RequestShort0(myteam, gasnet_mynode(), 231, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 9:
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 232, 0);
+        gex_AM_RequestShort0(myteam, gasnet_mynode(), 232, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 10:
         gex_HSL_Lock(&lock1);
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 250, 0);
+        gex_AM_RequestShort0(myteam, gasnet_mynode(), 250, 0);
         gex_HSL_Unlock(&lock1);
       break;
       case 11:
@@ -228,7 +228,7 @@ void * thread_fn(void *arg) {
 
   MSG0("hsl exclusion test, AM-only...");
     for (i=0;i<iters;i++) {
-      gasnetex_AMRequestShort0(myteam, peer, 221, 0);
+      gex_AM_RequestShort0(myteam, peer, 221, 0);
     }
     GASNET_BLOCKUNTIL(repcounter == NUM_THREADS * iters);
     PTHREAD_BARRIER(NUM_THREADS);
@@ -243,7 +243,7 @@ void * thread_fn(void *arg) {
 
   MSG0("hsl exclusion test, AM & local...");
     for (i=0;i<iters;i++) {
-      gasnetex_AMRequestShort0(myteam, peer, 221, 0);
+      gex_AM_RequestShort0(myteam, peer, 221, 0);
       if (i&1) {
         gex_HSL_Lock(&globallock);
       } else {

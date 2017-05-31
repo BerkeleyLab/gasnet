@@ -373,7 +373,7 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
       #endif
 
       /* send AM(rnum, iop) from packedbuf */
-      gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_putv_AMPipeline_reqh),
+      gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_putv_AMPipeline_reqh),
                                packedbuf, packetlen, GASNETEX_EVENT_NOW, 0,
                                PACK(iop), rnum);
     }
@@ -404,7 +404,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasneti_assert(end - (uint8_t *)addr <= gasnetex_lub_AMRequestMedium());
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
-  gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
+  gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
 }
 MEDIUM_HANDLER(gasnete_putv_AMPipeline_reqh,2,3, 
               (token,addr,nbytes, UNPACK(a0),      a1),
@@ -520,7 +520,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
       #endif
 
       /* send AM(visop) from packedbuf */
-      gasnetex_AMRequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
+      gex_AM_RequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
                       packedbuf, rnum*sizeof(gasnet_memvec_t), GASNETEX_EVENT_NOW, 0,
                       PACK(visop), packetidx);
     }
@@ -554,7 +554,7 @@ void gasnete_getv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasneti_assert(repbytes <= gasnetex_lub_AMReplyMedium());
   gasneti_assert(packedbuf);
   gasneti_assert(repbytes > 0);
-  gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_getv_AMPipeline_reph),
+  gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_getv_AMPipeline_reph),
                          packedbuf, repbytes, GASNETEX_EVENT_NOW, 0,
                          PACK(visop),packetidx);
   gasneti_free(packedbuf);

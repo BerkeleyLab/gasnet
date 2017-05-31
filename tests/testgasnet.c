@@ -45,7 +45,7 @@ static gex_Segment_t     mysegment;
   test_everything_seginfo_t partnerinfo;
   int done = 0;
   GASNETT_EXTERNC void seg_everything_reqh(gasnetex_token_t token) {
-    gasnetex_AMReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GASNETEX_EVENT_NOW, 0);
   }
   GASNETT_EXTERNC void seg_everything_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(test_everything_seginfo_t));
@@ -74,7 +74,7 @@ static gex_Segment_t     mysegment;
     myinfo.stack_seg = alignup_ptr(&_stack_seg, PAGESZ);
     BARRIER();
     /* fetch partner's addresses into partnerinfo */
-    gasnetex_AMRequestShort0(myteam, (gasnetex_rank_t)partner, 250, 0);
+    gex_AM_RequestShort0(myteam, (gasnetex_rank_t)partner, 250, 0);
     GASNET_BLOCKUNTIL(done);
     BARRIER();
 

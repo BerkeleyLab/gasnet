@@ -217,7 +217,7 @@ int gasnetex_EPRegisterHandlers(
 //   does not Poll, if we wanted to.]
 
 // Long
-int gasnetex_AMRequestLongM(
+int gex_AM_RequestLongM(
            gasnetex_team_member_t team,   // Names a local context ("return address")
            gasnetex_rank_t rank,          // Together with 'team', names a remote context
            gasnetex_handler_t handler,    // Index into handler table of remote context
@@ -227,7 +227,7 @@ int gasnetex_AMRequestLongM(
            gasnetex_handle_t *lc_opt,     // Local completion control (see above)
            gasnetex_flags_t flags,        // Flags to control this operation
            int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
-int gasnetex_AMReplyLongM(
+int gex_AM_ReplyLongM(
            gasnetex_token_t token,        // Names local and remote contexts
            gasnetex_handler_t handler,
            const void *source_addr,
@@ -237,7 +237,7 @@ int gasnetex_AMReplyLongM(
            gasnetex_flags_t flags,
            int numargs, ...);
 // Medium
-int gasnetex_AMRequestMediumM(
+int gex_AM_RequestMediumM(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            gasnetex_handler_t handler,
@@ -246,7 +246,7 @@ int gasnetex_AMRequestMediumM(
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs, ...);
-int gasnetex_AMReplyMediumM(
+int gex_AM_ReplyMediumM(
            gasnetex_token_t token,
            gasnetex_handler_t handler,
            const void *source_addr,
@@ -255,13 +255,13 @@ int gasnetex_AMReplyMediumM(
            gasnetex_flags_t flags,
            int numargs, ...);
 // Short
-int gasnetex_AMRequestShortM(
+int gex_AM_RequestShortM(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            gasnetex_handler_t handler, 
            gasnetex_flags_t flags,
            int numargs, ...);
-int gasnetex_AMReplyShortM(
+int gex_AM_ReplyShortM(
            gasnetex_token_t token,
            gasnetex_handler_t handler,
            gasnetex_flags_t flags,

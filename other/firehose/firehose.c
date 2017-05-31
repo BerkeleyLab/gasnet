@@ -1265,7 +1265,7 @@ fh_am_move_reqh_inner(gasnetex_token_t token, void *addr, size_t nbytes,
 	    firehose_remote_callback(node, 
 		(const firehose_region_t *) new_reg, r_new, args);
 
-	    gasnetex_AMReplyMedium(
+	    gex_AM_ReplyMedium(
 		token,
 		fh_handleridx(fh_am_move_reph),
 		new_reg,
@@ -1317,7 +1317,7 @@ fh_am_move_reqh_inner(gasnetex_token_t token, void *addr, size_t nbytes,
 	#endif /* REMOTE_CALLBACK_IN_HANDLER */
 
 	else {
-		gasnetex_AMReplyMedium(
+		gex_AM_ReplyMedium(
 			    token,
 			    fh_handleridx(fh_am_move_reph),
 			    new_reg,
@@ -1405,7 +1405,7 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 {
 	FH_TABLE_ASSERT_UNLOCKED;
 	/* Run the "reply" handler as a request */
-	gasnetex_AMRequestMedium(
+	gex_AM_RequestMedium(
 	     NULL, rc->node, fh_handleridx(fh_am_move_reph),
 	     rc->pin_list, rc->reply_len,
 	     GASNETEX_EVENT_NOW, 0,

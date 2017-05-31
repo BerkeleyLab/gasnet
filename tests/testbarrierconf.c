@@ -469,6 +469,6 @@ static void * doTest(void *arg) {
     BARRIER();
   }
 
-  gasnetex_AMRequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
+  gex_AM_RequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
   return NULL;
 }

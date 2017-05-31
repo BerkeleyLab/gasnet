@@ -1285,7 +1285,7 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 	/* By now, send an AMLong with data */
 // TODO-EX: Restore "Async" nature of this when lc_opt=handle is supported
 // TODO-EX: was "gasnet_AMRequestLongAsync2(node,hidx_ghostReqHandler,src,len,dest, axis,destp)"
-	gasnetex_AMRequestLong2(myteam,node,hidx_ghostReqHandler,src,len,dest,GASNETEX_EVENT_NOW,0,axis,destp);
+	gex_AM_RequestLong2(myteam,node,hidx_ghostReqHandler,src,len,dest,GASNETEX_EVENT_NOW,0,axis,destp);
 	return GASNETEX_INVALID_HANDLE;
     }
     else {

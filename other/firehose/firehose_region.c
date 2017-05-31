@@ -1101,7 +1101,7 @@ fh_acquire_remote_region(firehose_request_t *req,
 
 	req->flags |= FH_FLAG_INFLIGHT;
 
-	gasnetex_AMRequestMedium(
+	gex_AM_RequestMedium(
 		    NULL, node,
 		    fh_handleridx(fh_am_move_reqh),
 		    payload,

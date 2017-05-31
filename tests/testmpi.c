@@ -293,7 +293,7 @@ void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
     mpi_buf[tid] = NULL;
     PRINT_AM(("node=%2d> Sending AMShort MPI Reply for tid=%i\n",
             (int)gasnet_mynode(), (int)tid));
-    gasnetex_AMReplyShort1(token, hidx_mpi_replyhandler, 0, tid);
+    gex_AM_ReplyShort1(token, hidx_mpi_replyhandler, 0, tid);
   }
 }
 
@@ -368,11 +368,11 @@ void test_mpi(threaddata_t *tdata) {
     tdata->flag = -1;
     gasnett_local_wmb();
     ACTION_PRINTF("tid=%3d> MPI AMShortRequest to tid=%3d\n", tdata->tid, peer);
-    gasnetex_AMRequestShort2(myteam, node, hidx_mpi_handler, 0, tdata->tid, sz);
+    gex_AM_RequestShort2(myteam, node, hidx_mpi_handler, 0, tdata->tid, sz);
 
     while (tdata->flag != 0) {
       ACTION_PRINTF("tid=%3d> MPI probe AMShortRequest to tid=%3d\n", tdata->tid, peer);
-      gasnetex_AMRequestShort1(myteam, node, hidx_mpi_probehandler, 0, tdata->tid);
+      gex_AM_RequestShort1(myteam, node, hidx_mpi_probehandler, 0, tdata->tid);
 
       gasnett_sched_yield();
       test_sleep(tdata);

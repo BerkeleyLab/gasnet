@@ -103,12 +103,12 @@ void report(gasnett_tick_t ticks) {
       gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
-        gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler, 0);              \
+        gex_AM_RequestShort0(myteam, peer, hidx_ping_shorthandler, 0);              \
         POLLUNTIL(gasnett_atomic_read(&pong,0) > i);                                    \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -145,8 +145,8 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
         putgetstmt;                                                                     \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -183,8 +183,8 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_get(myteam, &tmp, pee
         putgetstmt_loner;                                                               \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
     } else {                                                                            \
       while(!signal_done) {                                                             \
         putgetstmt_rest;                                                                \
@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
 /****************************************************************/
 /* AM Handlers */
 void ping_shorthandler(gasnetex_token_t token) {
-  gasnetex_AMReplyShort0(token, hidx_pong_shorthandler, 0);
+  gex_AM_ReplyShort0(token, hidx_pong_shorthandler, 0);
 }
 
 void pong_shorthandler(gasnetex_token_t token) {

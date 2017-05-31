@@ -58,13 +58,13 @@
   #define INCREP() gasnett_atomic_increment(&numrep,0)
   #define NUMREQ() gasnett_atomic_read(&numreq,0)
   #define NUMREP() gasnett_atomic_read(&numrep,0)
-  #define RequestShort(num,args)                gasnetex_AMRequestShort##num args
-  #define RequestMedium(num,args)               gasnetex_AMRequestMedium##num args
-  #define RequestLong(num,AMargs,GASNETargs)    gasnetex_AMRequestLong##num GASNETargs
+  #define RequestShort(num,args)                gex_AM_RequestShort##num args
+  #define RequestMedium(num,args)               gex_AM_RequestMedium##num args
+  #define RequestLong(num,AMargs,GASNETargs)    gex_AM_RequestLong##num GASNETargs
   #define RequestLongAsync                      RequestLong
-  #define ReplyShort(num,args)                  gasnetex_AMReplyShort##num args
-  #define ReplyMedium(num,args)                 gasnetex_AMReplyMedium##num args
-  #define ReplyLong(num,AMargs,GASNETargs)      gasnetex_AMReplyLong##num GASNETargs
+  #define ReplyShort(num,args)                  gex_AM_ReplyShort##num args
+  #define ReplyMedium(num,args)                 gex_AM_ReplyMedium##num args
+  #define ReplyLong(num,AMargs,GASNETargs)      gex_AM_ReplyLong##num GASNETargs
   #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())

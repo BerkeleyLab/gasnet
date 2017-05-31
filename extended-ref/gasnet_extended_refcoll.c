@@ -1731,7 +1731,7 @@ void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnetex_rank_t dstn
 
   gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
 
-  gasnetex_AMRequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+  gex_AM_RequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
                          src, nbytes, dst, GASNETEX_EVENT_NOW, 0, team_id, op->sequence, 1, offset, state);
 }
 
@@ -1744,7 +1744,7 @@ void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gasnetex_rank_t
   gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
 
   // TODO-EX: restore "Async"
-  gasnetex_AMRequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+  gex_AM_RequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
                          src, nbytes, dst, GASNETEX_EVENT_NOW, 0, team_id, op->sequence, 1, offset, state);
 }
 /* Put up to gasnetex_lub_AMRequestLong() bytes, signalling the recipient */
@@ -1757,7 +1757,7 @@ void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnetex_rank_t dstnod
 
   gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
   
-  gasnetex_AMRequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+  gex_AM_RequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                          src, nbytes, dst, GASNETEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
 /* Put up to gasnetex_lub_AMRequestLong() bytes, signalling the recipient */
@@ -1771,7 +1771,7 @@ void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnetex_rank_t d
   gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
   
   // TODO-EX: restore "Async"
-  gasnetex_AMRequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+  gex_AM_RequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                          src, nbytes, dst, GASNETEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
     
@@ -1787,7 +1787,7 @@ void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gasnetex_rank_t dstnode
 
   gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
       
-  gasnetex_AMRequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
+  gex_AM_RequestLong(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
                          src, nbytes, dst, GASNETEX_EVENT_NOW, 0, team_id, seq_num, seg_id);
 }
 
@@ -1804,7 +1804,7 @@ void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
     size_t nbytes = limit * size;
 
     do {
-      gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+      gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                src, nbytes, GASNETEX_EVENT_NOW, 0, team_id, op->sequence, limit, offset, state, size);
       offset += limit;
       src = (void *)((uintptr_t)src + nbytes);
@@ -1812,7 +1812,7 @@ void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
     } while (count > limit);
   }
 
-  gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+  gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                            src, count * size, GASNETEX_EVENT_NOW, 0, team_id, op->sequence, count, offset, state, size);
 }
     
@@ -1825,7 +1825,7 @@ void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gasnetex_rank_t dstn
   uint32_t team_id = gasnete_coll_team_id(op->team);
 
   gasneti_assert(size <= gasnetex_lub_AMRequestMedium());
-  gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_tree_reqh),
+  gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_tree_reqh),
                            src, size, GASNETEX_EVENT_NOW, 0, team_id, seq_num);
       
 }
@@ -1835,7 +1835,7 @@ void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnetex_rank_t dstno
                                     uint32_t count, uint32_t offset, uint32_t state) {
   uint32_t team_id = gasnete_coll_team_id(op->team);
 
-  gasnetex_AMRequestShort(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_short_reqh), 0,
+  gex_AM_RequestShort(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_short_reqh), 0,
                               team_id, op->sequence, count, offset, state);
 }
 
@@ -1843,7 +1843,7 @@ void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnetex_rank_t dstno
 void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, uint32_t idx) {
   uint32_t team_id = gasnete_coll_team_id(op->team);
 
-  gasnetex_AMRequestShort(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), 0,
+  gex_AM_RequestShort(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), 0,
                               team_id, op->sequence,idx);
 }
 
@@ -1855,7 +1855,7 @@ void gasnete_coll_p2p_memcpy(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, voi
 
   gasneti_assert(nbytes <= gasnetex_lub_AMRequestMedium());
 
-  gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_memcpy_reqh),
+  gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_memcpy_reqh),
                            src, nbytes, GASNETEX_EVENT_NOW, 0, PACK(dst), team_id, op->sequence, 1);
 }
 
@@ -1864,7 +1864,7 @@ extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gasnetex_
                                                 void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx){
   uint32_t team_id = gasnete_coll_team_id(op->team);
   
-  gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
+  gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
                            src, nbytes, GASNETEX_EVENT_NOW, 0, team_id, op->sequence, offset, idx, offset_size);
 }
 

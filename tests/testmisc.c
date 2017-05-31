@@ -54,21 +54,21 @@ void null_shorthandler(gasnetex_token_t token) {
 }
 
 void justreply_shorthandler(gasnetex_token_t token) {
-  gasnetex_AMReplyShort0(token, hidx_null_shorthandler, 0);
+  gex_AM_ReplyShort0(token, hidx_null_shorthandler, 0);
 }
 
 void null_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
 void justreply_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-  gasnetex_AMReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
 
 void null_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
 void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-  gasnetex_AMReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_EVENT_NOW, 0);
 }
 /* ------------------------------------------------------------------------------------ */
 /* This tester measures the performance of a number of miscellaneous GASNet functions 
@@ -170,23 +170,23 @@ void doit1(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("Do-nothing gasnet_AMPoll()",
       { gasnet_AMPoll(); });
     
-    TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestShort0()",
-      { gasnetex_AMRequestShort0(myteam, mynode, hidx_null_shorthandler, 0); });
+    TIME_OPERATION("Loopback do-nothing gex_AM_RequestShort0()",
+      { gex_AM_RequestShort0(myteam, mynode, hidx_null_shorthandler, 0); });
 
     TIME_OPERATION("Loopback do nothing AM short request-reply",
-      { gasnetex_AMRequestShort0(myteam, mynode, hidx_justreply_shorthandler, 0); });
+      { gex_AM_RequestShort0(myteam, mynode, hidx_justreply_shorthandler, 0); });
 
-    TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestMedium0()",
-      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
+    TIME_OPERATION("Loopback do-nothing gex_AM_RequestMedium0()",
+      { gex_AM_RequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM medium request-reply",
-      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
+      { gex_AM_RequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
 
-    TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestLong0()",
-      { gasnetex_AMRequestLong0(myteam, mynode, hidx_null_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
+    TIME_OPERATION("Loopback do-nothing gex_AM_RequestLong0()",
+      { gex_AM_RequestLong0(myteam, mynode, hidx_null_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM long request-reply",
-      { gasnetex_AMRequestLong0(myteam, mynode, hidx_justreply_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
+      { gex_AM_RequestLong0(myteam, mynode, hidx_justreply_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
 
     doit2();
 }

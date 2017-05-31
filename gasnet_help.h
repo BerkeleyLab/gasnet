@@ -994,7 +994,7 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
    These macros implement six AM Request/Reply without any explicit
    argument count.  It uses C99 variable argument pre-processor macros to
    count the number of arguments after 'flags' and construct a coresponding
-   gasnetex_AM{Request,Reply}{Short,Medium,Long}{0..MaxArgs}() call.  This
+   gex_AM_{Request,Reply}{Short,Medium,Long}{0..MaxArgs}() call.  This
    does *not* depend on the varargs-based implementation which is contained
    in gasnet_ammacros.h.
 
@@ -1006,24 +1006,24 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 
 #define GASNETI_AMNUMARGS(...) GASNETI_AMNUMARGS_(__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0)
 #define GASNETI_AMNUMARGS_(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,N,...) N
-#define GASNETI_AMVA(_stem,...) _CONCAT(gasnetex_AM##_stem,GASNETI_AMNUMARGS(__VA_ARGS__))
+#define GASNETI_AMVA(_stem,...) _CONCAT(gex_AM_##_stem,GASNETI_AMNUMARGS(__VA_ARGS__))
 
-#define                gasnetex_AMRequestShort(team,rank,hidx,...) \
+#define                gex_AM_RequestShort(team,rank,hidx,...) \
         GASNETI_AMVA(RequestShort,__VA_ARGS__)(team,rank,hidx,__VA_ARGS__)
 
-#define                gasnetex_AMRequestMedium(team,rank,hidx,src_addr,nbytes,lc_opt,...) \
+#define                gex_AM_RequestMedium(team,rank,hidx,src_addr,nbytes,lc_opt,...) \
         GASNETI_AMVA(RequestMedium,__VA_ARGS__)(team,rank,hidx,src_addr,nbytes,lc_opt,__VA_ARGS__)
 
-#define                gasnetex_AMRequestLong(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
+#define                gex_AM_RequestLong(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
         GASNETI_AMVA(RequestLong,__VA_ARGS__)(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
 
-#define                gasnetex_AMReplyShort(token,hidx,...) \
+#define                gex_AM_ReplyShort(token,hidx,...) \
         GASNETI_AMVA(ReplyShort,__VA_ARGS__)(token,hidx,__VA_ARGS__)
 
-#define                gasnetex_AMReplyMedium(token,hidx,src_addr,nbytes,lc_opt,...) \
+#define                gex_AM_ReplyMedium(token,hidx,src_addr,nbytes,lc_opt,...) \
         GASNETI_AMVA(ReplyMedium,__VA_ARGS__)(token,hidx,src_addr,nbytes,lc_opt,__VA_ARGS__)
 
-#define                gasnetex_AMReplyLong(token,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
+#define                gex_AM_ReplyLong(token,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
         GASNETI_AMVA(ReplyLong,__VA_ARGS__)(token,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
 
 #endif

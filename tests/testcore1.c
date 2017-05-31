@@ -125,7 +125,7 @@ chksum_test(int iters)
 
 	if (iamsender) {
 		for (i = 0; i < iters; i++)
-			gasnetex_AMRequestShort2(myteam, (gasnetex_rank_t)peerproc, 
+			gex_AM_RequestShort2(myteam, (gasnetex_rank_t)peerproc, 
 				201, 0, i, _mseed[i].seed);
 	}
 
@@ -182,7 +182,7 @@ void chksum_reqh(gasnetex_token_t token,
 	chksum_gen(seed, &chksum_reqbuf);
 	monoseed_trace(iter, seed, &chksum_reqbuf, NULL);
 	GASNET_Safe( 
-	    gasnetex_AMReplyMedium1(token, 202, &chksum_reqbuf, 
+	    gex_AM_ReplyMedium1(token, 202, &chksum_reqbuf, 
 	        CHKSUM_TOTAL, GASNETEX_EVENT_NOW, 0, iter));
 	return;
 }
