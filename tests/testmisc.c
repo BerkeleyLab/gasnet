@@ -345,14 +345,14 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_put(myteam, mynode, myseg, &temp, 4, 0); });
 
     TIME_OPERATION("local 4-byte gasnetex_put_nb",
-      { gasnetex_wait(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0)); });
+      { gex_Event_Wait(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi", {},
       { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0); },
       { gex_NBI_WaitPuts(); });
 
     TIME_OPERATION("local 4-byte gasnetex_put_nb/bulk",
-      { gasnetex_wait(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0)); });
+      { gex_Event_Wait(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi/bulk", {},
       { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0); },
@@ -362,7 +362,7 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_put_val(myteam, mynode, myseg, temp, 4, 0); });
 
     TIME_OPERATION("local 4-byte gasnetex_put_nb_val",
-      { gasnetex_wait(gasnetex_put_nb_val(myteam, mynode, myseg, temp, 4, 0)); });
+      { gex_Event_Wait(gasnetex_put_nb_val(myteam, mynode, myseg, temp, 4, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi_val", {},
       { gasnetex_put_nbi_val(myteam, mynode, myseg, temp, 4, 0); },
@@ -380,7 +380,7 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_get(myteam, &temp, mynode, myseg, 4, 0); });
 
     TIME_OPERATION("local 4-byte gasnetex_get_nb",
-      { gasnetex_wait(gasnetex_get_nb(myteam, &temp, mynode, myseg, 4, 0)); });
+      { gex_Event_Wait(gasnetex_get_nb(myteam, &temp, mynode, myseg, 4, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gasnetex_get_nbi", {},
       { gasnetex_get_nbi(myteam, &temp, mynode, myseg, 4, 0); },
@@ -417,23 +417,23 @@ void doit6(void) { GASNET_BEGIN_FUNCTION();
 void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
-    TIME_OPERATION("do-nothing gasnetex_wait()",
-      { gasnetex_wait(GASNETEX_INVALID_HANDLE);  });
+    TIME_OPERATION("do-nothing gex_Event_Wait()",
+      { gex_Event_Wait(GASNETEX_INVALID_HANDLE);  });
 
-    TIME_OPERATION("do-nothing gasnetex_test()",
-      { int junk = gasnetex_test(GASNETEX_INVALID_HANDLE); });
+    TIME_OPERATION("do-nothing gex_Event_Test()",
+      { int junk = gex_Event_Test(GASNETEX_INVALID_HANDLE); });
 
-    TIME_OPERATION("do-nothing gasnetex_wait_all() (8 handles)",
-      { gasnetex_wait_all(handles, 8); });
+    TIME_OPERATION("do-nothing gex_Event_WaitAll() (8 handles)",
+      { gex_Event_WaitAll(handles, 8); });
 
-    TIME_OPERATION("do-nothing gasnetex_wait_some() (8 handles)",
-      { gasnetex_wait_some(handles, 8); });
+    TIME_OPERATION("do-nothing gex_Event_WaitSome() (8 handles)",
+      { gex_Event_WaitSome(handles, 8); });
 
-    TIME_OPERATION("do-nothing gasnetex_test_all() (8 handles)",
-      { gasnetex_test_all(handles, 8);  });
+    TIME_OPERATION("do-nothing gex_Event_TestAll() (8 handles)",
+      { gex_Event_TestAll(handles, 8);  });
 
-    TIME_OPERATION("do-nothing gasnetex_test_some() (8 handles)",
-      { gasnetex_test_some(handles, 8); });
+    TIME_OPERATION("do-nothing gex_Event_TestSome() (8 handles)",
+      { gex_Event_TestSome(handles, 8); });
 
 
     TIME_OPERATION("do-nothing gex_NBI_WaitAll()",
@@ -456,7 +456,7 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gex_NBI_BeginAccessRegion(0);
-        gasnetex_wait(gex_NBI_EndAccessRegion(0));
+        gex_Event_Wait(gex_NBI_EndAccessRegion(0));
       });
 
     TEST_SECTION_BEGIN();

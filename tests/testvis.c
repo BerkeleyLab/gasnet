@@ -1027,7 +1027,7 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gasnetex_wait_all(handles, numops);
+      gex_Event_WaitAll(handles, numops);
       gex_NBI_WaitAll();
 
       /* gets */
@@ -1062,7 +1062,7 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gasnetex_wait_all(handles, numops);
+      gex_Event_WaitAll(handles, numops);
       gex_NBI_WaitAll();
 
       for(i=0; i < numops; i++) {

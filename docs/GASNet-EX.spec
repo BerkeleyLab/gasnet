@@ -402,22 +402,22 @@ gasnetex_handle_t gex_NBI_EndAccessRegion(gasnetex_flags_t flags);
 
 // Completion of a single NB handle
 // Success is defined as when the passed handle is complete.
-int  gasnetex_test (gasnetex_handle_t handle);
-void gasnetex_wait (gasnetex_handle_t handle);
+int  gex_Event_Test (gasnetex_handle_t handle);
+void gex_Event_Wait (gasnetex_handle_t handle);
 
 // Completion of an NB handle array - "some"
 // Success is defined as one or more handles have been completed, OR
 // the input array contains only GASNETEX_INVALID_HANDLE.
 // Completed handles, if any, are overwritten with GASNETEX_INVALID_HANDLE.
-int  gasnetex_test_some (gasnetex_handle_t *phandle, size_t numhandles);
-void gasnetex_wait_some (gasnetex_handle_t *phandle, size_t numhandles);
+int  gex_Event_TestSome (gasnetex_handle_t *phandle, size_t numhandles);
+void gex_Event_WaitSome (gasnetex_handle_t *phandle, size_t numhandles);
 
 // Completion of an NB handle array - "all"
 // Success is defined as all passed handles have been completed, OR
 // the input array contains only GASNETEX_INVALID_HANDLE.
 // Completed handles, if any, are overwritten with GASNETEX_INVALID_HANDLE.
-int  gasnetex_test_all (gasnetex_handle_t *phandle, size_t numhandles);
-void gasnetex_wait_all (gasnetex_handle_t *phandle, size_t numhandles);
+int  gex_Event_TestAll (gasnetex_handle_t *phandle, size_t numhandles);
+void gex_Event_WaitAll (gasnetex_handle_t *phandle, size_t numhandles);
 
 // Sync of NBI gets
 int  gex_NBI_TestGets(void);

@@ -321,7 +321,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			hdlput = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
-			gasnetex_wait(hdlput);
+			gex_Event_Wait(hdlput);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -341,7 +341,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			hdlget = gasnetex_get_nb(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
-			gasnetex_wait(hdlget);
+			gex_Event_Wait(hdlget);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -378,12 +378,12 @@ void oneway_nb_test(int iters, int nbytes)
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
 			hdlput = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
-		        gasnetex_wait(hdlput);
+		        gex_Event_Wait(hdlput);
 		}*/
                 for (i = 0; i < iters; i++) {
                         handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
                 }
-		gasnetex_wait_all(handles, iters);
+		gex_Event_WaitAll(handles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -402,12 +402,12 @@ void oneway_nb_test(int iters, int nbytes)
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
 		    hdlget = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
-		    gasnetex_wait(hdlget);
+		    gex_Event_Wait(hdlget);
 		}*/
                 for (i = 0; i < iters; i++) {
                     handles[i] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
                 } 
-		gasnetex_wait_all(handles, iters);
+		gex_Event_WaitAll(handles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -572,7 +572,7 @@ int main(int argc, char **argv)
            }
            gasnetex_put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
-           gasnetex_wait_all(h, 2*warm_iters);
+           gex_Event_WaitAll(h, 2*warm_iters);
            gex_NBI_WaitAll();
            test_free(h);
         }
