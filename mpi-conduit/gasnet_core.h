@@ -160,20 +160,20 @@ typedef struct gasneti_hsl_s {
 
 #define gasnet_AMMaxArgs()          ((size_t)AM_MaxShort())
 #if GASNET_PSHM
-  #define gasnetex_lub_AMRequestMedium() ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
-  #define gasnetex_lub_AMReplyMedium()   ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
+  #define gex_AM_LUBRequestMedium() ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
+  #define gex_AM_LUBReplyMedium()   ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
 #else
-  #define gasnetex_lub_AMRequestMedium() ((size_t)AM_MaxMedium())
-  #define gasnetex_lub_AMReplyMedium()   ((size_t)AM_MaxMedium())
+  #define gex_AM_LUBRequestMedium() ((size_t)AM_MaxMedium())
+  #define gex_AM_LUBReplyMedium()   ((size_t)AM_MaxMedium())
 #endif
-#define gasnetex_lub_AMRequestLong()     ((size_t)AM_MaxLong())
-#define gasnetex_lub_AMReplyLong()       ((size_t)AM_MaxLong())
+#define gex_AM_LUBRequestLong()     ((size_t)AM_MaxLong())
+#define gex_AM_LUBReplyLong()       ((size_t)AM_MaxLong())
 
   // TODO-EX: Can these be improved upon, at least for PSHM case
-#define gasnetex_max_AMRequestMedium(tm,rank,lc_opt,flags,nargs) gasnetex_lub_AMRequestMedium()
-#define gasnetex_max_AMReplyMedium(tm,rank,lc_opt,flags,nargs)   gasnetex_lub_AMReplyMedium()
-#define gasnetex_max_AMRequestLong(tm,rank,lc_opt,flags,nargs)   gasnetex_lub_AMRequestLong()
-#define gasnetex_max_AMReplyLong(tm,rank,lc_opt,flags,nargs)     gasnetex_lub_AMReplyLong()
+#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) gex_AM_LUBRequestMedium()
+#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   gex_AM_LUBReplyMedium()
+#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   gex_AM_LUBRequestLong()
+#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     gex_AM_LUBReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*

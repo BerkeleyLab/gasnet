@@ -310,13 +310,13 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   }
   GASNETE_START_NBIREGION(synctype, 0);
 
-  { gasnet_memvec_t * const packedbuf = gasneti_malloc(gasnetex_lub_AMRequestMedium());
+  { gasnet_memvec_t * const packedbuf = gasneti_malloc(gex_AM_LUBRequestMedium());
     gasnete_packetdesc_t *remotept;
     gasnete_packetdesc_t *localpt;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_memvec(dstcount, dstlist, srccount, srclist,
                                                 &remotept, &localpt,
-                                                gasnetex_lub_AMRequestMedium(), // TODO-EX: Use _max_ version for target
+                                                gex_AM_LUBRequestMedium(), // TODO-EX: Use _max_ version for target
                                                 1);
     gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
@@ -369,7 +369,7 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
         }
         gasneti_assert(datalen > 0); 
         gasneti_assert(packetlen == rnum*sizeof(gasnet_memvec_t)+datalen);
-        gasneti_assert(packetlen <= gasnetex_lub_AMRequestMedium());
+        gasneti_assert(packetlen <= gex_AM_LUBRequestMedium());
       #endif
 
       /* send AM(rnum, iop) from packedbuf */
@@ -401,7 +401,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasnet_memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
   uint8_t * const end = gasnete_memvec_unpack_noempty(rnum, rlist, data, 0, (size_t)-1);
-  gasneti_assert(end - (uint8_t *)addr <= gasnetex_lub_AMRequestMedium());
+  gasneti_assert(end - (uint8_t *)addr <= gex_AM_LUBRequestMedium());
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
@@ -452,7 +452,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
                                                     dstcount*sizeof(gasnet_memvec_t) + 
-                                                    gasnetex_lub_AMRequestMedium());
+                                                    gex_AM_LUBRequestMedium());
     gasnet_memvec_t * const savedlst = (gasnet_memvec_t *)(visop + 1);
     gasnet_memvec_t * const packedbuf = savedlst + dstcount;
     gasnete_packetdesc_t *remotept;
@@ -462,7 +462,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     size_t const packetcnt = gasnete_packetize_memvec(srccount, srclist, dstcount, dstlist,  
                                                 &remotept, &localpt,
                                                 // TODO-EX: Use _max_ version for target and pass both values to packetize
-                                                MIN(gasnetex_lub_AMRequestMedium(),gasnetex_lub_AMReplyMedium()),
+                                                MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium()),
                                                 0);
     GASNETE_VISOP_SETUP(visop, synctype, 1);
     #if GASNET_DEBUG
@@ -547,11 +547,11 @@ void gasnete_getv_AMPipeline_reqh_inner(gasnetex_token_t token,
   size_t const rnum = nbytes / sizeof(gasnet_memvec_t);
   gasneti_assert(nbytes == rnum * sizeof(gasnet_memvec_t));
   gasneti_vis_op_t * const visop = _visop;
-  uint8_t * const packedbuf = gasneti_malloc(gasnetex_lub_AMReplyMedium());
+  uint8_t * const packedbuf = gasneti_malloc(gex_AM_LUBReplyMedium());
   /* gather data payload from sourcelist into packet */
   uint8_t * const end = gasnete_memvec_pack_noempty(rnum, rlist, packedbuf, 0, (size_t)-1);
   size_t const repbytes = end - packedbuf;
-  gasneti_assert(repbytes <= gasnetex_lub_AMReplyMedium());
+  gasneti_assert(repbytes <= gex_AM_LUBReplyMedium());
   gasneti_assert(packedbuf);
   gasneti_assert(repbytes > 0);
   gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_getv_AMPipeline_reph),

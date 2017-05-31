@@ -563,7 +563,7 @@ extern int gasneti_VerboseErrors;
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                   \
     GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
-    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestMedium(tm,rank,lc_opt,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
@@ -573,7 +573,7 @@ extern int gasneti_VerboseErrors;
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                           \
     GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
-    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestLong(tm,rank,lc_opt,flags,numargs)),  \
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,numargs)),  \
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \

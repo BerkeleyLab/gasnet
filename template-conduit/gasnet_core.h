@@ -123,33 +123,33 @@ typedef struct {
    * Medium message.  This can either be done by lowering the conduit's value to
    * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
    * defined in gasnet_core_fwd.h to give the conduit complete control. */
-  #define gasnetex_lub_AMRequestMedium() ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
-  #define gasnetex_lub_AMReplyMedium()   ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
+  #define gex_AM_LUBRequestMedium() ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
+  #define gex_AM_LUBReplyMedium()   ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
 #else
-  #define gasnetex_lub_AMRequestMedium() ((size_t)###)
-  #define gasnetex_lub_AMReplyMedium()   ((size_t)###)
+  #define gex_AM_LUBRequestMedium() ((size_t)###)
+  #define gex_AM_LUBReplyMedium()   ((size_t)###)
 #endif
-#define gasnetex_lub_AMRequestLong()   ((size_t)###)
-#define gasnetex_lub_AMReplyLong()     ((size_t)###)
+#define gex_AM_LUBRequestLong()   ((size_t)###)
+#define gex_AM_LUBReplyLong()     ((size_t)###)
 
   /* Provide tigher bounds based on parameters (*/
 /* Example for closed-form macros:
-#define gasnetex_max_AMRequestMedium(tm,rank,lc_opt,flags,nargs) ((size_t)###)
-#define gasnetex_max_AMReplyMedium(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
-#define gasnetex_max_AMRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
-#define gasnetex_max_AMReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)###)
+#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) ((size_t)###)
+#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
+#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
+#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)###)
  */
 /* Example for true functions:
-extern size_t gasnetex_max_AMRequestMedium(
+extern size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
-extern size_t gasnetex_max_AMReplyMedium(
+extern size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
-extern size_t gasnetex_max_AMRequestLong(
+extern size_t gex_AM_MaxRequestLong(
            gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
-extern size_t gasnetex_max_AMReplyLong(
+extern size_t gex_AM_MaxReplyLong(
            gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
  */

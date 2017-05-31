@@ -94,10 +94,10 @@ void gasnet_FetchGexObjects( gex_Client_t      *client_p,
   ==============================
 */
 
-#define gasnet_AMMaxMedium()       MIN(gasnetex_lub_AMRequestMedium(),\
-                                       gasnetex_lub_AMReplyMedium())
-#define gasnet_AMMaxLongRequest()  gasnetex_lub_AMRequestLong()
-#define gasnet_AMMaxLongReply()    gasnetex_lub_AMReplyLong()
+#define gasnet_AMMaxMedium()       MIN(gex_AM_LUBRequestMedium(),\
+                                       gex_AM_LUBReplyMedium())
+#define gasnet_AMMaxLongRequest()  gex_AM_LUBRequestLong()
+#define gasnet_AMMaxLongReply()    gex_AM_LUBReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*

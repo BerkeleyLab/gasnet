@@ -175,7 +175,7 @@
 
 /* the size threshold where gets/puts stop using medium messages and start using longs */
 #ifndef GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
-#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gasnetex_lub_AMRequestMedium()
+#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gex_AM_LUBRequestMedium()
 #endif
 
 /* true if we should try to use Long replies in gets (only possible if dest falls in segment) */
@@ -223,7 +223,7 @@ int gasnete_amref_get_nbi( gex_TM_t tm,
 GASNETI_INLINE(gasnete_amref_get_reqh_inner)
 void gasnete_amref_get_reqh_inner(gasnetex_token_t token,
   gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
-  gasneti_assert(nbytes <= gasnetex_lub_AMReplyMedium());
+  gasneti_assert(nbytes <= gex_AM_LUBReplyMedium());
   gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
                          src, nbytes, GASNETEX_EVENT_NOW, 0,
                          PACK(dest), PACK(done));
@@ -329,13 +329,13 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
     #if GASNETE_USE_LONG_GETS
       gasneti_memcheck(gasneti_seginfo); // TODO-EX: more needed to ensure gasneti_in_segment() is "ready"?
       if (gasneti_in_segment(tm, gasneti_mynode, dest, nbytes)) {
-        chunksz = gasnetex_lub_AMReplyLong();
+        chunksz = gex_AM_LUBReplyLong();
         reqhandler = gasneti_handleridx(gasnete_amref_getlong_reqh);
       }
       else 
     #endif
       { reqhandler = gasneti_handleridx(gasnete_amref_get_reqh);
-        chunksz = gasnetex_lub_AMReplyMedium(); // TODO-EX: _lub_ -> _max_
+        chunksz = gex_AM_LUBReplyMedium(); // TODO-EX: _lub_ -> _max_
       }
     for (;;) {
       op->initiated_get_cnt++;
@@ -389,7 +389,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
                              PACK(dest), PACK_IOP_DONE(op,put));
   } else
 #if GASNETE_USE_LONG_PUTS
-  if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
+  if (nbytes <= gex_AM_LUBRequestLong()) { // TODO-EX: _lub_ -> _max_
     op->initiated_put_cnt++;
 
     return
@@ -397,7 +397,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
                            src, nbytes, dest, lc_opt, 0,
                            PACK_IOP_DONE(op,put));
   } else {
-    const size_t chunksz = gasnetex_lub_AMRequestLong(); // TODO-EX: _lub_ -> _max_
+    const size_t chunksz = gex_AM_LUBRequestLong(); // TODO-EX: _lub_ -> _max_
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     for (;;) {
@@ -419,7 +419,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
   }
 #else /* ! GASNETE_USE_LONG_PUTS */
   {
-    const size_t chunksz = gasnetex_lub_AMRequestMedium(); // TODO-EX: _lub_ -> _max_
+    const size_t chunksz = gex_AM_LUBRequestMedium(); // TODO-EX: _lub_ -> _max_
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     for (;;) {
@@ -504,7 +504,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
 
       return (gasnetex_handle_t)op;
 #if GASNETE_USE_LONG_PUTS
-    } else if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
+    } else if (nbytes <= gex_AM_LUBRequestLong()) { // TODO-EX: _lub_ -> _max_
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
       gex_AM_RequestLong(tm, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
@@ -584,15 +584,15 @@ int gasnete_amref_put_nbi( gex_TM_t tm,
 void gasnete_check_config_amref(void) {
 #if GASNETE_BUILD_AMREF_GET || GASNETE_BUILD_AMREF_PUT
   /* This ensures chunks sent as Medium payloads don't exceed the maximum */
-  gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnetex_lub_AMRequestMedium());
+  gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gex_AM_LUBRequestMedium());
 #endif
 
 #if GASNETE_BUILD_AMREF_GET
   // TODO-EX: these checks won't actually ensure what they should if/when we mve from _lub_ to _max_
   /* These ensure nbytes in AM-based Gets will fit in handler_arg_t (bug 2770) */
-  gasneti_assert_always(gasnetex_lub_AMReplyMedium() <= (size_t)0xffffffff);
+  gasneti_assert_always(gex_AM_LUBReplyMedium() <= (size_t)0xffffffff);
  #if GASNETE_USE_LONG_GETS
-  gasneti_assert_always(gasnetex_lub_AMReplyLong() <= (size_t)0xffffffff);
+  gasneti_assert_always(gex_AM_LUBReplyLong() <= (size_t)0xffffffff);
  #endif
 #endif
 }

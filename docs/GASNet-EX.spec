@@ -475,25 +475,25 @@ gasnetex_handle_t gasnetex_get_leaf(
 
 // Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GASNETEX_ALL_RANKS yields min-of-maxes
-size_t gasnetex_max_AMRequestLong(
+size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs);
-size_t gasnetex_max_AMReplyLong(
+size_t gex_AM_MaxReplyLong(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs);
-size_t gasnetex_max_AMRequestMedium(
+size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs);
-size_t gasnetex_max_AMReplyMedium(
+size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
@@ -501,9 +501,9 @@ size_t gasnetex_max_AMReplyMedium(
            int numargs);
 
 // Least-upper-bound payload queries (unknown peer, nargs, lc_opt and flags)
-size_t gasnetex_lub_AMRequestLong(void);
-size_t gasnetex_lub_AMReplyLong(void);
-size_t gasnetex_lub_AMRequestMedium(void);
-size_t gasnetex_lub_AMReplyMedium(void);
+size_t gex_AM_LUBRequestLong(void);
+size_t gex_AM_LUBReplyLong(void);
+size_t gex_AM_LUBRequestMedium(void);
+size_t gex_AM_LUBReplyMedium(void);
 
 // vim: syntax=c

@@ -464,7 +464,7 @@ void do_amtests(void) {
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 
-                 gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+                 gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
     }
 
     if (do_amlong) {
@@ -475,7 +475,7 @@ void do_amtests(void) {
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 
-                 gasnetex_max_AMRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+                 gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
     }
 }
 

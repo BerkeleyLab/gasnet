@@ -2020,7 +2020,7 @@ extern void gasnetc_exchg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
     const int distance = (1 << step);
     gasneti_assert(distance < gasneti_nodes);
     uint8_t *data = gasneti_exchg_data(phase, elemsz);
-    uint8_t *dest = data + (elemsz * distance) + (seq * gasnetex_lub_AMRequestMedium());
+    uint8_t *dest = data + (elemsz * distance) + (seq * gex_AM_LUBRequestMedium());
     gasneti_assert(dest + nbytes <= data + elemsz * gasneti_nodes);
     memcpy(dest, buf, nbytes);
     gasneti_weakatomic32_increment(&gasneti_exchg_rcvd[phase][step], GASNETI_ATOMIC_REL);
@@ -2046,7 +2046,7 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
 
     /* Send payload using AMMedium(s) */
     do {
-      const size_t to_xfer = MIN(nbytes, gasnetex_lub_AMRequestMedium());
+      const size_t to_xfer = MIN(nbytes, gex_AM_LUBRequestMedium());
       gex_AM_RequestMedium(NULL, peer, _hidx_gasnetc_exchg_reqh,
                                data + offset, to_xfer, GASNETEX_EVENT_NOW, 0,
                                phase | (step << 1) | (seq << 6), (uint32_t)elemsz);

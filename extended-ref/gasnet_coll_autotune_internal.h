@@ -348,7 +348,7 @@ typedef enum {
 #endif
 
 #ifndef GASNET_COLL_MAX_PIPE_SEG_SIZE
-#define GASNET_COLL_MAX_PIPE_SEG_SIZE gasnetex_lub_AMRequestLong()
+#define GASNET_COLL_MAX_PIPE_SEG_SIZE gex_AM_LUBRequestLong()
 #endif
 
 /*flags to control how the search space looks like*/

@@ -222,12 +222,12 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   #define GASNETC_MAX_ARGS_PSHM   (gasnet_AMMaxArgs())
 #endif
 #ifndef GASNETC_MAX_MEDIUM_PSHM
-  /* Assumes gasnetex_lub_AM{Request,Reply}Medium() expand to compile-time constants.
+  /* Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants.
    * If using this default, the conduit must ensure that _max_AM*Medium() for a PSHM
    * peer do not exceed the larger of the two _lub_ values.  Alternatively, the
    * conduit should define GASNETC_MAX_MEDIUM_PSHM to the appropriate bound instead.
    */
-  #define GASNETC_MAX_MEDIUM_PSHM MAX(gasnetex_lub_AMRequestMedium(),gasnetex_lub_AMReplyMedium())
+  #define GASNETC_MAX_MEDIUM_PSHM MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
 #endif
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */

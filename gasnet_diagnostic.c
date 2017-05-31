@@ -851,8 +851,8 @@ static gex_HSL_t pf_lock = GEX_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gasnetex_token_t token, void *buf, size_t nbytes) {
-  // TODO-EX: nbytes = MIN(nbytes, gasnetex_max_AMReplyMedium(..., GASNETEX_EVENT_NOW, 0, 0));
-  nbytes = MIN(nbytes, gasnetex_lub_AMReplyMedium()); /* In case Reply size smaller than Request */
+  // TODO-EX: nbytes = MIN(nbytes, gex_AM_MaxReplyMedium(..., GASNETEX_EVENT_NOW, 0, 0));
+  nbytes = MIN(nbytes, gex_AM_LUBReplyMedium()); /* In case Reply size smaller than Request */
   gex_AM_ReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
 static void progressfn_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
@@ -881,7 +881,7 @@ static void progressfn_tester(int *counter) {
     }
     sz = (gasnet_AMPoll(),gasnetex_test_syncnbi_all());
     if (gasneti_diag_havehandlers) {
-      const size_t max_sz = MIN(gasnetex_max_AMRequestMedium(myteam, peer, GASNETEX_EVENT_NOW, 0, 0),
+      const size_t max_sz = MIN(gex_AM_MaxRequestMedium(myteam, peer, GASNETEX_EVENT_NOW, 0, 0),
                                 MIN(64*1024,TEST_SEGSZ/2));
       for (sz = 1; sz <= max_sz; sz = (sz < 64?sz*2:sz*8)) {
         gasneti_weakatomic_increment(&progressfn_req_sent,0);

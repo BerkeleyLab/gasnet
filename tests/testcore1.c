@@ -225,7 +225,7 @@ main(int argc, char **argv)
 
 	test_init("testcore1",0,"(iters)");
 
-        assert(CHKSUM_TOTAL <= gasnetex_lub_AMReplyMedium());
+        assert(CHKSUM_TOTAL <= gex_AM_LUBReplyMedium());
 
 	if (argc > 1) iters = atoi(argv[1]);
 	if (!iters) iters = 1000;

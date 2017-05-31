@@ -699,8 +699,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
     {
         unsigned	med_regions, med_buckets;
 
-        med_regions = (MIN(gasnetex_lub_AMReqestMedium(),
-                           gasnetex_lub AMReplyMedium())
+        med_regions = (MIN(gex_AM_LUBReqestMedium(),
+                           gex_AM_LUBReplyMedium())
     			- sizeof(firehose_remotecallback_args_t))
     			/ sizeof(firehose_region_t);
 
