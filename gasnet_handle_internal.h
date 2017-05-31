@@ -180,6 +180,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
   #define gasnete_handle_check(_h) do { \
     gasneti_assert(_h != GASNETEX_INVALID_HANDLE);              \
+    gasneti_assert(_h != GASNETEX_NO_OP_HANDLE);                \
     gasneti_assert(gasneti_handle_idx(_h) < GASNETE_OP_EVENTS); \
     gasnete_op_t *_op = gasneti_handle_op(_h);                  \
     if (OPTYPE(_op) == OPTYPE_EXPLICIT) {                       \

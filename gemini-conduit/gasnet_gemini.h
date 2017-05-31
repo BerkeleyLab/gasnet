@@ -291,7 +291,7 @@ struct gasnetc_post_descriptor {
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
   #define gpd_am_peer    pd.first_operand
-  uint32_t flags;
+  uint32_t gpd_flags;
 #if GASNETC_USE_MULTI_DOMAIN
   int domain_idx;
 #endif
@@ -300,7 +300,8 @@ struct gasnetc_post_descriptor {
 /* This should be ALIGNUP(sizeof(gasnetc_post_descriptor_t), 64) */
 #define GASNETC_SIZEOF_GDP 320
 
-gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
+gasnetc_post_descriptor_t *
+gasnetc_alloc_post_descriptor(gasnetex_flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
 
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
@@ -399,9 +400,11 @@ int gasnetc_next_power_of_2(int x) {
 
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t t,
-                                                               size_t length);
+                                                               size_t length,
+                                                               gasnetex_flags_t flags);
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
-                                                                 size_t length
+                                                                 size_t length,
+                                                                 gasnetex_flags_t flags
                                                                  GASNETI_THREAD_FARG);
 
 #endif /* GASNET_GEMINI_H */

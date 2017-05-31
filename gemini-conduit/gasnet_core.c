@@ -1323,23 +1323,26 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
                               void *dst_addr,
                               void *src_addr,
                               size_t nbytes,
+                              gasnetex_flags_t flags,
                               gasneti_weakatomic_t *completed_p
                               GASNETC_DIDX_FARG)
 {
-  int initiated = 1;
+  int initiated = 0;
   size_t chunk = nbytes;
   
   gasneti_suspend_spinpollers();
   for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+    if_pf (!gpd) break;
+    flags &= ~GASNETEX_FLAG_IMMEDIATE;
     gpd->gpd_completion = (uintptr_t) completed_p;
-    gpd->flags = GC_POST_COMPLETION_CNTR;
+    gpd->gpd_flags = GC_POST_COMPLETION_CNTR;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
+    initiated += 1;
     if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
 
     dst_addr = (char *)dst_addr + chunk;
     src_addr = (char *)src_addr + chunk;
-    initiated += 1;
   }
   gasneti_resume_spinpollers();
   return initiated;
@@ -1361,9 +1364,9 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
 
   gasneti_suspend_spinpollers();
   for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) header_gpd;
-    gpd->flags = GC_POST_COMPLETION_SEND;
+    gpd->gpd_flags = GC_POST_COMPLETION_SEND;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
     if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
 
@@ -1387,7 +1390,7 @@ extern int gasnetc_AMRequestShortM(
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  int retval;  
+  int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(team,dest,handler,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1406,12 +1409,15 @@ extern int gasnetc_AMRequestShortM(
 #endif
   {
     const size_t total_len = GASNETC_HEADLEN(short, numargs);
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len GASNETI_THREAD_PASS);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len, flags GASNETI_THREAD_PASS);
+    if_pf (!gpd) goto out_immediate;
+
     gasnetc_format_short(gpd, handler, numargs, argptr);
     retval = gasnetc_general_am_send_request(gpd);
   }
+out_immediate:
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMRequestMediumM(
@@ -1423,7 +1429,7 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  int retval;
+  int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1443,12 +1449,15 @@ extern int gasnetc_AMRequestMediumM(
 #endif
   {
     const size_t total_len = GASNETC_HEADLEN(medium, numargs) + nbytes;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len GASNETI_THREAD_PASS);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len, flags GASNETI_THREAD_PASS);
+    if_pf (!gpd) goto out_immediate;
+
     gasnetc_format_medium(gpd, handler,source_addr,nbytes,numargs,argptr);
     retval = gasnetc_general_am_send_request(gpd);
   }
+out_immediate:
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMRequestLongM(
@@ -1461,7 +1470,7 @@ extern int gasnetc_AMRequestLongM(
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  int retval;
+  int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1491,11 +1500,15 @@ extern int gasnetc_AMRequestLongM(
 
     if (!is_packed) { /* Launch RDMA put as early as possible */
       initiated = gasnetc_put_long_payload(dest, dest_addr, source_addr,
-                                           nbytes, &completed GASNETC_DIDX_PASS);
+                                           nbytes, flags, &completed GASNETC_DIDX_PASS);
+      if_pf (!initiated) goto out_immediate;
+      flags &= ~GASNETEX_FLAG_IMMEDIATE;
     }
     
     /* Overlap gpd and/or credit stalls, if any, w/ the RDMA */
-    gpd = gasnetc_alloc_request_post_descriptor(dest, total_len GASNETI_THREAD_PASS);
+    gpd = gasnetc_alloc_request_post_descriptor(dest, total_len, flags GASNETI_THREAD_PASS);
+    if_pf (!gpd) goto out_immediate;
+
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
 
     if (is_packed) {
@@ -1506,8 +1519,9 @@ extern int gasnetc_AMRequestLongM(
     }
     retval = gasnetc_general_am_send_request(gpd);
   }
+out_immediate:
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 /*------------------- external replies ------------------ */
@@ -1524,7 +1538,7 @@ extern int gasnetc_AMReplyShortM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
-  int retval;
+  int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1542,12 +1556,15 @@ extern int gasnetc_AMReplyShortM(
 #endif
   {
     const size_t total_len = GASNETC_HEADLEN(short, numargs);
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len, flags);
+    if_pf (!gpd) goto out_immediate;
+
     gasnetc_format_short(gpd, handler,numargs,argptr);
     retval = gasnetc_general_am_send_reply(gpd, token);
   }
+out_immediate:
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyMediumM(
@@ -1557,7 +1574,7 @@ extern int gasnetc_AMReplyMediumM(
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
-  int retval;
+  int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
@@ -1577,12 +1594,15 @@ extern int gasnetc_AMReplyMediumM(
 #endif
   {
     const size_t total_len = GASNETC_HEADLEN(medium, numargs) + nbytes;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len, flags);
+    if_pf (!gpd) goto out_immediate;
+
     gasnetc_format_medium(gpd, handler,source_addr,nbytes,numargs,argptr);
     retval = gasnetc_general_am_send_reply(gpd, token);
   }
+out_immediate:
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyLongM(
@@ -1593,7 +1613,7 @@ extern int gasnetc_AMReplyLongM(
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
-  int retval;
+  int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
@@ -1621,11 +1641,15 @@ extern int gasnetc_AMReplyLongM(
 
     if (!is_packed) { /* Launch RDMA put as early as possible */
       initiated = gasnetc_put_long_payload(reply_node(token), dest_addr, source_addr,
-                                           nbytes, &completed GASNETC_DIDX_PASS);
+                                           nbytes, flags, &completed GASNETC_DIDX_PASS);
+      if_pf (!initiated) goto out_immediate;
+      flags &= ~GASNETEX_FLAG_IMMEDIATE;
     }
     
     /* Overlap gpd stall, if any, w/ the RDMA */
-    gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    gpd = gasnetc_alloc_reply_post_descriptor(token, total_len, flags);
+    if_pf (!gpd) goto out_immediate;
+
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
 
     if (is_packed) {
@@ -1636,8 +1660,9 @@ extern int gasnetc_AMReplyLongM(
     }
     retval = gasnetc_general_am_send_reply(gpd, token);
   }
+out_immediate:
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 /* ------------------------------------------------------------------------------------ */
