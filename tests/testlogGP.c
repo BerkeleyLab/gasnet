@@ -13,7 +13,7 @@
 static gasnetex_client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Segment_t     mysegment;
 
 #define GASNET_HEADNODE 0
 
@@ -357,7 +357,7 @@ int main(int argc, char **argv)
    
     /* call startup */
     GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testlogGP", 0));
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     snprintf(usagestr, sizeof(usagestr), "iters pollcnt sizes...\n"
                       "    sizes are limited to %"PRIuPTR, (uintptr_t)TEST_SEGSZ);
     test_init("testlogGP",1, usagestr);

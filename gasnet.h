@@ -22,7 +22,7 @@ GASNETI_BEGIN_NOWARN
 extern gasnetex_client_t      gasneti_thunk_client;
 extern gasnetex_endpoint_t    gasneti_thunk_endpoint;
 extern gasnetex_team_member_t gasneti_thunk_team;
-extern gasnetex_segment_t     gasneti_thunk_segment;
+extern gex_Segment_t     gasneti_thunk_segment;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -64,7 +64,7 @@ int gasnet_init(int *argc, char ***argv) {
 extern int gasnetc_attach( gasnetex_client_t      *client_p,
                            gasnetex_endpoint_t    *endpoint_p,
                            gasnetex_team_member_t *team_p,
-                           gasnetex_segment_t     *segment_p,
+                           gex_Segment_t     *segment_p,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
                            uintptr_t              segsize);
@@ -80,7 +80,7 @@ GASNETT_INLINE(gasnet_FetchGexObjects)
 void gasnet_FetchGexObjects( gasnetex_client_t      *client_p,
                              gasnetex_endpoint_t    *endpoint_p,
                              gasnetex_team_member_t *team_p,
-                             gasnetex_segment_t     *segment_p) {
+                             gex_Segment_t     *segment_p) {
   GASNETI_CHECKATTACH();
   if (client_p)   *client_p   = gasneti_thunk_client;
   if (endpoint_p) *endpoint_p = gasneti_thunk_endpoint;

@@ -12,7 +12,7 @@
 static gasnetex_client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Segment_t     mysegment;
 
 /* ------------------------------------------------------------------------------------ */
 int main(int argc, char **argv) {
@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
   gasnett_diagnostic_gethandlers(&htable, &htable_cnt);
 
   GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testinternal", 0));
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, htable_cnt));
   #if GASNET_PAR
     test_init("testinternal",0,"(iters) (threadcnt) (test_sections)");

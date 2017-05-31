@@ -1595,7 +1595,7 @@ gasnetex_endpoint_t    gasneti_thunk_endpoint = NULL;
 #undef gasneti_thunk_team
 gasnetex_team_member_t gasneti_thunk_team     = NULL;
 #undef gasneti_thunk_segment
-gasnetex_segment_t     gasneti_thunk_segment  = NULL;
+gex_Segment_t     gasneti_thunk_segment  = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management

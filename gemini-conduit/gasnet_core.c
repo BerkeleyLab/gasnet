@@ -760,7 +760,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
 extern int gasnetc_attach( gasnetex_client_t      *client_p,
                            gasnetex_endpoint_t    *endpoint_p,
                            gasnetex_team_member_t *team_p,
-                           gasnetex_segment_t     *segment_p,
+                           gex_Segment_t          *segment_p,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
                            uintptr_t              segsize)
@@ -845,28 +845,23 @@ extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 
-extern int gasnetc_TeamSegmentCreate(
-                gasnetex_segment_t     *segment_p,
+extern int gasnetc_Segment_Attach(
+                gex_Segment_t          *segment_p,
                 gasnetex_team_member_t team,
-                void                   *address,
-                uintptr_t              length,
-                gasnetex_memkind_t     kind,
-                gasnetex_flags_t       flags)
+                uintptr_t              length)
 {
   gasneti_assert(segment_p);
 
-  // TODO-EX: remove or update these as the corresponding limitations are removed:
+  // TODO-EX: remove when this limitation is removed
   static int once = 1;
   if (once) once = 0;
-  else gasneti_fatalerror("gasnetex_TeamSegmentCreate: current implementaion can be called at most once");
-  gasneti_assert(!address);
-  gasneti_assert(kind == GASNETEX_MEMKIND_DEFAULT);
-  gasneti_assert(flags == 0);
+  else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
 
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*
   // TODO-EX: should be using the team's exchange function if possible
-  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, flags))
+  // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
+  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   // TODO-EX: will obviously need real object:

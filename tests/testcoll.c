@@ -16,7 +16,7 @@
 static gasnetex_client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Segment_t     mysegment;
 
 int datasize;
 int numprocs;
@@ -509,7 +509,7 @@ int main(int argc, char **argv)
     images = numprocs * threads;
     datasize = iters * (3 + 4 * images);
 
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     test_init("testcoll",0,"(iters) (threadcnt)");
     TEST_SET_WAITMODE(threads);
     if (argc > 3) test_usage();

@@ -19,7 +19,7 @@
 static gasnetex_client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Segment_t     mysegment;
 
 typedef struct {
   int my_local_thread;
@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
   nodes = gasnet_nodes();
   THREADS = nodes * threads_per_node;
 
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   /* ?? test_init("testcolltuner",0,"(-i iters) (-f output_file)"); */
   A = TEST_MYSEG();
   B = A+(SEG_PER_THREAD*threads_per_node);

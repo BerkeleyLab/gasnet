@@ -25,7 +25,7 @@ int iters = 0;
 static gasnetex_client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Segment_t     mysegment;
 
 #define GASNET_HEADNODE 0
 #define PRINT_LATENCY 0
@@ -386,7 +386,7 @@ int main(int argc, char **argv)
     if (!maxsz || maxsz > sizeof(gasnetex_register_value_t)) maxsz = sizeof(gasnetex_register_value_t);
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     test_init("testval",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The -p/-g option selects puts only or gets only (default is both).\n"
                "  The -s option skips warm-up iterations\n"

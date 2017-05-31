@@ -251,7 +251,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
 extern int gasnetc_attach( gasnetex_client_t      *client_p,
                            gasnetex_endpoint_t    *endpoint_p,
                            gasnetex_team_member_t *team_p,
-                           gasnetex_segment_t     *segment_p,
+                           gex_Segment_t          *segment_p,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
                            uintptr_t              segsize)
@@ -334,13 +334,10 @@ extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 
-extern int gasnetc_TeamSegmentCreate(
-                gasnetex_segment_t     *segment_p,
+extern int gasnetc_Segment_Attach(
+                gex_Segment_t          *segment_p,
                 gasnetex_team_member_t team,
-                void                   *address,
-                uintptr_t              length,
-                gasnetex_memkind_t     kind,
-                gasnetex_flags_t       flags)
+                uintptr_t              length)
 {
   gasneti_assert(segment_p);
 

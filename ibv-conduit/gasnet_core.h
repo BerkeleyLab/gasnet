@@ -42,14 +42,11 @@ extern int gasnetex_ClientInit(
                 const char             *clientName,
                 gasnetex_flags_t       flags);
 
-extern int gasnetc_TeamSegmentCreate(
-                gasnetex_segment_t     *segment_p,
+extern int gasnetc_Segment_Attach(
+                gex_Segment_t          *segment_p,
                 gasnetex_team_member_t team,
-                void                   *address,
-                uintptr_t              length,
-                gasnetex_memkind_t     kind,
-                gasnetex_flags_t       flags);
-#define gasnetex_TeamSegmentCreate gasnetc_TeamSegmentCreate
+                uintptr_t              length);
+#define gex_Segment_Attach gasnetc_Segment_Attach
 
 extern int gasnetc_EPCreate(
                 gasnetex_endpoint_t     *ep_p,

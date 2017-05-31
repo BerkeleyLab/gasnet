@@ -727,7 +727,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
      across the nodes, and also works on X-1 where the static data is
      misaligned across nodes. 
      The only assumption is that AM mediums, barriers and atomics work properly
-     We intercept the gasnet_attach or gasnetex_TeamSegmentCreate call and do the segment exchange there
+     We intercept the gasnet_attach or gex_Segment_Attach call and do the segment exchange there
    */
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
@@ -823,18 +823,15 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   #undef gasnet_attach
   #define gasnet_attach _test_attach
  #else
-  static int _test_TeamSegmentCreate(
-                gasnetex_segment_t     *segment_p,
+  static int _test_Segment_Attach(
+                gex_Segment_t     *segment_p,
                 gasnetex_team_member_t team,
-                void                   *address,
-                uintptr_t              length,
-                gasnetex_memkind_t     kind,
-                gasnetex_flags_t       flags)
+                uintptr_t              length)
   {
     return _test_create_test_segment(team, length);
   }
-  #undef gasnetex_TeamSegmentCreate
-  #define gasnetex_TeamSegmentCreate _test_TeamSegmentCreate
+  #undef gex_Segment_Attach
+  #define gex_Segment_Attach _test_Segment_Attach
  #endif
 #else
   static gasnet_seginfo_t *_test_seginfo;

@@ -303,12 +303,7 @@ struct gasneti_endpoint_s;
 typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 
 struct gasneti_segment_s;
-typedef struct gasneti_segment_s *gasnetex_segment_t;
-
-struct gasneti_memkind_s;
-typedef struct gasneti_memkind_s *gasnetex_memkind_t;
-#define GASNETEX_INVALID_MEMKIND     ((gasnetex_memkind_t)(uintptr_t)0)
-#define GASNETEX_MEMKIND_DEFAULT     ((gasnetex_memkind_t)(uintptr_t)1)
+typedef struct gasneti_segment_s *gex_Segment_t;
 
 // TODO-EX: remove these legacy checks
 #ifdef _GASNET_NODE_T
