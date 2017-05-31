@@ -67,6 +67,7 @@ gasnetex_handle_t _gasnetex_get_nb(
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NB,H);
+  gasneti_boundscheck(team, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(NB,dest,rank,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
@@ -88,6 +89,7 @@ gasnetex_handle_t _gasnetex_put_nb(
                         size_t nbytes, gasnetex_handle_t *lc_opt,
                         gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NB,H);
+  gasneti_boundscheck(team, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NB,rank,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
@@ -228,6 +230,7 @@ int _gasnetex_get_nbi  (gasnetex_team_member_t team, void *dest,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NBI,I);
+  gasneti_boundscheck(team, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(NBI,dest,rank,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
@@ -248,6 +251,7 @@ int _gasnetex_put_nbi  (gasnetex_team_member_t team,
                         size_t nbytes, gasnetex_handle_t *lc_opt,
                         gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NBI,I);
+  gasneti_boundscheck(team, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NBI,rank,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
@@ -453,6 +457,7 @@ int _gasnetex_get  (gasnetex_team_member_t team, void *dest,
                     size_t nbytes, gasnetex_flags_t flags
                     GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes),I);
+  gasneti_boundscheck(team, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
@@ -473,6 +478,7 @@ int _gasnetex_put  (gasnetex_team_member_t team,
                     size_t nbytes, gasnetex_flags_t flags
                     GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),I);
+  gasneti_boundscheck(team, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes);
     GASNETE_FAST_MEMCPY(dest, src, nbytes);
@@ -521,6 +527,7 @@ int _gasnetex_put_val(  gasnetex_team_member_t team,
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  gasneti_boundscheck(team, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(VAL,rank,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
@@ -552,6 +559,7 @@ gasnetex_handle_t _gasnetex_put_nb_val (
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  gasneti_boundscheck(team, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NB_VAL,rank,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
@@ -603,6 +611,7 @@ int _gasnetex_put_nbi_val(
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  gasneti_boundscheck(team, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NBI_VAL,rank,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
@@ -641,6 +650,7 @@ gasnetex_register_value_t _gasnetex_get_val (
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)
 {
+  gasneti_boundscheck(team, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(VAL,NULL,rank,src,nbytes);
     GASNETE_VALUE_RETURN(src, nbytes);
