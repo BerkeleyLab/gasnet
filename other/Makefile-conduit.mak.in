@@ -248,7 +248,7 @@ do-uninstall-local:
 
 do-error: 
 	@echo "ERROR: $(CONDUIT_NAME)-conduit support was not detected at configure time"
-	@hecho "       try re-running configure with --enable-$(CONDUIT_NAME)"
+	@echo "       try re-running configure with --enable-$(CONDUIT_NAME)"
 	@exit 1
 
 $(top_builddir)/other/Makefile-conduit.mak: $(top_srcdir)/other/Makefile-conduit.mak.in
