@@ -26,7 +26,7 @@ void doit3(int partner, int *partnerseg);
 /*void doit4(int partner, int *partnerseg); -- removed along with the memset*() calls */
 void doit5(int partner, int *partnerseg);
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
   
   gasnetex_handlerentry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testgasnet", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testgasnet", &argc, &argv, 0));
   local_segsz = gasnet_getMaxLocalSegmentSize();
   global_segsz = gasnet_getMaxGlobalSegmentSize();
   #if GASNET_SEGMENT_EVERYTHING

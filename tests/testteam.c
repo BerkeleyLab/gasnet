@@ -16,7 +16,7 @@
 #include <math.h> /* for sqrt() */
 #include <test.h>
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
   gasnet_seginfo_t const * test_segs;
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testteam", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteam", &argc, &argv, 0));
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   

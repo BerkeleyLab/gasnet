@@ -146,8 +146,8 @@ GASNETI_BEGIN_NOWARN
 #endif
 
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
-#define gasnetex_ClientInit _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
-                    gasnetex_ClientInit_GASNET_,                     \
+#define gex_Client_Init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
+                    gex_Client_Init_GASNET_,                         \
                     GASNET_RELEASE_VERSION_MAJOR),                   \
                     GASNET_RELEASE_VERSION_MINOR),                   \
                     GASNET_RELEASE_VERSION_PATCH),                   \
@@ -297,7 +297,7 @@ struct gasneti_team_member_s; // TODO-EX: better name!
 typedef struct gasneti_team_s *gasnetex_team_member_t;
 
 struct gasneti_client_s;
-typedef struct gasneti_client_s *gasnetex_client_t;
+typedef struct gasneti_client_s *gex_Client_t;
 
 struct gasneti_endpoint_s;
 typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;

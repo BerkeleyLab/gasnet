@@ -15,7 +15,7 @@ int maxsz = 0;
 #endif
 #include "test.h"
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -81,7 +81,7 @@ void do_amtests(void);
 
 int main(int argc, char **argv) {
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testqueue", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testqueue", &argc, &argv, 0));
 
     /* parse arguments */
     arg = 1;

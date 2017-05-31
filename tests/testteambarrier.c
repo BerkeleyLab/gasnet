@@ -16,7 +16,7 @@ typedef struct {
   
 } thread_data_t;
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 
   int i = 0;
   thread_data_t *td_arr; 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testteambarrier", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteambarrier", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
 

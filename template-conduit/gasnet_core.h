@@ -27,15 +27,15 @@ GASNETI_NORETURNP(gasnetc_exit)
    Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #define GASNET_NULL_ARGV_OK ###
 /* ------------------------------------------------------------------------------------ */
-/* gasnetex_ClientInit not inlined or renamed because we use redef-name trick on  
+/* gex_Client_Init not inlined or renamed because we use redef-name trick on  
    it to ensure proper version linkage */
-extern int gasnetex_ClientInit(
-                gasnetex_client_t      *client_p,
+extern int gex_Client_Init(
+                gex_Client_t           *client_p,
                 gasnetex_endpoint_t    *ep_p,
                 gasnetex_team_member_t *team_p,
+                const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
-                const char             *clientName,
                 gasnetex_flags_t       flags);
 
 extern int gasnetc_Segment_Attach(
@@ -46,7 +46,7 @@ extern int gasnetc_Segment_Attach(
 
 extern int gasnetc_EPCreate(
                 gasnetex_endpoint_t     *ep_p,
-                gasnetex_client_t       client,
+                gex_Client_t            client,
                 gasnetex_flags_t        flags);
 #define gasnetex_EPCreate gasnetc_EPCreate
 

@@ -15,7 +15,7 @@
 #endif
 #include <test.h>
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -1114,7 +1114,7 @@ int main(int argc, char **argv) {
   int i;
 
   assert_always(VEC_SZ == sizeof(VEC_T));
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testvis", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testvis", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testvis",0, "[options] (iters) (seed)\n"
             " -v/-i/-s/-n  run vector/indexed/strided/non-blocking tests (defaults to all)\n"

@@ -17,7 +17,7 @@
 
 #include <test.h>
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -37,7 +37,7 @@ int main(int argc, char **argv)
   
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testteambcast", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteambcast", &argc, &argv, 0));
 #if !GASNET_SEQ
   MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
   gasnet_exit(0);

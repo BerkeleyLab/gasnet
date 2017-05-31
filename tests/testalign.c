@@ -17,7 +17,7 @@ int size = 0;
 #define PRINT_LATENCY 0
 #define PRINT_THROUGHPUT 1
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -270,7 +270,7 @@ int main(int argc, char **argv)
     int crossmachinemode = 0;   
 
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testalign", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testalign", &argc, &argv, 0));
     
     /* parse arguments */
     arg = 1;

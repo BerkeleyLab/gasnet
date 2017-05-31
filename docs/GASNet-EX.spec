@@ -119,15 +119,15 @@ typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 
 // Opaque type for a client
 struct gasneti_client_s;
-typedef struct gasneti_client_s *gasnetex_client_t;
+typedef struct gasneti_client_s *gex_Client_t;
 
 // Opaque type for a segment
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 
 // Initialize the client
-extern int gasnetex_ClientInit(
-                gasnetex_client_t      *client_p,
+extern int gex_Client_Init(
+                gex_Client_t           *client_p,
                 gasnetex_endpoint_t    *ep_p,
                 gasnetex_team_member_t *team_p,
                 int                    *argc,
@@ -144,7 +144,7 @@ extern int gex_Segment_Attach(
 // Create an endpoint
 extern int gasnetex_EPCreate(
                 gasnetex_endpoint_t     *ep_p,
-                gasnetex_client_t       client,
+                gex_Client_t            client,
                 gasnetex_flags_t        flags);
 
 // Client-facing type for describing one AM handler

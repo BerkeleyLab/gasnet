@@ -18,7 +18,7 @@ int depth = 0;
 
 #include "test.h"
 
-static gasnetex_client_t      myclient;
+static gex_Client_t      myclient;
 static gasnetex_endpoint_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
   };
 
   /* call startup */
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcore2", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore2", &argc, &argv, 0));
 
   #define AMOPT() if (!amopt) { amopt = 1; domed = 0; dolong = 0; }
   while (argc > arg) {

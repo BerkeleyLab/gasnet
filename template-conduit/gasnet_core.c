@@ -153,7 +153,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_primary( gasnetex_client_t       *client_p,
+static int gasnetc_attach_primary( gex_Client_t       *client_p,
                                    gasnetex_endpoint_t     *ep_p,
                                    gasnetex_team_member_t  *team_p,
                                    gasnetex_flags_t        flags ) {
@@ -248,7 +248,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetc_attach( gasnetex_client_t      *client_p,
+extern int gasnetc_attach( gex_Client_t           *client_p,
                            gasnetex_endpoint_t    *endpoint_p,
                            gasnetex_team_member_t *team_p,
                            gex_Segment_t          *segment_p,
@@ -297,12 +297,12 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
+extern int gex_Client_Init(    gex_Client_t            *client_p,
                                gasnetex_endpoint_t     *ep_p,
                                gasnetex_team_member_t  *team_p,
+                               const char              *clientName,
                                int                     *argc,
                                char                    ***argv,
-                               const char              *clientName,
                                gasnetex_flags_t        flags)
 {
   gasneti_assert(client_p);
@@ -350,7 +350,7 @@ extern int gasnetc_Segment_Attach(
 }
 
 extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
-                             gasnetex_client_t       client,
+                             gex_Client_t       client,
                              gasnetex_flags_t        flags) {
   /* (###) add code here to create an endpoint belonging to the given client */
 

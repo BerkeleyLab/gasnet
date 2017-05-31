@@ -1589,7 +1589,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 // TODO-EX: relocate to a distinct gasnet_legacy.c?
 
 #undef gasneti_thunk_client
-gasnetex_client_t      gasneti_thunk_client   = NULL;
+gex_Client_t      gasneti_thunk_client   = NULL;
 #undef gasneti_thunk_endpoint
 gasnetex_endpoint_t    gasneti_thunk_endpoint = NULL;
 #undef gasneti_thunk_team

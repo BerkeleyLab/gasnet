@@ -28,12 +28,12 @@ int main(int argc, char **argv)
   size_t heapsz = GASNET_PAGESIZE;
   int argi;
 
-  gasnetex_client_t      myclient;
+  gex_Client_t      myclient;
   gasnetex_endpoint_t    myep;
   gasnetex_team_member_t myteam;
   gex_Segment_t     mysegment;
 
-  GASNET_SAFE(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testhello", 0));
+  GASNET_SAFE(gex_Client_Init(&myclient, &myep, &myteam, "testhello", &argc, &argv, 0));
   rank = gasnet_mynode();
   size = gasnet_nodes();
 
