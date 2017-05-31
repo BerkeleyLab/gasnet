@@ -116,23 +116,23 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #if GASNET_SEGMENT_EVERYTHING
-  #define gasneti_in_clientsegment(team,rank,ptr,nbytes) (gasneti_assert((rank) < gasneti_nodes), 1)
-  #define gasneti_in_auxsegment(team,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
-  #define gasneti_in_fullsegment(team,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_clientsegment(tm,rank,ptr,nbytes) (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_auxsegment(tm,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_fullsegment(tm,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
 #else
-  #define gasneti_in_clientsegment(team,rank,ptr,nbytes) \
+  #define gasneti_in_clientsegment(tm,rank,ptr,nbytes) \
     (gasneti_assert((rank) < gasneti_nodes),        \
      ((ptr) >= gasneti_seginfo[rank].addr && \
       ((((uintptr_t)(ptr))+(nbytes)) <=      \
        (((uintptr_t)gasneti_seginfo[rank].addr)+gasneti_seginfo[rank].size))))
-  #define gasneti_in_auxsegment(team,rank,ptr,nbytes) \
+  #define gasneti_in_auxsegment(tm,rank,ptr,nbytes) \
     (gasneti_assert((rank) < gasneti_nodes),      \
      ((ptr) >= gasneti_seginfo_aux[rank].addr &&      \
       ((((uintptr_t)(ptr))+(nbytes)) <=      \
        (((uintptr_t)gasneti_seginfo_aux[rank].addr)+gasneti_seginfo_aux[rank].size))))
   // TODO: following defn asserts the rank check twice
-  #define gasneti_in_fullsegment(team,rank,ptr,nbytes) \
-    (gasneti_in_clientsegment(team,rank,ptr,nbytes) || gasneti_in_auxsegment(team,rank,ptr,nbytes))
+  #define gasneti_in_fullsegment(tm,rank,ptr,nbytes) \
+    (gasneti_in_clientsegment(tm,rank,ptr,nbytes) || gasneti_in_auxsegment(tm,rank,ptr,nbytes))
 #endif
 
 #ifdef _INCLUDED_GASNET_INTERNAL_H
@@ -145,14 +145,14 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 #ifdef GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET
   /* in-segment check for internal put/gets that may exploit outofseg support */
-  #define gasneti_in_segment_allowoutseg(team,rank,ptr,nbytes) \
+  #define gasneti_in_segment_allowoutseg(tm,rank,ptr,nbytes) \
           (gasneti_assert((rank) < gasneti_nodes), 1)
 #else
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
-#define _gasneti_boundscheck(team,rank,ptr,nbytes,nodetest,segtest) do {       \
-    gasnetex_team_member_t _team = (team);                                     \
+#define _gasneti_boundscheck(tm,rank,ptr,nbytes,nodetest,segtest) do {       \
+    gex_TM_t _tm = (tm);                                                       \
     gasnetex_rank_t _node = (rank); /* TODO-EX: team support */                \
     const void *_ptr = (const void *)(ptr);                                    \
     size_t _nbytes = (size_t)(nbytes);                                         \
@@ -160,7 +160,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
       gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
                          (unsigned long)_node, (unsigned long)gasneti_nodes,   \
                          gasneti_current_loc);                                 \
-    if_pf (_ptr == NULL || !segtest(_team,_node,_ptr,_nbytes))                 \
+    if_pf (_ptr == NULL || !segtest(_tm,_node,_ptr,_nbytes))                   \
       gasneti_fatalerror("Remote address out of range "                        \
          "(node=%lu ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"        \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
@@ -190,13 +190,13 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 #if GASNET_NDEBUG
-  #define gasneti_boundscheck(team,rank,ptr,nbytes) ((void)0)
-  #define gasneti_boundscheck_allowoutseg(team,rank,ptr,nbytes) ((void)0)
+  #define gasneti_boundscheck(tm,rank,ptr,nbytes) ((void)0)
+  #define gasneti_boundscheck_allowoutseg(tm,rank,ptr,nbytes) ((void)0)
 #else
-  #define gasneti_boundscheck(team,rank,ptr,nbytes) \
-         _gasneti_boundscheck(team,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
-  #define gasneti_boundscheck_allowoutseg(team,rank,ptr,nbytes) \
-         _gasneti_boundscheck(team,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
+  #define gasneti_boundscheck(tm,rank,ptr,nbytes) \
+         _gasneti_boundscheck(tm,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
+  #define gasneti_boundscheck_allowoutseg(tm,rank,ptr,nbytes) \
+         _gasneti_boundscheck(tm,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
 #endif
 
 /* make a GASNet core API call - if it fails, print error message and abort */
@@ -1008,14 +1008,14 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 #define GASNETI_AMNUMARGS_(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,N,...) N
 #define GASNETI_AMVA(_stem,...) _CONCAT(gex_AM_##_stem,GASNETI_AMNUMARGS(__VA_ARGS__))
 
-#define                gex_AM_RequestShort(team,rank,hidx,...) \
-        GASNETI_AMVA(RequestShort,__VA_ARGS__)(team,rank,hidx,__VA_ARGS__)
+#define                gex_AM_RequestShort(tm,rank,hidx,...) \
+        GASNETI_AMVA(RequestShort,__VA_ARGS__)(tm,rank,hidx,__VA_ARGS__)
 
-#define                gex_AM_RequestMedium(team,rank,hidx,src_addr,nbytes,lc_opt,...) \
-        GASNETI_AMVA(RequestMedium,__VA_ARGS__)(team,rank,hidx,src_addr,nbytes,lc_opt,__VA_ARGS__)
+#define                gex_AM_RequestMedium(tm,rank,hidx,src_addr,nbytes,lc_opt,...) \
+        GASNETI_AMVA(RequestMedium,__VA_ARGS__)(tm,rank,hidx,src_addr,nbytes,lc_opt,__VA_ARGS__)
 
-#define                gex_AM_RequestLong(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
-        GASNETI_AMVA(RequestLong,__VA_ARGS__)(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
+#define                gex_AM_RequestLong(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
+        GASNETI_AMVA(RequestLong,__VA_ARGS__)(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
 
 #define                gex_AM_ReplyShort(token,hidx,...) \
         GASNETI_AMVA(ReplyShort,__VA_ARGS__)(token,hidx,__VA_ARGS__)

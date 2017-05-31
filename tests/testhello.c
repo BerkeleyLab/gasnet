@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 
   gex_Client_t      myclient;
   gex_EP_t    myep;
-  gasnetex_team_member_t myteam;
+  gex_TM_t myteam;
   gex_Segment_t     mysegment;
 
   GASNET_SAFE(gex_Client_Init(&myclient, &myep, &myteam, "testhello", &argc, &argv, 0));

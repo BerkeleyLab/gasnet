@@ -167,7 +167,7 @@ gasnete_get_bulk_inner(void *dest, gasnetex_rank_t node, void *src, size_t nbyte
   gasnetc_post_descriptor_t *gpd;
   size_t chunksz;
 
-  chunksz = gasneti_in_segment(NULL/*team*/, gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+  chunksz = gasneti_in_segment(NULL/*tm*/, gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
   if (nbytes > 2*chunksz) {
     /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
@@ -281,7 +281,7 @@ gasnete_put_bulk_inner(gasnetex_rank_t node, void *dest, void *src, size_t nbyte
   gasnetc_post_descriptor_t *gpd;
   size_t chunksz;
 
-  chunksz = gasneti_in_segment(NULL/*team*/, gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+  chunksz = gasneti_in_segment(NULL/*tm*/, gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
   if (nbytes > 2*chunksz) {
     /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
@@ -334,7 +334,7 @@ retry:
 
 extern
 gasnetex_handle_t gasnete_get_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -435,7 +435,7 @@ gasnetex_handle_t _gasnete_put_nb_bulk (
 
 extern
 gasnetex_handle_t gasnete_put_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -473,7 +473,7 @@ fake_as_now:
 */
 
 extern
-int gasnete_get_nbi( gasnetex_team_member_t team,
+int gasnete_get_nbi( gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -564,7 +564,7 @@ int _gasnete_put_nbi_bulk (
     return imm;
 }
 
-int gasnete_put_nbi( gasnetex_team_member_t team,
+int gasnete_put_nbi( gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -601,7 +601,7 @@ fake_as_now:
     (*(gasnetex_register_value_t *)(_dst) = (gasnetex_register_value_t)(_val))
 
 extern int gasnete_put_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
@@ -625,7 +625,7 @@ extern int gasnete_put_val(
 }
 
 extern gasnetex_handle_t gasnete_put_nb_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
@@ -653,7 +653,7 @@ extern gasnetex_handle_t gasnete_put_nb_val(
 }
 
 extern int gasnete_put_nbi_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
@@ -697,7 +697,7 @@ gasnetex_register_value_t gasnete_get_val_help(void *src, size_t nbytes) {
 }
  
 extern gasnetex_register_value_t gasnete_get_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)

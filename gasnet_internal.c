@@ -1592,8 +1592,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 gex_Client_t      gasneti_thunk_client   = NULL;
 #undef gasneti_thunk_endpoint
 gex_EP_t          gasneti_thunk_endpoint = NULL;
-#undef gasneti_thunk_team
-gasnetex_team_member_t gasneti_thunk_team     = NULL;
+#undef gasneti_thunk_tm
+gex_TM_t          gasneti_thunk_tm       = NULL;
 #undef gasneti_thunk_segment
 gex_Segment_t     gasneti_thunk_segment  = NULL;
 
@@ -1864,7 +1864,7 @@ gex_Segment_t     gasneti_thunk_segment  = NULL;
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_attach_done && gasneti_in_segment(NULL/*team*/,gasneti_mynode,ptr,1))
+        if (gasneti_attach_done && gasneti_in_segment(NULL/*tm*/,gasneti_mynode,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif

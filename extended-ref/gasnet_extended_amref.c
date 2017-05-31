@@ -210,7 +210,7 @@
 /* ------------------------------------------------------------------------------------ */
 /* Forward declarations */
 #if GASNETE_BUILD_AMREF_GET
-int gasnete_amref_get_nbi( gasnetex_team_member_t team,
+int gasnete_amref_get_nbi( gex_TM_t tm,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
                            size_t nbytes,
@@ -307,7 +307,7 @@ SHORT_HANDLER(gasnete_amref_markdone_reph,1,2,
 /* Common logic for _nbi, also for use by _nb */
 #if GASNETE_BUILD_AMREF_GET
 GASNETI_INLINE(gasnete_amref_get_nbi_inner)
-void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
+void gasnete_amref_get_nbi_inner(gex_TM_t tm,
                                  void *dest,
                                  gasnetex_rank_t rank, void *src,
                                  size_t nbytes,
@@ -318,7 +318,7 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_get_cnt++;
   
-    gex_AM_RequestShort(team, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
+    gex_AM_RequestShort(tm, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
                    (gasnetex_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_IOP_DONE(op,get));
     return;
   } else {
@@ -328,7 +328,7 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
     uint8_t *pdest = dest;
     #if GASNETE_USE_LONG_GETS
       gasneti_memcheck(gasneti_seginfo); // TODO-EX: more needed to ensure gasneti_in_segment() is "ready"?
-      if (gasneti_in_segment(team, gasneti_mynode, dest, nbytes)) {
+      if (gasneti_in_segment(tm, gasneti_mynode, dest, nbytes)) {
         chunksz = gasnetex_lub_AMReplyLong();
         reqhandler = gasneti_handleridx(gasnete_amref_getlong_reqh);
       }
@@ -340,13 +340,13 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
     for (;;) {
       op->initiated_get_cnt++;
       if (nbytes > chunksz) {
-        gex_AM_RequestShort(team, rank, reqhandler, 0,
+        gex_AM_RequestShort(tm, rank, reqhandler, 0,
                        (gasnetex_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
-        gex_AM_RequestShort(team, rank, reqhandler, 0,
+        gex_AM_RequestShort(tm, rank, reqhandler, 0,
                        (gasnetex_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
         break;
       }
@@ -357,7 +357,7 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
 #endif
 #if GASNETE_BUILD_AMREF_PUT
 GASNETI_INLINE(gasnete_amref_put_nbi_inner)
-int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
+int gasnete_amref_put_nbi_inner (gex_TM_t tm,
                                  gasnetex_rank_t rank, void *dest,
                                  void *src,
                                  size_t nbytes,
@@ -384,7 +384,7 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
     op->initiated_put_cnt++;
 
     return
-    gex_AM_RequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
+    gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                              src, nbytes, lc_opt, 0,
                              PACK(dest), PACK_IOP_DONE(op,put));
   } else
@@ -393,7 +393,7 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
     op->initiated_put_cnt++;
 
     return
-    gex_AM_RequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+    gex_AM_RequestLong(tm, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                            src, nbytes, dest, lc_opt, 0,
                            PACK_IOP_DONE(op,put));
   } else {
@@ -403,14 +403,14 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
     for (;;) {
       op->initiated_put_cnt++;
       if (nbytes > chunksz) {
-        gex_AM_RequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+        gex_AM_RequestLong(tm, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                                psrc, chunksz, pdest, lc_opt, 0,
                                PACK_IOP_DONE(op,put));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
-        gex_AM_RequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+        gex_AM_RequestLong(tm, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                                psrc, nbytes, pdest, lc_opt, 0,
                                PACK_IOP_DONE(op,put));
         break;
@@ -425,14 +425,14 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
     for (;;) {
       op->initiated_put_cnt++;
       if (nbytes > chunksz) {
-        gex_AM_RequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
+        gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                                  psrc, chunksz, lc_opt, 0,
                                  PACK(pdest), PACK_IOP_DONE(op,put));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
-        gex_AM_RequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
+        gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                                  psrc, nbytes, lc_opt, 0,
                                  PACK(pdest), PACK_IOP_DONE(op,put));
         break;
@@ -454,7 +454,7 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
 #if GASNETE_BUILD_AMREF_GET
 extern
 gasnetex_handle_t gasnete_amref_get_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -464,7 +464,7 @@ gasnetex_handle_t gasnete_amref_get_nb(
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
-    gex_AM_RequestShort(team, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
+    gex_AM_RequestShort(tm, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
                    (gasnetex_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
 
     return (gasnetex_handle_t)op;
@@ -472,7 +472,7 @@ gasnetex_handle_t gasnete_amref_get_nb(
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
-    gasnete_amref_get_nbi(team, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+    gasnete_amref_get_nbi(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
     return gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
   }
 }
@@ -483,7 +483,7 @@ gasnetex_handle_t gasnete_amref_get_nb(
 #if GASNETE_BUILD_AMREF_PUT
 extern
 gasnetex_handle_t gasnete_amref_put_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -498,7 +498,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
     if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
-      gex_AM_RequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
+      gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                                src, nbytes, lc_opt, 0,
                                PACK(dest), PACK_EOP_DONE(op));
 
@@ -507,7 +507,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
     } else if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
-      gex_AM_RequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+      gex_AM_RequestLong(tm, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                              src, nbytes, dest, lc_opt, 0,
                              PACK_EOP_DONE(op));
 
@@ -523,7 +523,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
     int nbi_result;
     gasnetex_handle_t handle;
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
-    nbi_result = gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes,
+    nbi_result = gasnete_amref_put_nbi_inner(tm, rank, dest, src, nbytes,
                                              GASNETEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
     handle = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
@@ -551,14 +551,14 @@ gasnetex_handle_t gasnete_amref_put_nb(
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-int gasnete_amref_get_nbi( gasnetex_team_member_t team,
+int gasnete_amref_get_nbi( gex_TM_t tm,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
                            size_t nbytes,
                            gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
-  gasnete_amref_get_nbi_inner(team, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+  gasnete_amref_get_nbi_inner(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
   return 0;
 }
 #endif /* GASNETE_BUILD_AMREF_GET */
@@ -567,14 +567,14 @@ int gasnete_amref_get_nbi( gasnetex_team_member_t team,
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-int gasnete_amref_put_nbi( gasnetex_team_member_t team,
+int gasnete_amref_put_nbi( gex_TM_t tm,
                            gasnetex_rank_t rank, void *dest,
                            void *src,
                            size_t nbytes, gasnetex_handle_t *lc_opt,
                            gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
-  gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
+  gasnete_amref_put_nbi_inner(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
   return 0;
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */

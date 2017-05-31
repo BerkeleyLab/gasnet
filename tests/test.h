@@ -747,7 +747,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);
   }
-  static int _test_create_test_segment(gasnetex_team_member_t team, uintptr_t segsize) {
+  static int _test_create_test_segment(gex_TM_t tm, uintptr_t segsize) {
     #ifdef TEST_SEGSZ_EXPR
       /* dynamically allocate segment */
       uint8_t *_test_hidden_seg;
@@ -784,7 +784,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
        (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
     myseg.size = TEST_SEGSZ;
     BARRIER();
-    gex_AM_RequestMedium0(team, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestMedium0(tm, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_EVENT_NOW, 0);
     { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
       const size_t msg_bytes = gasnetex_lub_AMRequestMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
@@ -796,7 +796,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
         for (idx = 0; idx < msg_count; ++idx) {
           const size_t nbytes = MIN(remain, msg_bytes);
           for (i=0; i < (int)gasnet_nodes(); i++) {
-            gex_AM_RequestMedium1(team, i, _test_segbcast_idx, payload, nbytes, GASNETEX_EVENT_NOW, 0, idx);
+            gex_AM_RequestMedium1(tm, i, _test_segbcast_idx, payload, nbytes, GASNETEX_EVENT_NOW, 0, idx);
           }
           remain -= nbytes;
           payload = (void*)((uintptr_t)payload + nbytes);
@@ -816,19 +816,19 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   {
     /* do regular attach, then setup seg_everything segment */
     GASNET_Safe(gasnet_attach(table, numentries, segsize, minheapoffset));
-    gasnetex_team_member_t team;
-    gasnet_FetchGexObjects(NULL,NULL,&team,NULL);
-    return _test_create_test_segment(team, segsize);
+    gex_TM_t tm;
+    gasnet_FetchGexObjects(NULL,NULL,&tm,NULL);
+    return _test_create_test_segment(tm, segsize);
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
  #else
   static int _test_Segment_Attach(
                 gex_Segment_t     *segment_p,
-                gasnetex_team_member_t team,
-                uintptr_t              length)
+                gex_TM_t          tm,
+                uintptr_t         length)
   {
-    return _test_create_test_segment(team, length);
+    return _test_create_test_segment(tm, length);
   }
   #undef gex_Segment_Attach
   #define gex_Segment_Attach _test_Segment_Attach

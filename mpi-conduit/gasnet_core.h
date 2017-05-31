@@ -41,7 +41,7 @@ GASNETI_NORETURNP(gasnetc_exit)
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
-                gasnetex_team_member_t *team_p,
+                gex_TM_t               *tm_p,
                 const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
@@ -49,7 +49,7 @@ extern int gex_Client_Init(
 
 extern int gasnetc_Segment_Attach(
                 gex_Segment_t          *segment_p,
-                gasnetex_team_member_t team,
+                gex_TM_t               tm,
                 uintptr_t              length);
 #define gex_Segment_Attach gasnetc_Segment_Attach
 
@@ -170,10 +170,10 @@ typedef struct gasneti_hsl_s {
 #define gasnetex_lub_AMReplyLong()       ((size_t)AM_MaxLong())
 
   // TODO-EX: Can these be improved upon, at least for PSHM case
-#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) gasnetex_lub_AMRequestMedium()
-#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMReplyMedium()
-#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMRequestLong()
-#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     gasnetex_lub_AMReplyLong()
+#define gasnetex_max_AMRequestMedium(tm,rank,lc_opt,flags,nargs) gasnetex_lub_AMRequestMedium()
+#define gasnetex_max_AMReplyMedium(tm,rank,lc_opt,flags,nargs)   gasnetex_lub_AMReplyMedium()
+#define gasnetex_max_AMRequestLong(tm,rank,lc_opt,flags,nargs)   gasnetex_lub_AMRequestLong()
+#define gasnetex_max_AMReplyLong(tm,rank,lc_opt,flags,nargs)     gasnetex_lub_AMReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -18,7 +18,7 @@
 
 GASNETI_INLINE(gasnete_get_nb) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t gasnete_get_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -32,7 +32,7 @@ gasnetex_handle_t gasnete_get_nb(
 
 GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t gasnete_put_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -82,7 +82,7 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles GASNETI_T
  */
    
 GASNETI_INLINE(gasnete_get_nbi)
-int gasnete_get_nbi (gasnetex_team_member_t team,
+int gasnete_get_nbi (gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -95,7 +95,7 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
 #define gasnete_get_nbi gasnete_get_nbi
 
 GASNETI_INLINE(gasnete_put_nbi)
-int gasnete_put_nbi (gasnetex_team_member_t team,
+int gasnete_put_nbi (gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -153,7 +153,7 @@ gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_TH
 
 GASNETI_INLINE(gasnete_put_val)
 int gasnete_put_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
@@ -167,7 +167,7 @@ int gasnete_put_val(
 
 GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t gasnete_put_nb_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
@@ -190,7 +190,7 @@ gasnetex_handle_t gasnete_put_nb_val(
 
 GASNETI_INLINE(gasnete_get_val)
 gasnetex_register_value_t gasnete_get_val(
-                gasnetex_team_member_t team,
+                gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)

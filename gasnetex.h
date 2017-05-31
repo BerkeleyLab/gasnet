@@ -293,8 +293,8 @@ typedef uint32_t gasnetex_rank_t;
 struct gasneti_token_s;
 typedef struct gasneti_token_s *gasnetex_token_t;
 
-struct gasneti_team_member_s; // TODO-EX: better name!
-typedef struct gasneti_team_s *gasnetex_team_member_t;
+struct gasneti_team_member_s;
+typedef struct gasneti_team_s *gex_TM_t;
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;

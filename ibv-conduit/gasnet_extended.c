@@ -92,7 +92,7 @@ extern void gasnete_init(void) {
 
 extern
 gasnetex_handle_t gasnete_get_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -112,7 +112,7 @@ gasnetex_handle_t gasnete_get_nb(
 
 extern
 gasnetex_handle_t gasnete_put_nb(
-                     gasnetex_team_member_t team,
+                     gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -176,7 +176,7 @@ gasnetex_handle_t gasnete_put_nb(
 */
 
 extern
-int gasnete_get_nbi (gasnetex_team_member_t team,
+int gasnete_get_nbi (gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -197,7 +197,7 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
 }
 
 extern
-int gasnete_put_nbi (gasnetex_team_member_t team,
+int gasnete_put_nbi (gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -242,7 +242,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   ===================================
 */
 
-extern int gasnete_get  (gasnetex_team_member_t team,
+extern int gasnete_get  (gex_TM_t tm,
                          void* dest,
                          gasnetex_rank_t rank, void *src,
                          size_t nbytes, gasnetex_flags_t flags
@@ -259,7 +259,7 @@ extern int gasnete_get  (gasnetex_team_member_t team,
  }
 }
 
-extern int gasnete_put  (gasnetex_team_member_t team,
+extern int gasnete_put  (gex_TM_t tm,
                          gasnetex_rank_t rank, void* dest,
                          /*const*/ void *src,
                          size_t nbytes, gasnetex_flags_t flags

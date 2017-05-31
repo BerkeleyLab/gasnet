@@ -32,7 +32,7 @@ GASNETI_NORETURNP(gasnetc_exit)
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
-                gasnetex_team_member_t *team_p,
+                gex_TM_t               *tm_p,
                 const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
@@ -40,7 +40,7 @@ extern int gex_Client_Init(
 
 extern int gasnetc_Segment_Attach(
                 gex_Segment_t          *segment_p,
-                gasnetex_team_member_t team,
+                gex_TM_t               tm,
                 uintptr_t              length);
 #define gex_Segment_Attach gasnetc_Segment_Attach
 
@@ -134,23 +134,23 @@ typedef struct {
 
   /* Provide tigher bounds based on parameters (*/
 /* Example for closed-form macros:
-#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) ((size_t)###)
-#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   ((size_t)###)
-#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   ((size_t)###)
-#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     ((size_t)###)
+#define gasnetex_max_AMRequestMedium(tm,rank,lc_opt,flags,nargs) ((size_t)###)
+#define gasnetex_max_AMReplyMedium(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
+#define gasnetex_max_AMRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
+#define gasnetex_max_AMReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)###)
  */
 /* Example for true functions:
 extern size_t gasnetex_max_AMRequestMedium(
-           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
 extern size_t gasnetex_max_AMReplyMedium(
-           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
 extern size_t gasnetex_max_AMRequestLong(
-           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
 extern size_t gasnetex_max_AMReplyLong(
-           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gex_TM_t tm, gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
  */
 

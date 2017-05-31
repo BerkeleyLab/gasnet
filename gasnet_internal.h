@@ -200,10 +200,10 @@ GASNETI_MALLOCP(_gasneti_calloc)
 #undef gasneti_thunk_endpoint
 #endif
 #define gasneti_thunk_endpoint gasneti_thunk_error
-#ifdef gasneti_thunk_team
-#undef gasneti_thunk_team
+#ifdef gasneti_thunk_tm
+#undef gasneti_thunk_tm
 #endif
-#define gasneti_thunk_team     gasneti_thunk_error
+#define gasneti_thunk_tm       gasneti_thunk_error
 #ifdef gasneti_thunk_segment
 #undef gasneti_thunk_segment
 #endif
@@ -552,28 +552,28 @@ extern int gasneti_VerboseErrors;
 
 // TODO-EX: GASNETI_CHECK_ERRR should *not* be returning the error code - need error handling callback instead
 
-#define GASNETI_COMMON_AMREQUESTSHORT(team,rank,handler,flags,numargs) do {    \
+#define GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs) do {      \
     GASNETI_CHECKATTACH();                                                     \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());             \
-    GASNETI_TRACE_AMREQUESTSHORT(team,rank,handler,numargs);                   \
+    GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,numargs);                     \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
+#define GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                           \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                   \
-    GASNETI_TRACE_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,numargs);     \
+    GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
-    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestMedium(tm,rank,lc_opt,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
+#define GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                           \
-    GASNETI_TRACE_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,numargs);     \
+    GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
-    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,numargs)),  \
+    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestLong(tm,rank,lc_opt,flags,numargs)),  \
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \

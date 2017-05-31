@@ -31,7 +31,7 @@ typedef struct gasneti_handle_t *gasnetex_handle_t;
 
 // A "team member" is an opaque scalar type
 struct gasneti_team_member_s;
-typedef struct gasneti_team_member_s *gasnetex_team_member_t;
+typedef struct gasneti_team_member_s *gex_TM_t;
 
 // A "rank" is a position within a team
 typedef uint32_t gasnetex_rank_t;
@@ -129,7 +129,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
-                gasnetex_team_member_t *team_p,
+                gex_TM_t               *tm_p,
                 int                    *argc,
                 char                   ***argv,
                 const char             *clientName,
@@ -138,7 +138,7 @@ extern int gex_Client_Init(
 // Collective allocation of segments
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
-                gasnetex_team_member_t team,
+                gex_TM_t               tm,
                 uintptr_t              length);
 
 // Create an endpoint
@@ -218,8 +218,8 @@ int gex_EP_RegisterHandlers(
 
 // Long
 int gex_AM_RequestLongM(
-           gasnetex_team_member_t team,   // Names a local context ("return address")
-           gasnetex_rank_t rank,          // Together with 'team', names a remote context
+           gex_TM_t tm,                   // Names a local context ("return address")
+           gasnetex_rank_t rank,          // Together with 'tm', names a remote context
            gasnetex_handler_t handler,    // Index into handler table of remote context
            const void *source_addr,       // Payload address (or OFFSET)
            size_t nbytes,                 // Payload length
@@ -238,7 +238,7 @@ int gex_AM_ReplyLongM(
            int numargs, ...);
 // Medium
 int gex_AM_RequestMediumM(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handler_t handler,
            const void *source_addr,
@@ -256,7 +256,7 @@ int gex_AM_ReplyMediumM(
            int numargs, ...);
 // Short
 int gex_AM_RequestShortM(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handler_t handler, 
            gasnetex_flags_t flags,
@@ -313,14 +313,14 @@ int gex_AM_ReplyShortM(
 
 // Put
 int gasnetex_put(
-           gasnetex_team_member_t team,   // Names a local context ("return address")
-           gasnetex_rank_t rank,          // Together with 'team', names a remote context
+           gex_TM_t tm,                   // Names a local context ("return address")
+           gasnetex_rank_t rank,          // Together with 'tm', names a remote context
            void *dest,                    // Remote (destination) address (or OFFSET)
            const void *src,               // Local (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
 int gasnetex_put_nbi(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            const void *src,
@@ -328,7 +328,7 @@ int gasnetex_put_nbi(
            gasnetex_handle_t *lc_opt,     // Local completion control (see above)
            gasnetex_flags_t flags);
 gasnetex_handle_t gasnetex_put_nb(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            const void *src,
@@ -338,21 +338,21 @@ gasnetex_handle_t gasnetex_put_nb(
 
 // Get
 int gasnetex_get( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
-           gasnetex_team_member_t team,   // Names a local context ("return address")
+           gex_TM_t tm,                   // Names a local context ("return address")
            void *dest,                    // Local (destination) address (or OFFSET)
-           gasnetex_rank_t rank,          // Together with 'team', names a remote context
+           gasnetex_rank_t rank,          // Together with 'tm', names a remote context
            void *src,                     // Remote (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
 int gasnetex_get_nbi( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
 gasnetex_handle_t gasnetex_get_nb(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
@@ -361,27 +361,27 @@ gasnetex_handle_t gasnetex_get_nb(
 
 // Value-based
 gasnetex_register_value_t gasnetex_get_val(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
 int gasnetex_put_val(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
 int gasnetex_put_nbi_val(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
 gasnetex_handle_t gasnetex_put_nb_val(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
@@ -476,25 +476,25 @@ gasnetex_handle_t gasnetex_get_leaf(
 // Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GASNETEX_ALL_RANKS yields min-of-maxes
 size_t gasnetex_max_AMRequestLong(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs);
 size_t gasnetex_max_AMReplyLong(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs);
 size_t gasnetex_max_AMRequestMedium(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs);
 size_t gasnetex_max_AMReplyMedium(
-           gasnetex_team_member_t team,
+           gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
            gasnetex_flags_t flags,

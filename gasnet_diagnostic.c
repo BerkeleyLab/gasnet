@@ -101,7 +101,7 @@ static void malloc_test(int id);
 static void progressfns_test(int id);
 static void op_test(int id);
 
-static gasnetex_team_member_t myteam;
+static gex_TM_t myteam;
 
 /* ------------------------------------------------------------------------------------ */
 /* run iters iterations of diagnostics and return zero on success 
@@ -109,7 +109,7 @@ static gasnetex_team_member_t myteam;
    in par mode, the test may internally spawn up to threadcnt threads
  */
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
-                                   gasnetex_team_member_t myteam_arg, gasnet_seginfo_t const *seginfo) {
+                                   gex_TM_t myteam_arg, gasnet_seginfo_t const *seginfo) {
   int i;
   int partner = (gasnet_mynode() ^ 1);
   if (partner == gasnet_nodes()) partner = gasnet_mynode();

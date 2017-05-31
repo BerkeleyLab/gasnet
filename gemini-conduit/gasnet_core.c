@@ -658,7 +658,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_attach_primary( gex_Client_t       *client_p,
                                    gex_EP_t           *ep_p,
-                                   gasnetex_team_member_t  *team_p,
+                                   gex_TM_t           *tm_p,
                                    gasnetex_flags_t        flags ) {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   
@@ -673,7 +673,7 @@ static int gasnetc_attach_primary( gex_Client_t       *client_p,
 
   /* ------------------------------------------------------------------------------------ */
   // TODO-EX: create team
-  *team_p = NULL;
+  *tm_p = NULL;
 
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
@@ -759,7 +759,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gasnetc_attach( gex_Client_t           *client_p,
                            gex_EP_t               *endpoint_p,
-                           gasnetex_team_member_t *team_p,
+                           gex_TM_t               *tm_p,
                            gex_Segment_t          *segment_p,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
@@ -784,7 +784,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
   #endif
 
   /*  primary attach  */
-  if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, team_p, 0))
+  if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, tm_p, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -807,7 +807,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gex_Client_Init(    gex_Client_t            *client_p,
                                gex_EP_t                *ep_p,
-                               gasnetex_team_member_t  *team_p,
+                               gex_TM_t                *tm_p,
                                const char              *clientName,
                                int                     *argc,
                                char                    ***argv,
@@ -815,7 +815,7 @@ extern int gex_Client_Init(    gex_Client_t            *client_p,
 {
   gasneti_assert(client_p);
   gasneti_assert(ep_p);
-  gasneti_assert(team_p);
+  gasneti_assert(tm_p);
   gasneti_assert(clientName);
 #if !GASNET_NULL_ARGV_OK
   gasneti_assert(argc);
@@ -835,7 +835,7 @@ extern int gex_Client_Init(    gex_Client_t            *client_p,
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary(client_p, ep_p, team_p, flags))
+    if (GASNET_OK != gasnetc_attach_primary(client_p, ep_p, tm_p, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -847,7 +847,7 @@ extern int gex_Client_Init(    gex_Client_t            *client_p,
 
 extern int gasnetc_Segment_Attach(
                 gex_Segment_t          *segment_p,
-                gasnetex_team_member_t team,
+                gex_TM_t               tm,
                 uintptr_t              length)
 {
   gasneti_assert(segment_p);
@@ -1379,15 +1379,15 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
 
 /*------------------- external requests ------------------ */
 extern int gasnetc_AMRequestShortM(
-                            gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gex_TM_t tm,/* local context */
+                            gasnetex_rank_t dest,       /* with tm, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTSHORT(team,dest,handler,flags,numargs);
+  GASNETI_COMMON_AMREQUESTSHORT(tm,dest,handler,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -1416,8 +1416,8 @@ out_immediate:
 }
 
 extern int gasnetc_AMRequestMediumM(
-                            gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gex_TM_t tm,/* local context */
+                            gasnetex_rank_t dest,       /* with tm, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
@@ -1426,7 +1426,7 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTMEDIUM(team,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1456,8 +1456,8 @@ out_immediate:
 }
 
 extern int gasnetc_AMRequestLongM(
-                            gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gex_TM_t tm,/* local context */
+                            gasnetex_rank_t dest,       /* with tm, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -1467,7 +1467,7 @@ extern int gasnetc_AMRequestLongM(
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONG(team,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
