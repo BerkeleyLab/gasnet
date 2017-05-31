@@ -213,7 +213,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gasnetex_rank_t i;                                                     \
                                                                              \
 	tmp = (peerthread == root) ? R[j] : -1;                              \
-	gasnetex_put(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
                                                                              \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
@@ -223,7 +223,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	tmp = peerthread;                                                    \
-	gasnetex_put(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
 	gasnetex_get(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
@@ -235,7 +235,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on D */                       \
 	tmp = mythread * R[j];                                               \
-	gasnetex_put(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
 	CALL(scatter##SUFFIX, ALL(B), ROOT(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
 	gasnetex_get(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
@@ -245,7 +245,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on B */                       \
 	tmp = peerthread*R[j] - 1;                                           \
-	gasnetex_put(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
 	gasnetex_get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
@@ -259,7 +259,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	for (i = 0; i < images; ++i) {                                       \
 	    LOCAL(C)[i] += peerthread;                                       \
 	}                                                                    \
-	gasnetex_put(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
 	CALL(exchange##SUFFIX, ALL(C), ALL(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
 	gasnetex_get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\

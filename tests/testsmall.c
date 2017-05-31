@@ -111,7 +111,7 @@ void roundtrip_test(int iters, int nbytes)
 		/* measure the round-trip time of put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put(myteam, peerproc, tgtmem, msgbuf, nbytes, 0);
+			gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -161,7 +161,7 @@ void oneway_test(int iters, int nbytes)
 		/* measure the throughput of put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put(myteam, peerproc, tgtmem, msgbuf, nbytes, 0);
+			gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -212,7 +212,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking implicit put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
+			gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
 			gex_NBI_WaitPuts();
 		}
 		end = TIME();
@@ -266,7 +266,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		/* measure the throughput of nonblocking implicit put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
+			gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
 		}
 		gex_NBI_WaitPuts();
 		end = TIME();
@@ -320,7 +320,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			hdlput = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
+			hdlput = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
 			gex_Event_Wait(hdlput);
 		}
 		end = TIME();
@@ -377,11 +377,11 @@ void oneway_nb_test(int iters, int nbytes)
 		/* measure the throughput of sending a message */
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
-			hdlput = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
+			hdlput = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
 		        gex_Event_Wait(hdlput);
 		}*/
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
+                        handles[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
                 }
 		gex_Event_WaitAll(handles, iters);
 		end = TIME();
@@ -563,14 +563,14 @@ int main(int argc, char **argv)
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
            gasnetex_handle_t *h = test_malloc(2*sizeof(gasnetex_handle_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
-              gasnetex_put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
+              gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gasnetex_get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_EVENT_NOW, 0);
+              gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_EVENT_NOW, 0);
               gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              h[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_EVENT_NOW, 0);
+              h[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_EVENT_NOW, 0);
               h[i+warm_iters] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, 8, 0);
            }
-           gasnetex_put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
+           gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
            gex_Event_WaitAll(h, 2*warm_iters);
            gex_NBI_WaitAll();

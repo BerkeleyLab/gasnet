@@ -124,7 +124,7 @@ int main(int argc, char **argv)
 
           /* Perform operations */
           /* Out of segment put from shadow_region 1 to remote */
-          gasnetex_put(myteam, peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len, 0); 
+          gex_RMA_PutBlocking(myteam, peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len, 0); 
   
           /* In segment get from remote to local segment */
           gasnetex_get(myteam, local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len, 0); 

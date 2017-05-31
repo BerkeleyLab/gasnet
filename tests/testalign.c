@@ -110,7 +110,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
+			gex_RMA_PutBlocking(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -164,7 +164,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_RMA_PutNBI(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
 		}
 		gex_NBI_WaitPuts();
 		end = TIME();
@@ -222,7 +222,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of sending a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
+                        handles[i] = gex_RMA_PutNB(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
                 }
 		gex_Event_WaitAll(handles, iters);
 		end = TIME();

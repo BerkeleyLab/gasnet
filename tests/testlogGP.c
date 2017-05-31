@@ -118,7 +118,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put(myteam, peerproc, peermem, mymem, nbytes, 0);
+			gex_RMA_PutBlocking(myteam, peerproc, peermem, mymem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -132,7 +132,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gex_Event_Wait(h);
 		}
 		end = TIME();
@@ -146,7 +146,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			test_delay(loops, pollcnt);
 			gex_Event_Wait(h);
 		}
@@ -160,7 +160,7 @@ void put_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -180,7 +180,7 @@ void put_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -201,7 +201,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_NOW, 0);
+			gex_RMA_PutNBI(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_NOW, 0);
 		}
 		gex_NBI_WaitPuts();
 		end = TIME();
@@ -216,7 +216,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_RMA_PutNBI(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 		}
 		gex_NBI_WaitPuts();
 		end = TIME();

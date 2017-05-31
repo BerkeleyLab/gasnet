@@ -312,14 +312,14 @@ int gex_AM_ReplyShortM(
 //   [NAMES TBD] to check for local completion.
 
 // Put
-int gasnetex_put(
+int gex_RMA_PutBlocking(
            gex_TM_t tm,                   // Names a local context ("return address")
            gasnetex_rank_t rank,          // Together with 'tm', names a remote context
            void *dest,                    // Remote (destination) address (or OFFSET)
            const void *src,               // Local (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
-int gasnetex_put_nbi(
+int gex_RMA_PutNBI(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
@@ -327,7 +327,7 @@ int gasnetex_put_nbi(
            size_t nbytes,
            gasnetex_handle_t *lc_opt,     // Local completion control (see above)
            gasnetex_flags_t flags);
-gasnetex_handle_t gasnetex_put_nb(
+gasnetex_handle_t gex_RMA_PutNB(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
@@ -366,21 +366,21 @@ gasnetex_register_value_t gasnetex_get_val(
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
-int gasnetex_put_val(
+int gex_RMA_PutBlockingVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
-int gasnetex_put_nbi_val(
+int gex_RMA_PutNBIVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
-gasnetex_handle_t gasnetex_put_nb_val(
+gasnetex_handle_t gex_RMA_PutNBVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,

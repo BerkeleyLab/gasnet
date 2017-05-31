@@ -369,9 +369,9 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put(node,dest,src,nbytes) \
-                gasnetex_put(gasneti_thunk_tm,node,dest,src,nbytes,0)
+                gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
 #define gasnet_put_bulk(node,dest,src,nbytes) \
-                gasnetex_put(gasneti_thunk_tm,node,dest,src,nbytes,0)
+                gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
 #define gasnet_get(dest,node,src,nbytes) \
                 gasnetex_get(gasneti_thunk_tm,dest,node,src,nbytes,0)
 #define gasnet_get_bulk(dest,node,src,nbytes) \
@@ -382,9 +382,9 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
-                gasnetex_put_nbi(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_NOW,0)
+                gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_NOW,0)
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
-                gasnetex_put_nbi(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_DEFER,0)
+                gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_DEFER,0)
 #define gasnet_get_nbi(dest,node,src,nbytes) \
                 gasnetex_get_nbi(gasneti_thunk_tm,dest,node,src,nbytes,0)
 #define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
@@ -395,9 +395,9 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nb(node,dest,src,nbytes) \
-                gasnetex_put_nb(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_NOW,0)
+                gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_NOW,0)
 #define gasnet_put_nb_bulk(node,dest,src,nbytes) \
-                gasnetex_put_nb(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_DEFER,0)
+                gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_DEFER,0)
 #define gasnet_get_nb(dest,node,src,nbytes) \
                 gasnetex_get_nb(gasneti_thunk_tm,dest,node,src,nbytes,0)
 #define gasnet_get_nb_bulk(dest,node,src,nbytes) \
@@ -446,11 +446,11 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_val(node,dest,value,nbytes) \
-                gasnetex_put_val(gasneti_thunk_tm,node,dest,value,nbytes,0)
+                gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
 #define gasnet_put_nb_val(node,dest,value,nbytes) \
-                gasnetex_put_nb_val(gasneti_thunk_tm,node,dest,value,nbytes,0)
+                gex_RMA_PutNBVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
 #define gasnet_put_nbi_val(node,dest,value,nbytes) \
-                gasnetex_put_nbi_val(gasneti_thunk_tm,node,dest,value,nbytes,0)
+                gex_RMA_PutNBIVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle sync operations */

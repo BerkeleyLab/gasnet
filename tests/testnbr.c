@@ -247,7 +247,7 @@ void _print_stat(nbr_t *nb, int myproc, stat_struct_t *st, const char *name)
 	 *  3. Local/Local (no updates required communication)
 	 *  4. Don't care (either local/global)
 	 */
-	gasnetex_put(myteam, 0, nb->stats0 + myproc, st, sizeof(stat_struct_t), 0);
+	gex_RMA_PutBlocking(myteam, 0, nb->stats0 + myproc, st, sizeof(stat_struct_t), 0);
 
 	BARRIER();
 
@@ -1078,11 +1078,11 @@ pairwise_signal_nbrs(nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase
 	destup   = nb->nodeidUpper[axis];
 	destdown = nb->nodeidLower[axis];
 
-	h_nbr[i*2+0] = gasnetex_put_nb_val(myteam, destup,
+	h_nbr[i*2+0] = gex_RMA_PutNBVal(myteam, destup,
 	    (void *) NBR_SYNCADDR(nb->DirSyncComm3[destup], axis, 1, phase), 
 	    1, sizeof(int), 0);
 
-	h_nbr[i*2+1] = gasnetex_put_nb_val(myteam, destdown,
+	h_nbr[i*2+1] = gex_RMA_PutNBVal(myteam, destdown,
 	    (void *) NBR_SYNCADDR(nb->DirSyncComm3[destdown], axis, 0, phase), 
 	    1, sizeof(int), 0);
     }
@@ -1289,7 +1289,7 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 	return GASNETEX_INVALID_HANDLE;
     }
     else {
-	return gasnetex_put_nb(myteam, node, dest, src, len, GASNETEX_EVENT_DEFER, 0);
+	return gex_RMA_PutNB(myteam, node, dest, src, len, GASNETEX_EVENT_DEFER, 0);
     }
 
 local_copy:
@@ -1310,7 +1310,7 @@ ge_notify(nbr_t *nb, int dir, int axis)
 	return GASNETEX_INVALID_HANDLE;
     }
     else
-	return gasnetex_put_nb_val(myteam, node, (void *)syncflag, 1, sizeof(int), 0);
+	return gex_RMA_PutNBVal(myteam, node, (void *)syncflag, 1, sizeof(int), 0);
 }
 
 

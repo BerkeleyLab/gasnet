@@ -81,8 +81,8 @@ gasnetex_handle_t _gasnetex_get_nb(
 #define gasnetex_get_nb(tm,dest,rank,src,nbytes,flags) \
        _gasnetex_get_nb(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
-GASNETI_INLINE(_gasnetex_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gasnetex_put_nb(
+GASNETI_INLINE(_gex_RMA_PutNB) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t _gex_RMA_PutNB(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
@@ -100,8 +100,8 @@ gasnetex_handle_t _gasnetex_put_nb(
     return gasnete_put_nb(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_put_nb(tm,rank,dest,src,nbytes,lc_opt,flags) \
-       _gasnetex_put_nb(tm,rank,dest,src,nbytes,lc_opt,flags GASNETI_THREAD_GET)
+#define gex_RMA_PutNB(tm,rank,dest,src,nbytes,lc_opt,flags) \
+       _gex_RMA_PutNB(tm,rank,dest,src,nbytes,lc_opt,flags GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -244,8 +244,8 @@ int _gasnetex_get_nbi  (gex_TM_t tm, void *dest,
 #define gasnetex_get_nbi(tm,dest,rank,src,nbytes,flags) \
        _gasnetex_get_nbi(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
-GASNETI_INLINE(_gasnetex_put_nbi)
-int _gasnetex_put_nbi  (gex_TM_t tm,
+GASNETI_INLINE(_gex_RMA_PutNBI)
+int _gex_RMA_PutNBI  (gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
                         size_t nbytes, gasnetex_handle_t *lc_opt,
@@ -262,8 +262,8 @@ int _gasnetex_put_nbi  (gex_TM_t tm,
     return gasnete_put_nbi(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_put_nbi(tm,rank,dest,src,nbytes,lc_opt,flags) \
-       _gasnetex_put_nbi(tm,rank,dest,src,nbytes,lc_opt,flags GASNETI_THREAD_GET)
+#define gex_RMA_PutNBI(tm,rank,dest,src,nbytes,lc_opt,flags) \
+       _gex_RMA_PutNBI(tm,rank,dest,src,nbytes,lc_opt,flags GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -471,8 +471,8 @@ int _gasnetex_get  (gex_TM_t tm, void *dest,
 #define gasnetex_get(tm,dest,rank,src,nbytes,flags) \
        _gasnetex_get(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
-GASNETI_INLINE(_gasnetex_put)
-int _gasnetex_put  (gex_TM_t tm,
+GASNETI_INLINE(_gex_RMA_PutBlocking)
+int _gex_RMA_PutBlocking  (gex_TM_t tm,
                     gasnetex_rank_t rank, void *dest,
                     /*const*/ void *src,  // TODO-EX: un-comment const
                     size_t nbytes, gasnetex_flags_t flags
@@ -489,8 +489,8 @@ int _gasnetex_put  (gex_TM_t tm,
     return gasnete_put(tm, rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_put(tm,rank,dest,src,nbytes,flags) \
-       _gasnetex_put(tm,rank,dest,src,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_PutBlocking(tm,rank,dest,src,nbytes,flags) \
+       _gex_RMA_PutBlocking(tm,rank,dest,src,nbytes,flags GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -519,8 +519,8 @@ int _gasnetex_put  (gex_TM_t tm,
   }
 #endif
 
-GASNETI_INLINE(_gasnetex_put_val)
-int _gasnetex_put_val(  gex_TM_t tm,
+GASNETI_INLINE(_gex_RMA_PutVal)
+int _gex_RMA_PutVal(  gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gasnetex_register_value_t value,
                         size_t nbytes, gasnetex_flags_t flags
@@ -538,8 +538,8 @@ int _gasnetex_put_val(  gex_TM_t tm,
     return gasnete_put_val(tm, rank, dest, value, nbytes, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_put_val(tm,rank,dest,value,nbytes,flags) \
-       _gasnetex_put_val(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_PutBlockingVal(tm,rank,dest,value,nbytes,flags) \
+       _gex_RMA_PutVal(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
 
 #if GASNETI_DIRECT_PUT_NB_VAL && !defined(gasnete_put_nb_val)
   extern gasnetex_handle_t gasnete_put_nb_val(
@@ -550,8 +550,8 @@ int _gasnetex_put_val(  gex_TM_t tm,
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
-GASNETI_INLINE(_gasnetex_put_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gasnetex_put_nb_val (
+GASNETI_INLINE(_gex_RMA_PutNBVal) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t _gex_RMA_PutNBVal (
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gasnetex_register_value_t value,
@@ -577,8 +577,8 @@ gasnetex_handle_t _gasnetex_put_nb_val (
     #endif
   }
 }
-#define gasnetex_put_nb_val(tm,rank,dest,value,nbytes,flags) \
-       _gasnetex_put_nb_val(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_PutNBVal(tm,rank,dest,value,nbytes,flags) \
+       _gex_RMA_PutNBVal(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
 
 #if GASNETI_DIRECT_PUT_NBI_VAL
   extern int gasnete_put_nbi_val(
@@ -602,8 +602,8 @@ gasnetex_handle_t _gasnetex_put_nb_val (
   }
 #endif
 
-GASNETI_INLINE(_gasnetex_put_nbi_val)
-int _gasnetex_put_nbi_val(
+GASNETI_INLINE(_gex_RMA_PutNBIVal)
+int _gex_RMA_PutNBIVal(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gasnetex_register_value_t value,
@@ -622,8 +622,8 @@ int _gasnetex_put_nbi_val(
     return gasnete_put_nbi_val(tm, rank, dest, value, nbytes, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_put_nbi_val(tm,rank,dest,value,nbytes,flags) \
-       _gasnetex_put_nbi_val(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_PutNBIVal(tm,rank,dest,value,nbytes,flags) \
+       _gex_RMA_PutNBIVal(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*

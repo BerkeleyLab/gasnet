@@ -367,8 +367,8 @@ typedef union {
  * Note that because gasnet_gets may read multiple words, it's possible that the 
  * values fetched in a multi-word get may reflect concurrent strict writes by other CPU's 
  * in a way that appears to violate program order, eg:
- *  CPU0: gasnetex_put_val(myteam,mynode,&A[0],someval,1,0);
- *        gasnetex_put_val(myteam,mynode,&A[1],someval,1,0);
+ *  CPU0: gex_RMA_PutBlockingVal(myteam,mynode,&A[0],someval,1,0);
+ *        gex_RMA_PutBlockingVal(myteam,mynode,&A[1],someval,1,0);
  *  CPU1: gasnetex_get(myteam,dest,mynode,&A[0],someval,2,0) ; // may see updated A[1] but not A[0]
  * but there doesn't seem to be much we can do about that (adding another rmb before the
  * get does not solve the problem, because the two puts may globally complete in the middle

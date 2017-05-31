@@ -341,35 +341,35 @@ void doit3(void) {
 void doit4(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
-    TIME_OPERATION("local 4-byte gasnetex_put",
-      { gasnetex_put(myteam, mynode, myseg, &temp, 4, 0); });
+    TIME_OPERATION("local 4-byte gex_RMA_PutBlocking",
+      { gex_RMA_PutBlocking(myteam, mynode, myseg, &temp, 4, 0); });
 
-    TIME_OPERATION("local 4-byte gasnetex_put_nb",
-      { gex_Event_Wait(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0)); });
+    TIME_OPERATION("local 4-byte gex_RMA_PutNB",
+      { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi", {},
-      { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0); },
+    TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBI", {},
+      { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0); },
       { gex_NBI_WaitPuts(); });
 
-    TIME_OPERATION("local 4-byte gasnetex_put_nb/bulk",
-      { gex_Event_Wait(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0)); });
+    TIME_OPERATION("local 4-byte gex_RMA_PutNB/bulk",
+      { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi/bulk", {},
-      { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0); },
+    TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBI/bulk", {},
+      { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0); },
       { gex_NBI_WaitPuts(); });
 
-    TIME_OPERATION("local 4-byte gasnetex_put_val",
-      { gasnetex_put_val(myteam, mynode, myseg, temp, 4, 0); });
+    TIME_OPERATION("local 4-byte gex_RMA_PutBlockingVal",
+      { gex_RMA_PutBlockingVal(myteam, mynode, myseg, temp, 4, 0); });
 
-    TIME_OPERATION("local 4-byte gasnetex_put_nb_val",
-      { gex_Event_Wait(gasnetex_put_nb_val(myteam, mynode, myseg, temp, 4, 0)); });
+    TIME_OPERATION("local 4-byte gex_RMA_PutNBVal",
+      { gex_Event_Wait(gex_RMA_PutNBVal(myteam, mynode, myseg, temp, 4, 0)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi_val", {},
-      { gasnetex_put_nbi_val(myteam, mynode, myseg, temp, 4, 0); },
+    TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBIVal", {},
+      { gex_RMA_PutNBIVal(myteam, mynode, myseg, temp, 4, 0); },
       { gex_NBI_WaitPuts(); });
 
-    TIME_OPERATION("local 1024-byte gasnetex_put",
-      { gasnetex_put(myteam, mynode, myseg, &bigtemp, 1024, 0); });
+    TIME_OPERATION("local 1024-byte gex_RMA_PutBlocking",
+      { gex_RMA_PutBlocking(myteam, mynode, myseg, &bigtemp, 1024, 0); });
 
     doit5();
 }

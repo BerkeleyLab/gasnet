@@ -552,7 +552,7 @@ test_put(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> put (%p,%8d) -> tid=%3d,node=%d,addr=%p",
 			tdata->tid, laddr, len, peer, node, raddr);
 
-	gasnetex_put(myteam, node, raddr, laddr, len, 0);
+	gex_RMA_PutBlocking(myteam, node, raddr, laddr, len, 0);
 }
 
 void
