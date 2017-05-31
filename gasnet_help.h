@@ -190,8 +190,8 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 #if GASNET_NDEBUG
-  #define gasneti_boundscheck(team,rank,ptr,nbytes) 
-  #define gasneti_boundscheck_allowoutseg(team,rank,ptr,nbytes)
+  #define gasneti_boundscheck(team,rank,ptr,nbytes) ((void)0)
+  #define gasneti_boundscheck_allowoutseg(team,rank,ptr,nbytes) ((void)0)
 #else
   #define gasneti_boundscheck(team,rank,ptr,nbytes) \
          _gasneti_boundscheck(team,rank,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
