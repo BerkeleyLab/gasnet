@@ -344,7 +344,7 @@ static int gasnetc_attach_primary( gex_Client_t       *client_p,
 
     /* ------------------------------------------------------------------------------------ */
     /*   create the initial endpoint with internal handlers */
-    if (gasnetc_EPCreate(ep_p, *client_p, flags))
+    if (gasnetc_EP_Create(ep_p, *client_p, flags))
       INITERR(RESOURCE,"Error creating initial endpoint");
 
     /* ------------------------------------------------------------------------------------ */
@@ -571,7 +571,7 @@ extern int gasnetc_Segment_Attach(
   return GASNET_OK;
 }
 
-extern int gasnetc_EPCreate( gex_EP_t           *ep_p,
+extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
                              gex_Client_t       client,
                              gasnetex_flags_t        flags) {
   /* (###) add code here to create an endpoint belonging to the given client */

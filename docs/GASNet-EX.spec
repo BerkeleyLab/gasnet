@@ -142,7 +142,7 @@ extern int gex_Segment_Attach(
                 uintptr_t              length);
 
 // Create an endpoint
-extern int gasnetex_EPCreate(
+extern int gex_EP_Create(
                 gex_EP_t                *ep_p,
                 gex_Client_t            client,
                 gasnetex_flags_t        flags);

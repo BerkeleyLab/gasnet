@@ -48,11 +48,11 @@ extern int gasnetc_Segment_Attach(
                 uintptr_t              length);
 #define gex_Segment_Attach gasnetc_Segment_Attach
 
-extern int gasnetc_EPCreate(
+extern int gasnetc_EP_Create(
                 gex_EP_t                *ep_p,
                 gex_Client_t            client,
                 gasnetex_flags_t        flags);
-#define gasnetex_EPCreate gasnetc_EPCreate
+#define gex_EP_Create gasnetc_EP_Create
 
 extern int gasnetc_EPRegisterHandlers(
                 gex_EP_t                ep,
