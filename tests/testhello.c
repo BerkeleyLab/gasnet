@@ -29,7 +29,7 @@ int main(int argc, char **argv)
   int argi;
 
   gex_Client_t      myclient;
-  gasnetex_endpoint_t    myep;
+  gex_EP_t    myep;
   gasnetex_team_member_t myteam;
   gex_Segment_t     mysegment;
 

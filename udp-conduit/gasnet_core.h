@@ -36,7 +36,7 @@ GASNETI_NORETURNP(gasnetc_exit)
    it to ensure proper version linkage */
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
-                gasnetex_endpoint_t    *ep_p,
+                gex_EP_t               *ep_p,
                 gasnetex_team_member_t *team_p,
                 const char             *clientName,
                 int                    *argc,
@@ -50,16 +50,16 @@ extern int gasnetc_Segment_Attach(
 #define gex_Segment_Attach gasnetc_Segment_Attach
 
 extern int gasnetc_EPCreate(
-                gasnetex_endpoint_t     *ep_p,
+                gex_EP_t                *ep_p,
                 gex_Client_t            client,
                 gasnetex_flags_t        flags);
 #define gasnetex_EPCreate gasnetc_EPCreate
 
 extern int gasnetc_EPRegisterHandlers(
-                gasnetex_endpoint_t     ep,
+                gex_EP_t                ep,
                 gasnetex_handlerentry_t *table,
                 int                     numentries);
-#define gasnetex_EPRegisterHandlers gasnetc_EPRegisterHandlers
+#define gex_EP_RegisterHandlers gasnetc_EPRegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*
   Handler-safe locks

@@ -1591,7 +1591,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 #undef gasneti_thunk_client
 gex_Client_t      gasneti_thunk_client   = NULL;
 #undef gasneti_thunk_endpoint
-gasnetex_endpoint_t    gasneti_thunk_endpoint = NULL;
+gex_EP_t          gasneti_thunk_endpoint = NULL;
 #undef gasneti_thunk_team
 gasnetex_team_member_t gasneti_thunk_team     = NULL;
 #undef gasneti_thunk_segment

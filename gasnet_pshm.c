@@ -1150,7 +1150,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_DEBUG
 static void gasneti_AMPSHM_amtbl_check(
-                gasnetex_endpoint_t ep,
+                gex_EP_t ep,
                 gasnetc_handler_t   index,
                 uint8_t             nargs)
 {
@@ -1175,7 +1175,7 @@ static void gasneti_AMPSHM_amtbl_check(
 GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
 int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 {
-  gasnetex_endpoint_t ep = NULL; // TODO-EX: get true value
+  gex_EP_t ep = NULL; // TODO-EX: get true value
   void *msg;
   size_t msgsz;
   gasneti_pshm_rank_t from;
@@ -1364,7 +1364,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
 
   /* Deliver message */
   if (loopback) {
-    gasnetex_endpoint_t ep = NULL; // TODO-EX: get true value
+    gex_EP_t ep = NULL; // TODO-EX: get true value
     gasneti_handler_fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
     gasnetex_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
     gasnetex_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);

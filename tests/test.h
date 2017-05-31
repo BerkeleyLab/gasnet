@@ -769,7 +769,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     };
     // EX-TODO: will need an endpoint (in place of NULL below) for
     // the AM registration *or* switch to GASNet's collectives
-    GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, mytab, 2));
+    GASNET_Safe(gex_EP_RegisterHandlers(NULL, mytab, 2));
     _test_seggather_idx = mytab[0].gex_index;
     _test_segbcast_idx = mytab[1].gex_index;
 

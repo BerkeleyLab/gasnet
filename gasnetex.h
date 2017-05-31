@@ -300,7 +300,7 @@ struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
 
 struct gasneti_endpoint_s;
-typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
+typedef struct gasneti_endpoint_s *gex_EP_t;
 
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;

@@ -21,7 +21,7 @@ uintptr_t maxsegmentsz;
 #include "test.h"
 
 static gex_Client_t      myclient;
-static gasnetex_endpoint_t    myep;
+static gex_EP_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
 
@@ -384,7 +384,7 @@ main(int argc, char **argv)
     }
 
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-    GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+    GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
     test_init("testnbr",1, "[-f] [-m] [iters] [level]\n\n"
       "-f      run full nbr exchange (NAS MG) instead of per axis\n"
       "-m      run UPC version of GASNet MG test only\n"

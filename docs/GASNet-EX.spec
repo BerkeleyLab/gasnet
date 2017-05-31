@@ -115,7 +115,7 @@ typedef uintptr_t gasnetex_register_value_t;
 
 // Opaque type for an endpoint
 struct gasneti_endpoint_s;
-typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
+typedef struct gasneti_endpoint_s *gex_EP_t;
 
 // Opaque type for a client
 struct gasneti_client_s;
@@ -128,7 +128,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 // Initialize the client
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
-                gasnetex_endpoint_t    *ep_p,
+                gex_EP_t               *ep_p,
                 gasnetex_team_member_t *team_p,
                 int                    *argc,
                 char                   ***argv,
@@ -143,7 +143,7 @@ extern int gex_Segment_Attach(
 
 // Create an endpoint
 extern int gasnetex_EPCreate(
-                gasnetex_endpoint_t     *ep_p,
+                gex_EP_t                *ep_p,
                 gex_Client_t            client,
                 gasnetex_flags_t        flags);
 
@@ -161,7 +161,7 @@ typedef struct {
     const char             *gex_name;      // Used in debug messages
 } gasnetex_handlerentry_t;
 
-// gasnetex_EPRegisterHandlers()
+// gex_EP_RegisterHandlers()
 //
 // Registers a client-provided list of AM handlers with the given EP,
 // with semantics like those of current gasnet_attach().   The client
@@ -169,8 +169,8 @@ typedef struct {
 // handlers are registered before any process may send a corresponding
 // AM to the Endpoint.
 // REF: 'Conf call 2016.06.28' Google Doc
-int gasnetex_EPRegisterHandlers(
-        gasnetex_endpoint_t     ep,
+int gex_EP_RegisterHandlers(
+        gex_EP_t                ep,
         gasnetex_handlerentry_t *table,
         int                     numentries);
 

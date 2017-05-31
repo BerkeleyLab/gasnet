@@ -154,7 +154,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
 
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_attach_primary( gex_Client_t       *client_p,
-                                   gasnetex_endpoint_t     *ep_p,
+                                   gex_EP_t           *ep_p,
                                    gasnetex_team_member_t  *team_p,
                                    gasnetex_flags_t        flags ) {
   /* ------------------------------------------------------------------------------------ */
@@ -249,7 +249,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gasnetc_attach( gex_Client_t           *client_p,
-                           gasnetex_endpoint_t    *endpoint_p,
+                           gex_EP_t               *endpoint_p,
                            gasnetex_team_member_t *team_p,
                            gex_Segment_t          *segment_p,
                            gasnet_handlerentry_t  *table,
@@ -298,7 +298,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gex_Client_Init(    gex_Client_t            *client_p,
-                               gasnetex_endpoint_t     *ep_p,
+                               gex_EP_t                *ep_p,
                                gasnetex_team_member_t  *team_p,
                                const char              *clientName,
                                int                     *argc,
@@ -349,7 +349,7 @@ extern int gasnetc_Segment_Attach(
   return GASNET_OK;
 }
 
-extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
+extern int gasnetc_EPCreate( gex_EP_t           *ep_p,
                              gex_Client_t       client,
                              gasnetex_flags_t        flags) {
   /* (###) add code here to create an endpoint belonging to the given client */
@@ -383,7 +383,7 @@ extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
   return GASNET_OK;
 }
 
-extern int gasnetc_EPRegisterHandlers( gasnetex_endpoint_t     ep,
+extern int gasnetc_EPRegisterHandlers( gex_EP_t                ep,
                                        gasnetex_handlerentry_t *table,
                                        int                     numentries) {
   return gasneti_amregister_client(gasnetc_handler, table, numentries);

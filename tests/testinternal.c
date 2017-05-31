@@ -10,7 +10,7 @@
 #include <test.h>
 
 static gex_Client_t      myclient;
-static gasnetex_endpoint_t    myep;
+static gex_EP_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
 
@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testinternal", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, htable_cnt));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, htable_cnt));
   #if GASNET_PAR
     test_init("testinternal",0,"(iters) (threadcnt) (test_sections)");
   #else

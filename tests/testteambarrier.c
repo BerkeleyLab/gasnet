@@ -17,7 +17,7 @@ typedef struct {
 } thread_data_t;
 
 static gex_Client_t      myclient;
-static gasnetex_endpoint_t    myep;
+static gex_EP_t    myep;
 static gasnetex_team_member_t myteam;
 static gex_Segment_t     mysegment;
 
