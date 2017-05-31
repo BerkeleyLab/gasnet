@@ -1277,7 +1277,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	int med_regions;
 #endif
 	int b_prepinned = 0;
-	gasnet_node_t num_nodes = gasneti_nodes;
+	gasnetex_rank_t num_nodes = gasneti_nodes;
 	int dflt_M, dflt_VM;
 	int dflt_R, dflt_VR;
 	int dflt_RS;
