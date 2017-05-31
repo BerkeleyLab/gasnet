@@ -77,7 +77,7 @@ GASNETT_BEGIN_EXTERNC
 #endif
 
 #define test_static_assert(cond) \
-static const char *_CONCAT(static_assert_,__LINE__)[ (cond) ?1:-1] = { "Static assertion: " #cond };
+  static const char *_CONCAT(static_assert_,__LINE__)[ (cond) ?1:-1] = { "Static assertion: " #cond }
 
 /* ------------------------------------------------------------------------------------ */
 /* generic message output utility
