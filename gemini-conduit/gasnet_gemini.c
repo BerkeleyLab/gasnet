@@ -2283,9 +2283,12 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
        *     (put_fma_rdma_cutover < IMMEDIATE_BOUNCE_SIZE),
        * which is not the default (nor recommended).
        */
-      if ((nbytes <= gasnetc_put_bounce_register_cutover) ||
-          /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
+      if (// Note short-circuit evaluation: cases 1 and 3 lead to THEN body and case 2 to ELSE body.
+          // Case 1: nbytes at or below bounce-to-register cutover.  Use bounce buffer.
+          (nbytes <= gasnetc_put_bounce_register_cutover) ||
+          // Case 2: nbytes larger than cutover.  Attempt to register the local memory.
           (!gasnetc_register_gpd(gpd, GNI_MEM_READ_ONLY) &&
+          // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
            (pd->length = nbytes = gasnetc_put_bounce_register_cutover))) {
         void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
@@ -2485,9 +2488,12 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
       pd->local_addr = (uint64_t) gpd->u.immediate;
       pd->local_mem_hndl = my_aux_handle;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
-    } else if ((nbytes <= gasnetc_get_bounce_register_cutover) ||
-               /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
+    } else if (// Note short-circuit evaluation: cases 1 and 3 lead to THEN body and case 2 to ELSE body.
+               // Case 1: nbytes at or below bounce-to-register cutover.  Use bounce buffer.
+               (nbytes <= gasnetc_get_bounce_register_cutover) ||
+               // Case 2: nbytes larger than cutover.  Attempt to register the local memory.
                (!gasnetc_register_gpd(gpd, GNI_MEM_READWRITE) &&
+               // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
                 (pd->length = nbytes = gasnetc_get_bounce_register_cutover))) {
       gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
       pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
