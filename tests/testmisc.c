@@ -376,21 +376,21 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
 /* ------------------------------------------------------------------------------------ */
 void doit5(void) { GASNET_BEGIN_FUNCTION();
 
-    TIME_OPERATION("local 4-byte gasnetex_get",
-      { gasnetex_get(myteam, &temp, mynode, myseg, 4, 0); });
+    TIME_OPERATION("local 4-byte gex_RMA_GetBlocking",
+      { gex_RMA_GetBlocking(myteam, &temp, mynode, myseg, 4, 0); });
 
-    TIME_OPERATION("local 4-byte gasnetex_get_nb",
-      { gex_Event_Wait(gasnetex_get_nb(myteam, &temp, mynode, myseg, 4, 0)); });
+    TIME_OPERATION("local 4-byte gex_RMA_GetNB",
+      { gex_Event_Wait(gex_RMA_GetNB(myteam, &temp, mynode, myseg, 4, 0)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnetex_get_nbi", {},
-      { gasnetex_get_nbi(myteam, &temp, mynode, myseg, 4, 0); },
+    TIME_OPERATION_FULL("local 4-byte gex_RMA_GetNBI", {},
+      { gex_RMA_GetNBI(myteam, &temp, mynode, myseg, 4, 0); },
       { gex_NBI_WaitGets(); });
 
-    TIME_OPERATION("local 4-byte gasnetex_get_val",
-      { temp = (int32_t)gasnetex_get_val(myteam, mynode, myseg, 4, 0); });
+    TIME_OPERATION("local 4-byte gex_RMA_GetBlockingVal",
+      { temp = (int32_t)gex_RMA_GetBlockingVal(myteam, mynode, myseg, 4, 0); });
 
-    TIME_OPERATION("local 1024-byte gasnetex_get",
-      { gasnetex_get(myteam, &bigtemp, mynode, myseg, 1024, 0); });
+    TIME_OPERATION("local 1024-byte gex_RMA_GetBlocking",
+      { gex_RMA_GetBlocking(myteam, &bigtemp, mynode, myseg, 1024, 0); });
 
     doit6();
 }

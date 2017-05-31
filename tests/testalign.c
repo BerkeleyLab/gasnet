@@ -131,7 +131,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_get(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+			gex_RMA_GetBlocking(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -186,7 +186,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_get_nbi(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
 		gex_NBI_WaitGets();
 		end = TIME();
@@ -244,7 +244,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of receiving a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gasnetex_get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+                    handles[i] = gex_RMA_GetNB(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
 		gex_Event_WaitAll(handles, iters);
 		end = TIME();

@@ -217,7 +217,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
                                                                              \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, &tmp, peerproc, REMOTE(A,peerthread), sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, &tmp, peerproc, REMOTE(A,peerthread), sizeof(int), 0);\
 	if (tmp != R[j]) {                                                   \
 	    MSG("ERROR: %s broadcast validation failed", name);              \
 	    gasnet_exit(1);                                                  \
@@ -226,7 +226,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
+	gex_RMA_GetBlocking(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i) {                                          \
 		MSG("ERROR: %s gather validation failed", name);             \
@@ -238,7 +238,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gex_RMA_PutBlocking(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
 	CALL(scatter##SUFFIX, ALL(B), ROOT(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
 	if (tmp != peerthread*R[j]) {                                        \
 	    MSG("ERROR: %s scatter validation failed expected: %d got %d", name, peerthread*R[j], tmp);                \
 	    gasnet_exit(1);                                                  \
@@ -248,7 +248,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i*R[j] - 1) {                                 \
 		MSG("ERROR: %s gather_all validation failed", name);         \
@@ -262,7 +262,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
 	CALL(exchange##SUFFIX, ALL(C), ALL(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i + peerthread*R[j] - 1) {                    \
 		MSG("ERROR: %s exchange validation failed", name);           \

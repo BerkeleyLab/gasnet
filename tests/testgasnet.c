@@ -271,7 +271,7 @@ void doit(int partner, int *partnerseg) {
     val1 = mynode + 100;
 
     gex_RMA_PutBlocking(myteam, partner, partnerseg, &val1, sizeof(int), 0);
-    gasnetex_get(myteam, &val2, partner, partnerseg, sizeof(int), 0);
+    gex_RMA_GetBlocking(myteam, &val2, partner, partnerseg, sizeof(int), 0);
 
     if (val2 == (mynode + 100)) MSG("*** passed blocking test!!");
     else MSG("*** ERROR - FAILED BLOCKING TEST!!!!!");
@@ -292,7 +292,7 @@ void doit(int partner, int *partnerseg) {
     }
     gex_Event_WaitAll(handles, iters);
     for (i = 0; i < iters; i++) {
-      handles[i] = gasnetex_get_nb(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
+      handles[i] = gex_RMA_GetNB(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
     gex_Event_WaitAll(handles, iters);
     for (i=0; i < iters; i++) {
@@ -323,7 +323,7 @@ void doit2(int partner, int *partnerseg) {
     }
     gex_NBI_WaitPuts();
     for (i=0; i < 100; i++) {
-      gasnetex_get_nbi(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
+      gex_RMA_GetNBI(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
     gex_NBI_WaitGets();
     for (i=0; i < 100; i++) {
@@ -361,8 +361,8 @@ void doit3(int partner, int *partnerseg) {
     gex_NBI_WaitPuts();
 
     for (i=0; i < 100; i++) {
-      int tmp1 = gasnetex_get_val(myteam, partner, partnerseg+i, sizeof(int), 0);
-      int tmp2 = gasnetex_get_val(myteam, partner, partnerseg+i+200, sizeof(int), 0);
+      int tmp1 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i, sizeof(int), 0);
+      int tmp2 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i+200, sizeof(int), 0);
       if (tmp1 != 1000 + mynode + i || tmp2 != 1000 + mynode + i) {
         MSG("*** ERROR - FAILED INT VALUE TEST 1!!!");
         printf("node %i/%i  i=%i tmp1=%i tmp2=%i (1000 + mynode + i)=%i\n", 
@@ -384,8 +384,8 @@ void doit3(int partner, int *partnerseg) {
     gex_NBI_WaitPuts();
 
     for (i=0; i < 100; i++) {
-      unsigned int tmp1 = (unsigned int)gasnetex_get_val(myteam, partner, partnerbase2+i, sizeof(unsigned char), 0);
-      unsigned int tmp2 = (unsigned int)gasnetex_get_val(myteam, partner, partnerbase2+i+200, sizeof(unsigned char), 0);
+      unsigned int tmp1 = (unsigned int)gex_RMA_GetBlockingVal(myteam, partner, partnerbase2+i, sizeof(unsigned char), 0);
+      unsigned int tmp2 = (unsigned int)gex_RMA_GetBlockingVal(myteam, partner, partnerbase2+i+200, sizeof(unsigned char), 0);
       if (tmp1 != (unsigned char)(100 + mynode + i) || 
           tmp2 != (unsigned char)(100 + mynode + i)) {
         MSG("*** ERROR - FAILED CHAR VALUE TEST 1!!!");
@@ -453,10 +453,10 @@ void doit5(int partner, int *partnerseg) {
         memset(segpos, 0xCC, sz); /* clear */
         gex_Event_Wait(handle);
 
-        gex_Event_Wait(gasnetex_get_nb(myteam, localpos, partner, rsegpos, sz, 0));
-        gex_Event_Wait(gasnetex_get_nb(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
-        gex_Event_Wait(gasnetex_get_nb(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
-        gex_Event_Wait(gasnetex_get_nb(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
+        gex_Event_Wait(gex_RMA_GetNB(myteam, localpos, partner, rsegpos, sz, 0));
+        gex_Event_Wait(gex_RMA_GetNB(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
+        gex_Event_Wait(gex_RMA_GetNB(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
+        gex_Event_Wait(gex_RMA_GetNB(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
 
         for (j=0; j < elems*2; j++) {
           int ok;
@@ -517,13 +517,13 @@ void doit5(int partner, int *partnerseg) {
         memset(segpos, 0xCC, sz); /* clear */
         gex_NBI_WaitPuts();
 
-        gasnetex_get_nbi(myteam, localpos, partner, rsegpos, sz, 0);
+        gex_RMA_GetNBI(myteam, localpos, partner, rsegpos, sz, 0);
         gex_NBI_WaitGets();
-        gasnetex_get_nbi(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
+        gex_RMA_GetNBI(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
         gex_NBI_WaitGets();
-        gasnetex_get_nbi(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
+        gex_RMA_GetNBI(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
         gex_NBI_WaitGets();
-        gasnetex_get_nbi(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
+        gex_RMA_GetNBI(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
         gex_NBI_WaitGets();
 
         for (j=0; j < elems*2; j++) {

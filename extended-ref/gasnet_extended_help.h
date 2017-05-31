@@ -369,7 +369,7 @@ typedef union {
  * in a way that appears to violate program order, eg:
  *  CPU0: gex_RMA_PutBlockingVal(myteam,mynode,&A[0],someval,1,0);
  *        gex_RMA_PutBlockingVal(myteam,mynode,&A[1],someval,1,0);
- *  CPU1: gasnetex_get(myteam,dest,mynode,&A[0],someval,2,0) ; // may see updated A[1] but not A[0]
+ *  CPU1: gex_RMA_GetBlocking(myteam,dest,mynode,&A[0],someval,2,0) ; // may see updated A[1] but not A[0]
  * but there doesn't seem to be much we can do about that (adding another rmb before the
  * get does not solve the problem, because the two puts may globally complete in the middle
  * of the get's execution, after copying A[0] but before copying A[1]). It's a fundamental

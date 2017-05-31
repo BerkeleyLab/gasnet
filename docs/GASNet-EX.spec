@@ -337,21 +337,21 @@ gasnetex_handle_t gex_RMA_PutNB(
            gasnetex_flags_t flags);
 
 // Get
-int gasnetex_get( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
+int gex_RMA_GetBlocking( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gex_TM_t tm,                   // Names a local context ("return address")
            void *dest,                    // Local (destination) address (or OFFSET)
            gasnetex_rank_t rank,          // Together with 'tm', names a remote context
            void *src,                     // Remote (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
-int gasnetex_get_nbi( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
+int gex_RMA_GetNBI( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gex_TM_t tm,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
-gasnetex_handle_t gasnetex_get_nb(
+gasnetex_handle_t gex_RMA_GetNB(
            gex_TM_t tm,
            void *dest,
            gasnetex_rank_t rank,
@@ -360,7 +360,7 @@ gasnetex_handle_t gasnetex_get_nb(
            gasnetex_flags_t flags);
 
 // Value-based
-gasnetex_register_value_t gasnetex_get_val(
+gasnetex_register_value_t gex_RMA_GetBlockingVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *src,

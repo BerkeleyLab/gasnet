@@ -387,8 +387,8 @@ void do_nonbulkputgets(void) {
     }
 
     if (do_gets && do_explicit) {
-      QUEUE_TEST("gasnetex_get_nb", 
-                 handles[i] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
+      QUEUE_TEST("gex_RMA_GetNB", 
+                 handles[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
                  gex_Event_WaitAll(handles, depth), (void)0, 0);
     }
 
@@ -399,8 +399,8 @@ void do_nonbulkputgets(void) {
     }
 
     if (do_gets && do_implicit) {
-      QUEUE_TEST("gasnetex_get_nbi", 
-                 gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
+      QUEUE_TEST("gex_RMA_GetNBI", 
+                 gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
                  gex_NBI_WaitAll(), (void)0, 0);
     }
 }
@@ -428,8 +428,8 @@ void do_blockingputgets(void) {
     }
 
     if (do_gets && do_blocking) {
-      QUEUE_TEST("gasnetex_get (BLOCKING - represents round-trip latency)",
-                 gasnetex_get(myteam, msgbuf, peerproc, tgtmem, payload, 0),
+      QUEUE_TEST("gex_RMA_GetBlocking (BLOCKING - represents round-trip latency)",
+                 gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, payload, 0),
                  (void)0, (void)0, 0);
     }
 
@@ -440,8 +440,8 @@ void do_blockingputgets(void) {
     }
 
     if (do_gets && do_value && do_blocking) {
-      QUEUE_TEST("gasnetex_get_val (BLOCKING - represents round-trip latency)", 
-                 regval ^= gasnetex_get_val(myteam, peerproc, tgtmem, payload, 0), 
+      QUEUE_TEST("gex_RMA_GetBlockingVal (BLOCKING - represents round-trip latency)", 
+                 regval ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem, payload, 0), 
                  (void)0, (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 }

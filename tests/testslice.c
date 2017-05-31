@@ -127,13 +127,13 @@ int main(int argc, char **argv)
           gex_RMA_PutBlocking(myteam, peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len, 0); 
   
           /* In segment get from remote to local segment */
-          gasnetex_get(myteam, local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len, 0); 
+          gex_RMA_GetBlocking(myteam, local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len, 0); 
   
           /* Verify */
           assert_eq(shadow_region_1 + starting_point, local_base + local_starting_point_1, len,starting_point,i,j,"Out of segment put + in segment get");
   
           /* Out of segment get from remote to shadow_region_2 (starting from 0) */
-          gasnetex_get(myteam, shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len, 0); 
+          gex_RMA_GetBlocking(myteam, shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len, 0); 
   
           /* Verify */
           assert_eq(shadow_region_2+local_starting_point_2, shadow_region_1 + starting_point, len,starting_point,i,j,"Out of segment get");

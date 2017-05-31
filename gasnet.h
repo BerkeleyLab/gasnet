@@ -373,9 +373,9 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 #define gasnet_put_bulk(node,dest,src,nbytes) \
                 gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
 #define gasnet_get(dest,node,src,nbytes) \
-                gasnetex_get(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,0)
 #define gasnet_get_bulk(dest,node,src,nbytes) \
-                gasnetex_get(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
@@ -386,9 +386,9 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
                 gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_DEFER,0)
 #define gasnet_get_nbi(dest,node,src,nbytes) \
-                gasnetex_get_nbi(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,0)
 #define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
-                gasnetex_get_nbi(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
@@ -399,16 +399,16 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 #define gasnet_put_nb_bulk(node,dest,src,nbytes) \
                 gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GASNETEX_EVENT_DEFER,0)
 #define gasnet_get_nb(dest,node,src,nbytes) \
-                gasnetex_get_nb(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetNB(gasneti_thunk_tm,dest,node,src,nbytes,0)
 #define gasnet_get_nb_bulk(dest,node,src,nbytes) \
-                gasnetex_get_nb(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                gex_RMA_GetNB(gasneti_thunk_tm,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Gets - blocking and explicit-handle non-blocking */
 // TODO-EX: pass GASNETEX_FLAG_SRC_IN_SEGMENT and possibly other flags
 
 #define gasnet_get_val(node,src,nbytes) \
-                gasnetex_get_val(gasneti_thunk_tm,node,src,nbytes,0)
+                gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,0)
 
 typedef struct {
   gasnetex_register_value_t v;
@@ -426,7 +426,7 @@ gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t
 #endif
   result->v = 0;
   //assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
-  result->h = gasnetex_get_nb(gasneti_thunk_tm, dest, node, src, nbytes, 0);
+  result->h = gex_RMA_GetNB(gasneti_thunk_tm, dest, node, src, nbytes, 0);
   return result;
 }
 

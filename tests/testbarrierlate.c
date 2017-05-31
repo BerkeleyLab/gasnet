@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
       sleep(pause_len);
   }
   BARRIER();
-  gasnetex_get(myteam, &delay_params, 0, TEST_SEG(0), sizeof(struct delay_s), 0);
+  gex_RMA_GetBlocking(myteam, &delay_params, 0, TEST_SEG(0), sizeof(struct delay_s), 0);
   delay_us = delay_params.delay_us;
   delay_loops = delay_params.delay_loops;
   if (mynode == 0) {

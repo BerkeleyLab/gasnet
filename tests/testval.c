@@ -137,7 +137,7 @@ void roundtrip_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-	 		reg ^= gasnetex_get_val(myteam, peerproc, tgtmem+offset, nbytes, 0);
+	 		reg ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem+offset, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -188,7 +188,7 @@ void oneway_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-	 		reg ^= gasnetex_get_val(myteam, peerproc, tgtmem+offset, nbytes, 0);
+	 		reg ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem+offset, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -451,7 +451,7 @@ int main(int argc, char **argv)
            gasnetex_register_value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
               gex_RMA_PutBlockingVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
-              reg ^= gasnetex_get_val(myteam, peerproc, tgtmem, max_payload, 0);
+              reg ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem, max_payload, 0);
               ph[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
               gex_RMA_PutNBIVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
            }

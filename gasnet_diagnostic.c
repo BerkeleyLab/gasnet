@@ -877,7 +877,7 @@ static void progressfn_tester(int *counter) {
     gex_RMA_PutNBI(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_EVENT_NOW, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
       gex_RMA_PutNBI(myteam, peer, peersegmid, myseg, sz, GASNETEX_EVENT_DEFER, 0);
-      gasnetex_get_nbi(myteam, myseg, peer, peersegmid, sz, 0);
+      gex_RMA_GetNBI(myteam, myseg, peer, peersegmid, sz, 0);
     }
     sz = (gasnet_AMPoll(),gex_NBI_TestAll());
     if (gasneti_diag_havehandlers) {
@@ -925,9 +925,9 @@ static void progressfns_test(int id) {
     for (i=0; i < 2; i++) {
       int tmp;
       gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
-      gasnetex_get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
       gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
-      gasnetex_get(myteam, myseg, peer, peersegmid, 1024, 0);
+      gex_RMA_GetBlocking(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -950,9 +950,9 @@ static void progressfns_test(int id) {
     for (i=0; i < 2; i++) {
       int tmp;
       gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
-      gasnetex_get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
       gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
-      gasnetex_get(myteam, myseg, peer, peersegmid, 1024, 0);
+      gex_RMA_GetBlocking(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 

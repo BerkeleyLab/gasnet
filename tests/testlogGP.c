@@ -241,7 +241,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_get(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_RMA_GetBlocking(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -255,7 +255,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gex_Event_Wait(h);
 		}
 		end = TIME();
@@ -269,7 +269,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			test_delay(loops, pollcnt);
 			gex_Event_Wait(h);
 		}
@@ -283,7 +283,7 @@ void get_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -303,7 +303,7 @@ void get_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -324,7 +324,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		gex_NBI_WaitGets();
 		end = TIME();
@@ -339,7 +339,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		gex_NBI_WaitGets();
 		end = TIME();

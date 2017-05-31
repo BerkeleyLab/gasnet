@@ -60,8 +60,8 @@ extern void gasnete_init(void);
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
-GASNETI_INLINE(_gasnetex_get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gasnetex_get_nb(
+GASNETI_INLINE(_gex_RMA_GetNB) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t _gex_RMA_GetNB(
                         gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
                         size_t nbytes, gasnetex_flags_t flags
@@ -78,8 +78,8 @@ gasnetex_handle_t _gasnetex_get_nb(
     return gasnete_get_nb(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_get_nb(tm,dest,rank,src,nbytes,flags) \
-       _gasnetex_get_nb(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_GetNB(tm,dest,rank,src,nbytes,flags) \
+       _gex_RMA_GetNB(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_RMA_PutNB) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t _gex_RMA_PutNB(
@@ -224,8 +224,8 @@ extern int gasnete_put_nbi  (gex_TM_t tm,
                              gasnetex_flags_t flags GASNETI_THREAD_FARG);
 #endif
 
-GASNETI_INLINE(_gasnetex_get_nbi)
-int _gasnetex_get_nbi  (gex_TM_t tm, void *dest,
+GASNETI_INLINE(_gex_RMA_GetNBI)
+int _gex_RMA_GetNBI  (gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG) {
@@ -241,8 +241,8 @@ int _gasnetex_get_nbi  (gex_TM_t tm, void *dest,
     return gasnete_get_nbi(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_get_nbi(tm,dest,rank,src,nbytes,flags) \
-       _gasnetex_get_nbi(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_GetNBI(tm,dest,rank,src,nbytes,flags) \
+       _gex_RMA_GetNBI(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_RMA_PutNBI)
 int _gex_RMA_PutNBI  (gex_TM_t tm,
@@ -451,8 +451,8 @@ extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int e
   }
 #endif
 
-GASNETI_INLINE(_gasnetex_get)
-int _gasnetex_get  (gex_TM_t tm, void *dest,
+GASNETI_INLINE(_gex_RMA_GetBlocking)
+int _gex_RMA_GetBlocking  (gex_TM_t tm, void *dest,
                     gasnetex_rank_t rank, void *src,
                     size_t nbytes, gasnetex_flags_t flags
                     GASNETI_THREAD_FARG) {
@@ -468,8 +468,8 @@ int _gasnetex_get  (gex_TM_t tm, void *dest,
     return gasnete_get(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
   }
 }
-#define gasnetex_get(tm,dest,rank,src,nbytes,flags) \
-       _gasnetex_get(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_GetBlocking(tm,dest,rank,src,nbytes,flags) \
+       _gex_RMA_GetBlocking(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_RMA_PutBlocking)
 int _gex_RMA_PutBlocking  (gex_TM_t tm,
@@ -643,8 +643,8 @@ int _gex_RMA_PutNBIVal(
                   GASNETI_THREAD_FARG);
 #endif
 
-GASNETI_INLINE(_gasnetex_get_val) GASNETI_WARN_UNUSED_RESULT
-gasnetex_register_value_t _gasnetex_get_val (
+GASNETI_INLINE(_gex_RMA_GetBlockingVal) GASNETI_WARN_UNUSED_RESULT
+gasnetex_register_value_t _gex_RMA_GetBlockingVal (
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags
@@ -666,8 +666,8 @@ gasnetex_register_value_t _gasnetex_get_val (
     #endif
   }
 }
-#define gasnetex_get_val(tm,rank,src,nbytes,flags) \
-       _gasnetex_get_val(tm,rank,src,nbytes,flags GASNETI_THREAD_GET)
+#define gex_RMA_GetBlockingVal(tm,rank,src,nbytes,flags) \
+       _gex_RMA_GetBlockingVal(tm,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 #if PLATFORM_COMPILER_SUN_C
   #pragma error_messages(default, E_END_OF_LOOP_CODE_NOT_REACHED)

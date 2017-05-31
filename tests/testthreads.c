@@ -570,7 +570,7 @@ test_get(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> get (%p,%8d) <- tid=%3d,node=%d,addr=%p",
 			tdata->tid, laddr, len, peer, node, raddr);
 
-	gasnetex_get(myteam, laddr, node, raddr, len, 0);
+	gex_RMA_GetBlocking(myteam, laddr, node, raddr, len, 0);
 }
 
 #define RANDOM_PEER(tdata)					\
