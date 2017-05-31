@@ -130,7 +130,7 @@ gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
 {
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
   if_pt (gpd) {
-    gpd->flags = gpd_flags;
+    gpd->gpd_flags = gpd_flags;
     gpd->gpd_completion = (uintptr_t) op;
     (*initiated_p) += 1;
   }
@@ -604,7 +604,7 @@ extern int gasnete_put_val(
     gasneti_suspend_spinpollers();
     gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) &done;
-    gpd->flags = GC_POST_COMPLETION_FLAG;
+    gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
@@ -701,7 +701,7 @@ extern gasnetex_register_value_t gasnete_get_val(
     gasneti_suspend_spinpollers();
     gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) &done;
-    gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
+    gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
     buffer = gpd->u.immediate;
     buffer += gasnetc_rdma_get_buff(rank, buffer, src, nbytes, gpd);
     gasneti_resume_spinpollers();
@@ -733,7 +733,7 @@ static gasnetex_handle_t gasnete_fetchop_u64_nb(
   gasneti_suspend_spinpollers();
   gpd = gasnete_cntr_gpd(GASNETE_EOP_CNTRS(eop), 0 GASNETC_DIDX_PASS);
   gpd->gpd_get_dst = (uintptr_t) dest;
-  gpd->flags |= GC_POST_COPY_IMM;
+  gpd->gpd_flags |= GC_POST_COPY_IMM;
   gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
   gasneti_resume_spinpollers();
   GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
@@ -753,7 +753,7 @@ static void gasnete_fetchop_u64_nbi(
   gasneti_suspend_spinpollers();
   gpd = gasnete_cntr_gpd(GASNETE_IOP_CNTRS(iop, get), 0 GASNETC_DIDX_PASS);
   gpd->gpd_get_dst = (uintptr_t) dest;
-  gpd->flags |= GC_POST_COPY_IMM;
+  gpd->gpd_flags |= GC_POST_COPY_IMM;
   gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
   gasneti_resume_spinpollers();
 }
@@ -770,7 +770,7 @@ static uint64_t gasnete_fetchop_u64_val(
   gasneti_suspend_spinpollers();
   gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gpd->gpd_completion = (uintptr_t) &done;
-  gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
+  gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
   gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
   gasneti_resume_spinpollers();
 
@@ -971,7 +971,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
       gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
       uint64_t * const src = (uint64_t *)GASNETE_STARTOFBITS(gpd->u.immediate, sizeof(uint64_t));
 
-      gpd->flags = 0; /* fire and forget */
+      gpd->gpd_flags = 0; /* fire and forget */
       *src = payload;
       gasnetc_rdma_put_buff(node, dst, src, sizeof(*src), gpd);
     }

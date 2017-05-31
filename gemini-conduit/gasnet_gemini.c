@@ -421,7 +421,7 @@ gasnetc_udreg_deregister(void *data_arg, void *context) {
 
 /* Register local side of a pd, with unbounded retry on resource shortage.
    Returns 1 on success, or 0 on INVAL_PARAM */
-static int gasnetc_register_udreg(gasnetc_post_descriptor_t *gpd, uint32_t flags)
+static int gasnetc_register_udreg(gasnetc_post_descriptor_t *gpd, uint32_t memreg_flags)
 {
   GASNETC_DIDX_POST(gpd->domain_idx);
   gni_post_descriptor_t * const pd = &gpd->pd;
@@ -493,7 +493,7 @@ static gasneti_weakatomic_val_t gasnetc_reg_credit_max;
 
 /* Register local side of a pd, with unbounded retry on ERR_RESOURCE.
    Returns 1 on success, or 0 on ERR_INVAL_PARAM */
-static int gasnetc_register_gni(gasnetc_post_descriptor_t *gpd, uint32_t flags)
+static int gasnetc_register_gni(gasnetc_post_descriptor_t *gpd, uint32_t memreg_flags)
 {
   GASNETC_DIDX_POST(gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
@@ -519,11 +519,11 @@ first:
     if_pf (stall) GASNETC_TRACE_WAIT_END(MEM_REG_STALL);
   }
 
-  flags |= gasnetc_memreg_flags;
+  memreg_flags |= gasnetc_memreg_flags;
   for (;;) {
     GASNETC_LOCK_GNI();
     status = GNI_MemRegister(nic_handle, addr, nbytes, NULL,
-                             flags, -1, &pd->local_mem_hndl);
+                             memreg_flags, -1, &pd->local_mem_hndl);
     GASNETC_UNLOCK_GNI();
     if_pt (status == GNI_RC_SUCCESS) {
       if (trial) GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
@@ -559,14 +559,14 @@ void gasnetc_deregister_gni(gasnetc_post_descriptor_t *gpd)
 
 /* Register local side of a pd */
 GASNETI_INLINE(gasnetc_register_gpd)
-int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd, uint32_t flags)
+int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd, uint32_t memreg_flags)
 {
 #if GASNETC_GNI_UDREG
   if_pt (gasnetc_udreg_hndl) {
-    return gasnetc_register_udreg(gpd, flags);
+    return gasnetc_register_udreg(gpd, memreg_flags);
   } else
 #endif
-  return gasnetc_register_gni(gpd, flags);
+  return gasnetc_register_gni(gpd, memreg_flags);
 }
 
 /* Deregister local side of a pd */
@@ -1513,7 +1513,7 @@ int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify, gas
 
   if (cntr) {
     gpd->gpd_completion = (uintptr_t)cntr;
-    gpd->flags = GC_POST_COMPLETION_CNTR;
+    gpd->gpd_flags = GC_POST_COMPLETION_CNTR;
   }
   gpd->u.notify = notify;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
@@ -1556,11 +1556,11 @@ GASNETI_INLINE(gasnetc_format_am_gpd)
 void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd, 
                            gasnetc_packet_t *p,
                            peer_struct_t *peer,
-                           size_t length, uint32_t flags)
+                           size_t length, uint32_t gpd_flags)
 {
   gni_post_descriptor_t *pd = &gpd->pd;
 
-  gpd->flags = flags;
+  gpd->gpd_flags = gpd_flags;
   gpd->gpd_am_peer = (uint64_t) peer; 
   pd->length = length;
   pd->local_addr = (uint64_t)p;
@@ -2065,28 +2065,28 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
     if_pt (! gpd) { /* empty Cq is common case */
       break;
     } else {
-      const uint32_t flags = gpd->flags; /* see note w/ GC_POST_COMPLETION_FLAG */
+      const uint32_t gpd_flags = gpd->gpd_flags; /* see note w/ GC_POST_COMPLETION_FLAG */
 
       /* handle remaining work */
-      if (flags & GC_POST_COPY_IMM) {
+      if (gpd_flags & GC_POST_COPY_IMM) {
         memcpy((void *) gpd->gpd_get_dst, (void *) gpd->u.immediate, gpd->pd.length);
         gasneti_sync_writes(); /* sync memcpy */
       } else
-      if (flags & GC_POST_COPY) {
-        const size_t length = gpd->pd.length - (flags & GC_POST_COPY_TRIM);
+      if (gpd_flags & GC_POST_COPY) {
+        const size_t length = gpd->pd.length - (gpd_flags & GC_POST_COPY_TRIM);
         memcpy((void *) gpd->gpd_get_dst, (void *) gpd->gpd_get_src, length);
         gasneti_sync_writes(); /* sync memcpy */
       }
 
       /* indicate completion */
       // TODO-EX: separate iop inside and outside accesregion?
-      const uint32_t comp = (flags & GC_POST_COMPLETION_MASK);
+      const uint32_t comp = (gpd_flags & GC_POST_COMPLETION_MASK);
       gasneti_assert(GASNETI_POWEROFTWO(comp)); // Zero or one bit is set
 
       switch (comp) {
         case GC_POST_COMPLETION_FLAG:
           *(volatile int *) gpd->gpd_completion = 1;
-          /* NOTE: if (flags & GC_POST_KEEP_GPD) then caller might free gpd now */
+          /* NOTE: if (gpd_flags & GC_POST_KEEP_GPD) then caller might free gpd now */
           break;
         case GC_POST_COMPLETION_CNTR:
           gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
@@ -2111,13 +2111,13 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
       } 
 
       /* release resources */
-      if (flags & GC_POST_UNREGISTER) {
+      if (gpd_flags & GC_POST_UNREGISTER) {
         gasnetc_deregister_gpd(gpd);
-      } else if (flags & GC_POST_UNBOUNCE) {
+      } else if (gpd_flags & GC_POST_UNBOUNCE) {
         gasnetc_free_bounce_buffer(gpd);
       }
 
-      if (!(flags & GC_POST_KEEP_GPD)) {
+      if (!(gpd_flags & GC_POST_KEEP_GPD)) {
         gasnetc_free_post_descriptor(gpd);
       }
     }
@@ -2293,9 +2293,9 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
         void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
         pd->local_mem_hndl = my_aux_handle;
-        gpd->flags |= GC_POST_UNBOUNCE;
+        gpd->gpd_flags |= GC_POST_UNBOUNCE;
       } else {
-        gpd->flags |= GC_POST_UNREGISTER;
+        gpd->gpd_flags |= GC_POST_UNREGISTER;
       }
     }
     pd->type = GNI_POST_RDMA_PUT;
@@ -2363,7 +2363,7 @@ gasnetc_rdma_put_lc(gasnetex_rank_t node,
       void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
       pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
       pd->local_mem_hndl = my_aux_handle;
-      gpd->flags |= GC_POST_UNBOUNCE;
+      gpd->gpd_flags |= GC_POST_UNBOUNCE;
       gasneti_assert(nbytes <= gasnetc_put_bounce_register_cutover);
     }
  
@@ -2484,7 +2484,7 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
      * else mem-register
      */
     if (nbytes <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
-      gpd->flags |= GC_POST_COPY_IMM;
+      gpd->gpd_flags |= GC_POST_COPY_IMM;
       pd->local_addr = (uint64_t) gpd->u.immediate;
       pd->local_mem_hndl = my_aux_handle;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
@@ -2495,13 +2495,13 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
                (!gasnetc_register_gpd(gpd, GNI_MEM_READWRITE) &&
                // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
                 (pd->length = nbytes = gasnetc_get_bounce_register_cutover))) {
-      gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
+      gpd->gpd_flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
       pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
       pd->local_mem_hndl = my_aux_handle;
       gpd->gpd_get_src = pd->local_addr;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
     } else {
-      gpd->flags |= GC_POST_UNREGISTER;
+      gpd->gpd_flags |= GC_POST_UNREGISTER;
     }
   }
 
@@ -2532,7 +2532,7 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
   gasneti_assert(length <= gasnetc_max_get_unaligned);
 
   gasneti_assert(0 == (overfetch & ~GC_POST_COPY_TRIM));
-  gpd->flags |= GC_POST_COPY | overfetch;
+  gpd->gpd_flags |= GC_POST_COPY | overfetch;
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2550,7 +2550,7 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
     buffer = gpd->u.immediate;
   } else {
     gasneti_assert(length <= gasnetc_get_bounce_register_cutover);
-    gpd->flags |= GC_POST_UNBOUNCE;
+    gpd->gpd_flags |= GC_POST_UNBOUNCE;
     buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
   }
 
@@ -2711,7 +2711,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gasnetex_flags_t flags 
       GASNETC_TRACE_WAIT_END(ALLOC_PD_STALL);
     }
   }
-  gpd->flags = 0;
+  gpd->gpd_flags = 0;
 #if GASNETC_USE_MULTI_DOMAIN
   gpd->domain_idx = GASNETC_DIDX;
 #endif

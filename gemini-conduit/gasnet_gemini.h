@@ -291,7 +291,7 @@ struct gasnetc_post_descriptor {
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
   #define gpd_am_peer    pd.first_operand
-  uint32_t flags;
+  uint32_t gpd_flags;
 #if GASNETC_USE_MULTI_DOMAIN
   int domain_idx;
 #endif

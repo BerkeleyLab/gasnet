@@ -1336,7 +1336,7 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
     if_pf (!gpd) break;
     flags &= ~GASNETEX_FLAG_IMMEDIATE;
     gpd->gpd_completion = (uintptr_t) completed_p;
-    gpd->flags = GC_POST_COMPLETION_CNTR;
+    gpd->gpd_flags = GC_POST_COMPLETION_CNTR;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
     initiated += 1;
     if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
@@ -1366,7 +1366,7 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
   for (;;) {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) header_gpd;
-    gpd->flags = GC_POST_COMPLETION_SEND;
+    gpd->gpd_flags = GC_POST_COMPLETION_SEND;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
     if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
 
