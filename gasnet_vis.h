@@ -399,14 +399,14 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
   #define gasnete_check_strides(dststrides, srcstrides, count, stridelevels)
 #else
   #define gasnete_boundscheck_memveclist(team, rank, count, list) do {    \
-    gasnetex_team_member_t _team = (team);                          \
+    gasnetex_team_member_t __team = (team);                         \
     gasnetex_rank_t __node = (rank); /* TODO-EX: team support */    \
     size_t _count = (count);                                        \
     gasnet_memvec_t const * const _list = (list);                   \
     size_t _i;                                                      \
     for (_i=0; _i < _count; _i++) {                                 \
       if (_list[_i].len > 0)                                        \
-        gasneti_boundscheck(_team, __node, _list[_i].addr, _list[_i].len); \
+        gasneti_boundscheck(__team, __node, _list[_i].addr, _list[_i].len); \
     }                                                               \
   } while (0)
 
@@ -442,7 +442,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
   } while (0)
 
   #define gasnete_boundscheck_addrlist(team, rank, count, list, len) do { \
-    gasnetex_team_member_t _team = (team);                          \
+    gasnetex_team_member_t __team = (team);                         \
     gasnetex_rank_t __node = (rank); /* TOOD-EX: team support */    \
     size_t _count = (count);                                        \
     void * const * const _list = (list);                            \
@@ -450,7 +450,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     size_t _i;                                                      \
     if_pt (_len > 0) {                                              \
       for (_i=0; _i < _count; _i++) {                               \
-        gasneti_boundscheck(_team, __node, _list[_i], _len);               \
+        gasneti_boundscheck(__team, __node, _list[_i], _len);               \
       }                                                             \
     }                                                               \
   } while (0)
