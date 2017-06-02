@@ -443,9 +443,14 @@ gasnetex_handle_t gasnete_put_nb(
 {
   GASNETI_CHECKPSHM_PUT(H);
 
-  if (lc_opt == GASNETEX_EVENT_GROUP) {
-    gasneti_fatalerror("Put_nb(EVENT_GROUP) unimplemented"); // TODO-EX: fix this
+  if (gasneti_leaf_is_pointer(lc_opt)) {
+#if 1 // TODO-EX: fix this
+    goto fake_as_now;
+#else
+    gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented");
+#endif
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
+fake_as_now:
     return _gasnete_put_nb(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
   } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     return _gasnete_put_nb_bulk(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
@@ -567,8 +572,13 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_PUT(I);
 
   if (lc_opt == GASNETEX_EVENT_GROUP) {
-    gasneti_fatalerror("Put_nbi(EVENT_GROUP) unimplemented"); // TODO-EX: fix this
+#if 1 // TODO-EX: fix this
+    goto fake_as_now;
+#else
+    gasneti_fatalerror("Put_nbi(EVENT_GROUP) unimplemented");
+#endif
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
+fake_as_now:
     return _gasnete_put_nbi(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
   } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     return _gasnete_put_nbi_bulk(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
