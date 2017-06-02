@@ -445,6 +445,7 @@ gasnetex_handle_t gasnete_put_nb(
 
   if (gasneti_leaf_is_pointer(lc_opt)) {
 #if 1 // TODO-EX: fix this
+    gasneti_leaf_finish(lc_opt);
     goto fake_as_now;
 #else
     gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented");
