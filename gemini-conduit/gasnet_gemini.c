@@ -19,6 +19,12 @@
 #define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 
+// Should IMMEDIATE flag poll for AM recvs? (1 or undefined)
+#ifdef GASNETC_IMMEDIATE_AMPOLLS
+#undef GASNETC_IMMEDIATE_AMPOLLS
+#define GASNETC_IMMEDIATE_AMPOLLS 1
+#endif
+
 #ifdef GASNET_CONDUIT_GEMINI
   /* Use remote event + PI_FLUSH to get "proper" ordering w/ relaxed and default PI ordering */
   #define FIX_HT_ORDERING 1
@@ -1666,22 +1672,22 @@ out_immediate_1:
 //  + The AM buffer lock is held on entry and exit
 //    - Must hold AM buffer lock to evaluate _condution
 //    - Must release AM buffer lock to call _poll
-//  + Must evaluate _escape to allow for IMMEDIATE support
-//    - Once at the beginning
-//    - Again if first _poll did not satisfy (!_condition)
+//  + Must evaluate _escapeN to allow for IMMEDIATE support
+//    - _escape1 when _condition is first known to be false
+//    - _escape2 if _condition is still false after an initial _poll
 //  + If first _poll did not satisfy (!_condition) this is a stall event
 //    - Will call WAITHOOK before each additional _poll
 //    - Will _trace the stall time at end
 //
-#define BUSYWAIT(_condition, _escape, _poll, _trace)  \
+#define BUSYWAIT(_condition, _escape1, _escape2, _poll, _trace)  \
     if_pf (_condition) {                     \
-      _escape;                               \
+      _escape1;                              \
       GASNETC_TRACE_WAIT_BEGIN();            \
       GASNETC_UNLOCK_AM_BUFFER();            \
       _poll;                                 \
       GASNETC_LOCK_AM_BUFFER();              \
       if_pf (_condition) {                   \
-        _escape;                             \
+        _escape2;                            \
         do {                                 \
           GASNETC_UNLOCK_AM_BUFFER();        \
           GASNETI_WAITHOOK();                \
@@ -1718,7 +1724,17 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
   uint64_t mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
   reply_pool_t *r;
   gasnetex_flags_t imm_flag = flags & GASNETEX_FLAG_IMMEDIATE;
-  int did_poll = 0; // Allows BUSYWAIT to AMPoll at most once if imm_flag is non-zero
+
+#if GASNETC_IMMEDIATE_AMPOLLS
+  // BUSYWAIT may AMPoll at most once when IMMEDIATE flag is set
+  int did_poll = 0;
+  #define ESCAPE1(label) do { if (imm_flag && did_poll++) goto label; } while(0)
+  #define ESCAPE2(label) do { if (imm_flag) goto label; } while(0)
+#else
+  // BUSYWAIT will never AMPoll when IMMEDIATE flag is set
+  #define ESCAPE1(label) do { if (imm_flag) goto label; } while(0)
+  #define ESCAPE2(label) gasneti_assert(!imm_flag)
+#endif
 
   GASNETC_LOCK_AM_BUFFER();
 
@@ -1737,7 +1753,8 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
 #endif
 
   BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
-           { if (imm_flag && did_poll++) goto out_immediate_2; },
+           ESCAPE1(out_immediate_2),
+           ESCAPE2(out_immediate_2),
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
   mask <<= remote_slot;
@@ -1747,15 +1764,14 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
 #endif
 
   BUSYWAIT(((r = reply_freelist) == NULL), 
-           { if (imm_flag && did_poll++) goto out_immediate_3; },
+           ESCAPE1(out_immediate_3),
+           ESCAPE2(out_immediate_3),
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_LOC_BUFFER_STALL);
   reply_freelist = r->u.next;
 
   GASNETC_UNLOCK_AM_BUFFER();
 
-  // TODO-EX: can/should (imm_flag && did_poll) suppress the poll+retry w/i alloc_post_descriptor?
-  //          since it is a local poll (no AM recvs) is it cheap enough not to worry about (yet?)
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
   if_pf (!gpd) goto out_immediate_4;
   gasnetc_format_am_gpd(gpd, r->packet, peer, length, 0);
