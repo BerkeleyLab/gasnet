@@ -403,7 +403,7 @@ typedef struct {
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
   /*  SIZEOF_GASNETEX_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
-typedef uintptr_t gasnetex_register_value_t;
+typedef uintptr_t gex_RMA_Value_t;
 #define SIZEOF_GASNETEX_REGISTER_VALUE_T  SIZEOF_VOID_P
 
 #ifndef _GASNET_MEMVEC_T

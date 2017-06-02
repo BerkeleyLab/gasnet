@@ -36,7 +36,7 @@ int maxdepth = 0;
 char *tgtmem;
 void *msgbuf;
 gasnetex_handle_t *handles;
-volatile gasnetex_register_value_t regval = 5551212;
+volatile gex_RMA_Value_t regval = 5551212;
 
 #define hidx_ping_shorthandler   201
 #define hidx_ping_medhandler     202

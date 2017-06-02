@@ -155,7 +155,7 @@ GASNETI_INLINE(gasnete_put_val)
 int gasnete_put_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
+                gex_RMA_Value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)
 {
@@ -169,7 +169,7 @@ GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t gasnete_put_nb_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
+                gex_RMA_Value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)
 {
@@ -189,7 +189,7 @@ gasnetex_handle_t gasnete_put_nb_val(
 */
 
 GASNETI_INLINE(gasnete_get_val)
-gasnetex_register_value_t gasnete_get_val(
+gex_RMA_Value_t gasnete_get_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags

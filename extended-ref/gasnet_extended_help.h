@@ -288,11 +288,11 @@ typedef union {
     if_pt (_dest != _src) GASNETE_FAST_MEMCPY(_dest, _src, (nbytes)); \
   } while (0)
 
-/* given the address of a gasnetex_register_value_t object and the number of
+/* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
 #ifdef WORDS_BIGENDIAN
   #define GASNETE_STARTOFBITS(regvalptr,nbytes) \
-    (((uint8_t*)(regvalptr)) + ((sizeof(gasnetex_register_value_t)-nbytes)))
+    (((uint8_t*)(regvalptr)) + ((sizeof(gex_RMA_Value_t)-nbytes)))
 #else /* little-endian */
   #define GASNETE_STARTOFBITS(regvalptr,nbytes) (regvalptr)
 #endif
@@ -329,26 +329,26 @@ typedef union {
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
 /* interpret *src as a ptr to an nbytes type,
-   and return the value as a gasnetex_register_value_t */
+   and return the value as a gex_RMA_Value_t */
 #ifdef GASNETI_BUG1389_WORKAROUND
   #define GASNETE_VALUE_RETURN(src, nbytes) do {              \
-    gasnetex_register_value_t result = 0;                       \
+    gex_RMA_Value_t result = 0;                       \
     gasneti_compiler_fence();                                 \
     memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes); \
     return result;                                            \
   } while(0)
 #else
 #define GASNETE_VALUE_RETURN(src, nbytes) do {                               \
-    gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t)); \
+    gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t)); \
     switch (nbytes) {                                                        \
-      case 1: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,8);   \
+      case 1: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,8);   \
     GASNETE_OMIT_WHEN_MISSING_16BIT(                                         \
-      case 2: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,16);  \
+      case 2: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,16);  \
     )                                                                        \
-      case 4: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
-      case 8: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
+      case 4: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
+      case 8: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
       default: { /* no such native nbytes integral type */                   \
-          gasnetex_register_value_t result = 0;                                \
+          gex_RMA_Value_t result = 0;                                \
           memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes);          \
           return result;                                                     \
       }                                                                      \

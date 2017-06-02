@@ -110,7 +110,7 @@ typedef uint8_t gasnetex_handler_t;
 typedef int32_t gasnetex_handlerarg_t;
 
 // Widest scalar and width
-typedef uintptr_t gasnetex_register_value_t;
+typedef uintptr_t gex_RMA_Value_t;
 #define SIZEOF_GASNETEX_REGISTER_VALUE_T SIZEOF_VOID_P
 
 // Opaque type for an endpoint
@@ -360,7 +360,7 @@ gasnetex_handle_t gex_RMA_GetNB(
            gasnetex_flags_t flags);
 
 // Value-based
-gasnetex_register_value_t gex_RMA_GetBlockingVal(
+gex_RMA_Value_t gex_RMA_GetBlockingVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *src,
@@ -370,21 +370,21 @@ int gex_RMA_PutBlockingVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
-           gasnetex_register_value_t value,
+           gex_RMA_Value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
 int gex_RMA_PutNBIVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
-           gasnetex_register_value_t value,
+           gex_RMA_Value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
 gasnetex_handle_t gex_RMA_PutNBVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
-           gasnetex_register_value_t value,
+           gex_RMA_Value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
 

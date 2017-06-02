@@ -502,18 +502,18 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
   extern int gasnete_put_val(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put_val)
   GASNETI_INLINE(gasnete_put_val)
   int gasnete_put_val( gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG)
   {
-    gasnetex_register_value_t src = value;
+    gex_RMA_Value_t src = value;
     return gasnete_put(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
                        nbytes, flags GASNETI_THREAD_PASS);
   }
@@ -522,11 +522,11 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
 GASNETI_INLINE(_gex_RMA_PutVal)
 int _gex_RMA_PutVal(  gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(VAL,rank,dest,&value,nbytes);
@@ -545,7 +545,7 @@ int _gex_RMA_PutVal(  gex_TM_t tm,
   extern gasnetex_handle_t gasnete_put_nb_val(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
@@ -554,11 +554,11 @@ GASNETI_INLINE(_gex_RMA_PutNBVal) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t _gex_RMA_PutNBVal (
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NB_VAL,rank,dest,&value,nbytes);
@@ -570,7 +570,7 @@ gasnetex_handle_t _gex_RMA_PutNBVal (
     #if GASNETI_DIRECT_PUT_NB_VAL || defined(gasnete_put_nb_val)
       return gasnete_put_nb_val(tm, rank, dest, value, nbytes, flags GASNETI_THREAD_PASS);
     #else
-      { gasnetex_register_value_t src = value;
+      { gex_RMA_Value_t src = value;
         return gasnete_put_nb(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
                               nbytes, GASNETEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
       }
@@ -584,7 +584,7 @@ gasnetex_handle_t _gex_RMA_PutNBVal (
   extern int gasnete_put_nbi_val(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put_nbi_val)
@@ -592,11 +592,11 @@ gasnetex_handle_t _gex_RMA_PutNBVal (
   int gasnete_put_nbi_val(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG)
   {
-    gasnetex_register_value_t src = value;
+    gex_RMA_Value_t src = value;
     return gasnete_put_nbi(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
                            nbytes, GASNETEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
   }
@@ -606,11 +606,11 @@ GASNETI_INLINE(_gex_RMA_PutNBIVal)
 int _gex_RMA_PutNBIVal(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
-                        gasnetex_register_value_t value,
+                        gex_RMA_Value_t value,
                         size_t nbytes, gasnetex_flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NBI_VAL,rank,dest,&value,nbytes);
@@ -636,7 +636,7 @@ int _gex_RMA_PutNBIVal(
 #endif
 
 #if !defined(gasnete_get_val) && GASNETI_DIRECT_GET_VAL
-  extern gasnetex_register_value_t gasnete_get_val (
+  extern gex_RMA_Value_t gasnete_get_val (
                   gex_TM_t tm,
                   gasnetex_rank_t rank, void *src,
                   size_t nbytes, gasnetex_flags_t flags
@@ -644,7 +644,7 @@ int _gex_RMA_PutNBIVal(
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetBlockingVal) GASNETI_WARN_UNUSED_RESULT
-gasnetex_register_value_t _gex_RMA_GetBlockingVal (
+gex_RMA_Value_t _gex_RMA_GetBlockingVal (
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags
@@ -659,7 +659,7 @@ gasnetex_register_value_t _gex_RMA_GetBlockingVal (
     #if GASNETI_DIRECT_GET_VAL || defined(gasnete_get_val)
       return gasnete_get_val(tm, rank, src, nbytes, flags GASNETI_THREAD_PASS);
     #else
-      { gasnetex_register_value_t val = 0;
+      { gex_RMA_Value_t val = 0;
         gasnete_get(tm, GASNETE_STARTOFBITS(&val,nbytes), rank, src, nbytes, flags GASNETI_THREAD_PASS);
         return val;
       }

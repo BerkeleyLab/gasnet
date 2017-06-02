@@ -598,12 +598,12 @@ fake_as_now:
 /* ------------------------------------------------------------------------------------ */
 
 #define gasnete_val_assign(_dst, _val) \
-    (*(gasnetex_register_value_t *)(_dst) = (gasnetex_register_value_t)(_val))
+    (*(gex_RMA_Value_t *)(_dst) = (gex_RMA_Value_t)(_val))
 
 extern int gasnete_put_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
+                gex_RMA_Value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)
 {
@@ -627,7 +627,7 @@ extern int gasnete_put_val(
 extern gasnetex_handle_t gasnete_put_nb_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
+                gex_RMA_Value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)
 {
@@ -655,7 +655,7 @@ extern gasnetex_handle_t gasnete_put_nb_val(
 extern int gasnete_put_nbi_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
+                gex_RMA_Value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETI_THREAD_FARG)
 {
@@ -686,17 +686,17 @@ extern int gasnete_put_nbi_val(
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_INLINE(gasnete_get_val_help)
-gasnetex_register_value_t gasnete_get_val_help(void *src, size_t nbytes) {
+gex_RMA_Value_t gasnete_get_val_help(void *src, size_t nbytes) {
 #if PLATFORM_ARCH_LITTLE_ENDIAN
   /* Note that this is OK only on little-endian and when unaligned loads are "OKAY" */
-  return *(gasnetex_register_value_t *)src & (~0UL >> (8*(SIZEOF_VOID_P-nbytes)));
+  return *(gex_RMA_Value_t *)src & (~0UL >> (8*(SIZEOF_VOID_P-nbytes)));
 #else
   /* XXX: could do load+shift but don't care given the lack of big-endian GNI systems */
   GASNETE_VALUE_RETURN(src, nbytes);
 #endif
 }
  
-extern gasnetex_register_value_t gasnete_get_val(
+extern gex_RMA_Value_t gasnete_get_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags
@@ -704,7 +704,7 @@ extern gasnetex_register_value_t gasnete_get_val(
 {
   GASNETI_CHECKPSHM_GETVAL();
   {
-    gasnetex_register_value_t result;
+    gex_RMA_Value_t result;
     GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
     gasnetc_post_descriptor_t *gpd;
     volatile int done = 0;
@@ -967,7 +967,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
   const uint64_t payload = GASNETE_GDBARRIER_BUILD(value, flags);
   int i;
 
-  gasneti_assert(sizeof(payload) <= sizeof(gasnetex_register_value_t));
+  gasneti_assert(sizeof(payload) <= sizeof(gex_RMA_Value_t));
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;

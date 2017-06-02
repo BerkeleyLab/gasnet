@@ -41,7 +41,7 @@ typedef gasnetex_rank_t gasnet_node_t;
 typedef gasnetex_token_t gasnet_token_t;
 typedef gasnetex_handler_t gasnet_handler_t;
 typedef gasnetex_handlerarg_t gasnet_handlerarg_t;
-typedef gasnetex_register_value_t gasnet_register_value_t;
+typedef gex_RMA_Value_t gasnet_register_value_t;
 
 typedef gasnetex_handle_t gasnet_handle_t;
 #define GASNET_INVALID_HANDLE GASNETEX_INVALID_HANDLE
@@ -411,7 +411,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
                 gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,0)
 
 typedef struct {
-  gasnetex_register_value_t v;
+  gex_RMA_Value_t v;
   gasnetex_handle_t         h;
 } *gasnet_valget_handle_t;
 
@@ -420,20 +420,20 @@ gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t
 {
   gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(*result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
-  void *dest = (void*)((uintptr_t)&(result->v) + sizeof(gasnetex_register_value_t) - nbytes);
+  void *dest = (void*)((uintptr_t)&(result->v) + sizeof(gex_RMA_Value_t) - nbytes);
 #else /* little-endian */
   void *dest = &result->v;
 #endif
   result->v = 0;
-  //assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  //assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
   result->h = gex_RMA_GetNB(gasneti_thunk_tm, dest, node, src, nbytes, 0);
   return result;
 }
 
 GASNETT_INLINE(gasnet_wait_syncnb_valget)
-gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
+gex_RMA_Value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 {
-  gasnetex_register_value_t result;
+  gex_RMA_Value_t result;
   gex_Event_Wait(handle->h);
   result = handle->v;
   free(handle);
