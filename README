@@ -25,6 +25,7 @@ Contents of this file:
  * Building and Installing GASNet
  * Basic Usage Information
  * Conduit Status
+ * Single-node Development Options
  * Supported Platforms
  * Recognized Environment Variables
  * GASNet tracing & statistical collection
@@ -398,6 +399,42 @@ shmem-conduit: SGI Altix / Cray X1 Shmem   *DEPRECATED*
  The core GASNet developers have been unable to test this conduit recently,
  and it is officially deprecated. 
  If you have interest in this conduit please contact us!
+
+Single-node Development Options
+===============================
+
+GASNet supports hardware configurations ranging from HPC supercomputers and
+clusters to individual workstations and laptops.  Often the easiest way to
+develop and debug code is in a single-node environment, so this section
+provides conduit recommendations for development.  It should also be noted
+that configure option --enable-debug is highly recommended for finding bugs
+when developing GASNet client code.
+
+Option 1.  smp-conduit
+----------------------
+This is a pure shared-memory implementation and should be the fastest and
+easiest to use option.  GASNet's shared memory support should work "out of
+the box" (no special configuration options required) on common laptop,
+desktop, and workstation environments, including Linux, MacOS, Windows with
+Cygwin, and Solaris.
+
+Option 2.  udp-conduit
+----------------------
+By default this will be a shared-memory implementation within your single
+node, indistinguishable from smp-conduit except for small issues like job
+launch and stdin/out/err handling.  However, one can disable shared memory
+(by passing --disable-pshm at configure time or by setting the environment
+variable GASNET_SUPERNODE_MAXSIZE=1 at runtime).  This may be more realistic
+for testing of the expected behaviors in multi-node systems.
+
+Option 3.  mpi-conduit
+----------------------
+If you have a MPI installed (and in your $PATH when GASNet is configured)
+then everything said for udp-conduit holds true for mpi-conduit, including
+the ability to disable shared-memory support.  Additionally, since MPI will
+very likely use shared-memory internally, you can get multi-node like
+isolation at the GASNet level with the performance of shared-memory
+communication (much better than udp).
 
 Supported Platforms
 ===================
