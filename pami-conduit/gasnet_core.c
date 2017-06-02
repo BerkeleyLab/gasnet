@@ -1263,6 +1263,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll();
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the rank first. */
@@ -1339,6 +1340,7 @@ extern int gasnetc_AMRequestLongM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll();
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the rank first. */
@@ -1465,6 +1467,7 @@ extern int gasnetc_AMReplyMediumM(
   int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
@@ -1536,6 +1539,7 @@ extern int gasnetc_AMReplyLongM(
   int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */

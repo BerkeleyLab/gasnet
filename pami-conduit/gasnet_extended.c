@@ -401,8 +401,14 @@ gasnetex_handle_t gasnete_put_nb(
     pami_event_function ldone_fn = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+#if 1 // TODO-EX: fix this
+      gasneti_leaf_finish(lc_opt);
+      goto fake_as_now;
+#else
+      gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented");
+#endif
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
+fake_as_now:
       ldone_fn = gasnete_cb_op_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
@@ -466,9 +472,14 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
 
     op->initiated_put_cnt++;
 
-    if (gasneti_leaf_is_pointer(lc_opt)) {
-      gasneti_fatalerror("Put_nbi(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    if (lc_opt == GASNETEX_EVENT_GROUP) {
+#if 1 // TODO-EX: fix this
+      goto fake_as_now;
+#else
+      gasneti_fatalerror("Put_nbi(EVENT_GROUP) unimplemented");
+#endif
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
+fake_as_now:
       ldone_fn = gasnete_cb_op_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
