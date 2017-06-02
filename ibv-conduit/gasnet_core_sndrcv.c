@@ -24,6 +24,12 @@
   #define GASNETC_MAX_FH	(GASNETC_SND_SG + 1)
 #endif
 
+// Should IMMEDIATE flag poll for AM recvs? (1 or undefined)
+#ifdef GASNETC_IMMEDIATE_AMPOLLS
+#undef GASNETC_IMMEDIATE_AMPOLLS
+#define GASNETC_IMMEDIATE_AMPOLLS 1
+#endif
+
 /* If running w/ threads (locks) we want to coalesce calls to
      gasnetc_lifo_push(&gasnetc_bbuf_freelist,*)
    and
@@ -2235,12 +2241,16 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         if_pf (!gasnetc_sema_trydown(sema)) {
           GASNETC_TRACE_WAIT_BEGIN();
           if (immediate) {
+          #if GASNETC_IMMEDIATE_AMPOLLS
             // A *full* Poll, but only once
             gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
             if (!gasnetc_sema_trydown(sema)) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
               goto out_no_credit;
             }
+          #else
+            goto out_no_credit;
+          #endif
           } else {
             do {
 	      GASNETI_WAITHOOK();
@@ -2258,12 +2268,16 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         if_pf (!gasnetc_sema_trydown(sema)) {
           GASNETC_TRACE_WAIT_BEGIN();
           if (immediate) {
+          #if GASNETC_IMMEDIATE_AMPOLLS
             // A *full* Poll, but only once
             gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
             if (!gasnetc_sema_trydown(sema)) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
               goto out_no_rbuf;
             }
+          #else
+            goto out_no_rbuf;
+          #endif
           } else {
             do {
 	      GASNETI_WAITHOOK();
@@ -2282,6 +2296,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         if_pf (rbuf == NULL) {
           GASNETC_TRACE_WAIT_BEGIN();
           if (immediate) {
+          #if GASNETC_IMMEDIATE_AMPOLLS
             // A *full* Poll, but only once
             gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
 	    if (!gasnetc_sema_trydown(&cep->am_loc) &&
@@ -2289,6 +2304,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
               // TODO-EX: stats/trace for this as distinct from ..._STALL
               goto out_no_rbuf;
             }
+          #else
+            goto out_no_rbuf;
+          #endif
           } else {
             do {
 	      GASNETI_WAITHOOK();
