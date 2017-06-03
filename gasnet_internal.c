@@ -303,12 +303,12 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
 /* ------------------------------------------------------------------------------------ */
 #if GASNETC_AMREGISTER
   /* Use a conduit-specific hook at registration */
-  extern int gasnetc_amregister(gasnetex_handler_t, gasnetex_handlerentry_t *);
+  extern int gasnetc_amregister(gasnetex_handler_t, gex_AM_Entry_t *);
 #endif
 
 // Register handlers in the range [lowlimit,highlimit)
-extern int gasneti_amregister( gasnetex_handlerentry_t *output,
-                               gasnetex_handlerentry_t *input, int numentries,
+extern int gasneti_amregister( gex_AM_Entry_t *output,
+                               gex_AM_Entry_t *input, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered) {
   int i;
@@ -363,8 +363,8 @@ extern int gasneti_amregister( gasnetex_handlerentry_t *output,
 
 // Register client handlers
 extern int gasneti_amregister_client(
-                        gasnetex_handlerentry_t *output,
-                        gasnetex_handlerentry_t *input,
+                        gex_AM_Entry_t *output,
+                        gex_AM_Entry_t *input,
                         int numentries)
 {
   /*  first pass - assign all fixed-index handlers */
@@ -391,10 +391,10 @@ extern int gasneti_amregister_client(
 // Wrapper to provide continued support for GASNet-1 legacy handler tables,
 // such as through gasnet_attach().  Only supports the clients's index range.
 // TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
-extern int gasneti_amregister_legacy( gasnetex_handlerentry_t *output,
+extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
                                       gasnet_handlerentry_t *table, int numentries) {
   /* create temporary ex-compatible table */
-  gasnetex_handlerentry_t *extable = gasneti_calloc(numentries, sizeof(gasnetex_handlerentry_t));
+  gex_AM_Entry_t *extable = gasneti_calloc(numentries, sizeof(gex_AM_Entry_t));
   for (int i = 0; i < numentries; ++i) {
     extable[i].gex_index = table[i].index;
     extable[i].gex_fnptr = table[i].fnptr;
@@ -417,7 +417,7 @@ extern int gasneti_amregister_legacy( gasnetex_handlerentry_t *output,
 }
 
 // Initialize a caller-allocated handler table
-extern int gasneti_amtbl_init(gasnetex_handlerentry_t *output) {
+extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
   static const char *fnname = "gasneti_defaultAMHandler";
   for (int i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) {
     output[i].gex_index = 0; // marks an unused entry
@@ -433,7 +433,7 @@ extern int gasneti_amtbl_init(gasnetex_handlerentry_t *output) {
 #if GASNET_DEBUG
 // Validate call to a handler
 // TODO-EX: this will also check entry->gex_flags against additional args (such as category and isReq)
-extern void gasneti_amtbl_check(const gasnetex_handlerentry_t *entry, int nargs) {
+extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs) {
   if ((entry->gex_nargs != nargs) && (entry->gex_nargs != GASNETI_HANDLER_NARGS_UNK)) {
     char fnaddr[32];
     const char *fnname = entry->gex_name;

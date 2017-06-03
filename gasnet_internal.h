@@ -698,18 +698,18 @@ typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t 
 /* default AM handler for unregistered entries - prints a fatal error */
 extern void gasneti_defaultAMHandler(gasnetex_token_t token);
 
-extern int gasneti_amtbl_init(gasnetex_handlerentry_t *output);
-extern int gasneti_amregister( gasnetex_handlerentry_t *output,
-                               gasnetex_handlerentry_t *input, int numentries,
+extern int gasneti_amtbl_init(gex_AM_Entry_t *output);
+extern int gasneti_amregister( gex_AM_Entry_t *output,
+                               gex_AM_Entry_t *input, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
-extern int gasneti_amregister_client(gasnetex_handlerentry_t *output,
-                                     gasnetex_handlerentry_t *input, int numentries);
-extern int gasneti_amregister_legacy(gasnetex_handlerentry_t *output,
+extern int gasneti_amregister_client(gex_AM_Entry_t *output,
+                                     gex_AM_Entry_t *input, int numentries);
+extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
 #if GASNET_DEBUG
-  extern void gasneti_amtbl_check(const gasnetex_handlerentry_t *entry, int nargs);
+  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs);
 #else
   #define gasneti_amtbl_check(entry, nargs) ((void)0)
 #endif

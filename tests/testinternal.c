@@ -18,7 +18,7 @@ static gex_Segment_t     mysegment;
 int main(int argc, char **argv) {
   int iters = 0, threads=0;
   int arg = 1;
-  gasnetex_handlerentry_t *htable; int htable_cnt;
+  gex_AM_Entry_t *htable; int htable_cnt;
   char *test_sections = NULL;
   gasnett_diagnostic_gethandlers(&htable, &htable_cnt);
 

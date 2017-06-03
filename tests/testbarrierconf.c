@@ -37,7 +37,7 @@ int my_barrier_wait(int value, int flags) {
 #define hidx_done_shorthandler   200
 volatile int done = 0;
 void done_shorthandler(gasnetex_token_t token) { done = 1; }
-gasnetex_handlerentry_t htable[] = {
+gex_AM_Entry_t htable[] = {
     { hidx_done_shorthandler,  done_shorthandler, 0, 0, NULL, NULL }
 };
 

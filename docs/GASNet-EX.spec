@@ -159,7 +159,7 @@ typedef struct {
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;     // Available to handler
     const char             *gex_name;      // Used in debug messages
-} gasnetex_handlerentry_t;
+} gex_AM_Entry_t;
 
 // gex_EP_RegisterHandlers()
 //
@@ -171,7 +171,7 @@ typedef struct {
 // REF: 'Conf call 2016.06.28' Google Doc
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
-        gasnetex_handlerentry_t *table,
+        gex_AM_Entry_t          *table,
         int                     numentries);
 
 

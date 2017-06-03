@@ -21,10 +21,10 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
+gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
 // TODO-EX: will be replaced with per-EP tables
-gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1603,7 +1603,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   /* early registration of core API handlers */
   gasneti_amtbl_init(gasnetc_handler);
   {
-    gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
+    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(ctable);
@@ -1614,7 +1614,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   }
   #if !GASNETC_PIN_SEGMENT
   {
-    gasnetex_handlerentry_t *ftable = firehose_get_handlertable();
+    gex_AM_Entry_t *ftable = firehose_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(ftable);
@@ -2236,7 +2236,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   gasneti_aminittbl(gasnetc_handler);
 
   { /*  core API handlers */
-    gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
+    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(ctable);
@@ -2248,7 +2248,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
 #endif
 
   { /*  extended API handlers */
-    gasnetex_handlerentry_t *etable = (gasnetex_handlerentry_t *)gasnete_get_handlertable();
+    gex_AM_Entry_t *etable = (gex_AM_Entry_t *)gasnete_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(etable);
@@ -2262,7 +2262,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
 }
 
 extern int gasnetc_EPRegisterHandlers( gex_EP_t                ep,
-                                       gasnetex_handlerentry_t *table,
+                                       gex_AM_Entry_t          *table,
                                        int                     numentries) {
   return gasneti_amregister_client(gasnetc_handler, table, numentries);
 }
@@ -3775,7 +3775,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
   see mpi-conduit and extended-ref for examples on how to declare AM handlers here
   (for internal conduit use in bootstrapping, job management, etc.)
 */
-static gasnetex_handlerentry_t const gasnetc_handlers[] = {
+static gex_AM_Entry_t const gasnetc_handlers[] = {
   #ifdef GASNETC_COMMON_HANDLERS
     GASNETC_COMMON_HANDLERS(),
   #endif
@@ -3799,7 +3799,7 @@ static gasnetex_handlerentry_t const gasnetc_handlers[] = {
   GASNETI_HANDLER_EOT
 };
 
-gasnetex_handlerentry_t const *gasnetc_get_handlertable(void) {
+gex_AM_Entry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

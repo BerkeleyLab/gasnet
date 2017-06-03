@@ -28,7 +28,7 @@ static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
-gasnetex_handlerentry_t handler_table[2];
+gex_AM_Entry_t handler_table[2];
 
 int insegment = 0;
 

@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
   #define MAXLINE 255
   static char usagestr[MAXLINE*(NUMTEST+NUMCRASHTEST_WITH_PAR)];
   char testdescstr[MAXLINE];
-  gasnetex_handlerentry_t htable[] = { 
+  gex_AM_Entry_t htable[] = { 
     { hidx_exit_handler, test_exit_handler, 0, 1 },
     { hidx_ping_handler, ping_handler,      0, 0 },
     { hidx_noop_handler, noop_handler,      0, 0 },
@@ -275,7 +275,7 @@ int main(int argc, char **argv) {
   }
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
   gasnett_reghandler(SIGQUIT, testSignalHandler);

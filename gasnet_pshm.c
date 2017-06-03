@@ -1159,7 +1159,7 @@ static void gasneti_AMPSHM_amtbl_check(
     gasneti_amtbl_check(&gasnetc_handler[index], nargs); // TODO-EX: EP-specific table
   #else
     // Must construct a handlerentry table entry
-    gasnetex_handlerentry_t entry;
+    gex_AM_Entry_t entry;
     entry.gex_nargs = gasnetc_get_handler(ep, index, nargs);
     entry.gex_flags = gasnetc_get_handler(ep, index, flags);
     entry.gex_fnptr = gasnetc_get_handler(ep, index, fnptr);

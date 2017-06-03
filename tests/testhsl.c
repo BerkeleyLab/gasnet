@@ -59,7 +59,7 @@ void donothing(gasnetex_token_t token) {
 
 int main(int argc, char **argv) {
   int mynode, nodes;
-  gasnetex_handlerentry_t htable[] = { 
+  gex_AM_Entry_t htable[] = { 
     { 203, okhandler3,  0, 0 },
 
     { 221, increq,      0, 0 },
@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testhsl", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testhsl",0,"(0|errtestnum:1..16)");
 
   mynode = gasnet_mynode();

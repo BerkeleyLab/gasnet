@@ -54,7 +54,7 @@ void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   gasnett_atomic_increment(&amcount,0);
 }
 
-gasnetex_handlerentry_t htable[] = { 
+gex_AM_Entry_t htable[] = { 
   { hidx_ping_shorthandler, ping_shorthandler, 0, 0 },
   { hidx_ping_medhandler,   ping_medhandler,   0, 0 },
   { hidx_ping_longhandler,  ping_longhandler,  0, 0 }
@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
       if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %"PRIuPTR" on GASNET_SEGMENT_EVERYTHING",(uintptr_t)TEST_SEGSZ); gasnet_exit(1); }
     #endif
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-    GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+    GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
     test_init("testqueue",1,"[-in|-out|-a|-f] (iters) (maxdepth) (maxsz)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "  memory is in the GASNet segment or not (default is not).\n"

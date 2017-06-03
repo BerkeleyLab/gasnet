@@ -648,7 +648,7 @@ int	fh_find_pending_callbacks(gasnetex_rank_t node,
 /* Firehose AM-related things (page/region independent)                  */
 /* ##################################################################### */
 void fh_send_firehose_reply(fh_remote_callback_t *);
-extern gasnetex_handlerentry_t fh_am_handlers[];
+extern gex_AM_Entry_t fh_am_handlers[];
 /* Initial value of index for gasnet registration */
 #define _hidx_fh_am_move_reqh                   0
 #define _hidx_fh_am_move_reph                   0

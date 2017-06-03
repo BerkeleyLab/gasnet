@@ -342,9 +342,9 @@ typedef struct {
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;   // Available to handler
     const char             *gex_name;    // Used in debug messages
-} gasnetex_handlerentry_t;
+} gex_AM_Entry_t;
 
-// GASNet-1 version of gasnetex_handlerentry_t
+// GASNet-1 version of gex_AM_Entry_t
 // TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
 //#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {

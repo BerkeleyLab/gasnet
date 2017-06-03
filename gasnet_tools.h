@@ -528,7 +528,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
                                      const char *testsections,
                                      gex_TM_t myteam,
                                      gasnet_seginfo_t const *seginfo);
-  extern void gasneti_diagnostic_gethandlers(gasnetex_handlerentry_t **htable, int *htable_cnt);
+  extern void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **htable, int *htable_cnt);
   #define gasnett_run_diagnostics gasneti_run_diagnostics
   #define gasnett_diagnostic_gethandlers gasneti_diagnostic_gethandlers
 

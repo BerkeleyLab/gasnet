@@ -213,7 +213,7 @@ int
 main(int argc, char **argv)
 {
 	int	iters = 0;
-	gasnetex_handlerentry_t htable[] = {
+	gex_AM_Entry_t htable[] = {
 		{ 201, chksum_reqh, 0, 2 },
 		{ 202, chksum_reph, 0, 1 }
 	};
@@ -221,7 +221,7 @@ main(int argc, char **argv)
 	/* call startup */
         GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore1", &argc, &argv, 0));
         GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-        GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+        GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
 	test_init("testcore1",0,"(iters)");
 

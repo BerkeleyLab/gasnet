@@ -158,7 +158,7 @@ void	pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
 #define hidx_mpi_probehandler    208
 #define hidx_mpi_replyhandler    209
 
-gasnetex_handlerentry_t htable[] = { 
+gex_AM_Entry_t htable[] = { 
 	{ hidx_ping_shorthandler, ping_shorthandler, 0, 1 },
 	{ hidx_pong_shorthandler, pong_shorthandler, 0, 1 },
 	{ hidx_ping_medhandler,   ping_medhandler,   0, 2 },
@@ -171,7 +171,7 @@ gasnetex_handlerentry_t htable[] = {
 	{ hidx_mpi_replyhandler,  mpi_replyhandler,  0, 1 },
       #endif
 };
-#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnetex_handlerentry_t))
+#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
 
 	
 

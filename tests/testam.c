@@ -45,7 +45,7 @@ gex_HSL_t inchsl = GEX_HSL_INITIALIZER;
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */
-gasnetex_handlerentry_t htable[];
+gex_AM_Entry_t htable[];
 #define hidx_ping_shorthandler   htable[0].gex_index
 #define hidx_pong_shorthandler   htable[1].gex_index
 #define hidx_ping_medhandler     htable[2].gex_index
@@ -117,7 +117,7 @@ void done_shorthandler(gasnetex_token_t token) {
   done = 1;
 }
 /* ------------------------------------------------------------------------------------ */
-gasnetex_handlerentry_t htable[] = {
+gex_AM_Entry_t htable[] = {
     { 0, ping_shorthandler, 0, 0, NULL, NULL  },
     { 0, pong_shorthandler, 0, 0, NULL, NULL  },
 
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
   if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); ++arg; }
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
 #if GASNET_PAR
   test_init("testam", 1, "[options] (iters) (maxsz) (test_sections)\n"

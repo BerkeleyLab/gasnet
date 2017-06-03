@@ -216,7 +216,7 @@ int main(int argc, char **argv) {
   size_t medsz, longsz;
   unsigned int seed = 0;
   int i;
-  gasnetex_handlerentry_t htable[] = { 
+  gex_AM_Entry_t htable[] = { 
     HFOREACH(HTABLE)
     { hidx_ping_shorthandler, ping_shorthandler, 0, 0 },
     { hidx_pong_shorthandler, pong_shorthandler, 0, 0 },
@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
   if (!seed) seed = (int)TIME();
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
   test_init("testcore5", 0, "(iters) (maxsz) (seed)");
   if (argc > 4) test_usage();

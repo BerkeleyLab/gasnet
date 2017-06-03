@@ -147,7 +147,7 @@ int amopt = 0;
 
 int main(int argc, char **argv) {
   int arg = 1, help = 0;
-  gasnetex_handlerentry_t htable[] = {
+  gex_AM_Entry_t htable[] = {
     { hidx_ping_medhandler,  ping_medhandler,  0, 2 },
     { hidx_pong_medhandler,  pong_medhandler,  0, 2 },
     { hidx_ping_longhandler, ping_longhandler, 0, 2 },
@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
   max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testcore2",0,"[options] (iters) (max_payload) (depth)\n"
                  "  -m   test AMMedium    (defaults to all types)\n"
                  "  -l   test AMLong      (defaults to all types)\n"

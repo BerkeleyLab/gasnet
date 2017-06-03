@@ -76,7 +76,7 @@ void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
    the GASNet layer itself
  */
 int main(int argc, char **argv) {
-  gasnetex_handlerentry_t htable[] = { 
+  gex_AM_Entry_t htable[] = { 
     { hidx_null_shorthandler,      null_shorthandler,      0, 0 },
     { hidx_justreply_shorthandler, justreply_shorthandler, 0, 0 },
     { hidx_null_medhandler,        null_medhandler,        0, 0 },
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testmisc", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testmisc",1,"(iters) (accuracy_digits) (test_sections)");
 
   mynode = gasnet_mynode();

@@ -1389,7 +1389,7 @@ static void gasnete_gdbarrier_init(gasnete_coll_team_t team) {
   Handlers:
   =========
 */
-static gasnetex_handlerentry_t const gasnete_handlers[] = {
+static gex_AM_Entry_t const gasnete_handlers[] = {
   #ifdef GASNETE_REFBARRIER_HANDLERS
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
@@ -1410,7 +1410,7 @@ static gasnetex_handlerentry_t const gasnete_handlers[] = {
   GASNETI_HANDLER_EOT
 };
 
-extern gasnetex_handlerentry_t const *gasnete_get_handlertable(void) {
+extern gex_AM_Entry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */

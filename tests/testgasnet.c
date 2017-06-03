@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
-  gasnetex_handlerentry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
+  gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testgasnet", &argc, &argv, 0));
   local_segsz = gasnet_getMaxLocalSegmentSize();
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
   #endif
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gex_AM_Entry_t)));
 
   test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);

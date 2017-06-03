@@ -19,7 +19,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-extern gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 /* AM category (recommended impl if supporting PSHM) */

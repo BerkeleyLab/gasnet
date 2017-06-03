@@ -30,7 +30,7 @@ typedef struct {
 	int64_t time;
 } stat_struct_t;
 
-gasnetex_handlerentry_t handler_table[2];
+gex_AM_Entry_t handler_table[2];
 
 int myproc;
 int numprocs;

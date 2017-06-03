@@ -196,7 +196,7 @@ void  ghostReqHandler(gasnetex_token_t token, void *buf, size_t nbytes,
     return;
 }
 
-gasnetex_handlerentry_t htable[] = {
+gex_AM_Entry_t htable[] = {
     { hidx_ghostReqHandler, ghostReqHandler, 0, 2, NULL, NULL }
 };
 
@@ -384,7 +384,7 @@ main(int argc, char **argv)
     }
 
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-    GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+    GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
     test_init("testnbr",1, "[-f] [-m] [iters] [level]\n\n"
       "-f      run full nbr exchange (NAS MG) instead of per axis\n"
       "-m      run UPC version of GASNet MG test only\n"

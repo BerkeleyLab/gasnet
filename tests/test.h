@@ -758,7 +758,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     int i;
     gasnet_seginfo_t myseg;
 
-    gasnetex_handlerentry_t mytab[] = {
+    gex_AM_Entry_t mytab[] = {
 #if GASNET_USE_STRICT_PROTOTYPES
       { 0, (void *)_test_seggather, 0, 0, NULL, NULL },
       { 0, (void *)_test_segbcast,  0, 1, NULL, NULL }

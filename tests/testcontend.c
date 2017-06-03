@@ -53,12 +53,12 @@ void	markdone_shorthandler(gasnetex_token_t token);
 #define hidx_pong_shorthandler        202
 #define hidx_markdone_shorthandler    203
 
-gasnetex_handlerentry_t htable[] = { 
+gex_AM_Entry_t htable[] = { 
 	{ hidx_ping_shorthandler,     ping_shorthandler,     0, 0 },
 	{ hidx_pong_shorthandler,     pong_shorthandler,     0, 0 },
 	{ hidx_markdone_shorthandler, markdone_shorthandler, 0, 0 },
 };
-#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnetex_handlerentry_t))
+#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
 
 #define SPINPOLL_UNTIL(cond) do { while (!(cond)) gasnet_AMPoll(); } while (0)
 

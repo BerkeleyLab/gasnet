@@ -29,7 +29,7 @@
    all handlers will have an index in range 100-199 // <== TODO-EX: update range here
    may be called before gasnete_init()
 */
-extern gasnetex_handlerentry_t const *gasnete_get_handlertable(void);
+extern gex_AM_Entry_t const *gasnete_get_handlertable(void);
 
 /* Initialize the Extended API:
    must be called by the core API at the end of gasnet_attach() before calls to extended API
