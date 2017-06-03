@@ -111,7 +111,7 @@ typedef int32_t gasnetex_handlerarg_t;
 
 // Widest scalar and width
 typedef uintptr_t gasnetex_register_value_t;
-#define GASNETEX_REGISTER_VALUE_T SIZEOF_VOID_P
+#define SIZEOF_GASNETEX_REGISTER_VALUE_T SIZEOF_VOID_P
 
 // Opaque type for an endpoint
 struct gasneti_endpoint_s;
@@ -458,7 +458,7 @@ void gasnetex_wait_syncnbi(unsigned int event_mask, gasnetex_flags_t flags);
 // The 'event_id' argument is GASNETEX_EVENTID_<x> for <x> one of the values
 // Extract a leaf event handle from the root event
 // GETS, PUTS, LC, etc.  It cannot be a bitwise-OR of multiple such values, nor
-// can it be GASNETEX_EVEENTID_ALL.
+// can it be GASNETEX_EVENTID_ALL.
 //
 // There are additional validity constraints to be documented, such as one
 // cannot ask for an event that was "suppressed" by passing EVENT_DEFER.
