@@ -528,7 +528,7 @@ gex_Event_t gasnete_amref_put_nb(
     event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
       gasnete_wait(event GASNETI_THREAD_PASS);
-      event = GASNETEX_NO_OP_HANDLE;
+      event = GEX_EVENT_NO_OP;
     }
     return event;
   }

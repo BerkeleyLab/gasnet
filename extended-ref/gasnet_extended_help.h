@@ -398,7 +398,7 @@ typedef union {
 
 /* helper macros */
 #define _GASNETI_RETURN_I  return 0
-#define _GASNETI_RETURN_H  return GASNETEX_INVALID_HANDLE
+#define _GASNETI_RETURN_H  return GEX_EVENT_INVALID
 #define GASNETI_CHECKZEROSZ_GET(variety, rt) do {            \
     if_pf (nbytes == 0) {                                    \
       GASNETI_TRACE_GET_LOCAL(variety,dest,rank,src,nbytes); \

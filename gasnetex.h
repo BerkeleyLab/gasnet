@@ -392,8 +392,8 @@ typedef struct {
   typedef struct gasneti_handle_s *gex_Event_t;
 
   // Pre-defined values: output handles
-  #define GASNETEX_INVALID_HANDLE      ((gex_Event_t)(uintptr_t)0)
-  #define GASNETEX_NO_OP_HANDLE        ((gex_Event_t)(uintptr_t)1)
+  #define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
+  #define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)1)
 
   // Pre-defined values: input pointers-to-event
   #define GASNETEX_EVENT_NOW    ((gex_Event_t*)(uintptr_t)1)

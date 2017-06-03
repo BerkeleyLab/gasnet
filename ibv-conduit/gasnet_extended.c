@@ -153,7 +153,7 @@ gex_Event_t gasnete_put_nb(
     if (start_cnt == op->initiated_alc) {
       // Synchronous LC - reset the eop's LC state
       GASNETE_EOP_LC_FINISH(op);
-      *lc_opt = GASNETEX_INVALID_HANDLE;
+      *lc_opt = GEX_EVENT_INVALID;
     } else {
       *lc_opt = gasneti_op_event(op, gasnete_eop_event_alc);
     }

@@ -235,7 +235,7 @@ GASNETI_PUREP(gasneti_leaf_is_pointer)
 
 GASNETI_INLINE(gasneti_leaf_finish)
 void gasneti_leaf_finish(gex_Event_t *opt_val) {
-  if (gasneti_leaf_is_pointer(opt_val)) *opt_val = GASNETEX_INVALID_HANDLE;
+  if (gasneti_leaf_is_pointer(opt_val)) *opt_val = GEX_EVENT_INVALID;
 }
 #endif
 

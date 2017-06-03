@@ -355,7 +355,7 @@ gex_Event_t gasnete_get_nb(
                                    GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
     }
     gasneti_resume_spinpollers();
-    if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GASNETEX_NO_OP_HANDLE);
+    if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GEX_EVENT_NO_OP);
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     return (gex_Event_t) eop;
   }
@@ -367,7 +367,7 @@ gex_Event_t _gasnete_put_nb (
                      void *src, size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gex_Event_t head_op = GASNETEX_INVALID_HANDLE;
+  gex_Event_t head_op = GEX_EVENT_INVALID;
   gasnete_eop_t *tail_op;
   const size_t max_tail = gasnetc_max_put_lc;
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
@@ -412,7 +412,7 @@ gex_Event_t _gasnete_put_nb (
 out_immediate:
   gasneti_resume_spinpollers();
   gasnete_consume_eop(tail_op GASNETI_THREAD_PASS);
-  return GASNETEX_NO_OP_HANDLE;
+  return GEX_EVENT_NO_OP;
 }
 
 GASNETI_INLINE(_gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
@@ -428,7 +428,7 @@ gex_Event_t _gasnete_put_nb_bulk (
     int imm = gasnete_put_bulk_inner(node, dest, src, nbytes, flags,
                                      GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
     gasneti_resume_spinpollers();
-    if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GASNETEX_NO_OP_HANDLE);
+    if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GEX_EVENT_NO_OP);
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     return (gex_Event_t) eop;
 }
@@ -506,7 +506,7 @@ int _gasnete_put_nbi (
 {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
-  gex_Event_t head_op = GASNETEX_INVALID_HANDLE;
+  gex_Event_t head_op = GEX_EVENT_INVALID;
   const size_t max_tail = gasnetc_max_put_lc;
   gasnetc_post_descriptor_t *gpd;
   GASNETC_DIDX_POST(mythread->domain_idx);
@@ -642,7 +642,7 @@ extern gex_Event_t gasnete_put_nb_val(
     if (!gpd) {
       gasneti_resume_spinpollers();
       gasnete_consume_eop(eop GASNETI_THREAD_PASS);
-      return GASNETEX_NO_OP_HANDLE;
+      return GEX_EVENT_NO_OP;
     }
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);

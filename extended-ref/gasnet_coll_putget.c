@@ -49,7 +49,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -132,7 +132,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -243,7 +243,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       data->state = 3;
       
       case 3:     /* sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 4;
@@ -684,7 +684,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 2;
       
       case 2:	/* Sync data movement and perform local copies */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       } else if (op->team->myrank != args->srcnode) {
         void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0);
@@ -786,7 +786,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -898,7 +898,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       data->state = 3;
       
       case 3:     /* sync data movement */
-      if (data->handle!=GASNETEX_INVALID_HANDLE) {
+      if (data->handle!=GEX_EVENT_INVALID) {
         break;
       }
       data->state = 4;
@@ -1422,7 +1422,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -1508,7 +1508,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -1710,7 +1710,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->state = 4;
       
       case 4: /* wait for all puts to finish*/
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       
@@ -1878,7 +1878,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       data->state = 4;
       
       case 4: /* wait for all puts to finish*/
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       
@@ -2074,7 +2074,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -2187,7 +2187,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       
       case 2:	/* Sync data movement */
       if (op->team->myrank == args->srcnode) {
-        if (data->handle != GASNETEX_INVALID_HANDLE) {
+        if (data->handle != GEX_EVENT_INVALID) {
           break;
         }
         gasneti_free(data->private_data);	/* the temporary srclist */
@@ -2749,7 +2749,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -2808,7 +2808,7 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       data->state = 3;
@@ -2978,7 +2978,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       }
       data->state = 4;
   case 4: /*sync data movement*/
-    if(data->handle !=GASNETEX_INVALID_HANDLE) {
+    if(data->handle !=GEX_EVENT_INVALID) {
       break;
     }
     data->state = 5;
@@ -3208,7 +3208,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
     data->state = 4;
   case 4: /*sync data movement*/
     /*since we have initiated possibly more than one put we need to sync all of them*/
-    if(data->handle !=GASNETEX_INVALID_HANDLE || data->handle2 !=GASNETEX_INVALID_HANDLE) {
+    if(data->handle !=GEX_EVENT_INVALID || data->handle2 !=GEX_EVENT_INVALID) {
       break;
     }
     
@@ -3445,7 +3445,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       
       case 2:	/* Sync data movement */
       if (op->team->myrank == args->dstnode) {
-        if (data->handle != GASNETEX_INVALID_HANDLE) {
+        if (data->handle != GEX_EVENT_INVALID) {
           break;
         }
         gasneti_free(data->private_data);	/* the temporary dstlist */
@@ -3508,7 +3508,7 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 2;
       
       case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
         break;
       }
       
@@ -4038,7 +4038,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   if(data->state == 2) {
     /* sync all the handles for the puts*/
-    if (op->team->total_ranks > 1 && data->handle != GASNETEX_INVALID_HANDLE) {
+    if (op->team->total_ranks > 1 && data->handle != GEX_EVENT_INVALID) {
       return 0;
     }
     data->state++;
@@ -4126,7 +4126,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   if(data->state == 2) {
     /* sync all the handles for the gets*/
-    if (op->team->total_ranks > 1 && data->handle != GASNETEX_INVALID_HANDLE) {
+    if (op->team->total_ranks > 1 && data->handle != GEX_EVENT_INVALID) {
       return 0;
     }
     data->state++;
@@ -4782,7 +4782,7 @@ static int gasnete_coll_pf_gallM_DissemNoScratchSeg(gasnete_coll_op_t *op GASNET
       data->state++;
     } 
     if(((data->state-2) % 3) == 1) {
-      if(data->handle!=GASNETEX_INVALID_HANDLE) return 0;
+      if(data->handle!=GEX_EVENT_INVALID) return 0;
       gasnete_coll_p2p_change_states(op, GASNETE_COLL_REL2ACT(op->team,dstnode), 
                                      1, phase, 1);
       data->state++;
@@ -4823,7 +4823,7 @@ static int gasnete_coll_pf_gallM_DissemNoScratchSeg(gasnete_coll_op_t *op GASNET
     /*wait for the previous put to finish*/
     uint32_t phase = (data->state-2)/3; 
     gasnetex_rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
-    if(data->handle != GASNETEX_INVALID_HANDLE) return 0;
+    if(data->handle != GEX_EVENT_INVALID) return 0;
     gasnete_coll_p2p_change_states(op, GASNETE_COLL_REL2ACT(op->team,dstnode), 
                                    1, phase, 1);
     
@@ -5205,7 +5205,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
     data->state = 2;
   case 2: /* sync all the handles for the puts*/
-    if (op->team->total_ranks > 1 && data->handle != GASNETEX_INVALID_HANDLE) {
+    if (op->team->total_ranks > 1 && data->handle != GEX_EVENT_INVALID) {
       return 0;
     }
     data->state=3;
@@ -5587,7 +5587,7 @@ static int gasnete_coll_pf_exchgM_Dissem_Segmented(gasnete_coll_op_t *op GASNETE
     }
     
     if(((data->state-2) % 4) == 2) {
-      if(data->handle != GASNETEX_INVALID_HANDLE) return 0;
+      if(data->handle != GEX_EVENT_INVALID) return 0;
       for(j=0; j<h; j++) {
         gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, out_nodes[j]),phase*2+1);
       }
@@ -5988,7 +5988,7 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
               
             }
             case 2: {
-              if(((gex_Event_t*) data->private_data)[i] != GASNETEX_INVALID_HANDLE) {done = 0; break;}
+              if(((gex_Event_t*) data->private_data)[i] != GEX_EVENT_INVALID) {done = 0; break;}
               gasneti_sync_reads();
               if(!(op->flags & GASNET_COLL_OUT_ALLSYNC)) {
                 gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);
@@ -6519,7 +6519,7 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
               
             }
             case 2: {
-              if(((gex_Event_t*) data->private_data)[i] != GASNETEX_INVALID_HANDLE) {done = 0; break;}
+              if(((gex_Event_t*) data->private_data)[i] != GEX_EVENT_INVALID) {done = 0; break;}
               gasneti_sync_reads();
               if(!(op->flags & GASNET_COLL_OUT_ALLSYNC)) {
                 gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);

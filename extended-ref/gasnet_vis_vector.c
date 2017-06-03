@@ -237,7 +237,7 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
   size_t const nbytes = dstlist[0].len;
   gasneti_assert(dstcount == 1 && srccount > 1); /* only supports gather put */
   gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
-  if_pf (nbytes == 0) return GASNETEX_INVALID_HANDLE; /* event empty */
+  if_pf (nbytes == 0) return GEX_EVENT_INVALID; /* event empty */
   GASNETI_TRACE_EVENT(C, PUTV_GATHER);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
@@ -245,7 +245,7 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
     gasnete_memvec_pack(srccount, srclist, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTV_GATHER;
     visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0].addr, packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
-    gasneti_assert(visop->event != GASNETEX_INVALID_HANDLE);
+    gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -268,7 +268,7 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
   size_t const nbytes = srclist[0].len;
   gasneti_assert(srccount == 1 && dstcount > 1); /* only supports scatter get */
   gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
-  if_pf (nbytes == 0) return GASNETEX_INVALID_HANDLE; /* event empty */
+  if_pf (nbytes == 0) return GEX_EVENT_INVALID; /* event empty */
   GASNETI_TRACE_EVENT(C, GETV_SCATTER);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(gasnet_memvec_t)+nbytes);
@@ -278,7 +278,7 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
     visop->type = GASNETI_VIS_CAT_GETV_SCATTER;
     visop->count = dstcount;
     visop->event = gasnete_get_nb(NULL, packedbuf, srcnode, srclist[0].addr, nbytes, 0 GASNETE_THREAD_PASS);
-    gasneti_assert(visop->event != GASNETEX_INVALID_HANDLE);
+    gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
@@ -305,7 +305,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
     for (size_t i = 1; i < srccount; i++) { 
       if_pt (srclist[i].len > 0) goto nonempty;
     }
-    return GASNETEX_INVALID_HANDLE;
+    return GEX_EVENT_INVALID;
     nonempty: ;
   }
   GASNETE_START_NBIREGION(synctype, 0);
@@ -446,7 +446,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     for (size_t i = 1; i < dstcount; i++) { 
       if_pt (dstlist[i].len > 0) goto nonempty;
     }
-    return GASNETEX_INVALID_HANDLE;
+    return GEX_EVENT_INVALID;
     nonempty: ;
   }
 
@@ -740,7 +740,7 @@ extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
-    return GASNETEX_INVALID_HANDLE; 
+    return GEX_EVENT_INVALID; 
   if (dstcount + srccount <= 2 ||  /* fully contiguous */
       GASNETI_SUPERNODE_LOCAL(dstnode)) { /* purely local */ 
     return gasnete_putv_ref_indiv(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
@@ -766,7 +766,7 @@ extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
-    return GASNETEX_INVALID_HANDLE; 
+    return GEX_EVENT_INVALID; 
   if (dstcount + srccount <= 2 ||  /* fully contiguous */
       GASNETI_SUPERNODE_LOCAL(srcnode)) { /* purely local */ 
     return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);

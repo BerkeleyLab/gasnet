@@ -44,7 +44,7 @@ typedef gex_AM_Arg_t gasnet_handlerarg_t;
 typedef gex_RMA_Value_t gasnet_register_value_t;
 
 typedef gex_Event_t gasnet_handle_t;
-#define GASNET_INVALID_HANDLE GASNETEX_INVALID_HANDLE
+#define GASNET_INVALID_HANDLE GEX_EVENT_INVALID
 
 /* ------------------------------------------------------------------------------------ */
 /*

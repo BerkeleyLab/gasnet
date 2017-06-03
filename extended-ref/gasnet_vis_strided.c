@@ -677,7 +677,7 @@ gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_sy
     gasnete_strided_pack_all(srcaddr, srcstrides, count, stridelevels, packedbuf);
     visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
     visop->event = gasnete_put_nb(NULL, dstnode, dstaddr, packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
-    gasneti_assert(visop->event != GASNETEX_INVALID_HANDLE);
+    gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -716,7 +716,7 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
     visop->addr = dstaddr;
     visop->len = stridelevels;
     visop->event = gasnete_get_nb(NULL, packedbuf, srcnode, srcaddr, nbytes, 0 GASNETE_THREAD_PASS);
-    gasneti_assert(visop->event != GASNETEX_INVALID_HANDLE);
+    gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
@@ -1147,7 +1147,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
 
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */
-    return GASNETEX_INVALID_HANDLE;
+    return GEX_EVENT_INVALID;
   if (GASNETI_SUPERNODE_LOCAL(dstnode) || /* purely local */ 
       stats.dualcontiguity == stridelevels) {/* fully contiguous */
     return gasnete_puts_ref_indiv(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
@@ -1178,7 +1178,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   #endif
   GASNETE_PUTS_SELECTOR(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasneti_fatalerror("failure in GASNETE_PUTS_SELECTOR - should never reach here");
-  return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */
+  return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 #endif
 /* top-level gasnet_gets_* entry point */
@@ -1193,7 +1193,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */
-    return GASNETEX_INVALID_HANDLE;
+    return GEX_EVENT_INVALID;
   if (GASNETI_SUPERNODE_LOCAL(srcnode) || /* purely local */ 
       stats.dualcontiguity == stridelevels) {/* fully contiguous */
     return gasnete_gets_ref_indiv(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
@@ -1224,7 +1224,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   #endif
   GASNETE_GETS_SELECTOR(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);
   gasneti_fatalerror("failure in GASNETE_GETS_SELECTOR - should never reach here");
-  return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */
+  return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 
 #if PLATFORM_COMPILER_CLANG

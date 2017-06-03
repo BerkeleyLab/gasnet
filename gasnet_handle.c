@@ -250,7 +250,7 @@ int gasnete_op_try_free(gex_Event_t event GASNETI_THREAD_FARG) {
 }
 
 extern int  gasnete_test(gex_Event_t event GASNETI_THREAD_FARG) {
-  gasneti_assert(event != GASNETEX_INVALID_HANDLE); // invalid handled inline in header
+  gasneti_assert(event != GEX_EVENT_INVALID); // invalid handled inline in header
   return gasnete_op_try_free(event GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
@@ -284,7 +284,7 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
   // Pass 1: test all events, evaluate 'empty', and count 'to_retest'
   for (size_t i = 0; i < numevents; i++) {
     const gex_Event_t event = pevent[i];
-    if (GASNETEX_INVALID_HANDLE != event) {
+    if (GEX_EVENT_INVALID != event) {
       gasnete_event_check(event);
       empty = 0;
       if (gasneti_event_idx(event)) { // It's a leaf
@@ -324,13 +324,13 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
         }
       }
 
-      pevent[i] = GASNETEX_INVALID_HANDLE;
+      pevent[i] = GEX_EVENT_INVALID;
       some_synced = 1;
     }
   }
 
   // Pass 2: retest all still-live leaf events (if any)
-  gasneti_assert(! gasneti_event_idx(GASNETEX_INVALID_HANDLE));
+  gasneti_assert(! gasneti_event_idx(GEX_EVENT_INVALID));
   if (to_retest) {
     if (eop_head || iop_head) {
       size_t to_test = to_retest;
@@ -342,7 +342,7 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
           if (EVENT_LIVE_MASK & *(volatile uint8_t *)event) {
             all_synced = 0;
           } else {
-            pevent[i] = GASNETEX_INVALID_HANDLE;
+            pevent[i] = GEX_EVENT_INVALID;
 	    some_synced = 1;
           }
         }
@@ -576,7 +576,7 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_
   }
 
   gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");
-  return GASNETEX_INVALID_HANDLE; // NOT REACHED
+  return GEX_EVENT_INVALID; // NOT REACHED
 }
 #endif
 

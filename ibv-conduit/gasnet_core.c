@@ -3568,7 +3568,7 @@ extern int gasnetc_AMRequestLongM(
     } else if (eop && (start_cnt == eop->initiated_alc)) {
       // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
-      *lc_opt = GASNETEX_INVALID_HANDLE;
+      *lc_opt = GEX_EVENT_INVALID;
       if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
         gasnete_eop_free(eop);
       }
@@ -3680,7 +3680,7 @@ extern int gasnetc_AMReplyLongM(
     } else if (eop && (start_cnt == eop->initiated_alc)) {
       // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
-      *lc_opt = GASNETEX_INVALID_HANDLE;
+      *lc_opt = GEX_EVENT_INVALID;
       if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
         gasnete_eop_free(eop);
       }

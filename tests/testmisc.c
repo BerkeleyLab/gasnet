@@ -151,7 +151,7 @@ gex_Event_t events[8];
 void doit1(void) { GASNET_BEGIN_FUNCTION();
 
     { int i; for (i=0;i<8;i++) {
-        events[i] = GASNETEX_INVALID_HANDLE;
+        events[i] = GEX_EVENT_INVALID;
     } }
 
     TEST_SECTION_BEGIN();
@@ -418,10 +418,10 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("do-nothing gex_Event_Wait()",
-      { gex_Event_Wait(GASNETEX_INVALID_HANDLE);  });
+      { gex_Event_Wait(GEX_EVENT_INVALID);  });
 
     TIME_OPERATION("do-nothing gex_Event_Test()",
-      { int junk = gex_Event_Test(GASNETEX_INVALID_HANDLE); });
+      { int junk = gex_Event_Test(GEX_EVENT_INVALID); });
 
     TIME_OPERATION("do-nothing gex_Event_WaitAll() (8 events)",
       { gex_Event_WaitAll(events, 8); });

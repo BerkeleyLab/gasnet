@@ -221,7 +221,7 @@ gex_Event_t gasnete_puti_gather(gasnete_synctype_t synctype,
     gasnete_addrlist_pack(srccount, srclist, srclen, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
     visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0], packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
-    gasneti_assert(visop->event != GASNETEX_INVALID_HANDLE);
+    gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -255,7 +255,7 @@ gex_Event_t gasnete_geti_scatter(gasnete_synctype_t synctype,
     visop->count = dstcount;
     visop->len = dstlen;
     visop->event = gasnete_get_nb(NULL, packedbuf, srcnode, srclist[0], nbytes, 0 GASNETE_THREAD_PASS);
-    gasneti_assert(visop->event != GASNETEX_INVALID_HANDLE);
+    gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
@@ -655,7 +655,7 @@ extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
       GASNETI_SUPERNODE_LOCAL(dstnode)) { /* purely local */ 
-    if_pf (dstcount == 0) return GASNETEX_INVALID_HANDLE;
+    if_pf (dstcount == 0) return GEX_EVENT_INVALID;
     else return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
 
@@ -682,7 +682,7 @@ extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
   #endif
   GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   gasneti_fatalerror("failure in GASNETE_PUTI_SELECTOR - should never reach here");
-  return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */
+  return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 #endif
 /* top-level gasnet_geti_* entry point */
@@ -695,7 +695,7 @@ extern gex_Event_t gasnete_geti(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
       GASNETI_SUPERNODE_LOCAL(srcnode)) { /* purely local */ 
-    if_pf (dstcount == 0) return GASNETEX_INVALID_HANDLE;
+    if_pf (dstcount == 0) return GEX_EVENT_INVALID;
     else return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
 
@@ -722,6 +722,6 @@ extern gex_Event_t gasnete_geti(gasnete_synctype_t synctype,
   #endif
   GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen);
   gasneti_fatalerror("failure in GASNETE_GETI_SELECTOR - should never reach here");
-  return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */
+  return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 #endif

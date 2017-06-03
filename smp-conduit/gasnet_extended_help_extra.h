@@ -26,7 +26,7 @@ gex_Event_t gasnete_get_nb(
 {
   GASNETI_CHECKPSHM_GET(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 #define gasnete_get_nb gasnete_get_nb
 
@@ -40,7 +40,7 @@ gex_Event_t gasnete_put_nb(
 {
   GASNETI_CHECKPSHM_PUT(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb gasnete_put_nb
 
@@ -53,7 +53,7 @@ gex_Event_t gasnete_put_nb(
 GASNETI_INLINE(gasnete_syncnb_one)
 int gasnete_syncnb_one(gex_Event_t event GASNETI_THREAD_FARG)
 {
-  gasneti_assert(event == GASNETEX_INVALID_HANDLE);
+  gasneti_assert(event == GEX_EVENT_INVALID);
   gasneti_sync_reads();
   return GASNET_OK;
 }
@@ -65,7 +65,7 @@ int gasnete_syncnb_array(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FA
 {
 #if GASNET_DEBUG
   for (size_t i=0; i<numevents; ++i)
-    gasneti_assert(pevent[i] == GASNETEX_INVALID_HANDLE);
+    gasneti_assert(pevent[i] == GEX_EVENT_INVALID);
 #endif
   gasneti_sync_reads();
   return GASNET_OK;
@@ -142,7 +142,7 @@ void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNET
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG)
-{ return GASNETEX_INVALID_HANDLE; }
+{ return GEX_EVENT_INVALID; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
 /* ------------------------------------------------------------------------------------ */
@@ -175,7 +175,7 @@ gex_Event_t gasnete_put_nb_val(
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb_val gasnete_put_nb_val
 

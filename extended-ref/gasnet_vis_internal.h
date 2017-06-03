@@ -100,14 +100,14 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
       case gasnete_synctype_b: {                                     \
         gex_Event_t h = gasneti_eop_to_event(eop);              \
         gasnete_wait(h GASNETI_THREAD_PASS);                         \
-        return GASNETEX_INVALID_HANDLE;                                \
+        return GEX_EVENT_INVALID;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
         return gasneti_eop_to_event(eop);                           \
       case gasnete_synctype_nbi:                                     \
-        return GASNETEX_INVALID_HANDLE;                                \
+        return GEX_EVENT_INVALID;                                \
       default: gasneti_fatalerror("bad synctype");                   \
-        return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
 
@@ -148,17 +148,17 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate event */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
-    if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
+    if (islocal) return GEX_EVENT_INVALID;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
         return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
         gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS) GASNETE_THREAD_PASS); \
-        return GASNETEX_INVALID_HANDLE;                                                 \
+        return GEX_EVENT_INVALID;                                                 \
       case gasnete_synctype_nbi:                                                      \
-        return GASNETEX_INVALID_HANDLE;                                                 \
+        return GEX_EVENT_INVALID;                                                 \
       default: gasneti_fatalerror("bad synctype");                                    \
-        return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */                  \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */                  \
     }                                                                                 \
   } while(0)
 

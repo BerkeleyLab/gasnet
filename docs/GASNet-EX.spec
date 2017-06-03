@@ -9,12 +9,12 @@ struct gasneti_handle_t;
 typedef struct gasneti_handle_t *gex_Event_t;
 
 // Pre-defined output values of type gex_Event_t
-// - GASNETEX_INVALID_HANDLE
+// - GEX_EVENT_INVALID
 //   + result for already-completed operation
-// - GASNETEX_NO_OP_HANDLE
+// - GEX_EVENT_NO_OP
 //   + Erroneous to pass this value to test/wait operations
-#define GASNETEX_INVALID_HANDLE      ((gex_Event_t)(uintptr_t)0)
-#define GASNETEX_NO_OP_HANDLE        ((gex_Event_t)(uintptr_t)1)
+#define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
+#define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)1)
 
 // Pre-defined input values of type gex_Event_t*
 // - GASNETEX_EVENT_NOW
@@ -55,7 +55,7 @@ enum {
       // any communication if the conduit could determine that it would
       // need to block temporarily to obtain the necessary resources.  In
       // this case calls with return type 'gex_Event_t' return
-      // GASNETEX_NO_OP_HANDLE while those with return type 'int' will
+      // GEX_EVENT_NO_OP while those with return type 'int' will
       // return non-zero.
       //
       GASNETEX_FLAG_IMMEDIATE = (1 << 999),
@@ -276,7 +276,7 @@ int gex_AM_ReplyShortM(
 //   conduit could determine that it would need to block temporarily to
 //   obtain the necessary resources.  The blocking and nbi calls return a
 //   non-zero value *only* in the "no op" case, while the nb calls return
-//   GASNETEX_NO_OP_HANDLE.
+//   GEX_EVENT_NO_OP.
 //
 //   In the "no op" case no communication has been performed and the
 //   contents of the location named by the 'lc_opt' argument (if any) is
@@ -407,15 +407,15 @@ void gex_Event_Wait (gex_Event_t event);
 
 // Completion of an NB event array - "some"
 // Success is defined as one or more handles have been completed, OR
-// the input array contains only GASNETEX_INVALID_HANDLE.
-// Completed handles, if any, are overwritten with GASNETEX_INVALID_HANDLE.
+// the input array contains only GEX_EVENT_INVALID.
+// Completed handles, if any, are overwritten with GEX_EVENT_INVALID.
 int  gex_Event_TestSome (gex_Event_t *pevent, size_t numevents);
 void gex_Event_WaitSome (gex_Event_t *pevent, size_t numevents);
 
 // Completion of an NB event array - "all"
 // Success is defined as all passed handles have been completed, OR
-// the input array contains only GASNETEX_INVALID_HANDLE.
-// Completed handles, if any, are overwritten with GASNETEX_INVALID_HANDLE.
+// the input array contains only GEX_EVENT_INVALID.
+// Completed handles, if any, are overwritten with GEX_EVENT_INVALID.
 int  gex_Event_TestAll (gex_Event_t *pevent, size_t numevents);
 void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents);
 
@@ -458,7 +458,7 @@ void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 // build to report the violation).
 //
 // For an event that has "already happened" the implementation may return
-// either GASNETEX_INVALID_HANDLE or a valid event that tests as done.  The
+// either GEX_EVENT_INVALID or a valid event that tests as done.  The
 // implementation is not constrained to pick consistent between these two
 // options (and in the extreme could choose between them at random).
 //

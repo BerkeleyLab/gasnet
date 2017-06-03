@@ -329,7 +329,7 @@ gasnete_coll_local_handles(gasnete_coll_threaddata_t *td, int grow) {
 }
 
 void gasnete_coll_save_handle(gex_Event_t *handle_p GASNETE_THREAD_FARG) {
-  if (*handle_p != GASNETEX_INVALID_HANDLE) {
+  if (*handle_p != GEX_EVENT_INVALID) {
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
     gasnete_coll_local_handle_t *p = gasnete_coll_local_handles(td, 1);
     p[td->handles.used].addr = (uintptr_t)handle_p;
@@ -373,7 +373,7 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
         synced = (gasnete_test(curr->u.handle GASNETE_THREAD_PASS) == GASNET_OK);
         if (synced) {
           gasneti_sync_writes();
-          *((gex_Event_t *)addr) = GASNETEX_INVALID_HANDLE;
+          *((gex_Event_t *)addr) = GEX_EVENT_INVALID;
         }
       }
       if (synced) {

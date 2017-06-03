@@ -1264,7 +1264,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
 #else
   /* save the new ops to sync after the barrier is complete */
   step -= (numsteps + 1);
-  gasneti_assert(barrier_data->barrier_events[step] == GASNETEX_INVALID_HANDLE);
+  gasneti_assert(barrier_data->barrier_events[step] == GEX_EVENT_INVALID);
   barrier_data->barrier_events[step] = event;
 #endif
 }

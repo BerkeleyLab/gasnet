@@ -179,8 +179,8 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
   #define gasnete_event_check(_h) do { \
-    gasneti_assert(_h != GASNETEX_INVALID_HANDLE);              \
-    gasneti_assert(_h != GASNETEX_NO_OP_HANDLE);                \
+    gasneti_assert(_h != GEX_EVENT_INVALID);              \
+    gasneti_assert(_h != GEX_EVENT_NO_OP);                \
     gasneti_assert(gasneti_event_idx(_h) < GASNETE_OP_EVENTS); \
     gasnete_op_t *_op = gasneti_event_op(_h);                  \
     if (OPTYPE(_op) == OPTYPE_EXPLICIT) {                       \
