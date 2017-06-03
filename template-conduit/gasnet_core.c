@@ -514,7 +514,7 @@ extern int gasnetc_AMRequestShortM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
 
@@ -546,7 +546,7 @@ extern int gasnetc_AMRequestMediumM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
 
@@ -579,7 +579,7 @@ extern int gasnetc_AMRequestLongM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
 
@@ -607,7 +607,7 @@ extern int gasnetc_AMReplyShortM(
   } else
 #endif
   { 
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
 
@@ -637,7 +637,7 @@ extern int gasnetc_AMReplyMediumM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
 
@@ -668,7 +668,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
 

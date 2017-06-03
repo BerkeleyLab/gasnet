@@ -311,10 +311,10 @@ typedef struct {
     gasneti_atomic_t state; /* One done bit per phase and result in remaining bits */
     gasneti_atomic_t ready; /* Indicates when initialization is completed */
     int size;
-    gasnetex_handlerarg_t volatile flags, value; /* supernode consensus for hierarchical barrier */
+    gex_AM_Arg_t volatile flags, value; /* supernode consensus for hierarchical barrier */
     char _pad1[GASNETI_CACHE_PAD(  2*sizeof(gasneti_atomic_t)
                                  + sizeof(int)
-                                 + 2*sizeof(gasnetex_handlerarg_t))];
+                                 + 2*sizeof(gex_AM_Arg_t))];
     /*---------------*/
     struct gasneti_pshm_barrier_node {
       union gasneti_pshm_barrier_node_u {

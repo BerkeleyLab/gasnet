@@ -222,7 +222,7 @@ int gasnete_amref_get_nbi( gex_TM_t tm,
 
 GASNETI_INLINE(gasnete_amref_get_reqh_inner)
 void gasnete_amref_get_reqh_inner(gasnetex_token_t token,
-  gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
+  gex_AM_Arg_t nbytes, void *dest, void *src, void *done) {
   gasneti_assert(nbytes <= gex_AM_LUBReplyMedium());
   gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
                          src, nbytes, GASNETEX_EVENT_NOW, 0,
@@ -245,7 +245,7 @@ MEDIUM_HANDLER(gasnete_amref_get_reph,2,4,
 
 GASNETI_INLINE(gasnete_amref_getlong_reqh_inner)
 void gasnete_amref_getlong_reqh_inner(gasnetex_token_t token,
-  gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
+  gex_AM_Arg_t nbytes, void *dest, void *src, void *done) {
 
   gex_AM_ReplyLong(token, gasneti_handleridx(gasnete_amref_getlong_reph),
                        src, nbytes, dest, GASNETEX_EVENT_NOW, 0, PACK(done));
@@ -319,7 +319,7 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
     op->initiated_get_cnt++;
   
     gex_AM_RequestShort(tm, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
-                   (gasnetex_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_IOP_DONE(op,get));
+                   (gex_AM_Arg_t)nbytes, PACK(dest), PACK(src), PACK_IOP_DONE(op,get));
     return;
   } else {
     size_t chunksz;
@@ -341,13 +341,13 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
       op->initiated_get_cnt++;
       if (nbytes > chunksz) {
         gex_AM_RequestShort(tm, rank, reqhandler, 0,
-                       (gasnetex_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
+                       (gex_AM_Arg_t)chunksz, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
         gex_AM_RequestShort(tm, rank, reqhandler, 0,
-                       (gasnetex_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
+                       (gex_AM_Arg_t)nbytes, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
         break;
       }
     }
@@ -465,7 +465,7 @@ gasnetex_handle_t gasnete_amref_get_nb(
     gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
     gex_AM_RequestShort(tm, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
-                   (gasnetex_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
+                   (gex_AM_Arg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
 
     return (gasnetex_handle_t)op;
   } else {

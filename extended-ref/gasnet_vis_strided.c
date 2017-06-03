@@ -819,8 +819,8 @@ GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
 void gasnete_puts_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *iop, void *dstaddr, 
-  gasnetex_handlerarg_t stridelevels, gasnetex_handlerarg_t contiglevel,
-  gasnetex_handlerarg_t packetchunks) {
+  gex_AM_Arg_t stridelevels, gex_AM_Arg_t contiglevel,
+  gex_AM_Arg_t packetchunks) {
   size_t * const packetinit = addr;
   size_t * const packetcount = packetinit + stridelevels;
   size_t * const packetstrides = packetcount + stridelevels + 1;
@@ -883,7 +883,7 @@ gasnetex_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, 
       visop->type = GASNETI_VIS_CAT_GETS_AMPIPELINE;
     #endif
     gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
-    gasneti_assert(packetcnt == (gasnetex_handlerarg_t)packetcnt);
+    gasneti_assert(packetcnt == (gex_AM_Arg_t)packetcnt);
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
 
     memcpy(tablecount, count, (stridelevels+1)*sizeof(size_t)); /* TODO: merge with packetcount? */
@@ -930,8 +930,8 @@ GASNETI_INLINE(gasnete_gets_AMPipeline_reqh_inner)
 void gasnete_gets_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *_visop, void *srcaddr, 
-  gasnetex_handlerarg_t stridelevels, gasnetex_handlerarg_t contiglevel,
-  gasnetex_handlerarg_t packetchunks, gasnetex_handlerarg_t packetidx) {
+  gex_AM_Arg_t stridelevels, gex_AM_Arg_t contiglevel,
+  gex_AM_Arg_t packetchunks, gex_AM_Arg_t packetidx) {
 
   size_t * const packetinit = addr;
   size_t * const packetcount = packetinit + stridelevels;
@@ -972,8 +972,8 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reqh,6,8,
 GASNETI_INLINE(gasnete_gets_AMPipeline_reph_inner)
 void gasnete_gets_AMPipeline_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *_visop, gasnetex_handlerarg_t packetidx,
-  gasnetex_handlerarg_t contiglevel, gasnetex_handlerarg_t packetchunks) {
+  void *_visop, gex_AM_Arg_t packetidx,
+  gex_AM_Arg_t contiglevel, gex_AM_Arg_t packetchunks) {
   gasneti_vis_op_t * const visop = _visop;
   void *dstaddr = visop->addr;
   size_t const stridelevels = visop->count;

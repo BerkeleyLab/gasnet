@@ -311,7 +311,7 @@ typedef struct {
   uint8_t numargs;
   gasnetc_handler_t handler_id;
   gasnetex_rank_t source;
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS_PSHM];
 } gasneti_AMPSHM_msg_t;
 typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
@@ -1137,7 +1137,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 
 #ifndef GASNETC_ENTERING_HANDLER_HOOK
   /* extern void enterHook(int cat, int isReq, int handlerId, gasnetex_token_t *token,
-   *                       void *buf, size_t nbytes, int numargs, gasnetex_handlerarg_t *args);
+   *                       void *buf, size_t nbytes, int numargs, gex_AM_Arg_t *args);
    */
   #define GASNETC_ENTERING_HANDLER_HOOK(cat,isReq,handlerId,token,buf,nbytes,numargs,args) ((void)0)
 #endif
@@ -1183,7 +1183,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gasnetc_handler_t handler_id;
   gasneti_handler_fn_t handler_fn;
   int numargs;
-  gasnetex_handlerarg_t *args;
+  gex_AM_Arg_t *args;
   gasnetex_token_t token;
 
   gasneti_assert(vnet != NULL);
@@ -1336,7 +1336,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = numargs;
   GASNETI_AMPSHM_MSG_SOURCE(msg) = gasneti_mynode;
   for(i = 0; i < numargs; i++) 
-    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gasnetex_handlerarg_t)va_arg(argptr, int);
+    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gex_AM_Arg_t)va_arg(argptr, int);
 
   /* Detect truncation if our field widths were too small */
   gasneti_assert( GASNETI_AMPSHM_MSG_CATEGORY(msg) == category );
@@ -1367,7 +1367,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
     gex_EP_t ep = NULL; // TODO-EX: get true value
     gasneti_handler_fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
     gasnetex_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
-    gasnetex_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
+    gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     gasneti_AMPSHM_amtbl_check(ep, handler, numargs);
     switch (category) {
       case gasnetc_Short:

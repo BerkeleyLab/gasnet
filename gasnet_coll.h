@@ -81,7 +81,7 @@ GASNETI_BEGIN_NOWARN
 /* Functions, types, etc for computational collectives */
 
 #ifndef GASNET_COLL_FN_HANDLE_T
-  typedef gasnetex_handlerarg_t gasnet_coll_fn_handle_t;
+  typedef gex_AM_Arg_t gasnet_coll_fn_handle_t;
 #endif
 
 typedef void (*gasnet_coll_reduce_fn_t)(

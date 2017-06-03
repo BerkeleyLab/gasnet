@@ -43,7 +43,7 @@ struct _threaddata_t {
 threaddata_t;
 
 typedef void (*testfunc_t)(threaddata_t *);
-typedef gasnetex_handlerarg_t harg_t;
+typedef gex_AM_Arg_t harg_t;
 
 /* configurable parameters */
 #define DEFAULT_ITERS 50
@@ -469,7 +469,7 @@ ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx, ha
 }
 void 
 pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
-		gasnetex_handlerarg_t idx)
+		gex_AM_Arg_t idx)
 {
 	int	tid = tt_thread_data[idx].tid;
 	gasnetex_rank_t	node;

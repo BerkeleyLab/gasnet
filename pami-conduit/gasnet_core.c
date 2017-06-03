@@ -841,7 +841,7 @@ void run_short(gasnetc_token_t *token) {
   const int                      is_req = header->is_req;
   const gex_AM_Index_t   handler_id = header->handler;
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
-  const gasnetex_handlerarg_t     *args = header->args;
+  const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
   gasnetex_token_t         client_token = (gasnetex_token_t)token;
 
@@ -861,7 +861,7 @@ void run_medium(gasnetc_token_t *token) {
   const int                      is_req = header->is_req;
   const gex_AM_Index_t     handler_id = header->handler;
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
-  const gasnetex_handlerarg_t     *args = header->args;
+  const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
   void * const                     data = GASNETC_TOKEN_PAYLOAD(token);
   const size_t                   nbytes = header->nbytes;
@@ -880,7 +880,7 @@ void run_long(gasnetc_token_t *token) {
   const int                      is_req = header->is_req;
   const gex_AM_Index_t     handler_id = header->handler;
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
-  const gasnetex_handlerarg_t     *args = header->args;
+  const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
   void * const                     data = (void*)header->addr;
   const size_t                   nbytes = header->nbytes;
@@ -1157,7 +1157,7 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   do {                                                           \
     int _i;                                                      \
     for (_i = 0; _i < _numargs; ++_i) {                          \
-      (_args)[_i] = va_arg(_argptr, gasnetex_handlerarg_t);      \
+      (_args)[_i] = va_arg(_argptr, gex_AM_Arg_t);      \
     }                                                            \
   } while (0)
 
@@ -1204,14 +1204,14 @@ extern int gasnetc_AMRequestShortM(
 #else
   if (rank == gasneti_mynode) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
     GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,token,args,numargs);
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
     pami_send_immediate_t cmd;
@@ -1270,7 +1270,7 @@ extern int gasnetc_AMRequestMediumM(
 #else
   if (rank == gasneti_mynode) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
@@ -1280,7 +1280,7 @@ extern int gasnetc_AMRequestMediumM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
     pami_send_t cmd;
@@ -1364,7 +1364,7 @@ extern int gasnetc_AMRequestLongM(
 #else
   if (rank == gasneti_mynode) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
     gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
@@ -1372,7 +1372,7 @@ extern int gasnetc_AMRequestLongM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
     pami_send_t cmd;
@@ -1443,13 +1443,13 @@ extern int gasnetc_AMReplyShortM(
 #else
   if (token == (gasnetex_token_t)gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     GASNETI_RUN_HANDLER_SHORT(0,handler,handler_fn,token,args,numargs);
   } else
 #endif
   { 
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
     pami_send_immediate_t cmd;
@@ -1502,7 +1502,7 @@ extern int gasnetc_AMReplyMediumM(
 #else
   if (token == (gasnetex_token_t)gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
@@ -1511,7 +1511,7 @@ extern int gasnetc_AMReplyMediumM(
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
     pami_send_t cmd;
@@ -1589,14 +1589,14 @@ extern int gasnetc_AMReplyLongM(
 #else
   if (token == (gasnetex_token_t)gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
     GASNETI_RUN_HANDLER_LONG(0,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
   } else
 #endif
   {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
+    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
     pami_send_t cmd;

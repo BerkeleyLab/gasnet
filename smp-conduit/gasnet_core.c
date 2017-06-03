@@ -1016,7 +1016,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          int dest, gex_AM_Index_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gasnetex_flags_t flags, int numargs, va_list argptr) {
-  gasnetex_handlerarg_t pargs[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t pargs[GASNETC_MAX_ARGS];
   gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
   #if GASNET_DEBUG  
@@ -1036,7 +1036,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
   { int i;
     for(i=0; i < numargs; i++) {
-      pargs[i] = (gasnetex_handlerarg_t)va_arg(argptr, int);
+      pargs[i] = (gex_AM_Arg_t)va_arg(argptr, int);
     }
   }
 

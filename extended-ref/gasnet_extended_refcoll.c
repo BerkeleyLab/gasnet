@@ -1561,11 +1561,11 @@ extern uint32_t gasnete_coll_p2p_next_seg_interval(gasnete_coll_p2p_t *p2p) {
    state: value to assign to states [offset, offset+count)
 */
 extern void gasnete_coll_p2p_long_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                       gasnetex_handlerarg_t team_id,
-                                       gasnetex_handlerarg_t sequence,
-                                       gasnetex_handlerarg_t count,
-                                       gasnetex_handlerarg_t offset,
-                                       gasnetex_handlerarg_t state) {
+                                       gex_AM_Arg_t team_id,
+                                       gex_AM_Arg_t sequence,
+                                       gex_AM_Arg_t count,
+                                       gex_AM_Arg_t offset,
+                                       gex_AM_Arg_t state) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   int i;
 
@@ -1585,12 +1585,12 @@ extern void gasnete_coll_p2p_long_reqh(gasnetex_token_t token, void *buf, size_t
    size: eager element size; payload is copied to (p2p->data + offset*size)
 */
 extern void gasnete_coll_p2p_med_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                      gasnetex_handlerarg_t team_id,
-                                      gasnetex_handlerarg_t sequence,
-                                      gasnetex_handlerarg_t count,
-                                      gasnetex_handlerarg_t offset,
-                                      gasnetex_handlerarg_t state,
-                                      gasnetex_handlerarg_t size) {
+                                      gex_AM_Arg_t team_id,
+                                      gex_AM_Arg_t sequence,
+                                      gex_AM_Arg_t count,
+                                      gex_AM_Arg_t offset,
+                                      gex_AM_Arg_t state,
+                                      gex_AM_Arg_t size) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   int i;
 
@@ -1605,11 +1605,11 @@ extern void gasnete_coll_p2p_med_reqh(gasnetex_token_t token, void *buf, size_t 
 }
 
 extern void gasnete_coll_p2p_med_counting_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                               gasnetex_handlerarg_t team_id,
-                                               gasnetex_handlerarg_t sequence,
-                                               gasnetex_handlerarg_t offset,
-                                               gasnetex_handlerarg_t idx,
-                                               gasnetex_handlerarg_t size) {
+                                               gex_AM_Arg_t team_id,
+                                               gex_AM_Arg_t sequence,
+                                               gex_AM_Arg_t offset,
+                                               gex_AM_Arg_t idx,
+                                               gex_AM_Arg_t size) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   
   if (size) {
@@ -1624,8 +1624,8 @@ extern void gasnete_coll_p2p_med_counting_reqh(gasnetex_token_t token, void *buf
    size: eager element size; payload is copied to (p2p->data)
 */
 extern void gasnete_coll_p2p_med_tree_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                           gasnetex_handlerarg_t team_id,
-                                           gasnetex_handlerarg_t sequence) {
+                                           gex_AM_Arg_t team_id,
+                                           gex_AM_Arg_t sequence) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
       
   GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data, buf, nbytes);
@@ -1641,11 +1641,11 @@ extern void gasnete_coll_p2p_med_tree_reqh(gasnetex_token_t token, void *buf, si
    state: value to assign to states [offset, offset+count)
 */
 extern void gasnete_coll_p2p_short_reqh(gasnetex_token_t token,
-                                        gasnetex_handlerarg_t team_id,
-                                        gasnetex_handlerarg_t sequence,
-                                        gasnetex_handlerarg_t count,
-                                        gasnetex_handlerarg_t offset,
-                                        gasnetex_handlerarg_t state) {
+                                        gex_AM_Arg_t team_id,
+                                        gex_AM_Arg_t sequence,
+                                        gex_AM_Arg_t count,
+                                        gex_AM_Arg_t offset,
+                                        gex_AM_Arg_t state) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   int i;
 
@@ -1656,9 +1656,9 @@ extern void gasnete_coll_p2p_short_reqh(gasnetex_token_t token,
 
 /* Increment atomic counter */
 extern void gasnete_coll_p2p_advance_reqh(gasnetex_token_t token,
-                                          gasnetex_handlerarg_t team_id,
-                                          gasnetex_handlerarg_t sequence,
-                                          gasnetex_handlerarg_t idx) {
+                                          gex_AM_Arg_t team_id,
+                                          gex_AM_Arg_t sequence,
+                                          gex_AM_Arg_t idx) {
 
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
   gasneti_weakatomic_increment(&p2p->counter[idx], 0);
@@ -1666,9 +1666,9 @@ extern void gasnete_coll_p2p_advance_reqh(gasnetex_token_t token,
 
 /* Send the data and increment atomic counter */
 extern void gasnete_coll_p2p_put_and_advance_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                                  gasnetex_handlerarg_t team_id,
-                                                  gasnetex_handlerarg_t sequence,
-                                                  gasnetex_handlerarg_t idx) {
+                                                  gex_AM_Arg_t team_id,
+                                                  gex_AM_Arg_t sequence,
+                                                  gex_AM_Arg_t idx) {
 
   gasnete_coll_p2p_t *p2p;
 
@@ -1681,9 +1681,9 @@ extern void gasnete_coll_p2p_put_and_advance_reqh(gasnetex_token_t token, void *
 }
 
 extern void gasnete_coll_p2p_seg_put_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                          gasnetex_handlerarg_t team_id,
-                                          gasnetex_handlerarg_t sequence,
-                                          gasnetex_handlerarg_t seg_id) {
+                                          gex_AM_Arg_t team_id,
+                                          gex_AM_Arg_t sequence,
+                                          gex_AM_Arg_t seg_id) {
   
   
   gasnete_coll_p2p_t *p2p;
@@ -1706,9 +1706,9 @@ extern void gasnete_coll_p2p_seg_put_reqh(gasnetex_token_t token, void *buf, siz
 GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
      void gasnete_coll_p2p_memcpy_reqh_inner(gasnetex_token_t token, void *buf, size_t nbytes,
                                              void *dest,
-                                             gasnetex_handlerarg_t team_id,
-                                             gasnetex_handlerarg_t sequence,
-                                             gasnetex_handlerarg_t decrement) {
+                                             gex_AM_Arg_t team_id,
+                                             gex_AM_Arg_t sequence,
+                                             gex_AM_Arg_t decrement) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
 
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, buf, nbytes);

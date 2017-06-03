@@ -9,50 +9,50 @@
 
 /* argument-list macros */
 #define ARGS0
-#define ARGS1 , gasnetex_handlerarg_t a0
-#define ARGS2 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1
-#define ARGS3 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1, gasnetex_handlerarg_t a2
-#define ARGS4 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1, gasnetex_handlerarg_t a2, gasnetex_handlerarg_t a3
+#define ARGS1 , gex_AM_Arg_t a0
+#define ARGS2 , gex_AM_Arg_t a0, gex_AM_Arg_t a1
+#define ARGS3 , gex_AM_Arg_t a0, gex_AM_Arg_t a1, gex_AM_Arg_t a2
+#define ARGS4 , gex_AM_Arg_t a0, gex_AM_Arg_t a1, gex_AM_Arg_t a2, gex_AM_Arg_t a3
 
-#define ARGS5 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1, gasnetex_handlerarg_t a2, gasnetex_handlerarg_t a3, \
-                gasnetex_handlerarg_t a4
-#define ARGS6 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1, gasnetex_handlerarg_t a2, gasnetex_handlerarg_t a3, \
-                gasnetex_handlerarg_t a4, gasnetex_handlerarg_t a5
-#define ARGS7 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1, gasnetex_handlerarg_t a2, gasnetex_handlerarg_t a3, \
-                gasnetex_handlerarg_t a4, gasnetex_handlerarg_t a5, gasnetex_handlerarg_t a6
-#define ARGS8 , gasnetex_handlerarg_t a0, gasnetex_handlerarg_t a1, gasnetex_handlerarg_t a2, gasnetex_handlerarg_t a3, \
-                gasnetex_handlerarg_t a4, gasnetex_handlerarg_t a5, gasnetex_handlerarg_t a6, gasnetex_handlerarg_t a7
+#define ARGS5 , gex_AM_Arg_t a0, gex_AM_Arg_t a1, gex_AM_Arg_t a2, gex_AM_Arg_t a3, \
+                gex_AM_Arg_t a4
+#define ARGS6 , gex_AM_Arg_t a0, gex_AM_Arg_t a1, gex_AM_Arg_t a2, gex_AM_Arg_t a3, \
+                gex_AM_Arg_t a4, gex_AM_Arg_t a5
+#define ARGS7 , gex_AM_Arg_t a0, gex_AM_Arg_t a1, gex_AM_Arg_t a2, gex_AM_Arg_t a3, \
+                gex_AM_Arg_t a4, gex_AM_Arg_t a5, gex_AM_Arg_t a6
+#define ARGS8 , gex_AM_Arg_t a0, gex_AM_Arg_t a1, gex_AM_Arg_t a2, gex_AM_Arg_t a3, \
+                gex_AM_Arg_t a4, gex_AM_Arg_t a5, gex_AM_Arg_t a6, gex_AM_Arg_t a7
 
-#define ARGS9  , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8
-#define ARGS10 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9
-#define ARGS11 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9,  gasnetex_handlerarg_t a10
-#define ARGS12 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9,  gasnetex_handlerarg_t a10, gasnetex_handlerarg_t a11
+#define ARGS9  , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8
+#define ARGS10 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9
+#define ARGS11 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9,  gex_AM_Arg_t a10
+#define ARGS12 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9,  gex_AM_Arg_t a10, gex_AM_Arg_t a11
 
 
-#define ARGS13 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9,  gasnetex_handlerarg_t a10, gasnetex_handlerarg_t a11, \
-                 gasnetex_handlerarg_t a12
-#define ARGS14 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9,  gasnetex_handlerarg_t a10, gasnetex_handlerarg_t a11, \
-                 gasnetex_handlerarg_t a12, gasnetex_handlerarg_t a13
-#define ARGS15 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9,  gasnetex_handlerarg_t a10, gasnetex_handlerarg_t a11, \
-                 gasnetex_handlerarg_t a12, gasnetex_handlerarg_t a13, gasnetex_handlerarg_t a14
-#define ARGS16 , gasnetex_handlerarg_t a0,  gasnetex_handlerarg_t a1,  gasnetex_handlerarg_t a2,  gasnetex_handlerarg_t a3,  \
-                 gasnetex_handlerarg_t a4,  gasnetex_handlerarg_t a5,  gasnetex_handlerarg_t a6,  gasnetex_handlerarg_t a7,  \
-                 gasnetex_handlerarg_t a8,  gasnetex_handlerarg_t a9,  gasnetex_handlerarg_t a10, gasnetex_handlerarg_t a11, \
-                 gasnetex_handlerarg_t a12, gasnetex_handlerarg_t a13, gasnetex_handlerarg_t a14, gasnetex_handlerarg_t a15
+#define ARGS13 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9,  gex_AM_Arg_t a10, gex_AM_Arg_t a11, \
+                 gex_AM_Arg_t a12
+#define ARGS14 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9,  gex_AM_Arg_t a10, gex_AM_Arg_t a11, \
+                 gex_AM_Arg_t a12, gex_AM_Arg_t a13
+#define ARGS15 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9,  gex_AM_Arg_t a10, gex_AM_Arg_t a11, \
+                 gex_AM_Arg_t a12, gex_AM_Arg_t a13, gex_AM_Arg_t a14
+#define ARGS16 , gex_AM_Arg_t a0,  gex_AM_Arg_t a1,  gex_AM_Arg_t a2,  gex_AM_Arg_t a3,  \
+                 gex_AM_Arg_t a4,  gex_AM_Arg_t a5,  gex_AM_Arg_t a6,  gex_AM_Arg_t a7,  \
+                 gex_AM_Arg_t a8,  gex_AM_Arg_t a9,  gex_AM_Arg_t a10, gex_AM_Arg_t a11, \
+                 gex_AM_Arg_t a12, gex_AM_Arg_t a13, gex_AM_Arg_t a14, gex_AM_Arg_t a15
 
 #define ARGNAMES0
 #define ARGNAMES1 , a0
@@ -110,10 +110,10 @@
 
 /* pointer packing/unpacking helper macros */
 #if PLATFORM_ARCH_32
-  #define PACK(ptr) ((gasnetex_handlerarg_t)(ptr))
+  #define PACK(ptr) ((gex_AM_Arg_t)(ptr))
   #define UNPACK(a0) ((void *)a0)
 #elif PLATFORM_ARCH_64
-  #define PACK(ptr) ((gasnetex_handlerarg_t)GASNETI_HIWORD(ptr)), ((gasnetex_handlerarg_t)GASNETI_LOWORD(ptr))
+  #define PACK(ptr) ((gex_AM_Arg_t)GASNETI_HIWORD(ptr)), ((gex_AM_Arg_t)GASNETI_LOWORD(ptr))
   #define UNPACK2(a0,a1) ((void *)GASNETI_MAKEWORD(a0,a1))
 #endif
 

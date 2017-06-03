@@ -90,24 +90,24 @@ typedef struct {
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
   uint16_t              nbytes;
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
   uintptr_t             addr;
   uint32_t              nbytes; /* type limits our MaxLong */
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
-        (offsetof(s,args)+(nargs*sizeof(gasnetex_handlerarg_t)))
+        (offsetof(s,args)+(nargs*sizeof(gex_AM_Arg_t)))
 #define GASNETC_ARGSEND(cat,nargs) \
         GASNETC_ARGSEND_AUX(gasnetc_##cat##msg_t,(nargs))
 

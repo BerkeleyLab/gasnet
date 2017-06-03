@@ -72,7 +72,7 @@ void do_crash_test(int crashid);
 #define hidx_noop_handler               202
 #define hidx_ping_handler               203
 
-void test_exit_handler(gasnetex_token_t token, gasnetex_handlerarg_t exitcode) {
+void test_exit_handler(gasnetex_token_t token, gex_AM_Arg_t exitcode) {
   gasnet_exit((int)exitcode);
 }
 

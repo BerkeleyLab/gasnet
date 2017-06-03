@@ -2013,7 +2013,7 @@ static uint8_t *gasneti_exchg_data(int phase, size_t elemsz) {
 }
 
 extern void gasnetc_exchg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                               gasnetex_handlerarg_t arg0, gasnetex_handlerarg_t elemsz) {
+                               gex_AM_Arg_t arg0, gex_AM_Arg_t elemsz) {
     const int phase = arg0 & 1;
     const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps            => 2^32 nodes
     const int seq  = (arg0 >> 6);        // Max 2^26 fragments * 512 => 32GB (and max sent is elemsz*nodes/2)

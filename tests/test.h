@@ -742,7 +742,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   }
   static int _test_segbcast_idx;
   static gasnett_atomic_t _test_segbcast_count = gasnett_atomic_init(0);
-  static void _test_segbcast(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t idx) {
+  static void _test_segbcast(gasnetex_token_t token, void *buf, size_t nbytes, gex_AM_Arg_t idx) {
     void *dst = (void*)((uintptr_t)_test_seginfo + idx * gex_AM_LUBRequestMedium());
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);

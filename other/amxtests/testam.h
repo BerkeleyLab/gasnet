@@ -41,7 +41,7 @@
 #elif defined(TEST_GASNETEX)
   #include "gasnet_tools.h"
   #include "test.h"
-  typedef gasnetex_handlerarg_t handlerarg_t;
+  typedef gex_AM_Arg_t handlerarg_t;
  #define EXTERNC GASNETT_EXTERNC
  GASNETT_BEGIN_EXTERNC
  #ifdef GASNET_USE_STRICT_PROTOTYPES

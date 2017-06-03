@@ -620,7 +620,7 @@ typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t 
   else       GASNETI_TRACE_AMSHORT_REPHANDLER(hid, token, numargs, pArgs);            \
   if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gasnetex_token_t)token);       \
   else {                                                                              \
-    gasnetex_handlerarg_t *_args = (gasnetex_handlerarg_t *)(pArgs); /* eval only once */ \
+    gex_AM_Arg_t *_args = (gex_AM_Arg_t *)(pArgs); /* eval only once */ \
     switch (numargs) {                                                                \
       case 1:  (*(gasneti_HandlerShort)phandlerfn)((gasnetex_token_t)token, _args[0]); break; \
       case 2:  (*(gasneti_HandlerShort)phandlerfn)((gasnetex_token_t)token, _args[0], _args[1]); break;\
@@ -648,7 +648,7 @@ typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t 
   gasneti_assert(phandlerfn);                                                                \
   if (numargs == 0) (*phandlerfn)(token, pData, datalen);                                    \
   else {                                                                                     \
-    gasnetex_handlerarg_t *_args = (gasnetex_handlerarg_t *)(pArgs); /* eval only once */        \
+    gex_AM_Arg_t *_args = (gex_AM_Arg_t *)(pArgs); /* eval only once */        \
     switch (numargs) {                                                                       \
       case 1:  (*phandlerfn)(token, pData, datalen, _args[0]); break;                        \
       case 2:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1]); break;              \
@@ -758,7 +758,7 @@ extern void gasneti_nodemapFini(void);
 
 void gasneti_defaultExchange(void *src, size_t len, void *dest);
 extern void gasnetc_exchg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                               gasnetex_handlerarg_t arg0, gasnetex_handlerarg_t len);
+                               gex_AM_Arg_t arg0, gex_AM_Arg_t len);
 #define GASNETC_COMMON_HANDLERS() \
     gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,0)
 

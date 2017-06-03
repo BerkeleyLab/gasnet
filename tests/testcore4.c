@@ -23,7 +23,7 @@ size_t maxsz = 0;
   #define MAX_ARGS  16
 #endif
 
-gasnetex_handlerarg_t rand_args[MAX_ARGS];
+gex_AM_Arg_t rand_args[MAX_ARGS];
 #define RAND_ARG(idx) (rand_args[(idx)-1])
 
 uint8_t *rand_payload;
@@ -71,8 +71,8 @@ uint8_t *peerseg = NULL;
 #define HARG_(val)  , RAND_ARG(val)
 #define HARGS(args) HITER##args(arg1+RAND_ARG(1),HARG_)
 
-#define HARGPROTO_(val) , gasnetex_handlerarg_t arg##val
-#define HARGPROTO(args) HITER##args(gasnetex_handlerarg_t arg1,HARGPROTO_)
+#define HARGPROTO_(val) , gex_AM_Arg_t arg##val
+#define HARGPROTO(args) HITER##args(gex_AM_Arg_t arg1,HARGPROTO_)
 
 /* Simpler iterator over required arg counts */
 #if PLATFORM_ARCH_32
@@ -114,7 +114,7 @@ enum {
 
 #define HCHECK(val) ; assert_always(arg##val == RAND_ARG(val))
 #define HBODY(args) do {                                           \
-    gasnetex_handlerarg_t operation = arg1 - RAND_ARG(1);          \
+    gex_AM_Arg_t operation = arg1 - RAND_ARG(1);          \
     gasnetex_rank_t srcid;                                           \
     gasnet_AMGetMsgSource(token, &srcid);                          \
     assert_always(srcid == peer);                                  \
@@ -153,7 +153,7 @@ enum {
 #define HTEST(args) \
   MSG0("testing %d-argument AM calls", args);                        \
   for (i = 0; i < iters; ++i) {                                      \
-    gasnetex_handlerarg_t arg1;                                      \
+    gex_AM_Arg_t arg1;                                      \
     int goal = flag + 1;                                             \
     randomize();                                                     \
     arg1 = op_srep;                                                  \

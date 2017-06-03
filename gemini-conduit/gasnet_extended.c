@@ -962,7 +962,7 @@ typedef struct {
 GASNETI_INLINE(gasnete_gdbarrier_send)
 void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
-                             gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
+                             gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   unsigned int step = state >> 1;
   const uint64_t payload = GASNETE_GDBARRIER_BUILD(value, flags);
   int i;
@@ -1240,7 +1240,7 @@ static int gasnete_gdbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
   } else
   if_pf(/* try/wait value must match consensus value, if both are present */
         !((flags|barrier_data->barrier_flags) & GASNET_BARRIERFLAG_ANONYMOUS) &&
-	 ((gasnetex_handlerarg_t)id != barrier_data->barrier_value)) {
+	 ((gex_AM_Arg_t)id != barrier_data->barrier_value)) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
 

@@ -396,7 +396,7 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
 GASNETI_INLINE(gasnete_putv_AMPipeline_reqh_inner)
 void gasnete_putv_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *iop, gasnetex_handlerarg_t rnum) {
+  void *iop, gex_AM_Arg_t rnum) {
   gasneti_assert(addr && nbytes > 0 && rnum > 0);
   gasnet_memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
@@ -470,7 +470,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
       visop->count = dstcount;
     #endif
     gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
-    gasneti_assert(packetcnt == (gasnetex_handlerarg_t)packetcnt);
+    gasneti_assert(packetcnt == (gex_AM_Arg_t)packetcnt);
     visop->addr = localpt;
     memcpy(savedlst, dstlist, dstcount*sizeof(gasnet_memvec_t));
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
@@ -541,7 +541,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
 GASNETI_INLINE(gasnete_getv_AMPipeline_reqh_inner)
 void gasnete_getv_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *_visop, gasnetex_handlerarg_t packetidx) {
+  void *_visop, gex_AM_Arg_t packetidx) {
   gasneti_assert(addr && nbytes > 0);
   gasnet_memvec_t * const rlist = addr;
   size_t const rnum = nbytes / sizeof(gasnet_memvec_t);
@@ -566,7 +566,7 @@ MEDIUM_HANDLER(gasnete_getv_AMPipeline_reqh,2,3,
 GASNETI_INLINE(gasnete_getv_AMPipeline_reph_inner)
 void gasnete_getv_AMPipeline_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *_visop, gasnetex_handlerarg_t packetidx) {
+  void *_visop, gex_AM_Arg_t packetidx) {
   gasneti_vis_op_t * const visop = _visop;
   gasnet_memvec_t * const savedlst = (gasnet_memvec_t *)(visop + 1);
   gasnete_packetdesc_t * const lpacket = ((gasnete_packetdesc_t *)visop->addr) + (uint32_t)packetidx;

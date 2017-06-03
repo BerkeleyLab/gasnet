@@ -107,7 +107,7 @@ typedef struct gasneti_token_s *gasnetex_token_t;
 
 // Handler index and argument types are fixed-width integers
 typedef uint8_t gex_AM_Index_t;
-typedef int32_t gasnetex_handlerarg_t;
+typedef int32_t gex_AM_Arg_t;
 
 // Widest scalar and width
 typedef uintptr_t gex_RMA_Value_t;

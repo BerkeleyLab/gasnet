@@ -148,8 +148,8 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
 
 
 void gasnete_coll_scratch_update_reqh(gasnetex_token_t token,
-				      gasnetex_handlerarg_t teamid,
-				      gasnetex_handlerarg_t node) {
+				      gex_AM_Arg_t teamid,
+				      gex_AM_Arg_t node) {
   gasnete_coll_team_t team;
   gasnete_coll_scratch_status_t *stat;
   

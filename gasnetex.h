@@ -283,7 +283,7 @@ extern const char *gasnet_ErrorDesc(int);
 
 // TODO-EX: need comments here?
 typedef uint8_t gex_AM_Index_t;
-typedef int32_t gasnetex_handlerarg_t;
+typedef int32_t gex_AM_Arg_t;
 typedef uint32_t gasnetex_flags_t;
 
 typedef uint32_t gasnetex_rank_t;

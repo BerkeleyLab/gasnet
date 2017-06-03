@@ -707,7 +707,7 @@ typedef struct {
 } gasnete_coll_amdbarrier_t;
   
 static void gasnete_amdbarrier_notify_reqh(gasnetex_token_t token,
-                                           gasnetex_handlerarg_t teamid, gasnetex_handlerarg_t phase, gasnetex_handlerarg_t step, gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
+                                           gex_AM_Arg_t teamid, gex_AM_Arg_t phase, gex_AM_Arg_t step, gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
 
@@ -788,7 +788,7 @@ void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
   int phase, step;
   int cursor, numsteps = 0;
-  gasnetex_handlerarg_t flags, value;
+  gex_AM_Arg_t flags, value;
 
   /* early unlocked read: */
   step = barrier_data->amdbarrier_step;
@@ -901,7 +901,7 @@ static void gasnete_amdbarrier_notify(gasnete_coll_team_t team, int id, int flag
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
    * bits locally as we do when passing over the network.
    */
-  barrier_data->amdbarrier_value = (gasnetex_handlerarg_t)id;
+  barrier_data->amdbarrier_value = (gex_AM_Arg_t)id;
   barrier_data->amdbarrier_flags = flags;
   barrier_data->amdbarrier_step = step;
   gasneti_sync_writes(); 
@@ -941,7 +941,7 @@ static void gasnete_amdbarrier_notify_singleton(gasnete_coll_team_t team, int id
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
    * bits locally as we do when passing over the network.
    */
-  barrier_data->amdbarrier_value = (gasnetex_handlerarg_t)id;
+  barrier_data->amdbarrier_value = (gex_AM_Arg_t)id;
   barrier_data->amdbarrier_flags = flags;
 #if GASNETI_PSHM_BARRIER_HIER
   barrier_data->amdbarrier_step = step;
@@ -1004,7 +1004,7 @@ static int gasnete_amdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   } else
   if_pf(/* try/wait value must match consensus value, if both are present */
         !((flags|barrier_data->amdbarrier_recv_flags[phase]) & GASNET_BARRIERFLAG_ANONYMOUS) &&
-	 ((gasnetex_handlerarg_t)id != barrier_data->amdbarrier_recv_value[phase])) {
+	 ((gex_AM_Arg_t)id != barrier_data->amdbarrier_recv_value[phase])) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
 
@@ -1227,7 +1227,7 @@ typedef struct gasnete_coll_rmdbarrier_inbox_s {
 GASNETI_INLINE(gasnete_rmdbarrier_send)
 void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
-                             gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
+                             gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
   unsigned int step = state >> 1;
   gasnetex_handle_t handle;
@@ -1534,7 +1534,7 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   } else
   if_pf(/* try/wait value must match consensus value, if both are present */
         !((flags|barrier_data->barrier_flags) & GASNET_BARRIERFLAG_ANONYMOUS) &&
-	 ((gasnetex_handlerarg_t)id != barrier_data->barrier_value)) {
+	 ((gex_AM_Arg_t)id != barrier_data->barrier_value)) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
 
@@ -1746,7 +1746,7 @@ typedef struct {
 
 
 static void gasnete_amcbarrier_notify_reqh(gasnetex_token_t token,
-                                           gasnetex_handlerarg_t teamid, gasnetex_handlerarg_t phase, gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
+                                           gex_AM_Arg_t teamid, gex_AM_Arg_t phase, gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amcbarrier_t *barrier_data = team->barrier_data;
 
@@ -1774,8 +1774,8 @@ static void gasnete_amcbarrier_notify_reqh(gasnetex_token_t token,
 }
 
 static void gasnete_amcbarrier_done_reqh(gasnetex_token_t token,
-  gasnetex_handlerarg_t teamid, gasnetex_handlerarg_t phase,
-  gasnetex_handlerarg_t flags, gasnetex_handlerarg_t value) {
+  gex_AM_Arg_t teamid, gex_AM_Arg_t phase,
+  gex_AM_Arg_t flags, gex_AM_Arg_t value) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amcbarrier_t *barrier_data = team->barrier_data;
 
@@ -1795,7 +1795,7 @@ void gasnete_amcbarrier_send(gasnete_coll_team_t team, int phase, int value, int
   gasnete_coll_amcbarrier_t *barrier_data = team->barrier_data;
 
   if (barrier_data->amcbarrier_max == 1) {
-    barrier_data->amcbarrier_response_value[phase] = (gasnetex_handlerarg_t)value;
+    barrier_data->amcbarrier_response_value[phase] = (gex_AM_Arg_t)value;
     barrier_data->amcbarrier_response_flags[phase] = flags;
     barrier_data->amcbarrier_response_done[phase] = 1;
   } else {
