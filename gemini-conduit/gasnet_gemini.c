@@ -1426,7 +1426,7 @@ void *gasnetc_alloc_bounce_buffer(gex_Flags_t flags GASNETC_DIDX_FARG)
     GASNETC_TRACE_WAIT_BEGIN();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
     buf = gasneti_lifo_pop(pool_p);
-    if_pf (!buf && !(flags & GASNETEX_FLAG_IMMEDIATE)) {
+    if_pf (!buf && !(flags & GEX_FLAG_IMMEDIATE)) {
       do {
         GASNETI_WAITHOOK();
         gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
@@ -1667,7 +1667,7 @@ out_immediate_1:
 // is this considered a "stall" which leads to calls to GASNETI_WAITHOOK() and
 // tracing output giving the length of the stall once _condition is false.
 // Additionally, _escape is an expression (with a goto) that allows for the
-// premature exit in the case of GASNETEX_FLAG_IMMEDIATE.
+// premature exit in the case of GEX_FLAG_IMMEDIATE.
 //
 //  + The AM buffer lock is held on entry and exit
 //    - Must hold AM buffer lock to evaluate _condution
@@ -1723,7 +1723,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
   const unsigned int slots = MAX(1, ((length + am_slotsz - 1) >> am_slot_bits));
   uint64_t mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
   reply_pool_t *r;
-  gex_Flags_t imm_flag = flags & GASNETEX_FLAG_IMMEDIATE;
+  gex_Flags_t imm_flag = flags & GEX_FLAG_IMMEDIATE;
 
 #if GASNETC_IMMEDIATE_AMPOLLS
   // BUSYWAIT may AMPoll at most once when IMMEDIATE flag is set
@@ -2716,7 +2716,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNE
     gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
     if (gpd) {
       /* nothing to do */
-    } else if (flags & GASNETEX_FLAG_IMMEDIATE) {
+    } else if (flags & GEX_FLAG_IMMEDIATE) {
       return NULL;
     } else {
       do {

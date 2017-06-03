@@ -2097,7 +2097,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     gex_AM_Arg_t *args;
     size_t msg_len;
     int i;
-    int immediate = flags & GASNETEX_FLAG_IMMEDIATE;
+    int immediate = flags & GEX_FLAG_IMMEDIATE;
     int fail_type = GASNETC_FAIL_IMM;
     int have_flow;
     int packedlong = 0;
@@ -4477,7 +4477,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                                  argptr GASNETI_THREAD_PASS);
 
   rbuf->rbuf_needReply = (retval != GASNET_OK);
-  gasneti_assert(!rbuf->rbuf_needReply || (flags & GASNETEX_FLAG_IMMEDIATE));
+  gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
 
   return retval;
 }

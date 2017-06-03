@@ -417,15 +417,15 @@ typedef uintptr_t gex_RMA_Value_t;
 /* ------------------------------------------------------------------------------------ */
 /* flags by group */
 
-#define GASNETEX_FLAG_IMMEDIATE              (1U <<  0)
+#define GEX_FLAG_IMMEDIATE              (1U <<  0)
 
-#define GASNETEX_FLAG_SRC_IN_SEGMENT         (1U <<  1)
-#define GASNETEX_FLAG_SRC_IN_BOUND_SEGMENT  ((1U <<  2) | GASNETEX_FLAG_SRC_IN_SEGMENT)
-#define GASNETEX_FLAG_SRC_OFFSET            ((1U <<  3) | GASNETEX_FLAG_SRC_IN_BOUND_SEGMENT)
+#define GEX_FLAG_SRC_IN_SEGMENT         (1U <<  1)
+#define GEX_FLAG_SRC_IN_BOUND_SEGMENT  ((1U <<  2) | GEX_FLAG_SRC_IN_SEGMENT)
+#define GEX_FLAG_SRC_OFFSET            ((1U <<  3) | GEX_FLAG_SRC_IN_BOUND_SEGMENT)
 
-#define GASNETEX_FLAG_DST_IN_SEGMENT         (1U <<  4)
-#define GASNETEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GASNETEX_FLAG_DST_IN_SEGMENT)
-#define GASNETEX_FLAG_DST_OFFSET            ((1U <<  6) | GASNETEX_FLAG_DST_IN_BOUND_SEGMENT)
+#define GEX_FLAG_DST_IN_SEGMENT         (1U <<  4)
+#define GEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GEX_FLAG_DST_IN_SEGMENT)
+#define GEX_FLAG_DST_OFFSET            ((1U <<  6) | GEX_FLAG_DST_IN_BOUND_SEGMENT)
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)

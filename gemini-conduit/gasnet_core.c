@@ -1329,7 +1329,7 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
   for (;;) {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
     if_pf (!gpd) break;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     gpd->gpd_completion = (uintptr_t) completed_p;
     gpd->gpd_flags = GC_POST_COMPLETION_CNTR;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
@@ -1497,7 +1497,7 @@ extern int gasnetc_AMRequestLongM(
       initiated = gasnetc_put_long_payload(dest, dest_addr, source_addr,
                                            nbytes, flags, &completed GASNETC_DIDX_PASS);
       if_pf (!initiated) goto out_immediate;
-      flags &= ~GASNETEX_FLAG_IMMEDIATE;
+      flags &= ~GEX_FLAG_IMMEDIATE;
     }
     
     /* Overlap gpd and/or credit stalls, if any, w/ the RDMA */
@@ -1638,7 +1638,7 @@ extern int gasnetc_AMReplyLongM(
       initiated = gasnetc_put_long_payload(reply_node(token), dest_addr, source_addr,
                                            nbytes, flags, &completed GASNETC_DIDX_PASS);
       if_pf (!initiated) goto out_immediate;
-      flags &= ~GASNETEX_FLAG_IMMEDIATE;
+      flags &= ~GEX_FLAG_IMMEDIATE;
     }
     
     /* Overlap gpd stall, if any, w/ the RDMA */

@@ -178,7 +178,7 @@ retry:
     gasneti_assert(xfer_len < nbytes);
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) return 1;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     tmp = gasnetc_rdma_get(node, dest, src, xfer_len, gpd);
     dest = (char *) dest + tmp;
     src  = (char *) src  + tmp;
@@ -196,7 +196,7 @@ retry:
     const size_t xfer_len = MIN(nbytes, chunksz);
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) return 1;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     chunksz = gasnetc_rdma_get(node, dest, src, xfer_len, gpd);
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
@@ -230,7 +230,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t n
     const size_t chunksz = MIN(nbytes, (max_chunk - src_offset));
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) return 1;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     gasnetc_rdma_get_unaligned(node, dest, src, chunksz, gpd);
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
@@ -250,7 +250,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t n
       int imm = gasnete_get_bulk_inner(dest, node, src, chunksz, flags,
                                        initiated_p, op, gpd_flags GASNETC_DIDX_PASS);
       if_pf (imm) return 1;
-      flags &= ~GASNETEX_FLAG_IMMEDIATE;
+      flags &= ~GEX_FLAG_IMMEDIATE;
       dest = (char *) dest + chunksz;
       src  = (char *) src  + chunksz;
       nbytes = tailsz;
@@ -262,7 +262,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t n
     const size_t chunksz = MIN(nbytes, max_chunk);
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) return 1;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     gasnetc_rdma_get_unaligned(node, dest, src, chunksz, gpd);
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
@@ -292,7 +292,7 @@ retry:
     gasneti_assert(xfer_len < nbytes);
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) return 1;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     tmp = gasnetc_rdma_put_bulk(node, dest, src, xfer_len, gpd);
     dest = (char *) dest + tmp;
     src  = (char *) src  + tmp;
@@ -310,7 +310,7 @@ retry:
     const size_t xfer_len = MIN(nbytes, chunksz);
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) return 1;
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     chunksz = gasnetc_rdma_put_bulk(node, dest, src, xfer_len, gpd);
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
@@ -387,7 +387,7 @@ gex_Event_t _gasnete_put_nb (
       goto out_immediate;
     }
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     head_op = (gex_Event_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;
@@ -524,7 +524,7 @@ int _gasnete_put_nbi (
       goto out_immediate;
     }
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    flags &= ~GASNETEX_FLAG_IMMEDIATE;
+    flags &= ~GEX_FLAG_IMMEDIATE;
     head_op = (gex_Event_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;

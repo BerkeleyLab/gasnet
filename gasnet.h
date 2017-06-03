@@ -366,7 +366,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 
 /* ------------------------------------------------------------------------------------ */
 /* Blocking Put and Get */
-// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put(node,dest,src,nbytes) \
                 gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
@@ -379,7 +379,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
-// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
                 gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0)
@@ -392,7 +392,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
-// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nb(node,dest,src,nbytes) \
                 gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0)
@@ -405,7 +405,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Gets - blocking and explicit-handle non-blocking */
-// TODO-EX: pass GASNETEX_FLAG_SRC_IN_SEGMENT and possibly other flags
+// TODO-EX: pass GEX_FLAG_SRC_IN_SEGMENT and possibly other flags
 
 #define gasnet_get_val(node,src,nbytes) \
                 gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,0)
@@ -443,7 +443,7 @@ gex_RMA_Value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Puts - blocking, and explicit- and implicit-handle non-blocking */
-// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_val(node,dest,value,nbytes) \
                 gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,0)

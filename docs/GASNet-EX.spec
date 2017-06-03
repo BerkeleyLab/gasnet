@@ -58,7 +58,7 @@ enum {
       // GEX_EVENT_NO_OP while those with return type 'int' will
       // return non-zero.
       //
-      GASNETEX_FLAG_IMMEDIATE = (1 << 999),
+      GEX_FLAG_IMMEDIATE = (1 << 999),
       //
       // LC_COPY_{YES,NO}
       //
@@ -70,16 +70,16 @@ enum {
       //
       // NOTE: these need more thought w.r.t. the implementation and
       // specification
-      GASNETEX_FLAG_LC_COPY_YES = (1 << 999),
-      GASNETEX_FLAG_LC_COPY_NO  = (1 << 999),
+      GEX_FLAG_LC_COPY_YES = (1 << 999),
+      GEX_FLAG_LC_COPY_NO  = (1 << 999),
       //
       // {SRC,DST}_IN_SEGMENT
       //
       // These flag bits assert that for the coresponding source or
       // destination address the range of bytes [address, address+nbytes)
       // is contained within the union of current GASNet-EX segments.
-      GASNETEX_FLAG_SRC_IN_SEGMENT = (1 << 999),
-      GASNETEX_FLAG_DST_IN_SEGMENT = (1 << 999),
+      GEX_FLAG_SRC_IN_SEGMENT = (1 << 999),
+      GEX_FLAG_DST_IN_SEGMENT = (1 << 999),
       //
       // {SRC,DST}_IN_BOUND_SEGMENT
       //
@@ -88,8 +88,8 @@ enum {
       // is contained within the segment bound to the respective source
       // or destination endpoint.
       // Implies the respective {SRC,DST}_IN_SEGMENT flag.
-      GASNETEX_FLAG_SRC_IN_BOUND_SEGMENT = (1 << 999),
-      GASNETEX_FLAG_DST_IN_BOUND_SEGMENT = (1 << 999),
+      GEX_FLAG_SRC_IN_BOUND_SEGMENT = (1 << 999),
+      GEX_FLAG_DST_IN_BOUND_SEGMENT = (1 << 999),
       //
       // {SRC,DST}_OFFSET
       //
@@ -97,8 +97,8 @@ enum {
       // is an *offset* relative to the segment base.
       // Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
       // implies the respective ..._IN_SEGMENT flag, indirectly).
-      GASNETEX_FLAG_SRC_OFFSET = (1 << 999),
-      GASNETEX_FLAG_DST_OFFSET = (1 << 999),
+      GEX_FLAG_SRC_OFFSET = (1 << 999),
+      GEX_FLAG_DST_OFFSET = (1 << 999),
 };
 
 // A "token" is an opaque scalar type
@@ -181,7 +181,7 @@ int gex_EP_RegisterHandlers(
 // NOTE 1: Return value
 // 
 //   An AM Request or Reply call is a "no op" IF AND ONLY IF the value
-//   GASNETEX_FLAG_IMMEDIATE is included in the 'flags' argument AND the
+//   GEX_FLAG_IMMEDIATE is included in the 'flags' argument AND the
 //   conduit could determine that it would need to block temporarily to
 //   obtain the necessary resources.  This case is distinguished by a
 //   non-zero return.  In all other cases the return value is zero.  
@@ -272,7 +272,7 @@ int gex_AM_ReplyShortM(
 // NOTE 1: Return value
 //
 //   An Extended API initiation call is a "no op" IF AND ONLY IF the value
-//   GASNETEX_FLAG_IMMEDIATE is included in the 'flags' argument AND the
+//   GEX_FLAG_IMMEDIATE is included in the 'flags' argument AND the
 //   conduit could determine that it would need to block temporarily to
 //   obtain the necessary resources.  The blocking and nbi calls return a
 //   non-zero value *only* in the "no op" case, while the nb calls return
