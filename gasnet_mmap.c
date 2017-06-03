@@ -1971,7 +1971,7 @@ void gasneti_auxseg_init(void) {
 #if GASNET_SEGMENT_EVERYTHING
   static gasnet_seginfo_t _gasneti_my_auxseg;
   static volatile gasnet_seginfo_t *_gasneti_auxseg_everything = NULL;
-  static gasneti_weakatomic32_t _gasneti_auxseg_rcvd[32] = {}; // Implicitly zero-initialized
+  static gasneti_weakatomic32_t _gasneti_auxseg_rcvd[32]; // Implicitly zero-initialized
 
   extern void gasnetc_auxseg_reqh(gasnet_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t arg0) {
     gasneti_assert(_gasneti_auxseg_everything != NULL);
