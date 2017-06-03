@@ -206,7 +206,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t *handles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
+    gex_Event_t *events = (gex_Event_t*) test_malloc(sizeof(gex_Event_t) * iters);
 	
     int pad = (alignment % PAGESZ);
 
@@ -222,9 +222,9 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of sending a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gex_RMA_PutNB(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
+                        events[i] = gex_RMA_PutNB(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
                 }
-		gex_Event_WaitAll(handles, iters);
+		gex_Event_WaitAll(events, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -244,9 +244,9 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of receiving a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gex_RMA_GetNB(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+                    events[i] = gex_RMA_GetNB(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
-		gex_Event_WaitAll(handles, iters);
+		gex_Event_WaitAll(events, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -258,7 +258,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 	}	
     }
 	
-    test_free(handles);
+    test_free(events);
 }
 
 int main(int argc, char **argv)

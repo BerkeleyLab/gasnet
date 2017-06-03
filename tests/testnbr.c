@@ -62,7 +62,7 @@ int nprocs;
 #define GHOST_DIR_UPPER 0
 #define GHOST_DIR_LOWER 1
 
-#define GP_BLOCK(x) do { gasnetex_handle_t h = (x);			    \
+#define GP_BLOCK(x) do { gex_Event_t h = (x);			    \
 	    if ((h) != GASNETEX_INVALID_HANDLE) gex_Event_Wait(h); } while (0)
 
 /*
@@ -171,13 +171,13 @@ void ghostExchUPCMG         (nbr_t *nb, int iters, int axis, int pairwise_sync);
 void ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis, int pairwise_sync);
 void ghostExchAMLong        (nbr_t *nb, int iters, int axis);
 
-gasnetex_handle_t ge_put   (nbr_t *nb, int type, int dir, int axis, int *flag);
-gasnetex_handle_t ge_notify(nbr_t *nb, int dir, int axis);
+gex_Event_t ge_put   (nbr_t *nb, int type, int dir, int axis, int *flag);
+gex_Event_t ge_notify(nbr_t *nb, int dir, int axis);
 void	        ge_wait  (nbr_t *nb, int dir, int axis);
 void	        ge_unpack(nbr_t *nb, double *src, size_t destp, int axis);
 
-void pairwise_signal_nbrs(nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase);
-void pairwise_wait_nbrs  (nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase);
+void pairwise_signal_nbrs(nbr_t *nb, gex_Event_t *h_nbr, int axis_in, int phase);
+void pairwise_wait_nbrs  (nbr_t *nb, gex_Event_t *h_nbr, int axis_in, int phase);
 
 #define hidx_ghostReqHandler 201
 
@@ -812,7 +812,7 @@ ghostExchUPCMGOrig(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
     uint64_t	    begin, end;
     stat_struct_t   stcomm3;
     int		    axes[3];
-    gasnetex_handle_t hput;
+    gex_Event_t hput;
 
     if (axis_in == AALL) {
 	axes[0] = 0; axes[1] = 1; axes[2] = 2;
@@ -873,7 +873,7 @@ ghostExchUPCMG(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
     uint64_t	    begin, end;
     stat_struct_t   stcomm3;
     int		    axes[3];
-    gasnetex_handle_t hput1, hput2;
+    gex_Event_t hput1, hput2;
 
     if (axis_in == AALL) {
 	axes[0] = 0; axes[1] = 1; axes[2] = 2;
@@ -940,8 +940,8 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 
     uint64_t	    begin, end;
     stat_struct_t   stcomm3;
-    gasnetex_handle_t hput[2];
-    gasnetex_handle_t sput[6];
+    gex_Event_t hput[2];
+    gex_Event_t sput[6];
 
     int	    axes[3];
     int	    axis_tot;
@@ -1024,7 +1024,7 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 		    sent++;
 		}
 
-		/* Try to progress handles in sput[] */
+		/* Try to progress events in sput[] */
                 gasnet_AMPoll();
 	        gex_Event_TestAll(sput, sent);
 	    }
@@ -1057,7 +1057,7 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
  * It's currently unused in all three versions of nbr exchanges.
  */
 void
-pairwise_signal_nbrs(nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase)
+pairwise_signal_nbrs(nbr_t *nb, gex_Event_t *h_nbr, int axis_in, int phase)
 {
     int	    i, axis, axis_tot;
     int	    axes[3];
@@ -1089,7 +1089,7 @@ pairwise_signal_nbrs(nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase
 }
 
 void
-pairwise_wait_nbrs(nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase)
+pairwise_wait_nbrs(nbr_t *nb, gex_Event_t *h_nbr, int axis_in, int phase)
 {
     int	    i, axis, axis_tot;
     int	    nfaces;
@@ -1207,7 +1207,7 @@ ghostExchAMLong(nbr_t *nb, int iters, int axis_in)
     return;
 }
 
-gasnetex_handle_t
+gex_Event_t
 ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 {
     int	n=0,i,j,k;
@@ -1298,7 +1298,7 @@ local_copy:
     return GASNETEX_INVALID_HANDLE;
 }
 
-gasnetex_handle_t
+gex_Event_t
 ge_notify(nbr_t *nb, int dir, int axis)
 {
     int islower = (dir == GHOST_DIR_LOWER);

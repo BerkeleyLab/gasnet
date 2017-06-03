@@ -1148,7 +1148,7 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1174,7 +1174,7 @@ extern int gasnetc_AMRequestLongM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1218,7 +1218,7 @@ extern int gasnetc_AMReplyMediumM(
                             gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags,
                             int numargs, ...) {
   int retval;
@@ -1242,7 +1242,7 @@ extern int gasnetc_AMReplyLongM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags,
                             int numargs, ...) {
   int retval;

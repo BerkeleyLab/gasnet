@@ -35,7 +35,7 @@ int maxdepth = 0;
 
 char *tgtmem;
 void *msgbuf;
-gasnetex_handle_t *handles;
+gex_Event_t *events;
 volatile gex_RMA_Value_t regval = 5551212;
 
 #define hidx_ping_shorthandler   201
@@ -255,7 +255,7 @@ int main(int argc, char **argv) {
     MSG0("x-axis: queue depth, y-axis: message size, injection time in microseconds\n");
     BARRIER();
 
-    handles = (gasnetex_handle_t *) test_malloc(sizeof(gasnetex_handle_t) * maxdepth);
+    events = (gex_Event_t *) test_malloc(sizeof(gex_Event_t) * maxdepth);
 
     do_bulkputs();
     do_nonbulkputgets();
@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
     do_amtests();
 
     BARRIER();
-    test_free(handles);
+    test_free(events);
     if (!insegment) {
 	test_free(alloc);
     }
@@ -369,8 +369,8 @@ int main(int argc, char **argv) {
 void do_bulkputs(void) {
     if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNB/bulk", 
-                 handles[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0), 
-                 gex_Event_WaitAll(handles, depth), (void)0, 0);
+                 events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0), 
+                 gex_Event_WaitAll(events, depth), (void)0, 0);
     }
 
     if (do_puts && do_bulk && do_implicit) {
@@ -382,14 +382,14 @@ void do_bulkputs(void) {
 void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNB", 
-                 handles[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_NOW, 0), 
-                 gex_Event_WaitAll(handles, depth), (void)0, 0);
+                 events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_NOW, 0), 
+                 gex_Event_WaitAll(events, depth), (void)0, 0);
     }
 
     if (do_gets && do_explicit) {
       QUEUE_TEST("gex_RMA_GetNB", 
-                 handles[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
-                 gex_Event_WaitAll(handles, depth), (void)0, 0);
+                 events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
+                 gex_Event_WaitAll(events, depth), (void)0, 0);
     }
 
     if (do_puts && do_nonbulk && do_implicit) {
@@ -407,8 +407,8 @@ void do_nonbulkputgets(void) {
 void do_valueputgets(void) {
     if (do_puts && do_value && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNBVal",
-                 handles[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, regval, payload, 0),
-                 gex_Event_WaitAll(handles, depth),
+                 events[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, regval, payload, 0),
+                 gex_Event_WaitAll(events, depth),
                  (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 

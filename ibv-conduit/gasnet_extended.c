@@ -80,7 +80,7 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -91,7 +91,7 @@ extern void gasnete_init(void) {
 */
 
 extern
-gasnetex_handle_t gasnete_get_nb(
+gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -106,16 +106,16 @@ gasnetex_handle_t gasnete_get_nb(
   gasnetc_rdma_get(rank, src, dest, nbytes, flags,
                    &op->initiated_cnt, gasnetc_cb_eop_get
                    GASNETI_THREAD_PASS);
-  return (gasnetex_handle_t)op;
+  return (gex_Event_t)op;
  }
 }
 
 extern
-gasnetex_handle_t gasnete_put_nb(
+gex_Event_t gasnete_put_nb(
                      gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -155,17 +155,17 @@ gasnetex_handle_t gasnete_put_nb(
       GASNETE_EOP_LC_FINISH(op);
       *lc_opt = GASNETEX_INVALID_HANDLE;
     } else {
-      *lc_opt = gasneti_op_handle(op, gasnete_eop_event_alc);
+      *lc_opt = gasneti_op_event(op, gasnete_eop_event_alc);
     }
   }
 
-  return (gasnetex_handle_t)op;
+  return (gex_Event_t)op;
  }
 }
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -200,7 +200,7 @@ extern
 int gasnete_put_nbi (gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
@@ -341,8 +341,8 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 /* IB-specific RDMA-based Dissemination implementation of barrier
  * This is a minor variation on the "rmd" barrier in extended-ref.
  * Key differences:
- *  + no complications due to thread-specific handles
- *  + no handle completion latency
+ *  + no complications due to thread-specific events
+ *  + no eop completion latency
  * TODO: factor the common elements
  */
 

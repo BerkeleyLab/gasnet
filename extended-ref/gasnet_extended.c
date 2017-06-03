@@ -75,7 +75,7 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -87,7 +87,7 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */

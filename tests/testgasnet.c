@@ -281,20 +281,20 @@ void doit(int partner, int *partnerseg) {
   /*  blocking list test */
   #define iters 100
   { GASNET_BEGIN_FUNCTION();
-    gasnetex_handle_t handles[iters];
+    gex_Event_t events[iters];
     int val1;
     int vals[iters];
     int success = 1;
     int i;
     for (i = 0; i < iters; i++) {
       val1 = 100 + i + mynode;
-      handles[i] = gex_RMA_PutNB(myteam, partner, partnerseg+i, &val1, sizeof(int), GASNETEX_EVENT_NOW, 0);
+      events[i] = gex_RMA_PutNB(myteam, partner, partnerseg+i, &val1, sizeof(int), GASNETEX_EVENT_NOW, 0);
     }
-    gex_Event_WaitAll(handles, iters);
+    gex_Event_WaitAll(events, iters);
     for (i = 0; i < iters; i++) {
-      handles[i] = gex_RMA_GetNB(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
+      events[i] = gex_RMA_GetNB(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gex_Event_WaitAll(handles, iters);
+    gex_Event_WaitAll(events, iters);
     for (i=0; i < iters; i++) {
       if (vals[i] != 100 + mynode + i) {
         MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
@@ -424,7 +424,7 @@ void doit5(int partner, int *partnerseg) {
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
-        gasnetex_handle_t handle;
+        gex_Event_t event;
         int elems = sz/8;
         int j;
         uint64_t val = VAL(sz, i); /* setup known src value */
@@ -439,19 +439,19 @@ void doit5(int partner, int *partnerseg) {
             segpos[j] = val;
           }
         }
-        handle = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GASNETEX_EVENT_DEFER, 0);
-        gex_Event_Wait(handle);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GASNETEX_EVENT_DEFER, 0);
+        gex_Event_Wait(event);
 
-        handle = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_EVENT_NOW, 0);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_EVENT_NOW, 0);
         memset(localpos, 0xCC, sz); /* clear */
-        gex_Event_Wait(handle);
+        gex_Event_Wait(event);
 
-        handle = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_EVENT_DEFER, 0);
-        gex_Event_Wait(handle);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_EVENT_DEFER, 0);
+        gex_Event_Wait(event);
 
-        handle = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_EVENT_NOW, 0);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_EVENT_NOW, 0);
         memset(segpos, 0xCC, sz); /* clear */
-        gex_Event_Wait(handle);
+        gex_Event_Wait(event);
 
         gex_Event_Wait(gex_RMA_GetNB(myteam, localpos, partner, rsegpos, sz, 0));
         gex_Event_Wait(gex_RMA_GetNB(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));

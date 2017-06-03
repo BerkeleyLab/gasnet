@@ -1249,7 +1249,7 @@ extern int gasnetc_AMRequestMediumM(
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
-                gasnetex_handle_t *lc_opt,
+                gex_Event_t *lc_opt,
                 gex_Flags_t flags
                 GASNETI_THREAD_FARG,
                 int numargs, ...)
@@ -1343,7 +1343,7 @@ extern int gasnetc_AMRequestLongM(
                 /*const*/ void *source_addr,   // Payload address (or OFFSET)
                 size_t nbytes,                 // Payload length
                 void *dest_addr,               // Payload destination address (or OFFSET)
-                gasnetex_handle_t *lc_opt,  // Local completion control (see above)
+                gex_Event_t *lc_opt,  // Local completion control (see above)
                 gex_Flags_t flags         // Flags to control this operation
                 GASNETI_THREAD_FARG,
                 int numargs, ...)
@@ -1483,7 +1483,7 @@ extern int gasnetc_AMReplyMediumM(
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
-                gasnetex_handle_t *lc_opt,
+                gex_Event_t *lc_opt,
                 gex_Flags_t flags,
                 int numargs, ...)
 {
@@ -1570,7 +1570,7 @@ extern int gasnetc_AMReplyLongM(
                 /*const*/ void *source_addr,
                 size_t nbytes,
                 void *dest_addr,
-                gasnetex_handle_t *lc_opt,
+                gex_Event_t *lc_opt,
                 gex_Flags_t flags,
                 int numargs, ...)
 {

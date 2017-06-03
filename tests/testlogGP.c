@@ -132,7 +132,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gex_Event_Wait(h);
 		}
 		end = TIME();
@@ -146,7 +146,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			test_delay(loops, pollcnt);
 			gex_Event_Wait(h);
 		}
@@ -160,7 +160,7 @@ void put_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -180,7 +180,7 @@ void put_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -255,7 +255,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gex_Event_Wait(h);
 		}
 		end = TIME();
@@ -269,7 +269,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			test_delay(loops, pollcnt);
 			gex_Event_Wait(h);
 		}
@@ -283,7 +283,7 @@ void get_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gex_Event_Wait(h);
 		}
 	} else {
@@ -303,7 +303,7 @@ void get_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gex_Event_Wait(h);
 		}
 	} else {

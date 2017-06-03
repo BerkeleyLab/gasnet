@@ -361,7 +361,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
                                  gasnetex_rank_t rank, void *dest,
                                  void *src,
                                  size_t nbytes,
-                                 gasnetex_handle_t *lc_opt,
+                                 gex_Event_t *lc_opt,
                                  gex_Flags_t flags
                                  GASNETI_THREAD_FARG)
 {
@@ -446,14 +446,14 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-gasnetex_handle_t gasnete_amref_get_nb(
+gex_Event_t gasnete_amref_get_nb(
                      gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -467,9 +467,9 @@ gasnetex_handle_t gasnete_amref_get_nb(
     gex_AM_RequestShort(tm, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
                    (gex_AM_Arg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
 
-    return (gasnetex_handle_t)op;
+    return (gex_Event_t)op;
   } else {
-    /*  need many messages - use an access region to coalesce them into a single handle */
+    /*  need many messages - use an access region to coalesce them into a single event */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     gasnete_amref_get_nbi(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
@@ -482,18 +482,18 @@ gasnetex_handle_t gasnete_amref_get_nb(
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-gasnetex_handle_t gasnete_amref_put_nb(
+gex_Event_t gasnete_amref_put_nb(
                      gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
  GASNETI_CHECKPSHM_PUT(H);
  {
   // EVENT_DEFER is accomplished using an nbi access region, ended with EVENT_DEFER.
   // Otherwise this reference implementation has no way to portably link the
-  // LC of an AM Request to a gasnetex_handle_t.
+  // LC of an AM Request to a gex_Event_t.
   if (lc_opt != GASNETEX_EVENT_DEFER) {
     if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
@@ -502,7 +502,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
                                src, nbytes, lc_opt, 0,
                                PACK(dest), PACK_EOP_DONE(op));
 
-      return (gasnetex_handle_t)op;
+      return (gex_Event_t)op;
 #if GASNETE_USE_LONG_PUTS
     } else if (nbytes <= gex_AM_LUBRequestLong()) { // TODO-EX: _lub_ -> _max_
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
@@ -511,26 +511,26 @@ gasnetex_handle_t gasnete_amref_put_nb(
                              src, nbytes, dest, lc_opt, 0,
                              PACK_EOP_DONE(op));
 
-      return (gasnetex_handle_t)op;
+      return (gex_Event_t)op;
     }
 #endif
     // Fall through if too large for a single AM
   }
 
   {
-    /*  need many messages or EVENT_DEFER - use an access region to coalesce into a single handle */
+    /*  need many messages or EVENT_DEFER - use an access region to coalesce into a single event */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     int nbi_result;
-    gasnetex_handle_t handle;
+    gex_Event_t event;
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     nbi_result = gasnete_amref_put_nbi_inner(tm, rank, dest, src, nbytes,
                                              GASNETEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
-    handle = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
+    event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
-      gasnete_wait(handle GASNETI_THREAD_PASS);
-      handle = GASNETEX_NO_OP_HANDLE;
+      gasnete_wait(event GASNETI_THREAD_PASS);
+      event = GASNETEX_NO_OP_HANDLE;
     }
-    return handle;
+    return event;
   }
  }
 }
@@ -538,7 +538,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
   each message sends an ack - we count the number of implicit ops launched and compare
     with the number acknowledged
@@ -570,7 +570,7 @@ extern
 int gasnete_amref_put_nbi( gex_TM_t tm,
                            gasnetex_rank_t rank, void *dest,
                            void *src,
-                           size_t nbytes, gasnetex_handle_t *lc_opt,
+                           size_t nbytes, gex_Event_t *lc_opt,
                            gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);

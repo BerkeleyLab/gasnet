@@ -306,7 +306,7 @@ void roundtrip_nb_test(int iters, int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t hdlget, hdlput;
+    gex_Event_t hdlget, hdlput;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -360,13 +360,13 @@ void oneway_nb_test(int iters, int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    /*gasnetex_handle_t hdlget, hdlput;*/
-    gasnetex_handle_t *handles;
+    /*gex_Event_t hdlget, hdlput;*/
+    gex_Event_t *events;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 	
-	handles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
+	events = (gex_Event_t*) test_malloc(sizeof(gex_Event_t) * iters);
 	
 	memset(msgbuf, 1, nbytes);
 	memset(ackbuf, 0, nbytes);
@@ -381,9 +381,9 @@ void oneway_nb_test(int iters, int nbytes)
 		        gex_Event_Wait(hdlput);
 		}*/
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
+                        events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_EVENT_NOW, 0);
                 }
-		gex_Event_WaitAll(handles, iters);
+		gex_Event_WaitAll(events, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -405,9 +405,9 @@ void oneway_nb_test(int iters, int nbytes)
 		    gex_Event_Wait(hdlget);
 		}*/
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
+                    events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
                 } 
-		gex_Event_WaitAll(handles, iters);
+		gex_Event_WaitAll(events, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -418,7 +418,7 @@ void oneway_nb_test(int iters, int nbytes)
 		print_stat(myproc, &st, "get_nb throughput", PRINT_THROUGHPUT);
 	}	
 	
-	test_free(handles);
+	test_free(events);
 }
 
 int main(int argc, char **argv)
@@ -561,7 +561,7 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
-           gasnetex_handle_t *h = test_malloc(2*sizeof(gasnetex_handle_t)*warm_iters);
+           gex_Event_t *h = test_malloc(2*sizeof(gex_Event_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
               gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, 8, 0);

@@ -982,10 +982,10 @@ static void op_test(int id) {
     PTHREAD_BARRIER(num_threads);
 
     { gasneti_eop_t *eop;
-      gasnetex_handle_t h;
+      gex_Event_t h;
       eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
       assert_always(eop);
-      h = gasneti_eop_to_handle(eop);
+      h = gasneti_eop_to_event(eop);
       assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
       share[id] = eop; /* hand-off eop to neighbor thread */
       PTHREAD_BARRIER(num_threads);
@@ -1050,9 +1050,9 @@ static void op_test(int id) {
         ASSERT_NBI_NOTSYNCED();
 
         { /* implicit access region */
-          gasnetex_handle_t h;
+          gex_Event_t h;
           gasneti_eop_t *eop;
-          gasnetex_handle_t h2;
+          gex_Event_t h2;
 
           gex_NBI_BeginAccessRegion(0);
           iop2 = gasneti_iop_register(1, isget GASNETI_THREAD_GET); /* iop2 = 1 */
@@ -1068,7 +1068,7 @@ static void op_test(int id) {
 
           eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
           assert_always(eop);
-          h2 = gasneti_eop_to_handle(eop);
+          h2 = gasneti_eop_to_event(eop);
           assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
 

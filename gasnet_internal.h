@@ -411,28 +411,28 @@ struct _gasneti_iop_S;
 typedef const struct _gasneti_iop_S gasneti_iop_t;
 #endif
 
-/* create a new explicit-handle NB operation
+/* create a new explicit-event NB operation
    represented with abstract type gasneti_eop_t
    and mark it in-flight */
 gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE);
 
 /* convert an gasneti_eop_t* created by an earlier call from this
-   thread to gasneti_new_eop(), into a gasnetex_handle_t suitable
+   thread to gasneti_new_eop(), into a gex_Event_t suitable
    for this thread to later pass to gex_Event_Wait & friends */
 #if GASNETI_EOP_IS_HANDLE
-  #define gasneti_eop_to_handle(eop) ((gasnetex_handle_t)(eop))
+  #define gasneti_eop_to_event(eop) ((gex_Event_t)(eop))
 #else
-  gasnetex_handle_t gasneti_eop_to_handle(gasneti_eop_t *eop);
+  gex_Event_t gasneti_eop_to_event(gasneti_eop_t *eop);
 #endif
 
 /* register noperations in-flight operations on the currently selected 
-   implicit-handle NB context represented with abstract type gasneti_iop_t, 
+   implicit-event NB context represented with abstract type gasneti_iop_t, 
    and return a pointer to that context
    if isput is non-zero, the registered operations are puts, otherwise they are gets */
 gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_THREAD_FARG);
 
 /* given an gasneti_eop_t* returned by an earlier call from any thread
-   to gasneti_new_eop(), mark that explicit-handle NB operation complete
+   to gasneti_new_eop(), mark that explicit-event NB operation complete
    such that a subsequent sync call on the relevant operation by the initiating
    thread may return success
    Caller is responsible for calling gasneti_sync_writes before calling this fn, if necessary
@@ -440,7 +440,7 @@ gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_
 void gasneti_eop_markdone(gasneti_eop_t *eop);
 
 /* given an gasneti_iop_t* returned by an earlier call from any thread
-   to gasneti_iop_register(), increment that implicit-handle NB context
+   to gasneti_iop_register(), increment that implicit-event NB context
    to indicate that noperations have completed.
    if isput is non-zero, the operations are puts, otherwise they are gets
    noperations must not exceed the number of isput-type operations initiated

@@ -3482,7 +3482,7 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -3505,7 +3505,7 @@ extern int gasnetc_AMRequestLongM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -3522,16 +3522,16 @@ extern int gasnetc_AMRequestLongM(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       if (flags & GASNETI_FLAG_LC_OPT_IN) {
-        gasnete_op_t *op = gasneti_handle_op(*lc_opt);
+        gasnete_op_t *op = gasneti_event_op(*lc_opt);
         if (OPTYPE(op) == OPTYPE_IMPLICIT) {
           gasnete_iop_t *iop = (gasnete_iop_t*)op;
-          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_iop_event_alc);
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_iop_event_alc);
           gasneti_assert(iop->next); // Within an NBI access region
           local_cnt = &iop->initiated_alc_cnt;
           local_cb = gasnetc_cb_nar_alc;
         } else {
           eop = (gasnete_eop_t*)op;
-          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_eop_event_alc);
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_eop_event_alc);
           GASNETE_EOP_LC_START(eop);
           start_cnt = eop->initiated_alc;
           local_cnt = &eop->initiated_alc;
@@ -3539,7 +3539,7 @@ extern int gasnetc_AMRequestLongM(
         }
       } else {
         eop = _gasnete_eop_new(GASNETI_MYTHREAD);
-        *lc_opt = (gasnetex_handle_t)eop;
+        *lc_opt = (gex_Event_t)eop;
         GASNETE_EOP_LC_START(eop);
         start_cnt = eop->initiated_alc;
         local_cnt = &eop->initiated_alc;
@@ -3600,7 +3600,7 @@ extern int gasnetc_AMReplyMediumM(
                             gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags,
                             int numargs, ...) {
   GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
@@ -3622,7 +3622,7 @@ extern int gasnetc_AMReplyLongM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags,
                             int numargs, ...) {
   GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
@@ -3639,16 +3639,16 @@ extern int gasnetc_AMReplyLongM(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       if (flags & GASNETI_FLAG_LC_OPT_IN) {
-        gasnete_op_t *op = gasneti_handle_op(*lc_opt);
+        gasnete_op_t *op = gasneti_event_op(*lc_opt);
         if (OPTYPE(op) == OPTYPE_IMPLICIT) {
           gasnete_iop_t *iop = (gasnete_iop_t*)op;
-          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_iop_event_alc);
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_iop_event_alc);
           gasneti_assert(iop->next); // Within an NBI access region
           local_cnt = &iop->initiated_alc_cnt;
           local_cb = gasnetc_cb_nar_alc;
         } else {
           eop = (gasnete_eop_t*)op;
-          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_eop_event_alc);
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_eop_event_alc);
           GASNETE_EOP_LC_START(eop);
           start_cnt = eop->initiated_alc;
           local_cnt = &eop->initiated_alc;
@@ -3656,7 +3656,7 @@ extern int gasnetc_AMReplyLongM(
         }
       } else {
         eop = _gasnete_eop_new(GASNETI_MYTHREAD);
-        *lc_opt = (gasnetex_handle_t)eop;
+        *lc_opt = (gex_Event_t)eop;
         GASNETE_EOP_LC_START(eop);
         start_cnt = eop->initiated_alc;
         local_cnt = &eop->initiated_alc;

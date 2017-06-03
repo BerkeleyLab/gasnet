@@ -996,7 +996,7 @@ Notes for myself for extended API:
   The second counter is for request completion and should be non-NULL
   for every sbuf for which request completion would be checked (all
   gets & puts, but not the Longs).  For nb and nbi the counter is
-  waited on at sync-time.  Therefore the explicit handle is a struct
+  waited on at sync-time.  Therefore the explicit event is a struct
   containing the counter.
   
 + Similar to the reference implementation's cut-off between Mediums
@@ -1048,7 +1048,7 @@ Notes for myself for extended API:
     an automatic variable).
   - For the implicit-handle forms the request counter is in the
     thread-specific data, possibly in an access-region.
-  - For the explicit handle forms the request counter must be allocated
+  - For the explicit event forms the request counter must be allocated
     from some pool, requiring some memory management work.  This is
     done with a modification to the code from the reference
     implementation, and uses thread-local data to avoid locks.

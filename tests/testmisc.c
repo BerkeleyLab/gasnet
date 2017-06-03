@@ -146,12 +146,12 @@ gasnett_atomic64_t a64 = gasnett_atomic64_init(0);
 int32_t temp = 0;
 gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
-gasnetex_handle_t handles[8];
+gex_Event_t events[8];
 /* ------------------------------------------------------------------------------------ */
 void doit1(void) { GASNET_BEGIN_FUNCTION();
 
     { int i; for (i=0;i<8;i++) {
-        handles[i] = GASNETEX_INVALID_HANDLE;
+        events[i] = GASNETEX_INVALID_HANDLE;
     } }
 
     TEST_SECTION_BEGIN();
@@ -423,17 +423,17 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("do-nothing gex_Event_Test()",
       { int junk = gex_Event_Test(GASNETEX_INVALID_HANDLE); });
 
-    TIME_OPERATION("do-nothing gex_Event_WaitAll() (8 handles)",
-      { gex_Event_WaitAll(handles, 8); });
+    TIME_OPERATION("do-nothing gex_Event_WaitAll() (8 events)",
+      { gex_Event_WaitAll(events, 8); });
 
-    TIME_OPERATION("do-nothing gex_Event_WaitSome() (8 handles)",
-      { gex_Event_WaitSome(handles, 8); });
+    TIME_OPERATION("do-nothing gex_Event_WaitSome() (8 events)",
+      { gex_Event_WaitSome(events, 8); });
 
-    TIME_OPERATION("do-nothing gex_Event_TestAll() (8 handles)",
-      { gex_Event_TestAll(handles, 8);  });
+    TIME_OPERATION("do-nothing gex_Event_TestAll() (8 events)",
+      { gex_Event_TestAll(events, 8);  });
 
-    TIME_OPERATION("do-nothing gex_Event_TestSome() (8 handles)",
-      { gex_Event_TestSome(handles, 8); });
+    TIME_OPERATION("do-nothing gex_Event_TestSome() (8 events)",
+      { gex_Event_TestSome(events, 8); });
 
 
     TIME_OPERATION("do-nothing gex_NBI_WaitAll()",

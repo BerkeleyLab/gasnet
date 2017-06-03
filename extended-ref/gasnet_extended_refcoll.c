@@ -305,7 +305,7 @@ gasnete_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNE
 typedef struct {
   uintptr_t		addr;	/* least significant bit: 0 = handle, 1 = coll_handle */
   union {
-    gasnetex_handle_t		handle;
+    gex_Event_t		handle;
     gasnet_coll_handle_t	coll_handle;
   }		u;
 } gasnete_coll_local_handle_t;
@@ -328,7 +328,7 @@ gasnete_coll_local_handles(gasnete_coll_threaddata_t *td, int grow) {
   return result;
 }
 
-void gasnete_coll_save_handle(gasnetex_handle_t *handle_p GASNETE_THREAD_FARG) {
+void gasnete_coll_save_handle(gex_Event_t *handle_p GASNETE_THREAD_FARG) {
   if (*handle_p != GASNETEX_INVALID_HANDLE) {
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
     gasnete_coll_local_handle_t *p = gasnete_coll_local_handles(td, 1);
@@ -373,7 +373,7 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
         synced = (gasnete_test(curr->u.handle GASNETE_THREAD_PASS) == GASNET_OK);
         if (synced) {
           gasneti_sync_writes();
-          *((gasnetex_handle_t *)addr) = GASNETEX_INVALID_HANDLE;
+          *((gex_Event_t *)addr) = GASNETEX_INVALID_HANDLE;
         }
       }
       if (synced) {

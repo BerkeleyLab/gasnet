@@ -12,12 +12,12 @@
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   =========================================================
  */
 
 GASNETI_INLINE(gasnete_get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_get_nb(
+gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -31,11 +31,11 @@ gasnetex_handle_t gasnete_get_nb(
 #define gasnete_get_nb gasnete_get_nb
 
 GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb(
+gex_Event_t gasnete_put_nb(
                      gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -46,14 +46,14 @@ gasnetex_handle_t gasnete_put_nb(
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for explicit-handle non-blocking operations:
+  Synchronization for explicit-event non-blocking operations:
   ===========================================================
 */
 
 GASNETI_INLINE(gasnete_syncnb_one)
-int gasnete_syncnb_one(gasnetex_handle_t handle GASNETI_THREAD_FARG)
+int gasnete_syncnb_one(gex_Event_t event GASNETI_THREAD_FARG)
 {
-  gasneti_assert(handle == GASNETEX_INVALID_HANDLE);
+  gasneti_assert(event == GASNETEX_INVALID_HANDLE);
   gasneti_sync_reads();
   return GASNET_OK;
 }
@@ -61,11 +61,11 @@ int gasnete_syncnb_one(gasnetex_handle_t handle GASNETI_THREAD_FARG)
 #define gasnete_wait gasnete_syncnb_one
 
 GASNETI_INLINE(gasnete_syncnb_array)
-int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG)
+int gasnete_syncnb_array(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG)
 {
 #if GASNET_DEBUG
-  for (size_t i=0; i<numhandles; ++i)
-    gasneti_assert(phandle[i] == GASNETEX_INVALID_HANDLE);
+  for (size_t i=0; i<numevents; ++i)
+    gasneti_assert(pevent[i] == GASNETEX_INVALID_HANDLE);
 #endif
   gasneti_sync_reads();
   return GASNET_OK;
@@ -77,7 +77,7 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles GASNETI_T
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
  */
    
@@ -98,7 +98,7 @@ GASNETI_INLINE(gasnete_put_nbi)
 int gasnete_put_nbi (gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
@@ -109,7 +109,7 @@ int gasnete_put_nbi (gex_TM_t tm,
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for implicit-handle non-blocking operations:
+  Synchronization for implicit-event non-blocking operations:
   ===========================================================
 */
 GASNETI_INLINE(gasnete_syncnbi)
@@ -141,7 +141,7 @@ void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNET
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG)
+gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG)
 { return GASNETEX_INVALID_HANDLE; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
@@ -166,7 +166,7 @@ int gasnete_put_val(
 #define gasnete_put_val gasnete_put_val
 
 GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb_val(
+gex_Event_t gasnete_put_nb_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,

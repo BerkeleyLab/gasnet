@@ -43,7 +43,7 @@ typedef gex_AM_Index_t gasnet_handler_t;
 typedef gex_AM_Arg_t gasnet_handlerarg_t;
 typedef gex_RMA_Value_t gasnet_register_value_t;
 
-typedef gasnetex_handle_t gasnet_handle_t;
+typedef gex_Event_t gasnet_handle_t;
 #define GASNET_INVALID_HANDLE GASNETEX_INVALID_HANDLE
 
 /* ------------------------------------------------------------------------------------ */
@@ -412,7 +412,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 
 typedef struct {
   gex_RMA_Value_t v;
-  gasnetex_handle_t         h;
+  gex_Event_t         h;
 } *gasnet_valget_handle_t;
 
 GASNETT_INLINE(gasnet_get_nb_val)

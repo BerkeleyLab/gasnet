@@ -24,7 +24,7 @@
     extern void _gasnetX_fetch##_name(                            \
                 _type *dest, gasnetex_rank_t node, _type *src,      \
                 _type operand GASNETI_THREAD_FARG);               \
-    extern gasnetex_handle_t _gasnetX_fetch##_name##_nb(            \
+    extern gex_Event_t _gasnetX_fetch##_name##_nb(            \
                 _type *dest, gasnetex_rank_t node, _type *src,      \
                 _type operand GASNETI_THREAD_FARG)                \
                 GASNETI_WARN_UNUSED_RESULT;                       \

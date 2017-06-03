@@ -39,21 +39,21 @@ extern void gasnete_init(void);
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 
 #ifndef gasnete_put_nb
-  extern gasnetex_handle_t gasnete_put_nb(
+  extern gex_Event_t gasnete_put_nb(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gasnetex_handle_t *lc_opt,
+                        size_t nbytes, gex_Event_t *lc_opt,
                         gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #ifndef gasnete_get_nb
-  extern gasnetex_handle_t gasnete_get_nb(
+  extern gex_Event_t gasnete_get_nb(
                         gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
                         size_t nbytes, gex_Flags_t flags
@@ -61,7 +61,7 @@ extern void gasnete_init(void);
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetNB) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gex_RMA_GetNB(
+gex_Event_t _gex_RMA_GetNB(
                         gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
                         size_t nbytes, gex_Flags_t flags
@@ -82,11 +82,11 @@ gasnetex_handle_t _gex_RMA_GetNB(
        _gex_RMA_GetNB(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_RMA_PutNB) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gex_RMA_PutNB(
+gex_Event_t _gex_RMA_PutNB(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gasnetex_handle_t *lc_opt,
+                        size_t nbytes, gex_Event_t *lc_opt,
                         gex_Flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NB,H);
   gasneti_boundscheck(tm, rank, dest, nbytes);
@@ -105,107 +105,107 @@ gasnetex_handle_t _gex_RMA_PutNB(
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for explicit-handle non-blocking operations:
+  Synchronization for explicit-event non-blocking operations:
   ===========================================================
 */
 
 #ifndef gasnete_test
-extern int gasnete_test(gasnetex_handle_t handle GASNETI_THREAD_FARG);
+extern int gasnete_test(gex_Event_t event GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_test_some
-extern int gasnete_test_some(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG);
+extern int gasnete_test_some(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_test_all
-extern int gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG);
+extern int gasnete_test_all (gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG);
 #endif
 
 
 GASNETI_INLINE(_gex_Event_Test) GASNETI_WARN_UNUSED_RESULT
-int  _gex_Event_Test(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
+int  _gex_Event_Test(gex_Event_t event GASNETI_THREAD_FARG) {
   int result = GASNET_OK;
-  if_pt (handle != GASNETEX_INVALID_HANDLE)
-    result = gasnete_test(handle GASNETI_THREAD_PASS);
+  if_pt (event != GASNETEX_INVALID_HANDLE)
+    result = gasnete_test(event GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNB,result);
   return result;
 }
-#define gex_Event_Test(phandle) \
-       _gex_Event_Test(phandle GASNETI_THREAD_GET)
+#define gex_Event_Test(pevent) \
+       _gex_Event_Test(pevent GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_Event_TestSome)
-int _gex_Event_TestSome(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
-  int result = gasnete_test_some(phandle,numhandles GASNETI_THREAD_PASS);
+int _gex_Event_TestSome(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
+  int result = gasnete_test_some(pevent,numevents GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_SOME,result);
   return result;
 }
-#define gex_Event_TestSome(phandle, numhandles) \
-       _gex_Event_TestSome(phandle, numhandles GASNETI_THREAD_GET)
+#define gex_Event_TestSome(pevent, numevents) \
+       _gex_Event_TestSome(pevent, numevents GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_Event_TestAll)
-int _gex_Event_TestAll(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
-  int result = gasnete_test_all(phandle,numhandles GASNETI_THREAD_PASS);
+int _gex_Event_TestAll(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
+  int result = gasnete_test_all(pevent,numevents GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_ALL,result);
   return result;
 }
-#define gex_Event_TestAll(phandle, numhandles) \
-       _gex_Event_TestAll(phandle, numhandles GASNETI_THREAD_GET)
+#define gex_Event_TestAll(pevent, numevents) \
+       _gex_Event_TestAll(pevent, numevents GASNETI_THREAD_GET)
 
 
 #ifndef gasnete_wait
   GASNETI_INLINE(gasnete_wait)
-  void gasnete_wait(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
-    if_pt (handle != GASNETEX_INVALID_HANDLE) {
+  void gasnete_wait(gex_Event_t event GASNETI_THREAD_FARG) {
+    if_pt (event != GASNETEX_INVALID_HANDLE) {
       gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
-      gasneti_pollwhile(gasnete_test(handle GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+      gasneti_pollwhile(gasnete_test(event GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
     }
   }
 #endif
 
 GASNETI_INLINE(_gex_Event_Wait)
-void _gex_Event_Wait(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
+void _gex_Event_Wait(gex_Event_t event GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait(handle GASNETI_THREAD_PASS);
+  gasnete_wait(event GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB);
 }
-#define gex_Event_Wait(handle) \
-       _gex_Event_Wait(handle GASNETI_THREAD_GET)
+#define gex_Event_Wait(event) \
+       _gex_Event_Wait(event GASNETI_THREAD_GET)
 
 #ifndef gasnete_wait_some // TODO-EX: a non-inline function could allow some optimizations
   GASNETI_INLINE(gasnete_wait_some)
-  void gasnete_wait_some(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  void gasnete_wait_some(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
     gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
-    gasneti_pollwhile(gasnete_test_some(phandle, numhandles GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+    gasneti_pollwhile(gasnete_test_some(pevent, numevents GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
   }
 #endif
 
 GASNETI_INLINE(_gex_Event_WaitSome)
-void _gex_Event_WaitSome(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+void _gex_Event_WaitSome(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_some(phandle, numhandles GASNETI_THREAD_PASS);
+  gasnete_wait_some(pevent, numevents GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_SOME);
 }
-#define gex_Event_WaitSome(phandle, numhandles) \
-       _gex_Event_WaitSome(phandle, numhandles GASNETI_THREAD_GET)
+#define gex_Event_WaitSome(pevent, numevents) \
+       _gex_Event_WaitSome(pevent, numevents GASNETI_THREAD_GET)
 
 #ifndef gasnete_wait_all // TODO-EX: a non-inline function could allow some optimizations
   GASNETI_INLINE(gasnete_wait_all)
-  void gasnete_wait_all(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  void gasnete_wait_all(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
     gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
-    gasneti_pollwhile(gasnete_test_all(phandle, numhandles GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+    gasneti_pollwhile(gasnete_test_all(pevent, numevents GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
   }
 #endif
 
 GASNETI_INLINE(_gex_Event_WaitAll)
-void _gex_Event_WaitAll(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+void _gex_Event_WaitAll(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_all(phandle, numhandles GASNETI_THREAD_PASS);
+  gasnete_wait_all(pevent, numevents GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_ALL);
 }
-#define gex_Event_WaitAll(phandle, numhandles) \
-       _gex_Event_WaitAll(phandle, numhandles GASNETI_THREAD_GET)
+#define gex_Event_WaitAll(pevent, numevents) \
+       _gex_Event_WaitAll(pevent, numevents GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 
@@ -220,7 +220,7 @@ extern int gasnete_get_nbi  (gex_TM_t tm, void *dest,
 extern int gasnete_put_nbi  (gex_TM_t tm,
                              gasnetex_rank_t rank, void *dest,
                              /*const*/ void *src,  // TODO-EX: un-comment const
-                             size_t nbytes, gasnetex_handle_t *lc_opt,
+                             size_t nbytes, gex_Event_t *lc_opt,
                              gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 
@@ -248,7 +248,7 @@ GASNETI_INLINE(_gex_RMA_PutNBI)
 int _gex_RMA_PutNBI  (gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gasnetex_handle_t *lc_opt,
+                        size_t nbytes, gex_Event_t *lc_opt,
                         gex_Flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NBI,I);
   gasneti_boundscheck(tm, rank, dest, nbytes);
@@ -267,7 +267,7 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for implicit-handle non-blocking operations:
+  Synchronization for implicit-event non-blocking operations:
   ===========================================================
 */
 
@@ -385,7 +385,7 @@ int _gex_NBI_TestAll(GASNETI_THREAD_FARG_ALONE) {
 extern void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #define gex_NBI_BeginAccessRegion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
@@ -397,7 +397,7 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_
   =====================================
 */
 #ifndef gasnete_Event_QueryLeaf
-extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigned int event_id);
+extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_id);
 #endif
 
 #define gex_Event_QueryLeaf(root, event_id) gasnete_Event_QueryLeaf(root, event_id)
@@ -423,7 +423,7 @@ extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigne
                     size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG)
   {
-    gasnetex_handle_t h = gasnete_get_nb(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+    gex_Event_t h = gasnete_get_nb(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
     if (h == GASNETEX_NO_OP_HANDLE) return 1;
     else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
@@ -444,7 +444,7 @@ extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigne
                     size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG)
   {
-    gasnetex_handle_t h = gasnete_put_nb(tm, rank, dest, src, nbytes, GASNETEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
+    gex_Event_t h = gasnete_put_nb(tm, rank, dest, src, nbytes, GASNETEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
     if (h == GASNETEX_NO_OP_HANDLE) return 1;
     else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
@@ -542,7 +542,7 @@ int _gex_RMA_PutVal(  gex_TM_t tm,
        _gex_RMA_PutVal(tm,rank,dest,value,nbytes,flags GASNETI_THREAD_GET)
 
 #if GASNETI_DIRECT_PUT_NB_VAL && !defined(gasnete_put_nb_val)
-  extern gasnetex_handle_t gasnete_put_nb_val(
+  extern gex_Event_t gasnete_put_nb_val(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
@@ -551,7 +551,7 @@ int _gex_RMA_PutVal(  gex_TM_t tm,
 #endif
 
 GASNETI_INLINE(_gex_RMA_PutNBVal) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gex_RMA_PutNBVal (
+gex_Event_t _gex_RMA_PutNBVal (
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,

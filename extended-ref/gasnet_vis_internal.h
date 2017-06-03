@@ -25,7 +25,7 @@ typedef struct gasneti_vis_op_S {
   gasneti_weakatomic_t packetcnt;
   size_t count;
   size_t len;
-  gasnetex_handle_t handle;
+  gex_Event_t event;
 } gasneti_vis_op_t;
 
 /* per-thread state for VIS */
@@ -98,12 +98,12 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_RETURN_VOLATILE(eop, synctype) do {            \
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
-        gasnetex_handle_t h = gasneti_eop_to_handle(eop);              \
+        gex_Event_t h = gasneti_eop_to_event(eop);              \
         gasnete_wait(h GASNETI_THREAD_PASS);                         \
         return GASNETEX_INVALID_HANDLE;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
-        return gasneti_eop_to_handle(eop);                           \
+        return gasneti_eop_to_event(eop);                           \
       case gasnete_synctype_nbi:                                     \
         return GASNETEX_INVALID_HANDLE;                                \
       default: gasneti_fatalerror("bad synctype");                   \
@@ -146,7 +146,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
-   block if required, and return the appropriate handle */
+   block if required, and return the appropriate event */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
     if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
     switch (synctype) {                                                               \

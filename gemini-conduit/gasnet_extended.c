@@ -322,7 +322,7 @@ retry:
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -333,7 +333,7 @@ retry:
 */
 
 extern
-gasnetex_handle_t gasnete_get_nb(
+gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -357,17 +357,17 @@ gasnetex_handle_t gasnete_get_nb(
     gasneti_resume_spinpollers();
     if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GASNETEX_NO_OP_HANDLE);
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    return (gasnetex_handle_t) eop;
+    return (gex_Event_t) eop;
   }
 }
 
 GASNETI_INLINE(_gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gasnete_put_nb (
+gex_Event_t _gasnete_put_nb (
                      gasnetex_rank_t node, void *dest,
                      void *src, size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnetex_handle_t head_op = GASNETEX_INVALID_HANDLE;
+  gex_Event_t head_op = GASNETEX_INVALID_HANDLE;
   gasnete_eop_t *tail_op;
   const size_t max_tail = gasnetc_max_put_lc;
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
@@ -388,7 +388,7 @@ gasnetex_handle_t _gasnete_put_nb (
     }
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     flags &= ~GASNETEX_FLAG_IMMEDIATE;
-    head_op = (gasnetex_handle_t) eop;
+    head_op = (gex_Event_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;
     nbytes = max_tail;
@@ -407,7 +407,7 @@ gasnetex_handle_t _gasnete_put_nb (
   gasnete_wait(head_op GASNETI_THREAD_PASS);
 
   /* return the tail_op */
-  return (gasnetex_handle_t)tail_op;
+  return (gex_Event_t)tail_op;
 
 out_immediate:
   gasneti_resume_spinpollers();
@@ -416,7 +416,7 @@ out_immediate:
 }
 
 GASNETI_INLINE(_gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t _gasnete_put_nb_bulk (
+gex_Event_t _gasnete_put_nb_bulk (
                      gasnetex_rank_t node, void *dest,
                      void *src, size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -430,15 +430,15 @@ gasnetex_handle_t _gasnete_put_nb_bulk (
     gasneti_resume_spinpollers();
     if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GASNETEX_NO_OP_HANDLE);
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    return (gasnetex_handle_t) eop;
+    return (gex_Event_t) eop;
 }
 
 extern
-gasnetex_handle_t gasnete_put_nb(
+gex_Event_t gasnete_put_nb(
                      gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -462,7 +462,7 @@ fake_as_now:
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -506,7 +506,7 @@ int _gasnete_put_nbi (
 {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
-  gasnetex_handle_t head_op = GASNETEX_INVALID_HANDLE;
+  gex_Event_t head_op = GASNETEX_INVALID_HANDLE;
   const size_t max_tail = gasnetc_max_put_lc;
   gasnetc_post_descriptor_t *gpd;
   GASNETC_DIDX_POST(mythread->domain_idx);
@@ -525,7 +525,7 @@ int _gasnete_put_nbi (
     }
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     flags &= ~GASNETEX_FLAG_IMMEDIATE;
-    head_op = (gasnetex_handle_t) eop;
+    head_op = (gex_Event_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;
     nbytes = max_tail;
@@ -567,7 +567,7 @@ int _gasnete_put_nbi_bulk (
 int gasnete_put_nbi( gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
@@ -624,7 +624,7 @@ extern int gasnete_put_val(
   }
 }
 
-extern gasnetex_handle_t gasnete_put_nb_val(
+extern gex_Event_t gasnete_put_nb_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,
@@ -648,7 +648,7 @@ extern gasnetex_handle_t gasnete_put_nb_val(
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    return((gasnetex_handle_t) eop);
+    return((gex_Event_t) eop);
   }
 }
 
@@ -732,7 +732,7 @@ extern gex_RMA_Value_t gasnete_get_val(
   Not supported, and subject to change or removal.
 */
 
-static gasnetex_handle_t gasnete_fetchop_u64_nb(
+static gex_Event_t gasnete_fetchop_u64_nb(
         uint64_t *dest, gasnetex_rank_t node, uint64_t *src,
         gni_fma_cmd_type_t cmd, uint64_t operand GASNETI_THREAD_FARG)
 {
@@ -749,7 +749,7 @@ static gasnetex_handle_t gasnete_fetchop_u64_nb(
   gasneti_resume_spinpollers();
   GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
 
-  return (gasnetex_handle_t) eop;
+  return (gex_Event_t) eop;
 }
 
 static void gasnete_fetchop_u64_nbi(
@@ -800,7 +800,7 @@ static uint64_t gasnete_fetchop_u64_val(
         *dest = gasnete_fetchop_##_suff##_val(node, src, _cmd, operand GASNETI_THREAD_PASS); \
         gasneti_sync_writes();                                            \
     }                                                                     \
-    extern gasnetex_handle_t                                                \
+    extern gex_Event_t                                                \
     _gasnetX_fetch##_op##_##_suff##_nb(                                   \
                 _type *dest, gasnetex_rank_t node, _type *src,              \
                 _type operand GASNETI_THREAD_FARG)                        \
@@ -901,7 +901,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 /* GNI-specific RDMA-based Dissemination implementation of barrier
  * This is an adaptation of the "rmd" barrier in exteneded-ref.
  * Key differences:
- *  + no complications due to thread-specific handles
+ *  + no complications due to thread-specific events
  *  + simple 64-bit put since (aligned) 64-bit puts are atomic
  */
 

@@ -389,16 +389,16 @@ typedef struct {
 #ifndef _GASNETEX_HANDLE_T
   /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
   struct gasneti_handle_s;
-  typedef struct gasneti_handle_s *gasnetex_handle_t;
+  typedef struct gasneti_handle_s *gex_Event_t;
 
   // Pre-defined values: output handles
-  #define GASNETEX_INVALID_HANDLE      ((gasnetex_handle_t)(uintptr_t)0)
-  #define GASNETEX_NO_OP_HANDLE        ((gasnetex_handle_t)(uintptr_t)1)
+  #define GASNETEX_INVALID_HANDLE      ((gex_Event_t)(uintptr_t)0)
+  #define GASNETEX_NO_OP_HANDLE        ((gex_Event_t)(uintptr_t)1)
 
-  // Pre-defined values: input pointers-to-handle
-  #define GASNETEX_EVENT_NOW    ((gasnetex_handle_t*)(uintptr_t)1)
-  #define GASNETEX_EVENT_DEFER  ((gasnetex_handle_t*)(uintptr_t)2)
-  #define GASNETEX_EVENT_GROUP  ((gasnetex_handle_t*)(uintptr_t)3)
+  // Pre-defined values: input pointers-to-event
+  #define GASNETEX_EVENT_NOW    ((gex_Event_t*)(uintptr_t)1)
+  #define GASNETEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)2)
+  #define GASNETEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)3)
 #endif
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */

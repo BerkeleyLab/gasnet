@@ -207,7 +207,7 @@ void roundtrip_nb_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t hdlput;
+    gex_Event_t hdlput;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -239,13 +239,13 @@ void oneway_nb_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t *phandles;
+    gex_Event_t *pevents;
     gex_RMA_Value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 	
-	phandles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
+	pevents = (gex_Event_t*) test_malloc(sizeof(gex_Event_t) * iters);
 	
 	BARRIER();
 	
@@ -254,10 +254,10 @@ void oneway_nb_test(int nbytes)
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-                        phandles[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem+offset,
+                        pevents[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem+offset,
 							  (gex_RMA_Value_t)i, nbytes, 0);
                 }
-		gex_Event_WaitAll(phandles, iters);
+		gex_Event_WaitAll(pevents, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -268,7 +268,7 @@ void oneway_nb_test(int nbytes)
 		print_stat(myproc, &st, "put_nb_val throughput", PRINT_THROUGHPUT);
 	}	
 	
-	test_free(phandles);
+	test_free(pevents);
 }
 
 
@@ -447,7 +447,7 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
-           gasnetex_handle_t *ph = test_malloc(sizeof(gasnetex_handle_t)*warm_iters);
+           gex_Event_t *ph = test_malloc(sizeof(gex_Event_t)*warm_iters);
            gex_RMA_Value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
               gex_RMA_PutBlockingVal(myteam, peerproc, tgtmem, reg, max_payload, 0);

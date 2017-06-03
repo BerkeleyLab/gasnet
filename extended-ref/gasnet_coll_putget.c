@@ -5943,7 +5943,7 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
         GASNETE_FAST_UNALIGNED_MEMCPY((void*) myscratch, args->src, args->nbytes);
       } 
-      data->private_data = gasneti_malloc(sizeof(gasnetex_handle_t)*child_count);
+      data->private_data = gasneti_malloc(sizeof(gex_Event_t)*child_count);
       data->state =2;
     case 2:
       if(child_count > 0) {
@@ -5980,15 +5980,15 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
               } else {
                 child_scratch = args->src;
               }
-              ((gasnetex_handle_t*) data->private_data)[i] = gasnete_get_nb(NULL, (void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
+              ((gex_Event_t*) data->private_data)[i] = gasnete_get_nb(NULL, (void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
                                                                                child_scratch, args->nbytes, 0 GASNETE_THREAD_PASS);
-              gasnete_coll_save_handle(&((gasnetex_handle_t*) data->private_data)[i] GASNETE_THREAD_PASS);
+              gasnete_coll_save_handle(&((gex_Event_t*) data->private_data)[i] GASNETE_THREAD_PASS);
               
               state[i]++;
               
             }
             case 2: {
-              if(((gasnetex_handle_t*) data->private_data)[i] != GASNETEX_INVALID_HANDLE) {done = 0; break;}
+              if(((gex_Event_t*) data->private_data)[i] != GASNETEX_INVALID_HANDLE) {done = 0; break;}
               gasneti_sync_reads();
               if(!(op->flags & GASNET_COLL_OUT_ALLSYNC)) {
                 gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);
@@ -6478,7 +6478,7 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
         gasnete_coll_local_reduce(op->team->my_images, (void*) myscratch, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, op->flags),
                                   args->elem_size, args->elem_count, args->func, args->func_arg);
       } 
-      data->private_data = gasneti_malloc(sizeof(gasnetex_handle_t)*child_count);
+      data->private_data = gasneti_malloc(sizeof(gex_Event_t)*child_count);
       data->state = 2;
     case 2:
       if(child_count > 0) {
@@ -6511,15 +6511,15 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
             case 1: {
               /* ok to get so initiate get*/
               child_scratch = ((int8_t*)op->team->scratch_segs[children[i]].addr)+op->scratchpos[i];
-              ((gasnetex_handle_t*) data->private_data)[i] = gasnete_get_nb(NULL, (void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
+              ((gex_Event_t*) data->private_data)[i] = gasnete_get_nb(NULL, (void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
                                                                                child_scratch, args->nbytes, 0 GASNETE_THREAD_PASS);
-              gasnete_coll_save_handle(&((gasnetex_handle_t*) data->private_data)[i] GASNETE_THREAD_PASS);
+              gasnete_coll_save_handle(&((gex_Event_t*) data->private_data)[i] GASNETE_THREAD_PASS);
               
               state[i]++;
               
             }
             case 2: {
-              if(((gasnetex_handle_t*) data->private_data)[i] != GASNETEX_INVALID_HANDLE) {done = 0; break;}
+              if(((gex_Event_t*) data->private_data)[i] != GASNETEX_INVALID_HANDLE) {done = 0; break;}
               gasneti_sync_reads();
               if(!(op->flags & GASNET_COLL_OUT_ALLSYNC)) {
                 gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);

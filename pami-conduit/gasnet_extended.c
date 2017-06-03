@@ -223,7 +223,7 @@ extern void gasnete_init(void) {
  * that while PAMI has distinct Local and Remote completion callbacks, they
  * are passed the same "cookie".  This means one can't just block for local
  * completion by spinning on a stack variable without some method to get
- * both the handle and the spin-flag from the same pointer.  Rather than
+ * both the event and the spin-flag from the same pointer.  Rather than
  * try to do that, an unused bit in the 'flags' field common to all ops has
  * been allocated to be an "LC" flag, on which we can spin.
  */
@@ -381,7 +381,7 @@ void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbyt
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 
@@ -391,7 +391,7 @@ void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbyt
 */
 
 extern
-gasnetex_handle_t gasnete_get_nb(
+gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -402,16 +402,16 @@ gasnetex_handle_t gasnete_get_nb(
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
     gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_eop_done, op);
-    return (gasnetex_handle_t)op;
+    return (gex_Event_t)op;
   }
 }
 
 extern
-gasnetex_handle_t gasnete_put_nb(
+gex_Event_t gasnete_put_nb(
                      gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -421,7 +421,7 @@ gasnetex_handle_t gasnete_put_nb(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       ldone_fn = gasnete_cb_ptr_lc;
-      *lc_opt = (gasnetex_handle_t)op;
+      *lc_opt = (gex_Event_t)op;
       GASNETE_EOP_LC_START(op);
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       ldone_fn = gasnete_cb_eop_lc;
@@ -437,13 +437,13 @@ gasnetex_handle_t gasnete_put_nb(
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
-    return (gasnetex_handle_t)op;
+    return (gex_Event_t)op;
   }
 }
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
   each completion increments a counter - we compare this to the  number of implicit ops launched
   for memset only, the completion is an explicit AM-level ack
@@ -476,7 +476,7 @@ extern
 int gasnete_put_nbi( gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
+                     size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);

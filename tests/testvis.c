@@ -963,7 +963,7 @@ void doit(int iters, int runtests) {
     MSG("Non-blocking tests...");
     for (iter = 0; iter < iters; iter++) {
       size_t numops = TEST_RAND(1, MAX_INFLIGHT_OPS);
-      gasnetex_handle_t *handles = test_calloc(sizeof(gasnetex_handle_t), numops);
+      gex_Event_t *events = test_calloc(sizeof(gex_Event_t), numops);
       test_op *ops = test_calloc(sizeof(test_op), numops);
       size_t opareasz = areasz / numops;
       size_t i;
@@ -984,7 +984,7 @@ void doit(int iters, int runtests) {
             ops[i].vtmp = buildcontig_memvec_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].vdst->totalsz/VEC_SZ, opareasz);
 
             if (TEST_RAND_ONEIN(2)) 
-              handles[i] = gasnet_putv_nb_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
+              events[i] = gasnet_putv_nb_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
             else gasnet_putv_nbi_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
 
             verify_memvec_list(ops[i].vsrc);
@@ -1001,7 +1001,7 @@ void doit(int iters, int runtests) {
             ops[i].itmp = buildcontig_addr_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].idst->totalsz/VEC_SZ, opareasz);
 
             if (TEST_RAND_ONEIN(2)) 
-              handles[i] = gasnet_puti_nb_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
+              events[i] = gasnet_puti_nb_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
             else gasnet_puti_nbi_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
 
             verify_addr_list(ops[i].isrc);
@@ -1017,7 +1017,7 @@ void doit(int iters, int runtests) {
             ops[i].stmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,opareasz - ops[i].sdesc->totalsz/VEC_SZ);
 
             if (TEST_RAND_ONEIN(2)) 
-              handles[i] = gasnet_puts_nb_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
+              events[i] = gasnet_puts_nb_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
             else gasnet_puts_nbi_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
 
             verify_strided_desc(ops[i].sdesc);
@@ -1027,7 +1027,7 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gex_Event_WaitAll(handles, numops);
+      gex_Event_WaitAll(events, numops);
       gex_NBI_WaitAll();
 
       /* gets */
@@ -1036,7 +1036,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].vdst != NULL && ops[i].vtmp != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            handles[i] = gasnet_getv_nb_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
+            events[i] = gasnet_getv_nb_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
           else gasnet_getv_nbi_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
 
           verify_memvec_list(ops[i].vtmp);
@@ -1045,7 +1045,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].idst != NULL && ops[i].itmp != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            handles[i] = gasnet_geti_nb_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
+            events[i] = gasnet_geti_nb_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
           else gasnet_geti_nbi_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
 
           verify_addr_list(ops[i].itmp);
@@ -1054,7 +1054,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].sdesc != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            handles[i] = gasnet_gets_nb_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
+            events[i] = gasnet_gets_nb_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
           else gasnet_gets_nbi_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
 
           verify_strided_desc(ops[i].sdesc);
@@ -1062,7 +1062,7 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gex_Event_WaitAll(handles, numops);
+      gex_Event_WaitAll(events, numops);
       gex_NBI_WaitAll();
 
       for(i=0; i < numops; i++) {
@@ -1096,7 +1096,7 @@ void doit(int iters, int runtests) {
           test_free(ops[i].sdesc);
         }
       }
-      test_free(handles);
+      test_free(events);
       test_free(ops);
       TEST_PROGRESS_BAR(iter, iters);
     }

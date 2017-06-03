@@ -212,10 +212,10 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
     int i;
     int64_t begin, end;
     stat_struct_t stget, stput;
-    gasnetex_handle_t *handles;
+    gex_Event_t *events;
     size_t payload;
     
-	handles = (gasnetex_handle_t *) test_malloc(sizeof(gasnetex_handle_t) * iters);
+	events = (gex_Event_t *) test_malloc(sizeof(gex_Event_t) * iters);
 
 	for (payload = min_payload; payload <= max_payload && payload > 0; payload = NEXT_SZ(payload)) {
 		init_stat(&stput, payload);
@@ -226,9 +226,9 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				handles[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0);
+				events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0);
 			}
-			gex_Event_WaitAll(handles, iters);
+			gex_Event_WaitAll(events, iters);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -245,9 +245,9 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    handles[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0);
+			    events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gex_Event_WaitAll(handles, iters);
+			gex_Event_WaitAll(events, iters);
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -260,7 +260,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 
 	}
 
-	test_free(handles);
+	test_free(events);
 }
 
 
@@ -401,7 +401,7 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);	/* avoid hitting 65535-handle limit */
-           gasnetex_handle_t *h = test_malloc(2*sizeof(gasnetex_handle_t)*warm_iters);
+           gex_Event_t *h = test_malloc(2*sizeof(gex_Event_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
               gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, 8, 0);
