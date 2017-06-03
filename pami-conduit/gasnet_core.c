@@ -1380,8 +1380,6 @@ extern int gasnetc_AMRequestLongM(
     /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
              and send the active message 
      */
-    /* TODO: send in-place if fits w/i immediate limit (may require a distinct dispatch) */
-
     pami_send_t cmd;
     pami_result_t rc;
     gasnetc_longmsg_t msg;
