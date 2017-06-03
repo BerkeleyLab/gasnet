@@ -126,7 +126,7 @@ extern void gasnete_init(void) {
 GASNETI_INLINE(gasnete_cntr_gpd)
 gasnetc_post_descriptor_t *
 gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
-                 uint32_t gpd_flags, gasnetex_flags_t flags GASNETC_DIDX_FARG)
+                 uint32_t gpd_flags, gex_Flags_t flags GASNETC_DIDX_FARG)
 {
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
   if_pt (gpd) {
@@ -160,7 +160,7 @@ void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
 
 GASNETI_WARN_UNUSED_RESULT // Returns non-zero in IMMEDIATE case only
 static int /* XXX: Inlining left to compiler's discretion */
-gasnete_get_bulk_inner(void *dest, gasnetex_rank_t node, void *src, size_t nbytes, gasnetex_flags_t flags,
+gasnete_get_bulk_inner(void *dest, gasnetex_rank_t node, void *src, size_t nbytes, gex_Flags_t flags,
                        gasneti_weakatomic_val_t *initiated_p, gasnete_op_t * const op,
                        uint32_t gpd_flags GASNETC_DIDX_FARG)
 {
@@ -208,7 +208,7 @@ retry:
 
 GASNETI_WARN_UNUSED_RESULT // Returns non-zero in IMMEDIATE case only
 static int /* XXX: Inlining left to compiler's discretion */
-gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t nbytes, gasnetex_flags_t flags,
+gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t nbytes, gex_Flags_t flags,
                            gasneti_weakatomic_val_t *initiated_p, gasnete_op_t * const op,
                            uint32_t gpd_flags GASNETC_DIDX_FARG)
 {
@@ -274,7 +274,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t n
 
 GASNETI_WARN_UNUSED_RESULT // Returns non-zero in IMMEDIATE case only
 static int /* XXX: Inlining left to compiler's discretion */
-gasnete_put_bulk_inner(gasnetex_rank_t node, void *dest, void *src, size_t nbytes, gasnetex_flags_t flags,
+gasnete_put_bulk_inner(gasnetex_rank_t node, void *dest, void *src, size_t nbytes, gex_Flags_t flags,
                        gasneti_weakatomic_val_t *initiated_p, gasnete_op_t * const op,
                        uint32_t gpd_flags GASNETC_DIDX_FARG)
 {
@@ -338,7 +338,7 @@ gasnetex_handle_t gasnete_get_nb(
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
   {
@@ -365,7 +365,7 @@ GASNETI_INLINE(_gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t _gasnete_put_nb (
                      gasnetex_rank_t node, void *dest,
                      void *src, size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   gasnetex_handle_t head_op = GASNETEX_INVALID_HANDLE;
   gasnete_eop_t *tail_op;
@@ -419,7 +419,7 @@ GASNETI_INLINE(_gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t _gasnete_put_nb_bulk (
                      gasnetex_rank_t node, void *dest,
                      void *src, size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_eop_t *eop = gasnete_eop_new(mythread);
@@ -439,7 +439,7 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
 
@@ -477,7 +477,7 @@ int gasnete_get_nbi( gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
   {
@@ -502,7 +502,7 @@ GASNETI_INLINE(_gasnete_put_nbi)
 int _gasnete_put_nbi (
                      gasnetex_rank_t node, void *dest,
                      void *src, size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
@@ -552,7 +552,7 @@ GASNETI_INLINE(_gasnete_put_nbi_bulk)
 int _gasnete_put_nbi_bulk (
                      gasnetex_rank_t node, void *dest,
                      void *src, size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
@@ -568,7 +568,7 @@ int gasnete_put_nbi( gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
 
@@ -604,7 +604,7 @@ extern int gasnete_put_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
@@ -628,7 +628,7 @@ extern gasnetex_handle_t gasnete_put_nb_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
@@ -656,7 +656,7 @@ extern int gasnete_put_nbi_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
@@ -699,7 +699,7 @@ gex_RMA_Value_t gasnete_get_val_help(void *src, size_t nbytes) {
 extern gex_RMA_Value_t gasnete_get_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();

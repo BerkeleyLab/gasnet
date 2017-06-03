@@ -683,28 +683,28 @@ extern void gasnetc_sndrcv_poll(int handler_context);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_epid_t dest, gex_AM_Index_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  gasnetex_flags_t flags, int numargs,
+				  gex_Flags_t flags, int numargs,
 				  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
 				  gasnetc_counter_t *counter, va_list argptr
                                   GASNETI_THREAD_FARG);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gex_AM_Token_t token, gex_AM_Index_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				gasnetex_flags_t flags, int numargs,
+				gex_Flags_t flags, int numargs,
 				gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
 				gasnetc_counter_t *counter, va_list argptr
                                 GASNETI_THREAD_FARG);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
 #else
   extern int gasnetc_rdma_put_fh(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb,
                   gasnetc_counter_t *am_oust
@@ -712,7 +712,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   GASNETI_INLINE(gasnetc_rdma_put)
   int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG)
@@ -724,7 +724,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 #endif
 extern int gasnetc_rdma_get(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
 

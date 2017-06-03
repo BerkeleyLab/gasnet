@@ -1390,7 +1390,7 @@ uintptr_t gasneti_maxbase;
  */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn,
-                         gasnetex_flags_t flags)
+                         gex_Flags_t flags)
 {
   const int legacy_mode = flags & GASNETI_FLAG_INIT_LEGACY;
 #if GASNET_PSHM
@@ -1703,7 +1703,7 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
 void gasneti_segmentAttach(uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
                            gasneti_bootstrapExchangefn_t exchangefn,
-                           gasnetex_flags_t flags)
+                           gex_Flags_t flags)
 {
   gasneti_assert(all_segments);
   gasneti_assert(exchangefn);

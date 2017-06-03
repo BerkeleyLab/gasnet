@@ -36,7 +36,7 @@ extern int gex_Client_Init(
                 const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
-                gasnetex_flags_t       flags);
+                gex_Flags_t            flags);
 
 extern int gasnetc_Segment_Attach(
                 gex_Segment_t          *segment_p,
@@ -47,7 +47,7 @@ extern int gasnetc_Segment_Attach(
 extern int gasnetc_EP_Create(
                 gex_EP_t                *ep_p,
                 gex_Client_t            client,
-                gasnetex_flags_t        flags);
+                gex_Flags_t             flags);
 #define gex_EP_Create gasnetc_EP_Create
 
 extern int gasnetc_EP_RegisterHandlers(
@@ -142,16 +142,16 @@ typedef struct {
 /* Example for true functions:
 extern size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm, gasnetex_rank_t rank,
-           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gex_Flags_t flags, int nargs);
 extern size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm, gasnetex_rank_t rank,
-           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gex_Flags_t flags, int nargs);
 extern size_t gex_AM_MaxRequestLong(
            gex_TM_t tm, gasnetex_rank_t rank,
-           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gex_Flags_t flags, int nargs);
 extern size_t gex_AM_MaxReplyLong(
            gex_TM_t tm, gasnetex_rank_t rank,
-           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gex_Flags_t flags, int nargs);
  */
 
 /* ------------------------------------------------------------------------------------ */

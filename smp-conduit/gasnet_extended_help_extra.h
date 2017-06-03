@@ -22,7 +22,7 @@ gasnetex_handle_t gasnete_get_nb(
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
   gasneti_assert(0 && "Unreachable");
@@ -36,7 +36,7 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
   gasneti_assert(0 && "Unreachable");
@@ -86,7 +86,7 @@ int gasnete_get_nbi (gex_TM_t tm,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
   gasneti_assert(0 && "Unreachable");
@@ -99,7 +99,7 @@ int gasnete_put_nbi (gex_TM_t tm,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
   gasneti_assert(0 && "Unreachable");
@@ -127,7 +127,7 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 
 // Note we must allow for the possibility that the arg has side-effects
 GASNETI_INLINE(gasnete_syncnbi_mask)
-int gasnete_syncnbi_mask(unsigned int event_mask, gasnetex_flags_t flags GASNETE_THREAD_FARG)
+int gasnete_syncnbi_mask(unsigned int event_mask, gex_Flags_t flags GASNETE_THREAD_FARG)
 {
   gasneti_sync_reads();
   return GASNET_OK;
@@ -136,12 +136,12 @@ int gasnete_syncnbi_mask(unsigned int event_mask, gasnetex_flags_t flags GASNETE
 #define gasnete_wait_syncnbi_mask gasnete_syncnbi_mask
 
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
-void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
+void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
 { /* empty */ }
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG)
+gasnetex_handle_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG)
 { return GASNETEX_INVALID_HANDLE; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
@@ -156,7 +156,7 @@ int gasnete_put_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
@@ -170,7 +170,7 @@ gasnetex_handle_t gasnete_put_nb_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *dest,
                 gex_RMA_Value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
@@ -192,7 +192,7 @@ GASNETI_INLINE(gasnete_get_val)
 gex_RMA_Value_t gasnete_get_val(
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();

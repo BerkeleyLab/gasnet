@@ -450,7 +450,7 @@ extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
 #endif
 
 #ifndef gasnete_test_syncnbi_mask
-extern int gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+extern int gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   gasneti_assert(iop->threadidx == mythread->threadidx);
@@ -487,7 +487,7 @@ extern int gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags G
 /*  This implementation allows recursive access regions, although the spec does not require that */
 /*  operations are associated with the most immediately enclosing access region */
 #ifndef gasnete_begin_nbi_accessregion
-extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG) {
+extern void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop */
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
@@ -511,7 +511,7 @@ extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecu
 #endif
 
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);

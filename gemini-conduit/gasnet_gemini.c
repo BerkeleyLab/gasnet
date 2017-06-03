@@ -1416,7 +1416,7 @@ extern void gasnetc_trace_finish(void) {
 }
 
 static GASNETI_MALLOC
-void *gasnetc_alloc_bounce_buffer(gasnetex_flags_t flags GASNETC_DIDX_FARG)
+void *gasnetc_alloc_bounce_buffer(gex_Flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(bounce_buffer_pool);
   void *buf = gasneti_lifo_pop(pool_p);
@@ -1578,7 +1578,7 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
 
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_AM_Token_t t,
                                                                size_t length,
-                                                               gasnetex_flags_t flags)
+                                                               gex_Flags_t flags)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
@@ -1712,7 +1712,7 @@ gasnetc_remote_slot(peer_struct_t * const peer, const uint64_t mask)
 
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
                                                                  size_t length,
-                                                                 gasnetex_flags_t flags
+                                                                 gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
@@ -1723,7 +1723,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
   const unsigned int slots = MAX(1, ((length + am_slotsz - 1) >> am_slot_bits));
   uint64_t mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
   reply_pool_t *r;
-  gasnetex_flags_t imm_flag = flags & GASNETEX_FLAG_IMMEDIATE;
+  gex_Flags_t imm_flag = flags & GASNETEX_FLAG_IMMEDIATE;
 
 #if GASNETC_IMMEDIATE_AMPOLLS
   // BUSYWAIT may AMPoll at most once when IMMEDIATE flag is set
@@ -2704,7 +2704,7 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
 
 /* This needs no lock because there is an internal lock in the queue */
 GASNETI_MALLOC
-gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gasnetex_flags_t flags GASNETC_DIDX_FARG)
+gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(post_descriptor_pool);
   gasnetc_post_descriptor_t *gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);

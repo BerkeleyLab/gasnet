@@ -45,7 +45,7 @@ extern int gex_Client_Init(
                 const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
-                gasnetex_flags_t       flags);
+                gex_Flags_t            flags);
 
 extern int gasnetc_Segment_Attach(
                 gex_Segment_t          *segment_p,
@@ -56,7 +56,7 @@ extern int gasnetc_Segment_Attach(
 extern int gasnetc_EP_Create(
                 gex_EP_t                *ep_p,
                 gex_Client_t            client,
-                gasnetex_flags_t        flags);
+                gex_Flags_t             flags);
 #define gex_EP_Create gasnetc_EP_Create
 
 extern int gasnetc_EP_RegisterHandlers(

@@ -301,7 +301,7 @@ struct gasnetc_post_descriptor {
 #define GASNETC_SIZEOF_GDP 320
 
 gasnetc_post_descriptor_t *
-gasnetc_alloc_post_descriptor(gasnetex_flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
+gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
 
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
@@ -401,10 +401,10 @@ int gasnetc_next_power_of_2(int x) {
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_AM_Token_t t,
                                                                size_t length,
-                                                               gasnetex_flags_t flags);
+                                                               gex_Flags_t flags);
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
                                                                  size_t length,
-                                                                 gasnetex_flags_t flags
+                                                                 gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG);
 
 #endif /* GASNET_GEMINI_H */

@@ -268,7 +268,7 @@ extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
 extern
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
-                                 void *dest_addr, gasnetex_flags_t flags, int numargs, va_list argptr);
+                                 void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr);
 
 /* Generic AM handler for PSHMnet.
  * Divert your conduit's regular AM requests to this function if a call to
@@ -276,7 +276,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
 GASNETI_INLINE(gasneti_AMPSHM_RequestGeneric)
 int gasneti_AMPSHM_RequestGeneric(int category, gasnetex_rank_t dest,
                                   gasnetc_handler_t handler, void *source_addr, size_t nbytes,
-                                  void *dest_addr, gasnetex_flags_t flags, int numargs, va_list argptr)
+                                  void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr)
 {
   gasneti_assert(gasneti_pshm_in_supernode(dest));
   return gasnetc_AMPSHM_ReqRepGeneric(category, 1, dest, handler, source_addr,
@@ -289,7 +289,7 @@ int gasneti_AMPSHM_RequestGeneric(int category, gasnetex_rank_t dest,
 GASNETI_INLINE(gasneti_AMPSHM_ReplyGeneric)
 int gasneti_AMPSHM_ReplyGeneric(int category, gex_AM_Token_t token,
                                 gasnetc_handler_t handler, void *source_addr, 
-                                size_t nbytes, void *dest_addr, gasnetex_flags_t flags, int numargs,
+                                size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr) 
 {
   int retval;

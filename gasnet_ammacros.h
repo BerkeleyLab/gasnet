@@ -34,7 +34,7 @@ extern int gasnetc_AMRequestLongM(
                 size_t nbytes,                 // Payload length
                 void *dest_addr,               // Payload destination address (or OFFSET)
                 gasnetex_handle_t *lc_opt,  // Local completion control (see above)
-                gasnetex_flags_t flags         // Flags to control this operation
+                gex_Flags_t flags         // Flags to control this operation
                 GASNETI_THREAD_FARG,           // Hidden thread-specific info argument
                 int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
 extern int gasnetc_AMReplyLongM(
@@ -44,7 +44,7 @@ extern int gasnetc_AMReplyLongM(
                 size_t nbytes,
                 void *dest_addr,
                 gasnetex_handle_t *lc_opt,
-                gasnetex_flags_t flags,
+                gex_Flags_t flags,
                 int numargs, ...);
 // Medium
 extern int gasnetc_AMRequestMediumM(
@@ -54,7 +54,7 @@ extern int gasnetc_AMRequestMediumM(
                 /*const*/ void *source_addr,
                 size_t nbytes,
                 gasnetex_handle_t *lc_opt,
-                gasnetex_flags_t flags
+                gex_Flags_t flags
                 GASNETI_THREAD_FARG,
                 int numargs, ...);
 extern int gasnetc_AMReplyMediumM(
@@ -63,20 +63,20 @@ extern int gasnetc_AMReplyMediumM(
                 /*const*/ void *source_addr,
                 size_t nbytes,
                 gasnetex_handle_t *lc_opt,
-                gasnetex_flags_t flags,
+                gex_Flags_t flags,
                 int numargs, ...);
 // Short
 extern int gasnetc_AMRequestShortM(
                 gex_TM_t tm,
                 gasnetex_rank_t rank,
                 gex_AM_Index_t handler,
-                gasnetex_flags_t flags
+                gex_Flags_t flags
                 GASNETI_THREAD_FARG,
                 int numargs, ...);
 extern int gasnetc_AMReplyShortM(
                 gex_AM_Token_t token,
                 gex_AM_Index_t handler,
-                gasnetex_flags_t flags,
+                gex_Flags_t flags,
                 int numargs, ...);
 
 /* ------------------------------------------------------------------------------------ */

@@ -547,7 +547,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
 
 
 
-static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
+static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   uintptr_t msgspace;
   int ret;
   int localranks;
@@ -659,7 +659,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
 static int gasnetc_attach_primary( gex_Client_t       *client_p,
                                    gex_EP_t           *ep_p,
                                    gex_TM_t           *tm_p,
-                                   gasnetex_flags_t        flags ) {
+                                   gex_Flags_t        flags ) {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   
   /* ------------------------------------------------------------------------------------ */
@@ -714,7 +714,7 @@ static int gasnetc_attach_primary( gex_Client_t       *client_p,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gasnetex_flags_t flags) {
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gex_Flags_t flags) {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
 
   // TODO-EX: crude detection of multiple calls until we support them
@@ -811,7 +811,7 @@ extern int gex_Client_Init(    gex_Client_t            *client_p,
                                const char              *clientName,
                                int                     *argc,
                                char                    ***argv,
-                               gasnetex_flags_t        flags)
+                               gex_Flags_t             flags)
 {
   gasneti_assert(client_p);
   gasneti_assert(ep_p);
@@ -872,7 +872,7 @@ extern int gasnetc_Segment_Attach(
 
 extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
                              gex_Client_t       client,
-                             gasnetex_flags_t        flags) {
+                             gex_Flags_t        flags) {
   /* (###) add code here to create an endpoint belonging to the given client */
 #if 1 // TODO-EX: This is a stub, which assumes 1 implicit call from ClientCreate
   static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
@@ -1318,7 +1318,7 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
                               void *dst_addr,
                               void *src_addr,
                               size_t nbytes,
-                              gasnetex_flags_t flags,
+                              gex_Flags_t flags,
                               gasneti_weakatomic_t *completed_p
                               GASNETC_DIDX_FARG)
 {
@@ -1382,7 +1382,7 @@ extern int gasnetc_AMRequestShortM(
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t dest,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
-                            gasnetex_flags_t flags
+                            gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
@@ -1421,7 +1421,7 @@ extern int gasnetc_AMRequestMediumM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
-                            gasnetex_flags_t flags
+                            gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
@@ -1462,7 +1462,7 @@ extern int gasnetc_AMRequestLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
-                            gasnetex_flags_t flags
+                            gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
@@ -1531,7 +1531,7 @@ gasnetex_rank_t reply_node(gex_AM_Token_t t)
 extern int gasnetc_AMReplyShortM(
                             gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
-                            gasnetex_flags_t flags,
+                            gex_Flags_t flags,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
@@ -1567,7 +1567,7 @@ extern int gasnetc_AMReplyMediumM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
-                            gasnetex_flags_t flags,
+                            gex_Flags_t flags,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
   va_list argptr;
@@ -1606,7 +1606,7 @@ extern int gasnetc_AMReplyLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
-                            gasnetex_flags_t flags,
+                            gex_Flags_t flags,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
   va_list argptr;

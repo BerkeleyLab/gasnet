@@ -214,7 +214,7 @@ int gasnete_amref_get_nbi( gex_TM_t tm,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
                            size_t nbytes,
-                           gasnetex_flags_t flags GASNETI_THREAD_FARG);
+                           gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -311,7 +311,7 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
                                  void *dest,
                                  gasnetex_rank_t rank, void *src,
                                  size_t nbytes,
-                                 gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                                 gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
@@ -362,7 +362,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
                                  void *src,
                                  size_t nbytes,
                                  gasnetex_handle_t *lc_opt,
-                                 gasnetex_flags_t flags
+                                 gex_Flags_t flags
                                  GASNETI_THREAD_FARG)
 {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
@@ -458,7 +458,7 @@ gasnetex_handle_t gasnete_amref_get_nb(
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
@@ -487,7 +487,7 @@ gasnetex_handle_t gasnete_amref_put_nb(
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
  GASNETI_CHECKPSHM_PUT(H);
  {
@@ -555,7 +555,7 @@ int gasnete_amref_get_nbi( gex_TM_t tm,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
                            size_t nbytes,
-                           gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                           gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
   gasnete_amref_get_nbi_inner(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
@@ -571,7 +571,7 @@ int gasnete_amref_put_nbi( gex_TM_t tm,
                            gasnetex_rank_t rank, void *dest,
                            void *src,
                            size_t nbytes, gasnetex_handle_t *lc_opt,
-                           gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                           gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
   gasnete_amref_put_nbi_inner(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);

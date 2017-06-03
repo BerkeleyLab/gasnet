@@ -49,14 +49,14 @@ extern void gasnete_init(void);
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
                         size_t nbytes, gasnetex_handle_t *lc_opt,
-                        gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+                        gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #ifndef gasnete_get_nb
   extern gasnetex_handle_t gasnete_get_nb(
                         gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
@@ -64,7 +64,7 @@ GASNETI_INLINE(_gex_RMA_GetNB) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t _gex_RMA_GetNB(
                         gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NB,H);
   gasneti_boundscheck(tm, rank, src, nbytes);
@@ -87,7 +87,7 @@ gasnetex_handle_t _gex_RMA_PutNB(
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
                         size_t nbytes, gasnetex_handle_t *lc_opt,
-                        gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+                        gex_Flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NB,H);
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
@@ -212,7 +212,7 @@ void _gex_Event_WaitAll(gasnetex_handle_t *phandle, size_t numhandles GASNETI_TH
 #ifndef gasnete_get_nbi
 extern int gasnete_get_nbi  (gex_TM_t tm, void *dest,
                              gasnetex_rank_t rank, void *src,
-                             size_t nbytes, gasnetex_flags_t flags
+                             size_t nbytes, gex_Flags_t flags
                              GASNETI_THREAD_FARG);
 #endif
 
@@ -221,13 +221,13 @@ extern int gasnete_put_nbi  (gex_TM_t tm,
                              gasnetex_rank_t rank, void *dest,
                              /*const*/ void *src,  // TODO-EX: un-comment const
                              size_t nbytes, gasnetex_handle_t *lc_opt,
-                             gasnetex_flags_t flags GASNETI_THREAD_FARG);
+                             gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetNBI)
 int _gex_RMA_GetNBI  (gex_TM_t tm, void *dest,
                         gasnetex_rank_t rank, void *src,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NBI,I);
   gasneti_boundscheck(tm, rank, src, nbytes);
@@ -249,7 +249,7 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
                         size_t nbytes, gasnetex_handle_t *lc_opt,
-                        gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+                        gex_Flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NBI,I);
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
@@ -284,7 +284,7 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
   extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE);
 #endif
 #ifndef gasnete_test_syncnbi_mask
-  extern int  gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG);
+  extern int  gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 
 
@@ -307,7 +307,7 @@ int _gex_NBI_TestPuts(GASNETI_THREAD_FARG_ALONE) {
        _gex_NBI_TestPuts(GASNETI_THREAD_GET_ALONE)
 
 GASNETI_INLINE(_gex_NBI_Test) GASNETI_WARN_UNUSED_RESULT
-int _gex_NBI_Test(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+int _gex_NBI_Test(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   int retval = gasnete_test_syncnbi_mask(mask, flags GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI,retval);
   return retval;
@@ -382,10 +382,10 @@ int _gex_NBI_TestAll(GASNETI_THREAD_FARG_ALONE) {
   ======================================
 */
 #ifndef gasnete_begin_nbi_accessregion
-extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG);
+extern void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #define gex_NBI_BeginAccessRegion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
@@ -413,14 +413,14 @@ extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigne
   extern int gasnete_get  (gex_TM_t tm,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
-                           size_t nbytes, gasnetex_flags_t flags
+                           size_t nbytes, gex_Flags_t flags
                            GASNETI_THREAD_FARG);
 #elif !defined(gasnete_get)
   GASNETI_INLINE(gasnete_get)
   int gasnete_get (gex_TM_t tm,
                     void *dest,
                     gasnetex_rank_t rank, void *src,
-                    size_t nbytes, gasnetex_flags_t flags
+                    size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG)
   {
     gasnetex_handle_t h = gasnete_get_nb(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
@@ -434,14 +434,14 @@ extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigne
   extern int gasnete_put  (gex_TM_t tm,
                            gasnetex_rank_t rank, void* dest,
                            /*const*/ void *src, // TODO-EX: uncomment const
-                           size_t nbytes, gasnetex_flags_t flags
+                           size_t nbytes, gex_Flags_t flags
                            GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put)
   GASNETI_INLINE(gasnete_put)
   int gasnete_put  (gex_TM_t tm,
                     gasnetex_rank_t rank, void* dest,
                     /*const*/ void *src, // TODO-EX: uncomment const
-                    size_t nbytes, gasnetex_flags_t flags
+                    size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG)
   {
     gasnetex_handle_t h = gasnete_put_nb(tm, rank, dest, src, nbytes, GASNETEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
@@ -454,7 +454,7 @@ extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigne
 GASNETI_INLINE(_gex_RMA_GetBlocking)
 int _gex_RMA_GetBlocking  (gex_TM_t tm, void *dest,
                     gasnetex_rank_t rank, void *src,
-                    size_t nbytes, gasnetex_flags_t flags
+                    size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes),I);
   gasneti_boundscheck(tm, rank, src, nbytes);
@@ -475,7 +475,7 @@ GASNETI_INLINE(_gex_RMA_PutBlocking)
 int _gex_RMA_PutBlocking  (gex_TM_t tm,
                     gasnetex_rank_t rank, void *dest,
                     /*const*/ void *src,  // TODO-EX: un-comment const
-                    size_t nbytes, gasnetex_flags_t flags
+                    size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),I);
   gasneti_boundscheck(tm, rank, dest, nbytes);
@@ -503,14 +503,14 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put_val)
   GASNETI_INLINE(gasnete_put_val)
   int gasnete_put_val( gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
   {
     gex_RMA_Value_t src = value;
@@ -523,7 +523,7 @@ GASNETI_INLINE(_gex_RMA_PutVal)
 int _gex_RMA_PutVal(  gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
@@ -546,7 +546,7 @@ int _gex_RMA_PutVal(  gex_TM_t tm,
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
@@ -555,7 +555,7 @@ gasnetex_handle_t _gex_RMA_PutNBVal (
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
@@ -585,7 +585,7 @@ gasnetex_handle_t _gex_RMA_PutNBVal (
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put_nbi_val)
   GASNETI_INLINE(gasnete_put_nbi_val)
@@ -593,7 +593,7 @@ gasnetex_handle_t _gex_RMA_PutNBVal (
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
   {
     gex_RMA_Value_t src = value;
@@ -607,7 +607,7 @@ int _gex_RMA_PutNBIVal(
                         gex_TM_t tm,
                         gasnetex_rank_t rank, void *dest,
                         gex_RMA_Value_t value,
-                        size_t nbytes, gasnetex_flags_t flags
+                        size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
@@ -639,7 +639,7 @@ int _gex_RMA_PutNBIVal(
   extern gex_RMA_Value_t gasnete_get_val (
                   gex_TM_t tm,
                   gasnetex_rank_t rank, void *src,
-                  size_t nbytes, gasnetex_flags_t flags
+                  size_t nbytes, gex_Flags_t flags
                   GASNETI_THREAD_FARG);
 #endif
 
@@ -647,7 +647,7 @@ GASNETI_INLINE(_gex_RMA_GetBlockingVal) GASNETI_WARN_UNUSED_RESULT
 gex_RMA_Value_t _gex_RMA_GetBlockingVal (
                 gex_TM_t tm,
                 gasnetex_rank_t rank, void *src,
-                size_t nbytes, gasnetex_flags_t flags
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   gasneti_boundscheck(tm, rank, src, nbytes);

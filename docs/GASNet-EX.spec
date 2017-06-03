@@ -38,7 +38,7 @@ typedef uint32_t gasnetex_rank_t;
 
 // Assume no more than 32 flags will be needed for any one family of calls
 // However, flags to p2p initiation and segment creation (as examples) could overlap
-typedef uint32_t gasnetex_flags_t;
+typedef uint32_t gex_Flags_t;
 
 // SOME flags values - certainly not complete.
 // NOTE: Shifts of '999' are being used until the list is more fleshed out,
@@ -133,7 +133,7 @@ extern int gex_Client_Init(
                 int                    *argc,
                 char                   ***argv,
                 const char             *clientName,
-                gasnetex_flags_t       flags);
+                gex_Flags_t            flags);
 
 // Collective allocation of segments
 extern int gex_Segment_Attach(
@@ -145,7 +145,7 @@ extern int gex_Segment_Attach(
 extern int gex_EP_Create(
                 gex_EP_t                *ep_p,
                 gex_Client_t            client,
-                gasnetex_flags_t        flags);
+                gex_Flags_t             flags);
 
 // Client-facing type for describing one AM handler
 // TBD: need enum for flags values such as REQUEST/REPLY/EITHER
@@ -225,7 +225,7 @@ int gex_AM_RequestLongM(
            size_t nbytes,                 // Payload length
            void *dest_addr,               // Payload destination address (or OFFSET)
            gasnetex_handle_t *lc_opt,     // Local completion control (see above)
-           gasnetex_flags_t flags,        // Flags to control this operation
+           gex_Flags_t flags,             // Flags to control this operation
            int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
 int gex_AM_ReplyLongM(
            gex_AM_Token_t token,          // Names local and remote contexts
@@ -234,7 +234,7 @@ int gex_AM_ReplyLongM(
            size_t nbytes,
            void *dest_addr,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs, ...);
 // Medium
 int gex_AM_RequestMediumM(
@@ -244,7 +244,7 @@ int gex_AM_RequestMediumM(
            const void *source_addr,
            size_t nbytes,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs, ...);
 int gex_AM_ReplyMediumM(
            gex_AM_Token_t token,
@@ -252,19 +252,19 @@ int gex_AM_ReplyMediumM(
            const void *source_addr,
            size_t nbytes,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs, ...);
 // Short
 int gex_AM_RequestShortM(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gex_AM_Index_t handler, 
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs, ...);
 int gex_AM_ReplyShortM(
            gex_AM_Token_t token,
            gex_AM_Index_t handler,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs, ...);
 
 // Extended API
@@ -318,7 +318,7 @@ int gex_RMA_PutBlocking(
            void *dest,                    // Remote (destination) address (or OFFSET)
            const void *src,               // Local (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
-           gasnetex_flags_t flags);       // Flags to control this operation
+           gex_Flags_t flags);            // Flags to control this operation
 int gex_RMA_PutNBI(
            gex_TM_t tm,
            gasnetex_rank_t rank,
@@ -326,7 +326,7 @@ int gex_RMA_PutNBI(
            const void *src,
            size_t nbytes,
            gasnetex_handle_t *lc_opt,     // Local completion control (see above)
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 gasnetex_handle_t gex_RMA_PutNB(
            gex_TM_t tm,
            gasnetex_rank_t rank,
@@ -334,7 +334,7 @@ gasnetex_handle_t gex_RMA_PutNB(
            const void *src,
            size_t nbytes,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 
 // Get
 int gex_RMA_GetBlocking( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
@@ -343,21 +343,21 @@ int gex_RMA_GetBlocking( // Returns non-zero *only* in "no op" case (IMMEDIATE f
            gasnetex_rank_t rank,          // Together with 'tm', names a remote context
            void *src,                     // Remote (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
-           gasnetex_flags_t flags);       // Flags to control this operation
+           gex_Flags_t flags);            // Flags to control this operation
 int gex_RMA_GetNBI( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gex_TM_t tm,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 gasnetex_handle_t gex_RMA_GetNB(
            gex_TM_t tm,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 
 // Value-based
 gex_RMA_Value_t gex_RMA_GetBlockingVal(
@@ -365,34 +365,34 @@ gex_RMA_Value_t gex_RMA_GetBlockingVal(
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 int gex_RMA_PutBlockingVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gex_RMA_Value_t value,
            size_t nbytes,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 int gex_RMA_PutNBIVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gex_RMA_Value_t value,
            size_t nbytes,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 gasnetex_handle_t gex_RMA_PutNBVal(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            void *dest,
            gex_RMA_Value_t value,
            size_t nbytes,
-           gasnetex_flags_t flags);
+           gex_Flags_t flags);
 
 // NBI Access regions:
 // Note: no defined values for 'flags' for either call yet.
 
-void gex_NBI_BeginAccessRegion(gasnetex_flags_t flags);
-gasnetex_handle_t gex_NBI_EndAccessRegion(gasnetex_flags_t flags);
+void gex_NBI_BeginAccessRegion(gex_Flags_t flags);
+gasnetex_handle_t gex_NBI_EndAccessRegion(gex_Flags_t flags);
 
 
 // Handle test/wait operations
@@ -440,8 +440,8 @@ void gex_NBI_WaitAll (void);
 
 // Sync of specified subset of NBI operations
 // Argument is bitwise-OR of GASNETEX_EVENTID_{GETS,PUTS,...}
-int  gex_NBI_Test(unsigned int event_mask, gasnetex_flags_t flags);
-void gex_NBI_Wait(unsigned int event_mask, gasnetex_flags_t flags);
+int  gex_NBI_Test(unsigned int event_mask, gex_Flags_t flags);
+void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 
 // Extract a leaf event handle from the root event handle
 // NOTE: name is subject to change
@@ -479,25 +479,25 @@ size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs);
 size_t gex_AM_MaxReplyLong(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs);
 size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs);
 size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm,
            gasnetex_rank_t rank,
            gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags,
+           gex_Flags_t flags,
            int numargs);
 
 // Least-upper-bound payload queries (unknown peer, nargs, lc_opt and flags)
