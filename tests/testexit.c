@@ -82,9 +82,9 @@ void ping_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gasnet_AMGetMsgSource(token, &src);
   x = !x;/* harmless race */
   if (x) 
-    gex_AM_ReplyMedium0(token, hidx_noop_handler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyMedium0(token, hidx_noop_handler, buf, nbytes, GEX_EVENT_NOW, 0);
   else
-    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(src), GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(src), GEX_EVENT_NOW, 0);
 }
 
 void noop_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
@@ -129,31 +129,31 @@ void *workerthread(void *args) {
       } else {
         int junk = 42;
         int lim = MIN(MIN(MIN(MIN(
-                        gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0),
-                        gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0)),
-                        gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0)),
-                        gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0)),
+                        gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0),
+                        gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0)),
+                        gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0)),
+                        gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0)),
                         TEST_SEGSZ);
         char *p = malloc(lim);
         char *peerseg = TEST_SEG(peer);
         while (1) {
           switch (rand() % 18) {
             case 0:  GASNET_Safe(gasnet_AMPoll()); break;
-            case 1:  gex_AM_RequestMedium0(myteam, peer, hidx_noop_handler, p, 4, GASNETEX_EVENT_NOW, 0); break;
-            case 2:  gex_AM_RequestMedium0(myteam, peer, hidx_ping_handler, p, 4, GASNETEX_EVENT_NOW, 0); break;
-            case 3:  gex_AM_RequestMedium0(myteam, peer, hidx_noop_handler, p, lim, GASNETEX_EVENT_NOW, 0); break;
-            case 4:  gex_AM_RequestMedium0(myteam, peer, hidx_ping_handler, p, lim, GASNETEX_EVENT_NOW, 0); break;
-            case 5:  gex_AM_RequestLong0(myteam, peer, hidx_noop_handler, p, 4, peerseg, GASNETEX_EVENT_NOW, 0); break;
-            case 6:  gex_AM_RequestLong0(myteam, peer, hidx_ping_handler, p, 4, peerseg, GASNETEX_EVENT_NOW, 0); break;
-            case 7:  gex_AM_RequestLong0(myteam, peer, hidx_noop_handler, p, lim, peerseg, GASNETEX_EVENT_NOW, 0); break;
-            case 8:  gex_AM_RequestLong0(myteam, peer, hidx_ping_handler, p, lim, peerseg, GASNETEX_EVENT_NOW, 0); break;
+            case 1:  gex_AM_RequestMedium0(myteam, peer, hidx_noop_handler, p, 4, GEX_EVENT_NOW, 0); break;
+            case 2:  gex_AM_RequestMedium0(myteam, peer, hidx_ping_handler, p, 4, GEX_EVENT_NOW, 0); break;
+            case 3:  gex_AM_RequestMedium0(myteam, peer, hidx_noop_handler, p, lim, GEX_EVENT_NOW, 0); break;
+            case 4:  gex_AM_RequestMedium0(myteam, peer, hidx_ping_handler, p, lim, GEX_EVENT_NOW, 0); break;
+            case 5:  gex_AM_RequestLong0(myteam, peer, hidx_noop_handler, p, 4, peerseg, GEX_EVENT_NOW, 0); break;
+            case 6:  gex_AM_RequestLong0(myteam, peer, hidx_ping_handler, p, 4, peerseg, GEX_EVENT_NOW, 0); break;
+            case 7:  gex_AM_RequestLong0(myteam, peer, hidx_noop_handler, p, lim, peerseg, GEX_EVENT_NOW, 0); break;
+            case 8:  gex_AM_RequestLong0(myteam, peer, hidx_ping_handler, p, lim, peerseg, GEX_EVENT_NOW, 0); break;
             case 9:  gex_RMA_PutBlocking(myteam, peer, peerseg, &junk, sizeof(int), 0); break;
             case 10: gex_RMA_GetBlocking(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
             case 11: gex_RMA_PutBlocking(myteam, peer, peerseg, p, lim, 0); break;
             case 12: gex_RMA_GetBlocking(myteam, p, peer, peerseg, lim, 0); break;
-            case 13: gex_RMA_PutNBI(myteam, peer, peerseg, &junk, sizeof(int), GASNETEX_EVENT_NOW, 0); break;
+            case 13: gex_RMA_PutNBI(myteam, peer, peerseg, &junk, sizeof(int), GEX_EVENT_NOW, 0); break;
             case 14: gex_RMA_GetNBI(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
-            case 15: gex_RMA_PutNBI(myteam, peer, peerseg, p, lim, GASNETEX_EVENT_NOW, 0); break;
+            case 15: gex_RMA_PutNBI(myteam, peer, peerseg, p, lim, GEX_EVENT_NOW, 0); break;
             case 16: gex_RMA_GetNBI(myteam, p, peer, peerseg, lim, 0); break;
             case 17: gex_NBI_WaitAll(); break;
           }

@@ -851,9 +851,9 @@ static gex_HSL_t pf_lock = GEX_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  // TODO-EX: nbytes = MIN(nbytes, gex_AM_MaxReplyMedium(..., GASNETEX_EVENT_NOW, 0, 0));
+  // TODO-EX: nbytes = MIN(nbytes, gex_AM_MaxReplyMedium(..., GEX_EVENT_NOW, 0, 0));
   nbytes = MIN(nbytes, gex_AM_LUBReplyMedium()); /* In case Reply size smaller than Request */
-  gex_AM_ReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GEX_EVENT_NOW, 0);
 }
 static void progressfn_reph(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
@@ -874,20 +874,20 @@ static void progressfn_tester(int *counter) {
 #endif
   { static int tmp = 47;
     int sz;
-    gex_RMA_PutNBI(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_EVENT_NOW, 0);
+    gex_RMA_PutNBI(myteam, peer, peersegmid, &tmp, sizeof(tmp), GEX_EVENT_NOW, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
-      gex_RMA_PutNBI(myteam, peer, peersegmid, myseg, sz, GASNETEX_EVENT_DEFER, 0);
+      gex_RMA_PutNBI(myteam, peer, peersegmid, myseg, sz, GEX_EVENT_DEFER, 0);
       gex_RMA_GetNBI(myteam, myseg, peer, peersegmid, sz, 0);
     }
     sz = (gasnet_AMPoll(),gex_NBI_TestAll());
     if (gasneti_diag_havehandlers) {
-      const size_t max_sz = MIN(gex_AM_MaxRequestMedium(myteam, peer, GASNETEX_EVENT_NOW, 0, 0),
+      const size_t max_sz = MIN(gex_AM_MaxRequestMedium(myteam, peer, GEX_EVENT_NOW, 0, 0),
                                 MIN(64*1024,TEST_SEGSZ/2));
       for (sz = 1; sz <= max_sz; sz = (sz < 64?sz*2:sz*8)) {
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gex_AM_RequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GASNETEX_EVENT_NOW, 0);
+        gex_AM_RequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GEX_EVENT_NOW, 0);
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gex_AM_RequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GASNETEX_EVENT_NOW, 0);
+        gex_AM_RequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GEX_EVENT_NOW, 0);
       }
     }
   }

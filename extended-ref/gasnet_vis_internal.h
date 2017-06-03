@@ -168,7 +168,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_put_nbi(NULL, (dstnode), (dstaddr), (srcaddr), (nbytes),       \
-                         GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
+                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \

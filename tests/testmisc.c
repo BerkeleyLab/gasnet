@@ -61,14 +61,14 @@ void null_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 }
 
 void justreply_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GEX_EVENT_NOW, 0);
 }
 
 void null_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 }
 
 void justreply_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GEX_EVENT_NOW, 0);
 }
 /* ------------------------------------------------------------------------------------ */
 /* This tester measures the performance of a number of miscellaneous GASNet functions 
@@ -177,16 +177,16 @@ void doit1(void) { GASNET_BEGIN_FUNCTION();
       { gex_AM_RequestShort0(myteam, mynode, hidx_justreply_shorthandler, 0); });
 
     TIME_OPERATION("Loopback do-nothing gex_AM_RequestMedium0()",
-      { gex_AM_RequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
+      { gex_AM_RequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM medium request-reply",
-      { gex_AM_RequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
+      { gex_AM_RequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do-nothing gex_AM_RequestLong0()",
-      { gex_AM_RequestLong0(myteam, mynode, hidx_null_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
+      { gex_AM_RequestLong0(myteam, mynode, hidx_null_longhandler, p, 0, myseg, GEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM long request-reply",
-      { gex_AM_RequestLong0(myteam, mynode, hidx_justreply_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
+      { gex_AM_RequestLong0(myteam, mynode, hidx_justreply_longhandler, p, 0, myseg, GEX_EVENT_NOW, 0); });
 
     doit2();
 }
@@ -345,17 +345,17 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
       { gex_RMA_PutBlocking(myteam, mynode, myseg, &temp, 4, 0); });
 
     TIME_OPERATION("local 4-byte gex_RMA_PutNB",
-      { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0)); });
+      { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GEX_EVENT_NOW, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBI", {},
-      { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0); },
+      { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GEX_EVENT_NOW, 0); },
       { gex_NBI_WaitPuts(); });
 
     TIME_OPERATION("local 4-byte gex_RMA_PutNB/bulk",
-      { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0)); });
+      { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GEX_EVENT_DEFER, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBI/bulk", {},
-      { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0); },
+      { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GEX_EVENT_DEFER, 0); },
       { gex_NBI_WaitPuts(); });
 
     TIME_OPERATION("local 4-byte gex_RMA_PutBlockingVal",

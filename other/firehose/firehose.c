@@ -1270,7 +1270,7 @@ fh_am_move_reqh_inner(gex_AM_Token_t token, void *addr, size_t nbytes,
 		fh_handleridx(fh_am_move_reph),
 		new_reg,
 		sizeof(firehose_region_t) * r_new,
-		GASNETEX_EVENT_NOW, 0,
+		GEX_EVENT_NOW, 0,
 		r_new,
 		PACK(context));
 
@@ -1322,7 +1322,7 @@ fh_am_move_reqh_inner(gex_AM_Token_t token, void *addr, size_t nbytes,
 			    fh_handleridx(fh_am_move_reph),
 			    new_reg,
 			    sizeof(firehose_region_t) * r_new,
-			    GASNETEX_EVENT_NOW, 0,
+			    GEX_EVENT_NOW, 0,
 			    r_new,
 			    PACK(context));
 	}
@@ -1408,7 +1408,7 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 	gex_AM_RequestMedium(
 	     NULL, rc->node, fh_handleridx(fh_am_move_reph),
 	     rc->pin_list, rc->reply_len,
-	     GASNETEX_EVENT_NOW, 0,
+	     GEX_EVENT_NOW, 0,
 	     rc->pin_list_num, PACK(rc->context));
 }
 

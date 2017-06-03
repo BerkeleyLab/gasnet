@@ -283,7 +283,7 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
 
         gex_AM_RequestMedium2(NULL, gasnetc_dissem_peer[step],
                                   gasneti_handleridx(gasnetc_sys_exchange_reqh),
-                                  temp + offset, to_xfer, GASNETEX_EVENT_NOW, 0,
+                                  temp + offset, to_xfer, GEX_EVENT_NOW, 0,
                                   phase | (step << 1) | (seq << 6), len);
 
         ++seq;

@@ -396,9 +396,9 @@ typedef struct {
   #define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)1)
 
   // Pre-defined values: input pointers-to-event
-  #define GASNETEX_EVENT_NOW    ((gex_Event_t*)(uintptr_t)1)
-  #define GASNETEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)2)
-  #define GASNETEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)3)
+  #define GEX_EVENT_NOW    ((gex_Event_t*)(uintptr_t)1)
+  #define GEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)2)
+  #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)3)
 #endif
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */

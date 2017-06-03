@@ -72,7 +72,7 @@ void pong_shorthandler(gex_AM_Token_t token) {
 
 
 void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyMedium0(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0);
 }
 void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   flag++;
@@ -80,7 +80,7 @@ void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg, GEX_EVENT_NOW, 0);
 }
 
 void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
@@ -96,7 +96,7 @@ void pong_shorthandler_flood(gex_AM_Token_t token) {
 
 
 void ping_medhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes, GEX_EVENT_NOW, 0);
 }
 void pong_medhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
   INC(flag);
@@ -104,7 +104,7 @@ void pong_medhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg, GEX_EVENT_NOW, 0);
 }
 
 void pong_longhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
@@ -220,10 +220,10 @@ int main(int argc, char **argv) {
     myseg = alignup_ptr(space, PAGESZ);
   }
 
-  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
-  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
-  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
-  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
+  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
+  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
+  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
 
   if (crossmachinemode) {
     if ((numnode%2) && (mynode == numnode-1)) {
@@ -388,11 +388,11 @@ void doAMShort(void) {
     if (sender) { /* warm-up */                                                  \
       flag = 0;                                                                  \
       AMREQUEST(myteam, peer, PING_HIDX, myseg,                                  \
-                MAXREQREP DEST, GASNETEX_EVENT_NOW, 0);                            \
+                MAXREQREP DEST, GEX_EVENT_NOW, 0);                            \
       GASNET_BLOCKUNTIL(flag == 1);                                              \
       for (i=0; i < iters; i++) {                                                \
         AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg,                        \
-                  MAXREQREP DEST, GASNETEX_EVENT_NOW, 0);                          \
+                  MAXREQREP DEST, GEX_EVENT_NOW, 0);                          \
       }                                                                          \
       GASNET_BLOCKUNTIL(flag == iters+1);                                        \
     }                                                                            \
@@ -410,7 +410,7 @@ void doAMShort(void) {
           flag = -1;                                                             \
           for (i=0; i < iters; i++) {                                            \
             AMREQUEST(myteam, peer, PING_HIDX, myseg,                            \
-                      sz DEST, GASNETEX_EVENT_NOW, 0);                             \
+                      sz DEST, GEX_EVENT_NOW, 0);                             \
             GASNET_BLOCKUNTIL(flag == i);                                        \
           }                                                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
@@ -437,21 +437,21 @@ void doAMShort(void) {
             assert(peer == mynode);                                              \
             for (i=0; i < iters; i++) {                                          \
               int lim = i << 1;                                                  \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
               GASNET_BLOCKUNTIL(flag == lim);                                    \
               lim++;                                                             \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
               GASNET_BLOCKUNTIL(flag == lim);                                    \
             }                                                                    \
           } else if (sender) {                                                   \
             for (i=0; i < iters; i++) {                                          \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
               GASNET_BLOCKUNTIL(flag == i);                                      \
             }                                                                    \
           } else if (recvr) {                                                    \
             for (i=0; i < iters; i++) {                                          \
               GASNET_BLOCKUNTIL(flag == i);                                      \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
             }                                                                    \
           }                                                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
@@ -474,7 +474,7 @@ void doAMShort(void) {
         if (sender) {                                                            \
           int64_t start = TIME();                                                \
           for (i=0; i < iters; i++) {                                            \
-            AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+            AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GEX_EVENT_NOW, 0); \
           }                                                                      \
           if (recvr) GASNET_BLOCKUNTIL(flag == iters);                           \
           BARRIER();                                                             \
@@ -501,7 +501,7 @@ void doAMShort(void) {
           int64_t start = TIME();                                                \
           flag = 0;                                                              \
           for (i=0; i < iters; i++) {                                            \
-            AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+            AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg, sz DEST, GEX_EVENT_NOW, 0); \
           }                                                                      \
           GASNET_BLOCKUNTIL(flag == iters);                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
@@ -523,7 +523,7 @@ void doAMShort(void) {
         BARRIER();                                                               \
         start = TIME();                                                          \
         for (i=0; i < iters; i++) {                                              \
-          AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GASNETEX_EVENT_NOW, 0); \
+          AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GEX_EVENT_NOW, 0); \
         }                                                                        \
         GASNET_BLOCKUNTIL(flag == iters);                                        \
         report(msg,TIME() - start, iters, sz, 0);                                \

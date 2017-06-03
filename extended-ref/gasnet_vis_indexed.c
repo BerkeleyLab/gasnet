@@ -220,7 +220,7 @@ gex_Event_t gasnete_puti_gather(gasnete_synctype_t synctype,
     void * const packedbuf = visop + 1;
     gasnete_addrlist_pack(srccount, srclist, srclen, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
-    visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0], packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0], packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
@@ -303,7 +303,7 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
 
       /* send AM(rnum, iop) from packedbuf */
       gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_puti_AMPipeline_reqh),
-                               packedbuf, end - (uint8_t *)packedbuf, GASNETEX_EVENT_NOW, 0,
+                               packedbuf, end - (uint8_t *)packedbuf, GEX_EVENT_NOW, 0,
                                PACK(iop), rnum, dstlen, rpacket->firstoffset, rpacket->lastlen);
     }
 
@@ -387,7 +387,7 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
 
       /* send AM(visop) from packedbuf */
       gex_AM_RequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_geti_AMPipeline_reqh),
-                               packedbuf, rnum*sizeof(void *), GASNETEX_EVENT_NOW, 0,
+                               packedbuf, rnum*sizeof(void *), GEX_EVENT_NOW, 0,
                                PACK(visop), packetidx, srclen, rpacket->firstoffset, rpacket->lastlen);
     }
 
@@ -418,7 +418,7 @@ void gasnete_geti_AMPipeline_reqh_inner(gex_AM_Token_t token,
   size_t const repbytes = end - packedbuf;
   gasneti_assert(repbytes <= gex_AM_LUBReplyMedium());
   gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_geti_AMPipeline_reph),
-                         packedbuf, repbytes, GASNETEX_EVENT_NOW, 0,
+                         packedbuf, repbytes, GEX_EVENT_NOW, 0,
                          PACK(_visop),packetidx);
   gasneti_free(packedbuf);
 }

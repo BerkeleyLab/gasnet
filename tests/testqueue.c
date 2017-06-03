@@ -369,20 +369,20 @@ int main(int argc, char **argv) {
 void do_bulkputs(void) {
     if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNB/bulk", 
-                 events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0), 
+                 events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0), 
                  gex_Event_WaitAll(events, depth), (void)0, 0);
     }
 
     if (do_puts && do_bulk && do_implicit) {
       QUEUE_TEST("gex_RMA_PutNBI/bulk", 
-                 gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0), 
+                 gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0), 
                  gex_NBI_WaitAll(), (void)0, 0);
     }
 }
 void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNB", 
-                 events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_NOW, 0), 
+                 events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_NOW, 0), 
                  gex_Event_WaitAll(events, depth), (void)0, 0);
     }
 
@@ -394,7 +394,7 @@ void do_nonbulkputgets(void) {
 
     if (do_puts && do_nonbulk && do_implicit) {
       QUEUE_TEST("gex_RMA_PutNBI", 
-                 gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_NOW, 0), 
+                 gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_NOW, 0), 
                  gex_NBI_WaitAll(), (void)0, 0);
     }
 
@@ -460,22 +460,22 @@ void do_amtests(void) {
       gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gex_AM_RequestMedium0", 
                  gex_AM_RequestMedium0(myteam, peerproc, hidx_ping_medhandler,
-                                           msgbuf, payload, GASNETEX_EVENT_NOW, 0), (void)0,
+                                           msgbuf, payload, GEX_EVENT_NOW, 0), (void)0,
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 
-                 gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+                 gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
     }
 
     if (do_amlong) {
       gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gex_AM_RequestLong0", 
                  gex_AM_RequestLong0(myteam, peerproc, hidx_ping_longhandler,
-                                         msgbuf, payload, tgtmem, GASNETEX_EVENT_NOW, 0), (void)0,
+                                         msgbuf, payload, tgtmem, GEX_EVENT_NOW, 0), (void)0,
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 
-                 gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+                 gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
     }
 }
 

@@ -784,7 +784,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
        (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
     myseg.size = TEST_SEGSZ;
     BARRIER();
-    gex_AM_RequestMedium0(tm, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestMedium0(tm, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GEX_EVENT_NOW, 0);
     { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
       const size_t msg_bytes = gex_AM_LUBRequestMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
@@ -796,7 +796,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
         for (idx = 0; idx < msg_count; ++idx) {
           const size_t nbytes = MIN(remain, msg_bytes);
           for (i=0; i < (int)gasnet_nodes(); i++) {
-            gex_AM_RequestMedium1(tm, i, _test_segbcast_idx, payload, nbytes, GASNETEX_EVENT_NOW, 0, idx);
+            gex_AM_RequestMedium1(tm, i, _test_segbcast_idx, payload, nbytes, GEX_EVENT_NOW, 0, idx);
           }
           remain -= nbytes;
           payload = (void*)((uintptr_t)payload + nbytes);

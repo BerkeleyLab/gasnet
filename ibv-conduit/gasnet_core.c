@@ -3545,10 +3545,10 @@ extern int gasnetc_AMRequestLongM(
         local_cnt = &eop->initiated_alc;
         local_cb = gasnetc_cb_eop_alc;
       }
-    } else if (lc_opt == GASNETEX_EVENT_NOW) {
+    } else if (lc_opt == GEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
-    } else if (lc_opt == GASNETEX_EVENT_GROUP) {
+    } else if (lc_opt == GEX_EVENT_GROUP) {
       gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       local_cnt = &op->initiated_alc_cnt;
@@ -3562,7 +3562,7 @@ extern int gasnetc_AMRequestLongM(
 				  flags, numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
-    if (lc_opt == GASNETEX_EVENT_NOW) {
+    if (lc_opt == GEX_EVENT_NOW) {
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
     } else if (eop && (start_cnt == eop->initiated_alc)) {
@@ -3662,7 +3662,7 @@ extern int gasnetc_AMReplyLongM(
         local_cnt = &eop->initiated_alc;
         local_cb = gasnetc_cb_eop_alc;
       }
-    } else if (lc_opt == GASNETEX_EVENT_NOW) {
+    } else if (lc_opt == GEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
     } else {
@@ -3674,7 +3674,7 @@ extern int gasnetc_AMReplyLongM(
 				  flags, numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
-    if (lc_opt == GASNETEX_EVENT_NOW) {
+    if (lc_opt == GEX_EVENT_NOW) {
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
     } else if (eop && (start_cnt == eop->initiated_alc)) {

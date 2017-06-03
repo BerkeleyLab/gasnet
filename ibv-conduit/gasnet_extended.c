@@ -131,10 +131,10 @@ gex_Event_t gasnete_put_nb(
     start_cnt = op->initiated_alc;
     local_cnt = &op->initiated_alc;
     local_cb = gasnetc_cb_eop_alc;
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+  } else if (lc_opt == GEX_EVENT_NOW) {
     local_cnt = &counter.initiated;
     local_cb = gasnetc_cb_counter;
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
     local_cnt = NULL;
     local_cb = NULL;
   } else {
@@ -147,7 +147,7 @@ gex_Event_t gasnete_put_nb(
                    &op->initiated_cnt, gasnetc_cb_eop_put
                    GASNETI_THREAD_PASS);
 
-  if (lc_opt == GASNETEX_EVENT_NOW) {
+  if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   } else if (gasneti_leaf_is_pointer(lc_opt)) {
     if (start_cnt == op->initiated_alc) {
@@ -213,13 +213,13 @@ int gasnete_put_nbi (gex_TM_t tm,
 
   /* XXX check error returns */ 
 
-  if (lc_opt == GASNETEX_EVENT_GROUP) {
+  if (lc_opt == GEX_EVENT_GROUP) {
     local_cnt = &op->initiated_alc_cnt;
     local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+  } else if (lc_opt == GEX_EVENT_NOW) {
     local_cnt = &counter.initiated;
     local_cb = gasnetc_cb_counter;
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
     local_cnt = NULL;
     local_cb = NULL;
   } else {
@@ -231,7 +231,7 @@ int gasnete_put_nbi (gex_TM_t tm,
                    &op->initiated_put_cnt,
                    op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+  if (lc_opt == GEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }

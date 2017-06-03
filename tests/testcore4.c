@@ -88,19 +88,19 @@ uint8_t *peerseg = NULL;
 #endif
 
 #define MSZ(args) \
-        MIN(maxsz,MIN(gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,args), \
-                      gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,args)))
+        MIN(maxsz,MIN(gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args), \
+                      gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args)))
 #define LSZ(args) \
-        MIN(maxsz,MIN(gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,args), \
-                      gex_AM_MaxReplyLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,args)))
+        MIN(maxsz,MIN(gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args), \
+                      gex_AM_MaxReplyLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args)))
 
 #define DEST(n) myteam, (n)
 #define SARGS(dest,args) (dest, hidx_Shandler(args), 0, HARGS(args))
 #define MARGS(dest,args) (dest, hidx_Mhandler(args), rand_payload, MSZ(args), \
-                          GASNETEX_EVENT_NOW, 0, HARGS(args))
+                          GEX_EVENT_NOW, 0, HARGS(args))
 #define LARGS(dest,args,isRep) (dest, hidx_Lhandler(args), rand_payload, \
                                 LSZ(args), peerseg + isRep*LSZ(args), \
-                                GASNETEX_EVENT_NOW, 0, HARGS(args))
+                                GEX_EVENT_NOW, 0, HARGS(args))
 
 /* NOTE: This extra step appears needed for pgcc (bug 2796) */
 #define DO_CALL(fn,args) (fn args)
@@ -185,7 +185,7 @@ void pong_shorthandler(gex_AM_Token_t token) {
 }
 void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(MSZ(0));
-    gex_AM_ReplyMedium0(token, hidx_pong_medhandler, rand_payload, nbytes, GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyMedium0(token, hidx_pong_medhandler, rand_payload, nbytes, GEX_EVENT_NOW, 0);
 }
 void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(MSZ(0));
@@ -193,7 +193,7 @@ void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 }
 void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
-    gex_AM_ReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + LSZ(0), GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + LSZ(0), GEX_EVENT_NOW, 0);
 }
 void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
@@ -233,11 +233,11 @@ int main(int argc, char **argv) {
 
   if (argc > 2) maxsz = (size_t)gasnett_parse_int(argv[2], 1);
   if (maxsz <= 0) maxsz = 2*1024*1024;
-  medsz = MAX(gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0),
-              gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+  medsz = MAX(gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0),
+              gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
   medsz = MIN(maxsz, medsz);
-  longsz = MAX(gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0),
-               gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0));
+  longsz = MAX(gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0),
+               gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
   longsz = MIN(maxsz, longsz);
   maxsz = MAX(medsz,longsz);
 
@@ -278,10 +278,10 @@ int main(int argc, char **argv) {
     gex_AM_RequestShort0(myteam, peer, hidx_ping_shorthandler, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
 
-    gex_AM_RequestMedium0(myteam, peer, hidx_ping_medhandler, rand_payload, MSZ(0), GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestMedium0(myteam, peer, hidx_ping_medhandler, rand_payload, MSZ(0), GEX_EVENT_NOW, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
 
-    gex_AM_RequestLong0(myteam, peer, hidx_ping_longhandler, rand_payload, LSZ(0), peerseg, GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestLong0(myteam, peer, hidx_ping_longhandler, rand_payload, LSZ(0), peerseg, GEX_EVENT_NOW, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
   }
 

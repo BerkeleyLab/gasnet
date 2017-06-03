@@ -450,10 +450,10 @@ gex_Event_t gasnete_put_nb(
 #else
     gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented");
 #endif
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+  } else if (lc_opt == GEX_EVENT_NOW) {
 fake_as_now:
     return _gasnete_put_nb(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
     return _gasnete_put_nb_bulk(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
@@ -572,16 +572,16 @@ int gasnete_put_nbi( gex_TM_t tm,
 {
   GASNETI_CHECKPSHM_PUT(I);
 
-  if (lc_opt == GASNETEX_EVENT_GROUP) {
+  if (lc_opt == GEX_EVENT_GROUP) {
 #if 1 // TODO-EX: fix this
     goto fake_as_now;
 #else
     gasneti_fatalerror("Put_nbi(EVENT_GROUP) unimplemented");
 #endif
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+  } else if (lc_opt == GEX_EVENT_NOW) {
 fake_as_now:
     return _gasnete_put_nbi(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
     return _gasnete_put_nbi_bulk(rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");

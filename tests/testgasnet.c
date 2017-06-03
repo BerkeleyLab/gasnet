@@ -45,7 +45,7 @@ static gex_Segment_t     mysegment;
   test_everything_seginfo_t partnerinfo;
   int done = 0;
   GASNETT_EXTERNC void seg_everything_reqh(gex_AM_Token_t token) {
-    gex_AM_ReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GASNETEX_EVENT_NOW, 0);
+    gex_AM_ReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GEX_EVENT_NOW, 0);
   }
   GASNETT_EXTERNC void seg_everything_reph(gex_AM_Token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(test_everything_seginfo_t));
@@ -288,7 +288,7 @@ void doit(int partner, int *partnerseg) {
     int i;
     for (i = 0; i < iters; i++) {
       val1 = 100 + i + mynode;
-      events[i] = gex_RMA_PutNB(myteam, partner, partnerseg+i, &val1, sizeof(int), GASNETEX_EVENT_NOW, 0);
+      events[i] = gex_RMA_PutNB(myteam, partner, partnerseg+i, &val1, sizeof(int), GEX_EVENT_NOW, 0);
     }
     gex_Event_WaitAll(events, iters);
     for (i = 0; i < iters; i++) {
@@ -319,7 +319,7 @@ void doit2(int partner, int *partnerseg) {
     int i, success=1;
     for (i=0; i < 100; i++) {
       int tmp = mynode + i;
-      gex_RMA_PutNBI(myteam, partner, partnerseg+i, &tmp, sizeof(int), GASNETEX_EVENT_NOW, 0);
+      gex_RMA_PutNBI(myteam, partner, partnerseg+i, &tmp, sizeof(int), GEX_EVENT_NOW, 0);
     }
     gex_NBI_WaitPuts();
     for (i=0; i < 100; i++) {
@@ -439,17 +439,17 @@ void doit5(int partner, int *partnerseg) {
             segpos[j] = val;
           }
         }
-        event = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GASNETEX_EVENT_DEFER, 0);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_EVENT_NOW, 0);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
         memset(localpos, 0xCC, sz); /* clear */
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_EVENT_DEFER, 0);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_EVENT_NOW, 0);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
         memset(segpos, 0xCC, sz); /* clear */
         gex_Event_Wait(event);
 
@@ -503,17 +503,17 @@ void doit5(int partner, int *partnerseg) {
             segpos[j] = val;
           }
         }
-        gex_RMA_PutNBI(myteam, partner, rsegpos, localpos, sz, GASNETEX_EVENT_DEFER, 0);
+        gex_RMA_PutNBI(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
         gex_NBI_WaitPuts();
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_EVENT_NOW, 0);
+        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
         memset(localpos, 0xCC, sz); /* clear */
         gex_NBI_WaitPuts();
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_EVENT_DEFER, 0);
+        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
         gex_NBI_WaitPuts();
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_EVENT_NOW, 0);
+        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
         memset(segpos, 0xCC, sz); /* clear */
         gex_NBI_WaitPuts();
 

@@ -444,7 +444,7 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_
                     size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG)
   {
-    gex_Event_t h = gasnete_put_nb(tm, rank, dest, src, nbytes, GASNETEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
+    gex_Event_t h = gasnete_put_nb(tm, rank, dest, src, nbytes, GEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
     if (h == GEX_EVENT_NO_OP) return 1;
     else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
@@ -572,7 +572,7 @@ gex_Event_t _gex_RMA_PutNBVal (
     #else
       { gex_RMA_Value_t src = value;
         return gasnete_put_nb(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                              nbytes, GASNETEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
+                              nbytes, GEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
       }
     #endif
   }
@@ -598,7 +598,7 @@ gex_Event_t _gex_RMA_PutNBVal (
   {
     gex_RMA_Value_t src = value;
     return gasnete_put_nbi(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                           nbytes, GASNETEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
+                           nbytes, GEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
   }
 #endif
 

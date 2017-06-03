@@ -244,7 +244,7 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
     void * const packedbuf = visop + 1;
     gasnete_memvec_pack(srccount, srclist, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTV_GATHER;
-    visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0].addr, packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0].addr, packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
@@ -374,7 +374,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
 
       /* send AM(rnum, iop) from packedbuf */
       gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_putv_AMPipeline_reqh),
-                               packedbuf, packetlen, GASNETEX_EVENT_NOW, 0,
+                               packedbuf, packetlen, GEX_EVENT_NOW, 0,
                                PACK(iop), rnum);
     }
 
@@ -521,7 +521,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
 
       /* send AM(visop) from packedbuf */
       gex_AM_RequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
-                      packedbuf, rnum*sizeof(gasnet_memvec_t), GASNETEX_EVENT_NOW, 0,
+                      packedbuf, rnum*sizeof(gasnet_memvec_t), GEX_EVENT_NOW, 0,
                       PACK(visop), packetidx);
     }
 
@@ -555,7 +555,7 @@ void gasnete_getv_AMPipeline_reqh_inner(gex_AM_Token_t token,
   gasneti_assert(packedbuf);
   gasneti_assert(repbytes > 0);
   gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_getv_AMPipeline_reph),
-                         packedbuf, repbytes, GASNETEX_EVENT_NOW, 0,
+                         packedbuf, repbytes, GEX_EVENT_NOW, 0,
                          PACK(visop),packetidx);
   gasneti_free(packedbuf);
 }

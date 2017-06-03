@@ -1160,7 +1160,7 @@ ghostExchAMLong(nbr_t *nb, int iters, int axis_in)
     for (i = 0; i < axis_tot; i++) 
 	maxmsg = MAX(maxmsg, nb->facesz[i]*sizeof(double));
 
-    if (maxmsg > gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2)) {
+    if (maxmsg > gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,2)) {
 	if (!myproc) {
 	    printf("Skipping AMLong with dim=%d (%"PRIuPTR" > AMMaxLongRequest())\n",
 			nb->dimsz, (uintptr_t)maxmsg);
@@ -1285,11 +1285,11 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 	/* By now, send an AMLong with data */
 // TODO-EX: Restore "Async" nature of this when lc_opt=handle is supported
 // TODO-EX: was "gasnet_AMRequestLongAsync2(node,hidx_ghostReqHandler,src,len,dest, axis,destp)"
-	gex_AM_RequestLong2(myteam,node,hidx_ghostReqHandler,src,len,dest,GASNETEX_EVENT_NOW,0,axis,destp);
+	gex_AM_RequestLong2(myteam,node,hidx_ghostReqHandler,src,len,dest,GEX_EVENT_NOW,0,axis,destp);
 	return GEX_EVENT_INVALID;
     }
     else {
-	return gex_RMA_PutNB(myteam, node, dest, src, len, GASNETEX_EVENT_DEFER, 0);
+	return gex_RMA_PutNB(myteam, node, dest, src, len, GEX_EVENT_DEFER, 0);
     }
 
 local_copy:

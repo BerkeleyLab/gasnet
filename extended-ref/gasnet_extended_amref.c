@@ -225,7 +225,7 @@ void gasnete_amref_get_reqh_inner(gex_AM_Token_t token,
   gex_AM_Arg_t nbytes, void *dest, void *src, void *done) {
   gasneti_assert(nbytes <= gex_AM_LUBReplyMedium());
   gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
-                         src, nbytes, GASNETEX_EVENT_NOW, 0,
+                         src, nbytes, GEX_EVENT_NOW, 0,
                          PACK(dest), PACK(done));
 }
 SHORT_HANDLER(gasnete_amref_get_reqh,4,7, 
@@ -248,7 +248,7 @@ void gasnete_amref_getlong_reqh_inner(gex_AM_Token_t token,
   gex_AM_Arg_t nbytes, void *dest, void *src, void *done) {
 
   gex_AM_ReplyLong(token, gasneti_handleridx(gasnete_amref_getlong_reph),
-                       src, nbytes, dest, GASNETEX_EVENT_NOW, 0, PACK(done));
+                       src, nbytes, dest, GEX_EVENT_NOW, 0, PACK(done));
 }
 
 SHORT_HANDLER(gasnete_amref_getlong_reqh,4,7, 
@@ -378,7 +378,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
   // There is no EVENT_DEFER for an AMRequest, but EVENT_GROUP is permitted.
   // Since (at least in the reference iop) syncnbi_{puts,all}() will
   // test/wait the LC counters, we convert EVENT_DEFER to EVENT_GROUP here.
-  if (lc_opt == GASNETEX_EVENT_DEFER) lc_opt = GASNETEX_EVENT_GROUP;
+  if (lc_opt == GEX_EVENT_DEFER) lc_opt = GEX_EVENT_GROUP;
 
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_put_cnt++;
@@ -494,7 +494,7 @@ gex_Event_t gasnete_amref_put_nb(
   // EVENT_DEFER is accomplished using an nbi access region, ended with EVENT_DEFER.
   // Otherwise this reference implementation has no way to portably link the
   // LC of an AM Request to a gex_Event_t.
-  if (lc_opt != GASNETEX_EVENT_DEFER) {
+  if (lc_opt != GEX_EVENT_DEFER) {
     if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
@@ -524,7 +524,7 @@ gex_Event_t gasnete_amref_put_nb(
     gex_Event_t event;
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     nbi_result = gasnete_amref_put_nbi_inner(tm, rank, dest, src, nbytes,
-                                             GASNETEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
+                                             GEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
     event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
       gasnete_wait(event GASNETI_THREAD_PASS);

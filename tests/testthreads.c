@@ -461,11 +461,11 @@ ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, harg
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
-        assert(nbytes <= gex_AM_MaxRequestMedium(myteam,node,GASNETEX_EVENT_NOW,0,2));
+        assert(nbytes <= gex_AM_MaxRequestMedium(myteam,node,GEX_EVENT_NOW,0,2));
         assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(gasnet_mynode()) ||
                (uintptr_t)buf >= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
-	gex_AM_ReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0, idx);
+	gex_AM_ReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, idx);
 }
 void 
 pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
@@ -479,7 +479,7 @@ pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
 			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(tid >= 0 && tid < threads_num*gasnet_nodes());
-        assert(nbytes <= gex_AM_MaxReplyMedium(myteam,node,GASNETEX_EVENT_NOW,0,1));
+        assert(nbytes <= gex_AM_MaxReplyMedium(myteam,node,GEX_EVENT_NOW,0,1));
         assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(gasnet_mynode()) ||
                (uintptr_t)buf >= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
 	tt_thread_data[idx].flag++;
@@ -500,11 +500,11 @@ ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, har
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
-        assert(nbytes <= gex_AM_MaxRequestLong(myteam,node,GASNETEX_EVENT_NOW,0,3));
+        assert(nbytes <= gex_AM_MaxRequestLong(myteam,node,GEX_EVENT_NOW,0,3));
         assert(buf == tt_addr_map[target_id]);
         assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
-	gex_AM_ReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GASNETEX_EVENT_NOW, 0, idx);
+	gex_AM_ReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GEX_EVENT_NOW, 0, idx);
 }
 
 void 
@@ -515,7 +515,7 @@ pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx) {
 			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(tid >= 0 && tid < threads_num*gasnet_nodes());
-        assert(nbytes <= gex_AM_MaxReplyLong(myteam,node,GASNETEX_EVENT_NOW,0,1));
+        assert(nbytes <= gex_AM_MaxReplyLong(myteam,node,GEX_EVENT_NOW,0,1));
         assert(buf == tt_addr_map[gasnet_mynode() * threads_num + idx]);
         assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
 	tt_thread_data[idx].flag++;
@@ -605,15 +605,15 @@ test_ammedium(threaddata_t *tdata)
 
 	do {
 		len = RANDOM_SIZE();
-        } while (len > gex_AM_MaxRequestMedium(myteam,peer,GASNETEX_EVENT_NOW,0,2));
+        } while (len > gex_AM_MaxRequestMedium(myteam,peer,GEX_EVENT_NOW,0,2));
 		
 	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
         gasnett_local_wmb();
 	gex_AM_RequestMedium2(myteam, node, hidx_ping_medhandler, laddr, len,
-                                  GASNETEX_EVENT_NOW, 0, tdata->ltid,
+                                  GEX_EVENT_NOW, 0, tdata->ltid,
                                   (harg_t)MIN((size_t)0xfffffffU,
-                                              gex_AM_MaxReplyMedium(myteam,node,GASNETEX_EVENT_NOW,0,1)));
+                                              gex_AM_MaxReplyMedium(myteam,node,GEX_EVENT_NOW,0,1)));
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
@@ -632,7 +632,7 @@ test_amlong(threaddata_t *tdata)
 
 	do {
 		len = RANDOM_SIZE();
-        } while ((len > gex_AM_MaxRequestLong(myteam,peer,GASNETEX_EVENT_NOW,0,3))
+        } while ((len > gex_AM_MaxRequestLong(myteam,peer,GEX_EVENT_NOW,0,3))
               || (len > TEST_SEGZ_PER_THREAD));
 		
 	tdata->flag = -1;
@@ -640,9 +640,9 @@ test_amlong(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 
 	gex_AM_RequestLong3(myteam, node, hidx_ping_longhandler, laddr, len, raddr,
-                                GASNETEX_EVENT_NOW, 0, tdata->ltid, peer,
+                                GEX_EVENT_NOW, 0, tdata->ltid, peer,
                                 (harg_t)MIN((size_t)0xfffffffU,
-                                            gex_AM_MaxReplyLong(myteam,node,GASNETEX_EVENT_NOW,0,1)));
+                                            gex_AM_MaxReplyLong(myteam,node,GEX_EVENT_NOW,0,1)));
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 

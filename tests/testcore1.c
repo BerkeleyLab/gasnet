@@ -183,7 +183,7 @@ void chksum_reqh(gex_AM_Token_t token,
 	monoseed_trace(iter, seed, &chksum_reqbuf, NULL);
 	GASNET_Safe( 
 	    gex_AM_ReplyMedium1(token, 202, &chksum_reqbuf, 
-	        CHKSUM_TOTAL, GASNETEX_EVENT_NOW, 0, iter));
+	        CHKSUM_TOTAL, GEX_EVENT_NOW, 0, iter));
 	return;
 }
 

@@ -72,7 +72,7 @@
   #define GETPARTNER(token)  gasnetex_rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
   #define ENDPOINT                 myteam,
   #define EXTRA_S                  ,0
-  #define EXTRA_ML                 ,GASNETEX_EVENT_NOW,0
+  #define EXTRA_ML                 ,GEX_EVENT_NOW,0
 #else
   #include "apputils.h"
   typedef int handlerarg_t;

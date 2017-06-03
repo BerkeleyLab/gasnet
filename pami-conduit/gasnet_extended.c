@@ -423,17 +423,17 @@ gex_Event_t gasnete_put_nb(
       ldone_fn = gasnete_cb_ptr_lc;
       *lc_opt = (gex_Event_t)op;
       GASNETE_EOP_LC_START(op);
-    } else if (lc_opt == GASNETEX_EVENT_NOW) {
+    } else if (lc_opt == GEX_EVENT_NOW) {
       ldone_fn = gasnete_cb_eop_lc;
       GASNETE_LC_NOW_START(op);
-    } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+    } else if (lc_opt == GEX_EVENT_DEFER) {
       // Nothing to do
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
     }
 
     gasnete_put_common(rank, dest, src, nbytes, ldone_fn, gasnete_cb_eop_done, op);
-    if (lc_opt == GASNETEX_EVENT_NOW) {
+    if (lc_opt == GEX_EVENT_NOW) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
@@ -487,13 +487,13 @@ int gasnete_put_nbi( gex_TM_t tm,
 
     op->initiated_put_cnt++;
 
-    if (lc_opt == GASNETEX_EVENT_GROUP) {
+    if (lc_opt == GEX_EVENT_GROUP) {
       ldone_fn = op->next ? gasnete_cb_ralc_done : gasnete_cb_ialc_done;
       op->initiated_alc_cnt += 1;
-    } else if (lc_opt == GASNETEX_EVENT_NOW) {
+    } else if (lc_opt == GEX_EVENT_NOW) {
       ldone_fn = gasnete_cb_iop_lc;
       GASNETE_LC_NOW_START(op);
-    } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+    } else if (lc_opt == GEX_EVENT_DEFER) {
       // Nothing to do
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
@@ -501,7 +501,7 @@ int gasnete_put_nbi( gex_TM_t tm,
 
     pami_event_function rdone_fn = op->next ? gasnete_cb_rput_done : gasnete_cb_iput_done;
     gasnete_put_common(rank, dest, src, nbytes, ldone_fn, rdone_fn, op);
-    if (lc_opt == GASNETEX_EVENT_NOW) {
+    if (lc_opt == GEX_EVENT_NOW) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
