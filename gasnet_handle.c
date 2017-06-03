@@ -532,7 +532,7 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GAS
 }
 #endif
 
-#ifndef gasnete_get_leaf
+#ifndef gasnete_Event_QueryLeaf
 #if GASNET_DEBUG
 static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
   gasneti_assert(! gasneti_handle_idx(op));
@@ -557,13 +557,13 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
       break;
     }
   }
-  gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
+  gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");
 }
 #else
   #define _gasnete_get_leaf_check(op, event_id) ((void)0)
 #endif
 
-extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id) {
+extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigned int event_id) {
   gasnete_op_t *op = (gasnete_op_t*)root;
   _gasnete_get_leaf_check(op, event_id);
 
@@ -575,7 +575,7 @@ extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int e
     case GASNETEX_EVENTID_LC:   return gasneti_op_handle(op, gasnete_iop_event_alc);
   }
 
-  gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
+  gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");
   return GASNETEX_INVALID_HANDLE; // NOT REACHED
 }
 #endif

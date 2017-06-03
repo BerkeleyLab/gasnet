@@ -396,11 +396,11 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GAS
   Query to get leaf event from its root
   =====================================
 */
-#ifndef gasnete_get_leaf
-extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id);
+#ifndef gasnete_Event_QueryLeaf
+extern gasnetex_handle_t gasnete_Event_QueryLeaf(gasnetex_handle_t root, unsigned int event_id);
 #endif
 
-#define gasnetex_get_leaf(root, event_id) gasnete_get_leaf(root, event_id)
+#define gex_Event_QueryLeaf(root, event_id) gasnete_Event_QueryLeaf(root, event_id)
 
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -465,7 +465,7 @@ void gex_NBI_Wait(unsigned int event_mask, gasnetex_flags_t flags);
 // This is a *query* and does not instantiate a new object, and so multiple
 // calls with the same argument (that don't return INVALID_HANDLE) must return
 // the *same* handle.
-gasnetex_handle_t gasnetex_get_leaf(
+gasnetex_handle_t gex_Event_QueryLeaf(
         gasnetex_handle_t handle,
         unsigned int event_id);
 
