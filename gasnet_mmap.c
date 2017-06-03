@@ -1994,7 +1994,7 @@ void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t excha
 /* ------------------------------------------------------------------------------------ */
 // AM-based gasneti_bootstrapExchangefn_t
 
-static gasneti_weakatomic32_t gasneti_exchg_rcvd[2][32] = {}; // Implicitly zero-initialized
+static gasneti_weakatomic32_t gasneti_exchg_rcvd[2][32]; // Implicitly zero-initialized
 
 static uint8_t *_gasneti_exchg_data[2] = {NULL,NULL};
 static uint8_t *gasneti_exchg_data(int phase, size_t elemsz) {
