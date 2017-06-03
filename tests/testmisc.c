@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
 #define TIME_OPERATION(desc, op) TIME_OPERATION_FULL(desc, {}, op, {})
 
 char p[1];
-gex_HSL_t hsl = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t hsl = GEX_HSL_INITIALIZER;
 gasnett_atomic_t a = gasnett_atomic_init(0);
 gasnett_atomic32_t a32 = gasnett_atomic32_init(0);
 gasnett_atomic64_t a64 = gasnett_atomic64_init(0);

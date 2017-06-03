@@ -81,7 +81,7 @@ typedef struct {
   #define GASNETC_LOCK_STAT_INIT  
 #endif
 
-#define GASNETEX_HSL_INITIALIZER { \
+#define GEX_HSL_INITIALIZER { \
   GASNETI_MUTEX_INITIALIZER      \
   GASNETC_LOCK_STAT_INIT         \
   }

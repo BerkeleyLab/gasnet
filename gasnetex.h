@@ -470,8 +470,8 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
   #error GASNet extended API failed to define GASNET_BEGIN_FUNCTION
 #endif
 
-#ifndef GASNETEX_HSL_INITIALIZER
-  #error GASNet core failed to define GASNETEX_HSL_INITIALIZER
+#ifndef GEX_HSL_INITIALIZER
+  #error GASNet core failed to define GEX_HSL_INITIALIZER
 #endif
 
 #ifndef GASNET_BLOCKUNTIL

@@ -16,7 +16,7 @@ static gasnetex_segment_t     mysegment;
 int peer = -1;
 int flag = 0;
 uint64_t iters = 100;
-gex_HSL_t globallock = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t globallock = GEX_HSL_INITIALIZER;
 
 void okhandler3(gasnetex_token_t token) {
   gex_HSL_Lock(&globallock);
@@ -40,7 +40,7 @@ void increq(gasnetex_token_t token) {
   gex_HSL_Unlock(&globallock);
   gasnetex_AMReplyShort0(token, 222, 0);
 }
-gex_HSL_t replock = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t replock = GEX_HSL_INITIALIZER;
 uint64_t repcounter = 0;
 void increp(gasnetex_token_t token) {
   gex_HSL_Lock(&replock);
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
   if (argc < 2) test_usage();
   {
     int errtest = atoi(argv[1]);
-    gex_HSL_t lock1 = GASNETEX_HSL_INITIALIZER;
+    gex_HSL_t lock1 = GEX_HSL_INITIALIZER;
     gex_HSL_t lock2;
     gex_HSL_Init(&lock2);
 

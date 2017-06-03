@@ -847,7 +847,7 @@ static void lifo_test(int id) {
 }
 /* ------------------------------------------------------------------------------------ */
 static int pf_cnt_boolean, pf_cnt_counted;
-static gex_HSL_t pf_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t pf_lock = GEX_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gasnetex_token_t token, void *buf, size_t nbytes) {

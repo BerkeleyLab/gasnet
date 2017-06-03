@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 char _pad[GASNETT_CACHE_LINE_BYTES] = { 0 }; /* bug 2231 workaround */
-gex_HSL_t hsl = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t hsl = GEX_HSL_INITIALIZER;
 
 /* ------------------------------------------------------------------------------------ */
 #define TIME_OPERATION_SOME(id, op)                             \

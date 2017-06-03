@@ -362,7 +362,7 @@ void gasnet_FetchGexObjects( gasnetex_client_t      *client_p,
 #define gasnet_hsl_lock         gex_HSL_Lock
 #define gasnet_hsl_unlock	gex_HSL_Unlock
 #define gasnet_hsl_trylock	gex_HSL_Trylock
-#define GASNET_HSL_INITIALIZER	GASNETEX_HSL_INITIALIZER
+#define GASNET_HSL_INITIALIZER	GEX_HSL_INITIALIZER
 
 /* ------------------------------------------------------------------------------------ */
 /* Blocking Put and Get */

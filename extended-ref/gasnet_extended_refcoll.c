@@ -1447,7 +1447,7 @@ void gasnete_coll_p2p_free(gasnete_coll_team_t team, gasnete_coll_p2p_t *p2p) {
 /* If we need more than 2^32 segments (which should be rare)
    The collective will need to get broken up into multiple collectives
 */
-static gex_HSL_t gasnete_coll_p2p_seg_free_list_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t gasnete_coll_p2p_seg_free_list_lock = GEX_HSL_INITIALIZER;
 static gasnete_coll_seg_interval_t *gasnet_coll_p2p_seg_interval_free_list = NULL;
 
 
@@ -2120,7 +2120,7 @@ extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count 
 }
 
 /*
-static gex_HSL_t gasnete_coll_tree_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t gasnete_coll_tree_lock = GEX_HSL_INITIALIZER;
 */
 	
 /* XXX: should per-team */

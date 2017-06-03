@@ -37,7 +37,7 @@ void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt
   }
 }
 
-gex_HSL_t inchsl = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t inchsl = GEX_HSL_INITIALIZER;
 #define INC(var) do {           \
     gex_HSL_Lock(&inchsl);   \
     var++;                      \

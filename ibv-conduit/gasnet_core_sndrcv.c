@@ -936,7 +936,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
 GASNETI_NEVER_INLINE(gasnetc_dump_cqs,
 void gasnetc_dump_cqs(struct ibv_wc *comp, gasnetc_hca_t *hca, const int is_snd)) {
-  static gex_HSL_t lock = GASNETEX_HSL_INITIALIZER;
+  static gex_HSL_t lock = GEX_HSL_INITIALIZER;
   enum ibv_wc_status status = IBV_WC_SUCCESS;
   int count = 0;
   const char *label;
