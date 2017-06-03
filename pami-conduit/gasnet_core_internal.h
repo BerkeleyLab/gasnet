@@ -48,6 +48,12 @@ typedef enum {
 
 #define GASNETE_HAVE_LC
 
+#if GASNET_DEBUG
+  // Reset between use as two different events type: gasnete_event_type_{lc,lc_now}
+  #define GASNETE_EOP_NEW_EXTRA(eop) \
+            (eop)->event[gasnete_eop_event_alc] = gasnete_event_type_free_eop
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 enum {

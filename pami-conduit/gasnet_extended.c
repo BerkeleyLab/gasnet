@@ -47,6 +47,12 @@ static void gasnete_cb_rget_done(pami_context_t context, void *cookie, pami_resu
   GASNETE_IOP_CNT_FINISH_REG(iop, get, 1, 0);
   gasneti_assert(status == PAMI_SUCCESS);
 }
+static void gasnete_cb_ralc_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, alc, 1, 0);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
 static void gasnete_cb_iput_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
   gasnete_iop_check(iop);
@@ -57,6 +63,12 @@ static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_resu
   gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
   gasnete_iop_check(iop);
   GASNETE_IOP_CNT_FINISH_INT(iop, get, 1, 0);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
+static void gasnete_cb_ialc_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_INT(iop, alc, 1, 0);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
@@ -71,6 +83,12 @@ static void gasnete_cb_iop_lc(pami_context_t context, void *cookie, pami_result_
   gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
   gasnete_iop_check(iop);
   GASNETE_LC_NOW_FINISH(iop);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
+static void gasnete_cb_ptr_lc(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
+  gasnete_eop_check(eop);
+  GASNETE_EOP_LC_FINISH(eop);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
@@ -402,14 +420,10 @@ gasnetex_handle_t gasnete_put_nb(
     pami_event_function ldone_fn = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-#if 1 // TODO-EX: fix this
-      gasneti_leaf_finish(lc_opt);
-      goto fake_as_now;
-#else
-      gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented");
-#endif
+      ldone_fn = gasnete_cb_ptr_lc;
+      *lc_opt = (gasnetex_handle_t)op;
+      GASNETE_EOP_LC_START(op);
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
-fake_as_now:
       ldone_fn = gasnete_cb_eop_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
@@ -419,7 +433,7 @@ fake_as_now:
     }
 
     gasnete_put_common(rank, dest, src, nbytes, ldone_fn, gasnete_cb_eop_done, op);
-    if (ldone_fn) {
+    if (lc_opt == GASNETEX_EVENT_NOW) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
@@ -474,13 +488,9 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
     op->initiated_put_cnt++;
 
     if (lc_opt == GASNETEX_EVENT_GROUP) {
-#if 1 // TODO-EX: fix this
-      goto fake_as_now;
-#else
-      gasneti_fatalerror("Put_nbi(EVENT_GROUP) unimplemented");
-#endif
+      ldone_fn = op->next ? gasnete_cb_ralc_done : gasnete_cb_ialc_done;
+      op->initiated_alc_cnt += 1;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
-fake_as_now:
       ldone_fn = gasnete_cb_iop_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
@@ -491,7 +501,7 @@ fake_as_now:
 
     pami_event_function rdone_fn = op->next ? gasnete_cb_rput_done : gasnete_cb_iput_done;
     gasnete_put_common(rank, dest, src, nbytes, ldone_fn, rdone_fn, op);
-    if (ldone_fn) {
+    if (lc_opt == GASNETEX_EVENT_NOW) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
