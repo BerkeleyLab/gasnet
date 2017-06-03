@@ -282,7 +282,7 @@ extern const char *gasnet_ErrorDesc(int);
 /* core types */
 
 // TODO-EX: need comments here?
-typedef uint8_t gasnetex_handler_t;
+typedef uint8_t gex_AM_Index_t;
 typedef int32_t gasnetex_handlerarg_t;
 typedef uint32_t gasnetex_flags_t;
 
@@ -330,7 +330,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 
 /*  struct type used to perform handler registration */
 typedef struct {
-    gasnetex_handler_t      gex_index;   // 0 on input == don't care
+    gex_AM_Index_t      gex_index;   // 0 on input == don't care
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void                   *gex_fnptr;
    #else
@@ -348,7 +348,7 @@ typedef struct {
 // TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
 //#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {
-    gasnetex_handler_t index; /*  == 0 for don't care  */
+    gex_AM_Index_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void *fnptr;    
    #else

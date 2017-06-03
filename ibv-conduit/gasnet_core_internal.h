@@ -681,14 +681,14 @@ extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *add
 extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca);
 extern void gasnetc_sndrcv_poll(int handler_context);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
-				  gasnetc_epid_t dest, gasnetex_handler_t handler,
+				  gasnetc_epid_t dest, gex_AM_Index_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  gasnetex_flags_t flags, int numargs,
 				  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
 				  gasnetc_counter_t *counter, va_list argptr
                                   GASNETI_THREAD_FARG);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
-				gasnetex_token_t token, gasnetex_handler_t handler,
+				gasnetex_token_t token, gex_AM_Index_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				gasnetex_flags_t flags, int numargs,
 				gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
@@ -850,21 +850,21 @@ extern gasnetex_rank_t            gasnetc_remote_nodes;
 
 extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
                                    gasnetc_counter_t *counter, /* counter for local completion */
-                                   gasnetex_handler_t handler,
+                                   gex_AM_Index_t handler,
                                    int numargs, ...);
 extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
                                     gasnetc_counter_t *counter, /* counter for local completion */
-                                    gasnetex_handler_t handler,
+                                    gex_AM_Index_t handler,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...);
 
 extern int gasnetc_ReplySysShort(gasnetex_token_t token,
                                  gasnetc_counter_t *counter, /* counter for local completion */
-                                 gasnetex_handler_t handler,
+                                 gex_AM_Index_t handler,
                                  int numargs, ...);
 extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
                                   gasnetc_counter_t *counter, /* counter for local completion */
-                                  gasnetex_handler_t handler,
+                                  gex_AM_Index_t handler,
                                   void *source_addr, size_t nbytes,
                                   int numargs, ...);
 

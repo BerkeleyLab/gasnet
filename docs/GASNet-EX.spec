@@ -106,7 +106,7 @@ struct gasneti_token_s;
 typedef struct gasneti_token_s *gasnetex_token_t;
 
 // Handler index and argument types are fixed-width integers
-typedef uint8_t gasnetex_handler_t;
+typedef uint8_t gex_AM_Index_t;
 typedef int32_t gasnetex_handlerarg_t;
 
 // Widest scalar and width
@@ -151,7 +151,7 @@ extern int gex_EP_Create(
 // TBD: need enum for flags values such as REQUEST/REPLY/EITHER
 // TBD: should default/recommended internal struct be the same?
 typedef struct {
-    gasnetex_handler_t      gex_index;     // 0 on input == don't care
+    gex_AM_Index_t          gex_index;     // 0 on input == don't care
     void                  (*gex_fnptr)();  // Plus existing strict-proto goop
     uintXX_t                gex_flags;     // width TBD
     uint8_t                 gex_nargs;     // start requiring this!
@@ -220,7 +220,7 @@ int gex_EP_RegisterHandlers(
 int gex_AM_RequestLongM(
            gex_TM_t tm,                   // Names a local context ("return address")
            gasnetex_rank_t rank,          // Together with 'tm', names a remote context
-           gasnetex_handler_t handler,    // Index into handler table of remote context
+           gex_AM_Index_t handler,        // Index into handler table of remote context
            const void *source_addr,       // Payload address (or OFFSET)
            size_t nbytes,                 // Payload length
            void *dest_addr,               // Payload destination address (or OFFSET)
@@ -229,7 +229,7 @@ int gex_AM_RequestLongM(
            int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
 int gex_AM_ReplyLongM(
            gasnetex_token_t token,        // Names local and remote contexts
-           gasnetex_handler_t handler,
+           gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
            void *dest_addr,
@@ -240,7 +240,7 @@ int gex_AM_ReplyLongM(
 int gex_AM_RequestMediumM(
            gex_TM_t tm,
            gasnetex_rank_t rank,
-           gasnetex_handler_t handler,
+           gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
            gasnetex_handle_t *lc_opt,
@@ -248,7 +248,7 @@ int gex_AM_RequestMediumM(
            int numargs, ...);
 int gex_AM_ReplyMediumM(
            gasnetex_token_t token,
-           gasnetex_handler_t handler,
+           gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
            gasnetex_handle_t *lc_opt,
@@ -258,12 +258,12 @@ int gex_AM_ReplyMediumM(
 int gex_AM_RequestShortM(
            gex_TM_t tm,
            gasnetex_rank_t rank,
-           gasnetex_handler_t handler, 
+           gex_AM_Index_t handler, 
            gasnetex_flags_t flags,
            int numargs, ...);
 int gex_AM_ReplyShortM(
            gasnetex_token_t token,
-           gasnetex_handler_t handler,
+           gex_AM_Index_t handler,
            gasnetex_flags_t flags,
            int numargs, ...);
 

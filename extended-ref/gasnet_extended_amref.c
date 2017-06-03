@@ -323,7 +323,7 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
     return;
   } else {
     size_t chunksz;
-    gasnetex_handler_t reqhandler;
+    gex_AM_Index_t reqhandler;
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     #if GASNETE_USE_LONG_GETS

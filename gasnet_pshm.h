@@ -80,7 +80,7 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *       nargs, flags, fnptr, cdata, name
  *     For use ONLY by gasnet_pshm.[ch]
  *   gasnetc_handler_t
- *     Type (via typdef or #define) used for handlers instead of gasnetex_handler_t
+ *     Type (via typdef or #define) used for handlers instead of gex_AM_Index_t
  *
  * If gasnet_core_fwd.h defines GASNETC_TOKEN_CREATE, conduit must provide
  * ALL of the following:
@@ -98,7 +98,7 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *     For general use (conduit use in gasnetc_AMReply*() is encouraged)
  */
 #ifndef GASNETC_GET_HANDLER
-  #define gasnetc_handler_t gasnetex_handler_t
+  #define gasnetc_handler_t gex_AM_Index_t
 #endif
 #ifdef GASNETC_TOKEN_CREATE
   #ifndef gasnetc_token_create

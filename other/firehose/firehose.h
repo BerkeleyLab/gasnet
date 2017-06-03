@@ -273,7 +273,7 @@ firehose_unexport_callback(gasnetex_rank_t node,
  *
  * Upon calling firehose_get_handlertable(), clients should loop over
  * the array of gex_AM_Entry_t and fill in a valid
- * gasnet_handler_t index for each function pointer.  At firehose
+ * gex_AM_Index_t for each function pointer.  At firehose
  * initialization, a check is made to make sure each function pointer
  * has been assigned a usable index number.
  */

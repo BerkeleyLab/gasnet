@@ -79,7 +79,7 @@ enum {
 
 #define GASNETC_MSG_COMMON_HDR                        \
   gasnetex_rank_t       srcnode; /* must be first */  \
-  gasnetex_handler_t    handler;                      \
+  gex_AM_Index_t    handler;                      \
   uint8_t               numargs : 5;                  \
   uint8_t               is_req  : 1;                  \
   GASNETC_MSG_DEBUG_HDR

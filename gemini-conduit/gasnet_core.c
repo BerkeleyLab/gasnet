@@ -1174,7 +1174,7 @@ int gasnetc_general_am_send_reply(gasnetc_post_descriptor_t *gpd, gasnetex_token
 #if !GASNET_PSHM
 
 GASNETI_INLINE(gasnetc_local_short_common)
-int gasnetc_local_short_common(int is_req, gasnetex_handler_t handler,
+int gasnetc_local_short_common(int is_req, gex_AM_Index_t handler,
                                int numargs, va_list argptr)
 {
   int i;
@@ -1194,7 +1194,7 @@ int gasnetc_local_short_common(int is_req, gasnetex_handler_t handler,
 }
 
 GASNETI_INLINE(gasnetc_local_medium_common)
-int gasnetc_local_medium_common(int is_req, gasnetex_handler_t handler,
+int gasnetc_local_medium_common(int is_req, gex_AM_Index_t handler,
                                 void *source_addr, size_t nbytes,
                                 int numargs, va_list argptr)
 {
@@ -1218,7 +1218,7 @@ int gasnetc_local_medium_common(int is_req, gasnetex_handler_t handler,
 
 
 GASNETI_INLINE(gasnetc_local_long_common)
-int gasnetc_local_long_common(int is_req, gasnetex_handler_t handler,
+int gasnetc_local_long_common(int is_req, gex_AM_Index_t handler,
                                void *source_addr, size_t nbytes,
                                void *dest_addr, 
                                int numargs, va_list argptr)
@@ -1245,7 +1245,7 @@ int gasnetc_local_long_common(int is_req, gasnetex_handler_t handler,
 /*------------------- header formatting ------------------ */
 GASNETI_INLINE(gasnetc_format_short)
 void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
-                         gasnetex_handler_t handler,
+                         gex_AM_Index_t handler,
                          int numargs, 
                          va_list argptr)
 {
@@ -1261,7 +1261,7 @@ void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
 
 GASNETI_INLINE(gasnetc_format_medium)
 void gasnetc_format_medium(gasnetc_post_descriptor_t *gpd,
-                           gasnetex_handler_t handler,
+                           gex_AM_Index_t handler,
                            void *source_addr, 
                            size_t nbytes,
                            int numargs, 
@@ -1282,7 +1282,7 @@ void gasnetc_format_medium(gasnetc_post_descriptor_t *gpd,
 GASNETI_INLINE(gasnetc_format_long)
 void gasnetc_format_long(gasnetc_post_descriptor_t *gpd,
                          int is_packed,
-                         gasnetex_handler_t handler,
+                         gex_AM_Index_t handler,
                          size_t nbytes,
                          void *dest_addr,
                          int numargs, va_list argptr)
@@ -1381,7 +1381,7 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
 extern int gasnetc_AMRequestShortM(
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t dest,       /* with tm, defines remote context */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1418,7 +1418,7 @@ out_immediate:
 extern int gasnetc_AMRequestMediumM(
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t dest,       /* with tm, defines remote context */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
@@ -1458,7 +1458,7 @@ out_immediate:
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t dest,       /* with tm, defines remote context */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
@@ -1530,7 +1530,7 @@ gasnetex_rank_t reply_node(gasnetex_token_t t)
 
 extern int gasnetc_AMReplyShortM(
                             gasnetex_token_t token,     /* token provided on handler entry */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval = 1; // assume IMMEDIATE fails
@@ -1564,7 +1564,7 @@ out_immediate:
 
 extern int gasnetc_AMReplyMediumM(
                             gasnetex_token_t token,     /* token provided on handler entry */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
@@ -1602,7 +1602,7 @@ out_immediate:
 
 extern int gasnetc_AMReplyLongM(
                             gasnetex_token_t token,     /* token provided on handler entry */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */

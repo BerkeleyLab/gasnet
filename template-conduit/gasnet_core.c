@@ -497,7 +497,7 @@ extern int gasnetc_AMPoll(void) {
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t rank,       /* with tm, defines remote context */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
@@ -527,7 +527,7 @@ extern int gasnetc_AMRequestShortM(
 extern int gasnetc_AMRequestMediumM( 
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t rank,       /* with tm, defines remote context */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
@@ -559,7 +559,7 @@ extern int gasnetc_AMRequestMediumM(
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
                             gasnetex_rank_t rank,       /* with tm, defines remote context */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
@@ -591,7 +591,7 @@ extern int gasnetc_AMRequestLongM(
 
 extern int gasnetc_AMReplyShortM( 
                             gasnetex_token_t token,     /* token provided on handler entry */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
@@ -619,7 +619,7 @@ extern int gasnetc_AMReplyShortM(
 
 extern int gasnetc_AMReplyMediumM( 
                             gasnetex_token_t token,     /* token provided on handler entry */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
@@ -649,7 +649,7 @@ extern int gasnetc_AMReplyMediumM(
 
 extern int gasnetc_AMReplyLongM( 
                             gasnetex_token_t token,     /* token provided on handler entry */
-                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */

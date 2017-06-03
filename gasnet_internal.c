@@ -303,7 +303,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
 /* ------------------------------------------------------------------------------------ */
 #if GASNETC_AMREGISTER
   /* Use a conduit-specific hook at registration */
-  extern int gasnetc_amregister(gasnetex_handler_t, gex_AM_Entry_t *);
+  extern int gasnetc_amregister(gex_AM_Index_t, gex_AM_Entry_t *);
 #endif
 
 // Register handlers in the range [lowlimit,highlimit)
@@ -343,7 +343,7 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
 
     /* register a single handler with conduit-specifc hook, if any */
   #if GASNETC_AMREGISTER
-    int rc = gasnetc_amregister((gasnetex_handler_t)newindex, &input[i]);
+    int rc = gasnetc_amregister((gex_AM_Index_t)newindex, &input[i]);
     if (GASNET_OK != rc) return rc;
   #endif
 
