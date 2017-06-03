@@ -614,7 +614,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   return GASNET_OK;
 }
 
-extern int gasnetc_EPRegisterHandlers( gex_EP_t                ep,
+extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        int                     numentries) {
   return gasneti_amregister_client(gasnetc_handler, table, numentries);

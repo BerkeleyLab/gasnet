@@ -50,11 +50,11 @@ extern int gasnetc_EP_Create(
                 gasnetex_flags_t        flags);
 #define gex_EP_Create gasnetc_EP_Create
 
-extern int gasnetc_EPRegisterHandlers(
+extern int gasnetc_EP_RegisterHandlers(
                 gex_EP_t                ep,
                 gex_AM_Entry_t          *table,
                 int                     numentries);
-#define gex_EP_RegisterHandlers gasnetc_EPRegisterHandlers
+#define gex_EP_RegisterHandlers gasnetc_EP_RegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*
   Handler-safe locks
