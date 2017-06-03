@@ -291,7 +291,7 @@ typedef uint32_t gasnetex_rank_t;
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;
-typedef struct gasneti_token_s *gasnetex_token_t;
+typedef struct gasneti_token_s *gex_AM_Token_t;
 
 struct gasneti_team_member_s;
 typedef struct gasneti_team_s *gex_TM_t;

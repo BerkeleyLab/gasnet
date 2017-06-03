@@ -182,7 +182,7 @@ void pairwise_wait_nbrs  (nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int 
 #define hidx_ghostReqHandler 201
 
 static
-void  ghostReqHandler(gasnetex_token_t token, void *buf, size_t nbytes,
+void  ghostReqHandler(gex_AM_Token_t token, void *buf, size_t nbytes,
 	              int axis, int destp)
 {
     double *src = (double *)buf;

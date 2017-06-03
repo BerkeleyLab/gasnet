@@ -38,7 +38,7 @@ extern int gasnetc_AMRequestLongM(
                 GASNETI_THREAD_FARG,           // Hidden thread-specific info argument
                 int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
 extern int gasnetc_AMReplyLongM(
-                gasnetex_token_t token,        // Names local and remote contexts
+                gex_AM_Token_t token,          // Names local and remote contexts
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -58,7 +58,7 @@ extern int gasnetc_AMRequestMediumM(
                 GASNETI_THREAD_FARG,
                 int numargs, ...);
 extern int gasnetc_AMReplyMediumM(
-                gasnetex_token_t token,
+                gex_AM_Token_t token,
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -74,7 +74,7 @@ extern int gasnetc_AMRequestShortM(
                 GASNETI_THREAD_FARG,
                 int numargs, ...);
 extern int gasnetc_AMReplyShortM(
-                gasnetex_token_t token,
+                gex_AM_Token_t token,
                 gex_AM_Index_t handler,
                 gasnetex_flags_t flags,
                 int numargs, ...);

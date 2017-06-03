@@ -778,7 +778,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
   int user_numargs = full_numargs;
-  const gasnetex_token_t token = (gasnetex_token_t)rbuf;
+  const gex_AM_Token_t token = (gex_AM_Token_t)rbuf;
   gex_AM_Arg_t *args;
 
   #if GASNET_PSHM
@@ -1259,7 +1259,7 @@ void gasnetc_ack(gasnetc_rbuf_t *rbuf) {
   #if GASNET_DEBUG
     rbuf->rbuf_handlerRunning = 1; /* To satisfy assertion on Reply path */
   #endif
-    GASNETI_SAFE(gasnetc_ReplySysShort((gasnetex_token_t)rbuf, NULL,
+    GASNETI_SAFE(gasnetc_ReplySysShort((gex_AM_Token_t)rbuf, NULL,
                                        gasneti_handleridx(gasnetc_ack), 0));
 }
 
@@ -3807,7 +3807,7 @@ gasnetc_unpin_unmap(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
   }
 }
 
-void gasnetc_sys_flush_reph(gasnetex_token_t token, gex_AM_Arg_t credits) {
+void gasnetc_sys_flush_reph(gex_AM_Token_t token, gex_AM_Arg_t credits) {
   gasnetc_cep_t *cep = ((gasnetc_rbuf_t *)token)->cep;
 
   gasneti_assert(! gasnetc_use_srq); /* SRQ prohibits credit coallescing */
@@ -3824,7 +3824,7 @@ void gasnetc_sys_flush_reph(gasnetex_token_t token, gex_AM_Arg_t credits) {
 
 static int gasnetc_close_recvd[16]; /* Note 16-bit GASNET_MAXNODES */
 
-void gasnetc_sys_close_reqh(gasnetex_token_t token) {
+void gasnetc_sys_close_reqh(gex_AM_Token_t token) {
   gasnetex_rank_t peer;
   int distance, shift;
 
@@ -3891,7 +3891,7 @@ gasnetc_sndrcv_quiesce(void) {
         rbuf.rbuf_handlerRunning = 1;
       #endif
         rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasnetc_Short, 0, 0, node);
-        gasnetc_ReplySysShort((gasnetex_token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
+        gasnetc_ReplySysShort((gex_AM_Token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
       }
     }
   }
@@ -4446,7 +4446,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 }
 
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
-				gasnetex_token_t token, gex_AM_Index_t handler,
+				gex_AM_Token_t token, gex_AM_Index_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				gasnetex_flags_t flags, int numargs,
 				gasnetc_atomic_val_t *local_cnt,
@@ -4519,7 +4519,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_ReplySysShort(gasnetex_token_t token,
+extern int gasnetc_ReplySysShort(gex_AM_Token_t token,
                                gasnetc_counter_t *counter,
                                gex_AM_Index_t handler,
                                int numargs, ...) {
@@ -4538,7 +4538,7 @@ extern int gasnetc_ReplySysShort(gasnetex_token_t token,
   return retval;
 }
 
-extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
+extern int gasnetc_ReplySysMedium(gex_AM_Token_t token,
                                   gasnetc_counter_t *counter,
                                   gex_AM_Index_t handler,
                                   void *source_addr, size_t nbytes,
@@ -4586,7 +4586,7 @@ extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
   gasnetex_rank_t sourceid;
 
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");

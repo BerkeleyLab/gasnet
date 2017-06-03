@@ -339,7 +339,7 @@ static void gasnetc_sys_coll_fini(void)
     ((void)(gasnetc_sys_barrier_rcvd[_phase] = 0))
 #endif
 
-static void gasnetc_sys_barrier_reqh(gasnetex_token_t token, uint32_t arg)
+static void gasnetc_sys_barrier_reqh(gex_AM_Token_t token, uint32_t arg)
 {
     const int phase = arg & 1;
 #if GASNETC_USE_RCV_THREAD
@@ -466,7 +466,7 @@ static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
 
 #define GASNETC_SYS_EXCHANGE_MAX GASNETC_MAX_MEDIUM
 
-static void gasnetc_sys_exchange_reqh(gasnetex_token_t token, void *buf,
+static void gasnetc_sys_exchange_reqh(gex_AM_Token_t token, void *buf,
                                  size_t nbytes, uint32_t arg0,
                                  uint32_t elemsz)
 {
@@ -2753,7 +2753,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 }
 
 /* gasnetc_exit_reduce_reqh: reduction on exitcode */
-static void gasnetc_exit_reduce_reqh(gasnetex_token_t token,
+static void gasnetc_exit_reduce_reqh(gex_AM_Token_t token,
                                      gex_AM_Arg_t arg0,
                                      gex_AM_Arg_t arg1) {
   gasneti_atomic_val_t exitcode = arg0;
@@ -2790,7 +2790,7 @@ static void gasnetc_exit_reduce_reqh(gasnetex_token_t token,
  * This request handler (invoked only on the "root" node) handles the election
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
-static void gasnetc_exit_role_reqh(gasnetex_token_t token) {
+static void gasnetc_exit_role_reqh(gex_AM_Token_t token) {
   gasnetex_rank_t src;
   int local_role, result;
 
@@ -2816,7 +2816,7 @@ static void gasnetc_exit_role_reqh(gasnetex_token_t token) {
  * This reply handler receives the result of the election of an exit "master".
  * The reply contains the exit "role" this node should assume.
  */
-static void gasnetc_exit_role_reph(gasnetex_token_t token, gex_AM_Arg_t arg0) {
+static void gasnetc_exit_role_reph(gex_AM_Token_t token, gex_AM_Arg_t arg0) {
   int role;
 
   #if GASNET_DEBUG
@@ -3283,7 +3283,7 @@ static void gasnetc_exit_body(void) {
  * exit procedure, via gasnetc_exit_{body,tail}().  Additionally, we are responsible for
  * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
  */
-static void gasnetc_exit_reqh(gasnetex_token_t token, gex_AM_Arg_t arg0) {
+static void gasnetc_exit_reqh(gex_AM_Token_t token, gex_AM_Arg_t arg0) {
   /* The master will send this AM, but should _never_ receive it */
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) != GASNETC_EXIT_ROLE_MASTER);
 
@@ -3355,7 +3355,7 @@ static void gasnetc_exit_reqh(gasnetex_token_t token, gex_AM_Arg_t arg0) {
  *
  * Simply count replies
  */
-static void gasnetc_exit_reph(gasnetex_token_t token) {
+static void gasnetc_exit_reph(gex_AM_Token_t token) {
   gasneti_atomic_increment(&gasnetc_exit_reps, 0);
 }
   
@@ -3436,7 +3436,7 @@ extern void gasnetc_exit(int exitcode) {
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
-void gasnetc_amrdma_grant_reqh_inner(gasnetex_token_t token, int qpi, uint32_t rkey, void *addr) {
+void gasnetc_amrdma_grant_reqh_inner(gex_AM_Token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
   gasnetex_rank_t node;
 
@@ -3579,7 +3579,7 @@ extern int gasnetc_AMRequestLongM(
 }
 
 extern int gasnetc_AMReplyShortM( 
-                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
@@ -3597,7 +3597,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
@@ -3618,7 +3618,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

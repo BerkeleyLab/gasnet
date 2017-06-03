@@ -44,10 +44,10 @@ int revthreads = 0;
 typedef void * (*threadmain_t)(void *args);
 
 /* AM Handlers */
-void	ping_shorthandler(gasnetex_token_t token);
-void 	pong_shorthandler(gasnetex_token_t token);
+void	ping_shorthandler(gex_AM_Token_t token);
+void 	pong_shorthandler(gex_AM_Token_t token);
 
-void	markdone_shorthandler(gasnetex_token_t token);
+void	markdone_shorthandler(gex_AM_Token_t token);
 
 #define hidx_ping_shorthandler        201
 #define hidx_pong_shorthandler        202
@@ -365,15 +365,15 @@ int main(int argc, char **argv) {
 
 /****************************************************************/
 /* AM Handlers */
-void ping_shorthandler(gasnetex_token_t token) {
+void ping_shorthandler(gex_AM_Token_t token) {
   gex_AM_ReplyShort0(token, hidx_pong_shorthandler, 0);
 }
 
-void pong_shorthandler(gasnetex_token_t token) {
+void pong_shorthandler(gex_AM_Token_t token) {
   gasnett_atomic_increment(&pong,0);
 }
 
-void markdone_shorthandler(gasnetex_token_t token) {
+void markdone_shorthandler(gex_AM_Token_t token) {
   signal_done = 1;
 }
 

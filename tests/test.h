@@ -731,7 +731,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
    */
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
-  static void _test_seggather(gasnetex_token_t token, void *buf, size_t nbytes) {
+  static void _test_seggather(gex_AM_Token_t token, void *buf, size_t nbytes) {
     gasnetex_rank_t srcid;
     assert(nbytes == sizeof(gasnet_seginfo_t));
     assert(_test_seginfo != NULL);
@@ -742,7 +742,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   }
   static int _test_segbcast_idx;
   static gasnett_atomic_t _test_segbcast_count = gasnett_atomic_init(0);
-  static void _test_segbcast(gasnetex_token_t token, void *buf, size_t nbytes, gex_AM_Arg_t idx) {
+  static void _test_segbcast(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t idx) {
     void *dst = (void*)((uintptr_t)_test_seginfo + idx * gex_AM_LUBRequestMedium());
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);

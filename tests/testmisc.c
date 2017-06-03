@@ -50,24 +50,24 @@ void doit8(void);
 #define hidx_null_longhandler         205
 #define hidx_justreply_longhandler    206
 
-void null_shorthandler(gasnetex_token_t token) {
+void null_shorthandler(gex_AM_Token_t token) {
 }
 
-void justreply_shorthandler(gasnetex_token_t token) {
+void justreply_shorthandler(gex_AM_Token_t token) {
   gex_AM_ReplyShort0(token, hidx_null_shorthandler, 0);
 }
 
-void null_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void null_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 }
 
-void justreply_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void justreply_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gex_AM_ReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
 
-void null_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void null_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 }
 
-void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void justreply_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gex_AM_ReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_EVENT_NOW, 0);
 }
 /* ------------------------------------------------------------------------------------ */

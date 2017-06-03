@@ -147,7 +147,7 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
  }
 
 
-void gasnete_coll_scratch_update_reqh(gasnetex_token_t token,
+void gasnete_coll_scratch_update_reqh(gex_AM_Token_t token,
 				      gex_AM_Arg_t teamid,
 				      gex_AM_Arg_t node) {
   gasnete_coll_team_t team;

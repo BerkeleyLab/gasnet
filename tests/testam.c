@@ -63,57 +63,57 @@ gex_AM_Entry_t htable[];
 
 volatile int flag = 0;
 
-void ping_shorthandler(gasnetex_token_t token) {
+void ping_shorthandler(gex_AM_Token_t token) {
   gex_AM_ReplyShort0(token, hidx_pong_shorthandler, 0);
 }
-void pong_shorthandler(gasnetex_token_t token) {
+void pong_shorthandler(gex_AM_Token_t token) {
   flag++;
 }
 
 
-void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gex_AM_ReplyMedium0(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
-void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
 
-void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gex_AM_ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg, GASNETEX_EVENT_NOW, 0);
 }
 
-void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 /* ------------------------------------------------------------------------------------ */
-void ping_shorthandler_flood(gasnetex_token_t token) {
+void ping_shorthandler_flood(gex_AM_Token_t token) {
   gex_AM_ReplyShort0(token, hidx_pong_shorthandler_flood, 0);
 }
-void pong_shorthandler_flood(gasnetex_token_t token) {
+void pong_shorthandler_flood(gex_AM_Token_t token) {
   INC(flag);
 }
 
 
-void ping_medhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_medhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gex_AM_ReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
-void pong_medhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
   INC(flag);
 }
 
 
-void ping_longhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_longhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gex_AM_ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg, GASNETEX_EVENT_NOW, 0);
 }
 
-void pong_longhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler_flood(gex_AM_Token_t token, void *buf, size_t nbytes) {
   INC(flag);
 }
 
 
 volatile int done = 0;
-void done_shorthandler(gasnetex_token_t token) {
+void done_shorthandler(gex_AM_Token_t token) {
   done = 1;
 }
 /* ------------------------------------------------------------------------------------ */

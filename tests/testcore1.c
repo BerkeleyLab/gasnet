@@ -173,7 +173,7 @@ chksum_test(int iters)
  * chksum_reph(i, src, nbytes) compares src[nbytes] to its copy of the
  * checksum at i
  */
-void chksum_reqh(gasnetex_token_t token, 
+void chksum_reqh(gex_AM_Token_t token, 
 	gex_AM_Arg_t iter, gex_AM_Arg_t seed)
 {
         unsigned char   chksum_reqbuf[CHKSUM_TOTAL];
@@ -188,7 +188,7 @@ void chksum_reqh(gasnetex_token_t token,
 }
 
 void
-chksum_reph(gasnetex_token_t token, 
+chksum_reph(gex_AM_Token_t token, 
 	void *buf, size_t nbytes, gex_AM_Arg_t iter)
 {
 	gasnett_atomic_increment(&chksum_received, 0);

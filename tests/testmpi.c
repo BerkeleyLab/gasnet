@@ -218,7 +218,7 @@ void mpi_barrier(threaddata_t *tdata) {
 #endif
 
 
-void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
+void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz) {
   gasnetex_rank_t   node;
   int mpipeer;
   int tag;
@@ -249,7 +249,7 @@ void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
 
 }
 
-void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
+void mpi_probehandler(gex_AM_Token_t token, harg_t tid) {
   gasnetex_rank_t   node;
   int mpipeer;
   int tag;
@@ -297,7 +297,7 @@ void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
   }
 }
 
-void mpi_replyhandler(gasnetex_token_t token, harg_t tid) {
+void mpi_replyhandler(gex_AM_Token_t token, harg_t tid) {
   int ltid = tid - gasnet_mynode()*threads_num;
   PRINT_AM(("node=%2d> Got AMShort MPI Reply for tid=%d\n",
                         (int)gasnet_mynode(), (int)tid));

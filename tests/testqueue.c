@@ -44,13 +44,13 @@ volatile gex_RMA_Value_t regval = 5551212;
 
 gasnett_atomic_t amcount = gasnett_atomic_init(0);
 
-void ping_shorthandler(gasnetex_token_t token) {
+void ping_shorthandler(gex_AM_Token_t token) {
   gasnett_atomic_increment(&amcount,0);
 }
-void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gasnett_atomic_increment(&amcount,0);
 }
-void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gasnett_atomic_increment(&amcount,0);
 }
 

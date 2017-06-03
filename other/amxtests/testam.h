@@ -50,7 +50,7 @@
   typedef void (*handler_fn_t)();
  #endif
  GASNETT_END_EXTERNC
-  typedef gasnetex_token_t token_t;
+  typedef gex_AM_Token_t token_t;
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);

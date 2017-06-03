@@ -72,11 +72,11 @@ void do_crash_test(int crashid);
 #define hidx_noop_handler               202
 #define hidx_ping_handler               203
 
-void test_exit_handler(gasnetex_token_t token, gex_AM_Arg_t exitcode) {
+void test_exit_handler(gex_AM_Token_t token, gex_AM_Arg_t exitcode) {
   gasnet_exit((int)exitcode);
 }
 
-void ping_handler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   static int x = 1; 
   gasnetex_rank_t src;
   gasnet_AMGetMsgSource(token, &src);
@@ -87,7 +87,7 @@ void ping_handler(gasnetex_token_t token, void *buf, size_t nbytes) {
     gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(src), GASNETEX_EVENT_NOW, 0);
 }
 
-void noop_handler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void noop_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
 }
 
 #ifdef GASNET_PAR

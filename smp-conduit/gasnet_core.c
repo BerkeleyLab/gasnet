@@ -970,7 +970,7 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
   gasnetex_rank_t sourceid = 0;
   GASNETI_CHECKATTACH();
   #if GASNET_DEBUG || GASNET_PSHM
@@ -1022,12 +1022,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t _descbuf; 
     gasnetc_bufdesc_t *desc = &_descbuf;
-    const gasnetex_token_t token = (gasnetex_token_t)desc;
+    const gex_AM_Token_t token = (gex_AM_Token_t)desc;
     desc->isReq = isReq;
     desc->handlerRunning = 1;
     desc->replyIssued = 0;
   #else
-    const gasnetex_token_t token = NULL;
+    const gex_AM_Token_t token = NULL;
   #endif
 
   gasneti_assert(dest == gasneti_mynode);
@@ -1095,7 +1095,7 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_ReplyGeneric(gasnetc_category_t category, 
-                         gasnetex_token_t token, gex_AM_Index_t handler,
+                         gex_AM_Token_t token, gex_AM_Index_t handler,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gasnetex_flags_t flags, int numargs, va_list argptr) {
 #if GASNET_PSHM
@@ -1195,7 +1195,7 @@ extern int gasnetc_AMRequestLongM(
 }
 
 extern int gasnetc_AMReplyShortM( 
-                            gasnetex_token_t token,       /* token provided on handler entry */
+                            gex_AM_Token_t token,       /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
@@ -1215,7 +1215,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_handle_t *lc_opt,       /* local completion of payload */
@@ -1238,7 +1238,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gex_AM_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

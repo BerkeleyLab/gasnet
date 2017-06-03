@@ -103,7 +103,7 @@ enum {
 
 // A "token" is an opaque scalar type
 struct gasneti_token_s;
-typedef struct gasneti_token_s *gasnetex_token_t;
+typedef struct gasneti_token_s *gex_AM_Token_t;
 
 // Handler index and argument types are fixed-width integers
 typedef uint8_t gex_AM_Index_t;
@@ -228,7 +228,7 @@ int gex_AM_RequestLongM(
            gasnetex_flags_t flags,        // Flags to control this operation
            int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
 int gex_AM_ReplyLongM(
-           gasnetex_token_t token,        // Names local and remote contexts
+           gex_AM_Token_t token,          // Names local and remote contexts
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
@@ -247,7 +247,7 @@ int gex_AM_RequestMediumM(
            gasnetex_flags_t flags,
            int numargs, ...);
 int gex_AM_ReplyMediumM(
-           gasnetex_token_t token,
+           gex_AM_Token_t token,
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
@@ -262,7 +262,7 @@ int gex_AM_RequestShortM(
            gasnetex_flags_t flags,
            int numargs, ...);
 int gex_AM_ReplyShortM(
-           gasnetex_token_t token,
+           gex_AM_Token_t token,
            gex_AM_Index_t handler,
            gasnetex_flags_t flags,
            int numargs, ...);

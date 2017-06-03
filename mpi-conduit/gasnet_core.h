@@ -142,7 +142,7 @@ typedef struct gasneti_hsl_s {
 #endif
 
 #if GASNET_PSHM && GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
-  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnetex_token_t token,
+  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gex_AM_Token_t token,
                                                void *buf, size_t nbytes, int numargs,
                                                gex_AM_Arg_t *args);
   extern void gasnetc_leavingHandler_hook_hsl(int cat, int isReq);
@@ -180,7 +180,7 @@ typedef struct gasneti_hsl_s {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex);
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

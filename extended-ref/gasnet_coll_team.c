@@ -338,7 +338,7 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 #endif
 }
 
-void gasnete_coll_teamid_reqh(gasnetex_token_t token,
+void gasnete_coll_teamid_reqh(gex_AM_Token_t token,
                               gex_AM_Arg_t team_id)
 {
   new_team_id=(uint32_t)team_id;

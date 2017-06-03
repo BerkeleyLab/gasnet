@@ -138,11 +138,11 @@ enum {
     }                                                              \
   } while(0);
 #define HDEFN(args) \
-    void Shandler##args(gasnetex_token_t token, HARGPROTO(args)) \
+    void Shandler##args(gex_AM_Token_t token, HARGPROTO(args)) \
         { HBODY(args); } \
-    void Mhandler##args(gasnetex_token_t token, void *buf, size_t nbytes, HARGPROTO(args))\
+    void Mhandler##args(gex_AM_Token_t token, void *buf, size_t nbytes, HARGPROTO(args))\
         { MSGCHECK(MSZ(args)); HBODY(args); } \
-    void Lhandler##args(gasnetex_token_t token, void *buf, size_t nbytes, HARGPROTO(args))\
+    void Lhandler##args(gex_AM_Token_t token, void *buf, size_t nbytes, HARGPROTO(args))\
         { MSGCHECK(LSZ(args)); memset(buf, 0xa5, nbytes); HBODY(args); }
 
 #define HTABLE(args)                          \
@@ -177,25 +177,25 @@ enum {
 /* Define all the handlers */
 volatile int flag = 0;
 HFOREACH(HDEFN)
-void ping_shorthandler(gasnetex_token_t token) {
+void ping_shorthandler(gex_AM_Token_t token) {
     gex_AM_ReplyShort0(token, hidx_pong_shorthandler, 0);
 }
-void pong_shorthandler(gasnetex_token_t token) {
+void pong_shorthandler(gex_AM_Token_t token) {
 	  flag++;
 }
-void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(MSZ(0));
     gex_AM_ReplyMedium0(token, hidx_pong_medhandler, rand_payload, nbytes, GASNETEX_EVENT_NOW, 0);
 }
-void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(MSZ(0));
     flag++;
 }
-void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
     gex_AM_ReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + LSZ(0), GASNETEX_EVENT_NOW, 0);
 }
-void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
     MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
     flag++;
 }

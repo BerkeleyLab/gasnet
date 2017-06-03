@@ -843,13 +843,13 @@ void run_short(gasnetc_token_t *token) {
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
-  gasnetex_token_t         client_token = (gasnetex_token_t)token;
+  gex_AM_Token_t         client_token = (gex_AM_Token_t)token;
 
 #if GASNET_DEBUG
   /* We copy generic portion to allow writes to rep_sent */
   gasnetc_genmsg_t local_token = token->generic;
   local_token.rep_sent = 0;
-  client_token = (gasnetex_token_t)(&local_token);
+  client_token = (gex_AM_Token_t)(&local_token);
 #endif
   gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs);
   GASNETI_RUN_HANDLER_SHORT(is_req,handler_id,handler_fn,client_token,args,numargs);
@@ -865,7 +865,7 @@ void run_medium(gasnetc_token_t *token) {
   const int                     numargs = header->numargs;
   void * const                     data = GASNETC_TOKEN_PAYLOAD(token);
   const size_t                   nbytes = header->nbytes;
-  const gasnetex_token_t   client_token = (gasnetex_token_t)token;
+  const gex_AM_Token_t   client_token = (gex_AM_Token_t)token;
 
 #if GASNET_DEBUG
   header->rep_sent = 0;
@@ -884,7 +884,7 @@ void run_long(gasnetc_token_t *token) {
   const int                     numargs = header->numargs;
   void * const                     data = (void*)header->addr;
   const size_t                   nbytes = header->nbytes;
-  const gasnetex_token_t   client_token = (gasnetex_token_t)token;
+  const gex_AM_Token_t   client_token = (gex_AM_Token_t)token;
 
 #if GASNET_DEBUG
   header->rep_sent = 0;
@@ -1107,7 +1107,7 @@ static int gasnetc_am_init(void) {
   return GASNET_OK;
 }
 
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
   gasnetex_rank_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -1206,7 +1206,7 @@ extern int gasnetc_AMRequestShortM(
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
+    gex_AM_Token_t token = (gex_AM_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
     GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,token,args,numargs);
   } else
 #endif
@@ -1275,7 +1275,7 @@ extern int gasnetc_AMRequestMediumM(
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
-    gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
+    gex_AM_Token_t token = (gex_AM_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
     GASNETI_RUN_HANDLER_MEDIUM(1,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
   } else
 #endif
@@ -1367,7 +1367,7 @@ extern int gasnetc_AMRequestLongM(
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
-    gasnetex_token_t token = (gasnetex_token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
+    gex_AM_Token_t token = (gex_AM_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
     GASNETI_RUN_HANDLER_LONG(1,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
   } else
 #endif
@@ -1424,7 +1424,7 @@ extern int gasnetc_AMRequestLongM(
 }
 
 extern int gasnetc_AMReplyShortM(
-                gasnetex_token_t token,
+                gex_AM_Token_t token,
                 gex_AM_Index_t handler,
                 gasnetex_flags_t flags,
                 int numargs, ...)
@@ -1441,7 +1441,7 @@ extern int gasnetc_AMReplyShortM(
                                          flags, numargs, argptr);
   } else
 #else
-  if (token == (gasnetex_token_t)gasnetc_loopback_token) {
+  if (token == (gex_AM_Token_t)gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
@@ -1479,7 +1479,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM(
-                gasnetex_token_t token,
+                gex_AM_Token_t token,
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -1500,7 +1500,7 @@ extern int gasnetc_AMReplyMediumM(
                                          flags, numargs, argptr);
   } else
 #else
-  if (token == (gasnetex_token_t)gasnetc_loopback_token) {
+  if (token == (gex_AM_Token_t)gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
@@ -1565,7 +1565,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM(
-                gasnetex_token_t token,
+                gex_AM_Token_t token,
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -1587,7 +1587,7 @@ extern int gasnetc_AMReplyLongM(
                                          flags, numargs, argptr);
   } else
 #else
-  if (token == (gasnetex_token_t)gasnetc_loopback_token) {
+  if (token == (gex_AM_Token_t)gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
