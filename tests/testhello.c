@@ -23,7 +23,7 @@
 
 int main(int argc, char **argv)
 {
-  gasnetex_rank_t rank, size;
+  gex_Rank_t rank, size;
   size_t segsz = GASNET_PAGESIZE;
   size_t heapsz = GASNET_PAGESIZE;
   int argi;

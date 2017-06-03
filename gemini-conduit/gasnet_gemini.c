@@ -598,7 +598,7 @@ void gasnetc_deregister_gpd(gasnetc_post_descriptor_t *gpd)
 
 /* From point-of-view of a remote node, what is MY index in the mailbox array */
 GASNETI_INLINE(my_mb_index)
-int my_mb_index(gasnetex_rank_t remote_node) {
+int my_mb_index(gex_Rank_t remote_node) {
 #if GASNET_PSHM
   int i, result = 0;
 
@@ -796,7 +796,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
     gasnetc_bootstrapExchange_gni(&my_aux_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-    for (gasnetex_rank_t i = 0; i < gasneti_nodes; ++i) {
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].aux_handle = all_mem_handle[i];
     }
     gasneti_free(all_mem_handle);
@@ -859,7 +859,7 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo)
     // TODO-EX: but we want real collectives here eventually anyway
     gasneti_defaultExchange(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
   #endif
-    for (gasnetex_rank_t i = 0; i < gasneti_nodes; ++i) {
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].mem_handle = all_mem_handle[i];
     }
     gasneti_free(all_mem_handle);
@@ -871,7 +871,7 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo)
     gasnete_threadidx_t tidx = gasnetc_get_domain_first_thread_idx(d);
     GASNETC_DIDX_POST(gasnetc_get_domain_idx(tidx));
 
-    for (gasnetex_rank_t n = 0; n < gasneti_nodes; ++n) {
+    for (gex_Rank_t n = 0; n < gasneti_nodes; ++n) {
       DOMAIN_SPECIFIC_VAL(peer_data[n]).mem_handle = gasnetc_cdom_data[0].peer_data[n].mem_handle;
     }
   }
@@ -969,7 +969,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 
 uintptr_t gasnetc_init_messaging(void)
 {
-  const gasnetex_rank_t remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
+  const gex_Rank_t remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
   gni_return_t status;
   uint32_t local_address;
   uint32_t i;
@@ -1548,7 +1548,7 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
 /* Send a 3-byte control message (could have us much as 7 bytes if ever needed) */
 /* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
 GASNETI_INLINE(gasnetc_send_control)
-int gasnetc_send_control(gasnetex_rank_t dest, uint8_t op, uint16_t arg, gasneti_weakatomic_t *cntr)
+int gasnetc_send_control(gex_Rank_t dest, uint8_t op, uint16_t arg, gasneti_weakatomic_t *cntr)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
@@ -1710,7 +1710,7 @@ gasnetc_remote_slot(peer_struct_t * const peer, const uint64_t mask)
   return 64;
 }
 
-gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest,
                                                                  size_t length,
                                                                  gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG)
@@ -2258,7 +2258,7 @@ gni_mem_handle_t gasnetc_remote_mh(peer_struct_t * const peer, void *addr) {
  * Returns length of the request issued to GNI, which may be less
  * than nbytes (for instance due to a failed call to MemRegister).
  */
-size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
+size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2330,7 +2330,7 @@ size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
  * NOTE: be sure to update gasnetc_max_put_lc if the logic here changes
  */
 void
-gasnetc_rdma_put_lc(gasnetex_rank_t node,
+gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2405,7 +2405,7 @@ gasnetc_rdma_put_lc(gasnetex_rank_t node,
 }
 
 /* FMA Put from a specified buffer */
-void gasnetc_rdma_put_buff(gasnetex_rank_t node,
+void gasnetc_rdma_put_buff(gex_Rank_t node,
 		void *dest_addr, void *source_addr,
 		size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2467,7 +2467,7 @@ void gasnetc_post_get(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
  * Returns length of the request issued to GNI, which may be less
  * than nbytes (for instance due to a failed call to MemRegister).
  */
-size_t gasnetc_rdma_get(gasnetex_rank_t node,
+size_t gasnetc_rdma_get(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2529,7 +2529,7 @@ size_t gasnetc_rdma_get(gasnetex_rank_t node,
 /* for get in which one or more of dest_addr, source_addr or nbytes is NOT divisible by 4
  * NOTE: be sure to update gasnetc_max_get_unaligned if the logic here changes
  */
-void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
+void gasnetc_rdma_get_unaligned(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2583,7 +2583,7 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
    Caller must be allow for space (upto 6 bytes) for the overfetch.
    Returns offset to start of data after adjustment for overfetch
  */
-int gasnetc_rdma_get_buff(gasnetex_rank_t node,
+int gasnetc_rdma_get_buff(gex_Rank_t node,
 		void *dest_addr, void *source_addr,
 		size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2627,7 +2627,7 @@ int gasnetc_rdma_get_buff(gasnetex_rank_t node,
 #if GASNETC_GNI_FETCHOP
 /* Perform an 8-byte fetch-and-op */
 void gasnetc_fetchop_u64(
-                gasnetex_rank_t node, void *source_addr,
+                gex_Rank_t node, void *source_addr,
                 gni_fma_cmd_type_t cmd, uint64_t operand,
                 gasnetc_post_descriptor_t *gpd)
 {
@@ -2795,11 +2795,11 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
 #if GASNET_PSHM                  
-  const gasnetex_rank_t size = gasneti_nodemap_global_count;
-  const gasnetex_rank_t rank = gasneti_nodemap_global_rank;
+  const gex_Rank_t size = gasneti_nodemap_global_count;
+  const gex_Rank_t rank = gasneti_nodemap_global_rank;
 #else
-  const gasnetex_rank_t size = gasneti_nodes;
-  const gasnetex_rank_t rank = gasneti_mynode;
+  const gex_Rank_t size = gasneti_nodes;
+  const gex_Rank_t rank = gasneti_mynode;
 #endif
   uint32_t goal = 0;
   uint32_t distance;
@@ -2857,12 +2857,12 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 #endif
 
   for (distance = 1, shift = 0; distance < size; distance *= 2, ++shift) {
-    gasnetex_rank_t peeridx = (distance >= size - rank) ? rank - (size - distance)
+    gex_Rank_t peeridx = (distance >= size - rank) ? rank - (size - distance)
                                                       : rank + distance;
   #if GASNET_PSHM
-    gasnetex_rank_t dest = gasneti_pshm_firsts[peeridx];
+    gex_Rank_t dest = gasneti_pshm_firsts[peeridx];
   #else
-    gasnetex_rank_t dest = peeridx;
+    gex_Rank_t dest = peeridx;
   #endif
 
    if (0 == (sys_exit_sent_mask & distance)) {

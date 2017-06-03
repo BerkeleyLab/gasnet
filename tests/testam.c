@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
       sender = 1;
       peer = mynode;
     } else {
-      gasnetex_rank_t half = numnode / 2;
+      gex_Rank_t half = numnode / 2;
       sender = (mynode < half);
       peer = sender ? (mynode + half) : (mynode - half);
     }

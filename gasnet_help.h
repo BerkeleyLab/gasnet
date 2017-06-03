@@ -153,7 +153,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 #define _gasneti_boundscheck(tm,rank,ptr,nbytes,nodetest,segtest) do {       \
     gex_TM_t _tm = (tm);                                                       \
-    gasnetex_rank_t _node = (rank); /* TODO-EX: team support */                \
+    gex_Rank_t _node = (rank); /* TODO-EX: team support */                \
     const void *_ptr = (const void *)(ptr);                                    \
     size_t _nbytes = (size_t)(nbytes);                                         \
     if_pf (!nodetest(_node))                                                   \
@@ -819,15 +819,15 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_MYNODE
 #define _GASNET_MYNODE
 #define _GASNET_MYNODE_DEFAULT
-  extern gasnetex_rank_t gasneti_mynode;
-  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gasnetex_rank_t)gasneti_mynode)
+  extern gex_Rank_t gasneti_mynode;
+  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
 #endif
 
 #ifndef _GASNET_NODES
 #define _GASNET_NODES
 #define _GASNET_NODES_DEFAULT
-  extern gasnetex_rank_t gasneti_nodes;
-  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gasnetex_rank_t)gasneti_nodes)
+  extern gex_Rank_t gasneti_nodes;
+  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 #endif
 
 #ifndef _GASNET_GETMAXSEGMENTSIZE
@@ -910,10 +910,10 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
 extern gasneti_pshm_rank_t gasneti_pshm_nodes;  /* # nodes in my supernode */
 extern gasneti_pshm_rank_t gasneti_pshm_mynode; /* my 0-based rank in supernode */
-extern gasnetex_rank_t gasneti_pshm_firstnode;    /* lowest node # in supernode */
+extern gex_Rank_t gasneti_pshm_firstnode;    /* lowest node # in supernode */
 
 /* vector of first node within each supernode */
-extern gasnetex_rank_t *gasneti_pshm_firsts;
+extern gex_Rank_t *gasneti_pshm_firsts;
 
 /* Non-NULL only when supernode members are non-contiguous */
 extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
@@ -922,12 +922,12 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  * Otherwise returns an "impossible" value >= gasneti_pshm_nodes.
  */
 GASNETI_INLINE(gasneti_pshm_local_rank) GASNETI_PURE
-unsigned int gasneti_pshm_local_rank(gasnetex_rank_t node) {
+unsigned int gasneti_pshm_local_rank(gex_Rank_t node) {
 #if GASNET_CONDUIT_SMP
   return node;
 #else
   if_pt (gasneti_pshm_rankmap == NULL) {
-    /* NOTE: gasnetex_rank_t is an unsigned type, so in the case of
+    /* NOTE: gex_Rank_t is an unsigned type, so in the case of
      * (node < gasneti_pshm_firstnode), the subtraction will wrap to
      * a "large" value.
      */
@@ -943,7 +943,7 @@ GASNETI_PUREP(gasneti_pshm_local_rank)
  * NOTE: result is false before vnet initialization.
  */
 GASNETI_INLINE(gasneti_pshm_in_supernode) GASNETI_PURE
-int gasneti_pshm_in_supernode(gasnetex_rank_t node) {
+int gasneti_pshm_in_supernode(gex_Rank_t node) {
 #if GASNET_CONDUIT_SMP
   return 1;
 #else
@@ -958,7 +958,7 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 // + Relies on dense array of nodeinfo even though only supernode-local are non-zero
 // + Was designed for single segment and even auxseg is currently a hack
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
-void *gasneti_pshm_addr2local(gasnetex_rank_t node, void *addr) {
+void *gasneti_pshm_addr2local(gex_Rank_t node, void *addr) {
 #if 1 // TODO-EX: this is a hack!
   // Properties of unsigned subtraction make the following oblivous to order of client vs aux segment
   if_pf (((uintptr_t)addr - (uintptr_t)gasneti_seginfo[node].addr) >= gasneti_seginfo[node].size)

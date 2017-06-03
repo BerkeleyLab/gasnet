@@ -34,7 +34,7 @@ struct gasneti_team_member_s;
 typedef struct gasneti_team_member_s *gex_TM_t;
 
 // A "rank" is a position within a team
-typedef uint32_t gasnetex_rank_t;
+typedef uint32_t gex_Rank_t;
 
 // Assume no more than 32 flags will be needed for any one family of calls
 // However, flags to p2p initiation and segment creation (as examples) could overlap
@@ -219,7 +219,7 @@ int gex_EP_RegisterHandlers(
 // Long
 int gex_AM_RequestLongM(
            gex_TM_t tm,                   // Names a local context ("return address")
-           gasnetex_rank_t rank,          // Together with 'tm', names a remote context
+           gex_Rank_t rank,               // Together with 'tm', names a remote context
            gex_AM_Index_t handler,        // Index into handler table of remote context
            const void *source_addr,       // Payload address (or OFFSET)
            size_t nbytes,                 // Payload length
@@ -239,7 +239,7 @@ int gex_AM_ReplyLongM(
 // Medium
 int gex_AM_RequestMediumM(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
@@ -257,7 +257,7 @@ int gex_AM_ReplyMediumM(
 // Short
 int gex_AM_RequestShortM(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            gex_AM_Index_t handler, 
            gex_Flags_t flags,
            int numargs, ...);
@@ -314,14 +314,14 @@ int gex_AM_ReplyShortM(
 // Put
 int gex_RMA_PutBlocking(
            gex_TM_t tm,                   // Names a local context ("return address")
-           gasnetex_rank_t rank,          // Together with 'tm', names a remote context
+           gex_Rank_t rank,               // Together with 'tm', names a remote context
            void *dest,                    // Remote (destination) address (or OFFSET)
            const void *src,               // Local (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gex_Flags_t flags);            // Flags to control this operation
 int gex_RMA_PutNBI(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *dest,
            const void *src,
            size_t nbytes,
@@ -329,7 +329,7 @@ int gex_RMA_PutNBI(
            gex_Flags_t flags);
 gex_Event_t gex_RMA_PutNB(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *dest,
            const void *src,
            size_t nbytes,
@@ -340,21 +340,21 @@ gex_Event_t gex_RMA_PutNB(
 int gex_RMA_GetBlocking( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gex_TM_t tm,                   // Names a local context ("return address")
            void *dest,                    // Local (destination) address (or OFFSET)
-           gasnetex_rank_t rank,          // Together with 'tm', names a remote context
+           gex_Rank_t rank,               // Together with 'tm', names a remote context
            void *src,                     // Remote (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gex_Flags_t flags);            // Flags to control this operation
 int gex_RMA_GetNBI( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gex_TM_t tm,
            void *dest,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *src,
            size_t nbytes,
            gex_Flags_t flags);
 gex_Event_t gex_RMA_GetNB(
            gex_TM_t tm,
            void *dest,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *src,
            size_t nbytes,
            gex_Flags_t flags);
@@ -362,27 +362,27 @@ gex_Event_t gex_RMA_GetNB(
 // Value-based
 gex_RMA_Value_t gex_RMA_GetBlockingVal(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *src,
            size_t nbytes,
            gex_Flags_t flags);
 int gex_RMA_PutBlockingVal(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *dest,
            gex_RMA_Value_t value,
            size_t nbytes,
            gex_Flags_t flags);
 int gex_RMA_PutNBIVal(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *dest,
            gex_RMA_Value_t value,
            size_t nbytes,
            gex_Flags_t flags);
 gex_Event_t gex_RMA_PutNBVal(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            void *dest,
            gex_RMA_Value_t value,
            size_t nbytes,
@@ -471,31 +471,31 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 // Pre-defined constant used to apply a query to all ranks in the team
-#define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
+#define GASNETEX_ALL_RANKS (~(gex_Rank_t)0)
 
 // Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GASNETEX_ALL_RANKS yields min-of-maxes
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            int numargs);
 size_t gex_AM_MaxReplyLong(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            int numargs);
 size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            int numargs);
 size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm,
-           gasnetex_rank_t rank,
+           gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            int numargs);

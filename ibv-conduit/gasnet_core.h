@@ -162,7 +162,7 @@ typedef struct {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex);
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

@@ -805,7 +805,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 2;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -823,7 +823,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 3;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -840,7 +840,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 4;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -857,7 +857,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 8;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -874,7 +874,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = info->team->total_ranks;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -918,7 +918,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 2;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -935,7 +935,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 3;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -952,7 +952,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 4;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -969,7 +969,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 8;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -986,7 +986,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = info->team->total_ranks;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -1003,7 +1003,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 2;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -1020,7 +1020,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 3;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -1037,7 +1037,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 4;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -1054,7 +1054,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = 8;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -1071,7 +1071,7 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
     int radix = info->team->total_ranks;
     size_t max_size;
     gasnet_image_t tpn = info->team->my_images;
-    gasnetex_rank_t nodes = info->team->total_ranks;
+    gex_Rank_t nodes = info->team->total_ranks;
     
     
     dissem = gasnete_coll_fetch_dissemination(radix ,info->team);
@@ -1222,7 +1222,7 @@ void gasnete_coll_free_autotune_tree_node(gasnete_coll_autotune_tree_node_t *in)
 static int allow_conduit_collectives=1;
 #endif
 static char* gasnete_coll_team_all_tuning_file;
-gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnetex_rank_t mynode, gasnetex_rank_t total_nodes,
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gex_Rank_t mynode, gex_Rank_t total_nodes,
                                                          gasnet_image_t my_images, gasnet_image_t total_images, size_t min_scratch_size GASNETE_THREAD_FARG) {
 
   /* read all the environment variables and setup the defaults*/
@@ -1335,7 +1335,7 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                                    gasnet_coll_optype_t op_type, 
-                                                                   gasnetex_rank_t root, size_t nbytes, int flags) {
+                                                                   gex_Rank_t root, size_t nbytes, int flags) {
 	gasnete_coll_tree_type_t ret = NULL;
 	/*first check if we've seen this size*/
 	/*find the log of the transfer size we are interested in*/
@@ -1361,7 +1361,7 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnet_coll_optype_t op_type, 
-                                                             gasnetex_rank_t root, size_t nbytes, int flags) {
+                                                             gex_Rank_t root, size_t nbytes, int flags) {
   switch(op_type) {
 	  case GASNET_COLL_BROADCAST_OP:
     case GASNET_COLL_BROADCASTM_OP: 

@@ -593,7 +593,7 @@ static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
   gasneti_pshm_unlink(gasneti_pshm_mynode);
 }
 
-static void gasneti_munmap_remote(gasnetex_rank_t pshm_rank, void *segbase, uintptr_t segsize) {
+static void gasneti_munmap_remote(gex_Rank_t pshm_rank, void *segbase, uintptr_t segsize) {
   gasneti_assert(segsize > 0);
 
 #if defined(GASNETI_PSHM_SYSV)
@@ -799,7 +799,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   return ptr;
 }
 
-static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnetex_rank_t pshmnode) {
+static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gex_Rank_t pshmnode) {
   gasneti_assert(pshmnode < gasneti_pshm_nodes);
   return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0);
 }
@@ -1200,7 +1200,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i;
   uintptr_t maxsz;
-  const gasnetex_rank_t local_count = gasneti_myhost.node_count;
+  const gex_Rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
@@ -1271,12 +1271,12 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif
     if (maxsz) {
       /* Find widest host */
-      gasnetex_rank_t rounds = 0;
+      gex_Rank_t rounds = 0;
       {
-        const gasnetex_rank_t num_hosts = gasneti_myhost.grp_count;
-        gasnetex_rank_t *tmp = gasneti_calloc(num_hosts, sizeof(gasnetex_rank_t));
+        const gex_Rank_t num_hosts = gasneti_myhost.grp_count;
+        gex_Rank_t *tmp = gasneti_calloc(num_hosts, sizeof(gex_Rank_t));
         for (i = 0; i < gasneti_nodes; ++i) {
-          const gasnetex_rank_t host = gasneti_nodeinfo[i].host;
+          const gex_Rank_t host = gasneti_nodeinfo[i].host;
           gasneti_assert(host < num_hosts);
           tmp[host] += 1;
           rounds = MAX(rounds, tmp[host]);
@@ -1407,7 +1407,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
   // Initialize global data
   gasneti_leak(gasneti_seginfo    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
-  for (gasnetex_rank_t i = 0; i < gasneti_nodes; i++) {
+  for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
     gasneti_seginfo[i].addr = NULL;
     gasneti_seginfo[i].size = (uintptr_t)-1;
   }
@@ -1672,7 +1672,7 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
 
     // Note that we try to avoid iteration over all nodes.
     // For the case of supernode peers with contiguous ranks we examine no extra nodes
-    for (gasnetex_rank_t node = gasneti_pshm_firstnode; local_rank < gasneti_pshm_nodes; node++) {
+    for (gex_Rank_t node = gasneti_pshm_firstnode; local_rank < gasneti_pshm_nodes; node++) {
         if (! gasneti_pshm_in_supernode(node)) continue;
         gasneti_assert(local_rank == gasneti_pshm_local_rank(node));
         if (node != gasneti_mynode) {
@@ -1747,7 +1747,7 @@ extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries
   if (gasneti_nodeinfo) {
     memcpy(nodeinfo_table, gasneti_nodeinfo, numentries*sizeof(gasnet_nodeinfo_t));
   } else {
-    gasnetex_rank_t i;
+    gex_Rank_t i;
 
     for (i=0; i < numentries; i++) {
       nodeinfo_table[i].host = i;
@@ -1975,7 +1975,7 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
 
 #if GASNET_PSHM // TODO-EX: this is a hack until AttachRemote can set the right offset array
   for (int i = 0; i < gasneti_pshm_nodes; i++){
-    const gasnetex_rank_t node = gasneti_nodemap_local[i];
+    const gex_Rank_t node = gasneti_nodemap_local[i];
     gasneti_nodeinfo[node].auxoffset = gasneti_nodeinfo[node].offset;
   }
 #endif
@@ -2038,7 +2038,7 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
   /* Bruck's concatenation algorithm: */
   unsigned int step, distance;
   for (step = 0, distance = 1; distance < gasneti_nodes; ++step, distance *= 2) {
-    gasnetex_rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
+    gex_Rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
                                                         : gasneti_mynode + (gasneti_nodes - distance);
     size_t nbytes = elemsz * MIN(distance, gasneti_nodes - distance);
     size_t offset = 0;

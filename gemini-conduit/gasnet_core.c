@@ -173,10 +173,10 @@ static int gasnetc_bootstrapInit(int *argc, char ***argv) {
  * Taken from vapi-conduit w/o the thread safetly complications 
  */
 
-static gasnetex_rank_t gasnetc_dissem_peers = 0;
-static gasnetex_rank_t *gasnetc_dissem_peer = NULL;
-static gasnetex_rank_t *gasnetc_exchange_rcvd = NULL;
-static gasnetex_rank_t *gasnetc_exchange_send = NULL;
+static gex_Rank_t gasnetc_dissem_peers = 0;
+static gex_Rank_t *gasnetc_dissem_peer = NULL;
+static gex_Rank_t *gasnetc_exchange_rcvd = NULL;
+static gex_Rank_t *gasnetc_exchange_send = NULL;
 static uint32_t gasnetc_sys_barrier_rcvd[2];
 
 static void gasnetc_sys_barrier_reqh(gex_AM_Token_t token, uint32_t arg)
@@ -330,16 +330,16 @@ static void gasnetc_sys_coll_init(void)
   int i;
 
 #if GASNET_PSHM
-  const gasnetex_rank_t size = gasneti_nodemap_global_count;
-  const gasnetex_rank_t rank = gasneti_nodemap_global_rank;
+  const gex_Rank_t size = gasneti_nodemap_global_count;
+  const gex_Rank_t rank = gasneti_nodemap_global_rank;
 
   if (gasneti_nodemap_local_rank) {
     /* No network comms */
     goto done;
   }
 #else
-  const gasnetex_rank_t size = gasneti_nodes;
-  const gasnetex_rank_t rank = gasneti_mynode;
+  const gex_Rank_t size = gasneti_nodes;
+  const gex_Rank_t rank = gasneti_mynode;
 #endif
 
   if (size == 1) {
@@ -351,10 +351,10 @@ static void gasnetc_sys_coll_init(void)
   for (i = 1; i < size; i *= 2) {
     ++gasnetc_dissem_peers;
   }
-  gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnetex_rank_t));
+  gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
   gasneti_leak(gasnetc_dissem_peer);
   for (i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gasnetex_rank_t peer = (rank + size - (1<<i)) % size;
+    const gex_Rank_t peer = (rank + size - (1<<i)) % size;
   #if GASNET_PSHM
     /* Convert supernode numbers to node numbers */
     gasnetc_dissem_peer[i] = gasneti_pshm_firsts[peer];
@@ -364,23 +364,23 @@ static void gasnetc_sys_coll_init(void)
   }
 
   /* Compute the recv offset and send count for each step of exchange */
-  gasnetc_exchange_rcvd = gasneti_calloc(gasnetc_dissem_peers+1, sizeof(gasnetex_rank_t));
-  gasnetc_exchange_send = gasneti_calloc(gasnetc_dissem_peers, sizeof(gasnetex_rank_t));
+  gasnetc_exchange_rcvd = gasneti_calloc(gasnetc_dissem_peers+1, sizeof(gex_Rank_t));
+  gasnetc_exchange_send = gasneti_calloc(gasnetc_dissem_peers, sizeof(gex_Rank_t));
   { int step;
   #if GASNET_PSHM
-    gasnetex_rank_t *width;
-    gasnetex_rank_t sum1 = 0;
-    gasnetex_rank_t sum2 = 0;
-    gasnetex_rank_t last = (rank + size - (1<<(gasnetc_dissem_peers-1))) % size;
+    gex_Rank_t *width;
+    gex_Rank_t sum1 = 0;
+    gex_Rank_t sum2 = 0;
+    gex_Rank_t last = (rank + size - (1<<(gasnetc_dissem_peers-1))) % size;
 
     /* Step 1: determine the "width" of each supernode */
-    width = gasneti_calloc(size, sizeof(gasnetex_rank_t));
+    width = gasneti_calloc(size, sizeof(gex_Rank_t));
     for (i = 0; i < gasneti_nodes; ++i) {
       width[gasneti_nodeinfo[i].supernode] += 1;
     }
     /* Step 2: form the necessary partial sums */
     for (step = i = 0; step < gasnetc_dissem_peers; ++step) {
-      const gasnetex_rank_t distance = 1 << step;
+      const gex_Rank_t distance = 1 << step;
       for (/*empty*/; i < distance; ++i) {
         sum1 += width[ (rank + i) % size ];
         sum2 += width[ (last + i) % size ];
@@ -1044,7 +1044,7 @@ extern void gasnetc_exit(int exitcode) {
      */
     if (pre_attach) gasneti_attach_done = 1; /* so we can poll for credits */
     for (distance = 1; distance < gasneti_nodes; distance *= 2) {
-      gasnetex_rank_t peer = (distance >= gasneti_nodes - gasneti_mynode)
+      gex_Rank_t peer = (distance >= gasneti_nodes - gasneti_mynode)
                                 ? gasneti_mynode - (gasneti_nodes - distance)
                                 : gasneti_mynode + distance;
       gex_AM_RequestShort1(NULL, peer, gasneti_handleridx(gasnetc_exit_reqh), 0, exitcode);
@@ -1108,8 +1108,8 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
-  gasnetex_rank_t sourceid;
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
+  gex_Rank_t sourceid;
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
@@ -1314,7 +1314,7 @@ void gasnetc_wait_long_payload( const int initiated,
 }
 
 GASNETI_INLINE(gasnetc_put_long_payload)
-int gasnetc_put_long_payload( gasnetex_rank_t dest,
+int gasnetc_put_long_payload( gex_Rank_t dest,
                               void *dst_addr,
                               void *src_addr,
                               size_t nbytes,
@@ -1344,7 +1344,7 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
 }
 
 GASNETI_INLINE(gasnetc_put_longasync_payload)
-int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
+int gasnetc_put_longasync_payload( gex_Rank_t dest,
                                    void *dst_addr,
                                    void *src_addr,
                                    size_t nbytes,
@@ -1380,7 +1380,7 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
 /*------------------- external requests ------------------ */
 extern int gasnetc_AMRequestShortM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t dest,       /* with tm, defines remote context */
+                            gex_Rank_t dest,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
@@ -1417,7 +1417,7 @@ out_immediate:
 
 extern int gasnetc_AMRequestMediumM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t dest,       /* with tm, defines remote context */
+                            gex_Rank_t dest,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
@@ -1457,7 +1457,7 @@ out_immediate:
 
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t dest,       /* with tm, defines remote context */
+                            gex_Rank_t dest,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -1522,7 +1522,7 @@ out_immediate:
 /*------------------- external replies ------------------ */
 
 GASNETI_INLINE(reply_node)
-gasnetex_rank_t reply_node(gex_AM_Token_t t)
+gex_Rank_t reply_node(gex_AM_Token_t t)
 {
     return(((gasnetc_token_t *)t)->source);
 }

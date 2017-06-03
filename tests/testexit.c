@@ -78,7 +78,7 @@ void test_exit_handler(gex_AM_Token_t token, gex_AM_Arg_t exitcode) {
 
 void ping_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   static int x = 1; 
-  gasnetex_rank_t src;
+  gex_Rank_t src;
   gasnet_AMGetMsgSource(token, &src);
   x = !x;/* harmless race */
   if (x) 

@@ -28,7 +28,7 @@
 // Long
 extern int gasnetc_AMRequestLongM(
                 gex_TM_t tm,                   // Names a local context ("return address")
-                gasnetex_rank_t rank,          // Together with 'tm', names a remote context
+                gex_Rank_t rank,          // Together with 'tm', names a remote context
                 gex_AM_Index_t handler,        // Index into handler table of remote context
                 /*const*/ void *source_addr,   // Payload address (or OFFSET)
                 size_t nbytes,                 // Payload length
@@ -49,7 +49,7 @@ extern int gasnetc_AMReplyLongM(
 // Medium
 extern int gasnetc_AMRequestMediumM(
                 gex_TM_t tm,
-                gasnetex_rank_t rank,
+                gex_Rank_t rank,
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -68,7 +68,7 @@ extern int gasnetc_AMReplyMediumM(
 // Short
 extern int gasnetc_AMRequestShortM(
                 gex_TM_t tm,
-                gasnetex_rank_t rank,
+                gex_Rank_t rank,
                 gex_AM_Index_t handler,
                 gex_Flags_t flags
                 GASNETI_THREAD_FARG,

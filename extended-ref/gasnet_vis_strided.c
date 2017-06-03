@@ -362,7 +362,7 @@ static int32_t const _gasnete_strided_helper_havepartial = (int32_t)sizeof(_gasn
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts of the dualcontiguity size */
 gex_Event_t gasnete_puts_ref_indiv(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
-                                  gasnetex_rank_t dstnode,
+                                  gex_Rank_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
@@ -388,7 +388,7 @@ gex_Event_t gasnete_puts_ref_indiv(gasnete_strided_stats_t const *stats, gasnete
 /* reference version that uses individual gets of the dualcontiguity size */
 gex_Event_t gasnete_gets_ref_indiv(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   const int islocal = (srcnode == gasneti_mynode);
@@ -660,7 +660,7 @@ static void gasnete_convert_strided_to_memvec(gasnet_memvec_t *srclist, gasnet_m
 #ifndef GASNETE_PUTS_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
-                                    gasnetex_rank_t dstnode,
+                                    gex_Rank_t dstnode,
                                     void *dstaddr, const size_t dststrides[],
                                     void *srcaddr, const size_t srcstrides[],
                                     const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
@@ -695,7 +695,7 @@ gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_sy
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                      void *dstaddr, const size_t dststrides[],
-                                     gasnetex_rank_t srcnode,
+                                     gex_Rank_t srcnode,
                                      void *srcaddr, const size_t srcstrides[],
                                      const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
@@ -734,7 +734,7 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
 #if GASNETE_USE_AMPIPELINE
 #define GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels) (gex_AM_LUBRequestMedium() - (3*(stridelevels) + 1)*sizeof(size_t))
 gex_Event_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
-                                  gasnetex_rank_t dstnode,
+                                  gex_Rank_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
@@ -843,7 +843,7 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7,
 #if GASNETE_USE_AMPIPELINE
 gex_Event_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasneti_assert(stats->srcsegments > 1); /* supports gather get */
@@ -1004,7 +1004,7 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reph,4,5,
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses vector interface */
 gex_Event_t gasnete_puts_ref_vector(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
-                                  gasnetex_rank_t dstnode,
+                                  gex_Rank_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
@@ -1037,7 +1037,7 @@ gex_Event_t gasnete_puts_ref_vector(gasnete_strided_stats_t const *stats, gasnet
 /* reference version that uses vector interface */
 gex_Event_t gasnete_gets_ref_vector(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   GASNETI_TRACE_EVENT(C, GETS_REF_VECTOR);
@@ -1070,7 +1070,7 @@ gex_Event_t gasnete_gets_ref_vector(gasnete_strided_stats_t const *stats, gasnet
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses indexed interface */
 gex_Event_t gasnete_puts_ref_indexed(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
-                                  gasnetex_rank_t dstnode,
+                                  gex_Rank_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
@@ -1103,7 +1103,7 @@ gex_Event_t gasnete_puts_ref_indexed(gasnete_strided_stats_t const *stats, gasne
 /* reference version that uses indexed interface */
 gex_Event_t gasnete_gets_ref_indexed(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   GASNETI_TRACE_EVENT(C, GETS_REF_INDEXED);
@@ -1137,7 +1137,7 @@ gex_Event_t gasnete_gets_ref_indexed(gasnete_strided_stats_t const *stats, gasne
 /* top-level gasnet_puts_* entry point */
 #ifndef GASNETE_PUTS_OVERRIDE
 extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
-                                  gasnetex_rank_t dstnode,
+                                  gex_Rank_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
@@ -1185,7 +1185,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
 #ifndef GASNETE_GETS_OVERRIDE
 extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_strided_stats_t stats;

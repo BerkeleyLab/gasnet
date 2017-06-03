@@ -125,7 +125,7 @@ chksum_test(int iters)
 
 	if (iamsender) {
 		for (i = 0; i < iters; i++)
-			gex_AM_RequestShort2(myteam, (gasnetex_rank_t)peerproc, 
+			gex_AM_RequestShort2(myteam, (gex_Rank_t)peerproc, 
 				201, 0, i, _mseed[i].seed);
 	}
 

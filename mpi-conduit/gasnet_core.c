@@ -656,9 +656,9 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
   int retval;
-  gasnetex_rank_t sourceid;
+  gex_Rank_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
@@ -667,7 +667,7 @@ extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcinde
   if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
-    int tmp; /* AMMPI wants an int, but gasnetex_rank_t is uint32_t */
+    int tmp; /* AMMPI wants an int, but gex_Rank_t is uint32_t */
     GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &tmp));
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
     gasneti_assert(tmp >= 0);
@@ -701,7 +701,7 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
 
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
@@ -732,7 +732,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
@@ -769,7 +769,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -894,7 +894,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    gasnetex_rank_t dest;
+    gex_Rank_t dest;
     uintptr_t dest_offset;
 
     GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));

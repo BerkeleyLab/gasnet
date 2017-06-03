@@ -67,8 +67,8 @@ static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
-gasnetex_rank_t mynode;
-gasnetex_rank_t nodes;
+gex_Rank_t mynode;
+gex_Rank_t nodes;
 gasnet_image_t threads_per_node;
 gasnet_image_t THREADS;
 int inner_verification_iters;
@@ -967,7 +967,7 @@ void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   size_t size;
   int i,flag_iter;
-  gasnetex_rank_t root_thread = ROOT_THREAD;
+  gex_Rank_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
   gasnet_coll_fn_entry_t fntable[1];
 #if GASNET_PAR

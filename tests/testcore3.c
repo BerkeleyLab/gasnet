@@ -12,8 +12,8 @@ static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
-gasnetex_rank_t mynode = 0;
-gasnetex_rank_t peer = 0;
+gex_Rank_t mynode = 0;
+gex_Rank_t peer = 0;
 void *myseg = NULL;
 void *peerseg = NULL;
 

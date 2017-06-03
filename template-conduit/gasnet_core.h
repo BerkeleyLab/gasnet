@@ -141,16 +141,16 @@ typedef struct {
  */
 /* Example for true functions:
 extern size_t gex_AM_MaxRequestMedium(
-           gex_TM_t tm, gasnetex_rank_t rank,
+           gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
 extern size_t gex_AM_MaxReplyMedium(
-           gex_TM_t tm, gasnetex_rank_t rank,
+           gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
 extern size_t gex_AM_MaxRequestLong(
-           gex_TM_t tm, gasnetex_rank_t rank,
+           gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
 extern size_t gex_AM_MaxReplyLong(
-           gex_TM_t tm, gasnetex_rank_t rank,
+           gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
  */
 
@@ -159,7 +159,7 @@ extern size_t gex_AM_MaxReplyLong(
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex);
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

@@ -167,12 +167,12 @@ gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 static int gasneti_bootstrap_native_coll = 0;
 static int gasnetc_bootstrapBarrier_phase = 0;
 static int gasnetc_bootstrapExchange_phase = 0;
-static gasnetex_rank_t gasnetc_dissem_peers = 0;
-static gasnetex_rank_t *gasnetc_dissem_peer = NULL;
-static gasnetex_rank_t *gasnetc_exchange_rcvd = NULL;
-static gasnetex_rank_t *gasnetc_exchange_send = NULL;
+static gex_Rank_t gasnetc_dissem_peers = 0;
+static gex_Rank_t *gasnetc_dissem_peer = NULL;
+static gex_Rank_t *gasnetc_exchange_rcvd = NULL;
+static gex_Rank_t *gasnetc_exchange_send = NULL;
 #if GASNET_PSHM
-static gasnetex_rank_t *gasnetc_exchange_permute = NULL;
+static gex_Rank_t *gasnetc_exchange_permute = NULL;
 #endif
 
 static void gasnetc_sys_coll_init(void)
@@ -180,16 +180,16 @@ static void gasnetc_sys_coll_init(void)
   int i;
 
 #if GASNET_PSHM
-  const gasnetex_rank_t size = gasneti_nodemap_global_count;
-  const gasnetex_rank_t rank = gasneti_nodemap_global_rank;
+  const gex_Rank_t size = gasneti_nodemap_global_count;
+  const gex_Rank_t rank = gasneti_nodemap_global_rank;
 
   if (gasneti_nodemap_local_rank) {
     /* No network comms */
     goto done;
   }
 #else
-  const gasnetex_rank_t size = gasneti_nodes;
-  const gasnetex_rank_t rank = gasneti_mynode;
+  const gex_Rank_t size = gasneti_nodes;
+  const gex_Rank_t rank = gasneti_mynode;
 #endif
 
   if (size == 1) {
@@ -206,12 +206,12 @@ static void gasnetc_sys_coll_init(void)
     ++gasnetc_dissem_peers;
   }
   if (NULL == gasnetc_dissem_peer) {
-    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnetex_rank_t));
+    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
     gasneti_leak(gasnetc_dissem_peer);
   }
   for (i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gasnetex_rank_t distance = 1 << i;
-    const gasnetex_rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+    const gex_Rank_t distance = 1 << i;
+    const gex_Rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
   #if GASNET_PSHM
     /* Convert supernode numbers to node numbers */
     gasnetc_dissem_peer[i] = gasneti_pshm_firsts[peer];
@@ -221,20 +221,20 @@ static void gasnetc_sys_coll_init(void)
   }
 
   /* Compute the recv offset and send count for each step of exchange */
-  gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gasnetex_rank_t));
-  gasnetc_exchange_send = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnetex_rank_t));
+  gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gex_Rank_t));
+  gasnetc_exchange_send = gasneti_malloc(gasnetc_dissem_peers * sizeof(gex_Rank_t));
   { int step;
   #if GASNET_PSHM
-    gasnetex_rank_t *width;
-    gasnetex_rank_t sum1 = 0;
-    gasnetex_rank_t sum2 = 0;
-    gasnetex_rank_t distance, last;
+    gex_Rank_t *width;
+    gex_Rank_t sum1 = 0;
+    gex_Rank_t sum2 = 0;
+    gex_Rank_t distance, last;
 
     distance = 1 << (gasnetc_dissem_peers-1);
     last = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
 
     /* Step 1: determine the "width" of each supernode */
-    width = gasneti_calloc(size, sizeof(gasnetex_rank_t));
+    width = gasneti_calloc(size, sizeof(gex_Rank_t));
     for (i = 0; i < gasneti_nodes; ++i) {
       width[gasneti_nodeinfo[i].supernode] += 1;
     }
@@ -251,7 +251,7 @@ static void gasnetc_sys_coll_init(void)
     gasnetc_exchange_rcvd[step] = gasneti_nodes;
     /* Step 3: construct the permutation vector, if necessary */
     {
-      gasnetex_rank_t n;
+      gex_Rank_t n;
     
       /* Step 3a. determine if we even need a permutation vector */
       int sorted = 1;
@@ -267,7 +267,7 @@ static void gasnetc_sys_coll_init(void)
 
       /* Step 3b. contstruct the vector if needed */
       if (!sorted) {
-        gasnetex_rank_t *offset = gasneti_malloc(size * sizeof(gasnetex_rank_t));
+        gex_Rank_t *offset = gasneti_malloc(size * sizeof(gex_Rank_t));
         
         /* Form a sort of shifted prefix-reduction on width */
         sum1 = 0;
@@ -280,7 +280,7 @@ static void gasnetc_sys_coll_init(void)
         gasneti_assert(sum1 == gasneti_nodes);
 
         /* Scan nodeinfo to collect all the nodes in each supernode (in their order) */
-        gasnetc_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gasnetex_rank_t));
+        gasnetc_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
         for (i = 0; i < gasneti_nodes; ++i) {
           int index = offset[ gasneti_nodeinfo[i].supernode ]++;
           gasnetc_exchange_permute[index] = i;
@@ -532,9 +532,9 @@ static void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
     /* Copy to destination while performing the rotation or permutation */
 #if GASNET_PSHM
     if (gasnetc_exchange_permute) {
-      gasnetex_rank_t n;
+      gex_Rank_t n;
       for (n = 0; n < gasneti_nodes; ++n) {
-        const gasnetex_rank_t peer = gasnetc_exchange_permute[n];
+        const gex_Rank_t peer = gasnetc_exchange_permute[n];
         memcpy((uint8_t*) dest + len * peer, temp + len * n, len);
       }
     } else
@@ -1421,7 +1421,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasnetc_hca_t		*hca;
   uint16_t		*local_lid;
   uint16_t		*remote_lid;
-  gasnetex_rank_t	node;
+  gex_Rank_t	node;
   int 			i;
 
   /*  check system sanity */
@@ -1971,7 +1971,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   /*  register segment  */
 
   gasnetc_hca_t *hca;
-  gasnetex_rank_t i;
+  gex_Rank_t i;
 
   gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
 
@@ -2405,7 +2405,7 @@ void gasnetc_post_checkpoint(int is_restart) {
     // BLCR-TODO: NOT implemented
   #else
     for (i = 0; i < gasnetc_num_ports; ++i) {
-      gasnetex_rank_t node;
+      gex_Rank_t node;
       for (node = 0; node < gasneti_nodes; ++node) {
         gasnetc_port_tbl[i].remote_lids[node] = remote_lid[node * gasnetc_num_ports + i];
       }
@@ -2503,7 +2503,7 @@ void gasnetc_post_checkpoint(int is_restart) {
     void *loc_addr, *rem_addr;
     #undef THE_TEST_LEN
 
-    gasnetex_rank_t peer = gasneti_mynode ^ 1;
+    gex_Rank_t peer = gasneti_mynode ^ 1;
     if (peer == gasneti_nodes) peer = gasneti_mynode;
 
   #if GASNET_SEGMENT_EVERYTHING
@@ -2677,9 +2677,9 @@ static void gasnetc_disable_AMs(void) {
 }
 
 #if GASNET_PSHM
-static gasnetex_rank_t *gasnetc_exit_child = NULL;
-static gasnetex_rank_t gasnetc_exit_children = 0;
-static gasnetex_rank_t gasnetc_exit_parent = 0;
+static gex_Rank_t *gasnetc_exit_child = NULL;
+static gex_Rank_t gasnetc_exit_children = 0;
+static gex_Rank_t gasnetc_exit_parent = 0;
 #endif
 
 static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
@@ -2791,7 +2791,7 @@ static void gasnetc_exit_reduce_reqh(gex_AM_Token_t token,
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
 static void gasnetc_exit_role_reqh(gex_AM_Token_t token) {
-  gasnetex_rank_t src;
+  gex_Rank_t src;
   int local_role, result;
 
   gasneti_assert(gasneti_mynode == GASNETC_ROOT_NODE);	/* May only send this request to the root node */
@@ -2821,7 +2821,7 @@ static void gasnetc_exit_role_reph(gex_AM_Token_t token, gex_AM_Arg_t arg0) {
 
   #if GASNET_DEBUG
   {
-    gasnetex_rank_t src;
+    gex_Rank_t src;
     GASNETI_SAFE(gasnet_AMGetMsgSource(token, &src));
     gasneti_assert(src == GASNETC_ROOT_NODE);	/* May only receive this reply from the root node */
   }
@@ -3407,10 +3407,10 @@ static void gasnetc_exit_init(void) {
     gasnetc_exit_parent = gasneti_nodemap[gasneti_mynode];
     gasnetc_exit_children = gasneti_nodes;
   } else {
-    const gasnetex_rank_t children = gasneti_nodemap_local_count - 1;
+    const gex_Rank_t children = gasneti_nodemap_local_count - 1;
 
     if (children) {
-      const size_t len = children * sizeof(gasnetex_rank_t);
+      const size_t len = children * sizeof(gex_Rank_t);
       gasnetc_exit_children = children;
       gasnetc_exit_child = gasneti_malloc(len);
       gasneti_leak(gasnetc_exit_child);
@@ -3438,7 +3438,7 @@ extern void gasnetc_exit(int exitcode) {
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
 void gasnetc_amrdma_grant_reqh_inner(gex_AM_Token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
-  gasnetex_rank_t node;
+  gex_Rank_t node;
 
   GASNETI_SAFE(gasnet_AMGetMsgSource(token, &node));
 
@@ -3460,7 +3460,7 @@ SHORT_HANDLER(gasnetc_amrdma_grant_reqh,3,4,
 
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
@@ -3479,7 +3479,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
@@ -3501,7 +3501,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

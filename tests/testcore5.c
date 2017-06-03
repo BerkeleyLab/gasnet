@@ -29,8 +29,8 @@ gex_AM_Arg_t rand_args[MAX_ARGS];
 uint8_t *rand_payload;
 int iters = 10;
 
-gasnetex_rank_t mynode = 0;
-gasnetex_rank_t peer = 0;
+gex_Rank_t mynode = 0;
+gex_Rank_t peer = 0;
 uint8_t *myseg = NULL;
 uint8_t *peerseg = NULL;
 
@@ -115,7 +115,7 @@ enum {
 #define HCHECK(val) ; assert_always(arg##val == RAND_ARG(val))
 #define HBODY(args) do {                                           \
     gex_AM_Arg_t operation = arg1 - RAND_ARG(1);          \
-    gasnetex_rank_t srcid;                                           \
+    gex_Rank_t srcid;                                           \
     gasnet_AMGetMsgSource(token, &srcid);                          \
     assert_always(srcid == peer);                                  \
     HITER##args((void)0,HCHECK);                                   \

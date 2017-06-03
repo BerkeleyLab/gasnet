@@ -87,7 +87,7 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
     MSG00("Starting %s test", name);                                         \
                                                                              \
     for (j = 0; j < iters; ++j) {                                            \
-	gasnetex_rank_t i;                                                     \
+	gex_Rank_t i;                                                     \
                                                                              \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
@@ -150,7 +150,7 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
     MSG00("Starting %s test", name);                                         \
                                                                              \
     for (j = 0; j < iters; ++j) {                                            \
-	gasnetex_rank_t i;                                                     \
+	gex_Rank_t i;                                                     \
                                                                              \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
@@ -202,15 +202,15 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 /* ALL/ALL - data is generated/consumed *remotely* in same barrier phase */  \
 void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
     PROLOGUE(DESC " ALL/ALL");                                               \
-    gasnetex_rank_t rootproc = root/threads;                                   \
-    gasnetex_rank_t peerproc = peerthread/threads;                             \
+    gex_Rank_t rootproc = root/threads;                                   \
+    gex_Rank_t peerproc = peerthread/threads;                             \
     int j;                                                                   \
     int tmp;                                                                 \
                                                                              \
     MSG00("Starting %s test", name);                                         \
                                                                              \
     for (j = 0; j < iters; ++j) {                                            \
-	gasnetex_rank_t i;                                                     \
+	gex_Rank_t i;                                                     \
                                                                              \
 	tmp = (peerthread == root) ? R[j] : -1;                              \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
@@ -275,7 +275,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 }                                                                            \
 void PREFIX##_NB(int root, thread_data_t *td) {                              \
     PROLOGUE(DESC " NB");                                                    \
-    gasnetex_rank_t i;                                                         \
+    gex_Rank_t i;                                                         \
     int j;                                                                   \
                                                                              \
     MSG00("Starting %s test", name);                                         \
@@ -479,7 +479,7 @@ void *thread_main(void *arg) {
 int main(int argc, char **argv)
 {
     static int *A, *B, *C, *D, *E, *F, *G;
-    gasnetex_rank_t myproc, i;
+    gex_Rank_t myproc, i;
     int j;
    
     /* call startup */

@@ -453,8 +453,8 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
-  gasnetex_rank_t sourceid;
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
+  gex_Rank_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
@@ -496,7 +496,7 @@ extern int gasnetc_AMPoll(void) {
 
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags,
                             int numargs, ...) {
@@ -526,7 +526,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
@@ -558,7 +558,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

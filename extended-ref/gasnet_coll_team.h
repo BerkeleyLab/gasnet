@@ -19,8 +19,8 @@
 void gasnete_coll_team_init(gasnet_team_handle_t team, 
                             uint32_t team_id, 
                             uint32_t total_ranks,
-                            gasnetex_rank_t myrank,
-                            gasnetex_rank_t *rel2act_map,
+                            gex_Rank_t myrank,
+                            gex_Rank_t *rel2act_map,
                             gasnet_seginfo_t *scratch_segs,
                             const gasnet_image_t images[] GASNETE_THREAD_FARG);
 
@@ -28,8 +28,8 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 void gasnete_coll_team_fini(gasnet_team_handle_t team);
 
 gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
-                                              gasnetex_rank_t myrank,
-                                              gasnetex_rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG);
+                                              gex_Rank_t myrank,
+                                              gex_Rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG);
 
 
 void gasnete_coll_team_free(gasnet_team_handle_t team);
@@ -37,8 +37,8 @@ void gasnete_coll_team_free(gasnet_team_handle_t team);
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 
 gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
-                                             gasnetex_rank_t mycolor,
-                                             gasnetex_rank_t myrelrank,
+                                             gex_Rank_t mycolor,
+                                             gex_Rank_t myrelrank,
                                              void *clientdata
                                              GASNETE_THREAD_FARG);
 
@@ -49,9 +49,9 @@ void gasnete_print_team(gasnet_team_handle_t team, FILE *fp);
 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 
-gasnetex_rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
 
-gasnetex_rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnetex_rank_t node);
+gex_Rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node);
 
 uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) ;
 

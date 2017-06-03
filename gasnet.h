@@ -37,7 +37,7 @@ extern gex_Segment_t     gasneti_thunk_segment;
   ==========
 */
 
-typedef gasnetex_rank_t gasnet_node_t;
+typedef gex_Rank_t gasnet_node_t;
 typedef gex_AM_Token_t gasnet_token_t;
 typedef gex_AM_Index_t gasnet_handler_t;
 typedef gex_AM_Arg_t gasnet_handlerarg_t;
@@ -416,7 +416,7 @@ typedef struct {
 } *gasnet_valget_handle_t;
 
 GASNETT_INLINE(gasnet_get_nb_val)
-gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes)
+gasnet_valget_handle_t gasnet_get_nb_val(gex_Rank_t node, void *src, size_t nbytes)
 {
   gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(*result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN

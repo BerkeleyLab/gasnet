@@ -236,7 +236,7 @@ extern void gasnete_init(void) {
 
 /* TODO: use Rput w/ firehose or bounce buffers when only dest is in-segment */
 GASNETI_INLINE(gasnete_put_common)
-void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbytes,
+void gasnete_put_common(gex_Rank_t rank, void *dest, void *src, size_t nbytes,
                         pami_event_function ldone_fn, pami_event_function rdone_fn,
                         void *cookie) {
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -322,7 +322,7 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
 /* TODO: use Rget w/ firehose or bounce buffers when only src is in-segment */
 // TODO-EX: enable Rget for auxseg (except no point due to Rget bug on BG/Q)
 GASNETI_INLINE(gasnete_get_common)
-void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbytes,
+void gasnete_get_common(void *dest, gex_Rank_t rank, void *src, size_t nbytes,
                         pami_event_function done_fn, void *cookie) {
 #if (GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE) && !GASNETI_ARCH_BGQ /* work-around a BG/Q bug */
   uintptr_t loc_offset = (uintptr_t)dest - gasnete_mysegbase;
@@ -394,7 +394,7 @@ extern
 gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -409,7 +409,7 @@ gex_Event_t gasnete_get_nb(
 extern
 gex_Event_t gasnete_put_nb(
                      gex_TM_t tm,
-                     gasnetex_rank_t rank, void *dest,
+                     gex_Rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -457,7 +457,7 @@ gex_Event_t gasnete_put_nb(
 extern
 int gasnete_get_nbi( gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -474,7 +474,7 @@ int gasnete_get_nbi( gex_TM_t tm,
 
 extern
 int gasnete_put_nbi( gex_TM_t tm,
-                     gasnetex_rank_t rank, void *dest,
+                     gex_Rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -519,7 +519,7 @@ int gasnete_put_nbi( gex_TM_t tm,
 extern
 int gasnete_get(     gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -536,7 +536,7 @@ int gasnete_get(     gex_TM_t tm,
 #if GASNETI_DIRECT_BLOCKING_PUT
 extern
 int gasnete_put(     gex_TM_t tm,
-                     gasnetex_rank_t rank, void *dest,
+                     gex_Rank_t rank, void *dest,
                      void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -769,8 +769,8 @@ static void gasnete_parbarrier_init(gasnete_coll_team_t team) {
  */
 
 typedef struct {
-  gasnetex_rank_t *peer_list;
-  gasnetex_rank_t peer_count;
+  gex_Rank_t *peer_list;
+  gex_Rank_t peer_count;
   volatile int phase;
 #if GASNETI_PSHM_BARRIER_HIER
   gasnete_pshmbarrier_data_t *pshm_data; /* non-NULL if using hierarchical code */
@@ -820,7 +820,7 @@ static void gasnete_cb_pdbarr_done(pami_context_t context, void *cookie, pami_re
 /* Called only w/ context lock held */
 GASNETI_ALWAYS_INLINE(gasnete_pdbarr_send)
 void gasnete_pdbarr_send(
-        gasnetex_rank_t peer,
+        gex_Rank_t peer,
         uint32_t teamid,
         int value, int flags,
         int phase, int index)
@@ -902,7 +902,7 @@ again:
         index = -1; /* DONE! */
         break;
       } else {
-        const gasnetex_rank_t peer = barr->peer_list[index];
+        const gex_Rank_t peer = barr->peer_list[index];
         gasnete_pdbarr_send(peer, teamid, state->value, state->flags, msg_phase, ++index);
         distance <<= 1;
       }

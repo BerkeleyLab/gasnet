@@ -638,8 +638,8 @@ extern int gasnetc_xrc_init(void **shared_mem_p);
 extern int gasnetc_connect_init(void);
 extern int gasnetc_connect_fini(void);
 #if GASNETC_DYNAMIC_CONNECT
-extern gasnetc_cep_t *gasnetc_connect_to(gasnetex_rank_t node);
-extern void gasnetc_conn_implied_ack(gasnetex_rank_t node);
+extern gasnetc_cep_t *gasnetc_connect_to(gex_Rank_t node);
+extern void gasnetc_conn_implied_ack(gex_Rank_t node);
 extern void gasnetc_conn_rcv_wc(struct ibv_wc *comp);
 extern void gasnetc_conn_snd_wc(struct ibv_wc *comp);
 #endif
@@ -672,9 +672,9 @@ extern void gasnetc_sys_flush_reph(gex_AM_Token_t, gex_AM_Arg_t);
 extern void gasnetc_sys_close_reqh(gex_AM_Token_t);
 extern void gasnetc_sndrcv_quiesce(void);
 extern int gasnetc_sndrcv_shutdown(void);
-extern void gasnetc_sndrcv_init_peer(gasnetex_rank_t node, gasnetc_cep_t *cep);
+extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_init_inline(void);
-extern void gasnetc_sndrcv_attach_peer(gasnetex_rank_t node, gasnetc_cep_t *cep);
+extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_start_thread(void);
 extern void gasnetc_sndrcv_stop_thread(int block);
 extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *addr);
@@ -822,7 +822,7 @@ extern firehose_info_t		gasnetc_firehose_info;
 extern gasnetc_port_info_t      *gasnetc_port_tbl;
 extern int                      gasnetc_num_ports;
 extern gasnetc_cep_t            **gasnetc_node2cep;
-extern gasnetex_rank_t            gasnetc_remote_nodes;
+extern gex_Rank_t            gasnetc_remote_nodes;
 #if GASNETC_DYNAMIC_CONNECT
   extern gasnetc_sema_t         gasnetc_zero_sema;
 #endif

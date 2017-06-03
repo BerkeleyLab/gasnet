@@ -93,7 +93,7 @@ retry:
 gasnett_atomic_t pong_recvd;
 
 #define INIT_CHECKS() do {                               \
-    gasnetex_rank_t srcnode;                                        \
+    gex_Rank_t srcnode;                                        \
     gasnet_AMGetMsgSource(token, &srcnode);                       \
     assert_always(srcnode == peerproc);                           \
     assert_always(iter < iters);                                  \

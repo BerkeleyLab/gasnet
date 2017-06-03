@@ -212,7 +212,7 @@
 #if GASNETE_BUILD_AMREF_GET
 int gasnete_amref_get_nbi( gex_TM_t tm,
                            void *dest,
-                           gasnetex_rank_t rank, void *src,
+                           gex_Rank_t rank, void *src,
                            size_t nbytes,
                            gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
@@ -309,7 +309,7 @@ SHORT_HANDLER(gasnete_amref_markdone_reph,1,2,
 GASNETI_INLINE(gasnete_amref_get_nbi_inner)
 void gasnete_amref_get_nbi_inner(gex_TM_t tm,
                                  void *dest,
-                                 gasnetex_rank_t rank, void *src,
+                                 gex_Rank_t rank, void *src,
                                  size_t nbytes,
                                  gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -358,7 +358,7 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
 #if GASNETE_BUILD_AMREF_PUT
 GASNETI_INLINE(gasnete_amref_put_nbi_inner)
 int gasnete_amref_put_nbi_inner (gex_TM_t tm,
-                                 gasnetex_rank_t rank, void *dest,
+                                 gex_Rank_t rank, void *dest,
                                  void *src,
                                  size_t nbytes,
                                  gex_Event_t *lc_opt,
@@ -456,7 +456,7 @@ extern
 gex_Event_t gasnete_amref_get_nb(
                      gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -484,7 +484,7 @@ gex_Event_t gasnete_amref_get_nb(
 extern
 gex_Event_t gasnete_amref_put_nb(
                      gex_TM_t tm,
-                     gasnetex_rank_t rank, void *dest,
+                     gex_Rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -553,7 +553,7 @@ gex_Event_t gasnete_amref_put_nb(
 extern
 int gasnete_amref_get_nbi( gex_TM_t tm,
                            void *dest,
-                           gasnetex_rank_t rank, void *src,
+                           gex_Rank_t rank, void *src,
                            size_t nbytes,
                            gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -568,7 +568,7 @@ int gasnete_amref_get_nbi( gex_TM_t tm,
 #if GASNETE_BUILD_AMREF_PUT
 extern
 int gasnete_amref_put_nbi( gex_TM_t tm,
-                           gasnetex_rank_t rank, void *dest,
+                           gex_Rank_t rank, void *dest,
                            void *src,
                            size_t nbytes, gex_Event_t *lc_opt,
                            gex_Flags_t flags GASNETI_THREAD_FARG)

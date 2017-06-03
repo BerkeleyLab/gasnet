@@ -287,7 +287,7 @@ typedef struct {
 
 extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,
                                   const char *force_spawner,
-                                  gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p);
+                                  gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
 
 /* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
@@ -346,7 +346,7 @@ void gasneti_segmentAttach(uintptr_t segsize,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags);
 
-void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
+void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
 
@@ -718,17 +718,17 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 
 extern uint32_t gasneti_gethostid(void);
 
-extern gasnetex_rank_t *gasneti_nodemap;
+extern gex_Rank_t *gasneti_nodemap;
 
 typedef struct gasneti_nodegrp_s {
   /* List of member nodes in ascending order */
-  gasnetex_rank_t *nodes;
+  gex_Rank_t *nodes;
   /* Number of nodes in group and my rank within them */
-  gasnetex_rank_t node_count;
-  gasnetex_rank_t node_rank;
+  gex_Rank_t node_count;
+  gex_Rank_t node_rank;
   /* Number of peers (groups of same class) and this group's rank */
-  gasnetex_rank_t grp_count;
-  gasnetex_rank_t grp_rank;
+  gex_Rank_t grp_count;
+  gex_Rank_t grp_rank;
 } gasneti_nodegrp_t;
 
 extern gasneti_nodegrp_t gasneti_myhost;

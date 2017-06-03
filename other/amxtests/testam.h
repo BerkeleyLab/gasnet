@@ -69,7 +69,7 @@
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())
-  #define GETPARTNER(token)  gasnetex_rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
+  #define GETPARTNER(token)  gex_Rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
   #define ENDPOINT                 myteam,
   #define EXTRA_S                  ,0
   #define EXTRA_ML                 ,GEX_EVENT_NOW,0

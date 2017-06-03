@@ -21,7 +21,7 @@ typedef enum {GASNETE_COLL_BROADCAST_OP=0,
               GASNETE_COLL_EXCHANGE_OP} gasnete_coll_autotune_optype_t;
 
 
-gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnetex_rank_t mynode, gasnetex_rank_t total_nodes,
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gex_Rank_t mynode, gex_Rank_t total_nodes,
                                                          gasnet_image_t my_images, gasnet_image_t total_images, 
                                                          size_t min_scratch_size);
 /*testing functions*/
@@ -33,7 +33,7 @@ void gasnete_coll_set_fanout(int fanout, gasnete_coll_autotune_optype_t op_type)
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnete_coll_autotune_optype_t op_type, 
-                                                             gasnetex_rank_t root, size_t nbytes, int flags) ;
+                                                             gex_Rank_t root, size_t nbytes, int flags) ;
 
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags);
 

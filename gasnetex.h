@@ -286,8 +286,8 @@ typedef uint8_t gex_AM_Index_t;
 typedef int32_t gex_AM_Arg_t;
 typedef uint32_t gex_Flags_t;
 
-typedef uint32_t gasnetex_rank_t;
-#define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
+typedef uint32_t gex_Rank_t;
+#define GASNETEX_ALL_RANKS (~(gex_Rank_t)0)
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;
@@ -368,8 +368,8 @@ typedef struct {
 #ifndef _GASNET_NODEINFO_T
 #define _GASNET_NODEINFO_T
   typedef struct gasneti_nodeinfo_s {
-    gasnetex_rank_t host; /* 0-based identifier for procs on same compute node */
-    gasnetex_rank_t supernode; /* 0-based identifier for procs which comprise a shared-memory supernode */
+    gex_Rank_t host; /* 0-based identifier for procs on same compute node */
+    gex_Rank_t supernode; /* 0-based identifier for procs which comprise a shared-memory supernode */
   #if GASNET_PSHM
     /* Value one must add to find locally mapped address, if any. */
     uintptr_t offset;

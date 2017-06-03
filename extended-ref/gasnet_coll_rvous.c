@@ -105,7 +105,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnetex_rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   
   int child;
@@ -238,7 +238,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   case 2:
     if (op->team->myrank == args->srcnode) {
       /* Root sends at most one AM per peer for each poll */
-      gasnetex_rank_t i;
+      gex_Rank_t i;
       int done = 1;
       for (i=0; i<op->team->total_ranks; ++i) {
         if (i == op->team->myrank) continue;
@@ -361,7 +361,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcastM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcastM);
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnetex_rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   
   int child;
@@ -500,7 +500,7 @@ static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
@@ -647,7 +647,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
@@ -801,7 +801,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  gasnet_image_t j,k;
@@ -932,7 +932,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
     case 1:	/* Root send addrs */
       if (op->team->myrank == args->dstnode) {
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	for (i = 0; i < op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
 	  gasnete_coll_p2p_send_rtr(op, data->p2p, 0,
@@ -1064,7 +1064,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       if (op->team->myrank == args->dstnode) {
 	void **tmp = gasneti_malloc(sizeof(void *) * op->team->total_images);
 	gasnet_image_t j;
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	for (j = 0; j < op->team->total_images; ++j) {
 	  tmp[j] = gasnete_coll_scale_ptr(args->dst, j, args->nbytes);
 	}

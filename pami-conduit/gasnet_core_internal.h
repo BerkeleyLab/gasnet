@@ -78,7 +78,7 @@ enum {
 #endif
 
 #define GASNETC_MSG_COMMON_HDR                        \
-  gasnetex_rank_t       srcnode; /* must be first */  \
+  gex_Rank_t       srcnode; /* must be first */  \
   gex_AM_Index_t    handler;                      \
   uint8_t               numargs : 5;                  \
   uint8_t               is_req  : 1;                  \
@@ -145,7 +145,7 @@ extern size_t             gasnetc_recv_imm_max;
 
 /* TODO: how must this change for multiple contexts? */
 GASNETI_INLINE(gasnetc_endpoint)
-pami_endpoint_t gasnetc_endpoint(gasnetex_rank_t rank) {
+pami_endpoint_t gasnetc_endpoint(gex_Rank_t rank) {
   pami_endpoint_t result = gasnetc_endpoint_tbl[rank];
   gasneti_assert(rank < gasneti_nodes);
   if_pf (result == PAMI_ENDPOINT_NULL) {

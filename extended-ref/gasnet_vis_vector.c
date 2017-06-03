@@ -230,7 +230,7 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
 #ifndef GASNETE_PUTV_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
-                                   gasnetex_rank_t dstnode,
+                                   gex_Rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
@@ -262,7 +262,7 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
   size_t const nbytes = srclist[0].len;
@@ -294,7 +294,7 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
 #ifndef GASNETE_PUTV_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
 gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
-                                   gasnetex_rank_t dstnode,
+                                   gex_Rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasneti_assert(srccount >= 1);
@@ -436,7 +436,7 @@ void gasnete_getv_AMPipeline_visop_signal(gasneti_vis_op_t * const visop) {
 
 gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasneti_assert(dstcount >= 1);
   gasneti_assert(srccount > 1); /* supports gather get */
@@ -586,7 +586,7 @@ MEDIUM_HANDLER(gasnete_getv_AMPipeline_reph,2,3,
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
 gex_Event_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
-                                   gasnetex_rank_t dstnode,
+                                   gex_Rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   const int islocal = (dstnode == gasneti_mynode);
@@ -659,7 +659,7 @@ gex_Event_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
 /* reference version that uses individual gets */
 gex_Event_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   const int islocal = (srcnode == gasneti_mynode);
   GASNETI_TRACE_EVENT(C, GETV_REF_INDIV);
@@ -734,7 +734,7 @@ gex_Event_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
 /* top-level gasnet_putv_* entry point */
 #ifndef GASNETE_PUTV_OVERRIDE
 extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
-                                   gasnetex_rank_t dstnode,
+                                   gex_Rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
@@ -761,7 +761,7 @@ extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
 #ifndef GASNETE_GETV_OVERRIDE
 extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                   gasnetex_rank_t srcnode,
+                                   gex_Rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */

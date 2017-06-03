@@ -74,7 +74,7 @@ static gex_Segment_t     mysegment;
     myinfo.stack_seg = alignup_ptr(&_stack_seg, PAGESZ);
     BARRIER();
     /* fetch partner's addresses into partnerinfo */
-    gex_AM_RequestShort0(myteam, (gasnetex_rank_t)partner, 250, 0);
+    gex_AM_RequestShort0(myteam, (gex_Rank_t)partner, 250, 0);
     GASNET_BLOCKUNTIL(done);
     BARRIER();
 

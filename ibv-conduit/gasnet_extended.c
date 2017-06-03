@@ -94,7 +94,7 @@ extern
 gex_Event_t gasnete_get_nb(
                      gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -113,7 +113,7 @@ gex_Event_t gasnete_get_nb(
 extern
 gex_Event_t gasnete_put_nb(
                      gex_TM_t tm,
-                     gasnetex_rank_t rank, void *dest,
+                     gex_Rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -178,7 +178,7 @@ gex_Event_t gasnete_put_nb(
 extern
 int gasnete_get_nbi (gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
@@ -198,7 +198,7 @@ int gasnete_get_nbi (gex_TM_t tm,
 
 extern
 int gasnete_put_nbi (gex_TM_t tm,
-                     gasnetex_rank_t rank, void *dest,
+                     gex_Rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
@@ -244,7 +244,7 @@ int gasnete_put_nbi (gex_TM_t tm,
 
 extern int gasnete_get  (gex_TM_t tm,
                          void* dest,
-                         gasnetex_rank_t rank, void *src,
+                         gex_Rank_t rank, void *src,
                          size_t nbytes, gex_Flags_t flags
                          GASNETI_THREAD_FARG)
 {
@@ -260,7 +260,7 @@ extern int gasnete_get  (gex_TM_t tm,
 }
 
 extern int gasnete_put  (gex_TM_t tm,
-                         gasnetex_rank_t rank, void* dest,
+                         gex_Rank_t rank, void* dest,
                          /*const*/ void *src,
                          size_t nbytes, gex_Flags_t flags
                          GASNETI_THREAD_FARG)
@@ -351,7 +351,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 typedef struct {
   GASNETE_RMDBARRIER_LOCK(barrier_lock) /* no semicolon */
   struct {
-    gasnetex_rank_t node;
+    gex_Rank_t node;
     uintptr_t     addr;
   } *barrier_peers;           /*  precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
@@ -394,7 +394,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
   gasneti_assert(state < barrier_data->barrier_goal);
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
-    const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;
+    const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
     if (gasneti_pshm_in_supernode(node)) {
@@ -788,7 +788,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
     gasneti_leak(barrier_data->barrier_peers);
   
     for (step = 0; step < steps; ++step) {
-      gasnetex_rank_t node = peers->fwd[step];
+      gex_Rank_t node = peers->fwd[step];
       void *addr = gasnete_rdmabarrier_auxseg[node].addr;
       barrier_data->barrier_peers[1+step].node = node;
     #if GASNET_PSHM

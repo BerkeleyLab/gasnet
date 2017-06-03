@@ -157,7 +157,7 @@ static int gasnetc_exit_barrier_timed_wait(void) {
   if (gasnetc_exit_data) {
     int64_t timeout = 1e9 * gasnetc_exittimeout;
     gasneti_tick_t start_time = gasneti_ticks_now();
-    gasnetex_rank_t i;
+    gex_Rank_t i;
 
     gasneti_assert(timeout > 0);
 
@@ -179,7 +179,7 @@ static int gasnetc_exit_barrier_timed_wait(void) {
 /* TODO: use a process group (would require SIGT{STP,TIN,TOU} handling) */
 static void gasnetc_signal_job(int sig) {
   if (gasnetc_exit_data) {
-    gasnetex_rank_t i;
+    gex_Rank_t i;
     for (i = 0; i < gasneti_nodes; i++) {
       pid_t pid = gasnetc_exit_data->pid_tbl[i];
       if (!pid || (i == gasneti_mynode)) continue;
@@ -289,7 +289,7 @@ static void gasnetc_disarm_sigio(int fd) {
 
 
 static void gasnetc_fork_children(void) {
-  gasnetex_rank_t i;
+  gex_Rank_t i;
 
   /* An initial pid table is kept in private memory */
   gasnetc_exit_data = gasneti_calloc(1, GASNETC_EXIT_DATA_SZ);
@@ -445,7 +445,7 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
 
 static int gasnetc_get_pshm_nodecount(void)
 {
-  gasnetex_rank_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
+  gex_Rank_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
   int politedefault;
 
   if (nodes > GASNETI_PSHM_MAX_NODES) { 
@@ -524,7 +524,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasneti_trace_init(argc, argv);
 
   /* Trivial all-zero nodemap */
-  gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gasnetex_rank_t));
+  gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gex_Rank_t));
   gasneti_nodemapParse();
 
   #if GASNET_DEBUG_VERBOSE
@@ -970,8 +970,8 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gasnetex_rank_t *srcindex) {
-  gasnetex_rank_t sourceid = 0;
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
+  gex_Rank_t sourceid = 0;
   GASNETI_CHECKATTACH();
   #if GASNET_DEBUG || GASNET_PSHM
     GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -1103,7 +1103,7 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
                                      dest_ptr, flags, numargs, argptr); 
 #else
   int retval;
-  gasnetex_rank_t sourceid = 0;
+  gex_Rank_t sourceid = 0;
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t *reqdesc = (gasnetc_bufdesc_t *)token;
 
@@ -1123,7 +1123,7 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
@@ -1145,7 +1145,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
@@ -1170,7 +1170,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gex_TM_t tm,/* local context */
-                            gasnetex_rank_t rank,       /* with tm, defines remote context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

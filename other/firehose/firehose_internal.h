@@ -177,7 +177,7 @@ extern int	*fhc_RemoteVictimFifoBuckets;
     uintptr_t     node; /* Might instead hold len in region case */
   }	  fh_key_t;
   GASNETI_ALWAYS_INLINE(fh_keymake)
-  fh_key_t fh_keymake(uintptr_t addr, gasnetex_rank_t node)
+  fh_key_t fh_keymake(uintptr_t addr, gex_Rank_t node)
   { fh_key_t key; key.addr = addr; key.node = node; return key; }
   #define FH_KEYMAKE(addr,node) fh_keymake(addr,node)
   #define FH_KEY_EQ(x,y)   (((x).addr == (y).addr) && ((x).node == ((y).node)))
@@ -382,20 +382,20 @@ void		fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg
 		/* Return a descriptor given an existing private_t */
 fh_refc_t *	fh_priv_release_local(int local_ref,
 				      firehose_private_t *);
-fh_refc_t *	fh_priv_release_remote(gasnetex_rank_t node,
+fh_refc_t *	fh_priv_release_remote(gex_Rank_t node,
 				       firehose_private_t *);
 		/* Acquire and exisiting private_t (increments refcount) */
 fh_refc_t *	fh_priv_acquire_local(int local_ref,
 				      firehose_private_t *);
-fh_refc_t *	fh_priv_acquire_remote(gasnetex_rank_t node,
+fh_refc_t *	fh_priv_acquire_remote(gex_Rank_t node,
 				       firehose_private_t *);
 		/* Wait for local firehoses to release/reuse */
 int		fh_WaitLocalFirehoses(int count, firehose_region_t *region);
 		/* Wait for remote firehoses to release/reuse */
-int		fh_WaitRemoteFirehoses(gasnetex_rank_t node, int count,
+int		fh_WaitRemoteFirehoses(gex_Rank_t node, int count,
 					firehose_region_t *region);
 		/* Adjust for possible overcommit and then pin */
-void		fh_AdjustLocalFifoAndPin(gasnetex_rank_t node,
+void		fh_AdjustLocalFifoAndPin(gex_Rank_t node,
 					firehose_region_t *reg_pin,
 					size_t pin_num);
 
@@ -441,8 +441,8 @@ extern void fhi_FreeRegionPool(fhi_RegionPool_t *rpool);
 /* ##################################################################### */
 /* Misc functions (specific to page and region)                          */
 /* ##################################################################### */
-int	fh_region_ispinned(gasnetex_rank_t node, uintptr_t addr, size_t len);
-int	fh_region_partial(gasnetex_rank_t node, uintptr_t *addr_p, size_t *len_p);
+int	fh_region_ispinned(gex_Rank_t node, uintptr_t addr, size_t len);
+int	fh_region_partial(gex_Rank_t node, uintptr_t *addr_p, size_t *len_p);
 
 /* ##################################################################### */
 /* Misc functions (COMMON, firehose.c)                                   */
@@ -594,7 +594,7 @@ struct _fh_remote_callback_t {
 	uintptr_t                       unused;
     } u;
 
-	gasnetex_rank_t			node;
+	gex_Rank_t			node;
 	firehose_remotecallback_args_t	args;
 
 	firehose_region_t		*pin_list;
@@ -634,11 +634,11 @@ void	fh_acquire_remote_region(firehose_request_t *req,
 		        	firehose_remotecallback_args_fn_t args_fn);
 void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
-int	fh_move_request(gasnetex_rank_t node,
+int	fh_move_request(gex_Rank_t node,
 			firehose_region_t *new_reg, size_t r_new,
 			firehose_region_t *old_reg, size_t r_old,
 			void *context);
-int	fh_find_pending_callbacks(gasnetex_rank_t node,
+int	fh_find_pending_callbacks(gex_Rank_t node,
 				  firehose_region_t *region,
 				  int nreg, void *context,
 				  fh_pollq_t *PendQ);
@@ -671,7 +671,7 @@ int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
 }
 
 GASNETI_INLINE(fhi_FreeVictimRemote)
-int fhi_FreeVictimRemote(gasnetex_rank_t node, int count, firehose_region_t *reg)
+int fhi_FreeVictimRemote(gex_Rank_t node, int count, firehose_region_t *reg)
 {
 	gasneti_assert(count <= fhc_RemoteVictimFifoBuckets[node]);
 	return fh_FreeVictim(count, reg, &fh_RemoteNodeFifo[node]);
