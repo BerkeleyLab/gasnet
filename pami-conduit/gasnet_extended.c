@@ -60,16 +60,17 @@ static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_resu
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
-/* callback for synchronous local completion of a non-bulk put */
-static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t status) {
-  gasnete_op_t *op = (gasnete_op_t *)cookie;
-  if (OPTYPE(op) == OPTYPE_EXPLICIT) {
-    gasnete_eop_check((gasnete_eop_t *)op);
-  } else {
-    gasneti_assert(OPTYPE(op) == OPTYPE_IMPLICIT);
-    gasnete_iop_check((gasnete_iop_t *)op);
-  }
-  GASNETE_LC_NOW_FINISH(op);
+/* callbacks for local completion of non-bulk puts */
+static void gasnete_cb_eop_lc(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
+  gasnete_eop_check(eop);
+  GASNETE_LC_NOW_FINISH(eop);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
+static void gasnete_cb_iop_lc(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  GASNETE_LC_NOW_FINISH(iop);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
@@ -409,7 +410,7 @@ gasnetex_handle_t gasnete_put_nb(
 #endif
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
 fake_as_now:
-      ldone_fn = gasnete_cb_op_lc;
+      ldone_fn = gasnete_cb_eop_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
       // Nothing to do
@@ -480,7 +481,7 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
 #endif
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
 fake_as_now:
-      ldone_fn = gasnete_cb_op_lc;
+      ldone_fn = gasnete_cb_iop_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
       // Nothing to do
