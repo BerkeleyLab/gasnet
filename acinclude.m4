@@ -1520,16 +1520,17 @@ GASNET_FUN_END([$0(...)])
 ])
 
 dnl GASNET_CHECK_OPTIMIZEDDEBUG CCVAR CFLAGSVAR EXTRAARGS INCLUDES ACTION
-dnl Ensure the compiler CC doesn't create a conflict between
+dnl Ensure the compiler doesn't create a conflict between
 dnl optimization and debugging. Run ACTION upon failure
 AC_DEFUN([GASNET_CHECK_OPTIMIZEDDEBUG],[
 GASNET_FUN_BEGIN([$0(...)])
  if test "$enable_debug" = "yes" ; then
   AC_MSG_CHECKING([$1 for debug vs. optimize compilation conflict])
-  AC_LANG_SAVE
-  AC_LANG_C
+  dnl bug 3548: Set both sets of variables to automatically handle either language mode
   GASNET_PUSHVAR(CC,"$[$1]")
   GASNET_PUSHVAR(CFLAGS,"$[$2] $3")
+  GASNET_PUSHVAR(CXX,"$[$1]")
+  GASNET_PUSHVAR(CXXFLAGS,"$[$2] $3")
   GASNET_PUSHVAR(CPPFLAGS,"")
   AC_TRY_COMPILE( [
     $4
@@ -1540,8 +1541,9 @@ GASNET_FUN_BEGIN([$0(...)])
   AC_MSG_RESULT([$gasnet_result])
   GASNET_POPVAR(CC)
   GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(CXX)
+  GASNET_POPVAR(CXXFLAGS)
   GASNET_POPVAR(CPPFLAGS)
-  AC_LANG_RESTORE
   if test "$gasnet_result" = yes; then
     :
     $5
