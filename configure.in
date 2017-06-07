@@ -956,6 +956,7 @@ pushdef([flagsvar],ifelse(index([$2],[CXX]),[-1],[C],[CXX])[]FLAGS)
 case "$[]uppername[]_FAMILY" in
 XLC)
     GASNET_TRY_CACHE_LINK([$1 for XLC mc_func support], lowername[]_mc_func, [
+        static void _gasneti_do_sync(void);
         #pragma mc_func _gasneti_do_sync { "7c2004ac" }
         #pragma reg_killed_by _gasneti_do_sync
         #define gasneti_local_sync() _gasneti_do_sync()

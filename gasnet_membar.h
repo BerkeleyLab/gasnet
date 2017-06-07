@@ -177,10 +177,12 @@
    /* "lwsync" = "sync 1", executed as "sync" on older CPUs */
    #define GASNETI_PPC_WMB_ASM "7c2004ac"
 
+   static void _gasneti_do_wmb(void);
    #pragma mc_func _gasneti_do_wmb { GASNETI_PPC_WMB_ASM }
    #pragma reg_killed_by _gasneti_do_wmb
    #define gasneti_local_wmb() _gasneti_do_wmb()
 
+   static void _gasneti_do_compilerfence(void);
    #pragma mc_func _gasneti_do_compilerfence { "" }
    #pragma reg_killed_by _gasneti_do_compilerfence
    #define gasneti_compiler_fence() _gasneti_do_compilerfence()
