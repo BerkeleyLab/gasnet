@@ -224,7 +224,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 /* ------------------------------------------------------------------------------------ */
 /* tools for dealing with gex_Event_t* pre-defined values */
-// TODO-EX: move to gasnet_handle_internal.h
+// TODO-EX: move to gasnet_event_internal.h
 #ifndef _GEX_EVENT_T
 GASNETI_INLINE(gasneti_leaf_is_pointer) GASNETI_PURE
 int gasneti_leaf_is_pointer(const gex_Event_t *opt_val) {

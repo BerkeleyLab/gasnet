@@ -37,7 +37,7 @@ typedef enum {
 #define gasnetc_assert_aligned(_val,_align)	gasneti_assert(!((uintptr_t)(_val) % (_align)))
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle_internal.h and gasnet_handle.c */
+/* Configure gasnet_event_internal.h and gasnet_event.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
 #define GASNETE_CONDUIT_EOP_FIELDS \

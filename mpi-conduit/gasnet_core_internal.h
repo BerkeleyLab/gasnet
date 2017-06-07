@@ -93,7 +93,7 @@ typedef enum {
 } gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle_internal.h and gasnet_handle.c */
+/* Configure gasnet_event_internal.h and gasnet_event.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
 // (###) Define as needed if iop counters should use something other than weakatomics:

@@ -1,10 +1,10 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_handle.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_event.c $
  * Description: GASNet event/eop/iop common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_handle_internal.h>
+#include <gasnet_event_internal.h>
 
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 

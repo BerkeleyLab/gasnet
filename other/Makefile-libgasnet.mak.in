@@ -79,7 +79,7 @@ libgasnet_sources =                                         \
         $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \
         $(top_srcdir)/extended-ref/gasnet_coll_team.c				\
         $(top_srcdir)/extended-ref/gasnet_coll_hashtable.c   \
-        $(top_srcdir)/gasnet_handle.c                       \
+        $(top_srcdir)/gasnet_event.c                       \
         $(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \

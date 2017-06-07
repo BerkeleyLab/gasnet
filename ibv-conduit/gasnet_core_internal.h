@@ -114,7 +114,7 @@ typedef enum {
 } gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle_internal.h and gasnet_handle.c */
+/* Configure gasnet_event_internal.h and gasnet_event.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
 #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id
