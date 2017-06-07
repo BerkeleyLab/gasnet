@@ -346,8 +346,8 @@ typedef struct {
 } gex_AM_Entry_t;
 
 // GASNet-1 version of gex_AM_Entry_t
-// TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
-//#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
+// Visible to GASNet-1 clients and to internal code (for gasnetc_attach in particular)
+#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {
     gex_AM_Index_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
@@ -356,7 +356,7 @@ typedef struct {
     void (*fnptr)();    
    #endif
   } gasnet_handlerentry_t;
-//#endif
+#endif
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
