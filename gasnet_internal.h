@@ -721,6 +721,12 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 #else
   #define gasneti_amtbl_check(entry, nargs) ((void)0)
 #endif
+
+// AM "catch all" for defaultAMHandler and similar
+#define GASNETI_FLAG_AM_ANY \
+     ( GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG | \
+       GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY )
+
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
@@ -768,7 +774,7 @@ void gasneti_defaultExchange(void *src, size_t len, void *dest);
 extern void gasnetc_exchg_reqh(gex_AM_Token_t token, void *buf, size_t nbytes,
                                gex_AM_Arg_t arg0, gex_AM_Arg_t len);
 #define GASNETC_COMMON_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,0)
+    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM)
 
 /* ------------------------------------------------------------------------------------ */
 

@@ -146,9 +146,9 @@ enum {
         { MSGCHECK(LSZ(args)); memset(buf, 0xa5, nbytes); HBODY(args); }
 
 #define HTABLE(args)                          \
-  { hidx_Shandler(args), Shandler##args, 0, args },    \
-  { hidx_Mhandler(args), Mhandler##args, 0, args },    \
-  { hidx_Lhandler(args), Lhandler##args, 0, args },
+  { hidx_Shandler(args), Shandler##args, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_SHORT, args },    \
+  { hidx_Mhandler(args), Mhandler##args, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_MEDIUM, args },    \
+  { hidx_Lhandler(args), Lhandler##args, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_LONG, args },
 
 #define HTEST(args) \
   MSG0("testing %d-argument AM calls", args);                        \
@@ -218,12 +218,12 @@ int main(int argc, char **argv) {
   int i;
   gex_AM_Entry_t htable[] = { 
     HFOREACH(HTABLE)
-    { hidx_ping_shorthandler, ping_shorthandler, 0, 0 },
-    { hidx_pong_shorthandler, pong_shorthandler, 0, 0 },
-    { hidx_ping_medhandler,   ping_medhandler,   0, 0 },
-    { hidx_pong_medhandler,   pong_medhandler,   0, 0 },
-    { hidx_ping_longhandler,  ping_longhandler,  0, 0 },
-    { hidx_pong_longhandler,  pong_longhandler,  0, 0 }
+    { hidx_ping_shorthandler, ping_shorthandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 0 },
+    { hidx_pong_shorthandler, pong_shorthandler, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_SHORT, 0 },
+    { hidx_ping_medhandler,   ping_medhandler,   GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0 },
+    { hidx_pong_medhandler,   pong_medhandler,   GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 },
+    { hidx_ping_longhandler,  ping_longhandler,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_LONG, 0 },
+    { hidx_pong_longhandler,  pong_longhandler,  GEX_FLAG_AM_REPLY|GEX_FLAG_AM_LONG, 0 }
   };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore4", &argc, &argv, 0));

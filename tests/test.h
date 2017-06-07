@@ -760,11 +760,11 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 
     gex_AM_Entry_t mytab[] = {
 #if GASNET_USE_STRICT_PROTOTYPES
-      { 0, (void *)_test_seggather, 0, 0, NULL, NULL },
-      { 0, (void *)_test_segbcast,  0, 1, NULL, NULL }
+      { 0, (void *)_test_seggather, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL },
+      { 0, (void *)_test_segbcast,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 1, NULL, NULL }
 #else
-      { 0, (void (*)())_test_seggather, 0, 0, NULL, NULL },
-      { 0, (void (*)())_test_segbcast,  0, 1, NULL, NULL }
+      { 0, (void (*)())_test_seggather, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL },
+      { 0, (void (*)())_test_segbcast,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 1, NULL, NULL }
 #endif
     };
     // EX-TODO: will need an endpoint (in place of NULL below) for

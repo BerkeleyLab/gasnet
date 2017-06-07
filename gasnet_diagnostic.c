@@ -1193,8 +1193,8 @@ static gex_AM_Entry_t gasneti_diag_handlers[] = {
     GASNETE_DIAG_HANDLERS(), /* should start at gasnete_diag_hidx_base */
   #endif
 
-  { gasneti_diag_hidx_base + 0, (gasneti_handler_fn_t)progressfn_reqh, 0, 0 },
-  { gasneti_diag_hidx_base + 1, (gasneti_handler_fn_t)progressfn_reph, 0, 0 }
+  { gasneti_diag_hidx_base + 0, (gasneti_handler_fn_t)progressfn_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 },
+  { gasneti_diag_hidx_base + 1, (gasneti_handler_fn_t)progressfn_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 }
 };
 
 

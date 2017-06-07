@@ -148,10 +148,10 @@ int amopt = 0;
 int main(int argc, char **argv) {
   int arg = 1, help = 0;
   gex_AM_Entry_t htable[] = {
-    { hidx_ping_medhandler,  ping_medhandler,  0, 2 },
-    { hidx_pong_medhandler,  pong_medhandler,  0, 2 },
-    { hidx_ping_longhandler, ping_longhandler, 0, 2 },
-    { hidx_pong_longhandler, pong_longhandler, 0, 2 },
+    { hidx_ping_medhandler,  ping_medhandler,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 2 },
+    { hidx_pong_medhandler,  pong_medhandler,  GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 2 },
+    { hidx_ping_longhandler, ping_longhandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_LONG, 2 },
+    { hidx_pong_longhandler, pong_longhandler, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_LONG, 2 },
   };
 
   /* call startup */

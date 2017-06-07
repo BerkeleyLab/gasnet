@@ -301,6 +301,59 @@ extern void gasneti_defaultAMHandler(gex_AM_Token_t token) {
                      (int)gasnet_mynode(), (int)gasnet_nodes(), (int)srcnode);
 }
 /* ------------------------------------------------------------------------------------ */
+
+// Validate a handler table prior to registration
+static void gasneti_am_validate(
+                        const gex_AM_Entry_t *table,
+                        int numentries)
+{
+  if (!numentries) return;
+
+  // Internally-constructed legacy table should be all-or-nothing.
+  if (table[0].gex_nargs == GASNETI_HANDLER_NARGS_UNK ||
+      table[0].gex_flags & GASNETI_FLAG_INIT_LEGACY) {
+    for (int i = 0; i < numentries; ++i) {
+       gasneti_assert_always(table[i].gex_nargs == GASNETI_HANDLER_NARGS_UNK);
+       gasneti_assert_always(table[i].gex_flags == (GASNETI_FLAG_AM_ANY | GASNETI_FLAG_INIT_LEGACY));
+    }
+    return;
+  }
+
+  // Normal tables have several rules to check:
+  for (int i = 0; i < numentries; ++i) {
+    int idx = table[i].gex_index;
+
+    if_pf (table[i].gex_nargs > gasnet_AMMaxArgs()) {
+      gasneti_fatalerror("AM Handler table entry %d: invalid gex_nargs: %d (Max %d)",
+                         i, (int)table[i].gex_nargs, (int)gasnet_AMMaxArgs());
+    }
+
+    if_pf (0 == (table[i].gex_flags & (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY))) {
+      gasneti_fatalerror("AM Handler table entry %d(idx=%d): invalid gex_flags: contains neither GEX_FLAG_AM_REQUEST nor GEX_FLAG_AM_REPLY", i, idx);
+    }
+
+    gex_Flags_t category = table[i].gex_flags & (GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG);
+    const char *cat_msg = NULL;
+    switch (category) {
+    case 0:
+      cat_msg = "none of GEX_FLAG_AM_SHORT, GEX_FLAG_AM_MEDIUM, or GEX_FLAG_AM_LONG";
+      break;
+    case GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG:
+      cat_msg = "invalid combination (GEX_FLAG_AM_SHORT | GEX_FLAG_AM_MEDIUM | GEX_FLAG_AM_LONG)";
+      break;
+    case GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM:
+      cat_msg = "invalid combination (GEX_FLAG_AM_SHORT | GEX_FLAG_AM_MEDIUM )";
+      break;
+    case GEX_FLAG_AM_SHORT|GEX_FLAG_AM_LONG:
+      cat_msg = "invalid combination (GEX_FLAG_AM_SHORT | GEX_FLAG_AM_LONG)";
+      break;
+    }
+    if_pf (cat_msg) {
+      gasneti_fatalerror("AM Handler table entry %d(idx=%d): invalid gex_flags: contains %s", i, idx, cat_msg);
+    }
+  }
+}
+
 #if GASNETC_AMREGISTER
   /* Use a conduit-specific hook at registration */
   extern int gasnetc_amregister(gex_AM_Index_t, gex_AM_Entry_t *);
@@ -313,6 +366,9 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
                                int dontcare, int *numregistered) {
   int i;
   *numregistered = 0;
+
+  gasneti_am_validate(input, numentries);
+
   for (i = 0; i < numentries; i++) {
     int newindex;
 
@@ -399,6 +455,7 @@ extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
     extable[i].gex_index = table[i].index;
     extable[i].gex_fnptr = table[i].fnptr;
     extable[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
+    extable[i].gex_flags = GASNETI_FLAG_AM_ANY | GASNETI_FLAG_INIT_LEGACY;
   }
 
   /* register */
@@ -422,7 +479,7 @@ extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
   for (int i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) {
     output[i].gex_index = 0; // marks an unused entry
     output[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
-    output[i].gex_flags = 0;
+    output[i].gex_flags = GASNETI_FLAG_AM_ANY;
     output[i].gex_fnptr = gasneti_defaultAMHandler;
     output[i].gex_cdata = NULL;
     output[i].gex_name  = fnname;

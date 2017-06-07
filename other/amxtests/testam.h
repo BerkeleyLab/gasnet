@@ -459,12 +459,18 @@ HANDLERS(16)
 
 #if defined(TEST_GASNETEX)
 #define ALLAM_HANDLERS_ID(num)                                           \
-  { SHORT_##num##REQ_HANDLER,  (handler_fn_t)short_##num##req_handler , 0, num, NULL, NULL}, \
-  { MEDIUM_##num##REQ_HANDLER, (handler_fn_t)medium_##num##req_handler, 0, num, NULL, NULL}, \
-  { LONG_##num##REQ_HANDLER,   (handler_fn_t)long_##num##req_handler  , 0, num, NULL, NULL}, \
-  { SHORT_##num##REP_HANDLER,  (handler_fn_t)short_##num##rep_handler , 0, num, NULL, NULL}, \
-  { MEDIUM_##num##REP_HANDLER, (handler_fn_t)medium_##num##rep_handler, 0, num, NULL, NULL}, \
-  { LONG_##num##REP_HANDLER,   (handler_fn_t)long_##num##rep_handler  , 0, num, NULL, NULL}
+  { SHORT_##num##REQ_HANDLER,  (handler_fn_t)short_##num##req_handler,                     \
+                               GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT,  num, NULL, NULL},   \
+  { MEDIUM_##num##REQ_HANDLER, (handler_fn_t)medium_##num##req_handler,                    \
+                               GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, num, NULL, NULL},   \
+  { LONG_##num##REQ_HANDLER,   (handler_fn_t)long_##num##req_handler,                      \
+                               GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_LONG,   num, NULL, NULL},   \
+  { SHORT_##num##REP_HANDLER,  (handler_fn_t)short_##num##rep_handler,                     \
+                               GEX_FLAG_AM_REPLY|GEX_FLAG_AM_SHORT,    num, NULL, NULL},   \
+  { MEDIUM_##num##REP_HANDLER, (handler_fn_t)medium_##num##rep_handler,                    \
+                               GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM,   num, NULL, NULL},   \
+  { LONG_##num##REP_HANDLER,   (handler_fn_t)long_##num##rep_handler,                      \
+                               GEX_FLAG_AM_REPLY|GEX_FLAG_AM_LONG,     num, NULL, NULL}
 #else
 #define ALLAM_HANDLERS_ID(num)                                           \
   { SHORT_##num##REQ_HANDLER,  (handler_fn_t)short_##num##req_handler }, \
