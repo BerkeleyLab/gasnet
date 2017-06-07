@@ -386,7 +386,7 @@ typedef struct {
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
-#ifndef _GASNETEX_HANDLE_T
+#ifndef _GEX_EVENT_T
   /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
   struct gasneti_handle_s;
   typedef struct gasneti_handle_s *gex_Event_t;
