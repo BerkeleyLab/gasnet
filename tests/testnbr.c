@@ -1160,7 +1160,7 @@ ghostExchAMLong(nbr_t *nb, int iters, int axis_in)
     for (i = 0; i < axis_tot; i++) 
 	maxmsg = MAX(maxmsg, nb->facesz[i]*sizeof(double));
 
-    if (maxmsg > gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,2)) {
+    if (maxmsg > gex_AM_MaxRequestLong(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,2)) {
 	if (!myproc) {
 	    printf("Skipping AMLong with dim=%d (%"PRIuPTR" > AMMaxLongRequest())\n",
 			nb->dimsz, (uintptr_t)maxmsg);

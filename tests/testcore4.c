@@ -88,11 +88,11 @@ uint8_t *peerseg = NULL;
 #endif
 
 #define MSZ(args) \
-        MIN(maxsz,MIN(gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args), \
-                      gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args)))
+        MIN(maxsz,MIN(gex_AM_MaxRequestMedium(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,args), \
+                      gex_AM_MaxReplyMedium  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,args)))
 #define LSZ(args) \
-        MIN(maxsz,MIN(gex_AM_MaxRequestLong(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args), \
-                      gex_AM_MaxReplyLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,args)))
+        MIN(maxsz,MIN(gex_AM_MaxRequestLong(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,args), \
+                      gex_AM_MaxReplyLong  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,args)))
 
 #define DEST(n) myteam, (n)
 #define SARGS(dest,args) (dest, hidx_Shandler(args), 0, HARGS(args))
@@ -233,11 +233,11 @@ int main(int argc, char **argv) {
 
   if (argc > 2) maxsz = (size_t)gasnett_parse_int(argv[2], 1);
   if (maxsz <= 0) maxsz = 2*1024*1024;
-  medsz = MAX(gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0),
-              gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
+  medsz = MAX(gex_AM_MaxRequestMedium(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0),
+              gex_AM_MaxReplyMedium  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0));
   medsz = MIN(maxsz, medsz);
-  longsz = MAX(gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0),
-               gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0));
+  longsz = MAX(gex_AM_MaxRequestLong  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0),
+               gex_AM_MaxReplyLong    (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0));
   longsz = MIN(maxsz, longsz);
   maxsz = MAX(medsz,longsz);
 

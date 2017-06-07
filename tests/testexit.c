@@ -129,10 +129,10 @@ void *workerthread(void *args) {
       } else {
         int junk = 42;
         int lim = MIN(MIN(MIN(MIN(
-                        gex_AM_MaxRequestMedium(myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0),
-                        gex_AM_MaxReplyMedium  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0)),
-                        gex_AM_MaxRequestLong  (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0)),
-                        gex_AM_MaxReplyLong    (myteam,GASNETEX_ALL_RANKS,GEX_EVENT_NOW,0,0)),
+                        gex_AM_MaxRequestMedium(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0),
+                        gex_AM_MaxReplyMedium  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0)),
+                        gex_AM_MaxRequestLong  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0)),
+                        gex_AM_MaxReplyLong    (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0)),
                         TEST_SEGSZ);
         char *p = malloc(lim);
         char *peerseg = TEST_SEG(peer);

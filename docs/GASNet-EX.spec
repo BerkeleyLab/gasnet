@@ -471,10 +471,10 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 // Pre-defined constant used to apply a query to all ranks in the team
-#define GASNETEX_ALL_RANKS (~(gex_Rank_t)0)
+#define GEX_AM_ALL_RANKS (~(gex_Rank_t)0)
 
 // Max payload queries for specific peer, nargs, lc_opt and flags
-// rank == GASNETEX_ALL_RANKS yields min-of-maxes
+// rank == GEX_AM_ALL_RANKS yields min-of-maxes
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gex_Rank_t rank,
