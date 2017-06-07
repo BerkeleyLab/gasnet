@@ -432,14 +432,14 @@ int  gex_NBI_TestAll (void);
 void gex_NBI_WaitAll (void);
 
 // Identifiers to name events (such as local completion from NBI Puts)
-#define GASNETEX_EVENTID_ALL   ...
-#define GASNETEX_EVENTID_GETS  ...
-#define GASNETEX_EVENTID_PUTS  ...
-#define GASNETEX_EVENTID_LC    ...  // TODO: name that conveys "lc of put and AM payloads"
+#define GEX_NBI_ALL   ...
+#define GEX_NBI_GETS  ...
+#define GEX_NBI_PUTS  ...
+#define GEX_NBI_LC    ...  // TODO: name that conveys "lc of put and AM payloads"
 // TODO: will eventually need COLL, VISMETA, etc.
 
 // Sync of specified subset of NBI operations
-// Argument is bitwise-OR of GASNETEX_EVENTID_{GETS,PUTS,...}
+// Argument is bitwise-OR of GEX_NBI_{GETS,PUTS,...}
 int  gex_NBI_Test(unsigned int event_mask, gex_Flags_t flags);
 void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 
@@ -447,10 +447,10 @@ void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 // NOTE: name is subject to change
 //
 // The 'root' argument must be a valid root event
-// The 'event_id' argument is GASNETEX_EVENTID_<x> for <x> one of the values
+// The 'event_id' argument is GEX_NBI_<x> for <x> one of the values
 // Extract a leaf event from the root event
 // GETS, PUTS, LC, etc.  It cannot be a bitwise-OR of multiple such values, nor
-// can it be GASNETEX_EVENTID_ALL.
+// can it be GEX_NBI_ALL.
 //
 // There are additional validity constraints to be documented, such as one
 // cannot ask for an event that was "suppressed" by passing EVENT_DEFER.

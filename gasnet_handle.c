@@ -461,13 +461,13 @@ extern int gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNET
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_mask() inside an NBI access region");
   #endif
 
-  if (mask & GASNETEX_EVENTID_LC) {
+  if (mask & GEX_NBI_LC) {
     if (! GASNETE_IOP_LC_CNTDONE(iop)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GASNETEX_EVENTID_PUTS) {
+  if (mask & GEX_NBI_PUTS) {
     if (! GASNETE_IOP_CNTDONE(iop,put)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GASNETEX_EVENTID_GETS) {
+  if (mask & GEX_NBI_GETS) {
     if (! GASNETE_IOP_CNTDONE(iop,get)) return GASNET_ERR_NOT_READY;
     gasneti_sync_reads(); // TODO-EX: revisit this
   } else {
@@ -542,9 +542,9 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
       gasnete_iop_check(iop);
       gasneti_assert(iop->next); // was returned from access region
       switch (event_id) {
-        case GASNETEX_EVENTID_PUTS:  // fall-through...
-        case GASNETEX_EVENTID_GETS:  // fall-through...
-        case GASNETEX_EVENTID_LC:    return;
+        case GEX_NBI_PUTS:  // fall-through...
+        case GEX_NBI_GETS:  // fall-through...
+        case GEX_NBI_LC:    return;
       }
       break;
     }
@@ -552,7 +552,7 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
       gasnete_eop_t *eop = (gasnete_eop_t*)op;
       gasnete_eop_check(eop);
       switch (event_id) {
-        case GASNETEX_EVENTID_LC: return;
+        case GEX_NBI_LC: return;
       }
       break;
     }
@@ -570,9 +570,9 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_
   gasneti_assert(gasnete_eop_event_alc == gasnete_iop_event_alc); // TODO-EX: move elsewhere
 
   switch (event_id) {
-    case GASNETEX_EVENTID_PUTS: return gasneti_op_event(op, gasnete_iop_event_put);
-    case GASNETEX_EVENTID_GETS: return gasneti_op_event(op, gasnete_iop_event_get);
-    case GASNETEX_EVENTID_LC:   return gasneti_op_event(op, gasnete_iop_event_alc);
+    case GEX_NBI_PUTS: return gasneti_op_event(op, gasnete_iop_event_put);
+    case GEX_NBI_GETS: return gasneti_op_event(op, gasnete_iop_event_get);
+    case GEX_NBI_LC:   return gasneti_op_event(op, gasnete_iop_event_alc);
   }
 
   gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");
