@@ -16,7 +16,7 @@
 #include <other/fca/gasnet_fca.h>
 #endif
 #include <gasnet_coll.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 #include <gasnet_coll_team.h>
 #include <smp-collectives/smp_coll.h>

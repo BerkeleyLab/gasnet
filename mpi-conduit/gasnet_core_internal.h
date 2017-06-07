@@ -8,7 +8,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1

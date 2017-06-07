@@ -1,11 +1,17 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_handler.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_handler_internal.h $
  * Description: GASNet Helpers for using bit-width-independent AM handlers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _GASNET_HANDLER_H
-#define _GASNET_HANDLER_H
+
+// NOTICE:
+// While gasnet_handler.h was a "pseudo-public" header in GASNet-1, we are
+// no longer providing the analog in GASNet-EX.  Any clients in need of the
+// GASNet-1 gasnet_handler.h will find it in the other/contrib directory.
+
+#ifndef _GASNET_HANDLER_INTERNAL_H
+#define _GASNET_HANDLER_INTERNAL_H
 
 /* argument-list macros */
 #define ARGS0

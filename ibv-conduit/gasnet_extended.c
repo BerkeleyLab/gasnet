@@ -6,7 +6,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 #include <gasnet_ibv.h>
 
 /* ------------------------------------------------------------------------------------ */

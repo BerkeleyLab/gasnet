@@ -8,7 +8,7 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 static pami_send_hint_t gasnete_null_send_hint;
 

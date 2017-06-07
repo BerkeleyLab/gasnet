@@ -764,7 +764,7 @@ extern void gasnetc_exchg_reqh(gex_AM_Token_t token, void *buf, size_t nbytes,
 
 /* ------------------------------------------------------------------------------------ */
 
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 #if GASNET_PSHM
 #include <gasnet_pshm.h>

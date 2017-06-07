@@ -5,7 +5,7 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 #include <gasnet_core_internal.h>
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
