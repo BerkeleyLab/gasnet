@@ -297,7 +297,8 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gex_Client_Init(    gex_Client_t            *client_p,
+extern int gasnetc_Client_Init(
+                               gex_Client_t            *client_p,
                                gex_EP_t                *ep_p,
                                gex_TM_t                *tm_p,
                                const char              *clientName,

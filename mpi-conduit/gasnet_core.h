@@ -36,9 +36,7 @@ GASNETI_NORETURNP(gasnetc_exit)
   #define GASNET_NULL_ARGV_OK 0
 #endif
 /* ------------------------------------------------------------------------------------ */
-/* gex_Client_Init not inlined or renamed because we use redef-name trick on
-   it to ensure proper version linkage */
-extern int gex_Client_Init(
+extern int gasnetc_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
                 gex_TM_t               *tm_p,
@@ -46,6 +44,7 @@ extern int gex_Client_Init(
                 int                    *argc,
                 char                   ***argv,
                 gex_Flags_t            flags);
+// gasnetex.h handles name-shifting of gex_Client_Init()
 
 extern int gasnetc_Segment_Attach(
                 gex_Segment_t          *segment_p,

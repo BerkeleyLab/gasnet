@@ -117,14 +117,6 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 
-extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
-                                       uintptr_t segsize, uintptr_t minheapoffset) {
-  gasneti_fatalerror("GASNet client code must NOT #include <gasnet_internal.h>\n"
-                     "gasnet_internal.h is not installed, and modifies the behavior "
-                     "of various internal operations, such as segment safety bounds-checking.");
-  return GASNET_ERR_NOT_INIT;
-}
-
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
