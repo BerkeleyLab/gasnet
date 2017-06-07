@@ -402,9 +402,9 @@ typedef struct {
 #endif
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
-  /*  SIZEOF_GASNETEX_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
+  /*  SIZEOF_GEX_RMA_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
 typedef uintptr_t gex_RMA_Value_t;
-#define SIZEOF_GASNETEX_REGISTER_VALUE_T  SIZEOF_VOID_P
+#define SIZEOF_GEX_RMA_VALUE_T  SIZEOF_VOID_P
 
 #ifndef _GASNET_MEMVEC_T
 #define _GASNET_MEMVEC_T
@@ -473,8 +473,8 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
   #error GASNet core failed to define GASNET_BLOCKUNTIL
 #endif
 
-#ifndef SIZEOF_GASNETEX_REGISTER_VALUE_T
-  #error GASNet failed to define SIZEOF_GASNETEX_REGISTER_VALUE_T
+#ifndef SIZEOF_GEX_RMA_VALUE_T
+  #error GASNet failed to define SIZEOF_GEX_RMA_VALUE_T
 #endif
 
 /* GASNET_CONFIG_STRING

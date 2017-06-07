@@ -29,7 +29,7 @@ extern gex_Segment_t     gasneti_thunk_segment;
   Compile-time constants
   =====================
 */
-#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_GASNETEX_REGISTER_VALUE_T
+#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_GEX_RMA_VALUE_T
 
 /* ------------------------------------------------------------------------------------ */
 /*

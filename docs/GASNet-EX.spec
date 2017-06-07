@@ -111,7 +111,7 @@ typedef int32_t gex_AM_Arg_t;
 
 // Widest scalar and width
 typedef uintptr_t gex_RMA_Value_t;
-#define SIZEOF_GASNETEX_REGISTER_VALUE_T SIZEOF_VOID_P
+#define SIZEOF_GEX_RMA_VALUE_T SIZEOF_VOID_P
 
 // Opaque type for an endpoint
 struct gasneti_endpoint_s;

@@ -409,14 +409,14 @@ void do_valueputgets(void) {
       QUEUE_TEST("gex_RMA_PutNBVal",
                  events[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, regval, payload, 0),
                  gex_Event_WaitAll(events, depth),
-                 (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
+                 (void)0, SIZEOF_GEX_RMA_VALUE_T);
     }
 
     if (do_puts && do_value && do_implicit) {
       QUEUE_TEST("gex_RMA_PutNBIVal",
                  gex_RMA_PutNBIVal(myteam, peerproc, tgtmem, regval, payload, 0),
                  gex_NBI_WaitAll(),
-                 (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
+                 (void)0, SIZEOF_GEX_RMA_VALUE_T);
     }
 
 }
@@ -436,13 +436,13 @@ void do_blockingputgets(void) {
     if (do_puts && do_value && do_blocking) {
       QUEUE_TEST("gex_RMA_PutBlockingVal (BLOCKING - represents round-trip latency)",
                  gex_RMA_PutBlockingVal(myteam, peerproc, tgtmem, regval, payload, 0),
-                 (void)0, (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
+                 (void)0, (void)0, SIZEOF_GEX_RMA_VALUE_T);
     }
 
     if (do_gets && do_value && do_blocking) {
       QUEUE_TEST("gex_RMA_GetBlockingVal (BLOCKING - represents round-trip latency)", 
                  regval ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem, payload, 0), 
-                 (void)0, (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
+                 (void)0, (void)0, SIZEOF_GEX_RMA_VALUE_T);
     }
 }
 void do_amtests(void) {
