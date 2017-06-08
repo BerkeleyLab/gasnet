@@ -36,6 +36,12 @@ typedef struct gasneti_team_member_s *gex_TM_t;
 // A "rank" is a position within a team
 typedef uint32_t gex_Rank_t;
 
+// Pre-defined constant used to indicate "not a rank".
+// Use may have different semantics in various contexts.
+// Guaranteed to be larger than any valid rank.
+// However, a specific value is NOT defined by specification.
+#define GEX_RANK_INVALID ((gex_Rank_t)???)
+
 // Assume no more than 32 flags will be needed for any one family of calls
 // However, flags to p2p initiation and segment creation (as examples) could overlap
 typedef uint32_t gex_Flags_t;
@@ -470,11 +476,8 @@ gex_Event_t gex_Event_QueryLeaf(
         unsigned int event_id);
 
 
-// Pre-defined constant used to apply a query to all ranks in the team
-#define GEX_AM_ALL_RANKS (~(gex_Rank_t)0)
-
 // Max payload queries for specific peer, nargs, lc_opt and flags
-// rank == GEX_AM_ALL_RANKS yields min-of-maxes
+// rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gex_Rank_t rank,

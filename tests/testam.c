@@ -220,10 +220,10 @@ int main(int argc, char **argv) {
     myseg = alignup_ptr(space, PAGESZ);
   }
 
-  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0));
-  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0));
-  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0));
-  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,0));
+  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
+  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
+  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
+  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
 
   if (crossmachinemode) {
     if ((numnode%2) && (mynode == numnode-1)) {

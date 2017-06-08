@@ -287,7 +287,7 @@ typedef int32_t gex_AM_Arg_t;
 typedef uint32_t gex_Flags_t;
 
 typedef uint32_t gex_Rank_t;
-#define GEX_AM_ALL_RANKS (~(gex_Rank_t)0)
+#define GEX_RANK_INVALID (~(gex_Rank_t)0)
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;

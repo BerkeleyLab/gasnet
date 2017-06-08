@@ -199,10 +199,10 @@ int main(int argc, char **argv) {
   if (!depth) depth = 16;
 
   /* round down to largest payload AM allows with 2 arguments */
-  maxmed  = MIN(gex_AM_MaxRequestMedium(myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,2),
-                gex_AM_MaxReplyMedium  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,2));
-  maxlong = MIN(gex_AM_MaxRequestLong  (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,2),
-                gex_AM_MaxReplyLong    (myteam,GEX_AM_ALL_RANKS,GEX_EVENT_NOW,0,2));
+  maxmed  = MIN(gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2),
+                gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2));
+  maxlong = MIN(gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2),
+                gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2));
   max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
