@@ -717,9 +717,9 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
 #if GASNET_DEBUG
-  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs);
+  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs, int category, int isReq);
 #else
-  #define gasneti_amtbl_check(entry, nargs) ((void)0)
+  #define gasneti_amtbl_check(entry, nargs, category, isReq) ((void)0)
 #endif
 
 // AM "catch all" for defaultAMHandler and similar

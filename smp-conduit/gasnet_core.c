@@ -1032,7 +1032,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
 
   gasneti_assert(dest == gasneti_mynode);
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, category, isReq);
 
   { int i;
     for(i=0; i < numargs; i++) {

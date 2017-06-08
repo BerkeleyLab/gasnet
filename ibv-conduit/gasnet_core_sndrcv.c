@@ -843,7 +843,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   } else {
     gasneti_assert(full_numargs < GASNETC_MAX_ARGS); /* NOT equal */
   }
-  gasneti_amtbl_check(handler_entry, user_numargs);
+  gasneti_amtbl_check(handler_entry, user_numargs, category, isreq);
   
   /* Ack? */
   if (!handler_id) return;

@@ -851,7 +851,7 @@ void run_short(gasnetc_token_t *token) {
   local_token.rep_sent = 0;
   client_token = (gex_AM_Token_t)(&local_token);
 #endif
-  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs);
+  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs, gasnetc_short, is_req);
   GASNETI_RUN_HANDLER_SHORT(is_req,handler_id,handler_fn,client_token,args,numargs);
 }
 
@@ -870,7 +870,7 @@ void run_medium(gasnetc_token_t *token) {
 #if GASNET_DEBUG
   header->rep_sent = 0;
 #endif
-  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs);
+  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs, gasnetc_medium, is_req);
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler_id,handler_fn,client_token,args,numargs,data,nbytes);
 }
 
@@ -889,7 +889,7 @@ void run_long(gasnetc_token_t *token) {
 #if GASNET_DEBUG
   header->rep_sent = 0;
 #endif
-  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs);
+  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs, gasnetc_long, is_req);
   GASNETI_RUN_HANDLER_LONG(is_req,handler_id,handler_fn,client_token,args,numargs,data,nbytes);
 }
 

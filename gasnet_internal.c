@@ -490,16 +490,31 @@ extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
 #if GASNET_DEBUG
 // Validate call to a handler
 // TODO-EX: this will also check entry->gex_flags against additional args (such as category and isReq)
-extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs) {
+extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs, int category, int isReq) {
+  char buf[128] = {'\0'};
+  const char *msg = NULL;
   if ((entry->gex_nargs != nargs) && (entry->gex_nargs != GASNETI_HANDLER_NARGS_UNK)) {
+    snprintf(buf, sizeof(buf), "registered with nargs=%d but called with %d", entry->gex_nargs, nargs);
+    msg = buf;
+  } else if (isReq && !(entry->gex_flags & GEX_FLAG_AM_REQUEST)) {
+    msg = "invoked as a Request handler, but not registered with GEX_FLAG_AM_REQUEST";
+  } else if (!isReq && !(entry->gex_flags & GEX_FLAG_AM_REPLY)) {
+    msg = "invoked as a Reply handler, but not registered with GEX_FLAG_AM_REPLY";
+  } else if (category == gasneti_Short && !(entry->gex_flags & GEX_FLAG_AM_SHORT)) {
+    msg = "invoked as a Short handler, but not registered with GEX_FLAG_AM_SHORT";
+  } else if (category == gasneti_Medium && !(entry->gex_flags & GEX_FLAG_AM_MEDIUM)) {
+    msg = "invoked as a Medium handler, but not registered with GEX_FLAG_AM_MEDIUM";
+  } else if (category == gasneti_Long && !(entry->gex_flags & GEX_FLAG_AM_LONG)) {
+    msg = "invoked as a Long handler, but not registered with GEX_FLAG_AM_LONG";
+  }
+  if (msg) {
     char fnaddr[32];
     const char *fnname = entry->gex_name;
     if (!fnname) {
       (void) snprintf(fnaddr, sizeof(fnaddr), "%p", (void*) entry->gex_fnptr);
       fnname = fnaddr;
     }
-    gasneti_fatalerror("AM handler %d (%s) registered with nargs=%d but called with %d",
-                       entry->gex_index, fnname, entry->gex_nargs, nargs);
+    gasneti_fatalerror("AM handler %d (%s) %s", entry->gex_index, fnname, msg);
   }
 }
 #endif

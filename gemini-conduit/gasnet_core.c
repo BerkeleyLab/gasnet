@@ -1186,7 +1186,7 @@ int gasnetc_local_short_common(int is_req, gex_AM_Index_t handler,
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, gasnetc_short, is_req);
   for (i = 0; i < numargs; i++) {
     args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
@@ -1208,7 +1208,7 @@ int gasnetc_local_medium_common(int is_req, gex_AM_Index_t handler,
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
   
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, gasnetc_medium, is_req);
   for (i = 0; i < numargs; i++) {
     args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
@@ -1231,7 +1231,7 @@ int gasnetc_local_long_common(int is_req, gex_AM_Index_t handler,
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   int i;
   
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, gasnetc_long, is_req);
   for (i = 0; i < numargs; i++) {
     args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
