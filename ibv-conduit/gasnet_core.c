@@ -3469,7 +3469,7 @@ extern int gasnetc_AMRequestShortM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  retval = gasnetc_RequestGeneric(gasnetc_Short, rank, handler,
+  retval = gasnetc_RequestGeneric(gasneti_Short, rank, handler,
 		  		  NULL, 0, NULL,
 				  flags, numargs, NULL, NULL, NULL,
                                   argptr GASNETI_THREAD_PASS);
@@ -3491,7 +3491,7 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-  retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
+  retval = gasnetc_RequestGeneric(gasneti_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
 				  flags, numargs, NULL, NULL, NULL,
                                   argptr GASNETI_THREAD_PASS);
@@ -3557,7 +3557,7 @@ extern int gasnetc_AMRequestLongM(
       gasneti_fatalerror("Invalid lc_opt argument to RequestLong");
     }
 
-    retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
+    retval = gasnetc_RequestGeneric(gasneti_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  flags, numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
@@ -3588,7 +3588,7 @@ extern int gasnetc_AMReplyShortM(
   va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
+  retval = gasnetc_ReplyGeneric(gasneti_Short, token, handler,
 		  		NULL, 0, NULL,
 				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
@@ -3609,7 +3609,7 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-  retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
+  retval = gasnetc_ReplyGeneric(gasneti_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
 				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
@@ -3669,7 +3669,7 @@ extern int gasnetc_AMReplyLongM(
       gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");
     }
 
-    retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
+    retval = gasnetc_ReplyGeneric(gasneti_Long, token, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  flags, numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
@@ -3688,7 +3688,7 @@ extern int gasnetc_AMReplyLongM(
   }
   #else
   gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
-  retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
+  retval = gasnetc_ReplyGeneric(gasneti_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
 				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);

@@ -530,7 +530,7 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
  */
 
 #define GASNETC_MSG_HANDLERID(flags)    ((gex_AM_Index_t)(flags))
-#define GASNETC_MSG_CATEGORY(flags)     ((gasnetc_category_t)(((flags) >> 8) & 0x3))
+#define GASNETC_MSG_CATEGORY(flags)     ((gasneti_category_t)(((flags) >> 8) & 0x3))
 #define GASNETC_MSG_NUMARGS(flags)      (((flags) >> 10) & 0x1f)
 #define GASNETC_MSG_ISREPLY(flags)      ((flags) & (1<<15))
 #define GASNETC_MSG_ISREQUEST(flags)    (!GASNETC_MSG_ISREPLY(flags))
@@ -774,7 +774,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   const gex_AM_Index_t handler_id = GASNETC_MSG_HANDLERID(flags);
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler_id];
   const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
-  const gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
+  const gasneti_category_t category = GASNETC_MSG_CATEGORY(flags);
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
   int user_numargs = full_numargs;
@@ -794,15 +794,15 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
   /* Locate arguments */
   switch (category) {
-    case gasnetc_Short:
+    case gasneti_Short:
       args = buf->shortmsg.args;
       break;
 
-    case gasnetc_Medium:
+    case gasneti_Medium:
       args = buf->medmsg.args;
       break;
 
-    case gasnetc_Long:
+    case gasneti_Long:
       args = buf->longmsg.args;
       break;
 
@@ -850,13 +850,13 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
   /* Run the handler */
   switch (category) {
-    case gasnetc_Short:
+    case gasneti_Short:
       { 
         GASNETI_RUN_HANDLER_SHORT(isreq,handler_id,handler_fn,token,args,user_numargs);
       }
       break;
 
-    case gasnetc_Medium:
+    case gasneti_Medium:
       {
         void * data = GASNETC_MSG_MED_DATA(buf, full_numargs);
         size_t nbytes = buf->medmsg.nBytes;
@@ -864,7 +864,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
       }
       break;
 
-    case gasnetc_Long:
+    case gasneti_Long:
       { 
         void * data = (void *)(buf->longmsg.destLoc);
 	size_t nbytes = buf->longmsg.nBytes & 0x7fffffff;
@@ -1490,7 +1490,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep GASNETI_THREAD_FARG) {
   flags = hdr->immediate_data;
   zeros = gasneti_count0s_uint32_t(flags);
   msg_in = (gasnetc_buffer_t *)(hdr + 1);
-  if (GASNETC_MSG_CATEGORY(flags) == gasnetc_Medium) {
+  if (GASNETC_MSG_CATEGORY(flags) == gasneti_Medium) {
     /* Relocate the Medium to avoid problems w/ "late zeros" and provide 8-byte alignment */
     /* Note: no harm here if flags is not correct, since length must by ok */
 #if GASNETI_USE_ALLOCA
@@ -2010,7 +2010,7 @@ size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, struct ibv_send_wr *sr_desc, in
 }
 
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
-int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
+int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
 			  gasnetc_epid_t dest, gex_AM_Index_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
 			  gex_Flags_t flags, int numargs,
@@ -2045,17 +2045,17 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     #endif
 
     switch (category) {
-    case gasnetc_Short:
+    case gasneti_Short:
       args = buf->shortmsg.args;
       break;
 
-    case gasnetc_Medium:
+    case gasneti_Medium:
       memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
       buf->medmsg.nBytes = nbytes;
       args = buf->medmsg.args;
       break;
 
-    case gasnetc_Long:
+    case gasneti_Long:
       memcpy(dst_addr, src_addr, nbytes);
       buf->longmsg.destLoc = (uintptr_t)dst_addr;
       buf->longmsg.nBytes  = nbytes;
@@ -2165,19 +2165,19 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
      * the Long RDMA as early as possible even when firehose is not in use.
      */
     switch (category) {
-    case gasnetc_Short:
+    case gasneti_Short:
       msg_len = GASNETC_MSG_SHORT_ARGSEND(numargs);
 #if !GASNETC_ALLOW_0BYTE_MSG
       if (!msg_len) msg_len = 4; /* Mellanox bug (zero-length sends) work-around */
 #endif
       break;
   
-    case gasnetc_Medium:
+    case gasneti_Medium:
       /* XXX: When nbytes == 0 we still round up the header to 8-bytes */
       msg_len = GASNETC_MSG_MED_ARGSEND(numargs) + nbytes;
       break;
   
-    case gasnetc_Long:
+    case gasneti_Long:
       msg_len = GASNETC_MSG_LONG_ARGSEND(numargs);
       /* Start moving the Long payload if possible */
       if (nbytes) {
@@ -2356,17 +2356,17 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     buf = (gasnetc_buffer_t *)((uintptr_t)buf + buf_offset);
 
     switch (category) {
-    case gasnetc_Short:
+    case gasneti_Short:
       args = buf->shortmsg.args;
       break;
   
-    case gasnetc_Medium:
+    case gasneti_Medium:
       buf->medmsg.nBytes = nbytes;
       args = buf->medmsg.args;
       memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
       break;
   
-    case gasnetc_Long:
+    case gasneti_Long:
       buf->longmsg.destLoc = (uintptr_t)dst_addr;
       buf->longmsg.nBytes  = nbytes;
       if (packedlong) {
@@ -3890,7 +3890,7 @@ gasnetc_sndrcv_quiesce(void) {
       #if GASNET_DEBUG
         rbuf.rbuf_handlerRunning = 1;
       #endif
-        rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasnetc_Short, 0, 0, node);
+        rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, 0, node);
         gasnetc_ReplySysShort((gex_AM_Token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
       }
     }
@@ -4409,7 +4409,7 @@ extern int gasnetc_rdma_get(
 }
 #endif
 
-extern int gasnetc_RequestGeneric(gasnetc_category_t category,
+extern int gasnetc_RequestGeneric(gasneti_category_t category,
 				  gasnetc_epid_t dest, gex_AM_Index_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  gex_Flags_t flags, int numargs,
@@ -4445,7 +4445,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
                                argptr GASNETI_THREAD_PASS);
 }
 
-extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
+extern int gasnetc_ReplyGeneric(gasneti_category_t category,
 				gex_AM_Token_t token, gex_AM_Index_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				gex_Flags_t flags, int numargs,
@@ -4492,7 +4492,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   GASNETI_TRACE_AMREQUESTSHORT(NULL,dest,handler,numargs);
 
   va_start(argptr, numargs);
-  retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
+  retval = gasnetc_RequestGeneric(gasneti_Short, dest, handler,
                                   NULL, 0, NULL,
                                   0, numargs, NULL, NULL, counter,
                                   argptr GASNETI_THREAD_GET);
@@ -4511,7 +4511,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   GASNETI_TRACE_AMREQUESTMEDIUM(NULL,dest,handler,source_addr,nbytes,numargs);
 
   va_start(argptr, numargs);
-  retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
+  retval = gasnetc_RequestGeneric(gasneti_Medium, dest, handler,
                                   source_addr, nbytes, NULL,
                                   0, numargs, NULL, NULL, counter,
                                   argptr GASNETI_THREAD_GET);
@@ -4530,7 +4530,7 @@ extern int gasnetc_ReplySysShort(gex_AM_Token_t token,
   GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs); 
 
   va_start(argptr, numargs);
-  retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
+  retval = gasnetc_ReplyGeneric(gasneti_Short, token, handler,
                                 NULL, 0, NULL,
                                 0, numargs, NULL, NULL, counter,
                                 argptr GASNETI_THREAD_PASS);
@@ -4550,7 +4550,7 @@ extern int gasnetc_ReplySysMedium(gex_AM_Token_t token,
   GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs); 
 
   va_start(argptr, numargs);
-  retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
+  retval = gasnetc_ReplyGeneric(gasneti_Medium, token, handler,
                                 source_addr, nbytes, NULL,
                                 0, numargs, NULL, NULL, counter,
                                 argptr GASNETI_THREAD_PASS);

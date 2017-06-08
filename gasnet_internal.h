@@ -290,6 +290,14 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
                                   gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
 
 /* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasneti_Short=0,
+  gasneti_Medium=1,
+  gasneti_Long=2
+} gasneti_category_t;
+
+/* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
 void gasneti_defaultSignalHandler(int sig);
