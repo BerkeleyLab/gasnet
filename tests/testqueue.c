@@ -470,7 +470,7 @@ void do_amtests(void) {
     if (do_amlong) {
       gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnetex_AMRequestLong0", 
-                 gasnetex_AMRequestLong0(myteam, peerproc, hidx_ping_medhandler,
+                 gasnetex_AMRequestLong0(myteam, peerproc, hidx_ping_longhandler,
                                          msgbuf, payload, tgtmem, GASNETEX_EVENT_NOW, 0), (void)0,
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
