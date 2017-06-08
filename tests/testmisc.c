@@ -183,10 +183,10 @@ void doit1(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_AMRequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestLong0()",
-      { gasnetex_AMRequestLong0(myteam, mynode, hidx_null_medhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
+      { gasnetex_AMRequestLong0(myteam, mynode, hidx_null_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM long request-reply",
-      { gasnetex_AMRequestLong0(myteam, mynode, hidx_justreply_medhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
+      { gasnetex_AMRequestLong0(myteam, mynode, hidx_justreply_longhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
 
     doit2();
 }
