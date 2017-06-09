@@ -9,10 +9,10 @@
 #define TEST_DELAY 1
 #include <test.h>
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int main(int argc, char **argv) {
   struct delay_s {
@@ -27,8 +27,8 @@ int main(int argc, char **argv) {
   int pause_len;
   int pollcnt = 0;
 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testbarrierlate", 0));
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testbarrierlate", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testbarrierlate",1,"(iters) (pollcnt)");
 
   mynode = gasnet_mynode();
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
       sleep(pause_len);
   }
   BARRIER();
-  gasnetex_get(myteam, &delay_params, 0, TEST_SEG(0), sizeof(struct delay_s), 0);
+  gex_RMA_GetBlocking(myteam, &delay_params, 0, TEST_SEG(0), sizeof(struct delay_s), 0);
   delay_us = delay_params.delay_us;
   delay_loops = delay_params.delay_loops;
   if (mynode == 0) {

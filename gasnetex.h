@@ -146,8 +146,8 @@ GASNETI_BEGIN_NOWARN
 #endif
 
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
-#define gasnetex_ClientInit _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
-                    gasnetex_ClientInit_GASNET_,                     \
+#define gex_Client_Init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
+                    gex_Client_Init_GASNET_,                         \
                     GASNET_RELEASE_VERSION_MAJOR),                   \
                     GASNET_RELEASE_VERSION_MINOR),                   \
                     GASNET_RELEASE_VERSION_PATCH),                   \
@@ -282,33 +282,28 @@ extern const char *gasnet_ErrorDesc(int);
 /* core types */
 
 // TODO-EX: need comments here?
-typedef uint8_t gasnetex_handler_t;
-typedef int32_t gasnetex_handlerarg_t;
-typedef uint32_t gasnetex_flags_t;
+typedef uint8_t gex_AM_Index_t;
+typedef int32_t gex_AM_Arg_t;
+typedef uint32_t gex_Flags_t;
 
-typedef uint32_t gasnetex_rank_t;
-#define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
+typedef uint32_t gex_Rank_t;
+#define GEX_RANK_INVALID (~(gex_Rank_t)0)
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;
-typedef struct gasneti_token_s *gasnetex_token_t;
+typedef struct gasneti_token_s *gex_AM_Token_t;
 
-struct gasneti_team_member_s; // TODO-EX: better name!
-typedef struct gasneti_team_s *gasnetex_team_member_t;
+struct gasneti_team_member_s;
+typedef struct gasneti_team_s *gex_TM_t;
 
 struct gasneti_client_s;
-typedef struct gasneti_client_s *gasnetex_client_t;
+typedef struct gasneti_client_s *gex_Client_t;
 
 struct gasneti_endpoint_s;
-typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
+typedef struct gasneti_endpoint_s *gex_EP_t;
 
 struct gasneti_segment_s;
-typedef struct gasneti_segment_s *gasnetex_segment_t;
-
-struct gasneti_memkind_s;
-typedef struct gasneti_memkind_s *gasnetex_memkind_t;
-#define GASNETEX_INVALID_MEMKIND     ((gasnetex_memkind_t)(uintptr_t)0)
-#define GASNETEX_MEMKIND_DEFAULT     ((gasnetex_memkind_t)(uintptr_t)1)
+typedef struct gasneti_segment_s *gex_Segment_t;
 
 // TODO-EX: remove these legacy checks
 #ifdef _GASNET_NODE_T
@@ -335,7 +330,7 @@ typedef struct gasneti_memkind_s *gasnetex_memkind_t;
 
 /*  struct type used to perform handler registration */
 typedef struct {
-    gasnetex_handler_t      gex_index;   // 0 on input == don't care
+    gex_AM_Index_t      gex_index;   // 0 on input == don't care
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void                   *gex_fnptr;
    #else
@@ -347,13 +342,13 @@ typedef struct {
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;   // Available to handler
     const char             *gex_name;    // Used in debug messages
-} gasnetex_handlerentry_t;
+} gex_AM_Entry_t;
 
-// GASNet-1 version of gasnetex_handlerentry_t
+// GASNet-1 version of gex_AM_Entry_t
 // TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
 //#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {
-    gasnetex_handler_t index; /*  == 0 for don't care  */
+    gex_AM_Index_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void *fnptr;    
    #else
@@ -373,8 +368,8 @@ typedef struct {
 #ifndef _GASNET_NODEINFO_T
 #define _GASNET_NODEINFO_T
   typedef struct gasneti_nodeinfo_s {
-    gasnetex_rank_t host; /* 0-based identifier for procs on same compute node */
-    gasnetex_rank_t supernode; /* 0-based identifier for procs which comprise a shared-memory supernode */
+    gex_Rank_t host; /* 0-based identifier for procs on same compute node */
+    gex_Rank_t supernode; /* 0-based identifier for procs which comprise a shared-memory supernode */
   #if GASNET_PSHM
     /* Value one must add to find locally mapped address, if any. */
     uintptr_t offset;
@@ -391,25 +386,25 @@ typedef struct {
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
-#ifndef _GASNETEX_HANDLE_T
+#ifndef _GEX_EVENT_T
   /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
   struct gasneti_handle_s;
-  typedef struct gasneti_handle_s *gasnetex_handle_t;
+  typedef struct gasneti_handle_s *gex_Event_t;
 
   // Pre-defined values: output handles
-  #define GASNETEX_INVALID_HANDLE      ((gasnetex_handle_t)(uintptr_t)0)
-  #define GASNETEX_NO_OP_HANDLE        ((gasnetex_handle_t)(uintptr_t)1)
+  #define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
+  #define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)1)
 
-  // Pre-defined values: input pointers-to-handle
-  #define GASNETEX_EVENT_NOW    ((gasnetex_handle_t*)(uintptr_t)1)
-  #define GASNETEX_EVENT_DEFER  ((gasnetex_handle_t*)(uintptr_t)2)
-  #define GASNETEX_EVENT_GROUP  ((gasnetex_handle_t*)(uintptr_t)3)
+  // Pre-defined values: input pointers-to-event
+  #define GEX_EVENT_NOW    ((gex_Event_t*)(uintptr_t)1)
+  #define GEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)2)
+  #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)3)
 #endif
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
-  /*  SIZEOF_GASNETEX_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
-typedef uintptr_t gasnetex_register_value_t;
-#define SIZEOF_GASNETEX_REGISTER_VALUE_T  SIZEOF_VOID_P
+  /*  SIZEOF_GEX_RMA_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
+typedef uintptr_t gex_RMA_Value_t;
+#define SIZEOF_GEX_RMA_VALUE_T  SIZEOF_VOID_P
 
 #ifndef _GASNET_MEMVEC_T
 #define _GASNET_MEMVEC_T
@@ -422,15 +417,15 @@ typedef uintptr_t gasnetex_register_value_t;
 /* ------------------------------------------------------------------------------------ */
 /* flags by group */
 
-#define GASNETEX_FLAG_IMMEDIATE              (1U <<  0)
+#define GEX_FLAG_IMMEDIATE              (1U <<  0)
 
-#define GASNETEX_FLAG_SRC_IN_SEGMENT         (1U <<  1)
-#define GASNETEX_FLAG_SRC_IN_BOUND_SEGMENT  ((1U <<  2) | GASNETEX_FLAG_SRC_IN_SEGMENT)
-#define GASNETEX_FLAG_SRC_OFFSET            ((1U <<  3) | GASNETEX_FLAG_SRC_IN_BOUND_SEGMENT)
+#define GEX_FLAG_SRC_IN_SEGMENT         (1U <<  1)
+#define GEX_FLAG_SRC_IN_BOUND_SEGMENT  ((1U <<  2) | GEX_FLAG_SRC_IN_SEGMENT)
+#define GEX_FLAG_SRC_OFFSET            ((1U <<  3) | GEX_FLAG_SRC_IN_BOUND_SEGMENT)
 
-#define GASNETEX_FLAG_DST_IN_SEGMENT         (1U <<  4)
-#define GASNETEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GASNETEX_FLAG_DST_IN_SEGMENT)
-#define GASNETEX_FLAG_DST_OFFSET            ((1U <<  6) | GASNETEX_FLAG_DST_IN_BOUND_SEGMENT)
+#define GEX_FLAG_DST_IN_SEGMENT         (1U <<  4)
+#define GEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GEX_FLAG_DST_IN_SEGMENT)
+#define GEX_FLAG_DST_OFFSET            ((1U <<  6) | GEX_FLAG_DST_IN_BOUND_SEGMENT)
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
@@ -470,16 +465,16 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
   #error GASNet extended API failed to define GASNET_BEGIN_FUNCTION
 #endif
 
-#ifndef GASNETEX_HSL_INITIALIZER
-  #error GASNet core failed to define GASNETEX_HSL_INITIALIZER
+#ifndef GEX_HSL_INITIALIZER
+  #error GASNet core failed to define GEX_HSL_INITIALIZER
 #endif
 
 #ifndef GASNET_BLOCKUNTIL
   #error GASNet core failed to define GASNET_BLOCKUNTIL
 #endif
 
-#ifndef SIZEOF_GASNETEX_REGISTER_VALUE_T
-  #error GASNet failed to define SIZEOF_GASNETEX_REGISTER_VALUE_T
+#ifndef SIZEOF_GEX_RMA_VALUE_T
+  #error GASNet failed to define SIZEOF_GEX_RMA_VALUE_T
 #endif
 
 /* GASNET_CONFIG_STRING

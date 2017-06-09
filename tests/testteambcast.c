@@ -17,17 +17,17 @@
 
 #include <test.h>
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int main(int argc, char **argv) 
 {
   int mynode, nodes, iters=0;
   int64_t start,total;
   int i = 0;
-  gasnetex_rank_t nrows, ncols, my_row, my_col;
+  gex_Rank_t nrows, ncols, my_row, my_col;
   void *clientdata = NULL;
   gasnet_team_handle_t my_row_team, my_col_team;
   static uint8_t *A, *B, *C;
@@ -37,13 +37,13 @@ int main(int argc, char **argv)
   
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testteambcast", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteambcast", &argc, &argv, 0));
 #if !GASNET_SEQ
   MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
   gasnet_exit(0);
 #endif
 
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   
   A = TEST_MYSEG();
   B = A + SCRATCH_SIZE;

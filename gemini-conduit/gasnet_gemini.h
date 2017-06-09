@@ -113,7 +113,7 @@ typedef uint64_t gasnetc_notify_t;
 typedef struct gasnetc_post_descriptor gasnetc_post_descriptor_t;
 
 typedef struct {
-  gasnetex_rank_t source;
+  gex_Rank_t source;
   int need_reply;
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;
@@ -146,12 +146,12 @@ enum {
 
 /* This type is used by an AMShort request or reply */
 typedef struct {
-  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
+  gex_AM_Arg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_short_packet_t;
 
 /* This type is used by an AMMedium request or reply */
 typedef struct {
-  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
+  gex_AM_Arg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_medium_packet_t;
 
 /* This type is used by an AMLong request or reply */
@@ -162,7 +162,7 @@ typedef struct {
 #else
   size_t data_length;
 #endif
-  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
+  gex_AM_Arg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_long_packet_t;
 
 /* The various ways to interpret an arriving message
@@ -301,7 +301,7 @@ struct gasnetc_post_descriptor {
 #define GASNETC_SIZEOF_GDP 320
 
 gasnetc_post_descriptor_t *
-gasnetc_alloc_post_descriptor(gasnetex_flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
+gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
 
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
@@ -327,33 +327,33 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
 void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
 
-size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
+size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
-void gasnetc_rdma_put_lc(gasnetex_rank_t node,
+void gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-void gasnetc_rdma_put_buff(gasnetex_rank_t node,
+void gasnetc_rdma_put_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-size_t gasnetc_rdma_get(gasnetex_rank_t node,
+size_t gasnetc_rdma_get(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
-void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
+void gasnetc_rdma_get_unaligned(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-int gasnetc_rdma_get_buff(gasnetex_rank_t node,
+int gasnetc_rdma_get_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
 /* Extensions: */
 #if GASNETC_GNI_FETCHOP
-void gasnetc_fetchop_u64(gasnetex_rank_t node,
+void gasnetc_fetchop_u64(gex_Rank_t node,
                  void *source_addr, gni_fma_cmd_type_t cmd, uint64_t operand,
                  gasnetc_post_descriptor_t *gpd);
 #endif
@@ -399,12 +399,12 @@ int gasnetc_next_power_of_2(int x) {
 }
 
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
-gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t t,
+gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_AM_Token_t t,
                                                                size_t length,
-                                                               gasnetex_flags_t flags);
-gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
+                                                               gex_Flags_t flags);
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest,
                                                                  size_t length,
-                                                                 gasnetex_flags_t flags
+                                                                 gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG);
 
 #endif /* GASNET_GEMINI_H */

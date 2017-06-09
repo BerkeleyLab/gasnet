@@ -27,10 +27,10 @@ size_t maxsz = 0;
 #define PRINT_LATENCY 0
 #define PRINT_THROUGHPUT 1
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 typedef struct {
 	size_t datasize;
@@ -39,7 +39,7 @@ typedef struct {
 	double max_throughput;
 } stat_struct_t;
 
-gasnetex_handlerentry_t handler_table[2];
+gex_AM_Entry_t handler_table[2];
 
 int insegment = 0;
 
@@ -123,7 +123,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				gasnetex_put(myteam, peerproc, tgtmem, msgbuf, payload, 0);
+				gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, payload, 0);
 			}
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
@@ -141,7 +141,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    gasnetex_get(myteam, msgbuf, peerproc, tgtmem, payload, 0);
+			    gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
@@ -172,9 +172,9 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0);
+				gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0);
 			}
-			gasnetex_wait_syncnbi_puts();
+			gex_NBI_WaitPuts();
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -191,9 +191,9 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0);
+			    gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gasnetex_wait_syncnbi_gets();
+			gex_NBI_WaitGets();
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -212,10 +212,10 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
     int i;
     int64_t begin, end;
     stat_struct_t stget, stput;
-    gasnetex_handle_t *handles;
+    gex_Event_t *events;
     size_t payload;
     
-	handles = (gasnetex_handle_t *) test_malloc(sizeof(gasnetex_handle_t) * iters);
+	events = (gex_Event_t *) test_malloc(sizeof(gex_Event_t) * iters);
 
 	for (payload = min_payload; payload <= max_payload && payload > 0; payload = NEXT_SZ(payload)) {
 		init_stat(&stput, payload);
@@ -226,9 +226,9 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0);
+				events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0);
 			}
-			gasnetex_wait_all(handles, iters);
+			gex_Event_WaitAll(events, iters);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -245,9 +245,9 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    handles[i] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0);
+			    events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gasnetex_wait_all(handles, iters);
+			gex_Event_WaitAll(events, iters);
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -260,7 +260,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 
 	}
 
-	test_free(handles);
+	test_free(events);
 }
 
 
@@ -277,7 +277,7 @@ int main(int argc, char **argv)
     int help = 0;   
 
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testlarge", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testlarge", &argc, &argv, 0));
 
     /* parse arguments */
     arg = 1;
@@ -324,7 +324,7 @@ int main(int argc, char **argv)
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ) { ERR("maxsz must be <= %"PRIuPTR" on GASNET_SEGMENT_EVERYTHING",(uintptr_t)TEST_SEGSZ); gasnet_exit(1); }
     #endif
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     test_init("testlarge",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the initiator-side\n"
                "   memory is in the GASNet segment or not (default is not).\n"
@@ -401,19 +401,19 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);	/* avoid hitting 65535-handle limit */
-           gasnetex_handle_t *h = test_malloc(2*sizeof(gasnetex_handle_t)*warm_iters);
+           gex_Event_t *h = test_malloc(2*sizeof(gex_Event_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
-              gasnetex_put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
-              gasnetex_get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_EVENT_DEFER, 0);
-              gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              h[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_EVENT_DEFER, 0);
-              h[i+warm_iters] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, 8, 0);
+              gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, 8, 0);
+              gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, 8, 0);
+              gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, 8, GEX_EVENT_DEFER, 0);
+              gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, 8, 0);
+              h[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, 8, GEX_EVENT_DEFER, 0);
+              h[i+warm_iters] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, 8, 0);
            }
-           gasnetex_put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
-           gasnetex_get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
-           gasnetex_wait_all(h, warm_iters*2);
-           gasnetex_wait_syncnbi_all();
+           gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
+           gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
+           gex_Event_WaitAll(h, warm_iters*2);
+           gex_NBI_WaitAll();
            test_free(h);
         }
 

@@ -7,7 +7,7 @@
 #ifndef _GASNET_EXTENDED_INTERNAL_H
 #define _GASNET_EXTENDED_INTERNAL_H
 
-#include <gasnet_handle_internal.h> // TODO-EX: assumes Extended always needs this
+#include <gasnet_event_internal.h> // TODO-EX: assumes Extended always needs this
 
 /* ------------------------------------------------------------------------------------ */
 /* called at startup to check configuration sanity if using any portion of AMRef */

@@ -288,11 +288,11 @@ typedef union {
     if_pt (_dest != _src) GASNETE_FAST_MEMCPY(_dest, _src, (nbytes)); \
   } while (0)
 
-/* given the address of a gasnetex_register_value_t object and the number of
+/* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
 #ifdef WORDS_BIGENDIAN
   #define GASNETE_STARTOFBITS(regvalptr,nbytes) \
-    (((uint8_t*)(regvalptr)) + ((sizeof(gasnetex_register_value_t)-nbytes)))
+    (((uint8_t*)(regvalptr)) + ((sizeof(gex_RMA_Value_t)-nbytes)))
 #else /* little-endian */
   #define GASNETE_STARTOFBITS(regvalptr,nbytes) (regvalptr)
 #endif
@@ -329,26 +329,26 @@ typedef union {
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
 /* interpret *src as a ptr to an nbytes type,
-   and return the value as a gasnetex_register_value_t */
+   and return the value as a gex_RMA_Value_t */
 #ifdef GASNETI_BUG1389_WORKAROUND
   #define GASNETE_VALUE_RETURN(src, nbytes) do {              \
-    gasnetex_register_value_t result = 0;                       \
+    gex_RMA_Value_t result = 0;                       \
     gasneti_compiler_fence();                                 \
     memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes); \
     return result;                                            \
   } while(0)
 #else
 #define GASNETE_VALUE_RETURN(src, nbytes) do {                               \
-    gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t)); \
+    gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t)); \
     switch (nbytes) {                                                        \
-      case 1: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,8);   \
+      case 1: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,8);   \
     GASNETE_OMIT_WHEN_MISSING_16BIT(                                         \
-      case 2: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,16);  \
+      case 2: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,16);  \
     )                                                                        \
-      case 4: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
-      case 8: return (gasnetex_register_value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
+      case 4: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
+      case 8: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
       default: { /* no such native nbytes integral type */                   \
-          gasnetex_register_value_t result = 0;                                \
+          gex_RMA_Value_t result = 0;                                \
           memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes);          \
           return result;                                                     \
       }                                                                      \
@@ -367,9 +367,9 @@ typedef union {
  * Note that because gasnet_gets may read multiple words, it's possible that the 
  * values fetched in a multi-word get may reflect concurrent strict writes by other CPU's 
  * in a way that appears to violate program order, eg:
- *  CPU0: gasnetex_put_val(myteam,mynode,&A[0],someval,1,0);
- *        gasnetex_put_val(myteam,mynode,&A[1],someval,1,0);
- *  CPU1: gasnetex_get(myteam,dest,mynode,&A[0],someval,2,0) ; // may see updated A[1] but not A[0]
+ *  CPU0: gex_RMA_PutBlockingVal(myteam,mynode,&A[0],someval,1,0);
+ *        gex_RMA_PutBlockingVal(myteam,mynode,&A[1],someval,1,0);
+ *  CPU1: gex_RMA_GetBlocking(myteam,dest,mynode,&A[0],someval,2,0) ; // may see updated A[1] but not A[0]
  * but there doesn't seem to be much we can do about that (adding another rmb before the
  * get does not solve the problem, because the two puts may globally complete in the middle
  * of the get's execution, after copying A[0] but before copying A[1]). It's a fundamental
@@ -398,7 +398,7 @@ typedef union {
 
 /* helper macros */
 #define _GASNETI_RETURN_I  return 0
-#define _GASNETI_RETURN_H  return GASNETEX_INVALID_HANDLE
+#define _GASNETI_RETURN_H  return GEX_EVENT_INVALID
 #define GASNETI_CHECKZEROSZ_GET(variety, rt) do {            \
     if_pf (nbytes == 0) {                                    \
       GASNETI_TRACE_GET_LOCAL(variety,dest,rank,src,nbytes); \

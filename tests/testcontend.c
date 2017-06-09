@@ -15,17 +15,17 @@
 #error This test can only be built for GASNet PAR configuration
 #endif
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 typedef struct {
   int activecnt;
   int passivecnt;
 } threadcnt_t;
 
-typedef gasnetex_handlerarg_t harg_t;
+typedef gex_AM_Arg_t harg_t;
 
 /* configurable parameters */
 #define DEFAULT_ITERS 50
@@ -44,21 +44,21 @@ int revthreads = 0;
 typedef void * (*threadmain_t)(void *args);
 
 /* AM Handlers */
-void	ping_shorthandler(gasnetex_token_t token);
-void 	pong_shorthandler(gasnetex_token_t token);
+void	ping_shorthandler(gex_AM_Token_t token);
+void 	pong_shorthandler(gex_AM_Token_t token);
 
-void	markdone_shorthandler(gasnetex_token_t token);
+void	markdone_shorthandler(gex_AM_Token_t token);
 
 #define hidx_ping_shorthandler        201
 #define hidx_pong_shorthandler        202
 #define hidx_markdone_shorthandler    203
 
-gasnetex_handlerentry_t htable[] = { 
+gex_AM_Entry_t htable[] = { 
 	{ hidx_ping_shorthandler,     ping_shorthandler,     0, 0 },
 	{ hidx_pong_shorthandler,     pong_shorthandler,     0, 0 },
 	{ hidx_markdone_shorthandler, markdone_shorthandler, 0, 0 },
 };
-#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnetex_handlerentry_t))
+#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
 
 #define SPINPOLL_UNTIL(cond) do { while (!(cond)) gasnet_AMPoll(); } while (0)
 
@@ -103,12 +103,12 @@ void report(gasnett_tick_t ticks) {
       gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
-        gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler, 0);              \
+        gex_AM_RequestShort0(myteam, peer, hidx_ping_shorthandler, 0);              \
         POLLUNTIL(gasnett_atomic_read(&pong,0) > i);                                    \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -145,8 +145,8 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
         putgetstmt;                                                                     \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -161,13 +161,13 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
     return NULL;                                                                        \
   }
 
-PUTGETPINGPONG(put_poll_active, SPINPOLL_UNTIL, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_poll_active, SPINPOLL_UNTIL, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
-PUTGETPINGPONG(put_block_active, GASNET_BLOCKUNTIL, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_block_active, GASNET_BLOCKUNTIL, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_poll_active, SPINPOLL_UNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
+PUTGETPINGPONG(get_poll_active, SPINPOLL_UNTIL, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_block_active, GASNET_BLOCKUNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
+PUTGETPINGPONG(get_block_active, GASNET_BLOCKUNTIL, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
 
-PUTGETPINGPONG(put_barrier_active, BARRIER_UNTIL, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_barrier_active, BARRIER_UNTIL, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
+PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
 
 #define PGFIGHT(fnname, putgetstmt_loner, putgetstmt_rest)                              \
   void * fnname(void *args) {                                                           \
@@ -183,8 +183,8 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_get(myteam, &tmp, pee
         putgetstmt_loner;                                                               \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
     } else {                                                                            \
       while(!signal_done) {                                                             \
         putgetstmt_rest;                                                                \
@@ -195,10 +195,10 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_get(myteam, &tmp, pee
     return NULL;                                                                        \
   }                                                                                     \
 
-PGFIGHT(put_put_active, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0), gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
-PGFIGHT(put_get_active, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0), gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
-PGFIGHT(get_put_active, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0), gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
-PGFIGHT(get_get_active, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0), gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
+PGFIGHT(put_put_active, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0), gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
+PGFIGHT(put_get_active, gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0), gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
+PGFIGHT(get_put_active, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0), gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, 8, 0))
+PGFIGHT(get_get_active, gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0), gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, 8, 0))
 
 void * poll_passive(void *args) {
   int mythread = ARG2THREAD(args);
@@ -238,17 +238,17 @@ typedef struct {
 fntable_t fntable[] = {
   { "AM Ping-pong vs. spin-AMPoll()", ampingpong_poll_active, poll_passive },
   { "AM Ping-pong vs. BLOCKUNTIL",    ampingpong_block_active, block_passive },
-  { "gasnetex_Pput vs. spin-AMPoll()", put_poll_active, poll_passive },
-  { "gasnetex_Pput vs. BLOCKUNTIL",    put_block_active, block_passive },
-  { "gasnetex_get vs. spin-AMPoll()", get_poll_active, poll_passive },
-  { "gasnetex_get vs. BLOCKUNTIL",    get_block_active, block_passive },
-  { "gasnetex_Pput vs. gasnetex_Pput",    put_put_active, poll_passive },
-  { "gasnetex_Pput vs. gasnetex_get",    put_get_active, poll_passive },
-  { "gasnetex_get vs. gasnetex_put",    get_put_active, poll_passive },
-  { "gasnetex_get vs. gasnetex_get",    get_get_active, poll_passive },
+  { "gex_RMA_PutBlocking vs. spin-AMPoll()", put_poll_active, poll_passive },
+  { "gex_RMA_PutBlocking vs. BLOCKUNTIL",    put_block_active, block_passive },
+  { "gex_RMA_GetBlocking vs. spin-AMPoll()", get_poll_active, poll_passive },
+  { "gex_RMA_GetBlocking vs. BLOCKUNTIL",    get_block_active, block_passive },
+  { "gex_RMA_PutBlocking vs. gex_RMA_PutBlocking",    put_put_active, poll_passive },
+  { "gex_RMA_PutBlocking vs. gex_RMA_GetBlocking",    put_get_active, poll_passive },
+  { "gex_RMA_GetBlocking vs. gex_RMA_PutBlocking",    get_put_active, poll_passive },
+  { "gex_RMA_GetBlocking vs. gex_RMA_GetBlocking",    get_get_active, poll_passive },
   { "AM Ping-pong vs. local barrier", ampingpong_barrier_active, barrier_passive },
-  { "gasnetex_put vs. local barrier",   put_barrier_active, barrier_passive },
-  { "gasnetex_get vs. local barrier",   get_barrier_active, barrier_passive },
+  { "gex_RMA_PutBlocking vs. local barrier",   put_barrier_active, barrier_passive },
+  { "gex_RMA_GetBlocking vs. local barrier",   get_barrier_active, barrier_passive },
 };
 #define NUM_FUNC (sizeof(fntable)/sizeof(fntable_t))
 int tcountentries;
@@ -305,9 +305,9 @@ int main(int argc, char **argv) {
 	int help = 0;
         threadcnt_t *ptcount;
 
-	GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcontend", 0));
-        GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
-        GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, HANDLER_TABLE_SIZE));
+	GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcontend", &argc, &argv, 0));
+        GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+        GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, HANDLER_TABLE_SIZE));
 
 	test_init("testcontend",1,"[options] (maxthreads) (iters) (test_sections)\n"
                   "  The -rev option reverses thread numbering");
@@ -365,15 +365,15 @@ int main(int argc, char **argv) {
 
 /****************************************************************/
 /* AM Handlers */
-void ping_shorthandler(gasnetex_token_t token) {
-  gasnetex_AMReplyShort0(token, hidx_pong_shorthandler, 0);
+void ping_shorthandler(gex_AM_Token_t token) {
+  gex_AM_ReplyShort0(token, hidx_pong_shorthandler, 0);
 }
 
-void pong_shorthandler(gasnetex_token_t token) {
+void pong_shorthandler(gex_AM_Token_t token) {
   gasnett_atomic_increment(&pong,0);
 }
 
-void markdone_shorthandler(gasnetex_token_t token) {
+void markdone_shorthandler(gex_AM_Token_t token) {
   signal_done = 1;
 }
 

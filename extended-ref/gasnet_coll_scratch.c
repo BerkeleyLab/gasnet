@@ -35,7 +35,7 @@ struct gasnete_coll_op_info_t_ {
   gasnete_coll_scratch_req_t *req; /* the associated request with this op*/
   
   gasnete_coll_tree_type_t tree_type;
-  gasnetex_rank_t root;
+  gex_Rank_t root;
   
   int tree_op;
   gasnete_coll_tree_dir_t tree_dir;
@@ -58,7 +58,7 @@ struct gasnete_coll_op_info_t_ {
 struct gasnete_coll_scratch_config_t_ {
   gasnete_coll_op_type_t op_type;
   gasnete_coll_tree_type_t tree_type;
-  gasnetex_rank_t root;
+  gex_Rank_t root;
   gasnete_coll_tree_dir_t tree_dir;
   int dissem_radix;
   
@@ -73,7 +73,7 @@ struct gasnete_coll_scratch_config_t_ {
   /* this should be ignored when the config is waiting*/
   /*nodes that will send to me*/
   int numpeers;
-  gasnetex_rank_t *peers;
+  gex_Rank_t *peers;
   
 };
 
@@ -136,7 +136,7 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
   /*for gasnet team all it doesn't matter but in other cases it does
   stat->active_config_and_ops->peers[i] needs to be translated to an absolute rank*/
   for(i=0; i<stat->active_config_and_ops->numpeers; i++) {
-    gasnetex_AMRequestShort(NULL, GASNETE_COLL_REL2ACT(team, stat->active_config_and_ops->peers[i]),
+    gex_AM_RequestShort(NULL, GASNETE_COLL_REL2ACT(team, stat->active_config_and_ops->peers[i]),
                                 gasneti_handleridx(gasnete_coll_scratch_update_reqh), 0,
                                 team->team_id, team->myrank);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
@@ -147,9 +147,9 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
  }
 
 
-void gasnete_coll_scratch_update_reqh(gasnetex_token_t token,
-				      gasnetex_handlerarg_t teamid,
-				      gasnetex_handlerarg_t node) {
+void gasnete_coll_scratch_update_reqh(gex_AM_Token_t token,
+				      gex_AM_Arg_t teamid,
+				      gex_AM_Arg_t node) {
   gasnete_coll_team_t team;
   gasnete_coll_scratch_status_t *stat;
   
@@ -319,8 +319,8 @@ void gasnete_coll_scratch_reconfigure(gasnete_coll_scratch_status_t *stat,
   
     /* set the new config and the information about who weill send to me*/
     config->numpeers = req->num_in_peers;
-    config->peers = gasneti_malloc(sizeof(gasnetex_rank_t)*config->numpeers);
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(config->peers, req->in_peers, sizeof(gasnetex_rank_t)*config->numpeers);
+    config->peers = gasneti_malloc(sizeof(gex_Rank_t)*config->numpeers);
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(config->peers, req->in_peers, sizeof(gex_Rank_t)*config->numpeers);
   }
 }
 
@@ -343,7 +343,7 @@ uint64_t gasnete_coll_scratch_make_local_alloc(gasnete_coll_scratch_req_t *req,
 GASNETI_INLINE(gasnete_coll_scratch_check_remote_clear)
 uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
                                                 gasnete_coll_scratch_status_t *stat) {
-  gasnetex_rank_t i;
+  gex_Rank_t i;
   
   for(i=0; i<req->num_out_peers; i++) {
     /*fprintf(stderr, "%d> waiting for clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
@@ -365,7 +365,7 @@ uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
 GASNETI_INLINE(gasnete_coll_scratch_check_remote_alloc)
 uint8_t gasnete_coll_scratch_check_remote_alloc(gasnete_coll_scratch_req_t *req,
                                                 gasnete_coll_scratch_status_t *stat) {
-  gasnetex_rank_t i;
+  gex_Rank_t i;
   
   for(i=0; i<req->num_out_peers; i++) {
     if(stat->node_status[req->out_peers[i]].head + req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)] >  
@@ -390,7 +390,7 @@ GASNETI_INLINE(gasnete_coll_scratch_make_remote_alloc)
 void gasnete_coll_scratch_make_remote_alloc(gasnete_coll_scratch_req_t *req,
                                             gasnete_coll_scratch_status_t *stat,
                                             uint64_t *rem_pos) {
-  gasnetex_rank_t i;
+  gex_Rank_t i;
   for(i=0; i<req->num_out_peers; i++) {
     rem_pos[i] = stat->node_status[req->out_peers[i]].head;
     stat->node_status[req->out_peers[i]].head += req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)]; 

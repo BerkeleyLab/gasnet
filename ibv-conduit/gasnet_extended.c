@@ -6,7 +6,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 #include <gasnet_ibv.h>
 
 /* ------------------------------------------------------------------------------------ */
@@ -80,7 +80,7 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -91,12 +91,12 @@ extern void gasnete_init(void) {
 */
 
 extern
-gasnetex_handle_t gasnete_get_nb(
-                     gasnetex_team_member_t team,
+gex_Event_t gasnete_get_nb(
+                     gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
  {
@@ -106,17 +106,17 @@ gasnetex_handle_t gasnete_get_nb(
   gasnetc_rdma_get(rank, src, dest, nbytes, flags,
                    &op->initiated_cnt, gasnetc_cb_eop_get
                    GASNETI_THREAD_PASS);
-  return (gasnetex_handle_t)op;
+  return (gex_Event_t)op;
  }
 }
 
 extern
-gasnetex_handle_t gasnete_put_nb(
-                     gasnetex_team_member_t team,
-                     gasnetex_rank_t rank, void *dest,
+gex_Event_t gasnete_put_nb(
+                     gex_TM_t tm,
+                     gex_Rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     size_t nbytes, gex_Event_t *lc_opt,
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
  {
@@ -131,10 +131,10 @@ gasnetex_handle_t gasnete_put_nb(
     start_cnt = op->initiated_alc;
     local_cnt = &op->initiated_alc;
     local_cb = gasnetc_cb_eop_alc;
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+  } else if (lc_opt == GEX_EVENT_NOW) {
     local_cnt = &counter.initiated;
     local_cb = gasnetc_cb_counter;
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
     local_cnt = NULL;
     local_cb = NULL;
   } else {
@@ -147,25 +147,25 @@ gasnetex_handle_t gasnete_put_nb(
                    &op->initiated_cnt, gasnetc_cb_eop_put
                    GASNETI_THREAD_PASS);
 
-  if (lc_opt == GASNETEX_EVENT_NOW) {
+  if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   } else if (gasneti_leaf_is_pointer(lc_opt)) {
     if (start_cnt == op->initiated_alc) {
       // Synchronous LC - reset the eop's LC state
       GASNETE_EOP_LC_FINISH(op);
-      *lc_opt = GASNETEX_INVALID_HANDLE;
+      *lc_opt = GEX_EVENT_INVALID;
     } else {
-      *lc_opt = gasneti_op_handle(op, gasnete_eop_event_alc);
+      *lc_opt = gasneti_op_event(op, gasnete_eop_event_alc);
     }
   }
 
-  return (gasnetex_handle_t)op;
+  return (gex_Event_t)op;
  }
 }
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -176,11 +176,11 @@ gasnetex_handle_t gasnete_put_nb(
 */
 
 extern
-int gasnete_get_nbi (gasnetex_team_member_t team,
+int gasnete_get_nbi (gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
  {
@@ -197,11 +197,11 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
 }
 
 extern
-int gasnete_put_nbi (gasnetex_team_member_t team,
-                     gasnetex_rank_t rank, void *dest,
+int gasnete_put_nbi (gex_TM_t tm,
+                     gex_Rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     size_t nbytes, gex_Event_t *lc_opt,
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
  {
@@ -213,13 +213,13 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
 
   /* XXX check error returns */ 
 
-  if (lc_opt == GASNETEX_EVENT_GROUP) {
+  if (lc_opt == GEX_EVENT_GROUP) {
     local_cnt = &op->initiated_alc_cnt;
     local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+  } else if (lc_opt == GEX_EVENT_NOW) {
     local_cnt = &counter.initiated;
     local_cb = gasnetc_cb_counter;
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
     local_cnt = NULL;
     local_cb = NULL;
   } else {
@@ -231,7 +231,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
                    &op->initiated_put_cnt,
                    op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+  if (lc_opt == GEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }
@@ -242,10 +242,10 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   ===================================
 */
 
-extern int gasnete_get  (gasnetex_team_member_t team,
+extern int gasnete_get  (gex_TM_t tm,
                          void* dest,
-                         gasnetex_rank_t rank, void *src,
-                         size_t nbytes, gasnetex_flags_t flags
+                         gex_Rank_t rank, void *src,
+                         size_t nbytes, gex_Flags_t flags
                          GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
@@ -259,10 +259,10 @@ extern int gasnete_get  (gasnetex_team_member_t team,
  }
 }
 
-extern int gasnete_put  (gasnetex_team_member_t team,
-                         gasnetex_rank_t rank, void* dest,
+extern int gasnete_put  (gex_TM_t tm,
+                         gex_Rank_t rank, void* dest,
                          /*const*/ void *src,
-                         size_t nbytes, gasnetex_flags_t flags
+                         size_t nbytes, gex_Flags_t flags
                          GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT_NOLC(I);
@@ -341,8 +341,8 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 /* IB-specific RDMA-based Dissemination implementation of barrier
  * This is a minor variation on the "rmd" barrier in extended-ref.
  * Key differences:
- *  + no complications due to thread-specific handles
- *  + no handle completion latency
+ *  + no complications due to thread-specific events
+ *  + no eop completion latency
  * TODO: factor the common elements
  */
 
@@ -351,7 +351,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 typedef struct {
   GASNETE_RMDBARRIER_LOCK(barrier_lock) /* no semicolon */
   struct {
-    gasnetex_rank_t node;
+    gex_Rank_t node;
     uintptr_t     addr;
   } *barrier_peers;           /*  precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
@@ -370,7 +370,7 @@ typedef struct {
 GASNETI_INLINE(gasnete_ibdbarrier_send)
 void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
-                             gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
+                             gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   GASNETI_THREAD_LOOKUP // TODO-EX: eliminate this?
   unsigned int step = state >> 1;
   gasnete_coll_rmdbarrier_inbox_t *payload;
@@ -394,7 +394,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
   gasneti_assert(state < barrier_data->barrier_goal);
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
-    const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;
+    const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
     if (gasneti_pshm_in_supernode(node)) {
@@ -666,7 +666,7 @@ static int gasnete_ibdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   } else
   if_pf(/* try/wait value must match consensus value, if both are present */
         !((flags|barrier_data->barrier_flags) & GASNET_BARRIERFLAG_ANONYMOUS) &&
-	 ((gasnetex_handlerarg_t)id != barrier_data->barrier_value)) {
+	 ((gex_AM_Arg_t)id != barrier_data->barrier_value)) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
 
@@ -788,7 +788,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
     gasneti_leak(barrier_data->barrier_peers);
   
     for (step = 0; step < steps; ++step) {
-      gasnetex_rank_t node = peers->fwd[step];
+      gex_Rank_t node = peers->fwd[step];
       void *addr = gasnete_rdmabarrier_auxseg[node].addr;
       barrier_data->barrier_peers[1+step].node = node;
     #if GASNET_PSHM
@@ -847,7 +847,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
   Handlers:
   =========
 */
-static gasnetex_handlerentry_t const gasnete_handlers[] = {
+static gex_AM_Entry_t const gasnete_handlers[] = {
   #ifdef GASNETE_REFBARRIER_HANDLERS
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
@@ -868,7 +868,7 @@ static gasnetex_handlerentry_t const gasnete_handlers[] = {
   GASNETI_HANDLER_EOT
 };
 
-extern gasnetex_handlerentry_t const *gasnete_get_handlertable(void) {
+extern gex_AM_Entry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */

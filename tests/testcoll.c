@@ -13,10 +13,10 @@
   #define DEFAULT_THREADS 1
 #endif
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int datasize;
 int numprocs;
@@ -87,7 +87,7 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
     MSG00("Starting %s test", name);                                         \
                                                                              \
     for (j = 0; j < iters; ++j) {                                            \
-	gasnetex_rank_t i;                                                     \
+	gex_Rank_t i;                                                     \
                                                                              \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
@@ -150,7 +150,7 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
     MSG00("Starting %s test", name);                                         \
                                                                              \
     for (j = 0; j < iters; ++j) {                                            \
-	gasnetex_rank_t i;                                                     \
+	gex_Rank_t i;                                                     \
                                                                              \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
@@ -202,31 +202,31 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 /* ALL/ALL - data is generated/consumed *remotely* in same barrier phase */  \
 void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
     PROLOGUE(DESC " ALL/ALL");                                               \
-    gasnetex_rank_t rootproc = root/threads;                                   \
-    gasnetex_rank_t peerproc = peerthread/threads;                             \
+    gex_Rank_t rootproc = root/threads;                                   \
+    gex_Rank_t peerproc = peerthread/threads;                             \
     int j;                                                                   \
     int tmp;                                                                 \
                                                                              \
     MSG00("Starting %s test", name);                                         \
                                                                              \
     for (j = 0; j < iters; ++j) {                                            \
-	gasnetex_rank_t i;                                                     \
+	gex_Rank_t i;                                                     \
                                                                              \
 	tmp = (peerthread == root) ? R[j] : -1;                              \
-	gasnetex_put(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
                                                                              \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, &tmp, peerproc, REMOTE(A,peerthread), sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, &tmp, peerproc, REMOTE(A,peerthread), sizeof(int), 0);\
 	if (tmp != R[j]) {                                                   \
 	    MSG("ERROR: %s broadcast validation failed", name);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	tmp = peerthread;                                                    \
-	gasnetex_put(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
+	gex_RMA_GetBlocking(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i) {                                          \
 		MSG("ERROR: %s gather validation failed", name);             \
@@ -235,20 +235,20 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on D */                       \
 	tmp = mythread * R[j];                                               \
-	gasnetex_put(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
 	CALL(scatter##SUFFIX, ALL(B), ROOT(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
 	if (tmp != peerthread*R[j]) {                                        \
 	    MSG("ERROR: %s scatter validation failed expected: %d got %d", name, peerthread*R[j], tmp);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on B */                       \
 	tmp = peerthread*R[j] - 1;                                           \
-	gasnetex_put(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i*R[j] - 1) {                                 \
 		MSG("ERROR: %s gather_all validation failed", name);         \
@@ -259,10 +259,10 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	for (i = 0; i < images; ++i) {                                       \
 	    LOCAL(C)[i] += peerthread;                                       \
 	}                                                                    \
-	gasnetex_put(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
+	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
 	CALL(exchange##SUFFIX, ALL(C), ALL(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnetex_get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
+	gex_RMA_GetBlocking(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i + peerthread*R[j] - 1) {                    \
 		MSG("ERROR: %s exchange validation failed", name);           \
@@ -275,7 +275,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 }                                                                            \
 void PREFIX##_NB(int root, thread_data_t *td) {                              \
     PROLOGUE(DESC " NB");                                                    \
-    gasnetex_rank_t i;                                                         \
+    gex_Rank_t i;                                                         \
     int j;                                                                   \
                                                                              \
     MSG00("Starting %s test", name);                                         \
@@ -479,11 +479,11 @@ void *thread_main(void *arg) {
 int main(int argc, char **argv)
 {
     static int *A, *B, *C, *D, *E, *F, *G;
-    gasnetex_rank_t myproc, i;
+    gex_Rank_t myproc, i;
     int j;
    
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcoll", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcoll", &argc, &argv, 0));
 
     if (argc > 1) {
       iters = atoi(argv[1]);
@@ -509,7 +509,7 @@ int main(int argc, char **argv)
     images = numprocs * threads;
     datasize = iters * (3 + 4 * images);
 
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     test_init("testcoll",0,"(iters) (threadcnt)");
     TEST_SET_WAITMODE(threads);
     if (argc > 3) test_usage();

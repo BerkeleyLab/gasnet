@@ -49,7 +49,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       data->state = 2;
       
   case 2:	/* Sync data movement */
-    if (data->handle != GASNETEX_INVALID_HANDLE) {
+    if (data->handle != GEX_EVENT_INVALID) {
       break;
     }
     data->state = 3;
@@ -105,7 +105,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnetex_rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   
   int child;
@@ -145,7 +145,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
     data->state = 3;
     
   case 3:	/* Sync data movement */
-    if (data->handle != GASNETEX_INVALID_HANDLE) {
+    if (data->handle != GEX_EVENT_INVALID) {
       break;
     }
     /*the get has finished now send a signal down the tree signalling the ok to get*/
@@ -238,7 +238,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   case 2:
     if (op->team->myrank == args->srcnode) {
       /* Root sends at most one AM per peer for each poll */
-      gasnetex_rank_t i;
+      gex_Rank_t i;
       int done = 1;
       for (i=0; i<op->team->total_ranks; ++i) {
         if (i == op->team->myrank) continue;
@@ -321,7 +321,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->state = 2;
 
     case 2:	/* Complete data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
 	  break;
       } else if (op->team->myrank != args->srcnode) {
 	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(op->team, args->dstlist, op->flags);
@@ -361,7 +361,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcastM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcastM);
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnetex_rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   
   int child;
@@ -404,7 +404,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
     data->state = 3;
     
   case 3:	/* Sync data movement */
-    if (data->handle != GASNETEX_INVALID_HANDLE) {
+    if (data->handle != GEX_EVENT_INVALID) {
       break;
     }
     /*the get has finished now send a signal down the tree signalling the ok to get*/
@@ -500,7 +500,7 @@ static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
@@ -584,7 +584,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 2;
 
     case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
       data->state = 3;
@@ -647,7 +647,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
@@ -734,7 +734,7 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       data->state = 2;
 
     case 2:
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
       data->state = 3;
@@ -801,7 +801,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  gasnet_image_t j,k;
@@ -879,7 +879,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	data->handle = gasnete_put_nb(NULL, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
 					   gasnete_coll_scale_ptr(*(void **)data->p2p->data,
 								  op->team->myrank, args->nbytes),
-					   args->src, args->nbytes, GASNETEX_EVENT_DEFER, 0
+					   args->src, args->nbytes, GEX_EVENT_DEFER, 0
                                            GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       } else {
@@ -888,7 +888,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 2;
 
     case 2:	/* Sync data movement */
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
       data->state = 3;
@@ -932,7 +932,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
     case 1:	/* Root send addrs */
       if (op->team->myrank == args->dstnode) {
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	for (i = 0; i < op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
 	  gasnete_coll_p2p_send_rtr(op, data->p2p, 0,
@@ -1018,7 +1018,7 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       data->state = 2;
 
     case 2:
-      if (data->handle != GASNETEX_INVALID_HANDLE) {
+      if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
       data->state = 3;
@@ -1064,7 +1064,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       if (op->team->myrank == args->dstnode) {
 	void **tmp = gasneti_malloc(sizeof(void *) * op->team->total_images);
 	gasnet_image_t j;
-	gasnetex_rank_t i;
+	gex_Rank_t i;
 	for (j = 0; j < op->team->total_images; ++j) {
 	  tmp[j] = gasnete_coll_scale_ptr(args->dst, j, args->nbytes);
 	}
@@ -1158,11 +1158,11 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
     /*put to the left of me*/
     for(i=op->team->myrank+1; i<op->team->total_ranks; i++) {
-      gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+      gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     } 
     /*put to the right of me*/
     for(i=0; i<op->team->myrank; i++) {
-      gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+      gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     }
     data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
     gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
@@ -1170,7 +1170,7 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
     data->state = 4;
   case 4: /* sync all the handles for the puts*/
-    if (op->team->total_ranks > 1 && data->handle != GASNETEX_INVALID_HANDLE) {
+    if (op->team->total_ranks > 1 && data->handle != GEX_EVENT_INVALID) {
       return 0;
     }
     data->state=5;

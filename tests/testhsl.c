@@ -8,48 +8,48 @@
 
 #include <test.h>
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int peer = -1;
 int flag = 0;
 uint64_t iters = 100;
-gasnetex_hsl_t globallock = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t globallock = GEX_HSL_INITIALIZER;
 
-void okhandler3(gasnetex_token_t token) {
-  gasnetex_hsl_lock(&globallock);
+void okhandler3(gex_AM_Token_t token) {
+  gex_HSL_Lock(&globallock);
   flag++;
-  gasnetex_hsl_unlock(&globallock);
+  gex_HSL_Unlock(&globallock);
 }
 
 
-void badhandler1(gasnetex_token_t token) {
-  gasnetex_hsl_lock(&globallock);
+void badhandler1(gex_AM_Token_t token) {
+  gex_HSL_Lock(&globallock);
 }
-void badhandler2(gasnetex_token_t token) {
-  gasnetex_hsl_lock(&globallock);
-  gasnetex_AMReplyShort0(token, 250, 0);
+void badhandler2(gex_AM_Token_t token) {
+  gex_HSL_Lock(&globallock);
+  gex_AM_ReplyShort0(token, 250, 0);
 }
 
 uint64_t counter = 0;
-void increq(gasnetex_token_t token) {
-  gasnetex_hsl_lock(&globallock);
+void increq(gex_AM_Token_t token) {
+  gex_HSL_Lock(&globallock);
   counter++;
-  gasnetex_hsl_unlock(&globallock);
-  gasnetex_AMReplyShort0(token, 222, 0);
+  gex_HSL_Unlock(&globallock);
+  gex_AM_ReplyShort0(token, 222, 0);
 }
-gasnetex_hsl_t replock = GASNETEX_HSL_INITIALIZER;
+gex_HSL_t replock = GEX_HSL_INITIALIZER;
 uint64_t repcounter = 0;
-void increp(gasnetex_token_t token) {
-  gasnetex_hsl_lock(&replock);
+void increp(gex_AM_Token_t token) {
+  gex_HSL_Lock(&replock);
   repcounter++;
-  gasnetex_hsl_unlock(&replock);
+  gex_HSL_Unlock(&replock);
 }
 
 
-void donothing(gasnetex_token_t token) {
+void donothing(gex_AM_Token_t token) {
 }
 
 #if GASNET_PAR
@@ -59,7 +59,7 @@ void donothing(gasnetex_token_t token) {
 
 int main(int argc, char **argv) {
   int mynode, nodes;
-  gasnetex_handlerentry_t htable[] = { 
+  gex_AM_Entry_t htable[] = { 
     { 203, okhandler3,  0, 0 },
 
     { 221, increq,      0, 0 },
@@ -71,9 +71,9 @@ int main(int argc, char **argv) {
     { 250, donothing,   0, 0 }
   };
 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testhsl", 0));
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testhsl", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testhsl",0,"(0|errtestnum:1..16)");
 
   mynode = gasnet_mynode();
@@ -84,25 +84,25 @@ int main(int argc, char **argv) {
   if (argc < 2) test_usage();
   {
     int errtest = atoi(argv[1]);
-    gasnetex_hsl_t lock1 = GASNETEX_HSL_INITIALIZER;
-    gasnetex_hsl_t lock2;
-    gasnetex_hsl_init(&lock2);
+    gex_HSL_t lock1 = GEX_HSL_INITIALIZER;
+    gex_HSL_t lock2;
+    gex_HSL_Init(&lock2);
 
     MSG0("testing legal local cases...");
-    gasnetex_hsl_lock(&lock1);
-    gasnetex_hsl_lock(&lock2);
+    gex_HSL_Lock(&lock1);
+    gex_HSL_Lock(&lock2);
     assert(mynode == gasnet_mynode()); 
     assert(nodes == gasnet_nodes());
-    gasnetex_hsl_unlock(&lock2);
-    gasnetex_hsl_unlock(&lock1);
+    gex_HSL_Unlock(&lock2);
+    gex_HSL_Unlock(&lock1);
 
-    assert_always(gasnetex_hsl_trylock(&lock1) == GASNET_OK);
-    gasnetex_hsl_unlock(&lock1);
+    assert_always(gex_HSL_Trylock(&lock1) == GASNET_OK);
+    gex_HSL_Unlock(&lock1);
 
     BARRIER();
     MSG0("testing legal AM cases...");
 
-    gasnetex_AMRequestShort0(myteam, peer, 203, 0);
+    gex_AM_RequestShort0(myteam, peer, 203, 0);
     GASNET_BLOCKUNTIL(flag == 1);
 
     BARRIER();
@@ -112,55 +112,55 @@ int main(int argc, char **argv) {
     MSG0("testing illegal case %i...", errtest);
     switch(errtest) {
       case 1:
-        gasnetex_hsl_init(&lock1);
+        gex_HSL_Init(&lock1);
       break;
       case 2:
-        gasnetex_hsl_destroy(&lock1);
-        gasnetex_hsl_destroy(&lock1);
+        gex_HSL_Destroy(&lock1);
+        gex_HSL_Destroy(&lock1);
       break;
       case 3:
-        gasnetex_hsl_unlock(&lock1);
+        gex_HSL_Unlock(&lock1);
       break;
       case 4:
-        gasnetex_hsl_lock(&lock1);
-        gasnetex_hsl_lock(&lock2);
-        gasnetex_hsl_unlock(&lock1);
+        gex_HSL_Lock(&lock1);
+        gex_HSL_Lock(&lock2);
+        gex_HSL_Unlock(&lock1);
       break;
       case 5:
-        gasnetex_hsl_lock(&lock1);
-        gasnetex_hsl_lock(&lock1);
+        gex_HSL_Lock(&lock1);
+        gex_HSL_Lock(&lock1);
       break;
       case 6:
-        dummy += gasnetex_hsl_trylock(&lock1);
-        dummy += gasnetex_hsl_trylock(&lock1);
+        dummy += gex_HSL_Trylock(&lock1);
+        dummy += gex_HSL_Trylock(&lock1);
       break;
       case 7:
-        gasnetex_hsl_lock(&lock1);
+        gex_HSL_Lock(&lock1);
         gasnet_AMPoll();
       break;
       case 8:
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 231, 0);
+        gex_AM_RequestShort0(myteam, gasnet_mynode(), 231, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 9:
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 232, 0);
+        gex_AM_RequestShort0(myteam, gasnet_mynode(), 232, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 10:
-        gasnetex_hsl_lock(&lock1);
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 250, 0);
-        gasnetex_hsl_unlock(&lock1);
+        gex_HSL_Lock(&lock1);
+        gex_AM_RequestShort0(myteam, gasnet_mynode(), 250, 0);
+        gex_HSL_Unlock(&lock1);
       break;
       case 11:
-        gasnetex_hsl_lock(&lock1);
+        gex_HSL_Lock(&lock1);
         sleep(2);
-        gasnetex_hsl_unlock(&lock1);
+        gex_HSL_Unlock(&lock1);
         goto done;
       break;
       case 12:
-        dummy += gasnetex_hsl_trylock(&lock1);
+        dummy += gex_HSL_Trylock(&lock1);
         sleep(2);
-        gasnetex_hsl_unlock(&lock1);
+        gex_HSL_Unlock(&lock1);
         goto done;
       break;
       default:
@@ -205,15 +205,15 @@ void * thread_fn(void *arg) {
   MSG0("hsl exclusion test, local-only...");
     for (i=0;i<iters2;i++) {
       if (i&1) {
-        gasnetex_hsl_lock(&globallock);
+        gex_HSL_Lock(&globallock);
       } else {
         int retval;
-        while ((retval=gasnetex_hsl_trylock(&globallock)) != GASNET_OK) {
+        while ((retval=gex_HSL_Trylock(&globallock)) != GASNET_OK) {
           assert_always(retval == GASNET_ERR_NOT_READY);
         }
       }
       counter++;
-      gasnetex_hsl_unlock(&globallock);
+      gex_HSL_Unlock(&globallock);
     }
 
     PTHREAD_LOCALBARRIER(NUM_THREADS);
@@ -228,7 +228,7 @@ void * thread_fn(void *arg) {
 
   MSG0("hsl exclusion test, AM-only...");
     for (i=0;i<iters;i++) {
-      gasnetex_AMRequestShort0(myteam, peer, 221, 0);
+      gex_AM_RequestShort0(myteam, peer, 221, 0);
     }
     GASNET_BLOCKUNTIL(repcounter == NUM_THREADS * iters);
     PTHREAD_BARRIER(NUM_THREADS);
@@ -243,17 +243,17 @@ void * thread_fn(void *arg) {
 
   MSG0("hsl exclusion test, AM & local...");
     for (i=0;i<iters;i++) {
-      gasnetex_AMRequestShort0(myteam, peer, 221, 0);
+      gex_AM_RequestShort0(myteam, peer, 221, 0);
       if (i&1) {
-        gasnetex_hsl_lock(&globallock);
+        gex_HSL_Lock(&globallock);
       } else {
         int retval;
-        while ((retval=gasnetex_hsl_trylock(&globallock)) != GASNET_OK) {
+        while ((retval=gex_HSL_Trylock(&globallock)) != GASNET_OK) {
           assert_always(retval == GASNET_ERR_NOT_READY);
         }
       }
       counter++;
-      gasnetex_hsl_unlock(&globallock);
+      gex_HSL_Unlock(&globallock);
     }
     GASNET_BLOCKUNTIL(repcounter == NUM_THREADS * iters);
     PTHREAD_BARRIER(NUM_THREADS);

@@ -27,49 +27,46 @@ GASNETI_NORETURNP(gasnetc_exit)
    Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #define GASNET_NULL_ARGV_OK 1
 /* ------------------------------------------------------------------------------------ */
-/* gasnetex_ClientInit not inlined or renamed because we use redef-name trick on
+/* gex_Client_Init not inlined or renamed because we use redef-name trick on
    it to ensure proper version linkage */
-extern int gasnetex_ClientInit(
-                gasnetex_client_t      *client_p,
-                gasnetex_endpoint_t    *ep_p,
-                gasnetex_team_member_t *team_p,
+extern int gex_Client_Init(
+                gex_Client_t           *client_p,
+                gex_EP_t               *ep_p,
+                gex_TM_t               *tm_p,
+                const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
-                const char             *clientName,
-                gasnetex_flags_t       flags);
+                gex_Flags_t            flags);
 
-extern int gasnetc_TeamSegmentCreate(
-                gasnetex_segment_t     *segment_p,
-                gasnetex_team_member_t team,
-                void                   *address,
-                uintptr_t              length,
-                gasnetex_memkind_t     kind,
-                gasnetex_flags_t       flags);
-#define gasnetex_TeamSegmentCreate gasnetc_TeamSegmentCreate
+extern int gasnetc_Segment_Attach(
+                gex_Segment_t          *segment_p,
+                gex_TM_t               tm,
+                uintptr_t              length);
+#define gex_Segment_Attach gasnetc_Segment_Attach
 
-extern int gasnetc_EPCreate(
-                gasnetex_endpoint_t     *ep_p,
-                gasnetex_client_t       client,
-                gasnetex_flags_t        flags);
-#define gasnetex_EPCreate gasnetc_EPCreate
+extern int gasnetc_EP_Create(
+                gex_EP_t                *ep_p,
+                gex_Client_t            client,
+                gex_Flags_t             flags);
+#define gex_EP_Create gasnetc_EP_Create
 
-extern int gasnetc_EPRegisterHandlers(
-                gasnetex_endpoint_t     ep,
-                gasnetex_handlerentry_t *table,
+extern int gasnetc_EP_RegisterHandlers(
+                gex_EP_t                ep,
+                gex_AM_Entry_t          *table,
                 int                     numentries);
-#define gasnetex_EPRegisterHandlers gasnetc_EPRegisterHandlers
+#define gex_EP_RegisterHandlers gasnetc_EP_RegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*
   Handler-safe locks
   ==================
 */
-typedef struct _gasnetex_hsl_t {
+typedef struct {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t acquiretime;
   #endif
-} gasnetex_hsl_t;
+} gex_HSL_t;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -77,7 +74,7 @@ typedef struct _gasnetex_hsl_t {
   #define GASNETC_LOCK_STAT_INIT  
 #endif
 
-#define GASNETEX_HSL_INITIALIZER { \
+#define GEX_HSL_INITIALIZER { \
   GASNETI_MUTEX_INITIALIZER      \
   GASNETC_LOCK_STAT_INIT         \
   }
@@ -94,23 +91,23 @@ typedef struct _gasnetex_hsl_t {
 
 #if GASNETC_NULL_HSL
   /* HSL's unnecessary - compile away to nothing */
-  #define gasnetex_hsl_init(hsl)
-  #define gasnetex_hsl_destroy(hsl)
-  #define gasnetex_hsl_lock(hsl)
-  #define gasnetex_hsl_unlock(hsl)
-  #define gasnetex_hsl_trylock(hsl)	GASNET_OK
+  #define gex_HSL_Init(hsl)
+  #define gex_HSL_Destroy(hsl)
+  #define gex_HSL_Lock(hsl)
+  #define gex_HSL_Unlock(hsl)
+  #define gex_HSL_Trylock(hsl)	GASNET_OK
 #else
-  extern void gasnetc_hsl_init   (gasnetex_hsl_t *hsl);
-  extern void gasnetc_hsl_destroy(gasnetex_hsl_t *hsl);
-  extern void gasnetc_hsl_lock   (gasnetex_hsl_t *hsl);
-  extern void gasnetc_hsl_unlock (gasnetex_hsl_t *hsl);
-  extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
+  extern void gasnetc_hsl_init   (gex_HSL_t *hsl);
+  extern void gasnetc_hsl_destroy(gex_HSL_t *hsl);
+  extern void gasnetc_hsl_lock   (gex_HSL_t *hsl);
+  extern void gasnetc_hsl_unlock (gex_HSL_t *hsl);
+  extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) GASNETI_WARN_UNUSED_RESULT;
 
-  #define gasnetex_hsl_init    gasnetc_hsl_init
-  #define gasnetex_hsl_destroy gasnetc_hsl_destroy
-  #define gasnetex_hsl_lock    gasnetc_hsl_lock
-  #define gasnetex_hsl_unlock  gasnetc_hsl_unlock
-  #define gasnetex_hsl_trylock gasnetc_hsl_trylock
+  #define gex_HSL_Init    gasnetc_hsl_init
+  #define gex_HSL_Destroy gasnetc_hsl_destroy
+  #define gex_HSL_Lock    gasnetc_hsl_lock
+  #define gex_HSL_Unlock  gasnetc_hsl_unlock
+  #define gex_HSL_Trylock gasnetc_hsl_trylock
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -119,23 +116,23 @@ typedef struct _gasnetex_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)16)
-#define gasnetex_lub_AMRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
-#define gasnetex_lub_AMReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
-#define gasnetex_lub_AMRequestLong()   ((size_t)GASNETC_MAX_LONG)
-#define gasnetex_lub_AMReplyLong()     ((size_t)GASNETC_MAX_LONG)
+#define gex_AM_LUBRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
+#define gex_AM_LUBReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
+#define gex_AM_LUBRequestLong()   ((size_t)GASNETC_MAX_LONG)
+#define gex_AM_LUBReplyLong()     ((size_t)GASNETC_MAX_LONG)
 
   // TODO-EX: can these be improved upon?
-#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) gasnetex_lub_AMRequestMedium()
-#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMReplyMedium()
-#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMRequestLong()
-#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     gasnetex_lub_AMReplyLong()
+#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) gex_AM_LUBRequestMedium()
+#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   gex_AM_LUBReplyMedium()
+#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   gex_AM_LUBRequestLong()
+#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     gex_AM_LUBReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex);
+extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

@@ -25,7 +25,7 @@ typedef struct gasneti_vis_op_S {
   gasneti_weakatomic_t packetcnt;
   size_t count;
   size_t len;
-  gasnetex_handle_t handle;
+  gex_Event_t event;
 } gasneti_vis_op_t;
 
 /* per-thread state for VIS */
@@ -98,16 +98,16 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_RETURN_VOLATILE(eop, synctype) do {            \
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
-        gasnetex_handle_t h = gasneti_eop_to_handle(eop);              \
+        gex_Event_t h = gasneti_eop_to_event(eop);              \
         gasnete_wait(h GASNETI_THREAD_PASS);                         \
-        return GASNETEX_INVALID_HANDLE;                                \
+        return GEX_EVENT_INVALID;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
-        return gasneti_eop_to_handle(eop);                           \
+        return gasneti_eop_to_event(eop);                           \
       case gasnete_synctype_nbi:                                     \
-        return GASNETEX_INVALID_HANDLE;                                \
+        return GEX_EVENT_INVALID;                                \
       default: gasneti_fatalerror("bad synctype");                   \
-        return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
 
@@ -146,19 +146,19 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
-   block if required, and return the appropriate handle */
+   block if required, and return the appropriate event */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
-    if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
+    if (islocal) return GEX_EVENT_INVALID;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
         return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
         gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS) GASNETE_THREAD_PASS); \
-        return GASNETEX_INVALID_HANDLE;                                                 \
+        return GEX_EVENT_INVALID;                                                 \
       case gasnete_synctype_nbi:                                                      \
-        return GASNETEX_INVALID_HANDLE;                                                 \
+        return GEX_EVENT_INVALID;                                                 \
       default: gasneti_fatalerror("bad synctype");                                    \
-        return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */                  \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */                  \
     }                                                                                 \
   } while(0)
 
@@ -168,7 +168,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_put_nbi(NULL, (dstnode), (dstaddr), (srcaddr), (nbytes),       \
-                         GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
+                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \

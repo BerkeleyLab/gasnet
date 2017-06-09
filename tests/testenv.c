@@ -6,10 +6,10 @@
 
 #include <gasnetex.h>
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 #include <test.h>
 
@@ -31,9 +31,9 @@ int main(int argc, char **argv) {
   const char *startup_val = NULL;
   const char *running_val = NULL;
 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testenv", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testenv", &argc, &argv, 0));
     startup_val = gasnet_getenv(TEST_VAR);
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   usagestr[0] = '\0';
   for (i=0; i < expect_argc-1; i++) {
     strcat(usagestr,"'");

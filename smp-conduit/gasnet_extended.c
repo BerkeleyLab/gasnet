@@ -79,7 +79,7 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -93,7 +93,7 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
@@ -139,7 +139,7 @@ extern void gasnete_init(void) {
   Handlers:
   =========
 */
-static gasnetex_handlerentry_t const gasnete_handlers[] = {
+static gex_AM_Entry_t const gasnete_handlers[] = {
   #ifdef GASNETE_REFBARRIER_HANDLERS
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
@@ -160,7 +160,7 @@ static gasnetex_handlerentry_t const gasnete_handlers[] = {
   GASNETI_HANDLER_EOT
 };
 
-extern gasnetex_handlerentry_t const *gasnete_get_handlertable(void) {
+extern gex_AM_Entry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */

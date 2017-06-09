@@ -23,17 +23,17 @@
 
 int main(int argc, char **argv)
 {
-  gasnetex_rank_t rank, size;
+  gex_Rank_t rank, size;
   size_t segsz = GASNET_PAGESIZE;
   size_t heapsz = GASNET_PAGESIZE;
   int argi;
 
-  gasnetex_client_t      myclient;
-  gasnetex_endpoint_t    myep;
-  gasnetex_team_member_t myteam;
-  gasnetex_segment_t     mysegment;
+  gex_Client_t      myclient;
+  gex_EP_t    myep;
+  gex_TM_t myteam;
+  gex_Segment_t     mysegment;
 
-  GASNET_SAFE(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testhello", 0));
+  GASNET_SAFE(gex_Client_Init(&myclient, &myep, &myteam, "testhello", &argc, &argv, 0));
   rank = gasnet_mynode();
   size = gasnet_nodes();
 
@@ -48,8 +48,7 @@ int main(int argc, char **argv)
     ++argi;
   }
     
-  GASNET_SAFE(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, segsz,
-                                         GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_SAFE(gex_Segment_Attach(&mysegment, myteam, segsz));
 
   /* Only first and last print here, to keep managable I/O volume at scale */
   if (!rank || (rank == size-1))

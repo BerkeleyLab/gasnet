@@ -8,7 +8,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 #include <pami.h>
 
@@ -32,7 +32,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-extern gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 /* AM category (recommended impl if supporting PSHM) */
@@ -43,7 +43,7 @@ typedef enum {
 } gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle_internal.h and gasnet_handle.c */
+/* Configure gasnet_event_internal.h and gasnet_event.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
 #define GASNETE_HAVE_LC
@@ -78,8 +78,8 @@ enum {
 #endif
 
 #define GASNETC_MSG_COMMON_HDR                        \
-  gasnetex_rank_t       srcnode; /* must be first */  \
-  gasnetex_handler_t    handler;                      \
+  gex_Rank_t       srcnode; /* must be first */  \
+  gex_AM_Index_t    handler;                      \
   uint8_t               numargs : 5;                  \
   uint8_t               is_req  : 1;                  \
   GASNETC_MSG_DEBUG_HDR
@@ -90,24 +90,24 @@ typedef struct {
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
   uint16_t              nbytes;
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
   uintptr_t             addr;
   uint32_t              nbytes; /* type limits our MaxLong */
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
-        (offsetof(s,args)+(nargs*sizeof(gasnetex_handlerarg_t)))
+        (offsetof(s,args)+(nargs*sizeof(gex_AM_Arg_t)))
 #define GASNETC_ARGSEND(cat,nargs) \
         GASNETC_ARGSEND_AUX(gasnetc_##cat##msg_t,(nargs))
 
@@ -145,7 +145,7 @@ extern size_t             gasnetc_recv_imm_max;
 
 /* TODO: how must this change for multiple contexts? */
 GASNETI_INLINE(gasnetc_endpoint)
-pami_endpoint_t gasnetc_endpoint(gasnetex_rank_t rank) {
+pami_endpoint_t gasnetc_endpoint(gex_Rank_t rank) {
   pami_endpoint_t result = gasnetc_endpoint_tbl[rank];
   gasneti_assert(rank < gasneti_nodes);
   if_pf (result == PAMI_ENDPOINT_NULL) {

@@ -7,13 +7,13 @@
 #include <gasnetex.h>
 #include <test.h>
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
-gasnetex_rank_t mynode = 0;
-gasnetex_rank_t peer = 0;
+gex_Rank_t mynode = 0;
+gex_Rank_t peer = 0;
 void *myseg = NULL;
 void *peerseg = NULL;
 
@@ -34,19 +34,19 @@ void *addr_tbl[] = {
 
 volatile int flag = 0;
 
-void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t addr_idx) {
+void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
-  gasnetex_AMReplyMedium0(token, hidx_pong_medhandler, source_addr, 0, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyMedium0(token, hidx_pong_medhandler, source_addr, 0, GEX_EVENT_NOW, 0);
 }
-void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
-void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t addr_idx) {
+void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
-  gasnetex_AMReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg, GASNETEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg, GEX_EVENT_NOW, 0);
 }
-void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
@@ -55,16 +55,16 @@ void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 static void testAMSrcAddr(void);
 
 int main(int argc, char **argv) {
-  gasnetex_handlerentry_t htable[] = { 
+  gex_AM_Entry_t htable[] = { 
     { hidx_ping_medhandler,  ping_medhandler,  0, 1 },
     { hidx_pong_medhandler,  pong_medhandler,  0, 0 },
     { hidx_ping_longhandler, ping_longhandler, 0, 1 },
     { hidx_pong_longhandler, pong_longhandler, 0, 0 }
   };
 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcore3", 0));
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore3", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
   test_init("testcore3", 0, "[no argument]");
   if (argc > 1) test_usage();
@@ -106,9 +106,9 @@ void testAMSrcAddr(void) {
       void *source_addr = addr_tbl[i];
       int goal = flag + 1;
 
-      gasnetex_AMRequestMedium1(myteam, peer, hidx_ping_medhandler, source_addr, 0, GASNETEX_EVENT_NOW, 0, i);
+      gex_AM_RequestMedium1(myteam, peer, hidx_ping_medhandler, source_addr, 0, GEX_EVENT_NOW, 0, i);
       GASNET_BLOCKUNTIL(flag == goal); ++goal;
-      gasnetex_AMRequestLong1(myteam, peer, hidx_ping_longhandler, source_addr, 0, peerseg, GASNETEX_EVENT_NOW, 0, i);
+      gex_AM_RequestLong1(myteam, peer, hidx_ping_longhandler, source_addr, 0, peerseg, GEX_EVENT_NOW, 0, i);
       GASNET_BLOCKUNTIL(flag == goal); ++goal;
     }
 

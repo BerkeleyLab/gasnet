@@ -59,9 +59,9 @@ static void (*gasnetc_pshm_abort_callback)(void);
 void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
-  gasnetex_rank_t i;
+  gex_Rank_t i;
 #if !GASNET_CONDUIT_SMP
-  gasnetex_rank_t j;
+  gex_Rank_t j;
 #endif
 
   gasneti_assert(snodebcastfn != NULL);  /* NULL snodebcastfn no longer supported */
@@ -94,7 +94,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   { /* gasneti_pshm_info contains multiple variable-length arrays in the same space */
     size_t info_sz;
     /* space for gasneti_pshm_firsts: */
-    info_sz = gasneti_nodemap_global_count * sizeof(gasnetex_rank_t);
+    info_sz = gasneti_nodemap_global_count * sizeof(gex_Rank_t);
     /* optional space for gasneti_pshm_rankmap: */
     if (discontig) {
       info_sz = GASNETI_ALIGNUP(info_sz, sizeof(gasneti_pshm_rank_t));
@@ -152,9 +152,9 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   gasneti_pshmnet_bootstrapBarrier();
   {
     uintptr_t addr = (uintptr_t)&gasneti_pshm_info->early_barrier;
-    /* gasneti_pshm_firsts, an array of gasneti_nodemap_global_count*sizeof(gasnetex_rank_t): */
-    gasneti_pshm_firsts = (gasnetex_rank_t *)addr;
-    addr += gasneti_nodemap_global_count * sizeof(gasnetex_rank_t);
+    /* gasneti_pshm_firsts, an array of gasneti_nodemap_global_count*sizeof(gex_Rank_t): */
+    gasneti_pshm_firsts = (gex_Rank_t *)addr;
+    addr += gasneti_nodemap_global_count * sizeof(gex_Rank_t);
     /* optional rankmap: */
     if (discontig) {
       addr = GASNETI_ALIGNUP(addr, sizeof(gasneti_pshm_rank_t));
@@ -222,12 +222,12 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   #define GASNETC_MAX_ARGS_PSHM   (gasnet_AMMaxArgs())
 #endif
 #ifndef GASNETC_MAX_MEDIUM_PSHM
-  /* Assumes gasnetex_lub_AM{Request,Reply}Medium() expand to compile-time constants.
+  /* Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants.
    * If using this default, the conduit must ensure that _max_AM*Medium() for a PSHM
    * peer do not exceed the larger of the two _lub_ values.  Alternatively, the
    * conduit should define GASNETC_MAX_MEDIUM_PSHM to the appropriate bound instead.
    */
-  #define GASNETC_MAX_MEDIUM_PSHM MAX(gasnetex_lub_AMRequestMedium(),gasnetex_lub_AMReplyMedium())
+  #define GASNETC_MAX_MEDIUM_PSHM MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
 #endif
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
@@ -236,30 +236,30 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 #endif
 #ifndef GASNETC_TOKEN_CREATE
   /* Our default implementation is suitable for conduits that use a pointer
-   * for gasnetex_token_t.  We generate tokens with the least-significant bit
+   * for gex_AM_Token_t.  We generate tokens with the least-significant bit
    * set.  This distinguishes them from a valid pointer, but still allows a
    * (token != NULL) assertion.
    */
   #if GASNET_DEBUG
     typedef struct {
-      gasnetex_rank_t srcNode;
+      gex_Rank_t srcNode;
       int isReq;
       int replySent;
     } gasneti_ampshm_token_t;
 
-    static gasnetex_token_t gasnetc_token_create(gasnetex_rank_t src, int isReq) {
+    static gex_AM_Token_t gasnetc_token_create(gex_Rank_t src, int isReq) {
       gasneti_ampshm_token_t *my_token = gasneti_malloc(sizeof(gasneti_ampshm_token_t));
       gasneti_assert(!((uintptr_t)my_token & 1));
       gasneti_assert(gasneti_pshm_in_supernode(src));
       my_token->srcNode = src;
       my_token->isReq = isReq;
       my_token->replySent = 0;
-      return (gasnetex_token_t)(1|(uintptr_t)my_token);
+      return (gex_AM_Token_t)(1|(uintptr_t)my_token);
     }
 
     #define gasnetc_token_destroy(tok) gasneti_free((void*)(1^(uintptr_t)(tok)))
 
-    extern void gasnetc_token_reply(gasnetex_token_t token) {
+    extern void gasnetc_token_reply(gex_AM_Token_t token) {
       gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
       gasneti_assert(gasnetc_token_is_pshm(token));
       gasneti_assert(my_token);
@@ -268,11 +268,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       my_token->replySent = 1;
     }
 
-    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *src_ptr) {
+    extern int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr) {
       int retval = GASNET_ERR_BAD_ARG;
       if (gasnetc_token_is_pshm(token)) {
         gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
-        gasnetex_rank_t tmp = my_token->srcNode;
+        gex_Rank_t tmp = my_token->srcNode;
         gasneti_assert(gasneti_pshm_in_supernode(tmp));
         *src_ptr = tmp;
         retval = GASNET_OK;
@@ -282,7 +282,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   #else
     /* We encode the source in a uintptr_t but ignore isReq.  */
     #define gasnetc_token_create(_src, _isReq) \
-      ((gasnetex_token_t)(1 | ((uintptr_t)(_src) << 1)))
+      ((gex_AM_Token_t)(1 | ((uintptr_t)(_src) << 1)))
     #define gasnetc_token_destroy(tok) ((void)0)
   #endif
 #endif
@@ -292,11 +292,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
  * PSHM global variables:
  ******************************************************************************/
 gasneti_pshm_rank_t gasneti_pshm_nodes = 0;
-gasnetex_rank_t gasneti_pshm_firstnode = (gasnetex_rank_t)(-1);
+gex_Rank_t gasneti_pshm_firstnode = (gex_Rank_t)(-1);
 gasneti_pshm_rank_t gasneti_pshm_mynode = (gasneti_pshm_rank_t)(-1);
 /* vectors constructed in shared space: */
 gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
-gasnetex_rank_t *gasneti_pshm_firsts = NULL;
+gex_Rank_t *gasneti_pshm_firsts = NULL;
 
 /*******************************************************************************
  * "PSHM Net":  message header formats
@@ -310,8 +310,8 @@ typedef struct {
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
   gasnetc_handler_t handler_id;
-  gasnetex_rank_t source;
-  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
+  gex_Rank_t source;
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS_PSHM];
 } gasneti_AMPSHM_msg_t;
 typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
@@ -1136,8 +1136,8 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #define GASNETI_AMPSHM_MAX_REQUEST_PER_POLL 10
 
 #ifndef GASNETC_ENTERING_HANDLER_HOOK
-  /* extern void enterHook(int cat, int isReq, int handlerId, gasnetex_token_t *token,
-   *                       void *buf, size_t nbytes, int numargs, gasnetex_handlerarg_t *args);
+  /* extern void enterHook(int cat, int isReq, int handlerId, gex_AM_Token_t *token,
+   *                       void *buf, size_t nbytes, int numargs, gex_AM_Arg_t *args);
    */
   #define GASNETC_ENTERING_HANDLER_HOOK(cat,isReq,handlerId,token,buf,nbytes,numargs,args) ((void)0)
 #endif
@@ -1150,7 +1150,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_DEBUG
 static void gasneti_AMPSHM_amtbl_check(
-                gasnetex_endpoint_t ep,
+                gex_EP_t ep,
                 gasnetc_handler_t   index,
                 uint8_t             nargs)
 {
@@ -1159,7 +1159,7 @@ static void gasneti_AMPSHM_amtbl_check(
     gasneti_amtbl_check(&gasnetc_handler[index], nargs); // TODO-EX: EP-specific table
   #else
     // Must construct a handlerentry table entry
-    gasnetex_handlerentry_t entry;
+    gex_AM_Entry_t entry;
     entry.gex_nargs = gasnetc_get_handler(ep, index, nargs);
     entry.gex_flags = gasnetc_get_handler(ep, index, flags);
     entry.gex_fnptr = gasnetc_get_handler(ep, index, fnptr);
@@ -1175,7 +1175,7 @@ static void gasneti_AMPSHM_amtbl_check(
 GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
 int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 {
-  gasnetex_endpoint_t ep = NULL; // TODO-EX: get true value
+  gex_EP_t ep = NULL; // TODO-EX: get true value
   void *msg;
   size_t msgsz;
   gasneti_pshm_rank_t from;
@@ -1183,8 +1183,8 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gasnetc_handler_t handler_id;
   gasneti_handler_fn_t handler_fn;
   int numargs;
-  gasnetex_handlerarg_t *args;
-  gasnetex_token_t token;
+  gex_AM_Arg_t *args;
+  gex_AM_Token_t token;
 
   gasneti_assert(vnet != NULL);
 
@@ -1272,9 +1272,9 @@ int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG)
 static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 
 // TODO-EX: GASNETI_THREAD_FARG
-int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
+int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
-                                 void *dest_addr, gasnetex_flags_t flags, int numargs, va_list argptr)
+                                 void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr)
 {
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
   gasneti_pshm_rank_t target = gasneti_pshm_local_rank(dest);
@@ -1336,7 +1336,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = numargs;
   GASNETI_AMPSHM_MSG_SOURCE(msg) = gasneti_mynode;
   for(i = 0; i < numargs; i++) 
-    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gasnetex_handlerarg_t)va_arg(argptr, int);
+    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gex_AM_Arg_t)va_arg(argptr, int);
 
   /* Detect truncation if our field widths were too small */
   gasneti_assert( GASNETI_AMPSHM_MSG_CATEGORY(msg) == category );
@@ -1364,10 +1364,10 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
 
   /* Deliver message */
   if (loopback) {
-    gasnetex_endpoint_t ep = NULL; // TODO-EX: get true value
+    gex_EP_t ep = NULL; // TODO-EX: get true value
     gasneti_handler_fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
-    gasnetex_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
-    gasnetex_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
+    gex_AM_Token_t token = gasnetc_token_create(gasneti_mynode, isReq);
+    gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     gasneti_AMPSHM_amtbl_check(ep, handler, numargs);
     switch (category) {
       case gasnetc_Short:

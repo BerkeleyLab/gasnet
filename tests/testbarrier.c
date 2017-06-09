@@ -16,10 +16,10 @@
   #define TEST_UNNAMED_BARRIER 1
 #endif
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int mynode, nodes, iters = 0;
 
@@ -52,10 +52,10 @@ int my_barrier_wait(int value, int flags) {
 
 #define hidx_done_shorthandler   200
 volatile int done = 0;
-void done_shorthandler(gasnetex_token_t token) {
+void done_shorthandler(gex_AM_Token_t token) {
 	  done = 1;
 }
-gasnetex_handlerentry_t htable[] = {
+gex_AM_Entry_t htable[] = {
     { hidx_done_shorthandler, done_shorthandler, 0, 0, NULL, NULL }
 };
 
@@ -66,9 +66,9 @@ int main(int argc, char **argv) {
   int pollers = 0;
   int arg = 1;
 
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testbarrier", 0));
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, 1));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testbarrier", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, 1));
 
   TEST_COLL_INIT();
 
@@ -261,6 +261,6 @@ static void * doTest(void *arg) {
   BARRIER();
 #endif
 
-  gasnetex_AMRequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
+  gex_AM_RequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
   return NULL;
 }

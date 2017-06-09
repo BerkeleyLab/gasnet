@@ -10,10 +10,10 @@
 #define TEST_DELAY 1
 #include "test.h"
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 #define GASNET_HEADNODE 0
 
@@ -30,7 +30,7 @@ typedef struct {
 	int64_t time;
 } stat_struct_t;
 
-gasnetex_handlerentry_t handler_table[2];
+gex_AM_Entry_t handler_table[2];
 
 int myproc;
 int numprocs;
@@ -118,7 +118,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put(myteam, peerproc, peermem, mymem, nbytes, 0);
+			gex_RMA_PutBlocking(myteam, peerproc, peermem, mymem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -132,8 +132,8 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
-			gasnetex_wait(h);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_DEFER, 0);
+			gex_Event_Wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -146,9 +146,9 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_DEFER, 0);
 			test_delay(loops, pollcnt);
-			gasnetex_wait(h);
+			gex_Event_Wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
@@ -160,8 +160,8 @@ void put_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
-			gasnetex_wait(h);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_DEFER, 0);
+			gex_Event_Wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -180,8 +180,8 @@ void put_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
-			gasnetex_wait(h);
+			gex_Event_t h = gex_RMA_PutNB(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_DEFER, 0);
+			gex_Event_Wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -201,9 +201,9 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_NOW, 0);
+			gex_RMA_PutNBI(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_NOW, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "put: gap - put_nbi", PRINT_GAP);
@@ -216,9 +216,9 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_RMA_PutNBI(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_DEFER, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "put: G   - put_nbi", PRINT_BIG_G);
@@ -241,7 +241,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_get(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_RMA_GetBlocking(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -255,8 +255,8 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
-			gasnetex_wait(h);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_Wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -269,9 +269,9 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
 			test_delay(loops, pollcnt);
-			gasnetex_wait(h);
+			gex_Event_Wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
@@ -283,8 +283,8 @@ void get_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
-			gasnetex_wait(h);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_Wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -303,8 +303,8 @@ void get_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
-			gasnetex_wait(h);
+			gex_Event_t h = gex_RMA_GetNB(myteam, mymem, peerproc, peermem, nbytes, 0);
+			gex_Event_Wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -324,9 +324,9 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "get: gap - get_nbi", PRINT_GAP);
@@ -339,9 +339,9 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
     		print_stat(myproc, &st, "get: G   - get_nbi", PRINT_BIG_G);
@@ -356,8 +356,8 @@ int main(int argc, char **argv)
     char usagestr[255];
    
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testlogGP", 0));
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testlogGP", &argc, &argv, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     snprintf(usagestr, sizeof(usagestr), "iters pollcnt sizes...\n"
                       "    sizes are limited to %"PRIuPTR, (uintptr_t)TEST_SEGSZ);
     test_init("testlogGP",1, usagestr);

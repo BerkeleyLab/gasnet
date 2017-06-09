@@ -81,7 +81,7 @@ GASNETI_BEGIN_NOWARN
 /* Functions, types, etc for computational collectives */
 
 #ifndef GASNET_COLL_FN_HANDLE_T
-  typedef gasnetex_handlerarg_t gasnet_coll_fn_handle_t;
+  typedef gex_AM_Arg_t gasnet_coll_fn_handle_t;
 #endif
 
 typedef void (*gasnet_coll_reduce_fn_t)(
@@ -186,20 +186,20 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 
 
 
-extern gasnetex_rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-extern gasnetex_rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnetex_rank_t node);
-extern gasnetex_rank_t gasnete_coll_team_size(gasnete_coll_team_t team);
+extern gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern gex_Rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node);
+extern gex_Rank_t gasnete_coll_team_size(gasnete_coll_team_t team);
 
 
 #define gasnet_coll_team_rank2node(TEAM, RANK) gasnete_coll_team_rank2node(TEAM, RANK)
 #define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
 #define gasnet_coll_team_size(TEAM) gasnete_coll_team_size(TEAM)
 
-extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnetex_rank_t color,
-						    gasnetex_rank_t relrank, void *clientdata GASNETE_THREAD_FARG);
+extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gex_Rank_t color,
+						    gex_Rank_t relrank, void *clientdata GASNETE_THREAD_FARG);
 
 GASNETI_INLINE(_gasnet_coll_team_split)
-     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnetex_rank_t color, gasnetex_rank_t relrank,
+     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gex_Rank_t color, gex_Rank_t relrank,
 						  void *clientdata GASNETE_THREAD_FARG) {
   return gasnete_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_PASS);
   

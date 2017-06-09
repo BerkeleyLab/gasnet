@@ -348,7 +348,7 @@ typedef enum {
 #endif
 
 #ifndef GASNET_COLL_MAX_PIPE_SEG_SIZE
-#define GASNET_COLL_MAX_PIPE_SEG_SIZE gasnetex_lub_AMRequestLong()
+#define GASNET_COLL_MAX_PIPE_SEG_SIZE gex_AM_LUBRequestLong()
 #endif
 
 /*flags to control how the search space looks like*/
@@ -481,14 +481,14 @@ struct gasnete_coll_autotune_info_t_ {
 
 
 
-gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnetex_rank_t mynode, gasnetex_rank_t total_nodes,
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gex_Rank_t mynode, gex_Rank_t total_nodes,
                                                          gasnet_image_t my_images, gasnet_image_t total_images, 
                                                          size_t min_scratch_size GASNETE_THREAD_FARG);
 /*testing functions*/
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnet_coll_optype_t op_type, 
-                                                             gasnetex_rank_t root, size_t nbytes, int flags);
+                                                             gex_Rank_t root, size_t nbytes, int flags);
 
 
 #ifdef GASNETE_COLL_CONDUIT_COLLECTIVES

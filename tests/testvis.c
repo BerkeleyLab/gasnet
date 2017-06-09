@@ -15,10 +15,10 @@
 #endif
 #include <test.h>
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 #ifndef MAX_VECLEN
 #define MAX_VECLEN  100
@@ -227,7 +227,7 @@ void trim_memvec_list(test_memvec_list *one, test_memvec_list *two) {
 }
 
 void _verify_memvec_data_both(test_memvec_list *src, void *result, 
-                              gasnetex_rank_t nodeid, VEC_T *areaptr,
+                              gex_Rank_t nodeid, VEC_T *areaptr,
                               const char *context, const char *file, int line) {
   VEC_T *p = result;
   size_t i,j;
@@ -391,7 +391,7 @@ void trim_addr_list(test_addr_list *one, test_addr_list *two) {
 }
 
 void _verify_addr_list_data_both(test_addr_list *src, void *result, 
-                                gasnetex_rank_t nodeid, VEC_T *areaptr,
+                                gex_Rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   VEC_T *p = result;
   size_t chunkelem = src->chunklen / VEC_SZ;
@@ -583,7 +583,7 @@ test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contiga
 }
 
 void _verify_strided_desc_data_both(test_strided_desc *desc, void *result, 
-                            gasnetex_rank_t nodeid, VEC_T *areaptr,
+                            gex_Rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   size_t dim = (desc->stridelevels+1);
   size_t * idx;
@@ -963,7 +963,7 @@ void doit(int iters, int runtests) {
     MSG("Non-blocking tests...");
     for (iter = 0; iter < iters; iter++) {
       size_t numops = TEST_RAND(1, MAX_INFLIGHT_OPS);
-      gasnetex_handle_t *handles = test_calloc(sizeof(gasnetex_handle_t), numops);
+      gex_Event_t *events = test_calloc(sizeof(gex_Event_t), numops);
       test_op *ops = test_calloc(sizeof(test_op), numops);
       size_t opareasz = areasz / numops;
       size_t i;
@@ -984,7 +984,7 @@ void doit(int iters, int runtests) {
             ops[i].vtmp = buildcontig_memvec_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].vdst->totalsz/VEC_SZ, opareasz);
 
             if (TEST_RAND_ONEIN(2)) 
-              handles[i] = gasnet_putv_nb_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
+              events[i] = gasnet_putv_nb_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
             else gasnet_putv_nbi_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
 
             verify_memvec_list(ops[i].vsrc);
@@ -1001,7 +1001,7 @@ void doit(int iters, int runtests) {
             ops[i].itmp = buildcontig_addr_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].idst->totalsz/VEC_SZ, opareasz);
 
             if (TEST_RAND_ONEIN(2)) 
-              handles[i] = gasnet_puti_nb_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
+              events[i] = gasnet_puti_nb_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
             else gasnet_puti_nbi_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
 
             verify_addr_list(ops[i].isrc);
@@ -1017,7 +1017,7 @@ void doit(int iters, int runtests) {
             ops[i].stmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,opareasz - ops[i].sdesc->totalsz/VEC_SZ);
 
             if (TEST_RAND_ONEIN(2)) 
-              handles[i] = gasnet_puts_nb_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
+              events[i] = gasnet_puts_nb_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
             else gasnet_puts_nbi_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
 
             verify_strided_desc(ops[i].sdesc);
@@ -1027,8 +1027,8 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gasnetex_wait_all(handles, numops);
-      gasnetex_wait_syncnbi_all();
+      gex_Event_WaitAll(events, numops);
+      gex_NBI_WaitAll();
 
       /* gets */
       for(i=0; i < numops; i++) {
@@ -1036,7 +1036,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].vdst != NULL && ops[i].vtmp != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            handles[i] = gasnet_getv_nb_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
+            events[i] = gasnet_getv_nb_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
           else gasnet_getv_nbi_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
 
           verify_memvec_list(ops[i].vtmp);
@@ -1045,7 +1045,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].idst != NULL && ops[i].itmp != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            handles[i] = gasnet_geti_nb_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
+            events[i] = gasnet_geti_nb_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
           else gasnet_geti_nbi_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
 
           verify_addr_list(ops[i].itmp);
@@ -1054,7 +1054,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].sdesc != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            handles[i] = gasnet_gets_nb_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
+            events[i] = gasnet_gets_nb_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
           else gasnet_gets_nbi_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
 
           verify_strided_desc(ops[i].sdesc);
@@ -1062,8 +1062,8 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gasnetex_wait_all(handles, numops);
-      gasnetex_wait_syncnbi_all();
+      gex_Event_WaitAll(events, numops);
+      gex_NBI_WaitAll();
 
       for(i=0; i < numops; i++) {
         if (ops[i].vsrc != NULL) {
@@ -1096,7 +1096,7 @@ void doit(int iters, int runtests) {
           test_free(ops[i].sdesc);
         }
       }
-      test_free(handles);
+      test_free(events);
       test_free(ops);
       TEST_PROGRESS_BAR(iter, iters);
     }
@@ -1114,8 +1114,8 @@ int main(int argc, char **argv) {
   int i;
 
   assert_always(VEC_SZ == sizeof(VEC_T));
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testvis", 0));
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testvis", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testvis",0, "[options] (iters) (seed)\n"
             " -v/-i/-s/-n  run vector/indexed/strided/non-blocking tests (defaults to all)\n"
             " -d        disable correctness verification checks\n"

@@ -7,7 +7,7 @@
 #ifndef _GASNET_IBV_H
 #define _GASNET_IBV_H
 
-#include <gasnet_handle_internal.h>
+#include <gasnet_event_internal.h>
 
 /* ------------------------------------------------------------------------------------ *
  *  Common op completion logic

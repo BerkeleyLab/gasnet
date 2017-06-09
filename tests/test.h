@@ -654,18 +654,18 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 #define TEST_PRINT_CONDUITINFO() do {                              \
   MSG0("%s conduit: v%s GASNET_ALIGNED_SEGMENTS=%i\n"              \
        " gasnet_AMMaxArgs():             %i\n"                     \
-       " gasnetex_lub_AMRequestMedium(): %i\n"                     \
-       " gasnetex_lub_AMReplyMedium():   %i\n"                     \
-       " gasnetex_lub_AMRequestLong():   %i\n"                     \
-       " gasnetex_lub_AMReplyLong():     %i"                       \
+       " gex_AM_LUBRequestMedium(): %i\n"                     \
+       " gex_AM_LUBReplyMedium():   %i\n"                     \
+       " gex_AM_LUBRequestLong():   %i\n"                     \
+       " gex_AM_LUBReplyLong():     %i"                       \
     ,                                                              \
     _STRINGIFY(GASNET_CORE_NAME), _STRINGIFY(GASNET_CORE_VERSION), \
     GASNET_ALIGNED_SEGMENTS,                                       \
     (int)gasnet_AMMaxArgs(),                                       \
-    (int)gasnetex_lub_AMRequestMedium(),                           \
-    (int)gasnetex_lub_AMReplyMedium(),                             \
-    (int)gasnetex_lub_AMRequestLong(),                             \
-    (int)gasnetex_lub_AMReplyLong());                              \
+    (int)gex_AM_LUBRequestMedium(),                           \
+    (int)gex_AM_LUBReplyMedium(),                             \
+    (int)gex_AM_LUBRequestLong(),                             \
+    (int)gex_AM_LUBReplyLong());                              \
   } while (0)
 
 #if defined(GASNET_SEQ)
@@ -727,12 +727,12 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
      across the nodes, and also works on X-1 where the static data is
      misaligned across nodes. 
      The only assumption is that AM mediums, barriers and atomics work properly
-     We intercept the gasnet_attach or gasnetex_TeamSegmentCreate call and do the segment exchange there
+     We intercept the gasnet_attach or gex_Segment_Attach call and do the segment exchange there
    */
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
-  static void _test_seggather(gasnetex_token_t token, void *buf, size_t nbytes) {
-    gasnetex_rank_t srcid;
+  static void _test_seggather(gex_AM_Token_t token, void *buf, size_t nbytes) {
+    gex_Rank_t srcid;
     assert(nbytes == sizeof(gasnet_seginfo_t));
     assert(_test_seginfo != NULL);
     gasnet_AMGetMsgSource(token, &srcid);
@@ -742,12 +742,12 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   }
   static int _test_segbcast_idx;
   static gasnett_atomic_t _test_segbcast_count = gasnett_atomic_init(0);
-  static void _test_segbcast(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t idx) {
-    void *dst = (void*)((uintptr_t)_test_seginfo + idx * gasnetex_lub_AMRequestMedium());
+  static void _test_segbcast(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t idx) {
+    void *dst = (void*)((uintptr_t)_test_seginfo + idx * gex_AM_LUBRequestMedium());
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);
   }
-  static int _test_create_test_segment(gasnetex_team_member_t team, uintptr_t segsize) {
+  static int _test_create_test_segment(gex_TM_t tm, uintptr_t segsize) {
     #ifdef TEST_SEGSZ_EXPR
       /* dynamically allocate segment */
       uint8_t *_test_hidden_seg;
@@ -758,7 +758,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     int i;
     gasnet_seginfo_t myseg;
 
-    gasnetex_handlerentry_t mytab[] = {
+    gex_AM_Entry_t mytab[] = {
 #if GASNET_USE_STRICT_PROTOTYPES
       { 0, (void *)_test_seggather, 0, 0, NULL, NULL },
       { 0, (void *)_test_segbcast,  0, 1, NULL, NULL }
@@ -769,7 +769,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     };
     // EX-TODO: will need an endpoint (in place of NULL below) for
     // the AM registration *or* switch to GASNet's collectives
-    GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, mytab, 2));
+    GASNET_Safe(gex_EP_RegisterHandlers(NULL, mytab, 2));
     _test_seggather_idx = mytab[0].gex_index;
     _test_segbcast_idx = mytab[1].gex_index;
 
@@ -784,9 +784,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
        (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
     myseg.size = TEST_SEGSZ;
     BARRIER();
-    gasnetex_AMRequestMedium0(team, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_EVENT_NOW, 0);
+    gex_AM_RequestMedium0(tm, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GEX_EVENT_NOW, 0);
     { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
-      const size_t msg_bytes = gasnetex_lub_AMRequestMedium();
+      const size_t msg_bytes = gex_AM_LUBRequestMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
       if (gasnet_mynode() == 0) {
         size_t remain = total_bytes;
@@ -796,7 +796,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
         for (idx = 0; idx < msg_count; ++idx) {
           const size_t nbytes = MIN(remain, msg_bytes);
           for (i=0; i < (int)gasnet_nodes(); i++) {
-            gasnetex_AMRequestMedium1(team, i, _test_segbcast_idx, payload, nbytes, GASNETEX_EVENT_NOW, 0, idx);
+            gex_AM_RequestMedium1(tm, i, _test_segbcast_idx, payload, nbytes, GEX_EVENT_NOW, 0, idx);
           }
           remain -= nbytes;
           payload = (void*)((uintptr_t)payload + nbytes);
@@ -816,31 +816,28 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   {
     /* do regular attach, then setup seg_everything segment */
     GASNET_Safe(gasnet_attach(table, numentries, segsize, minheapoffset));
-    gasnetex_team_member_t team;
-    gasnet_FetchGexObjects(NULL,NULL,&team,NULL);
-    return _test_create_test_segment(team, segsize);
+    gex_TM_t tm;
+    gasnet_QueryGexObjects(NULL,NULL,&tm,NULL);
+    return _test_create_test_segment(tm, segsize);
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
  #else
-  static int _test_TeamSegmentCreate(
-                gasnetex_segment_t     *segment_p,
-                gasnetex_team_member_t team,
-                void                   *address,
-                uintptr_t              length,
-                gasnetex_memkind_t     kind,
-                gasnetex_flags_t       flags)
+  static int _test_Segment_Attach(
+                gex_Segment_t     *segment_p,
+                gex_TM_t          tm,
+                uintptr_t         length)
   {
-    return _test_create_test_segment(team, length);
+    return _test_create_test_segment(tm, length);
   }
-  #undef gasnetex_TeamSegmentCreate
-  #define gasnetex_TeamSegmentCreate _test_TeamSegmentCreate
+  #undef gex_Segment_Attach
+  #define gex_Segment_Attach _test_Segment_Attach
  #endif
 #else
   static gasnet_seginfo_t *_test_seginfo;
-  static void *_test_getseg(gasnetex_rank_t node) {
+  static void *_test_getseg(gex_Rank_t node) {
     if (_test_seginfo == NULL) {
-      gasnetex_rank_t i;
+      gex_Rank_t i;
       gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
       GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
       for (i=0; i < gasnet_nodes(); i++) {
@@ -868,7 +865,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     if_pf (is_aligned < 0) {
       int result = 1; /* Assume aligned until we find otherwise */
       void *addr0 = _test_seginfo[0].addr;
-      gasnetex_rank_t i;
+      gex_Rank_t i;
       for (i = 1; i < gasnet_nodes(); i++) {
         if (_test_seginfo[i].addr != addr0) {
           result = 0;
@@ -886,12 +883,12 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 /* ------------------------------------------------------------------------------------ */
 /* local process and thread count management */
 static gasnet_nodeinfo_t *_test_nodeinfo = NULL;
-static gasnetex_rank_t _test_firstnode;
+static gex_Rank_t _test_firstnode;
 static int _test_localprocs(void) { /* First call is not thread safe */
   static int count = 0;
   if (!count) {
-    gasnetex_rank_t my_supernode;
-    gasnetex_rank_t i;
+    gex_Rank_t my_supernode;
+    gex_Rank_t i;
 
     assert(_test_nodeinfo);
     my_supernode = _test_nodeinfo[gasnet_mynode()].supernode;

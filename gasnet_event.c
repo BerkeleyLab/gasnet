@@ -1,10 +1,10 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_handle.c $
- * Description: GASNet handle/eop/iop common code
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_event.c $
+ * Description: GASNet event/eop/iop common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_handle_internal.h>
+#include <gasnet_event_internal.h>
 
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
@@ -24,7 +24,7 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
     gasnete_eop_t *buf;
     int i;
     const gasnete_threadidx_t threadidx = thread->threadidx;
-    if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
+    if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit events (limit=65535)");
     thread->eop_num_bufs++;
     buf = (gasnete_eop_t *)gasneti_calloc(256,allocsz);
     gasneti_leak(buf);
@@ -204,7 +204,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for explicit-handle non-blocking operations:
+  Synchronization for explicit-event non-blocking operations:
   ===========================================================
 */
 
@@ -213,22 +213,22 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
  *  free it if complete
  *  returns 0 or 1 */
 GASNETI_INLINE(gasnete_op_try_free)
-int gasnete_op_try_free(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
+int gasnete_op_try_free(gex_Event_t event GASNETI_THREAD_FARG) {
 #ifdef GASNETE_OP_TRY_FREE_EXTRA
-  // Hook to operate on conduit-specific handles
-  GASNETE_OP_TRY_FREE_EXTRA(handle);
+  // Hook to operate on conduit-specific events
+  GASNETE_OP_TRY_FREE_EXTRA(event);
   #error "GASNETE_OP_TRY_FREE_EXTRA not implemented in array test/wait ops"
 #endif
 
-  gasnete_handle_check(handle);
+  gasnete_event_check(event);
 
   // "Fast-path" detects outstanding event w/o any branches
-  if (EVENT_LIVE_MASK & *(volatile uint8_t *)handle) return 0;
+  if (EVENT_LIVE_MASK & *(volatile uint8_t *)event) return 0;
 
   // "Slow-path" must distinguish root from leaf
-  const unsigned int idx = gasneti_handle_idx(handle);
-  if_pt (! idx) { // It's a root event handle
-    if (EVENT_ANY_LIVE(handle)) return 0;
+  const unsigned int idx = gasneti_event_idx(event);
+  if_pt (! idx) { // It's a root event event
+    if (EVENT_ANY_LIVE(event)) return 0;
 
     // TODO-EX:
     // Could potentially weaken "sync_reads" for some cases?
@@ -236,29 +236,29 @@ int gasnete_op_try_free(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
     gasneti_sync_reads();
 
     // TODO-EX: the mask operation in OPTYPE() unnecessary?
-    if_pt (OPTYPE((gasnete_op_t*)handle) == OPTYPE_EXPLICIT) {
-      gasnete_eop_free((gasnete_eop_t*)handle);
+    if_pt (OPTYPE((gasnete_op_t*)event) == OPTYPE_EXPLICIT) {
+      gasnete_eop_free((gasnete_eop_t*)event);
     } else {
-      gasnete_iop_free((gasnete_iop_t*)handle);
+      gasnete_iop_free((gasnete_iop_t*)event);
     }
-  } else { // It's a leaf event handle
-    gasneti_assert(EVENT_DONE(gasneti_handle_op(handle), idx)); // confirm the EVENT_LIVE_MASK result
+  } else { // It's a leaf event
+    gasneti_assert(EVENT_DONE(gasneti_event_op(event), idx)); // confirm the EVENT_LIVE_MASK result
     gasneti_compiler_fence(); // TODO-EX: revisit this
   }
 
   return 1;
 }
 
-extern int  gasnete_test(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
-  gasneti_assert(handle != GASNETEX_INVALID_HANDLE); // invalid handled inline in header
-  return gasnete_op_try_free(handle GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
+extern int  gasnete_test(gex_Event_t event GASNETI_THREAD_FARG) {
+  gasneti_assert(event != GEX_EVENT_INVALID); // invalid handled inline in header
+  return gasnete_op_try_free(event GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
 #if !defined(gasnete_test_all) || \
     !defined(gasnete_test_some)
 GASNETI_INLINE(gasnete_test_array)
-int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_eop_t *eop_head = NULL, **eop_tail_p = &eop_head;
   gasnete_iop_t *iop_head = NULL, **iop_tail_p = &iop_head;
@@ -267,12 +267,12 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
   int empty = 1;
   size_t to_retest = 0;
 
-  gasneti_assert(phandle);
+  gasneti_assert(pevent);
 
   // NOTE: We must allow leaves and their corresponding roots to appear in the
   // array in any order while ensuring that we don't sync a root but not some
   // corresponding leaf.  The current approach is to make two passes, the first
-  // testing all handles.  If and only if the first pass synced at least one
+  // testing all events.  If and only if the first pass synced at least one
   // root and failed to sync at least one leaf, a second pass is made to retest
   // all of the remaining leaves.
   //
@@ -281,20 +281,20 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
   // while their leaves are still being tested.  Even in the absence of a
   // second pass, this will yield an efficient "bulk free".
 
-  // Pass 1: test all handles, evaluate 'empty', and count 'to_retest'
-  for (size_t i = 0; i < numhandles; i++) {
-    const gasnetex_handle_t handle = phandle[i];
-    if (GASNETEX_INVALID_HANDLE != handle) {
-      gasnete_handle_check(handle);
+  // Pass 1: test all events, evaluate 'empty', and count 'to_retest'
+  for (size_t i = 0; i < numevents; i++) {
+    const gex_Event_t event = pevent[i];
+    if (GEX_EVENT_INVALID != event) {
+      gasnete_event_check(event);
       empty = 0;
-      if (gasneti_handle_idx(handle)) { // It's a leaf
-        if (EVENT_LIVE_MASK & *(volatile uint8_t *)phandle[i]) {
+      if (gasneti_event_idx(event)) { // It's a leaf
+        if (EVENT_LIVE_MASK & *(volatile uint8_t *)pevent[i]) {
           // Do NOT "all_synced = 0" since we'll retry this leaf in second pass
           to_retest += 1;
           continue;
         }
       } else { // It's a root
-        if (EVENT_ANY_LIVE(handle)) {
+        if (EVENT_ANY_LIVE(event)) {
           all_synced = 0;
           continue;
         }
@@ -307,8 +307,8 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
         gasneti_sync_reads();
 
         // TODO-EX: track if all are from same thread so bulk free can act accordingly
-        gasnete_op_t *op = (gasnete_op_t*)handle;
-        gasneti_assert(op->threadidx == mythread->threadidx); // TODO-EX: until we handle "foreign" ops
+        gasnete_op_t *op = (gasnete_op_t*)event;
+        gasneti_assert(op->threadidx == mythread->threadidx); // TODO-EX: until we event "foreign" ops
         if (OPTYPE(op) == OPTYPE_EXPLICIT) { // TODO-EX: the mask operation in OPTYPE() unnecessary?
           gasnete_eop_t *eop = (gasnete_eop_t*)op;
           gasnete_eop_prep_free(eop);
@@ -324,25 +324,25 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
         }
       }
 
-      phandle[i] = GASNETEX_INVALID_HANDLE;
+      pevent[i] = GEX_EVENT_INVALID;
       some_synced = 1;
     }
   }
 
-  // Pass 2: retest all still-live leaf handles (if any)
-  gasneti_assert(! gasneti_handle_idx(GASNETEX_INVALID_HANDLE));
+  // Pass 2: retest all still-live leaf events (if any)
+  gasneti_assert(! gasneti_event_idx(GEX_EVENT_INVALID));
   if (to_retest) {
     if (eop_head || iop_head) {
       size_t to_test = to_retest;
       for (size_t i = 0; to_test; i++) {
-        gasneti_assert(i < numhandles);
-        const gasnetex_handle_t handle = phandle[i];
-        if (gasneti_handle_idx(handle)) {
+        gasneti_assert(i < numevents);
+        const gex_Event_t event = pevent[i];
+        if (gasneti_event_idx(event)) {
           to_test -= 1;
-          if (EVENT_LIVE_MASK & *(volatile uint8_t *)handle) {
+          if (EVENT_LIVE_MASK & *(volatile uint8_t *)event) {
             all_synced = 0;
           } else {
-            phandle[i] = GASNETEX_INVALID_HANDLE;
+            pevent[i] = GEX_EVENT_INVALID;
 	    some_synced = 1;
           }
         }
@@ -394,20 +394,20 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
 #endif
 
 #ifndef gasnete_test_some
-extern int  gasnete_test_some (gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
-  return gasnete_test_array(0, phandle, numhandles GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
+extern int  gasnete_test_some (gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
+  return gasnete_test_array(0, pevent, numevents GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
 #ifndef gasnete_test_all
-extern int  gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
-  return gasnete_test_array(1, phandle, numhandles GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
+extern int  gasnete_test_all (gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
+  return gasnete_test_array(1, pevent, numevents GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for implicit-handle non-blocking operations:
+  Synchronization for implicit-event non-blocking operations:
   ===========================================================
 */
 
@@ -450,7 +450,7 @@ extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
 #endif
 
 #ifndef gasnete_test_syncnbi_mask
-extern int gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+extern int gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   gasneti_assert(iop->threadidx == mythread->threadidx);
@@ -461,13 +461,13 @@ extern int gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags G
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_mask() inside an NBI access region");
   #endif
 
-  if (mask & GASNETEX_EVENTID_LC) {
+  if (mask & GEX_NBI_LC) {
     if (! GASNETE_IOP_LC_CNTDONE(iop)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GASNETEX_EVENTID_PUTS) {
+  if (mask & GEX_NBI_PUTS) {
     if (! GASNETE_IOP_CNTDONE(iop,put)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GASNETEX_EVENTID_GETS) {
+  if (mask & GEX_NBI_GETS) {
     if (! GASNETE_IOP_CNTDONE(iop,get)) return GASNET_ERR_NOT_READY;
     gasneti_sync_reads(); // TODO-EX: revisit this
   } else {
@@ -487,7 +487,7 @@ extern int gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags G
 /*  This implementation allows recursive access regions, although the spec does not require that */
 /*  operations are associated with the most immediately enclosing access region */
 #ifndef gasnete_begin_nbi_accessregion
-extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG) {
+extern void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop */
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
@@ -511,7 +511,7 @@ extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecu
 #endif
 
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
@@ -528,23 +528,23 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GAS
   #endif
   mythread->current_iop = iop->next;
   iop->next = iop; /* Identifies an iop returned from access region */
-  return (gasnetex_handle_t)iop;
+  return (gex_Event_t)iop;
 }
 #endif
 
-#ifndef gasnete_get_leaf
+#ifndef gasnete_Event_QueryLeaf
 #if GASNET_DEBUG
 static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
-  gasneti_assert(! gasneti_handle_idx(op));
+  gasneti_assert(! gasneti_event_idx(op));
   switch (OPTYPE(op)) {
     case OPTYPE_IMPLICIT: {
       gasnete_iop_t *iop = (gasnete_iop_t*)op;
       gasnete_iop_check(iop);
       gasneti_assert(iop->next); // was returned from access region
       switch (event_id) {
-        case GASNETEX_EVENTID_PUTS:  // fall-through...
-        case GASNETEX_EVENTID_GETS:  // fall-through...
-        case GASNETEX_EVENTID_LC:    return;
+        case GEX_NBI_PUTS:  // fall-through...
+        case GEX_NBI_GETS:  // fall-through...
+        case GEX_NBI_LC:    return;
       }
       break;
     }
@@ -552,31 +552,31 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
       gasnete_eop_t *eop = (gasnete_eop_t*)op;
       gasnete_eop_check(eop);
       switch (event_id) {
-        case GASNETEX_EVENTID_LC: return;
+        case GEX_NBI_LC: return;
       }
       break;
     }
   }
-  gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
+  gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");
 }
 #else
   #define _gasnete_get_leaf_check(op, event_id) ((void)0)
 #endif
 
-extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id) {
+extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_id) {
   gasnete_op_t *op = (gasnete_op_t*)root;
   _gasnete_get_leaf_check(op, event_id);
 
   gasneti_assert(gasnete_eop_event_alc == gasnete_iop_event_alc); // TODO-EX: move elsewhere
 
   switch (event_id) {
-    case GASNETEX_EVENTID_PUTS: return gasneti_op_handle(op, gasnete_iop_event_put);
-    case GASNETEX_EVENTID_GETS: return gasneti_op_handle(op, gasnete_iop_event_get);
-    case GASNETEX_EVENTID_LC:   return gasneti_op_handle(op, gasnete_iop_event_alc);
+    case GEX_NBI_PUTS: return gasneti_op_event(op, gasnete_iop_event_put);
+    case GEX_NBI_GETS: return gasneti_op_event(op, gasnete_iop_event_get);
+    case GEX_NBI_LC:   return gasneti_op_event(op, gasnete_iop_event_alc);
   }
 
-  gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
-  return GASNETEX_INVALID_HANDLE; // NOT REACHED
+  gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");
+  return GEX_EVENT_INVALID; // NOT REACHED
 }
 #endif
 

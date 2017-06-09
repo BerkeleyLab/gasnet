@@ -8,7 +8,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 #include <amudp.h>
 
@@ -116,7 +116,7 @@ const char *gasneti_AMErrorName(int errval) {
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-extern gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 /* AM category (recommended impl if supporting PSHM) */
@@ -127,7 +127,7 @@ typedef enum {
 } gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle_internal.h and gasnet_handle.c */
+/* Configure gasnet_event_internal.h and gasnet_event.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
 // (###) Define as needed if iop counters should use something other than weakatomics:

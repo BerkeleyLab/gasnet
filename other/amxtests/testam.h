@@ -41,7 +41,7 @@
 #elif defined(TEST_GASNETEX)
   #include "gasnet_tools.h"
   #include "test.h"
-  typedef gasnetex_handlerarg_t handlerarg_t;
+  typedef gex_AM_Arg_t handlerarg_t;
  #define EXTERNC GASNETT_EXTERNC
  GASNETT_BEGIN_EXTERNC
  #ifdef GASNET_USE_STRICT_PROTOTYPES
@@ -50,7 +50,7 @@
   typedef void (*handler_fn_t)();
  #endif
  GASNETT_END_EXTERNC
-  typedef gasnetex_token_t token_t;
+  typedef gex_AM_Token_t token_t;
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
@@ -58,21 +58,21 @@
   #define INCREP() gasnett_atomic_increment(&numrep,0)
   #define NUMREQ() gasnett_atomic_read(&numreq,0)
   #define NUMREP() gasnett_atomic_read(&numrep,0)
-  #define RequestShort(num,args)                gasnetex_AMRequestShort##num args
-  #define RequestMedium(num,args)               gasnetex_AMRequestMedium##num args
-  #define RequestLong(num,AMargs,GASNETargs)    gasnetex_AMRequestLong##num GASNETargs
+  #define RequestShort(num,args)                gex_AM_RequestShort##num args
+  #define RequestMedium(num,args)               gex_AM_RequestMedium##num args
+  #define RequestLong(num,AMargs,GASNETargs)    gex_AM_RequestLong##num GASNETargs
   #define RequestLongAsync                      RequestLong
-  #define ReplyShort(num,args)                  gasnetex_AMReplyShort##num args
-  #define ReplyMedium(num,args)                 gasnetex_AMReplyMedium##num args
-  #define ReplyLong(num,AMargs,GASNETargs)      gasnetex_AMReplyLong##num GASNETargs
+  #define ReplyShort(num,args)                  gex_AM_ReplyShort##num args
+  #define ReplyMedium(num,args)                 gex_AM_ReplyMedium##num args
+  #define ReplyLong(num,AMargs,GASNETargs)      gex_AM_ReplyLong##num GASNETargs
   #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())
-  #define GETPARTNER(token)  gasnetex_rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
+  #define GETPARTNER(token)  gex_Rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
   #define ENDPOINT                 myteam,
   #define EXTRA_S                  ,0
-  #define EXTRA_ML                 ,GASNETEX_EVENT_NOW,0
+  #define EXTRA_ML                 ,GEX_EVENT_NOW,0
 #else
   #include "apputils.h"
   typedef int handlerarg_t;

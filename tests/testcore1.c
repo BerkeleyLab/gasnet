@@ -34,10 +34,10 @@ typedef struct {
 
 monoseed_t	 *_mseed;
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int	myproc;
 int	numproc;
@@ -125,7 +125,7 @@ chksum_test(int iters)
 
 	if (iamsender) {
 		for (i = 0; i < iters; i++)
-			gasnetex_AMRequestShort2(myteam, (gasnetex_rank_t)peerproc, 
+			gex_AM_RequestShort2(myteam, (gex_Rank_t)peerproc, 
 				201, 0, i, _mseed[i].seed);
 	}
 
@@ -173,8 +173,8 @@ chksum_test(int iters)
  * chksum_reph(i, src, nbytes) compares src[nbytes] to its copy of the
  * checksum at i
  */
-void chksum_reqh(gasnetex_token_t token, 
-	gasnetex_handlerarg_t iter, gasnetex_handlerarg_t seed)
+void chksum_reqh(gex_AM_Token_t token, 
+	gex_AM_Arg_t iter, gex_AM_Arg_t seed)
 {
         unsigned char   chksum_reqbuf[CHKSUM_TOTAL];
 
@@ -182,14 +182,14 @@ void chksum_reqh(gasnetex_token_t token,
 	chksum_gen(seed, &chksum_reqbuf);
 	monoseed_trace(iter, seed, &chksum_reqbuf, NULL);
 	GASNET_Safe( 
-	    gasnetex_AMReplyMedium1(token, 202, &chksum_reqbuf, 
-	        CHKSUM_TOTAL, GASNETEX_EVENT_NOW, 0, iter));
+	    gex_AM_ReplyMedium1(token, 202, &chksum_reqbuf, 
+	        CHKSUM_TOTAL, GEX_EVENT_NOW, 0, iter));
 	return;
 }
 
 void
-chksum_reph(gasnetex_token_t token, 
-	void *buf, size_t nbytes, gasnetex_handlerarg_t iter)
+chksum_reph(gex_AM_Token_t token, 
+	void *buf, size_t nbytes, gex_AM_Arg_t iter)
 {
 	gasnett_atomic_increment(&chksum_received, 0);
 	assert_always(iter < chksum_iters && iter >= 0);
@@ -213,19 +213,19 @@ int
 main(int argc, char **argv)
 {
 	int	iters = 0;
-	gasnetex_handlerentry_t htable[] = {
+	gex_AM_Entry_t htable[] = {
 		{ 201, chksum_reqh, 0, 2 },
 		{ 202, chksum_reph, 0, 1 }
 	};
 
 	/* call startup */
-        GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcore1", 0));
-        GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
-        GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+        GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore1", &argc, &argv, 0));
+        GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+        GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
 	test_init("testcore1",0,"(iters)");
 
-        assert(CHKSUM_TOTAL <= gasnetex_lub_AMReplyMedium());
+        assert(CHKSUM_TOTAL <= gex_AM_LUBReplyMedium());
 
 	if (argc > 1) iters = atoi(argv[1]);
 	if (!iters) iters = 1000;

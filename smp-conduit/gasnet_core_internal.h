@@ -8,7 +8,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 #if GASNET_DEBUG
 typedef struct {
@@ -32,7 +32,7 @@ typedef struct {
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-extern gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 /* AM category (recommended impl if supporting PSHM) */

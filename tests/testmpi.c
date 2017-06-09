@@ -212,14 +212,14 @@ void mpi_barrier(threaddata_t *tdata) {
   #define MPI_LOCK()
   #define MPI_UNLOCK()
 #else
-  static gasnetex_hsl_t  mpi_hsl = GASNETEX_HSL_INITIALIZER;
-  #define MPI_LOCK()   gasnetex_hsl_lock(&mpi_hsl)
-  #define MPI_UNLOCK() gasnetex_hsl_unlock(&mpi_hsl)
+  static gex_HSL_t  mpi_hsl = GEX_HSL_INITIALIZER;
+  #define MPI_LOCK()   gex_HSL_Lock(&mpi_hsl)
+  #define MPI_UNLOCK() gex_HSL_Unlock(&mpi_hsl)
 #endif
 
 
-void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
-  gasnetex_rank_t   node;
+void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz) {
+  gex_Rank_t   node;
   int mpipeer;
   int tag;
   char *buf;
@@ -249,8 +249,8 @@ void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
 
 }
 
-void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
-  gasnetex_rank_t   node;
+void mpi_probehandler(gex_AM_Token_t token, harg_t tid) {
+  gex_Rank_t   node;
   int mpipeer;
   int tag;
   int reply = 0;
@@ -293,11 +293,11 @@ void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
     mpi_buf[tid] = NULL;
     PRINT_AM(("node=%2d> Sending AMShort MPI Reply for tid=%i\n",
             (int)gasnet_mynode(), (int)tid));
-    gasnetex_AMReplyShort1(token, hidx_mpi_replyhandler, 0, tid);
+    gex_AM_ReplyShort1(token, hidx_mpi_replyhandler, 0, tid);
   }
 }
 
-void mpi_replyhandler(gasnetex_token_t token, harg_t tid) {
+void mpi_replyhandler(gex_AM_Token_t token, harg_t tid) {
   int ltid = tid - gasnet_mynode()*threads_num;
   PRINT_AM(("node=%2d> Got AMShort MPI Reply for tid=%d\n",
                         (int)gasnet_mynode(), (int)tid));
@@ -368,11 +368,11 @@ void test_mpi(threaddata_t *tdata) {
     tdata->flag = -1;
     gasnett_local_wmb();
     ACTION_PRINTF("tid=%3d> MPI AMShortRequest to tid=%3d\n", tdata->tid, peer);
-    gasnetex_AMRequestShort2(myteam, node, hidx_mpi_handler, 0, tdata->tid, sz);
+    gex_AM_RequestShort2(myteam, node, hidx_mpi_handler, 0, tdata->tid, sz);
 
     while (tdata->flag != 0) {
       ACTION_PRINTF("tid=%3d> MPI probe AMShortRequest to tid=%3d\n", tdata->tid, peer);
-      gasnetex_AMRequestShort1(myteam, node, hidx_mpi_probehandler, 0, tdata->tid);
+      gex_AM_RequestShort1(myteam, node, hidx_mpi_probehandler, 0, tdata->tid);
 
       gasnett_sched_yield();
       test_sleep(tdata);

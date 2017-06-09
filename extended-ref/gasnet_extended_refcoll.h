@@ -7,7 +7,7 @@
 #ifndef _GASNET_EXTENDED_REFCOLL_H
 #define _GASNET_EXTENDED_REFCOLL_H
 
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Parameters *** */

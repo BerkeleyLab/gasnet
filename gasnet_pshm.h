@@ -31,7 +31,7 @@
 #else
   #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE, GASNETI_PSHM_XPMEM, GASNETI_PSHM_GHEAP)
 #endif
-#include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
+#include <gasnet_handler_internal.h> /* Need gasneti_handler_fn_t */
 
 #if GASNET_PAGESIZE < 4096
   #define GASNETI_PSHMNET_PAGESIZE 4096
@@ -80,7 +80,7 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *       nargs, flags, fnptr, cdata, name
  *     For use ONLY by gasnet_pshm.[ch]
  *   gasnetc_handler_t
- *     Type (via typdef or #define) used for handlers instead of gasnetex_handler_t
+ *     Type (via typdef or #define) used for handlers instead of gex_AM_Index_t
  *
  * If gasnet_core_fwd.h defines GASNETC_TOKEN_CREATE, conduit must provide
  * ALL of the following:
@@ -98,20 +98,20 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *     For general use (conduit use in gasnetc_AMReply*() is encouraged)
  */
 #ifndef GASNETC_GET_HANDLER
-  #define gasnetc_handler_t gasnetex_handler_t
+  #define gasnetc_handler_t gex_AM_Index_t
 #endif
 #ifdef GASNETC_TOKEN_CREATE
   #ifndef gasnetc_token_create
-    extern gasnetex_token_t gasnetc_token_create(gasnetex_rank_t src, int isRequest);
+    extern gex_AM_Token_t gasnetc_token_create(gex_Rank_t src, int isRequest);
   #endif
   #ifndef gasnetc_token_destroy
-    extern void gasnetc_token_destroy(gasnetex_token_t token);
+    extern void gasnetc_token_destroy(gex_AM_Token_t token);
   #endif
   #ifndef gasnetc_token_reply
-    extern void gasnetc_token_reply(gasnetex_token_t token);
+    extern void gasnetc_token_reply(gex_AM_Token_t token);
   #endif
   #ifndef gasnetc_token_is_pshm
-    extern int gasnetc_token_is_pshm(gasnetex_token_t token);
+    extern int gasnetc_token_is_pshm(gex_AM_Token_t token);
   #endif
 #else
   #define gasnetc_token_is_pshm(tok) ((uintptr_t)(tok)&1)
@@ -121,12 +121,12 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
    * Returns GASNET_OK if token was recognized, GASNET_ERR_BAD_ARG otherwise.
    */
   #if GASNET_DEBUG
-    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *src_ptr);
+    extern int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr);
   #else
     GASNETI_INLINE(gasneti_AMPSHMGetMsgSource)
-    int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *src_ptr) {
+    int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr) {
       if (gasnetc_token_is_pshm(token)) {
-        *src_ptr = (gasnetex_rank_t)((uintptr_t)token >> 1);
+        *src_ptr = (gex_Rank_t)((uintptr_t)token >> 1);
         return GASNET_OK;
       } else {
         return GASNET_ERR_BAD_ARG;
@@ -135,7 +135,7 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
   #endif
 
   #if GASNET_DEBUG
-    extern void gasnetc_token_reply(gasnetex_token_t token);
+    extern void gasnetc_token_reply(gex_AM_Token_t token);
   #else
     #define gasnetc_token_reply(tok) ((void)0)
   #endif
@@ -266,17 +266,17 @@ extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
 
 /* Don't call this function directly: internal pshm function */
 extern
-int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
+int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
-                                 void *dest_addr, gasnetex_flags_t flags, int numargs, va_list argptr);
+                                 void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr);
 
 /* Generic AM handler for PSHMnet.
  * Divert your conduit's regular AM requests to this function if a call to
  * gasneti_pshm_in_supernode(dest) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_RequestGeneric)
-int gasneti_AMPSHM_RequestGeneric(int category, gasnetex_rank_t dest,
+int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
                                   gasnetc_handler_t handler, void *source_addr, size_t nbytes,
-                                  void *dest_addr, gasnetex_flags_t flags, int numargs, va_list argptr)
+                                  void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr)
 {
   gasneti_assert(gasneti_pshm_in_supernode(dest));
   return gasnetc_AMPSHM_ReqRepGeneric(category, 1, dest, handler, source_addr,
@@ -287,13 +287,13 @@ int gasneti_AMPSHM_RequestGeneric(int category, gasnetex_rank_t dest,
  * Divert your conduit's regular AM replies to this function if a call to
  * gasneti_pshm_in_supernode(dest) or gasnetc_token_is_pshm(token) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_ReplyGeneric)
-int gasneti_AMPSHM_ReplyGeneric(int category, gasnetex_token_t token,
+int gasneti_AMPSHM_ReplyGeneric(int category, gex_AM_Token_t token,
                                 gasnetc_handler_t handler, void *source_addr, 
-                                size_t nbytes, void *dest_addr, gasnetex_flags_t flags, int numargs,
+                                size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr) 
 {
   int retval;
-  gasnetex_rank_t sourceid = 0; // init to avoid a maybe-uninit warning on gcc -O3 -Wall
+  gex_Rank_t sourceid = 0; // init to avoid a maybe-uninit warning on gcc -O3 -Wall
   gasneti_assert(gasnetc_token_is_pshm(token));
   gasnetc_AMGetMsgSource(token, &sourceid);
   gasneti_assert(gasneti_pshm_in_supernode(sourceid));
@@ -311,10 +311,10 @@ typedef struct {
     gasneti_atomic_t state; /* One done bit per phase and result in remaining bits */
     gasneti_atomic_t ready; /* Indicates when initialization is completed */
     int size;
-    gasnetex_handlerarg_t volatile flags, value; /* supernode consensus for hierarchical barrier */
+    gex_AM_Arg_t volatile flags, value; /* supernode consensus for hierarchical barrier */
     char _pad1[GASNETI_CACHE_PAD(  2*sizeof(gasneti_atomic_t)
                                  + sizeof(int)
-                                 + 2*sizeof(gasnetex_handlerarg_t))];
+                                 + 2*sizeof(gex_AM_Arg_t))];
     /*---------------*/
     struct gasneti_pshm_barrier_node {
       union gasneti_pshm_barrier_node_u {

@@ -1,11 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_handle_internal.h $
- * Description: GASNet header for internal definitions for handle management
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_event_internal.h $
+ * Description: GASNet header for internal definitions for event management
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _GASNET_HANDLE_INTERNAL_H
-#define _GASNET_HANDLE_INTERNAL_H
+#ifndef _GASNET_EVENT_INTERNAL_H
+#define _GASNET_EVENT_INTERNAL_H
 
 #include <gasnet_core_internal.h>
 
@@ -37,7 +37,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 
-/* gasnetex_handle_t is a void* pointer to a gasnete_op_t, 
+/* gex_Event_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t
  */
 #define GASNETE_OP_EVENTS 6
@@ -150,7 +150,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 
 // Test all events in an eop or iop
 #define EVENT_ANY_LIVE(op) \
-  (gasneti_assert(!gasneti_handle_idx(op)),\
+  (gasneti_assert(!gasneti_event_idx(op)),\
    (*(volatile uint64_t *)(op) & EVENT_ANY_LIVE_MASK))
 #define EVENT_ALL_DONE(op) (!EVENT_ANY_LIVE(op))
 
@@ -178,11 +178,11 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     gasneti_assert((((iop)->initiated_get_cnt - _temp) & GASNETI_ATOMIC_MAX) < (GASNETI_ATOMIC_MAX/2)); \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
-  #define gasnete_handle_check(_h) do { \
-    gasneti_assert(_h != GASNETEX_INVALID_HANDLE);              \
-    gasneti_assert(_h != GASNETEX_NO_OP_HANDLE);                \
-    gasneti_assert(gasneti_handle_idx(_h) < GASNETE_OP_EVENTS); \
-    gasnete_op_t *_op = gasneti_handle_op(_h);                  \
+  #define gasnete_event_check(_h) do { \
+    gasneti_assert(_h != GEX_EVENT_INVALID);              \
+    gasneti_assert(_h != GEX_EVENT_NO_OP);                \
+    gasneti_assert(gasneti_event_idx(_h) < GASNETE_OP_EVENTS); \
+    gasnete_op_t *_op = gasneti_event_op(_h);                  \
     if (OPTYPE(_op) == OPTYPE_EXPLICIT) {                       \
       gasnete_eop_check((gasnete_eop_t*)_op);                   \
     } else {                                                    \
@@ -192,7 +192,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #else
   #define gasnete_eop_check(eop)   ((void)0)
   #define gasnete_iop_check(iop)   ((void)0)
-  #define gasnete_handle_check(h)  ((void)0)
+  #define gasnete_event_check(h)  ((void)0)
 #endif
 
 #if 1 // TODO-EX: do we want/need a mechanism for overriding these assignments?
@@ -299,12 +299,12 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #define GASNETE_LC_NOW_DONE(op)    EVENT_DONE(op, gasnete_eop_event_alc)
 
 
-// Extract root (op) and index from any handle
-#define gasneti_handle_op(_h)  ((gasnete_op_t*)((uintptr_t)(_h) & ~7))
-#define gasneti_handle_idx(_h) ((uintptr_t)(_h) & 7)
+// Extract root (op) and index from any event
+#define gasneti_event_op(_h)  ((gasnete_op_t*)((uintptr_t)(_h) & ~7))
+#define gasneti_event_idx(_h) ((uintptr_t)(_h) & 7)
 
-// Convert root (op) to any leaf (handle)
-#define gasneti_op_handle(_op,_idx) ((gasnetex_handle_t)&((_op)->event[_idx]))
+// Convert root (op) to any leaf (event)
+#define gasneti_op_event(_op,_idx) ((gex_Event_t)&((_op)->event[_idx]))
 
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: This really should move.

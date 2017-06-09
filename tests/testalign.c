@@ -17,10 +17,10 @@ int size = 0;
 #define PRINT_LATENCY 0
 #define PRINT_THROUGHPUT 1
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 typedef struct {
 	int datasize;
@@ -110,7 +110,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
+			gex_RMA_PutBlocking(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -131,7 +131,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_get(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+			gex_RMA_GetBlocking(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -164,9 +164,9 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
+			gex_RMA_PutNBI(myteam, peerproc, rembuf, locbuf+pad, nbytes, GEX_EVENT_DEFER, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -186,9 +186,9 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_get_nbi(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_gets();
+		gex_NBI_WaitGets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -206,7 +206,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t *handles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
+    gex_Event_t *events = (gex_Event_t*) test_malloc(sizeof(gex_Event_t) * iters);
 	
     int pad = (alignment % PAGESZ);
 
@@ -222,9 +222,9 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of sending a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
+                        events[i] = gex_RMA_PutNB(myteam, peerproc, rembuf, locbuf+pad, nbytes, GEX_EVENT_DEFER, 0);
                 }
-		gasnetex_wait_all(handles, iters);
+		gex_Event_WaitAll(events, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -244,9 +244,9 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of receiving a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gasnetex_get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+                    events[i] = gex_RMA_GetNB(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
-		gasnetex_wait_all(handles, iters);
+		gex_Event_WaitAll(events, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -258,7 +258,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 	}	
     }
 	
-    test_free(handles);
+    test_free(events);
 }
 
 int main(int argc, char **argv)
@@ -270,7 +270,7 @@ int main(int argc, char **argv)
     int crossmachinemode = 0;   
 
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testalign", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testalign", &argc, &argv, 0));
     
     /* parse arguments */
     arg = 1;
@@ -307,7 +307,7 @@ int main(int argc, char **argv)
 
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
  
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     test_init("testalign", 1,
                "[options] (iters) (size) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the initiator-side\n"
@@ -329,7 +329,7 @@ int main(int argc, char **argv)
 
     /* Setting peer thread rank */
     if (crossmachinemode) {
-      gasnetex_rank_t half =  numprocs / 2;
+      gex_Rank_t half =  numprocs / 2;
       iamsender = (myproc < half);
       peerproc = myproc + (iamsender ? half : -half);
     } else {

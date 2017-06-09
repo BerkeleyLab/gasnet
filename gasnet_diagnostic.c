@@ -17,7 +17,7 @@
 
 #define TEST_OMIT_CONFIGSTRINGS 1
 #include <../tests/test.h>
-#include <gasnet_handler.h>
+#include <gasnet_handler_internal.h>
 
 /* this file should *only* contain symbols used for internal diagnostics,
    so that we can avoid needlessly linking it into production executables 
@@ -101,7 +101,7 @@ static void malloc_test(int id);
 static void progressfns_test(int id);
 static void op_test(int id);
 
-static gasnetex_team_member_t myteam;
+static gex_TM_t myteam;
 
 /* ------------------------------------------------------------------------------------ */
 /* run iters iterations of diagnostics and return zero on success 
@@ -109,7 +109,7 @@ static gasnetex_team_member_t myteam;
    in par mode, the test may internally spawn up to threadcnt threads
  */
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
-                                   gasnetex_team_member_t myteam_arg, gasnet_seginfo_t const *seginfo) {
+                                   gex_TM_t myteam_arg, gasnet_seginfo_t const *seginfo) {
   int i;
   int partner = (gasnet_mynode() ^ 1);
   if (partner == gasnet_nodes()) partner = gasnet_mynode();
@@ -847,24 +847,24 @@ static void lifo_test(int id) {
 }
 /* ------------------------------------------------------------------------------------ */
 static int pf_cnt_boolean, pf_cnt_counted;
-static gasnetex_hsl_t pf_lock = GASNETEX_HSL_INITIALIZER;
+static gex_HSL_t pf_lock = GEX_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
-static void progressfn_reqh(gasnetex_token_t token, void *buf, size_t nbytes) {
-  // TODO-EX: nbytes = MIN(nbytes, gasnetex_max_AMReplyMedium(..., GASNETEX_EVENT_NOW, 0, 0));
-  nbytes = MIN(nbytes, gasnetex_lub_AMReplyMedium()); /* In case Reply size smaller than Request */
-  gasnetex_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GASNETEX_EVENT_NOW, 0);
+static void progressfn_reqh(gex_AM_Token_t token, void *buf, size_t nbytes) {
+  // TODO-EX: nbytes = MIN(nbytes, gex_AM_MaxReplyMedium(..., GEX_EVENT_NOW, 0, 0));
+  nbytes = MIN(nbytes, gex_AM_LUBReplyMedium()); /* In case Reply size smaller than Request */
+  gex_AM_ReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GEX_EVENT_NOW, 0);
 }
-static void progressfn_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
+static void progressfn_reph(gex_AM_Token_t token, void *buf, size_t nbytes) {
   gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
 }
 static void progressfn_tester(int *counter) {
   static int active = 0; /* protocol provides mutual exclusion & recursion protection */
   int iamactive = 0;
-  gasnetex_hsl_lock(&pf_lock);
+  gex_HSL_Lock(&pf_lock);
     (*counter)++;
     if (!active) { active = 1; iamactive = 1; }
-  gasnetex_hsl_unlock(&pf_lock);
+  gex_HSL_Unlock(&pf_lock);
   if (!iamactive) return;
 
   /* do some work that should be legal inside a progress fn */
@@ -874,20 +874,20 @@ static void progressfn_tester(int *counter) {
 #endif
   { static int tmp = 47;
     int sz;
-    gasnetex_put_nbi(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_EVENT_NOW, 0);
+    gex_RMA_PutNBI(myteam, peer, peersegmid, &tmp, sizeof(tmp), GEX_EVENT_NOW, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
-      gasnetex_put_nbi(myteam, peer, peersegmid, myseg, sz, GASNETEX_EVENT_DEFER, 0);
-      gasnetex_get_nbi(myteam, myseg, peer, peersegmid, sz, 0);
+      gex_RMA_PutNBI(myteam, peer, peersegmid, myseg, sz, GEX_EVENT_DEFER, 0);
+      gex_RMA_GetNBI(myteam, myseg, peer, peersegmid, sz, 0);
     }
-    sz = (gasnet_AMPoll(),gasnetex_test_syncnbi_all());
+    sz = (gasnet_AMPoll(),gex_NBI_TestAll());
     if (gasneti_diag_havehandlers) {
-      const size_t max_sz = MIN(gasnetex_max_AMRequestMedium(myteam, peer, GASNETEX_EVENT_NOW, 0, 0),
+      const size_t max_sz = MIN(gex_AM_MaxRequestMedium(myteam, peer, GEX_EVENT_NOW, 0, 0),
                                 MIN(64*1024,TEST_SEGSZ/2));
       for (sz = 1; sz <= max_sz; sz = (sz < 64?sz*2:sz*8)) {
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnetex_AMRequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GASNETEX_EVENT_NOW, 0);
+        gex_AM_RequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GEX_EVENT_NOW, 0);
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnetex_AMRequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GASNETEX_EVENT_NOW, 0);
+        gex_AM_RequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GEX_EVENT_NOW, 0);
       }
     }
   }
@@ -924,10 +924,10 @@ static void progressfns_test(int id) {
     /* do some work that should cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnetex_put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
-      gasnetex_get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
-      gasnetex_put(myteam, peer, peersegmid, myseg, 1024, 0);
-      gasnetex_get(myteam, myseg, peer, peersegmid, 1024, 0);
+      gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
+      gex_RMA_GetBlocking(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -949,10 +949,10 @@ static void progressfns_test(int id) {
     /* do some work that might cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnetex_put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
-      gasnetex_get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
-      gasnetex_put(myteam, peer, peersegmid, myseg, 1024, 0);
-      gasnetex_get(myteam, myseg, peer, peersegmid, 1024, 0);
+      gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
+      gex_RMA_GetBlocking(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -976,64 +976,64 @@ static void op_test(int id) {
     int peerid = ( id + 1 ) % num_threads;
 
     PTHREAD_BARRIER(num_threads);
-    gasnetex_wait_syncnbi_all();
+    gex_NBI_WaitAll();
     PTHREAD_BARRIER(num_threads);
     if (!id) share = test_malloc(sizeof(void *)*num_threads);
     PTHREAD_BARRIER(num_threads);
 
     { gasneti_eop_t *eop;
-      gasnetex_handle_t h;
+      gex_Event_t h;
       eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
       assert_always(eop);
-      h = gasneti_eop_to_handle(eop);
-      assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
+      h = gasneti_eop_to_event(eop);
+      assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
       share[id] = eop; /* hand-off eop to neighbor thread */
       PTHREAD_BARRIER(num_threads);
       gasneti_eop_markdone(share[peerid]); /* mark right neighbor's eop done */
       PTHREAD_BARRIER(num_threads);
-      assert_always(gasnetex_test(h) == GASNET_OK);
+      assert_always(gex_Event_Test(h) == GASNET_OK);
     }
     PTHREAD_BARRIER(num_threads);
     { /* inc the get and put counts on my iop */
       gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_GET);
         assert_always(iop);
-        assert_always(gasnetex_test_syncnbi_puts() == GASNET_ERR_NOT_READY);
-        assert_always(gasnetex_test_syncnbi_gets() == GASNET_OK);
-        assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestPuts() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestGets() == GASNET_OK);
+        assert_always(gex_NBI_TestAll() == GASNET_ERR_NOT_READY);
       assert_always(iop == gasneti_iop_register(2, 1 GASNETI_THREAD_GET));
-        assert_always(gasnetex_test_syncnbi_puts() == GASNET_ERR_NOT_READY);
-        assert_always(gasnetex_test_syncnbi_gets() == GASNET_ERR_NOT_READY);
-        assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestPuts() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestGets() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestAll() == GASNET_ERR_NOT_READY);
 
       share[id] = iop; /* hand-off iop to neighbor thread */
       PTHREAD_BARRIER(num_threads);
       gasneti_iop_markdone(share[peerid], 1, 0); /* mark right neighbor's iop puts done */
       PTHREAD_BARRIER(num_threads);
-        assert_always(gasnetex_test_syncnbi_puts() == GASNET_OK);
-        assert_always(gasnetex_test_syncnbi_gets() == GASNET_ERR_NOT_READY);
-        assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestPuts() == GASNET_OK);
+        assert_always(gex_NBI_TestGets() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_TestAll() == GASNET_ERR_NOT_READY);
       PTHREAD_BARRIER(num_threads);
       gasneti_iop_markdone(share[peerid], 2, 1); /* mark right neighbor's iop gets done */
       PTHREAD_BARRIER(num_threads);
-        assert_always(gasnetex_test_syncnbi_puts() == GASNET_OK);
-        assert_always(gasnetex_test_syncnbi_gets() == GASNET_OK);
-        assert_always(gasnetex_test_syncnbi_all() == GASNET_OK);
+        assert_always(gex_NBI_TestPuts() == GASNET_OK);
+        assert_always(gex_NBI_TestGets() == GASNET_OK);
+        assert_always(gex_NBI_TestAll() == GASNET_OK);
     }
     PTHREAD_BARRIER(num_threads);
     { int isget;
       for (isget = 0; isget <= 1; isget++) { 
         #define ASSERT_NBI_SYNCED() (                            \
-          assert_always(gasnetex_test_syncnbi_puts() == GASNET_OK), \
-          assert_always(gasnetex_test_syncnbi_gets() == GASNET_OK), \
-          assert_always(gasnetex_test_syncnbi_all() == GASNET_OK) )
+          assert_always(gex_NBI_TestPuts() == GASNET_OK), \
+          assert_always(gex_NBI_TestGets() == GASNET_OK), \
+          assert_always(gex_NBI_TestAll() == GASNET_OK) )
         #define ASSERT_NBI_NOTSYNCED() (isget? (                            \
-          assert_always(gasnetex_test_syncnbi_puts() == GASNET_OK),            \
-          assert_always(gasnetex_test_syncnbi_gets() == GASNET_ERR_NOT_READY), \
-          assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY)   \
+          assert_always(gex_NBI_TestPuts() == GASNET_OK),            \
+          assert_always(gex_NBI_TestGets() == GASNET_ERR_NOT_READY), \
+          assert_always(gex_NBI_TestAll() == GASNET_ERR_NOT_READY)   \
           ) : (                                                             \
-          assert_always(gasnetex_test_syncnbi_puts() == GASNET_ERR_NOT_READY), \
-          assert_always(gasnetex_test_syncnbi_gets() == GASNET_OK),            \
-          assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY)) )
+          assert_always(gex_NBI_TestPuts() == GASNET_ERR_NOT_READY), \
+          assert_always(gex_NBI_TestGets() == GASNET_OK),            \
+          assert_always(gex_NBI_TestAll() == GASNET_ERR_NOT_READY)) )
 
         gasneti_iop_t *iop1, *iop2;
         gasneti_iop_t *peer_iop1, *peer_iop2;
@@ -1050,11 +1050,11 @@ static void op_test(int id) {
         ASSERT_NBI_NOTSYNCED();
 
         { /* implicit access region */
-          gasnetex_handle_t h;
+          gex_Event_t h;
           gasneti_eop_t *eop;
-          gasnetex_handle_t h2;
+          gex_Event_t h2;
 
-          gasnetex_begin_nbi_accessregion(0);
+          gex_NBI_BeginAccessRegion(0);
           iop2 = gasneti_iop_register(1, isget GASNETI_THREAD_GET); /* iop2 = 1 */
           assert_always(iop2);
           assert_always(iop2 != iop1);
@@ -1068,59 +1068,59 @@ static void op_test(int id) {
 
           eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
           assert_always(eop);
-          h2 = gasneti_eop_to_handle(eop);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          h2 = gasneti_eop_to_event(eop);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
 
-          h = gasnetex_end_nbi_accessregion(0);
-          assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          h = gex_NBI_EndAccessRegion(0);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop1, 2, isget); /* iop1 -= 2 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop2, 1, isget); /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop1, 1, isget); /* iop1 -= 1 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_SYNCED();
-          assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           assert_always(iop1 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop1 += 2 */
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop2, 1, isget); /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnetex_test(h) == GASNET_OK);
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_OK);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop1, 2, isget); /* iop1 -= 2 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_SYNCED();
 
-          assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
           share[id] = eop; /* hand-off eop to neighbor thread */
           PTHREAD_BARRIER(num_threads);
           gasneti_eop_markdone(share[peerid]); /* mark right neighbor's eop done */
           PTHREAD_BARRIER(num_threads);
-          assert_always(gasnetex_test(h2) == GASNET_OK);
+          assert_always(gex_Event_Test(h2) == GASNET_OK);
           ASSERT_NBI_SYNCED();
 
           PTHREAD_BARRIER(num_threads);
@@ -1185,7 +1185,7 @@ static void * thread_fn(void *arg) {
 }
 #endif
 
-static gasnetex_handlerentry_t gasneti_diag_handlers[] = {
+static gex_AM_Entry_t gasneti_diag_handlers[] = {
   #ifdef GASNETC_DIAG_HANDLERS
     GASNETC_DIAG_HANDLERS(), /* should start at gasnetc_diag_hidx_base */
   #endif
@@ -1198,10 +1198,10 @@ static gasnetex_handlerentry_t gasneti_diag_handlers[] = {
 };
 
 
-void gasneti_diagnostic_gethandlers(gasnetex_handlerentry_t **htable, int *htable_cnt) {
+void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **htable, int *htable_cnt) {
   assert(htable && htable_cnt);
   *htable = gasneti_diag_handlers;
-  *htable_cnt = (int)(sizeof(gasneti_diag_handlers)/sizeof(gasnetex_handlerentry_t));
+  *htable_cnt = (int)(sizeof(gasneti_diag_handlers)/sizeof(gex_AM_Entry_t));
   gasneti_diag_havehandlers = 1;
 }
 

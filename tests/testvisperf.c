@@ -13,10 +13,10 @@ uintptr_t maxsz = 0;
 #endif
 #include "test.h"
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int insegment = 0;
 int doputs = 1;
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
   int help = 0;   
 
   /* call startup */
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testvisperf", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testvisperf", &argc, &argv, 0));
 
   /* parse arguments */
   arg = 1;
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
   if (!max_contig) max_contig = MIN(256*1024,max_payload);
   if (!min_payload) min_payload = min_contig;
 
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testvisperf",1, "[options] (iters) (test_sections)\n"
              "  -p/-g     selects puts only or gets only (default is both).\n"
              "  -r/-l     selects remotely contiguous or locally contiguous (default is neither).\n"
@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \
-                gasnetex_wait_syncnbi_all();                                                       \
+                gex_NBI_WaitAll();                                                       \
               } while (0)
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();

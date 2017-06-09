@@ -18,10 +18,10 @@ int segsize = 0;
 #endif
 #include "test.h"
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 #define OUTPUT_SUCCESS 0
 uint64_t failures = 0;
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
     char *local_base, *target_base;
 
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testslice", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testslice", &argc, &argv, 0));
 
     /* get SPMD info */
     myproc = gasnet_mynode();
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
     if (!inner_iterations) inner_iterations = 10;
     if (argc > 4) seedoffset = atoi(argv[4]);
 
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ));
 
     test_init("testslice",0, "(segsize) (iterations) (# of sizes per iteration) (seed)");
 
@@ -124,16 +124,16 @@ int main(int argc, char **argv)
 
           /* Perform operations */
           /* Out of segment put from shadow_region 1 to remote */
-          gasnetex_put(myteam, peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len, 0); 
+          gex_RMA_PutBlocking(myteam, peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len, 0); 
   
           /* In segment get from remote to local segment */
-          gasnetex_get(myteam, local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len, 0); 
+          gex_RMA_GetBlocking(myteam, local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len, 0); 
   
           /* Verify */
           assert_eq(shadow_region_1 + starting_point, local_base + local_starting_point_1, len,starting_point,i,j,"Out of segment put + in segment get");
   
           /* Out of segment get from remote to shadow_region_2 (starting from 0) */
-          gasnetex_get(myteam, shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len, 0); 
+          gex_RMA_GetBlocking(myteam, shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len, 0); 
   
           /* Verify */
           assert_eq(shadow_region_2+local_starting_point_2, shadow_region_1 + starting_point, len,starting_point,i,j,"Out of segment get");

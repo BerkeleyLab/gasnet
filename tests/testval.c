@@ -22,10 +22,10 @@ int iters = 0;
 #endif
 #include "test.h"
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 #define GASNET_HEADNODE 0
 #define PRINT_LATENCY 0
@@ -37,7 +37,7 @@ typedef struct {
 	uint64_t time;
 } stat_struct_t;
 
-gasnetex_handlerentry_t handler_table[2];
+gex_AM_Entry_t handler_table[2];
 
 
 int myproc;
@@ -104,7 +104,7 @@ void roundtrip_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_register_value_t reg = 1;
+    gex_RMA_Value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -116,8 +116,8 @@ void roundtrip_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnetex_put_val(myteam, peerproc, tgtmem+offset,
-					 (gasnetex_register_value_t)i, nbytes, 0);
+			gex_RMA_PutBlockingVal(myteam, peerproc, tgtmem+offset,
+					 (gex_RMA_Value_t)i, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -137,7 +137,7 @@ void roundtrip_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-	 		reg ^= gasnetex_get_val(myteam, peerproc, tgtmem+offset, nbytes, 0);
+	 		reg ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem+offset, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -155,7 +155,7 @@ void oneway_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_register_value_t reg = 1;
+    gex_RMA_Value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -167,8 +167,8 @@ void oneway_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnetex_put_val(myteam, peerproc, tgtmem+offset,
-					 (gasnetex_register_value_t)i, nbytes, 0);
+			gex_RMA_PutBlockingVal(myteam, peerproc, tgtmem+offset,
+					 (gex_RMA_Value_t)i, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -188,7 +188,7 @@ void oneway_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-	 		reg ^= gasnetex_get_val(myteam, peerproc, tgtmem+offset, nbytes, 0);
+	 		reg ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem+offset, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -207,7 +207,7 @@ void roundtrip_nb_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t hdlput;
+    gex_Event_t hdlput;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -219,9 +219,9 @@ void roundtrip_nb_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			hdlput = gasnetex_put_nb_val(myteam, peerproc, tgtmem+offset,
-						     (gasnetex_register_value_t)i, nbytes, 0);
-			gasnetex_wait(hdlput);
+			hdlput = gex_RMA_PutNBVal(myteam, peerproc, tgtmem+offset,
+						     (gex_RMA_Value_t)i, nbytes, 0);
+			gex_Event_Wait(hdlput);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -239,13 +239,13 @@ void oneway_nb_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnetex_handle_t *phandles;
-    gasnetex_register_value_t reg = 1;
+    gex_Event_t *pevents;
+    gex_RMA_Value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 	
-	phandles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
+	pevents = (gex_Event_t*) test_malloc(sizeof(gex_Event_t) * iters);
 	
 	BARRIER();
 	
@@ -254,10 +254,10 @@ void oneway_nb_test(int nbytes)
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-                        phandles[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem+offset,
-							  (gasnetex_register_value_t)i, nbytes, 0);
+                        pevents[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem+offset,
+							  (gex_RMA_Value_t)i, nbytes, 0);
                 }
-		gasnetex_wait_all(phandles, iters);
+		gex_Event_WaitAll(pevents, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -268,7 +268,7 @@ void oneway_nb_test(int nbytes)
 		print_stat(myproc, &st, "put_nb_val throughput", PRINT_THROUGHPUT);
 	}	
 	
-	test_free(phandles);
+	test_free(pevents);
 }
 
 
@@ -288,10 +288,10 @@ void roundtrip_nbi_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnetex_put_nbi_val(myteam, peerproc, tgtmem+offset,
-					     (gasnetex_register_value_t)i, nbytes, 0);
+			gex_RMA_PutNBIVal(myteam, peerproc, tgtmem+offset,
+					     (gex_RMA_Value_t)i, nbytes, 0);
 
-			gasnetex_wait_syncnbi_puts();
+			gex_NBI_WaitPuts();
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -320,10 +320,10 @@ void oneway_nbi_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnetex_put_nbi_val(myteam, peerproc, tgtmem+offset,
-					     (gasnetex_register_value_t)i, nbytes, 0);
+			gex_RMA_PutNBIVal(myteam, peerproc, tgtmem+offset,
+					     (gex_RMA_Value_t)i, nbytes, 0);
 		}
-		gasnetex_wait_syncnbi_puts();
+		gex_NBI_WaitPuts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
     int help = 0;   
    
     /* call startup */
-    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testval", 0));
+    GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testval", &argc, &argv, 0));
     /* parse arguments */
     arg = 1;
     while (argc > arg) {
@@ -383,10 +383,10 @@ int main(int argc, char **argv)
     if (argc > arg) { iters = atoi(argv[arg]); arg++; }
     if (!iters) iters = 10000;
     if (argc > arg) { maxsz = atoi(argv[arg]); arg++; }
-    if (!maxsz || maxsz > sizeof(gasnetex_register_value_t)) maxsz = sizeof(gasnetex_register_value_t);
+    if (!maxsz || maxsz > sizeof(gex_RMA_Value_t)) maxsz = sizeof(gex_RMA_Value_t);
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
-    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
     test_init("testval",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The -p/-g option selects puts only or gets only (default is both).\n"
                "  The -s option skips warm-up iterations\n"
@@ -447,16 +447,16 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
-           gasnetex_handle_t *ph = test_malloc(sizeof(gasnetex_handle_t)*warm_iters);
-           gasnetex_register_value_t reg = 1;
+           gex_Event_t *ph = test_malloc(sizeof(gex_Event_t)*warm_iters);
+           gex_RMA_Value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
-              gasnetex_put_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
-              reg ^= gasnetex_get_val(myteam, peerproc, tgtmem, max_payload, 0);
-              ph[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
-              gasnetex_put_nbi_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
+              gex_RMA_PutBlockingVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
+              reg ^= gex_RMA_GetBlockingVal(myteam, peerproc, tgtmem, max_payload, 0);
+              ph[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
+              gex_RMA_PutNBIVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
            }
-           gasnetex_wait_syncnbi_puts();
-           gasnetex_wait_all(ph, warm_iters);
+           gex_NBI_WaitPuts();
+           gex_Event_WaitAll(ph, warm_iters);
            test_free(ph);
         }
 

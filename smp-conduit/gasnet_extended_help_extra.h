@@ -12,48 +12,48 @@
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (explicit handle)
+  Non-blocking memory-to-memory transfers (explicit event)
   =========================================================
  */
 
 GASNETI_INLINE(gasnete_get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_get_nb(
-                     gasnetex_team_member_t team,
+gex_Event_t gasnete_get_nb(
+                     gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 #define gasnete_get_nb gasnete_get_nb
 
 GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb(
-                     gasnetex_team_member_t team,
-                     gasnetex_rank_t rank, void *dest,
+gex_Event_t gasnete_put_nb(
+                     gex_TM_t tm,
+                     gex_Rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     size_t nbytes, gex_Event_t *lc_opt,
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb gasnete_put_nb
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for explicit-handle non-blocking operations:
+  Synchronization for explicit-event non-blocking operations:
   ===========================================================
 */
 
 GASNETI_INLINE(gasnete_syncnb_one)
-int gasnete_syncnb_one(gasnetex_handle_t handle GASNETI_THREAD_FARG)
+int gasnete_syncnb_one(gex_Event_t event GASNETI_THREAD_FARG)
 {
-  gasneti_assert(handle == GASNETEX_INVALID_HANDLE);
+  gasneti_assert(event == GEX_EVENT_INVALID);
   gasneti_sync_reads();
   return GASNET_OK;
 }
@@ -61,11 +61,11 @@ int gasnete_syncnb_one(gasnetex_handle_t handle GASNETI_THREAD_FARG)
 #define gasnete_wait gasnete_syncnb_one
 
 GASNETI_INLINE(gasnete_syncnb_array)
-int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG)
+int gasnete_syncnb_array(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG)
 {
 #if GASNET_DEBUG
-  for (size_t i=0; i<numhandles; ++i)
-    gasneti_assert(phandle[i] == GASNETEX_INVALID_HANDLE);
+  for (size_t i=0; i<numevents; ++i)
+    gasneti_assert(pevent[i] == GEX_EVENT_INVALID);
 #endif
   gasneti_sync_reads();
   return GASNET_OK;
@@ -77,16 +77,16 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles GASNETI_T
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-blocking memory-to-memory transfers (implicit handle)
+  Non-blocking memory-to-memory transfers (implicit event)
   ==========================================================
  */
    
 GASNETI_INLINE(gasnete_get_nbi)
-int gasnete_get_nbi (gasnetex_team_member_t team,
+int gasnete_get_nbi (gex_TM_t tm,
                      void *dest,
-                     gasnetex_rank_t rank, void *src,
+                     gex_Rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
   gasneti_assert(0 && "Unreachable");
@@ -95,11 +95,11 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
 #define gasnete_get_nbi gasnete_get_nbi
 
 GASNETI_INLINE(gasnete_put_nbi)
-int gasnete_put_nbi (gasnetex_team_member_t team,
-                     gasnetex_rank_t rank, void *dest,
+int gasnete_put_nbi (gex_TM_t tm,
+                     gex_Rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
+                     size_t nbytes, gex_Event_t *lc_opt,
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
   gasneti_assert(0 && "Unreachable");
@@ -109,7 +109,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Synchronization for implicit-handle non-blocking operations:
+  Synchronization for implicit-event non-blocking operations:
   ===========================================================
 */
 GASNETI_INLINE(gasnete_syncnbi)
@@ -127,7 +127,7 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 
 // Note we must allow for the possibility that the arg has side-effects
 GASNETI_INLINE(gasnete_syncnbi_mask)
-int gasnete_syncnbi_mask(unsigned int event_mask, gasnetex_flags_t flags GASNETE_THREAD_FARG)
+int gasnete_syncnbi_mask(unsigned int event_mask, gex_Flags_t flags GASNETE_THREAD_FARG)
 {
   gasneti_sync_reads();
   return GASNET_OK;
@@ -136,13 +136,13 @@ int gasnete_syncnbi_mask(unsigned int event_mask, gasnetex_flags_t flags GASNETE
 #define gasnete_wait_syncnbi_mask gasnete_syncnbi_mask
 
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
-void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
+void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
 { /* empty */ }
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG)
-{ return GASNETEX_INVALID_HANDLE; }
+gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG)
+{ return GEX_EVENT_INVALID; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
 /* ------------------------------------------------------------------------------------ */
@@ -153,10 +153,10 @@ gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_TH
 
 GASNETI_INLINE(gasnete_put_val)
 int gasnete_put_val(
-                gasnetex_team_member_t team,
-                gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+                gex_TM_t tm,
+                gex_Rank_t rank, void *dest,
+                gex_RMA_Value_t value,
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
@@ -166,16 +166,16 @@ int gasnete_put_val(
 #define gasnete_put_val gasnete_put_val
 
 GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb_val(
-                gasnetex_team_member_t team,
-                gasnetex_rank_t rank, void *dest,
-                gasnetex_register_value_t value,
-                size_t nbytes, gasnetex_flags_t flags
+gex_Event_t gasnete_put_nb_val(
+                gex_TM_t tm,
+                gex_Rank_t rank, void *dest,
+                gex_RMA_Value_t value,
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb_val gasnete_put_nb_val
 
@@ -189,10 +189,10 @@ gasnetex_handle_t gasnete_put_nb_val(
 */
 
 GASNETI_INLINE(gasnete_get_val)
-gasnetex_register_value_t gasnete_get_val(
-                gasnetex_team_member_t team,
-                gasnetex_rank_t rank, void *src,
-                size_t nbytes, gasnetex_flags_t flags
+gex_RMA_Value_t gasnete_get_val(
+                gex_TM_t tm,
+                gex_Rank_t rank, void *src,
+                size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();

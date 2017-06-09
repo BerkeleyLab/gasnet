@@ -18,10 +18,10 @@ int depth = 0;
 
 #include "test.h"
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int myproc;
 int numproc;
@@ -93,7 +93,7 @@ retry:
 gasnett_atomic_t pong_recvd;
 
 #define INIT_CHECKS() do {                               \
-    gasnetex_rank_t srcnode;                                        \
+    gex_Rank_t srcnode;                                        \
     gasnet_AMGetMsgSource(token, &srcnode);                       \
     assert_always(srcnode == peerproc);                           \
     assert_always(iter < iters);                                  \
@@ -101,22 +101,22 @@ gasnett_atomic_t pong_recvd;
   } while (0)
 
 
-void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
-                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
+void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
+                     gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Request (pre-reply)", buf, nbytes, iter, chunkidx);
-  gasnetex_AMReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0, iter, chunkidx);
+  gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
   validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, chunkidx);
 }
-void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes,
-                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
+void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+                     gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Reply", buf, nbytes, iter, chunkidx);
   gasnett_atomic_increment(&pong_recvd,0);
 }
 
-void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
-                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
+void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+                     gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   uint8_t *srcbuf;
   INIT_CHECKS();
   validate_chunk("Long Request", buf, nbytes, iter, chunkidx);
@@ -125,11 +125,11 @@ void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
     srcbuf = longreplysrc+chunkidx*nbytes;
     memcpy(srcbuf, buf, nbytes);
   }
-  gasnetex_AMReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, peerrepseg+chunkidx*nbytes, GASNETEX_EVENT_NOW, 0, iter, chunkidx);
+  gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, peerrepseg+chunkidx*nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
 }
 
-void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
-                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
+void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+                     gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Long Reply", buf, nbytes, iter, chunkidx);
   gasnett_atomic_increment(&pong_recvd,0);
@@ -147,7 +147,7 @@ int amopt = 0;
 
 int main(int argc, char **argv) {
   int arg = 1, help = 0;
-  gasnetex_handlerentry_t htable[] = {
+  gex_AM_Entry_t htable[] = {
     { hidx_ping_medhandler,  ping_medhandler,  0, 2 },
     { hidx_pong_medhandler,  pong_medhandler,  0, 2 },
     { hidx_ping_longhandler, ping_longhandler, 0, 2 },
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
   };
 
   /* call startup */
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcore2", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcore2", &argc, &argv, 0));
 
   #define AMOPT() if (!amopt) { amopt = 1; domed = 0; dolong = 0; }
   while (argc > arg) {
@@ -199,14 +199,14 @@ int main(int argc, char **argv) {
   if (!depth) depth = 16;
 
   /* round down to largest payload AM allows with 2 arguments */
-  maxmed  = MIN(gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2),
-                gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2));
-  maxlong = MIN(gasnetex_max_AMRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2),
-                gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2));
+  maxmed  = MIN(gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2),
+                gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2));
+  maxlong = MIN(gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2),
+                gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2));
   max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testcore2",0,"[options] (iters) (max_payload) (depth)\n"
                  "  -m   test AMMedium    (defaults to all types)\n"
                  "  -l   test AMLong      (defaults to all types)\n"
@@ -277,11 +277,11 @@ void *doit(void *id) {
     int chunkidx;
     for (chunkidx = 0; chunkidx < depth; chunkidx++) {
       /* AMRequestLong primer */
-      gasnetex_put(myteam, peerproc, peerreqseg+chunkidx*max_payload, privateseg+chunkidx*max_payload, max_payload, 0);
-      gasnetex_put(myteam, peerproc, peerreqseg+chunkidx*max_payload, localseg+chunkidx*max_payload, max_payload, 0);
+      gex_RMA_PutBlocking(myteam, peerproc, peerreqseg+chunkidx*max_payload, privateseg+chunkidx*max_payload, max_payload, 0);
+      gex_RMA_PutBlocking(myteam, peerproc, peerreqseg+chunkidx*max_payload, localseg+chunkidx*max_payload, max_payload, 0);
       /* AMReplyLong primer */
-      gasnetex_put(myteam, peerproc, peerrepseg+chunkidx*max_payload, myseg+chunkidx*max_payload, max_payload, 0);
-      gasnetex_put(myteam, peerproc, peerrepseg+chunkidx*max_payload, longreplysrc+chunkidx*max_payload, max_payload, 0);
+      gex_RMA_PutBlocking(myteam, peerproc, peerrepseg+chunkidx*max_payload, myseg+chunkidx*max_payload, max_payload, 0);
+      gex_RMA_PutBlocking(myteam, peerproc, peerrepseg+chunkidx*max_payload, longreplysrc+chunkidx*max_payload, max_payload, 0);
     }
     BARRIER();
   }
@@ -307,8 +307,8 @@ void *doit(void *id) {
         if (domed && sz <= maxmed) { /* test Medium AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
-            gasnetex_AMRequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcseg+chunkidx*sz, sz,
-                                      GASNETEX_EVENT_NOW, 0, iter, chunkidx);
+            gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcseg+chunkidx*sz, sz,
+                                      GEX_EVENT_NOW, 0, iter, chunkidx);
           }
           /* wait for completion */
           GASNET_BLOCKUNTIL(gasnett_atomic_read(&pong_recvd,0) == depth);
@@ -318,8 +318,8 @@ void *doit(void *id) {
          if (dolong) { /* test Long AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
-            gasnetex_AMRequestLong2(myteam, peerproc, hidx_ping_longhandler, srcseg+chunkidx*sz, sz,
-                                    peerreqseg+chunkidx*sz,  GASNETEX_EVENT_NOW, 0, iter, chunkidx);
+            gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, srcseg+chunkidx*sz, sz,
+                                    peerreqseg+chunkidx*sz,  GEX_EVENT_NOW, 0, iter, chunkidx);
           }
           /* wait for completion */
           GASNET_BLOCKUNTIL(gasnett_atomic_read(&pong_recvd,0) == depth);

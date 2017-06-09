@@ -62,13 +62,13 @@ options that is covered testcoll
 #define ERROR_EXIT() do {} while(0)
 #endif
 
-static gasnetex_client_t      myclient;
-static gasnetex_endpoint_t    myep;
-static gasnetex_team_member_t myteam;
-static gasnetex_segment_t     mysegment;
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
-gasnetex_rank_t mynode;
-gasnetex_rank_t nodes;
+gex_Rank_t mynode;
+gex_Rank_t nodes;
 gasnet_image_t threads_per_node;
 gasnet_image_t THREADS;
 int inner_verification_iters;
@@ -967,7 +967,7 @@ void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   size_t size;
   int i,flag_iter;
-  gasnetex_rank_t root_thread = ROOT_THREAD;
+  gex_Rank_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
   gasnet_coll_fn_entry_t fntable[1];
 #if GASNET_PAR
@@ -1061,7 +1061,7 @@ int main(int argc, char **argv)
   int i,j;
   thread_data_t *td_arr;
   
-  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcollperf", 0));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcollperf", &argc, &argv, 0));
   
   
   if(argc > 1) {
@@ -1161,7 +1161,7 @@ int main(int argc, char **argv)
   }
 
  
-  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   TEST_SET_WAITMODE(threads_per_node);
   A = TEST_MYSEG();
   B = A+(SEG_PER_THREAD*threads_per_node);

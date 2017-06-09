@@ -31,7 +31,7 @@
 #endif
 
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
-/* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnetex_rank_t */
+/* 64K corresponds to 16 bits used in the AM Header and 16-bit gex_Rank_t */
 #define GASNET_MAXNODES	65535
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
