@@ -169,6 +169,12 @@ gasneti_pshmnet_init(void *start, size_t len, gasneti_pshm_rank_t node_count);
 extern
 void gasneti_pshmnet_bootstrapBarrier(void);
 
+/* Bootstrap barrier via pshmnet, with polling
+ * Same as above but also progresses AMs
+ */
+extern
+void gasneti_pshmnet_bootstrapBarrierPoll(void);
+
 /* Bootstrap broadcast via pshmnet.
  *
  * This function has the following restrictions:

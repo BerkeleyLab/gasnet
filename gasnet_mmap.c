@@ -2063,7 +2063,7 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
 
 #if GASNET_PSHM
   // Cannot use AMPSHM and pshm bootstrap collectives in same pshmnet barrier phase
-  gasneti_pshmnet_bootstrapBarrier();
+  gasneti_pshmnet_bootstrapBarrierPoll();
 #endif
 
   /* Copy to final destination while performing the rotation */

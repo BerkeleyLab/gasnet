@@ -724,7 +724,7 @@ void gasneti_pshmnet_recv_release(gasneti_pshmnet_t *vnet, void *buf)
  * PSHMnet bootstrap barrier
  * - TODO: only good a finite number of times before it wraps!
  ******************************************************************************/
-void gasneti_pshmnet_bootstrapBarrier(void)
+static void do_pshmnet_barrier(int do_poll)
 {
   static gasneti_atomic_val_t generation = 0;
   gasneti_atomic_val_t curr, target;
@@ -745,7 +745,11 @@ void gasneti_pshmnet_bootstrapBarrier(void)
   target = generation + 1;
   gasneti_assert_always(target < GASNETI_PSHM_BSB_LIMIT); /* Die if we were ever to reach the limit */
 
-  gasneti_waitwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) < target);
+  if (do_poll) {
+    gasneti_pollwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) < target);
+  } else {
+    gasneti_waitwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) < target);
+  }
   if_pf (curr >= GASNETI_PSHM_BSB_LIMIT) {
     if (gasnetc_pshm_abort_callback) gasnetc_pshm_abort_callback();
     gasnet_exit(1);
@@ -753,6 +757,8 @@ void gasneti_pshmnet_bootstrapBarrier(void)
 
   generation = target;
 }
+void gasneti_pshmnet_bootstrapBarrier(void)     { do_pshmnet_barrier(0); }
+void gasneti_pshmnet_bootstrapBarrierPoll(void) { do_pshmnet_barrier(1); }
 
 /******************************************************************************
  * "critical sections" in which we notify peers if we abort() while
