@@ -774,7 +774,7 @@ void gasneti_defaultExchange(void *src, size_t len, void *dest);
 extern void gasnetc_exchg_reqh(gex_AM_Token_t token, void *buf, size_t nbytes,
                                gex_AM_Arg_t arg0, gex_AM_Arg_t len);
 #define GASNETC_COMMON_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM)
+    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,REQUEST,MEDIUM,0)
 
 /* ------------------------------------------------------------------------------------ */
 

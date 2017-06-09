@@ -1414,8 +1414,8 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 
 gex_AM_Entry_t fh_am_handlers[] = {
         /* ptr-width dependent handlers */
-        gasneti_handler_tableentry_with_bits(fh_am_move_reqh,4,5,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM),
-        gasneti_handler_tableentry_with_bits(fh_am_move_reph,2,3,GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM),
+        gasneti_handler_tableentry_with_bits(fh_am_move_reqh,4,5,REQUEST,MEDIUM,0),
+        gasneti_handler_tableentry_with_bits(fh_am_move_reph,2,3,REPLY,MEDIUM,0),
         GASNETI_HANDLER_EOT
 };
 

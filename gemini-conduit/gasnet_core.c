@@ -402,8 +402,8 @@ static void gasnetc_sys_coll_init(void)
 done:
   /*  PRE-register the two AM handlers we need */
   { gex_AM_Entry_t early_handlers[] = {
-      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM)
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0)
     };
     int len = sizeof(early_handlers) / sizeof(gex_AM_Entry_t);
     int numreg = 0;
@@ -1743,9 +1743,9 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   #endif
 
   /* ptr-width independent handlers */
-    gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM),
+    gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,REQUEST,SHORT,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
 
   /* ptr-width dependent handlers */
 

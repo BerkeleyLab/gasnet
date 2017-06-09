@@ -3782,20 +3782,20 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   #endif
 
   /* ptr-width independent handlers */
-  gasneti_handler_tableentry_no_bits(gasnetc_exit_reduce_reqh,2,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-  gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reqh,0,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-  gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reph,1,GEX_FLAG_AM_REPLY|GEX_FLAG_AM_SHORT),
-  gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-  gasneti_handler_tableentry_no_bits(gasnetc_exit_reph,0,GEX_FLAG_AM_REPLY|GEX_FLAG_AM_SHORT),
-  gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
-  gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM),
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_reduce_reqh,2,REQUEST,SHORT,0),
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reqh,0,REQUEST,SHORT,0),
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reph,1,REPLY,SHORT,0),
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,REQUEST,SHORT,0),
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_reph,0,REPLY,SHORT,0),
+  gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
+  gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
   #if GASNETC_IBV_SHUTDOWN
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_flush_reph,1,GEX_FLAG_AM_REPLY|GEX_FLAG_AM_SHORT),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_close_reqh,0,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_flush_reph,1,REPLY,SHORT,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_close_reqh,0,REQUEST,SHORT,0),
   #endif
 
   /* ptr-width dependent handlers */
-  gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT),
+  gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,REQUEST,SHORT,0),
 
   GASNETI_HANDLER_EOT
 };
