@@ -146,7 +146,7 @@ GASNETI_BEGIN_NOWARN
 #endif
 
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
-#define gex_Client_Init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
+#define gasnetc_Client_Init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
                     gex_Client_Init_GASNET_,                         \
                     GASNET_RELEASE_VERSION_MAJOR),                   \
                     GASNET_RELEASE_VERSION_MINOR),                   \
@@ -159,6 +159,7 @@ GASNETI_BEGIN_NOWARN
                     GASNETI_STATS_CONFIG),                           \
                     GASNETI_MALLOC_CONFIG),                          \
                     GASNETI_SRCLINES_CONFIG)
+#define gex_Client_Init gasnetc_Client_Init
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet forward definitions, which may override some of the defaults below */
@@ -345,8 +346,8 @@ typedef struct {
 } gex_AM_Entry_t;
 
 // GASNet-1 version of gex_AM_Entry_t
-// TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
-//#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
+// Visible to GASNet-1 clients and to internal code (for gasnetc_attach in particular)
+#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {
     gex_AM_Index_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
@@ -355,7 +356,7 @@ typedef struct {
     void (*fnptr)();    
    #endif
   } gasnet_handlerentry_t;
-//#endif
+#endif
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
@@ -600,8 +601,6 @@ static int *gasneti_linkconfig_idiotcheck(void) {
   #endif
   return &val;
 }
-extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
-                                       uintptr_t segsize, uintptr_t minheapoffset);
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
     #error Tried to compile GASNet client code with optimization enabled but also GASNET_DEBUG (which seriously hurts performance). Reconfigure/rebuild GASNet without --enable-debug
@@ -618,6 +617,6 @@ GASNETI_END_EXTERNC
 /* intentionally expanded on every include */
 #if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
   #define _GASNET_INTERNAL_IDIOTCHECK
-  #undef gasnet_attach
-  #define gasnet_attach  gasneti_internal_idiotcheck
+  #undef gex_Client_Init
+  #define gex_Client_Init gasneti_idiotcheck_gasnet_internal_dot_h_header_prohibited
 #endif
