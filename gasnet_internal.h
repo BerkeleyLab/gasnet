@@ -290,6 +290,14 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
                                   gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
 
 /* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasneti_Short=0,
+  gasneti_Medium=1,
+  gasneti_Long=2
+} gasneti_category_t;
+
+/* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
 void gasneti_defaultSignalHandler(int sig);
@@ -709,10 +717,16 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
 #if GASNET_DEBUG
-  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs);
+  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs, int category, int isReq);
 #else
-  #define gasneti_amtbl_check(entry, nargs) ((void)0)
+  #define gasneti_amtbl_check(entry, nargs, category, isReq) ((void)0)
 #endif
+
+// AM "catch all" for defaultAMHandler and similar
+#define GASNETI_FLAG_AM_ANY \
+     ( GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG | \
+       GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY )
+
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
@@ -760,7 +774,7 @@ void gasneti_defaultExchange(void *src, size_t len, void *dest);
 extern void gasnetc_exchg_reqh(gex_AM_Token_t token, void *buf, size_t nbytes,
                                gex_AM_Arg_t arg0, gex_AM_Arg_t len);
 #define GASNETC_COMMON_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,0)
+    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,REQUEST,MEDIUM,0)
 
 /* ------------------------------------------------------------------------------------ */
 

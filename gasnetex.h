@@ -427,6 +427,15 @@ typedef uintptr_t gex_RMA_Value_t;
 #define GEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GEX_FLAG_DST_IN_SEGMENT)
 #define GEX_FLAG_DST_OFFSET            ((1U <<  6) | GEX_FLAG_DST_IN_BOUND_SEGMENT)
 
+#define GEX_FLAG_AM_SHORT               (1U <<  0)
+#define GEX_FLAG_AM_MEDIUM              (1U <<  1)
+#define GEX_FLAG_AM_LONG                (1U <<  2)
+#define GEX_FLAG_AM_MEDLONG             (GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG)
+
+#define GEX_FLAG_AM_REQUEST             (1U <<  3)
+#define GEX_FLAG_AM_REPLY               (1U <<  4)
+#define GEX_FLAG_AM_REQREP              (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY)
+
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
 #endif

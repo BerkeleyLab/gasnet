@@ -402,8 +402,8 @@ static void gasnetc_sys_coll_init(void)
 done:
   /*  PRE-register the two AM handlers we need */
   { gex_AM_Entry_t early_handlers[] = {
-      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,0),
-      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,0)
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0)
     };
     int len = sizeof(early_handlers) / sizeof(gex_AM_Entry_t);
     int numreg = 0;
@@ -959,6 +959,7 @@ static void gasnetc_disable_AMs(void) {
   int i;
   for (i = 0; i < GASNETC_MAX_NUMHANDLERS; ++i) {
     gasnetc_handler[i].gex_fnptr = (gasneti_handler_fn_t)&gasnetc_noop;
+    gasnetc_handler[i].gex_flags = GASNETI_FLAG_AM_ANY;
   }
 }
 
@@ -1185,7 +1186,7 @@ int gasnetc_local_short_common(int is_req, gex_AM_Index_t handler,
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, gasnetc_short, is_req);
   for (i = 0; i < numargs; i++) {
     args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
@@ -1207,7 +1208,7 @@ int gasnetc_local_medium_common(int is_req, gex_AM_Index_t handler,
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
   
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, gasnetc_medium, is_req);
   for (i = 0; i < numargs; i++) {
     args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
@@ -1230,7 +1231,7 @@ int gasnetc_local_long_common(int is_req, gex_AM_Index_t handler,
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   int i;
   
-  gasneti_amtbl_check(handler_entry, numargs);
+  gasneti_amtbl_check(handler_entry, numargs, gasnetc_long, is_req);
   for (i = 0; i < numargs; i++) {
     args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
@@ -1393,7 +1394,7 @@ extern int gasnetc_AMRequestShortM(
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Short, dest, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr);
   } else
@@ -1433,7 +1434,7 @@ extern int gasnetc_AMRequestMediumM(
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Medium, dest, handler,
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr);
   } else
@@ -1474,7 +1475,7 @@ extern int gasnetc_AMRequestLongM(
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, dest, handler,
                                            source_addr, nbytes, dest_addr,
                                            flags, numargs, argptr);
   } else
@@ -1540,7 +1541,7 @@ extern int gasnetc_AMReplyShortM(
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
                                          0, 0, 0,
                                          flags, numargs, argptr);
   } else
@@ -1578,7 +1579,7 @@ extern int gasnetc_AMReplyMediumM(
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
                                          source_addr, nbytes, 0,
                                          flags, numargs, argptr);
   } else
@@ -1616,7 +1617,7 @@ extern int gasnetc_AMReplyLongM(
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
                                          source_addr, nbytes, dest_addr,
                                          flags, numargs, argptr);
   } else
@@ -1742,9 +1743,9 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   #endif
 
   /* ptr-width independent handlers */
-    gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,0),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,0),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,REQUEST,SHORT,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
 
   /* ptr-width dependent handlers */
 

@@ -118,25 +118,25 @@ void done_shorthandler(gex_AM_Token_t token) {
 }
 /* ------------------------------------------------------------------------------------ */
 gex_AM_Entry_t htable[] = {
-    { 0, ping_shorthandler, 0, 0, NULL, NULL  },
-    { 0, pong_shorthandler, 0, 0, NULL, NULL  },
+    { 0, ping_shorthandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 0, NULL, NULL  },
+    { 0, pong_shorthandler, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_SHORT, 0, NULL, NULL  },
 
-    { 0, ping_medhandler, 0, 0, NULL, NULL    },
-    { 0, pong_medhandler, 0, 0, NULL, NULL    },
+    { 0, ping_medhandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL    },
+    { 0, pong_medhandler, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL    },
 
-    { 0, ping_longhandler, 0, 0, NULL, NULL   },
-    { 0, pong_longhandler, 0, 0, NULL, NULL   },
+    { 0, ping_longhandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_LONG, 0, NULL, NULL   },
+    { 0, pong_longhandler, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_LONG, 0, NULL, NULL   },
 
-    { 0, ping_shorthandler_flood, 0, 0, NULL, NULL  },
-    { 0, pong_shorthandler_flood, 0, 0, NULL, NULL  },
+    { 0, ping_shorthandler_flood, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 0, NULL, NULL  },
+    { 0, pong_shorthandler_flood, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_SHORT, 0, NULL, NULL  },
 
-    { 0, ping_medhandler_flood, 0, 0, NULL, NULL    },
-    { 0, pong_medhandler_flood, 0, 0, NULL, NULL    },
+    { 0, ping_medhandler_flood, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL    },
+    { 0, pong_medhandler_flood, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL    },
 
-    { 0, ping_longhandler_flood, 0, 0, NULL, NULL   },
-    { 0, pong_longhandler_flood, 0, 0, NULL, NULL   },
+    { 0, ping_longhandler_flood, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_LONG, 0, NULL, NULL   },
+    { 0, pong_longhandler_flood, GEX_FLAG_AM_REQREP|GEX_FLAG_AM_LONG, 0, NULL, NULL   },
 
-    { 0, done_shorthandler, 0, 0, NULL, NULL  }
+    { 0, done_shorthandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 0, NULL, NULL  }
 };
 
 /* ------------------------------------------------------------------------------------ */

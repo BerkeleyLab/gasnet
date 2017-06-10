@@ -1821,16 +1821,16 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
   GASNETI_TRACE_PRINTF(D, ("msg from %d type %s/%s\n", peer->pe,
                            gasnetc_type_string(gasnetc_am_command(notify)),
                            is_req ? "REQ" : "REP"));
-  
-  gasneti_amtbl_check(handler_entry, numargs);
 
   switch (gasnetc_am_command(notify)) {
   case GC_CMD_AM_SHORT:
+      gasneti_amtbl_check(handler_entry, numargs, gasneti_Short, is_req);
       GASNETI_RUN_HANDLER_SHORT(is_req, handlerindex, handler,
                                 token, packet->gasp.args, numargs);
       break;
       
   case GC_CMD_AM_MEDIUM: {
+      gasneti_amtbl_check(handler_entry, numargs, gasneti_Medium, is_req);
       const size_t head_len = GASNETC_HEADLEN(medium, numargs);
       uint8_t * data = (uint8_t *)packet + head_len;
       gasneti_assert(0 == (((uintptr_t) data) % GASNETI_MEDBUF_ALIGNMENT));
@@ -1850,6 +1850,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
       }
       /* fall through... */
   case GC_CMD_AM_LONG:
+      gasneti_amtbl_check(handler_entry, numargs, gasneti_Long, is_req);
       GASNETI_RUN_HANDLER_LONG(is_req, handlerindex, handler,
                                token, packet->galp.args, numargs,
                                packet->galp.data, packet->galp.data_length);

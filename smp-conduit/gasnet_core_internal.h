@@ -35,14 +35,6 @@ typedef struct {
 extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
-/* AM category (recommended impl if supporting PSHM) */
-typedef enum {
-  gasnetc_Short=0,
-  gasnetc_Medium=1,
-  gasnetc_Long=2
-} gasnetc_category_t;
-
-/* ------------------------------------------------------------------------------------ */
 #if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
 #else
