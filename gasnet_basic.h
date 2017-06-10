@@ -156,6 +156,30 @@
   #define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
 #endif
 
+/* assembling "signatures" from 2, 4 or 8 (7-bit ASCII) characters */
+#if PLATFORM_ARCH_LITTLE_ENDIAN
+  #define GASNETI_SIGNATURE2(c0,c1) ((uint16_t)((c0)|((c1)<<8)))
+  #define GASNETI_SIGNATURE4(c0,c1,c2,c3) ((uint32_t)((c0)|((c1)<<8)|((c2)<<16)|((uint32_t)(c3)<<24)))
+  #define GASNETI_SIGNATURE8(c0,c1,c2,c3,c4,c5,c6,c7) \
+          GASNETI_MAKEWORD(GASNETI_SIGNATURE4(c4,c5,c6,c7),GASNETI_SIGNATURE4(c0,c1,c2,c3))
+#else
+  #define GASNETI_SIGNATURE2(c0,c1) ((uint16_t)(((c0)<<8)|(c1)))
+  #define GASNETI_SIGNATURE4(c0,c1,c2,c3) ((uint32_t)(((uint32_t)(c0)<<24)|((c1)<<16)|((c2)<<8)|(c3)))
+  #define GASNETI_SIGNATURE8(c0,c1,c2,c3,c4,c5,c6,c7) \
+          GASNETI_MAKEWORD(GASNETI_SIGNATURE4(c0,c1,c2,c3),GASNETI_SIGNATURE4(c4,c5,c6,c7))
+#endif
+
+/* magic numbers for identifying/protecting types */
+#define GASNETI_MAKE_MAGIC(c0,c1,c2,c3) GASNETI_SIGNATURE8('g','e','x',':',c0,c1,c2,c3)
+typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
+#if GASNET_DEBUG
+  #define GASNETI_INIT_MAGIC(p,m)  ((void)((p)->_magic._u = (m)))
+  #define GASNETI_CHECK_MAGIC(p,m) gasneti_assert((p)->_magic._u == (m))
+#else
+  #define GASNETI_INIT_MAGIC(p,m)  ((void)0)
+  #define GASNETI_CHECK_MAGIC(p,m) ((void)0)
+#endif
+
 /* Non-asserting alignment macros
  * Use for instance in
  *    char buffer[GASNETI_ALIGNUP_NOASSERT(sizeof(struct foo), GASNETI_CACHE_LINE_BYTES)];
