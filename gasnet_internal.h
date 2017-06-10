@@ -290,14 +290,6 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
                                   gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
 
 /* ------------------------------------------------------------------------------------ */
-/* AM category (recommended impl if supporting PSHM) */
-typedef enum {
-  gasneti_Short=0,
-  gasneti_Medium=1,
-  gasneti_Long=2
-} gasneti_category_t;
-
-/* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
 void gasneti_defaultSignalHandler(int sig);
@@ -703,6 +695,12 @@ typedef void (*gasneti_HandlerLong)  (gex_AM_Token_t token, void *buf, size_t nb
 /* ------------------------------------------------------------------------------------ */
 /* AM handler registration and management */
 
+typedef enum {
+  gasneti_Short=0,
+  gasneti_Medium=1,
+  gasneti_Long=2
+} gasneti_category_t;
+
 /* default AM handler for unregistered entries - prints a fatal error */
 extern void gasneti_defaultAMHandler(gex_AM_Token_t token);
 
@@ -717,7 +715,8 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
 #if GASNET_DEBUG
-  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs, int category, int isReq);
+  extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
+                                  gasneti_category_t category, int isReq);
 #else
   #define gasneti_amtbl_check(entry, nargs, category, isReq) ((void)0)
 #endif

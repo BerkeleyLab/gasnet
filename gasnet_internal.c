@@ -481,8 +481,8 @@ extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
 
 #if GASNET_DEBUG
 // Validate call to a handler
-// TODO-EX: this will also check entry->gex_flags against additional args (such as category and isReq)
-extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs, int category, int isReq) {
+extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
+                                gasneti_category_t category, int isReq) {
   char buf[128] = {'\0'};
   const char *msg = NULL;
   if ((entry->gex_nargs != nargs) && (entry->gex_nargs != GASNETI_HANDLER_NARGS_UNK)) {
