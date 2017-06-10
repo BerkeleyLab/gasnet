@@ -118,7 +118,6 @@ typedef struct {
 typedef enum {
 	GASNETC_OP_FREE,
 	GASNETC_OP_AM,
-	GASNETC_OP_AM_BLOCK,
 	GASNETC_OP_GET_ZEROCP,
 #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	GASNETC_OP_GET_BOUNCE,
@@ -1097,15 +1096,7 @@ static int gasnetc_snd_reap(int limit) {
 	    GASNETC_COLLECT_FHS();
 	    break;
 
-	  case GASNETC_OP_AM_BLOCK:	/* AM send (System w/ handle) */
-	    gasneti_assert((comp.opcode == IBV_WC_SEND) ||
-			   (comp.opcode == IBV_WC_RDMA_WRITE));
-	    gasneti_assert(sreq->comp.cb != NULL);
-            sreq->comp.cb(sreq->comp.data);
-	    GASNETC_COLLECT_BBUF_IF(sreq->am_buff);
-	    break;
-
-	  case GASNETC_OP_AM:		/* AM send (normal) */
+	  case GASNETC_OP_AM:		/* AM send */
 	    gasneti_assert((comp.opcode == IBV_WC_SEND) ||
 			   (comp.opcode == IBV_WC_RDMA_WRITE));
 	    if (sreq->comp.cb != NULL) {
@@ -2451,27 +2442,25 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
       sr_desc->sg_list[0].lkey   = GASNETC_SND_LKEY(cep);
       sr_desc->sg_list[1].length = len1;
   
-      if (counter) {
+      sreq = gasnetc_get_sreq(GASNETC_OP_AM GASNETI_THREAD_PASS);
+      sreq->am_buff = buf_alloc;
+
+      if_pf (counter) { // Caller requires remote completion indication
         gasneti_assert(!len1);
-        sreq = gasnetc_get_sreq(GASNETC_OP_AM_BLOCK GASNETI_THREAD_PASS);
         sreq->comp.cb = gasnetc_cb_counter;
         sreq->comp.data = &counter->initiated;
-      } else {
-        sreq = gasnetc_get_sreq(GASNETC_OP_AM GASNETI_THREAD_PASS);
-      #if GASNETC_PIN_SEGMENT
-        if (len1) {
-          gasneti_assert(NULL != local_cnt);
-          const uintptr_t offset = (uintptr_t)src_addr - gasnetc_seg_start;
-          sr_desc->num_sge = 2;
-          sr_desc->sg_list[1].addr   = (uintptr_t)src_addr;
-          sr_desc->sg_list[1].lkey   = GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
-          sreq->comp.cb = local_cb;
-          sreq->comp.data = local_cnt;
-          ++(*local_cnt);
-        }
-      #endif
       }
-      sreq->am_buff = buf_alloc;
+      #if GASNETC_PIN_SEGMENT
+      else if (len1) { // Gather-on-send to concatenate header and payload
+        const uintptr_t offset = (uintptr_t)src_addr - gasnetc_seg_start;
+        sr_desc->num_sge = 2;
+        sr_desc->sg_list[1].addr   = (uintptr_t)src_addr;
+        sr_desc->sg_list[1].lkey   = GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
+        sreq->comp.cb = local_cb;
+        sreq->comp.data = local_cnt;
+        ++(*local_cnt);
+      }
+      #endif
   
       (void)gasnetc_bind_cep_inner(epid, sreq, IBV_WR_SEND_WITH_IMM, msg_len, token != NULL);
 
@@ -4545,8 +4534,8 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
 
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasneti_Short, dest, handler,
-                                  NULL, 0, NULL,
-                                  0, numargs, NULL, NULL, counter,
+                                  NULL, 0, NULL, 0, numargs,
+                                  &counter->initiated, gasnetc_cb_counter, counter,
                                   argptr GASNETI_THREAD_GET);
   va_end(argptr);
   return retval;
@@ -4564,8 +4553,8 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
 
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasneti_Medium, dest, handler,
-                                  source_addr, nbytes, NULL,
-                                  0, numargs, NULL, NULL, counter,
+                                  source_addr, nbytes, NULL, 0, numargs,
+                                  &counter->initiated, gasnetc_cb_counter, counter,
                                   argptr GASNETI_THREAD_GET);
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -4583,8 +4572,8 @@ extern int gasnetc_ReplySysShort(gex_AM_Token_t token,
 
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasneti_Short, token, handler,
-                                NULL, 0, NULL,
-                                0, numargs, NULL, NULL, counter,
+                                NULL, 0, NULL, 0, numargs,
+                                &counter->initiated, gasnetc_cb_counter, counter,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
@@ -4603,8 +4592,8 @@ extern int gasnetc_ReplySysMedium(gex_AM_Token_t token,
 
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasneti_Medium, token, handler,
-                                source_addr, nbytes, NULL,
-                                0, numargs, NULL, NULL, counter,
+                                source_addr, nbytes, NULL, 0, numargs,
+                                &counter->initiated, gasnetc_cb_counter, counter,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
