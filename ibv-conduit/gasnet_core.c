@@ -3511,7 +3511,6 @@ extern int gasnetc_AMRequestLongM(
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
