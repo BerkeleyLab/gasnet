@@ -9,6 +9,9 @@
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
 #define TEST_MAXTHREADS 1
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ (128*1024) /* for put/overwrite test */
+#endif
 #include <test.h>
 
 #define TEST_GASNETEX 1
@@ -469,141 +472,147 @@ void doit5(int partner, int *partnerseg) {
   /* NB and NBI put/overwrite/get tests */
   #define MAXVALS (1024)
   #define MAXSZ (MAXVALS*8)
-  #define SEGSZ (MAXSZ*4)
-  #define VAL(sz, iter) \
-    (((uint64_t)(sz) << 32) | ((uint64_t)(100 + myrank) << 16) | ((iter) & 0xFF))
+  #define INSEGCHUNKS 3
+  #define NUMCHUNKS 6
+  #define SEGSZ (MAXSZ*NUMCHUNKS)
+  #define VAL(sz, chunkid, iter) \
+    (((uint64_t)(sz) << 36) | ((uint64_t)(chunkid) << 32) | ((uint64_t)(100 + myrank) << 16) | ((iter) & 0xFF))
   assert(TEST_SEGSZ >= 2*SEGSZ);
   { GASNET_BEGIN_FUNCTION();
-    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    uint64_t *localpos=(uint64_t *)test_malloc(SEGSZ);
     int success = 1;
     int i, sz;
     for (i = 0; i < MAX(1,iters/10); i++) {
-      uint64_t *localpos=localvals;
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
         gex_Event_t event;
+        gex_Event_t lcevt;
         int elems = sz/8;
-        int j;
-        uint64_t val = VAL(sz, i); /* setup known src value */
-        if (sz < 8) {
-          elems = 1;
-          memset(localpos, (val & 0xFF), sz);
-          memset(segpos, (val & 0xFF), sz);
-          memset(&val, (val & 0xFF), sz);
-        } else {
-          for (j=0; j < elems; j++) {
-            localpos[j] = val;
-            segpos[j] = val;
+        uint64_t val[NUMCHUNKS];
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          val[chunk] = VAL(sz, chunk, i); /* setup known src value */
+          if (sz < 8) {
+            elems = 1;
+            memset(localpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(segpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(&val[chunk], (val[chunk] & 0xFF), sz);
+          } else {
+            for (int j=0; j < elems; j++) {
+              (localpos+chunk*elems)[j] = val[chunk];
+              (segpos+chunk*elems)[j] = val[chunk];
+            }
           }
         }
         event = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
         gex_Event_Wait(event);
+        memset(localpos, 0xAA, sz); /* clear */
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
-        memset(localpos, 0xCC, sz); /* clear */
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos+elems, sz, GEX_EVENT_NOW, 0);
+        memset(localpos+elems, 0xBB, sz); /* clear */
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
+        lcevt = GEX_EVENT_INVALID;
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, localpos+2*elems, sz, &lcevt, 0);
+        gex_Event_Wait(lcevt);
+        memset(localpos+2*elems, 0xCC, sz); /* clear */
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
-        memset(segpos, 0xCC, sz); /* clear */
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
+        gex_Event_Wait(event);
+        memset(segpos, 0xDD, sz); /* clear */
+
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
+        memset(segpos+elems, 0xEE, sz); /* clear */
         gex_Event_Wait(event);
 
-        gex_Event_Wait(gex_RMA_GetNB(myteam, localpos, partner, rsegpos, sz, 0));
-        gex_Event_Wait(gex_RMA_GetNB(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
-        gex_Event_Wait(gex_RMA_GetNB(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
-        gex_Event_Wait(gex_RMA_GetNB(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
+        lcevt = GEX_EVENT_INVALID;
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, &lcevt, 0);
+        gex_Event_Wait(lcevt);
+        memset(segpos+2*elems, 0xFF, sz); /* clear */
+        gex_Event_Wait(event);
 
-        for (j=0; j < elems*2; j++) {
-          int ok;
-          ok = localpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, localpos[j], val);
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
+
+          for (int j=0; j < elems; j++) {
+            int ok = (localpos[j] == val[chunk]);
+            if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            if (!ok) {
+              MSG("*** ERROR - FAILED %s-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
+                  (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
               success = 0;
-          }
-          ok = segpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, segpos[j], val);
-              success = 0;
+            }
           }
         }
       }
     }
-    test_free(localvals);
+    test_free(localpos);
     if (success) MSG("*** passed nb put/overwrite test!!");
   }
   { GASNET_BEGIN_FUNCTION();
-    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    uint64_t *localpos=(uint64_t *)test_malloc(SEGSZ);
     int success = 1;
     int i, sz;
     for (i = 0; i < MAX(1,iters/10); i++) {
-      uint64_t *localpos=localvals;
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
         int elems = sz/8;
-        int j;
-        uint64_t val = VAL(sz, i+91); /* setup known src value, different from NB test */
-        if (sz < 8) {
-          elems = 1;
-          memset(localpos, (val & 0xFF), sz);
-          memset(segpos, (val & 0xFF), sz);
-          memset(&val, (val & 0xFF), sz);
-        } else {
-          for (j=0; j < elems; j++) {
-            localpos[j] = val;
-            segpos[j] = val;
+        uint64_t val[NUMCHUNKS];
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          val[chunk] = VAL(sz, chunk, i+91); /* setup known src value, different from NB test */
+          if (sz < 8) {
+            elems = 1;
+            memset(localpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(segpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(&val[chunk], (val[chunk] & 0xFF), sz);
+          } else {
+            for (int j=0; j < elems; j++) {
+              (localpos+chunk*elems)[j] = val[chunk];
+              (segpos+chunk*elems)[j] = val[chunk];
+            }
           }
         }
         gex_RMA_PutNBI(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
         gex_NBI_Wait(GEX_EC_PUT,0);
+        memset(localpos, 0xAA, sz); /* clear */
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
-        memset(localpos, 0xCC, sz); /* clear */
+        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos+elems, sz, GEX_EVENT_NOW, 0);
+        memset(localpos+elems, 0xBB, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, localpos+2*elems, sz, GEX_EVENT_GROUP, 0);
+        gex_NBI_Wait(GEX_EC_LC, 0);
+        memset(localpos+2*elems, 0xCC, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
+        gex_NBI_Wait(GEX_EC_PUT,0);
+        memset(segpos, 0xDD, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
+        memset(segpos+elems, 0xEE, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, GEX_EVENT_GROUP, 0);
+        gex_NBI_Wait(GEX_EC_LC, 0);
+        memset(segpos+2*elems, 0xFF, sz); /* clear */
         gex_NBI_Wait(GEX_EC_PUT,0);
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
-        gex_NBI_Wait(GEX_EC_PUT,0);
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
-        memset(segpos, 0xCC, sz); /* clear */
-        gex_NBI_Wait(GEX_EC_PUT,0);
-
-        gex_RMA_GetNBI(myteam, localpos, partner, rsegpos, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-        gex_RMA_GetNBI(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-        gex_RMA_GetNBI(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-        gex_RMA_GetNBI(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-
-        for (j=0; j < elems*2; j++) {
-          int ok;
-          ok = localpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, localpos[j], val);
+          for (int j=0; j < elems; j++) {
+            int ok = (localpos[j] == val[chunk]);
+            if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            if (!ok) {
+              MSG("*** ERROR - FAILED %s-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
+                  (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
               success = 0;
-          }
-          ok = segpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, segpos[j], val);
-              success = 0;
+            }
           }
         }
       }
     }
-    test_free(localvals);
+    test_free(localpos);
     if (success) MSG("*** passed nbi put/overwrite test!!");
   }
 
