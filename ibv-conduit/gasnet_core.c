@@ -2522,11 +2522,13 @@ void gasnetc_post_checkpoint(int is_restart) {
   #endif
 
     memcpy(buffer1, loc_addr, nbytes);
-    gasnet_get(buffer2, peer, rem_addr, nbytes);
+    // TODO-EX: replace or remove:
+    //gasnet_ get(buffer2, peer, rem_addr, nbytes);
 
     GASNETI_SAFE(gasnet_barrier(0, GASNET_BARRIERFLAG_ANONYMOUS));
 
-    gasnet_put(peer, rem_addr, buffer2, nbytes);
+    // TODO-EX: replace or remove:
+    //gasnet_ put(peer, rem_addr, buffer2, nbytes);
 
     GASNETI_SAFE(gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED));
 
