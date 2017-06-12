@@ -24,6 +24,7 @@
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
 /*void doit4(int partner, int *partnerseg); -- removed along with the memset*() calls */
@@ -329,6 +330,104 @@ int main(int argc, char **argv) {
 }
 
 void doit(int partner, int *partnerseg) {
+  int success = 1;
+  BARRIER();
+
+  #define assert_signed(type)  do {              \
+    volatile type v = 0; /* prevent warnings */  \
+    assert_always((type)(v-1) < v);              \
+    test_static_assert((type)(-1) < (type)0);    \
+  } while (0)
+  #define assert_unsigned(type)  do {            \
+    volatile type v = 0; /* prevent warnings */  \
+    assert_always((type)(v-1) > v);              \
+    test_static_assert((type)(-1) > (type)0);    \
+  } while (0)
+
+  /* team/rank tests */
+  assert_unsigned(gex_Rank_t);
+  assert(myrank == gex_TM_QueryRank(myteam));
+  assert(numranks == gex_TM_QuerySize(myteam));
+  assert_always(myrank == gasnet_mynode());  // TODO-EX: remove
+  assert_always(numranks == gasnet_nodes()); // TODO-EX: remove
+  assert_always(myrank < numranks);
+  assert_always(numranks < GEX_RANK_INVALID);
+
+  /* AM limit tests */
+  assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));
+  assert_always(gex_AM_LUBRequestMedium() >= 512);
+  assert_always(gex_AM_LUBReplyMedium() >= 512);
+  assert_always(gex_AM_LUBRequestLong() >= 512);
+  assert_always(gex_AM_LUBReplyLong() >= 512);
+
+  /* verify Max >= LUB */
+  gex_Event_t *lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
+  gex_Flags_t flags[] = { GEX_FLAG_IMMEDIATE, 0 };
+  for (gex_Rank_t r = myrank; r <= numranks; r++) {
+    if (r == numranks) r = GEX_RANK_INVALID; // min of maxes
+    // TODO: record to check min of maxes and symmettry
+    for (int lci = 0; lci < sizeof(lcopt)/sizeof(lcopt[0]); lci++) {
+      for (int flagsi = 0; flagsi < sizeof(flags)/sizeof(flags[0]); flagsi++) {
+        for (int args = 0; args <= gasnet_AMMaxArgs(); args += gasnet_AMMaxArgs()) {
+          assert_always(gex_AM_MaxRequestMedium(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBRequestMedium());
+          assert_always(gex_AM_MaxReplyMedium(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBReplyMedium());
+          assert_always(gex_AM_MaxRequestLong(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBRequestLong());
+          assert_always(gex_AM_MaxReplyLong(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBReplyLong());
+        }
+      }
+    }
+    if (r == GEX_RANK_INVALID) break;
+  }
+
+  /* Event tests */
+  gex_Event_t invalid = GEX_EVENT_INVALID;
+  gex_Event_t noop = GEX_EVENT_NO_OP;
+  assert_always(invalid == 0);
+  assert_always(noop != invalid);
+  gex_Event_t lc = 0;
+  size_t sz = MIN(8192,TEST_SEGSZ/2);
+  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_OFFSET | GEX_FLAG_DST_OFFSET); // TODO-EX
+  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_IN_BOUND_SEGMENT | GEX_FLAG_DST_IN_BOUND_SEGMENT);
+  if (rc) {
+    gex_Event_t qlc = gex_Event_QueryLeaf(rc, GEX_EC_LC);
+    if (lc && qlc) assert_always(lc == qlc);
+    gex_Event_Wait(lc);
+    assert_always(!gex_Event_Test(lc));
+    assert_always(!gex_Event_TestSome(&lc,1,0));
+    assert_always(!gex_Event_TestAll(&lc,1,0));
+    assert_always(!gex_Event_Test(qlc));
+    assert_always(!gex_Event_TestSome(&qlc,1,0));
+    assert_always(!gex_Event_TestAll(&qlc,1,0));
+    gex_Event_t qlc2 = gex_Event_QueryLeaf(rc, GEX_EC_LC);
+    if (lc && qlc2) assert_always(lc == qlc2);
+    assert_always(!gex_Event_Test(qlc2));
+    assert_always(!gex_Event_TestSome(&qlc2,1,0));
+    assert_always(!gex_Event_TestAll(&qlc2,1,0));
+    gex_Event_Wait(rc);
+  }
+
+  /* misc type tests */
+  gex_RMA_Value_t val;
+  assert_always(sizeof(val) == SIZEOF_GEX_RMA_VALUE_T);
+  assert_always(sizeof(val) >= sizeof(void *));
+  assert_always(sizeof(val) >= sizeof(long));
+  assert_unsigned(gex_RMA_Value_t);
+
+  gex_AM_Index_t ind;
+  assert_unsigned(gex_AM_Index_t);
+
+  gex_AM_Arg_t arg;
+  assert_always(sizeof(arg) >= 4);
+  assert_signed(gex_AM_Arg_t);
+
+  if (success) MSG("*** passed object test!!");
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit1(partner, partnerseg);
+}
+void doit1(int partner, int *partnerseg) {
+#endif
+
   BARRIER();
   /*  blocking test */
   { int val1=0, val2=0;
