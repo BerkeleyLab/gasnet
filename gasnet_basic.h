@@ -169,39 +169,17 @@
           GASNETI_MAKEWORD(GASNETI_SIGNATURE4(c0,c1,c2,c3),GASNETI_SIGNATURE4(c4,c5,c6,c7))
 #endif
 
-/* magic numbers for identifying/protecting types */
+/* magic numbers for identifying/protecting types
+ * WARNING: GASNETI_CHECK_MAGIC() may evaluate the pointer argument more than once!
+ */
 #define GASNETI_MAKE_MAGIC(c0,c1,c2,c3) GASNETI_SIGNATURE8('g','e','x',':',c0,c1,c2,c3)
 typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if GASNET_DEBUG
   #define GASNETI_INIT_MAGIC(p,m)  ((void)((p)->_magic._u = (m)))
-  #define GASNETI_CHECK_MAGIC(p,m) gasneti_assert((p)->_magic._u == (m))
+  #define GASNETI_CHECK_MAGIC(p,m) gasneti_assert(!(p) || ((p)->_magic._u == (m)))
 #else
   #define GASNETI_INIT_MAGIC(p,m)  ((void)0)
   #define GASNETI_CHECK_MAGIC(p,m) ((void)0)
-#endif
-
-/* Apply a reversible xform to obfuscate pointers exposed to clients in DEBUG builds
- *
- * NDEBUG:
- *   EXPORT: cast to the public type
- *   IMPORT: cast to the internal type
- * DEBUG:
- *   EXPORT: apply obfuscating to an internal pointer and cast
- *   IMPORT: remove obfuscation to reproduce the internal pointer and cast
- */
-#if defined(GASNETI_EXPORT_POINTER) && defined(GASNETI_IMPORT_POINTER)
-  /* Preserve existing definitions */
-#elif !defined(GASNETI_EXPORT_POINTER) && !defined(GASNETI_IMPORT_POINTER)
-  #if GASNET_DEBUG
-    /* Default xform is to invert all bits */
-    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)~(uintptr_t)(ptr))
-    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)~(uintptr_t)(ptr))
-  #else
-    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)(ptr))
-    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)(ptr))
-  #endif
-#elif defined(GASNETI_EXPORT_POINTER) || defined(GASNETI_IMPORT_POINTER)
-  #error Must define both or neither of GASNETI_EXPORT_POINTER and GASNETI_IMPORT_POINTER
 #endif
 
 /* Non-asserting alignment macros
@@ -776,6 +754,34 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #else
   #define GASNETI_PREFETCH_READ_HINT(P)
   #define GASNETI_PREFETCH_WRITE_HINT(P)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+
+/* Apply a reversible xform to obfuscate pointers exposed to clients in DEBUG builds
+ *
+ * NDEBUG:
+ *   EXPORT: cast to the public type
+ *   IMPORT: cast to the internal type
+ * DEBUG:
+ *   EXPORT: apply obfuscating to an internal pointer and cast
+ *   IMPORT: remove obfuscation to reproduce the internal pointer and cast
+ */
+#if defined(GASNETI_EXPORT_POINTER) && defined(GASNETI_IMPORT_POINTER)
+  /* Preserve existing definitions */
+#elif !defined(GASNETI_EXPORT_POINTER) && !defined(GASNETI_IMPORT_POINTER)
+  #if GASNET_DEBUG
+    /* Default xform is to invert all bits, except that NULL is preserved */
+    GASNETI_INLINE(_gasneti_swizzle_pointer)
+    uintptr_t _gasneti_swizzle_pointer(uintptr_t _p) { return _p ? ~_p : _p; }
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
+  #else
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)(ptr))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)(ptr))
+  #endif
+#elif defined(GASNETI_EXPORT_POINTER) || defined(GASNETI_IMPORT_POINTER)
+  #error Must define both or neither of GASNETI_EXPORT_POINTER and GASNETI_IMPORT_POINTER
 #endif
 
 /* ------------------------------------------------------------------------------------ */
