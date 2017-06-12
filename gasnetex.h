@@ -329,10 +329,10 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_Client_t, _real_client);
   }
-  #define gex_Client_SetCData(client,val)      (gasneti_import_client(client)->_cdata = (val))
-  #define gex_Client_QueryCData(client)        (gasneti_import_client(client)->_cdata)
-  #define gex_Client_QueryFlags(client)        (gasneti_import_client(client)->_flags)
-  #define gex_Client_QueryName(client)         (gasneti_import_client(client)->_name)
+  #define gex_Client_SetCData(client,val)      ((void*)(gasneti_import_client(client)->_cdata = (val)))
+  #define gex_Client_QueryCData(client)        ((void*)gasneti_import_client(client)->_cdata)
+  #define gex_Client_QueryFlags(client)        ((gex_Flags_t)gasneti_import_client(client)->_flags)
+  #define gex_Client_QueryName(client)         ((const char*)gasneti_import_client(client)->_name)
 #endif
 
 #ifndef _GEX_SEGMENT_T
@@ -364,12 +364,12 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_Segment_t, _real_segment);
   }
-  #define gex_Segment_SetCData(seg,val)         (gasneti_import_segment(seg)->_cdata = (val))
-  #define gex_Segment_QueryCData(seg)           (gasneti_import_segment(seg)->_cdata)
+  #define gex_Segment_SetCData(seg,val)         ((void*)(gasneti_import_segment(seg)->_cdata = (val)))
+  #define gex_Segment_QueryCData(seg)           ((void*)gasneti_import_segment(seg)->_cdata)
   #define gex_Segment_QueryClient(seg)          gasneti_export_client(gasneti_import_segment(seg)->_client)
-  #define gex_Segment_QueryFlags(seg)           (gasneti_import_segment(seg)->_flags)
-  #define gex_Segment_QueryAddr(seg)            (gasneti_import_segment(seg)->_addr)
-  #define gex_Segment_QuerySize(seg)            (gasneti_import_segment(seg)->_size)
+  #define gex_Segment_QueryFlags(seg)           ((gex_Flags_t)gasneti_import_segment(seg)->_flags)
+  #define gex_Segment_QueryAddr(seg)            ((void*)gasneti_import_segment(seg)->_addr)
+  #define gex_Segment_QuerySize(seg)            ((uintptr_t)gasneti_import_segment(seg)->_size)
 #endif
 
 #ifndef _GEX_EP_T
@@ -399,10 +399,10 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_EP_t, _real_ep);
   }
-  #define gex_EP_SetCData(ep,val)              (gasneti_import_ep(ep)->_cdata = (val))
-  #define gex_EP_QueryCData(ep)                (gasneti_import_ep(ep)->_cdata)
+  #define gex_EP_SetCData(ep,val)              ((void*)(gasneti_import_ep(ep)->_cdata = (val)))
+  #define gex_EP_QueryCData(ep)                ((void*)gasneti_import_ep(ep)->_cdata)
   #define gex_EP_QueryClient(ep)               gasneti_export_client(gasneti_import_ep(ep)->_client)
-  #define gex_EP_QueryFlags(ep)                (gasneti_import_ep(ep)->_flags)
+  #define gex_EP_QueryFlags(ep)                ((gex_Flags_t)gasneti_import_ep(ep)->_flags)
   #define gex_EP_QuerySegment(ep)              gasneti_export_segment(gasneti_import_ep(ep)->_segment)
 #endif
 
@@ -434,13 +434,13 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_TM_t, _real_tm);
   }
-  #define gex_TM_SetCData(tm,val)              (gasneti_import_tm(tm)->_cdata = (val))
-  #define gex_TM_QueryCData(tm)                (gasneti_import_tm(tm)->_cdata)
+  #define gex_TM_SetCData(tm,val)              ((void*)(gasneti_import_tm(tm)->_cdata = (val)))
+  #define gex_TM_QueryCData(tm)                ((void*)gasneti_import_tm(tm)->_cdata)
   #define gex_TM_QueryClient(tm)               gasneti_export_client(gasneti_import_tm(tm)->_ep->_client)
   #define gex_TM_QueryEP(tm)                   gasneti_export_ep(gasneti_import_tm(tm)->_ep)
-  #define gex_TM_QueryFlags(tm)                (gasneti_import_tm(tm)->_flags)
-  #define gex_TM_QueryRank(tm)                 (gasneti_import_tm(tm)->_rank)
-  #define gex_TM_QuerySize(tm)                 (gasneti_import_tm(tm)->_size)
+  #define gex_TM_QueryFlags(tm)                ((gex_Flags_t)gasneti_import_tm(tm)->_flags)
+  #define gex_TM_QueryRank(tm)                 ((gex_Rank_t)gasneti_import_tm(tm)->_rank)
+  #define gex_TM_QuerySize(tm)                 ((gex_Rank_t)gasneti_import_tm(tm)->_size)
 #endif
 
 // TODO-EX: remove these legacy checks
