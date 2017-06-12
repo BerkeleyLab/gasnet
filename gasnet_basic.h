@@ -180,6 +180,30 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #define GASNETI_CHECK_MAGIC(p,m) ((void)0)
 #endif
 
+/* Apply a reversible xform to obfuscate pointers exposed to clients in DEBUG builds
+ *
+ * NDEBUG:
+ *   EXPORT: cast to the public type
+ *   IMPORT: cast to the internal type
+ * DEBUG:
+ *   EXPORT: apply obfuscating to an internal pointer and cast
+ *   IMPORT: remove obfuscation to reproduce the internal pointer and cast
+ */
+#if defined(GASNETI_EXPORT_POINTER) && defined(GASNETI_IMPORT_POINTER)
+  /* Preserve existing definitions */
+#elif !defined(GASNETI_EXPORT_POINTER) && !defined(GASNETI_IMPORT_POINTER)
+  #if GASNET_DEBUG
+    /* Default xform is to invert all bits */
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)~(uintptr_t)(ptr))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)~(uintptr_t)(ptr))
+  #else
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)(ptr))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)(ptr))
+  #endif
+#elif defined(GASNETI_EXPORT_POINTER) || defined(GASNETI_IMPORT_POINTER)
+  #error Must define both or neither of GASNETI_EXPORT_POINTER and GASNETI_IMPORT_POINTER
+#endif
+
 /* Non-asserting alignment macros
  * Use for instance in
  *    char buffer[GASNETI_ALIGNUP_NOASSERT(sizeof(struct foo), GASNETI_CACHE_LINE_BYTES)];
