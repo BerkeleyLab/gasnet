@@ -308,6 +308,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
   typedef struct {
   #if GASNET_DEBUG
     #define GASNETI_CLIENT_MAGIC       GASNETI_MAKE_MAGIC('C','L','I','t')
+    #define GASNETI_CLIENT_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('C','L','I','t')
     gasneti_magic_t    _magic;
   #endif
     const char *       _name;
@@ -340,6 +341,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
   typedef struct {
   #if GASNET_DEBUG
     #define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
+    #define GASNETI_SEGMENT_BAD_MAGIC  GASNETI_MAKE_BAD_MAGIC('S','E','G','t')
     gasneti_magic_t    _magic;
   #endif
     gasneti_Client_t   _client;
@@ -377,6 +379,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
   typedef struct {
   #if GASNET_DEBUG
     #define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
+    #define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
     gasneti_magic_t    _magic;
   #endif
     gasneti_Client_t   _client;
@@ -411,6 +414,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
   typedef struct {
   #if GASNET_DEBUG
     #define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
+    #define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
     gasneti_magic_t    _magic;
   #endif
     gasneti_EP_t       _ep;

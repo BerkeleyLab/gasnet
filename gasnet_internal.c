@@ -512,6 +512,129 @@ extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
 #endif
 /* ------------------------------------------------------------------------------------ */
 
+#ifndef _GEX_CLIENT_T
+gasneti_Client_t gasneti_alloc_client(
+                       const char *name,
+                       gex_Flags_t flags)
+{
+  gasneti_Client_t client = gasneti_malloc(sizeof(*client));
+  GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
+  client->_name = gasneti_strdup(name);
+  client->_cdata = NULL;
+  client->_flags = flags;
+#ifdef GASNETI_CLIENT_ALLOC_EXTRA
+  GASNETI_CLIENT_ALLOC_EXTRA(client);
+#endif
+  return client;
+}
+
+void gasneti_free_client(gasneti_Client_t client)
+{
+#ifdef GASNETI_CLIENT_FREE_EXTRA
+  GASNETI_CLIENT_FREE_EXTRA(client);
+#endif
+  gasneti_free((/*non-const*/char*)client->_name);
+  GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_BAD_MAGIC);
+  gasneti_free(client);
+}
+#endif // _GEX_CLIENT_T
+
+
+#ifndef _GEX_SEGMENT_T
+gasneti_Segment_t gasneti_alloc_segment(
+                       gasneti_Client_t client,
+                       void *addr,
+                       uintptr_t size,
+                       gex_Flags_t flags)
+{
+  gasneti_Segment_t segment = gasneti_malloc(sizeof(*segment));
+  GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
+  segment->_client = client;
+  segment->_cdata = NULL;
+  segment->_flags = flags;
+  segment->_addr = addr;
+  segment->_ub = (void*)((uintptr_t)addr + size);
+  segment->_size = size;
+#ifdef GASNETI_SEGMENT_ALLOC_EXTRA
+  GASNETI_SEGMENT_ALLOC_EXTRA(segment);
+#endif
+  return segment;
+}
+
+void gasneti_free_segment(gasneti_Segment_t segment)
+{
+#ifdef GASNETI_SEGMENT_FREE_EXTRA
+  GASNETI_SEGMENT_FREE_EXTRA(segment);
+#endif
+  GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_BAD_MAGIC);
+  gasneti_free(segment);
+}
+#endif // _GEX_SEGMENT_T
+
+
+#ifndef _GEX_EP_T
+extern gasneti_EP_t gasneti_alloc_ep(
+                       gasneti_Client_t client,
+                       gex_Flags_t flags)
+{
+  gasneti_EP_t endpoint = gasneti_malloc(sizeof(*endpoint));
+  GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
+  endpoint->_client = client;
+  endpoint->_cdata = NULL;
+  endpoint->_segment = NULL;
+  endpoint->_flags = flags;
+#ifdef GASNETI_EP_ALLOC_EXTRA
+  GASNETI_EP_ALLOC_EXTRA(endpoint);
+#endif
+  return endpoint;
+}
+
+void gasneti_free_ep(gasneti_EP_t endpoint)
+{
+#ifdef GASNETI_EP_FREE_EXTRA
+  GASNETI_EP_FREE_EXTRA(endpoint);
+#endif
+  GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_BAD_MAGIC);
+  gasneti_free(endpoint);
+}
+#endif // _GEX_EP_T
+
+
+#ifndef _GEX_TM_T
+extern gasneti_TM_t gasneti_alloc_tm(
+                       gasneti_EP_t ep,
+                       gex_Rank_t rank,
+                       gex_Rank_t size,
+                       gex_Flags_t flags)
+{
+  gasneti_assert(rank < size);
+  gasneti_assert(size > 0);
+  gasneti_TM_t tm = gasneti_malloc(sizeof(*tm));
+  GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
+  tm->_ep = ep;
+  tm->_cdata = NULL;
+  tm->_flags = flags;
+  tm->_rank = rank;
+  tm->_size = size;
+#ifdef GASNETI_TM_ALLOC_EXTRA
+  GASNETI_TM_ALLOC_EXTRA(tm);
+#endif
+  return tm;
+}
+
+void gasneti_free_tm(gasneti_TM_t tm)
+{
+#ifdef GASNETI_TM_FREE_EXTRA
+  GASNETI_TM_FREE_EXTRA(tm);
+#endif
+  GASNETI_INIT_MAGIC(tm, GASNETI_TM_BAD_MAGIC);
+  gasneti_free(tm);
+}
+#endif // _GEX_TM_T
+
+
+/* ------------------------------------------------------------------------------------ */
+
 #ifndef GASNETC_FATALSIGNAL_CALLBACK
 #define GASNETC_FATALSIGNAL_CALLBACK(sig)
 #endif
