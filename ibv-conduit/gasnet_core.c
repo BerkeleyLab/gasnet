@@ -1846,23 +1846,7 @@ gasnetc_prereg_list(int *count_p) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_primary( gex_Client_t       *client_p,
-                                   gex_EP_t           *ep_p,
-                                   gex_TM_t           *tm_p,
-                                   gex_Flags_t        flags ) {
-  /* ------------------------------------------------------------------------------------ */
-  // TODO-EX: create client
-  *client_p = NULL;
-
-  /* ------------------------------------------------------------------------------------ */
-  /*  create the initial endpoint with internal handlers */
-  if (gasnetc_EP_Create(ep_p, *client_p, flags))
-    GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
-
-  /* ------------------------------------------------------------------------------------ */
-  // TODO-EX: create team
-  *tm_p = NULL;
-
+static int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
@@ -2131,7 +2115,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
   #endif
 
   /*  primary attach  */
-  if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, tm_p, 0))
+  if (GASNET_OK != gasnetc_attach_primary())
     GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -2181,9 +2165,19 @@ extern int gasnetc_Client_Init(
   gasneti_trace_init(argc, argv);
 #endif
 
+  // TODO-EX: create client
+  *client_p = NULL;
+
+  /*  create the initial endpoint with internal handlers */
+  if (gasnetc_EP_Create(ep_p, *client_p, flags))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+
+  // TODO-EX: create team
+  *tm_p = NULL;
+
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary(client_p, ep_p, tm_p, flags))
+    if (GASNET_OK != gasnetc_attach_primary())
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
