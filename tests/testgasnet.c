@@ -197,7 +197,49 @@ int main(int argc, char **argv) {
   
   gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
-  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testgasnet", &argc, &argv, 0));
+  const char *myname = "testgasnet";
+  const gex_Flags_t myflags = 0;
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, myname, &argc, &argv, myflags));
+  if (strcmp(myname, gex_Client_QueryName(myclient))) {
+    MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
+  }
+  if (myflags != gex_Client_QueryFlags(myclient)) {
+    MSG("*** ERROR - FAILED CLIENT FLAGS TEST!!!!!");
+  }
+  if (myclient != gex_EP_QueryClient(myep)) {
+    MSG("*** ERROR - FAILED EP CLIENT TEST!!!!!");
+  }
+  if (myclient != gex_TM_QueryClient(myteam)) {
+    MSG("*** ERROR - FAILED TM CLIENT TEST!!!!!");
+  }
+  if (myep != gex_TM_QueryEP(myteam)) {
+    MSG("*** ERROR - FAILED TM EP TEST!!!!!");
+  }
+  if (GEX_SEGMENT_INVALID != gex_EP_QuerySegment(myep)) {
+    MSG("*** ERROR - FAILED EP NO-SEGMENT TEST!!!!!");
+  }
+
+  void *mydata = (void*)&main;
+  if (NULL != gex_Client_QueryCData(myclient) ||
+      mydata != gex_Client_SetCData(myclient, mydata) ||
+      mydata != gex_Client_QueryCData(myclient)) {
+    MSG("*** ERROR - FAILED CLIENT CDATA TEST!!!!!");
+  }
+  if (NULL != gex_EP_QueryCData(myep) ||
+      mydata != gex_EP_SetCData(myep, mydata) ||
+      mydata != gex_EP_QueryCData(myep)) {
+    MSG("*** ERROR - FAILED EP CDATA TEST!!!!!");
+  }
+  if (NULL != gex_TM_QueryCData(myteam) ||
+      mydata != gex_TM_SetCData(myteam, mydata) ||
+      mydata != gex_TM_QueryCData(myteam)) {
+    MSG("*** ERROR - FAILED TM CDATA TEST!!!!!");
+  }
+
+  // To be removed:
+  assert(gasnet_mynode() == gex_TM_QueryRank(myteam));
+  assert(gasnet_nodes() == gex_TM_QuerySize(myteam));
+
   local_segsz = gasnet_getMaxLocalSegmentSize();
   global_segsz = gasnet_getMaxGlobalSegmentSize();
   #if GASNET_SEGMENT_EVERYTHING

@@ -769,14 +769,17 @@ extern int gasnetc_Client_Init(
 #endif
 
   // TODO-EX: create client
-  *client_p = NULL;
+  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+  *client_p = gasneti_export_client(client);
 
   /*  create the initial endpoint with internal handlers */
   if (gasnetc_EP_Create(ep_p, *client_p, flags))
     GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // TODO-EX: create team
-  *tm_p = NULL;
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
+  *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
@@ -828,6 +831,9 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   gasneti_mutex_unlock(&lock);
   if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
 #endif
+
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
+  *ep_p = gasneti_export_ep(ep);
 
   // Operate on global data until we have a real implementation of endpoints
 
