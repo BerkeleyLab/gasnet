@@ -17,6 +17,9 @@ static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
+static gex_Rank_t myrank;
+static gex_Rank_t numranks;
+
 #if !defined(GASNET_PAR)
   #ifdef TEST_MPI
    #ifdef GASNET_SEQ
@@ -194,6 +197,9 @@ main(int argc, char **argv)
         GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
         GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, HANDLER_TABLE_SIZE));
 
+        myrank = gex_TM_QueryRank(myteam);
+        numranks = gex_TM_QuerySize(myteam);
+
         #if TEST_MPI
           #define TEST_MPI_USAGE  "  -m  use MPI calls                              \n"
         #else
@@ -365,10 +371,7 @@ threadmain(void *args)
 void
 alloc_thread_data(int threads)
 {
-	int	nodes, tot_threads;
-
-	nodes = gasnet_nodes();
-	tot_threads = nodes * threads;
+	int	tot_threads = numranks * threads;
 
 	tt_thread_map = (gex_Rank_t *) test_malloc(sizeof(gex_Rank_t) * tot_threads);
 	tt_thread_data = (threaddata_t *) test_malloc(sizeof(threaddata_t) * threads);
@@ -380,7 +383,7 @@ alloc_thread_data(int threads)
 		void	*segbase;
 
 		threaddata_t	*td;
-		for (i = 0; i < nodes; i++) {
+		for (i = 0; i < numranks; i++) {
 			segbase = TEST_SEG(i);
 
 			base = i * threads;
@@ -391,7 +394,7 @@ alloc_thread_data(int threads)
 				    ((uintptr_t) segbase + 
 				     (uintptr_t) (j * TEST_SEGZ_PER_THREAD));
 
-				if (i == gasnet_mynode()) {
+				if (i == myrank) {
 					td = &tt_thread_data[j];
 
 					td->tid = tid;
@@ -434,9 +437,9 @@ ping_shorthandler(gex_AM_Token_t token, harg_t idx)
 	gasnet_AMGetMsgSource(token, &node);
 
 	PRINT_AM(("node=%2d> AMShort Request for (%d,%d)", 
-			(int)gasnet_mynode(), (int)node, (int)idx));
+			(int)myrank, (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
-        assert(node < gasnet_nodes());
+        assert(node < numranks);
 	gex_AM_ReplyShort1(token, hidx_pong_shorthandler, 0, idx);
 }
 
@@ -445,9 +448,9 @@ pong_shorthandler(gex_AM_Token_t token, harg_t idx)
 {
 	int	tid = tt_thread_data[idx].tid;
 	PRINT_AM(("node=%2d> AMShort Reply for tid=%d, (%d,%d)", 
-			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
+			(int)myrank, tid, (int)myrank, (int)idx));
         assert(idx >= 0 && idx < threads_num);
-        assert(tid >= 0 && tid < threads_num*gasnet_nodes());
+        assert(tid >= 0 && tid < threads_num*numranks);
 	tt_thread_data[idx].flag++;
 }
 
@@ -458,12 +461,12 @@ ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, harg
 	gasnet_AMGetMsgSource(token, &node);
 
 	PRINT_AM(("node=%2d> AMMedium Request for (%d,%d)", 
-			(int)gasnet_mynode(), (int)node, (int)idx));
+			(int)myrank, (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
-        assert(node < gasnet_nodes());
+        assert(node < numranks);
         assert(nbytes <= gex_AM_MaxRequestMedium(myteam,node,GEX_EVENT_NOW,0,2));
-        assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(gasnet_mynode()) ||
-               (uintptr_t)buf >= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
+        assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(myrank) ||
+               (uintptr_t)buf >= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
 	gex_AM_ReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, idx);
 }
@@ -476,12 +479,12 @@ pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
 	gasnet_AMGetMsgSource(token, &node);
 
 	PRINT_AM(("node=%2d> AMMedium Reply for tid=%d, (%d,%d)", 
-			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
+			(int)myrank, tid, (int)myrank, (int)idx));
         assert(idx >= 0 && idx < threads_num);
-        assert(tid >= 0 && tid < threads_num*gasnet_nodes());
+        assert(tid >= 0 && tid < threads_num*numranks);
         assert(nbytes <= gex_AM_MaxReplyMedium(myteam,node,GEX_EVENT_NOW,0,1));
-        assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(gasnet_mynode()) ||
-               (uintptr_t)buf >= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
+        assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(myrank) ||
+               (uintptr_t)buf >= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
 	tt_thread_data[idx].flag++;
 }
 
@@ -497,12 +500,12 @@ ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, har
 	paddr = tt_addr_map[tid];
 
 	PRINT_AM(("node=%2d> AMLong Request for (%d,%d)", 
-			(int)gasnet_mynode(), (int)node, (int)idx));
+			(int)myrank, (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
-        assert(node < gasnet_nodes());
+        assert(node < numranks);
         assert(nbytes <= gex_AM_MaxRequestLong(myteam,node,GEX_EVENT_NOW,0,3));
         assert(buf == tt_addr_map[target_id]);
-        assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
+        assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
 	gex_AM_ReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GEX_EVENT_NOW, 0, idx);
 }
@@ -512,12 +515,12 @@ pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx) {
 	int	tid = tt_thread_data[idx].tid;
 
 	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)", 
-			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
+			(int)myrank, tid, (int)myrank, (int)idx));
         assert(idx >= 0 && idx < threads_num);
-        assert(tid >= 0 && tid < threads_num*gasnet_nodes());
+        assert(tid >= 0 && tid < threads_num*numranks);
         assert(nbytes <= gex_AM_MaxReplyLong(myteam,node,GEX_EVENT_NOW,0,1));
-        assert(buf == tt_addr_map[gasnet_mynode() * threads_num + idx]);
-        assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
+        assert(buf == tt_addr_map[myrank * threads_num + idx]);
+        assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
 	tt_thread_data[idx].flag++;
 }
 

@@ -221,11 +221,11 @@ int main(int argc, char **argv) {
   TEST_PRINT_CONDUITINFO();
 
   /* get SPMD info */
-  myproc = gasnet_mynode();
-  numprocs = gasnet_nodes();
+  myproc = gex_TM_QueryRank(myteam);
+  numprocs = gex_TM_QuerySize(myteam);
 
   peerproc = myproc ^ 1;
-  if (peerproc == gasnet_nodes()) {
+  if (peerproc == numprocs) {
     /* w/ odd # of nodes, last one talks to self */
     peerproc = myproc;
   }

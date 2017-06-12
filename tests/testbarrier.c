@@ -82,8 +82,8 @@ int main(int argc, char **argv) {
             "  The -b option replaces barrier_notify calls with blocking barrier calls\n"
             "  The -t option replaces barrier_wait calls with looping on barrier_try");
 #endif
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
 
   while (argc-arg >= 2) {
    if (!strcmp(argv[arg], "-p")) {
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
     pollers = test_thread_limit(atoi(argv[arg+1])+1)-1;
     arg += 2;
 #else
-    if (gasnet_mynode() == 0) {
+    if (mynode == 0) {
       fprintf(stderr, "testbarrier %s\n", GASNET_CONFIG_STRING);
       fprintf(stderr, "ERROR: The -p option is only available in the PAR configuration.\n");
       fflush(NULL);

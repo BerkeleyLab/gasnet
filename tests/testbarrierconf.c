@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
    if (!strcmp(argv[arg], "-p")) {
 #ifdef GASNET_PAR
     if (argc-arg < 2) {
-      if (gasnet_mynode() == 0) {
+      if (mynode == 0) {
         fprintf(stderr, "testbarrierconf %s\n", GASNET_CONFIG_STRING);
         fprintf(stderr, "ERROR: The -p option requires an argument.\n");
         fflush(NULL);
@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
     pollers = test_thread_limit(atoi(argv[arg+1])+1)-1;
     arg += 2;
 #else
-    if (gasnet_mynode() == 0) {
+    if (mynode == 0) {
       fprintf(stderr, "testbarrierconf %s\n", GASNET_CONFIG_STRING);
       fprintf(stderr, "ERROR: The -p option is only available in the PAR configuration.\n");
       fflush(NULL);
@@ -97,8 +97,8 @@ int main(int argc, char **argv) {
   if (iters <= 0) iters = 1000;
   if (argc-arg >= 2) test_usage();
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
 
   if (mynode == 0) {
       const char * mode = do_try ? "try" : "wait";

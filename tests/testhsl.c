@@ -76,10 +76,10 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testhsl",0,"(0|errtestnum:1..16)");
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
-  peer = (gasnet_mynode() ^ 1);
-  if (peer == gasnet_nodes()) peer = gasnet_mynode();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
+  peer = (mynode ^ 1);
+  if (peer == nodes) peer = mynode;
 
   if (argc < 2) test_usage();
   {
@@ -91,8 +91,8 @@ int main(int argc, char **argv) {
     MSG0("testing legal local cases...");
     gex_HSL_Lock(&lock1);
     gex_HSL_Lock(&lock2);
-    assert(mynode == gasnet_mynode()); 
-    assert(nodes == gasnet_nodes());
+    assert(mynode == gex_TM_QueryRank(myteam));
+    assert(nodes == gex_TM_QuerySize(myteam));
     gex_HSL_Unlock(&lock2);
     gex_HSL_Unlock(&lock1);
 
@@ -139,16 +139,16 @@ int main(int argc, char **argv) {
         gasnet_AMPoll();
       break;
       case 8:
-        gex_AM_RequestShort0(myteam, gasnet_mynode(), 231, 0);
+        gex_AM_RequestShort0(myteam, mynode, 231, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 9:
-        gex_AM_RequestShort0(myteam, gasnet_mynode(), 232, 0);
+        gex_AM_RequestShort0(myteam, mynode, 232, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 10:
         gex_HSL_Lock(&lock1);
-        gex_AM_RequestShort0(myteam, gasnet_mynode(), 250, 0);
+        gex_AM_RequestShort0(myteam, mynode, 250, 0);
         gex_HSL_Unlock(&lock1);
       break;
       case 11:

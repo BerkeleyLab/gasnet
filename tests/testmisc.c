@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testmisc",1,"(iters) (accuracy_digits) (test_sections)");
 
-  mynode = gasnet_mynode();
+  mynode = gex_TM_QueryRank(myteam);
   myseg = TEST_MYSEG();
 
   if (argc > 1) iters = atoi(argv[1]);
@@ -464,9 +464,10 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            
         gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS); 
       });
-    if (TEST_SECTION_ENABLED() && (gasnet_nodes() > 1))
+    if (TEST_SECTION_ENABLED() && (gex_TM_QuerySize(myteam) > 1))
       MSG0("Note: this is actually the barrier time for %i nodes, "
-           "since you're running with more than one node.\n", (int)gasnet_nodes());
+           "since you're running with more than one node.\n",
+           (int)gex_TM_QuerySize(myteam));
 
     doit8();
 }

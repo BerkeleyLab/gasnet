@@ -20,6 +20,9 @@ static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
+static gex_Rank_t myrank;
+static gex_Rank_t numranks;
+
 typedef struct {
   int activecnt;
   int passivecnt;
@@ -108,7 +111,7 @@ void report(gasnett_tick_t ticks) {
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
       gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, myrank, hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -146,7 +149,7 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
       gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, myrank, hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -184,7 +187,7 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gex_RMA_GetBlocking(myteam, &t
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
       gex_AM_RequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
-      gex_AM_RequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
+      gex_AM_RequestShort0(myteam, myrank, hidx_markdone_shorthandler, 0); \
     } else {                                                                            \
       while(!signal_done) {                                                             \
         putgetstmt_rest;                                                                \
@@ -267,7 +270,7 @@ void *workerthread(void *args) {
       continue;
     }
 
-    if (mythread == 0 && gasnet_mynode() == 0) {
+    if (mythread == 0 && myrank == 0) {
         MSG("%c: --------------------------------------------------------------------------",
             TEST_SECTION_NAME());
         MSG("%c: Running test %s", TEST_SECTION_NAME(), fntable[fnidx].desc);
@@ -309,6 +312,9 @@ int main(int argc, char **argv) {
         GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
         GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, HANDLER_TABLE_SIZE));
 
+        myrank = gex_TM_QueryRank(myteam);
+        numranks = gex_TM_QuerySize(myteam);
+
 	test_init("testcontend",1,"[options] (maxthreads) (iters) (test_sections)\n"
                   "  The -rev option reverses thread numbering");
 
@@ -332,11 +338,11 @@ int main(int argc, char **argv) {
 	  gasnet_exit(-1);
 	}
 	maxthreads = test_thread_limit(maxthreads);
-        if (gasnet_nodes() % 2 != 0) {
+        if (numranks % 2 != 0) {
     	  MSG0("WARNING: This test requires an even number of nodes. Test skipped.\n");
     	  gasnet_exit(0); /* exit 0 to prevent false negatives in test harnesses for smp-conduit */
         }
-        if (gasnet_mynode() == 0) {
+        if (myrank == 0) {
           MSG("Running testcontend with 1..%i threads and %i iterations", maxthreads, iters);
         }
         tcountentries = 3 * maxthreads;
@@ -345,8 +351,8 @@ int main(int argc, char **argv) {
         for (i = 1; i <= maxthreads; i++) { ptcount->activecnt = i; ptcount->passivecnt = 1; ptcount++; }
         for (i = 1; i <= maxthreads; i++) { ptcount->activecnt = 1; ptcount->passivecnt = i; ptcount++; }
         for (i = 1; i <= maxthreads; i++) { ptcount->activecnt = i; ptcount->passivecnt = i; ptcount++; }
-        peer = gasnet_mynode() ^ 1;
-        amactive = (gasnet_mynode() % 2 == 0);
+        peer = myrank ^ 1;
+        amactive = (myrank % 2 == 0);
 
         peerseg = TEST_SEG(peer);
 
@@ -355,7 +361,7 @@ int main(int argc, char **argv) {
         test_createandjoin_pthreads(maxthreads, &workerthread, NULL, 0);
 
         BARRIER();
-	if (gasnet_mynode() == 0) MSG("Tests complete");
+	if (myrank == 0) MSG("Tests complete");
         BARRIER();
 
 	gasnet_exit(0);

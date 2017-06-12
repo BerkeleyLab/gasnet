@@ -114,8 +114,8 @@ int main(int argc, char **argv) {
     if ((argc < 2) || (argc > 4)) test_usage();
 
     /* get SPMD info */
-    myproc = gasnet_mynode();
-    numprocs = gasnet_nodes();
+    myproc = gex_TM_QueryRank(myteam);
+    numprocs = gex_TM_QuerySize(myteam);
     
     /* Only allow even number for numprocs */
     if (numprocs % 2 != 0) {

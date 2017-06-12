@@ -231,8 +231,8 @@ int main(int argc, char **argv) {
   test_init_early("testexit",0,usagestr);
   MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
 
   argv++; argc--;
   if (argc > 0 && !strcmp(*argv, "-r")) { mynode = nodes-(mynode+1); argv++; argc--; }

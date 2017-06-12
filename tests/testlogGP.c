@@ -372,8 +372,8 @@ int main(int argc, char **argv)
     pollcnt = atoi(argv[2]);
 
     /* get SPMD info */
-    myproc = gasnet_mynode();
-    numprocs = gasnet_nodes();
+    myproc = gex_TM_QueryRank(myteam);
+    numprocs = gex_TM_QuerySize(myteam);
 
     /* Only allow even number for numprocs */
     if (numprocs % 2 != 0) {

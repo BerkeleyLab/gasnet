@@ -154,8 +154,8 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testam", &argc, &argv, 0));
 
-  mynode = gasnet_mynode();
-  numnode = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  numnode = gex_TM_QuerySize(myteam);
 
   arg = 1;
   while (argc > arg) {

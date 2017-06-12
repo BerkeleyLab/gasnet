@@ -1147,9 +1147,9 @@ int main(int argc, char **argv) {
   if (i < argc) { seedoffset = atoi(argv[i]); i++; }
   if (i < argc) test_usage();
 
-  mynode = gasnet_mynode();
+  mynode = gex_TM_QueryRank(myteam);
   myseg = TEST_SEG(mynode);
-  partner = (gasnet_mynode() + 1) % gasnet_nodes();
+  partner = (mynode + 1) % gex_TM_QuerySize(myteam);
   partnerseg = TEST_SEG(partner);
   heapseg = (VEC_T *)test_malloc(TEST_SEGSZ);
 

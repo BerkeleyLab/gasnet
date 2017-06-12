@@ -234,8 +234,8 @@ main(int argc, char **argv)
 
 	/* get SPMD info */
 	chksum_iters = iters;
-	myproc = gasnet_mynode();
-	numprocs = gasnet_nodes();
+	myproc = gex_TM_QueryRank(myteam);
+	numprocs = gex_TM_QuerySize(myteam);
         /* Only allow even number for numprocs */
         if (numprocs % 2 != 0) {
           MSG0("WARNING: This test requires an even number of nodes. Test skipped.\n");

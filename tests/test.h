@@ -100,20 +100,28 @@ GASNETT_BEGIN_EXTERNC
     ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
     _test_doErrMsg##isfatal ) )
 
+#ifdef _INCLUDED_GASNET_H
+  #define TEST_MYPROC gasnet_mynode()
+  #define TEST_PROCS  gasnet_nodes()
+#else
+  #define TEST_MYPROC gasnet_mynode() // TODO-EX: gex_System_QueryRank()
+  #define TEST_PROCS  gasnet_nodes()  // TODO-EX: gex_System_QuerySize()
+#endif
+
 /* define several useful messaging macros */
 static int test_errs = 0;
 #ifdef TEST_GASNETEX_H
-  #define MSG   test_makeMsg(("node %i/%i %s\n", (int)gasnet_mynode(), (int)gasnet_nodes(), "%s"), 1, 0, \
+  #define MSG   test_makeMsg(("node %i/%i %s\n", (int)TEST_MYPROC, (int)TEST_PROCS, "%s"), 1, 0, \
                              GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
-  #define MSG0  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0), 0, \
+  #define MSG0  test_makeMsg(("%s\n","%s"), (TEST_MYPROC == 0), 0, \
                              GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
   #define _TERR(isfatal)                                                                                        \
                 test_makeMsg(("ERROR: node %i/%i %s (at %s:%i)\n",                                             \
-                              (int)gasnet_mynode(), (int)gasnet_nodes(), "%s",__FILE__, __LINE__), 1, isfatal, \
+                              (int)TEST_MYPROC, (int)TEST_PROCS, "%s",__FILE__, __LINE__), 1, isfatal, \
                              (test_errs++, GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__)))
-  #define THREAD_MSG0(id)  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0 && id == 0), 0, 0)
+  #define THREAD_MSG0(id)  test_makeMsg(("%s\n","%s"), (TEST_MYPROC == 0 && id == 0), 0, 0)
   #define THREAD_ERR(id)   test_makeMsg(("ERROR: node %i/%i thread %i: %s (at %s:%i)\n", \
-                              (int)gasnet_mynode(), (int)gasnet_nodes(),id, "%s", __FILE__, __LINE__), 1, 0, test_errs++)
+                              (int)TEST_MYPROC, (int)TEST_PROCS,id, "%s", __FILE__, __LINE__), 1, 0, test_errs++)
 #else
   #define MSG   test_makeMsg(("%s\n","%s"), 1, 0, 0)
   #define MSG0  MSG
@@ -628,7 +636,7 @@ static int test_collinit = 0;
 /* ------------------------------------------------------------------------------------ */
 /* standard messages */
 static void TEST_DEBUGPERFORMANCE_WARNING(void) {
-  if (gasnet_mynode() == 0) {
+  if (TEST_MYPROC == 0) {
     const char *warning = gasnett_performance_warning_str();
     if (*warning) {
       fflush(NULL);
@@ -736,7 +744,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     assert(nbytes == sizeof(gasnet_seginfo_t));
     assert(_test_seginfo != NULL);
     gasnet_AMGetMsgSource(token, &srcid);
-    assert(srcid < gasnet_nodes());
+    assert(srcid < TEST_PROCS);
     _test_seginfo[srcid] = *(gasnet_seginfo_t *)buf;
     gasnett_atomic_increment(&_test_seggather_done, GASNETT_ATOMIC_REL);
   }
@@ -773,29 +781,32 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     _test_seggather_idx = mytab[0].gex_index;
     _test_segbcast_idx = mytab[1].gex_index;
 
-    _test_seginfo = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
+    gex_Rank_t myrank = gex_TM_QueryRank(tm);
+    gex_Rank_t numrank = gex_TM_QuerySize(tm);
+
+    _test_seginfo = (gasnet_seginfo_t *)test_malloc(numrank*sizeof(gasnet_seginfo_t));
     #ifdef TEST_SEGSZ_EXPR
       _test_hidden_seg = (uint8_t *)test_malloc(TEST_SEGSZ+PAGESZ);
     #endif
-    GASNET_Safe(gasnet_getSegmentInfo(_test_seginfo, gasnet_nodes()));
-    myseg = _test_seginfo[gasnet_mynode()];
+    GASNET_Safe(gasnet_getSegmentInfo(_test_seginfo, numrank));
+    myseg = _test_seginfo[myrank];
     myseg.addr = ((void *)(((uint8_t*)_test_hidden_seg) + 
       (((((uintptr_t)_test_hidden_seg)%PAGESZ) == 0)? 0 : 
        (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
     myseg.size = TEST_SEGSZ;
     BARRIER();
     gex_AM_RequestMedium0(tm, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GEX_EVENT_NOW, 0);
-    { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
+    { const size_t total_bytes = numrank*sizeof(gasnet_seginfo_t);
       const size_t msg_bytes = gex_AM_LUBRequestMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
-      if (gasnet_mynode() == 0) {
+      if (myrank == 0) {
         size_t remain = total_bytes;
         void *payload = _test_seginfo;
         int idx;
-        GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done, 0) == (int)gasnet_nodes());
+        GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done, 0) == (int)numrank);
         for (idx = 0; idx < msg_count; ++idx) {
           const size_t nbytes = MIN(remain, msg_bytes);
-          for (i=0; i < (int)gasnet_nodes(); i++) {
+          for (i=0; i < (int)numrank; i++) {
             gex_AM_RequestMedium1(tm, i, _test_segbcast_idx, payload, nbytes, GEX_EVENT_NOW, 0, idx);
           }
           remain -= nbytes;
@@ -805,7 +816,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
       GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_segbcast_count, 0) == msg_count);
     }
     BARRIER();
-    for (i=0; i < (int)gasnet_nodes(); i++) {
+    for (i=0; i < (int)numrank; i++) {
       assert_always(_test_seginfo[i].size >= TEST_SEGSZ);
       assert_always((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
     }
@@ -838,9 +849,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   static void *_test_getseg(gex_Rank_t node) {
     if (_test_seginfo == NULL) {
       gex_Rank_t i;
-      gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
-      GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
-      for (i=0; i < gasnet_nodes(); i++) {
+      gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(TEST_PROCS*sizeof(gasnet_seginfo_t));
+      GASNET_Safe(gasnet_getSegmentInfo(s, TEST_PROCS));
+      for (i=0; i < TEST_PROCS; i++) {
         assert_always(s[i].size >= TEST_SEGSZ);
         assert_always(((uintptr_t)s[i].size) % PAGESZ == 0);
         #if GASNET_ALIGNED_SEGMENTS == 1
@@ -855,7 +866,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   #define TEST_SEGINFO() (assert(_test_seginfo), (gasnet_seginfo_t const *)_test_seginfo)
 #endif
 
-#define TEST_MYSEG()          (TEST_SEG(gasnet_mynode()))
+#define TEST_MYSEG()          (TEST_SEG(TEST_MYPROC))
 
 /* ------------------------------------------------------------------------------------ */
 /* segment alignment */
@@ -866,7 +877,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
       int result = 1; /* Assume aligned until we find otherwise */
       void *addr0 = _test_seginfo[0].addr;
       gex_Rank_t i;
-      for (i = 1; i < gasnet_nodes(); i++) {
+      for (i = 1; i < TEST_PROCS; i++) {
         if (_test_seginfo[i].addr != addr0) {
           result = 0;
           break;
@@ -891,8 +902,8 @@ static int _test_localprocs(void) { /* First call is not thread safe */
     gex_Rank_t i;
 
     assert(_test_nodeinfo);
-    my_supernode = _test_nodeinfo[gasnet_mynode()].supernode;
-    for (i=0; i < gasnet_nodes(); i++) {
+    my_supernode = _test_nodeinfo[TEST_MYPROC].supernode;
+    for (i=0; i < TEST_PROCS; i++) {
       if (_test_nodeinfo[i].supernode == my_supernode) {
         if (!count) _test_firstnode = i;
         count++;
@@ -917,7 +928,7 @@ static void _test_set_waitmode(int threads) {
     threads_serialized = (0 != pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM));
   #endif
     if (threads_serialized) {
-      if (_test_firstnode == gasnet_mynode())
+      if (_test_firstnode == TEST_MYPROC)
         MSG("WARNING: per-proc thread count (%i) exceeds platform's concurrency "
             "- enabling  \"polite\", low-performance synchronization algorithms",
             threads);
@@ -931,7 +942,7 @@ static void _test_set_waitmode(int threads) {
 #else
   threads *= local_procs;
   if (threads > gasnett_cpu_count()) {
-    if (_test_firstnode == gasnet_mynode())
+    if (_test_firstnode == TEST_MYPROC)
       MSG("WARNING: per-node thread count (%i) exceeds actual cpu count (%i) "
           "- enabling  \"polite\", low-performance synchronization algorithms",
           threads, gasnett_cpu_count());
@@ -952,7 +963,7 @@ static void _test_set_waitmode(int threads) {
 
 static void TEST_GENERICS_WARNING(void) {
   #ifdef TEST_GASNETEX_H
-    if (gasnet_mynode() == 0)
+    if (TEST_MYPROC == 0)
   #endif
   {
     #ifdef GASNETT_USING_GETTIMEOFDAY
@@ -977,7 +988,7 @@ static const char *_test_testname = NULL;
 static const char *_test_argvzero = NULL;
 static void _test_usage(int early) {
   #ifdef TEST_GASNETEX_H
-    if (gasnet_mynode() == 0) {
+    if (TEST_MYPROC == 0) {
       fprintf(stderr, "%s %s\n", _test_testname, GASNET_CONFIG_STRING);
       fprintf(stderr, "Usage: %s %s%s", _test_argvzero, _test_usagestr,
         (_test_usagestr[strlen(_test_usagestr)-1] == '\n' ? "" : "\n"));
@@ -1022,7 +1033,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
     if (reports_performance) {
       TEST_DEBUGPERFORMANCE_WARNING();
       TEST_GENERICS_WARNING();
-      if (gasnet_mynode() == 0)
+      if (TEST_MYPROC == 0)
         fprintf(stdout, "Timer granularity: <= %.3f us, overhead: ~ %.3f us\n",
                        gasnett_tick_granularityus(), gasnett_tick_overheadus());
       fflush(NULL);
@@ -1032,18 +1043,18 @@ static void _test_init(const char *testname, int reports_performance, int early,
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
     }
     MSG0("=====> %s nprocs=%d config=%s compiler=%s/%s sys=%s",
-        testname, (int)gasnet_nodes(), GASNET_CONFIG_STRING,
+        testname, (int)TEST_PROCS, GASNET_CONFIG_STRING,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     assert(_test_nodeinfo == NULL);
     /* must use malloc here, pre-attach if "early" */
-    _test_nodeinfo = (gasnet_nodeinfo_t *)malloc(gasnet_nodes()*sizeof(gasnet_nodeinfo_t));
-    GASNET_Safe(gasnet_getNodeInfo(_test_nodeinfo, gasnet_nodes()));
+    _test_nodeinfo = (gasnet_nodeinfo_t *)malloc(TEST_PROCS*sizeof(gasnet_nodeinfo_t));
+    GASNET_Safe(gasnet_getNodeInfo(_test_nodeinfo, TEST_PROCS));
     if (!early) {
-      TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
+      TEST_SEG(TEST_MYPROC); /* ensure we got the segment requested */
       BARRIER();
     #if GASNET_PSHM || 1 /* supernode info still of intested when PSHM not used */
-      MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[gasnet_mynode()].supernode, (int)getpid());
+      MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[TEST_MYPROC].supernode, (int)getpid());
     #else
       MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
     #endif

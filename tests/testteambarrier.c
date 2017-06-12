@@ -97,8 +97,8 @@ int main(int argc, char **argv) {
 
 
   
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;

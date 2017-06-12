@@ -401,8 +401,8 @@ int main(int argc, char **argv)
     max_payload = maxsz;
 
     /* get SPMD info */
-    myproc = gasnet_mynode();
-    numprocs = gasnet_nodes();
+    myproc = gex_TM_QueryRank(myteam);
+    numprocs = gex_TM_QuerySize(myteam);
 
     if (!firstlastmode) {
       /* Only allow 1 or even number for numprocs */
