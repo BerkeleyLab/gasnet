@@ -302,6 +302,7 @@ typedef struct gasneti_endpoint_s *gex_EP_t;
 
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
+#define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
 
 #ifndef _GEX_CLIENT_T
   typedef struct {
