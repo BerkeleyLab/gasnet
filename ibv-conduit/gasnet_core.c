@@ -3491,12 +3491,52 @@ extern int gasnetc_AMRequestMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
+
+  gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *local_cnt, start_cnt;
+  gasnetc_cb_t         local_cb;
+  gasnete_eop_t        *eop = NULL;
+
+  if (gasneti_leaf_is_pointer(lc_opt)) {
+    eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+    *lc_opt = (gex_Event_t)eop;
+    GASNETE_EOP_LC_START(eop);
+    start_cnt = eop->initiated_alc;
+    local_cnt = &eop->initiated_alc;
+    local_cb = gasnetc_cb_eop_alc;
+  } else if (lc_opt == GEX_EVENT_NOW) {
+    local_cnt = &counter.initiated;
+    local_cb = gasnetc_cb_counter;
+  } else if (lc_opt == GEX_EVENT_GROUP) {
+    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasnete_iop_t *op = mythread->current_iop;
+    local_cnt = &op->initiated_alc_cnt;
+    local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
+  } else {
+    gasneti_fatalerror("Invalid lc_opt argument to RequestMedium");
+  }
+
   retval = gasnetc_RequestGeneric(gasneti_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
-				  flags, numargs, NULL, NULL, NULL,
+                                  flags, numargs, local_cnt, local_cb, NULL,
                                   argptr GASNETI_THREAD_PASS);
+
+  if (eop && (start_cnt == eop->initiated_alc)) {
+    // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+    GASNETE_EOP_LC_FINISH(eop);
+    *lc_opt = GEX_EVENT_INVALID;
+    gasnete_eop_free(eop);
+  } else if (lc_opt == GEX_EVENT_NOW) {
+#if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
+    /* block for local completion of payload transfer */
+    gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+#else
+    gasneti_assert(counter.initiated == 0);
+    gasneti_assert(gasnetc_atomic_read(&counter.completed,0) == 0);
+#endif
+  }
+
   va_end(argptr);
   return (retval == GASNETC_FAIL_IMM);
 }
@@ -3608,12 +3648,47 @@ extern int gasnetc_AMReplyMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
+
+  gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *local_cnt, start_cnt;
+  gasnetc_cb_t         local_cb;
+  gasnete_eop_t        *eop = NULL;
+
+  if (gasneti_leaf_is_pointer(lc_opt)) {
+    eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+    *lc_opt = (gex_Event_t)eop;
+    GASNETE_EOP_LC_START(eop);
+    start_cnt = eop->initiated_alc;
+    local_cnt = &eop->initiated_alc;
+    local_cb = gasnetc_cb_eop_alc;
+  } else if (lc_opt == GEX_EVENT_NOW) {
+    local_cnt = &counter.initiated;
+    local_cb = gasnetc_cb_counter;
+  } else {
+    gasneti_fatalerror("Invalid lc_opt argument to ReplyMedium");
+  }
+
   retval = gasnetc_ReplyGeneric(gasneti_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
-				flags, numargs, NULL, NULL, NULL,
+                                flags, numargs, local_cnt, local_cb, NULL,
                                 argptr GASNETI_THREAD_PASS);
+
+  if (eop && (start_cnt == eop->initiated_alc)) {
+    // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+    GASNETE_EOP_LC_FINISH(eop);
+    *lc_opt = GEX_EVENT_INVALID;
+    gasnete_eop_free(eop);
+  } else if (lc_opt == GEX_EVENT_NOW) {
+  #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
+    /* block for local completion of payload transfer */
+    gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
+  #else
+    gasneti_assert(counter.initiated == 0);
+    gasneti_assert(gasnetc_atomic_read(&counter.completed,0) == 0);
+  #endif
+  }
+
   va_end(argptr);
   return (retval == GASNETC_FAIL_IMM);
 }
