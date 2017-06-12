@@ -2209,8 +2209,12 @@ extern int gasnetc_Segment_Attach(
   if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
-  // TODO-EX: will obviously need real object:
-  segment_p = NULL;
+  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
+  uintptr_t segsize = gasneti_seginfo[gasneti_mynode].size;
+  const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
+  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags);
+  *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
 }

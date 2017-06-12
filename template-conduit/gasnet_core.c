@@ -341,8 +341,12 @@ extern int gasnetc_Segment_Attach(
 
   /* (###) add code to create a segment collectively */
 
-  // TODO-EX: will obviously need real object:
-  segment_p = NULL;
+  void *segbase = (###);
+  uintptr_t segsize = (###);
+  const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
+  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags);
+  *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
 }

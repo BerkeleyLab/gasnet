@@ -253,6 +253,26 @@ int main(int argc, char **argv) {
   #endif
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+#if GASNET_SEGMENT_EVERYTHING
+  // test.h intercepted gex_Segment_Attach() but does not fake a gex_Segment_t
+#else
+  if (myclient != gex_Segment_QueryClient(mysegment)) {
+    MSG("*** ERROR - FAILED SEGMENT CLIENT TEST!!!!!");
+  }
+  if (mysegment != gex_EP_QuerySegment(myep)) {
+    MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
+  }
+  if (NULL != gex_Segment_QueryCData(mysegment) ||
+      mydata != gex_Segment_SetCData(mysegment, mydata) ||
+      mydata != gex_Segment_QueryCData(mysegment)) {
+    MSG("*** ERROR - FAILED SEGMENT CDATA TEST!!!!!");
+  }
+
+  // To be removed:
+  assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());
+  assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
+#endif
+
   GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gex_AM_Entry_t)));
 
   test_init("testgasnet",0,"");
