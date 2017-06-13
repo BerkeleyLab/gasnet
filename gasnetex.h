@@ -331,7 +331,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_Client_t, _real_client);
   }
-  #define gex_Client_SetCData(client,val)      ((void*)(gasneti_import_client(client)->_cdata = (val)))
+  #define gex_Client_SetCData(client,val)      ((void)(gasneti_import_client(client)->_cdata = (val)))
   #define gex_Client_QueryCData(client)        ((void*)gasneti_import_client(client)->_cdata)
   #define gex_Client_QueryFlags(client)        ((gex_Flags_t)gasneti_import_client(client)->_flags)
   #define gex_Client_QueryName(client)         ((const char*)gasneti_import_client(client)->_name)
@@ -367,7 +367,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_Segment_t, _real_segment);
   }
-  #define gex_Segment_SetCData(seg,val)         ((void*)(gasneti_import_segment(seg)->_cdata = (val)))
+  #define gex_Segment_SetCData(seg,val)         ((void)(gasneti_import_segment(seg)->_cdata = (val)))
   #define gex_Segment_QueryCData(seg)           ((void*)gasneti_import_segment(seg)->_cdata)
   #define gex_Segment_QueryClient(seg)          gasneti_export_client(gasneti_import_segment(seg)->_client)
   #define gex_Segment_QueryFlags(seg)           ((gex_Flags_t)gasneti_import_segment(seg)->_flags)
@@ -403,7 +403,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_EP_t, _real_ep);
   }
-  #define gex_EP_SetCData(ep,val)              ((void*)(gasneti_import_ep(ep)->_cdata = (val)))
+  #define gex_EP_SetCData(ep,val)              ((void)(gasneti_import_ep(ep)->_cdata = (val)))
   #define gex_EP_QueryCData(ep)                ((void*)gasneti_import_ep(ep)->_cdata)
   #define gex_EP_QueryClient(ep)               gasneti_export_client(gasneti_import_ep(ep)->_client)
   #define gex_EP_QueryFlags(ep)                ((gex_Flags_t)gasneti_import_ep(ep)->_flags)
@@ -439,7 +439,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
     return GASNETI_EXPORT_POINTER(gex_TM_t, _real_tm);
   }
-  #define gex_TM_SetCData(tm,val)              ((void*)(gasneti_import_tm(tm)->_cdata = (val)))
+  #define gex_TM_SetCData(tm,val)              ((void)(gasneti_import_tm(tm)->_cdata = (val)))
   #define gex_TM_QueryCData(tm)                ((void*)gasneti_import_tm(tm)->_cdata)
   #define gex_TM_QueryClient(tm)               gasneti_export_client(gasneti_import_tm(tm)->_ep->_client)
   #define gex_TM_QueryEP(tm)                   gasneti_export_ep(gasneti_import_tm(tm)->_ep)

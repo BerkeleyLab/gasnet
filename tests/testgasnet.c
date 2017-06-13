@@ -224,18 +224,18 @@ int main(int argc, char **argv) {
 
   void *mydata = (void*)&main;
   if (NULL != gex_Client_QueryCData(myclient) ||
-      mydata != gex_Client_SetCData(myclient, mydata) ||
-      mydata != gex_Client_QueryCData(myclient)) {
+      mydata != (gex_Client_SetCData(myclient, mydata),
+                 gex_Client_QueryCData(myclient))) {
     MSG("*** ERROR - FAILED CLIENT CDATA TEST!!!!!");
   }
   if (NULL != gex_EP_QueryCData(myep) ||
-      mydata != gex_EP_SetCData(myep, mydata) ||
-      mydata != gex_EP_QueryCData(myep)) {
+      mydata != (gex_EP_SetCData(myep, mydata),
+                 gex_EP_QueryCData(myep))) {
     MSG("*** ERROR - FAILED EP CDATA TEST!!!!!");
   }
   if (NULL != gex_TM_QueryCData(myteam) ||
-      mydata != gex_TM_SetCData(myteam, mydata) ||
-      mydata != gex_TM_QueryCData(myteam)) {
+      mydata != (gex_TM_SetCData(myteam, mydata),
+                 gex_TM_QueryCData(myteam))) {
     MSG("*** ERROR - FAILED TM CDATA TEST!!!!!");
   }
 
@@ -265,8 +265,8 @@ int main(int argc, char **argv) {
     MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
   }
   if (NULL != gex_Segment_QueryCData(mysegment) ||
-      mydata != gex_Segment_SetCData(mysegment, mydata) ||
-      mydata != gex_Segment_QueryCData(mysegment)) {
+      mydata != (gex_Segment_SetCData(mysegment, mydata),
+                 gex_Segment_QueryCData(mysegment))) {
     MSG("*** ERROR - FAILED SEGMENT CDATA TEST!!!!!");
   }
 
