@@ -1288,7 +1288,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 
 #if 0  /* UNUSED - see param_RS computation for explanation */
 	/* Count how many regions fit into an AM Medium payload */
-        med_regions = (MIN(gex_AM_LUBReqestMedium(),
+        med_regions = (MIN(gex_AM_LUBRequestMedium(),
                            gex_AM_LUBReplyMedium())
 				- sizeof(firehose_remotecallback_args_t))
 				/ sizeof(firehose_region_t);
