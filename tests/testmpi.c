@@ -141,28 +141,28 @@ int *mpi_bufsz;
 
 /* called by a single thread after gasnet_attach and args parsing */
 void attach_test_mpi(void) {
-    int rank;
+    int mpirank;
     int gasnet_node;
     int mpinodes;
     int tot_threads;
     int i;
     MPI_SAFE(MPI_Barrier(MPI_COMM_WORLD));
 
-    /* setup gasnetnode <=> mpi rank mappings */
+    /* setup gasnetnode <=> mpi mpirank mappings */
     gasnetnode_to_mpirank = test_malloc(sizeof(int)*numranks);
     mpirank_to_gasnetnode = test_malloc(sizeof(int)*numranks);
 
-    MPI_SAFE(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
+    MPI_SAFE(MPI_Comm_rank(MPI_COMM_WORLD, &mpirank));
     MPI_SAFE(MPI_Comm_size(MPI_COMM_WORLD, &mpinodes));
-    printf("GASNet node %i == MPI node %i\n", (int)myrank, rank);
-    if (myrank != rank) 
+    printf("GASNet node %i == MPI node %i\n", (int)myrank, mpirank);
+    if (myrank != mpirank) 
       printf("WARNING: Node numbering between GASNet and MPI do not coincide\n");
-    assert_always(mpinodes == numranks && rank >= 0 && rank < mpinodes);
+    assert_always(mpinodes == numranks && mpirank >= 0 && mpirank < mpinodes);
     gasnet_node = myrank;
     MPI_SAFE(MPI_Allgather(&gasnet_node,sizeof(int),MPI_BYTE,
                            mpirank_to_gasnetnode,sizeof(int),MPI_BYTE,
                            MPI_COMM_WORLD));
-    assert_always(mpirank_to_gasnetnode[rank] == myrank);
+    assert_always(mpirank_to_gasnetnode[mpirank] == myrank);
     for (i = 0; i < mpinodes; i++) gasnetnode_to_mpirank[i] = -1;
     for (i = 0; i < mpinodes; i++) gasnetnode_to_mpirank[mpirank_to_gasnetnode[i]] = i;
     for (i = 0; i < mpinodes; i++) assert_always(gasnetnode_to_mpirank[i] != -1);
