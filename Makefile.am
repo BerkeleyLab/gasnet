@@ -96,16 +96,12 @@ EXTRA_DIST =              		\
 
 include_HEADERS = $(headers)
 
-# deliberately omitted git-only docs: README-devel README-git README-release
+# deliberately omitted git-only docs: README-devel README-git README-release gasnet.*
 INSTALL_DOCS =			\
 	README			\
 	README-tools		\
 	license.txt		\
-	docs/autotuner.txt	\
-	docs/gasnet.txt		\
-	docs/gasnet.html	\
-	docs/gasnet.pdf		\
-	docs/gasnet.ps	
+	docs/GASNet-EX.spec
 
 force:
 
