@@ -492,6 +492,12 @@ gex_RMA_Value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 #define gasnet_end_nbi_accessregion()   gex_NBI_EndAccessRegion(0)
 
 /* ------------------------------------------------------------------------------------ */
+/* No-interrupt sections - GASNet-1 compliant empty implementation */
+
+#define gasnet_hold_interrupts()   ((void)0)
+#define gasnet_resume_interrupts() ((void)0)
+
+/* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN
 GASNETT_END_EXTERNC
 
