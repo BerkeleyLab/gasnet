@@ -29,8 +29,8 @@
 #include <gasnet_config.h>
 
 /* public spec version numbers */
-#define GEX_SPEC_VERSION_MAJOR GASNETIEX_SPEC_VERSION_MAJOR
-#define GEX_SPEC_VERSION_MINOR GASNETIEX_SPEC_VERSION_MINOR
+#define GEX_SPEC_VERSION_MAJOR GASNETI_EX_SPEC_VERSION_MAJOR
+#define GEX_SPEC_VERSION_MINOR GASNETI_EX_SPEC_VERSION_MINOR
 
 /* ------------------------------------------------------------------------------------ */
 /* check threading configuration */
