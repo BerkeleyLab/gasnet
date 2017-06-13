@@ -29,11 +29,8 @@
 #include <gasnet_config.h>
 
 /* public spec version numbers */
-#define GASNET_SPEC_VERSION_MAJOR GASNETI_SPEC_VERSION_MAJOR
-#define GASNET_SPEC_VERSION_MINOR GASNETI_SPEC_VERSION_MINOR
-
-/*  legacy name for major spec version number */
-#define GASNET_VERSION GASNET_SPEC_VERSION_MAJOR
+#define GEX_SPEC_VERSION_MAJOR GASNETIEX_SPEC_VERSION_MAJOR
+#define GEX_SPEC_VERSION_MINOR GASNETIEX_SPEC_VERSION_MINOR
 
 /* ------------------------------------------------------------------------------------ */
 /* check threading configuration */
@@ -510,8 +507,8 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
   #endif
   #define GASNET_CONFIG_STRING                                            \
              "RELEASE=" _STRINGIFY(GASNETI_RELEASE_VERSION) ","           \
-             "SPEC=" _STRINGIFY(GASNET_SPEC_VERSION_MAJOR) "."            \
-             _STRINGIFY(GASNET_SPEC_VERSION_MINOR) ","                    \
+             "SPEC=" _STRINGIFY(GEX_SPEC_VERSION_MAJOR) "."               \
+             _STRINGIFY(GEX_SPEC_VERSION_MINOR) ","                       \
              "CONDUIT=" GASNET_CONDUIT_NAME_STR "("                       \
              GASNET_CORE_NAME_STR "-" GASNET_CORE_VERSION_STR "/"         \
              GASNET_EXTENDED_NAME_STR "-" GASNET_EXTENDED_VERSION_STR "),"\

@@ -226,14 +226,13 @@ int main(int argc, char **argv) {
   }
   BARRIER();
 
-  { int smaj = GASNET_SPEC_VERSION_MAJOR;
-    int smin = GASNET_SPEC_VERSION_MINOR;
+  { int smaj = GEX_SPEC_VERSION_MAJOR;
+    int smin = GEX_SPEC_VERSION_MINOR;
     int rmaj = GASNET_RELEASE_VERSION_MAJOR;
     int rmin = GASNET_RELEASE_VERSION_MINOR;
     int rpat = GASNET_RELEASE_VERSION_PATCH;
-    int smaj2 = GASNET_VERSION;
-    assert_always(smaj > 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
-    assert_always(smaj == smaj2);
+    // TODO-EX: (smaj > 0) when we reach 1.0
+    assert_always(smaj >= 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
   }
 
   { int i;

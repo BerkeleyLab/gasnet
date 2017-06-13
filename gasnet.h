@@ -31,6 +31,13 @@ extern gex_Segment_t     gasneti_thunk_segment;
 */
 #define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_GEX_RMA_VALUE_T
 
+/* public spec version numbers */
+#define GASNET_SPEC_VERSION_MAJOR GASNETI_SPEC_VERSION_MAJOR
+#define GASNET_SPEC_VERSION_MINOR GASNETI_SPEC_VERSION_MINOR
+
+/*  legacy name for major spec version number */
+#define GASNET_VERSION GASNET_SPEC_VERSION_MAJOR
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Base types
