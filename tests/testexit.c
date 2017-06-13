@@ -155,7 +155,7 @@ void *workerthread(void *args) {
             case 14: gex_RMA_GetNBI(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
             case 15: gex_RMA_PutNBI(myteam, peer, peerseg, p, lim, GEX_EVENT_NOW, 0); break;
             case 16: gex_RMA_GetNBI(myteam, p, peer, peerseg, lim, 0); break;
-            case 17: gex_NBI_WaitAll(); break;
+            case 17: gex_NBI_Wait(GEX_EC_ALL,0); break;
           }
         }
       }

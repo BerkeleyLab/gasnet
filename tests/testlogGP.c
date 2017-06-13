@@ -203,7 +203,7 @@ void put_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gex_RMA_PutNBI(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_NOW, 0);
 		}
-		gex_NBI_WaitPuts();
+		gex_NBI_Wait(GEX_EC_PUT,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "put: gap - put_nbi", PRINT_GAP);
@@ -218,7 +218,7 @@ void put_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gex_RMA_PutNBI(myteam, peerproc, peermem, mymem, nbytes, GEX_EVENT_DEFER, 0);
 		}
-		gex_NBI_WaitPuts();
+		gex_NBI_Wait(GEX_EC_PUT,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "put: G   - put_nbi", PRINT_BIG_G);
@@ -326,7 +326,7 @@ void get_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 	 		gex_RMA_GetNBI(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
-		gex_NBI_WaitGets();
+		gex_NBI_Wait(GEX_EC_GET,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 		print_stat(myproc, &st, "get: gap - get_nbi", PRINT_GAP);
@@ -341,7 +341,7 @@ void get_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 	 		gex_RMA_GetNBI(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
-		gex_NBI_WaitGets();
+		gex_NBI_Wait(GEX_EC_GET,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
     		print_stat(myproc, &st, "get: G   - get_nbi", PRINT_BIG_G);

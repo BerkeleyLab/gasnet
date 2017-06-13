@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \
-                gex_NBI_WaitAll();                                                       \
+                gex_NBI_Wait(GEX_EC_ALL,0);                                                      \
               } while (0)
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();

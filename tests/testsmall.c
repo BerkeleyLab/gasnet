@@ -213,7 +213,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, nbytes, GEX_EVENT_NOW, 0);
-			gex_NBI_WaitPuts();
+			gex_NBI_Wait(GEX_EC_PUT,0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -234,7 +234,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gex_RMA_GetNBI(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
-			gex_NBI_WaitGets();
+			gex_NBI_Wait(GEX_EC_GET,0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -268,7 +268,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, nbytes, GEX_EVENT_NOW, 0);
 		}
-		gex_NBI_WaitPuts();
+		gex_NBI_Wait(GEX_EC_PUT,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -288,7 +288,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 	 		gex_RMA_GetNBI(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 		}
-		gex_NBI_WaitGets();
+		gex_NBI_Wait(GEX_EC_GET,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -383,7 +383,7 @@ void oneway_nb_test(int iters, int nbytes)
                 for (i = 0; i < iters; i++) {
                         events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, nbytes, GEX_EVENT_NOW, 0);
                 }
-		gex_Event_WaitAll(events, iters);
+		gex_Event_WaitAll(events, iters, 0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -407,7 +407,7 @@ void oneway_nb_test(int iters, int nbytes)
                 for (i = 0; i < iters; i++) {
                     events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
                 } 
-		gex_Event_WaitAll(events, iters);
+		gex_Event_WaitAll(events, iters, 0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -572,8 +572,8 @@ int main(int argc, char **argv)
            }
            gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
-           gex_Event_WaitAll(h, 2*warm_iters);
-           gex_NBI_WaitAll();
+           gex_Event_WaitAll(h, 2*warm_iters, 0);
+           gex_NBI_Wait(GEX_EC_ALL,0);
            test_free(h);
         }
 

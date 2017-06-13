@@ -415,37 +415,27 @@ void gex_Event_Wait (gex_Event_t event);
 // Success is defined as one or more handles have been completed, OR
 // the input array contains only GEX_EVENT_INVALID.
 // Completed handles, if any, are overwritten with GEX_EVENT_INVALID.
-int  gex_Event_TestSome (gex_Event_t *pevent, size_t numevents);
-void gex_Event_WaitSome (gex_Event_t *pevent, size_t numevents);
+int  gex_Event_TestSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
+void gex_Event_WaitSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 
 // Completion of an NB event array - "all"
 // Success is defined as all passed handles have been completed, OR
 // the input array contains only GEX_EVENT_INVALID.
 // Completed handles, if any, are overwritten with GEX_EVENT_INVALID.
-int  gex_Event_TestAll (gex_Event_t *pevent, size_t numevents);
-void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents);
+int  gex_Event_TestAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
+void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 
-// Sync of NBI gets
-int  gex_NBI_TestGets(void);
-void gex_NBI_WaitGets(void);
-
-// Sync of NBI puts
-int  gex_NBI_TestPuts(void);
-void gex_NBI_WaitPuts(void);
-
-// Sync of all NBI operations
-int  gex_NBI_TestAll (void);
-void gex_NBI_WaitAll (void);
-
-// Identifiers to name events (such as local completion from NBI Puts)
-#define GEX_NBI_ALL   ...
-#define GEX_NBI_GETS  ...
-#define GEX_NBI_PUTS  ...
-#define GEX_NBI_LC    ...  // TODO: name that conveys "lc of put and AM payloads"
+// Identifiers to name Event Categories (such as local completion from NBI Puts)
+// TODO: these should have a distinct type
 // TODO: will eventually need COLL, VISMETA, etc.
+#define GEX_EC_ALL   ...
+#define GEX_EC_GET   ...
+#define GEX_EC_PUT   ...
+#define GEX_EC_AM    ...
+#define GEX_EC_LC    ...
 
 // Sync of specified subset of NBI operations
-// Argument is bitwise-OR of GEX_NBI_{GETS,PUTS,...}
+// Argument is bitwise-OR of GEX_EC_* constants
 int  gex_NBI_Test(unsigned int event_mask, gex_Flags_t flags);
 void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 
@@ -453,10 +443,8 @@ void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 // NOTE: name is subject to change
 //
 // The 'root' argument must be a valid root event
-// The 'event_id' argument is GEX_NBI_<x> for <x> one of the values
-// Extract a leaf event from the root event
-// GETS, PUTS, LC, etc.  It cannot be a bitwise-OR of multiple such values, nor
-// can it be GEX_NBI_ALL.
+// The 'event_category' argument is an GEX_EC_<x> constant.
+// It cannot be a bitwise-OR of multiple such values, nor GEX_EC_ALL.
 //
 // There are additional validity constraints to be documented, such as one
 // cannot ask for an event that was "suppressed" by passing EVENT_DEFER.
@@ -473,7 +461,7 @@ void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 // the *same* event.
 gex_Event_t gex_Event_QueryLeaf(
         gex_Event_t event,
-        unsigned int event_id);
+        unsigned int event_category);
 
 
 // Max payload queries for specific peer, nargs, lc_opt and flags

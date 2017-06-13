@@ -470,27 +470,27 @@ gex_RMA_Value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 /* Explicit-handle sync operations */
 
 #define gasnet_try_syncnb_nopoll(h)          gex_Event_Test(h)
-#define gasnet_try_syncnb_some_nopoll(ph,sz) gex_Event_TestSome(ph,sz)
-#define gasnet_try_syncnb_all_nopoll(ph,sz)  gex_Event_TestAll(ph,sz)
+#define gasnet_try_syncnb_some_nopoll(ph,sz) gex_Event_TestSome(ph,sz,0)
+#define gasnet_try_syncnb_all_nopoll(ph,sz)  gex_Event_TestAll(ph,sz,0)
 
 #define gasnet_try_syncnb(h)          (gasnet_AMPoll(),gex_Event_Test(h))
-#define gasnet_try_syncnb_some(ph,sz) (gasnet_AMPoll(),gex_Event_TestSome(ph,sz))
-#define gasnet_try_syncnb_all(ph,sz)  (gasnet_AMPoll(),gex_Event_TestAll(ph,sz))
+#define gasnet_try_syncnb_some(ph,sz) (gasnet_AMPoll(),gex_Event_TestSome(ph,sz,0))
+#define gasnet_try_syncnb_all(ph,sz)  (gasnet_AMPoll(),gex_Event_TestAll(ph,sz,0))
 
 #define gasnet_wait_syncnb(h)          gex_Event_Wait(h)
-#define gasnet_wait_syncnb_some(ph,sz) gex_Event_WaitSome(ph,sz)
-#define gasnet_wait_syncnb_all(ph,sz)  gex_Event_WaitAll(ph,sz)
+#define gasnet_wait_syncnb_some(ph,sz) gex_Event_WaitSome(ph,sz,0)
+#define gasnet_wait_syncnb_all(ph,sz)  gex_Event_WaitAll(ph,sz,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle sync operations */
 
-#define gasnet_try_syncnbi_gets() (gasnet_AMPoll(),gex_NBI_TestGets())
-#define gasnet_try_syncnbi_puts() (gasnet_AMPoll(),gex_NBI_TestPuts())
-#define gasnet_try_syncnbi_all()  (gasnet_AMPoll(),gex_NBI_TestAll ())
+#define gasnet_try_syncnbi_gets() (gasnet_AMPoll(),gex_NBI_Test(GEX_EC_GET,0))
+#define gasnet_try_syncnbi_puts() (gasnet_AMPoll(),gex_NBI_Test(GEX_EC_PUT,0))
+#define gasnet_try_syncnbi_all()  (gasnet_AMPoll(),gex_NBI_Test(GEX_EC_ALL,0))
 
-#define gasnet_wait_syncnbi_gets() gex_NBI_WaitGets()
-#define gasnet_wait_syncnbi_puts() gex_NBI_WaitPuts()
-#define gasnet_wait_syncnbi_all()  gex_NBI_WaitAll ()
+#define gasnet_wait_syncnbi_gets() gex_NBI_Wait(GEX_EC_GET,0)
+#define gasnet_wait_syncnbi_puts() gex_NBI_Wait(GEX_EC_PUT,0)
+#define gasnet_wait_syncnbi_all()  gex_NBI_Wait(GEX_EC_ALL,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle access regions */

@@ -166,7 +166,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		for (i = 0; i < iters; i++) {
 			gex_RMA_PutNBI(myteam, peerproc, rembuf, locbuf+pad, nbytes, GEX_EVENT_DEFER, 0);
 		}
-		gex_NBI_WaitPuts();
+		gex_NBI_Wait(GEX_EC_PUT,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -188,7 +188,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		for (i = 0; i < iters; i++) {
 	 		gex_RMA_GetNBI(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
-		gex_NBI_WaitGets();
+		gex_NBI_Wait(GEX_EC_GET,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -224,7 +224,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
                 for (i = 0; i < iters; i++) {
                         events[i] = gex_RMA_PutNB(myteam, peerproc, rembuf, locbuf+pad, nbytes, GEX_EVENT_DEFER, 0);
                 }
-		gex_Event_WaitAll(events, iters);
+		gex_Event_WaitAll(events, iters, 0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -246,7 +246,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
                 for (i = 0; i < iters; i++) {
                     events[i] = gex_RMA_GetNB(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
-		gex_Event_WaitAll(events, iters);
+		gex_Event_WaitAll(events, iters, 0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}

@@ -1027,8 +1027,8 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gex_Event_WaitAll(events, numops);
-      gex_NBI_WaitAll();
+      gex_Event_WaitAll(events, numops, 0);
+      gex_NBI_Wait(GEX_EC_ALL,0);
 
       /* gets */
       for(i=0; i < numops; i++) {
@@ -1062,8 +1062,8 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gex_Event_WaitAll(events, numops);
-      gex_NBI_WaitAll();
+      gex_Event_WaitAll(events, numops, 0);
+      gex_NBI_Wait(GEX_EC_ALL,0);
 
       for(i=0; i < numops; i++) {
         if (ops[i].vsrc != NULL) {

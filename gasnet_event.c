@@ -411,45 +411,8 @@ extern int  gasnete_test_all (gex_Event_t *pevent, size_t numevents GASNETI_THRE
   ===========================================================
 */
 
-#ifndef gasnete_test_syncnbi_gets
-extern int  gasnete_test_syncnbi_gets(GASNETI_THREAD_FARG_ALONE) {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  gasnete_iop_t *iop = mythread->current_iop;
-  gasneti_assert(iop->threadidx == mythread->threadidx);
-  gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-  #if GASNET_DEBUG
-    if (iop->next != NULL)
-      gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_gets() inside an NBI access region");
-  #endif
-
-    if (GASNETE_IOP_CNTDONE(iop,get)) {
-      gasneti_sync_reads();
-      return GASNET_OK;
-    } else return GASNET_ERR_NOT_READY;
-}
-#endif
-
-#ifndef gasnete_test_syncnbi_puts
-extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  gasnete_iop_t *iop = mythread->current_iop;
-  gasneti_assert(iop->threadidx == mythread->threadidx);
-  gasneti_assert(iop->next == NULL);
-  gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-  #if GASNET_DEBUG
-    if (iop->next != NULL)
-      gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_puts() inside an NBI access region");
-  #endif
-
-    // If any put_nbi calls passed EVENT_DEFER then we need to complete their LC too.
-    if (GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_CNTDONE(iop)) {
-      gasneti_sync_reads(); // TODO-EX: revisit this
-      return GASNET_OK;
-    } else return GASNET_ERR_NOT_READY;
-}
-#endif
-
 #ifndef gasnete_test_syncnbi_mask
+// TODO-EX: public header should dispatch to specialized functions on constant mask
 extern int gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
@@ -458,16 +421,16 @@ extern int gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNET
   gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
   #if GASNET_DEBUG
     if (iop->next != NULL)
-      gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_mask() inside an NBI access region");
+      gasneti_fatalerror("VIOLATION: attempted to call gex_NBI_Test() inside an NBI access region");
   #endif
 
-  if (mask & GEX_NBI_LC) {
+  if (mask & GASNETI_EC_ALC) {
     if (! GASNETE_IOP_LC_CNTDONE(iop)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GEX_NBI_PUTS) {
+  if (mask & GASNETI_EC_PUT) {
     if (! GASNETE_IOP_CNTDONE(iop,put)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GEX_NBI_GETS) {
+  if (mask & GASNETI_EC_GET) {
     if (! GASNETE_IOP_CNTDONE(iop,get)) return GASNET_ERR_NOT_READY;
     gasneti_sync_reads(); // TODO-EX: revisit this
   } else {
@@ -542,9 +505,9 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
       gasnete_iop_check(iop);
       gasneti_assert(iop->next); // was returned from access region
       switch (event_id) {
-        case GEX_NBI_PUTS:  // fall-through...
-        case GEX_NBI_GETS:  // fall-through...
-        case GEX_NBI_LC:    return;
+        case GEX_EC_PUT:  // fall-through...
+        case GEX_EC_GET:  // fall-through...
+        case GEX_EC_LC:    return;
       }
       break;
     }
@@ -552,7 +515,7 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
       gasnete_eop_t *eop = (gasnete_eop_t*)op;
       gasnete_eop_check(eop);
       switch (event_id) {
-        case GEX_NBI_LC: return;
+        case GEX_EC_LC: return;
       }
       break;
     }
@@ -570,9 +533,10 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_
   gasneti_assert(gasnete_eop_event_alc == gasnete_iop_event_alc); // TODO-EX: move elsewhere
 
   switch (event_id) {
-    case GEX_NBI_PUTS: return gasneti_op_event(op, gasnete_iop_event_put);
-    case GEX_NBI_GETS: return gasneti_op_event(op, gasnete_iop_event_get);
-    case GEX_NBI_LC:   return gasneti_op_event(op, gasnete_iop_event_alc);
+    // TODO_EX: did we really want to allow extraction of PUT and GET (root) events?
+    case GEX_EC_PUT: return gasneti_op_event(op, gasnete_iop_event_put);
+    case GEX_EC_GET: return gasneti_op_event(op, gasnete_iop_event_get);
+    case GEX_EC_LC:  return gasneti_op_event(op, gasnete_iop_event_alc);
   }
 
   gasneti_fatalerror("Invalid arguments to gex_Event_QueryLeaf()");

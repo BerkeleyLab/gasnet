@@ -257,7 +257,7 @@ void oneway_nb_test(int nbytes)
                         pevents[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem+offset,
 							  (gex_RMA_Value_t)i, nbytes, 0);
                 }
-		gex_Event_WaitAll(pevents, iters);
+		gex_Event_WaitAll(pevents, iters, 0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -291,7 +291,7 @@ void roundtrip_nbi_test(int nbytes)
 			gex_RMA_PutNBIVal(myteam, peerproc, tgtmem+offset,
 					     (gex_RMA_Value_t)i, nbytes, 0);
 
-			gex_NBI_WaitPuts();
+			gex_NBI_Wait(GEX_EC_PUT,0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -323,7 +323,7 @@ void oneway_nbi_test(int nbytes)
 			gex_RMA_PutNBIVal(myteam, peerproc, tgtmem+offset,
 					     (gex_RMA_Value_t)i, nbytes, 0);
 		}
-		gex_NBI_WaitPuts();
+		gex_NBI_Wait(GEX_EC_PUT,0);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -455,8 +455,8 @@ int main(int argc, char **argv)
               ph[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
               gex_RMA_PutNBIVal(myteam, peerproc, tgtmem, reg, max_payload, 0);
            }
-           gex_NBI_WaitPuts();
-           gex_Event_WaitAll(ph, warm_iters);
+           gex_NBI_Wait(GEX_EC_PUT,0);
+           gex_Event_WaitAll(ph, warm_iters, 0);
            test_free(ph);
         }
 

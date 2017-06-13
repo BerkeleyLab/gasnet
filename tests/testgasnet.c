@@ -351,11 +351,11 @@ void doit(int partner, int *partnerseg) {
       val1 = 100 + i + myrank;
       events[i] = gex_RMA_PutNB(myteam, partner, partnerseg+i, &val1, sizeof(int), GEX_EVENT_NOW, 0);
     }
-    gex_Event_WaitAll(events, iters);
+    gex_Event_WaitAll(events, iters, 0);
     for (i = 0; i < iters; i++) {
       events[i] = gex_RMA_GetNB(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gex_Event_WaitAll(events, iters);
+    gex_Event_WaitAll(events, iters, 0);
     for (i=0; i < iters; i++) {
       if (vals[i] != 100 + myrank + i) {
         MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
@@ -381,11 +381,11 @@ void doit2(int partner, int *partnerseg) {
       int tmp = myrank + i;
       gex_RMA_PutNBI(myteam, partner, partnerseg+i, &tmp, sizeof(int), GEX_EVENT_NOW, 0);
     }
-    gex_NBI_WaitPuts();
+    gex_NBI_Wait(GEX_EC_PUT,0);
     for (i=0; i < 100; i++) {
       gex_RMA_GetNBI(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gex_NBI_WaitGets();
+    gex_NBI_Wait(GEX_EC_GET,0);
     for (i=0; i < 100; i++) {
       if (vals[i] != myrank + i) {
         MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
@@ -417,7 +417,7 @@ void doit3(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       gex_RMA_PutNBIVal(myteam, partner, partnerseg+i+200, 1000 + myrank + i, sizeof(int), 0);
     }
-    gex_NBI_WaitPuts();
+    gex_NBI_Wait(GEX_EC_PUT,0);
 
     for (i=0; i < 100; i++) {
       int tmp1 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i, sizeof(int), 0);
@@ -440,7 +440,7 @@ void doit3(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       gex_RMA_PutNBIVal(myteam, partner, partnerbase2+i+200, 100 + myrank + i, sizeof(unsigned char), 0);
     }
-    gex_NBI_WaitPuts();
+    gex_NBI_Wait(GEX_EC_PUT,0);
 
     for (i=0; i < 100; i++) {
       unsigned int tmp1 = (unsigned int)gex_RMA_GetBlockingVal(myteam, partner, partnerbase2+i, sizeof(unsigned char), 0);
@@ -562,27 +562,27 @@ void doit5(int partner, int *partnerseg) {
           }
         }
         gex_RMA_PutNBI(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
-        gex_NBI_WaitPuts();
+        gex_NBI_Wait(GEX_EC_PUT,0);
 
         gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
         memset(localpos, 0xCC, sz); /* clear */
-        gex_NBI_WaitPuts();
+        gex_NBI_Wait(GEX_EC_PUT,0);
 
         gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
-        gex_NBI_WaitPuts();
+        gex_NBI_Wait(GEX_EC_PUT,0);
 
         gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
         memset(segpos, 0xCC, sz); /* clear */
-        gex_NBI_WaitPuts();
+        gex_NBI_Wait(GEX_EC_PUT,0);
 
         gex_RMA_GetNBI(myteam, localpos, partner, rsegpos, sz, 0);
-        gex_NBI_WaitGets();
+        gex_NBI_Wait(GEX_EC_GET,0);
         gex_RMA_GetNBI(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
-        gex_NBI_WaitGets();
+        gex_NBI_Wait(GEX_EC_GET,0);
         gex_RMA_GetNBI(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
-        gex_NBI_WaitGets();
+        gex_NBI_Wait(GEX_EC_GET,0);
         gex_RMA_GetNBI(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
-        gex_NBI_WaitGets();
+        gex_NBI_Wait(GEX_EC_GET,0);
 
         for (j=0; j < elems*2; j++) {
           int ok;

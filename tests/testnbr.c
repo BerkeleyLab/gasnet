@@ -1009,7 +1009,7 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 
 		/* Any of *our* ghost exchanges complete ? */
                 gasnet_AMPoll();
-		if (gex_Event_TestSome(hput, 2) == GASNET_ERR_NOT_READY)
+		if (gex_Event_TestSome(hput, 2, 0) == GASNET_ERR_NOT_READY)
 		    continue;
 
 		/* Which face has completed */
@@ -1026,7 +1026,7 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 
 		/* Try to progress events in sput[] */
                 gasnet_AMPoll();
-	        gex_Event_TestAll(sput, sent);
+	        gex_Event_TestAll(sput, sent, 0);
 	    }
 	    /* When the loop ends, we've received face updates from both
 	     * nbrs */
@@ -1038,7 +1038,7 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 	 * is simply a non-blocking signal, we don't care when it completes
 	 * locally.
 	 */
-	gex_Event_WaitAll(sput, sent);
+	gex_Event_WaitAll(sput, sent, 0);
 	BARRIER();
     }
 
@@ -1109,7 +1109,7 @@ pairwise_wait_nbrs(nbr_t *nb, gex_Event_t *h_nbr, int axis_in, int phase)
     }
 
     /* Reap our previous phase handles and poll on local signals */
-    gex_Event_WaitAll(h_nbr, nfaces);
+    gex_Event_WaitAll(h_nbr, nfaces, 0);
 
     do {
 	faces = 0;

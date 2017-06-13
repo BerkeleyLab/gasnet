@@ -370,52 +370,52 @@ void do_bulkputs(void) {
     if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNB/bulk", 
                  events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0), 
-                 gex_Event_WaitAll(events, depth), (void)0, 0);
+                 gex_Event_WaitAll(events, depth, 0), (void)0, 0);
     }
 
     if (do_puts && do_bulk && do_implicit) {
       QUEUE_TEST("gex_RMA_PutNBI/bulk", 
                  gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0), 
-                 gex_NBI_WaitAll(), (void)0, 0);
+                 gex_NBI_Wait(GEX_EC_ALL,0), (void)0, 0);
     }
 }
 void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNB", 
                  events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_NOW, 0), 
-                 gex_Event_WaitAll(events, depth), (void)0, 0);
+                 gex_Event_WaitAll(events, depth, 0), (void)0, 0);
     }
 
     if (do_gets && do_explicit) {
       QUEUE_TEST("gex_RMA_GetNB", 
                  events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
-                 gex_Event_WaitAll(events, depth), (void)0, 0);
+                 gex_Event_WaitAll(events, depth, 0), (void)0, 0);
     }
 
     if (do_puts && do_nonbulk && do_implicit) {
       QUEUE_TEST("gex_RMA_PutNBI", 
                  gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_NOW, 0), 
-                 gex_NBI_WaitAll(), (void)0, 0);
+                 gex_NBI_Wait(GEX_EC_ALL,0), (void)0, 0);
     }
 
     if (do_gets && do_implicit) {
       QUEUE_TEST("gex_RMA_GetNBI", 
                  gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
-                 gex_NBI_WaitAll(), (void)0, 0);
+                 gex_NBI_Wait(GEX_EC_ALL,0), (void)0, 0);
     }
 }
 void do_valueputgets(void) {
     if (do_puts && do_value && do_explicit) {
       QUEUE_TEST("gex_RMA_PutNBVal",
                  events[i] = gex_RMA_PutNBVal(myteam, peerproc, tgtmem, regval, payload, 0),
-                 gex_Event_WaitAll(events, depth),
+                 gex_Event_WaitAll(events, depth, 0),
                  (void)0, SIZEOF_GEX_RMA_VALUE_T);
     }
 
     if (do_puts && do_value && do_implicit) {
       QUEUE_TEST("gex_RMA_PutNBIVal",
                  gex_RMA_PutNBIVal(myteam, peerproc, tgtmem, regval, payload, 0),
-                 gex_NBI_WaitAll(),
+                 gex_NBI_Wait(GEX_EC_ALL,0),
                  (void)0, SIZEOF_GEX_RMA_VALUE_T);
     }
 

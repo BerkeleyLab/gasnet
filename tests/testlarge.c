@@ -174,7 +174,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				gex_RMA_PutNBI(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0);
 			}
-			gex_NBI_WaitPuts();
+			gex_NBI_Wait(GEX_EC_PUT,0);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -193,7 +193,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 			    gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gex_NBI_WaitGets();
+			gex_NBI_Wait(GEX_EC_GET,0);
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -228,7 +228,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				events[i] = gex_RMA_PutNB(myteam, peerproc, tgtmem, msgbuf, payload, GEX_EVENT_DEFER, 0);
 			}
-			gex_Event_WaitAll(events, iters);
+			gex_Event_WaitAll(events, iters, 0);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -247,7 +247,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 			    events[i] = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gex_Event_WaitAll(events, iters);
+			gex_Event_WaitAll(events, iters, 0);
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -412,8 +412,8 @@ int main(int argc, char **argv)
            }
            gex_RMA_PutBlocking(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
-           gex_Event_WaitAll(h, warm_iters*2);
-           gex_NBI_WaitAll();
+           gex_Event_WaitAll(h, warm_iters*2, 0);
+           gex_NBI_Wait(GEX_EC_ALL,0);
            test_free(h);
         }
 

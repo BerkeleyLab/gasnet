@@ -349,14 +349,14 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBI", {},
       { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GEX_EVENT_NOW, 0); },
-      { gex_NBI_WaitPuts(); });
+      { gex_NBI_Wait(GEX_EC_PUT, 0); });
 
     TIME_OPERATION("local 4-byte gex_RMA_PutNB/bulk",
       { gex_Event_Wait(gex_RMA_PutNB(myteam, mynode, myseg, &temp, 4, GEX_EVENT_DEFER, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBI/bulk", {},
       { gex_RMA_PutNBI(myteam, mynode, myseg, &temp, 4, GEX_EVENT_DEFER, 0); },
-      { gex_NBI_WaitPuts(); });
+      { gex_NBI_Wait(GEX_EC_PUT, 0); });
 
     TIME_OPERATION("local 4-byte gex_RMA_PutBlockingVal",
       { gex_RMA_PutBlockingVal(myteam, mynode, myseg, temp, 4, 0); });
@@ -366,7 +366,7 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION_FULL("local 4-byte gex_RMA_PutNBIVal", {},
       { gex_RMA_PutNBIVal(myteam, mynode, myseg, temp, 4, 0); },
-      { gex_NBI_WaitPuts(); });
+      { gex_NBI_Wait(GEX_EC_PUT, 0); });
 
     TIME_OPERATION("local 1024-byte gex_RMA_PutBlocking",
       { gex_RMA_PutBlocking(myteam, mynode, myseg, &bigtemp, 1024, 0); });
@@ -384,7 +384,7 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION_FULL("local 4-byte gex_RMA_GetNBI", {},
       { gex_RMA_GetNBI(myteam, &temp, mynode, myseg, 4, 0); },
-      { gex_NBI_WaitGets(); });
+      { gex_NBI_Wait(GEX_EC_GET, 0); });
 
     TIME_OPERATION("local 4-byte gex_RMA_GetBlockingVal",
       { temp = (int32_t)gex_RMA_GetBlockingVal(myteam, mynode, myseg, 4, 0); });
@@ -424,35 +424,24 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { int junk = gex_Event_Test(GEX_EVENT_INVALID); });
 
     TIME_OPERATION("do-nothing gex_Event_WaitAll() (8 events)",
-      { gex_Event_WaitAll(events, 8); });
+      { gex_Event_WaitAll(events, 8, 0); });
 
     TIME_OPERATION("do-nothing gex_Event_WaitSome() (8 events)",
-      { gex_Event_WaitSome(events, 8); });
+      { gex_Event_WaitSome(events, 8, 0); });
 
     TIME_OPERATION("do-nothing gex_Event_TestAll() (8 events)",
-      { gex_Event_TestAll(events, 8);  });
+      { gex_Event_TestAll(events, 8, 0);  });
 
     TIME_OPERATION("do-nothing gex_Event_TestSome() (8 events)",
-      { gex_Event_TestSome(events, 8); });
+      { gex_Event_TestSome(events, 8, 0); });
 
 
-    TIME_OPERATION("do-nothing gex_NBI_WaitAll()",
-      { gex_NBI_WaitAll(); });
+    TIME_OPERATION("do-nothing gex_NBI_Wait()",
+      { gex_NBI_Wait(GEX_EC_ALL, 0); });
 
-    TIME_OPERATION("do-nothing gex_NBI_WaitPuts()",
-      { gex_NBI_WaitPuts(); });
+    TIME_OPERATION("do-nothing gex_NBI_Test()",
+      { int junk = gex_NBI_Test(GEX_EC_ALL, 0); });
 
-    TIME_OPERATION("do-nothing gex_NBI_WaitGets()",
-      { gex_NBI_WaitGets(); });
-
-    TIME_OPERATION("do-nothing gex_NBI_TestAll()",
-      { int junk = gex_NBI_TestAll(); });
-
-    TIME_OPERATION("do-nothing gex_NBI_TestPuts()",
-      { int junk = gex_NBI_TestPuts(); });
-
-    TIME_OPERATION("do-nothing gex_NBI_TestGets()",
-      { int junk = gex_NBI_TestGets(); });
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gex_NBI_BeginAccessRegion(0);
