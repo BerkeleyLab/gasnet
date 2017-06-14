@@ -1324,16 +1324,25 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
     }
     gasneti_assert(msgsz <= sizeof(gasneti_AMPSHM_maxmsg_t)); 
 
-    /* Get buffer, poll if busy.
+    /* Get buffer, poll if busy (unless IMMEDIATE)
        Lock serializes allocation so small messages can't starve large ones */
-    GASNETI_THREAD_LOOKUP;
     lock = isReq ? &req_lock : &rep_lock;
-    gasneti_mutex_lock(lock);
-    while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target))) {
-      /* If reply, only poll reply network: avoids deadlock  */
-      if (isReq) gasnetc_AMPoll(GASNETI_THREAD_GET_ALONE); /* No progress functions */
-      else gasneti_AMPSHMPoll(1 GASNETI_THREAD_GET);
-      GASNETI_WAITHOOK();
+    if (flags & GEX_FLAG_IMMEDIATE) {
+      if (gasneti_mutex_trylock(lock)) return 1;
+      msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target);
+      if (!msg) {
+        gasneti_mutex_unlock(lock);
+        return 1;
+      }
+    } else {
+      GASNETI_THREAD_LOOKUP;
+      gasneti_mutex_lock(lock);
+      while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target))) {
+        /* If reply, only poll reply network: avoids deadlock  */
+        if (isReq) gasnetc_AMPoll(GASNETI_THREAD_GET_ALONE); /* No progress functions */
+        else gasneti_AMPSHMPoll(1 GASNETI_THREAD_GET);
+        GASNETI_WAITHOOK();
+      }
     }
     gasneti_mutex_unlock(lock);
   }

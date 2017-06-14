@@ -1135,7 +1135,7 @@ extern int gasnetc_AMRequestShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: no flags implemented yet - IMMEDIATE ignored
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -1145,7 +1145,7 @@ extern int gasnetc_AMRequestShortM(
                                   0, 0, 0,
                                   flags, numargs, argptr);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMRequestMediumM( 
@@ -1159,7 +1159,7 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: no flags implemented yet - IMMEDIATE ignored
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1170,7 +1170,7 @@ extern int gasnetc_AMRequestMediumM(
                                   source_addr, nbytes, 0,
                                   flags, numargs, argptr);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMRequestLongM(
@@ -1185,7 +1185,7 @@ extern int gasnetc_AMRequestLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: no flags implemented yet - IMMEDIATE ignored
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1196,7 +1196,7 @@ extern int gasnetc_AMRequestLongM(
                                   source_addr, nbytes, dest_addr,
                                   flags, numargs, argptr);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyShortM( 
@@ -1206,7 +1206,7 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: no flags implemented yet - IMMEDIATE ignored
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -1216,7 +1216,7 @@ extern int gasnetc_AMReplyShortM(
                                   0, 0, 0,
                                   flags, numargs, argptr);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -1228,7 +1228,7 @@ extern int gasnetc_AMReplyMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: no flags implemented yet - IMMEDIATE ignored
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1239,7 +1239,7 @@ extern int gasnetc_AMReplyMediumM(
                                   source_addr, nbytes, 0,
                                   flags, numargs, argptr);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -1252,7 +1252,7 @@ extern int gasnetc_AMReplyLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: no flags implemented yet - IMMEDIATE ignored
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1263,7 +1263,7 @@ extern int gasnetc_AMReplyLongM(
                                   source_addr, nbytes, dest_addr,
                                   flags, numargs, argptr);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 /* ------------------------------------------------------------------------------------ */
