@@ -619,8 +619,8 @@ static void gasneti_munmap_remote(gex_Rank_t pshm_rank, void *segbase, uintptr_t
 }
 
 /* Called collectively */
-GASNETI_INLINE(gasneti_export_segment)
-void gasneti_export_segment(gasnet_seginfo_t segment) {
+GASNETI_INLINE(gasneti_publish_segment)
+void gasneti_publish_segment(gasnet_seginfo_t segment) {
   void *segbase = segment.addr;
   uintptr_t segsize = segment.size;
 #if defined(GASNETI_PSHM_XPMEM)
@@ -1668,7 +1668,7 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
     gasneti_nodeinfo[gasneti_mynode].offset = 0;
     gasneti_pshm_rank_t local_rank = 0;
 
-    gasneti_export_segment(seginfo[gasneti_mynode]);
+    gasneti_publish_segment(seginfo[gasneti_mynode]);
 
     // Note that we try to avoid iteration over all nodes.
     // For the case of supernode peers with contiguous ranks we examine no extra nodes

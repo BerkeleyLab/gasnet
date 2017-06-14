@@ -346,8 +346,8 @@ main(int argc, char **argv)
     GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testnbr", &argc, &argv, 0));
 
     /* get SPMD info */
-    myproc = gasnet_mynode();
-    nprocs = gasnet_nodes();
+    myproc = gex_TM_QueryRank(myteam);
+    nprocs = gex_TM_QuerySize(myteam);
 
     /* XXX parse args: iters min max */
     while (argc > argn && *argv[argn] == '-') {

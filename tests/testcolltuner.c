@@ -36,7 +36,7 @@ typedef struct {
 #define VERBOSE_VERIFICATION_OUTPUT 0
 
 /*max_dsize is a variable set in main*/
-#define TOTAL_THREADS threads_per_node*gasnet_nodes()
+#define TOTAL_THREADS threads_per_node*gex_TM_QuerySize(myteam)
 
 #if 1
 #define ERROR_EXIT() gasnet_exit(1)
@@ -262,8 +262,8 @@ int main(int argc, char **argv) {
     gasnet_exit(0);
   }
   
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
   THREADS = nodes * threads_per_node;
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));

@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 
   if (argc > 5) test_usage();
 
-  mynode = gasnet_mynode();
+  mynode = gex_TM_QueryRank(myteam);
   myseg = TEST_MYSEG();
 
   if (mynode == 0) {

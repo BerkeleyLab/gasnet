@@ -34,8 +34,8 @@ int main(int argc, char **argv)
   gex_Segment_t     mysegment;
 
   GASNET_SAFE(gex_Client_Init(&myclient, &myep, &myteam, "testhello", &argc, &argv, 0));
-  rank = gasnet_mynode();
-  size = gasnet_nodes();
+  rank = gex_TM_QueryRank(myteam);
+  size = gex_TM_QuerySize(myteam);
 
   argi = 1;
   if (argi < argc) {

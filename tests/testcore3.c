@@ -71,9 +71,9 @@ int main(int argc, char **argv) {
 
   TEST_PRINT_CONDUITINFO();
 
-  mynode = gasnet_mynode();
+  mynode = gex_TM_QueryRank(myteam);
   peer = mynode ^ 1;
-  if (peer == gasnet_nodes()) {
+  if (peer == gex_TM_QuerySize(myteam)) {
     /* w/ odd # of nodes, last one talks to self */
     peer = mynode;
   }

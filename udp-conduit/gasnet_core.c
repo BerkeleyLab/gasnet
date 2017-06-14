@@ -325,10 +325,7 @@ extern int gasnetc_amregister(gex_AM_Index_t index, gex_AM_Entry_t *entry) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_primary( gex_Client_t       *client_p,
-                                   gex_EP_t           *ep_p,
-                                   gex_TM_t           *tm_p,
-                                   gex_Flags_t        flags ) {
+static int gasnetc_attach_primary(void) {
   int retval = GASNET_OK;
 
   AMLOCK();
@@ -337,19 +334,6 @@ static int gasnetc_attach_primary( gex_Client_t       *client_p,
        to process the AMUDP_SPMD control messages required for job shutdown
      */
     gasnetc_bootstrapBarrier();
-
-    /* ------------------------------------------------------------------------------------ */
-    // TODO-EX: create client
-    *client_p = NULL;
-
-    /* ------------------------------------------------------------------------------------ */
-    /*   create the initial endpoint with internal handlers */
-    if (gasnetc_EP_Create(ep_p, *client_p, flags))
-      INITERR(RESOURCE,"Error creating initial endpoint");
-
-    /* ------------------------------------------------------------------------------------ */
-    // TODO-EX: create team
-    *tm_p = NULL;
 
     /* ------------------------------------------------------------------------------------ */
     /*  register fatal signal handlers */
@@ -479,7 +463,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
   #endif
 
   /*  primary attach  */
-  if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, tm_p, 0))
+  if (GASNET_OK != gasnetc_attach_primary())
     GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -535,9 +519,22 @@ extern int gasnetc_Client_Init(
   gasneti_trace_init(argc, argv);
 #endif
 
+  // TODO-EX: create client
+  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+  *client_p = gasneti_export_client(client);
+
+  /*  create the initial endpoint with internal handlers */
+  if (gasnetc_EP_Create(ep_p, *client_p, flags))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+
+  // TODO-EX: create team
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
+  *tm_p = gasneti_export_tm(tm);
+
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
     /*  primary attach  */
-    if (GASNET_OK != gasnetc_attach_primary(client_p, ep_p, tm_p, flags))
+    if (GASNET_OK != gasnetc_attach_primary())
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
     /* ensure everything is initialized across all nodes */
@@ -566,8 +563,12 @@ extern int gasnetc_Segment_Attach(
   if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
-  // TODO-EX: will obviously need real object:
-  segment_p = NULL;
+  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
+  uintptr_t segsize = gasneti_seginfo[gasneti_mynode].size;
+  const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
+  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags);
+  *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
 }
@@ -585,6 +586,9 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   gasneti_mutex_unlock(&lock);
   if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
 #endif
+
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
+  *ep_p = gasneti_export_ep(ep);
 
   // Operate on global data until we have a real implementation of endpoints
 

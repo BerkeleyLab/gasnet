@@ -31,8 +31,8 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testbarrierlate",1,"(iters) (pollcnt)");
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;

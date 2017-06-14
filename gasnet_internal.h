@@ -263,6 +263,33 @@ extern void gasneti_freezeForDebugger(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Common handing of the basic object types
+
+extern gasneti_Client_t gasneti_alloc_client(
+                       const char *name, 
+                       gex_Flags_t flags);
+void gasneti_free_client(gasneti_Client_t client);
+
+extern gasneti_Segment_t gasneti_alloc_segment(
+                       gasneti_Client_t client,
+                       void *addr,
+                       uintptr_t len,
+                       gex_Flags_t flags);
+void gasneti_free_segment(gasneti_Segment_t segment);
+
+extern gasneti_EP_t gasneti_alloc_ep(
+                       gasneti_Client_t client,
+                       gex_Flags_t flags);
+void gasneti_free_ep(gasneti_EP_t endpoint);
+
+extern gasneti_TM_t gasneti_alloc_tm(
+                       gasneti_EP_t ep,
+                       gex_Rank_t rank,
+                       gex_Rank_t size,
+                       gex_Flags_t flags);
+void gasneti_free_tm(gasneti_TM_t tm);
+
+/* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
 
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);

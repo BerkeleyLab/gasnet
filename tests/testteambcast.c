@@ -54,8 +54,8 @@ int main(int argc, char **argv)
 
   test_init("testteambcast", 1, "(nrows) (ncols) (iters)");
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
   
   teamA_scratch.addr = A;
   teamA_scratch.size = SCRATCH_SIZE/2;

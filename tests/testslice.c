@@ -60,8 +60,8 @@ int main(int argc, char **argv)
     GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testslice", &argc, &argv, 0));
 
     /* get SPMD info */
-    myproc = gasnet_mynode();
-    numprocs = gasnet_nodes();
+    myproc = gex_TM_QueryRank(myteam);
+    numprocs = gex_TM_QuerySize(myteam);
 
     if (argc > 1) segsize = atoi(argv[1]);
     if (!segsize) segsize = 1024*1000;
