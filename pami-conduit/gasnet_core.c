@@ -1338,7 +1338,7 @@ extern int gasnetc_AMRequestMediumM(
     if (send_imm) gasnetc_put_request_credit();
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMRequestLongM(
@@ -1425,7 +1425,7 @@ extern int gasnetc_AMRequestLongM(
     gasnetc_put_request_credit();
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyShortM(
@@ -1480,7 +1480,7 @@ extern int gasnetc_AMReplyShortM(
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReplyShort)");
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyMediumM(
@@ -1566,7 +1566,7 @@ extern int gasnetc_AMReplyMediumM(
     }
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMReplyLongM(
@@ -1652,7 +1652,7 @@ extern int gasnetc_AMReplyLongM(
     }
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 /* ------------------------------------------------------------------------------------ */

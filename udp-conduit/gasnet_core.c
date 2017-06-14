@@ -808,6 +808,7 @@ extern int gasnetc_AMRequestShortM(
     retval = gasneti_AMPSHM_RequestGeneric(gasneti_Short, rank, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr);
+    va_end(argptr);
   } else
 #endif
   {
@@ -816,10 +817,10 @@ extern int gasnetc_AMRequestShortM(
                AMUDP_RequestVA(gasnetc_endpoint, rank, handler, 
                                numargs, argptr));
     AMUNLOCK();
+    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
-  va_end(argptr);
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else return GASNET_OK;
+  return retval;
 }
 
 extern int gasnetc_AMRequestMediumM( 
@@ -841,6 +842,7 @@ extern int gasnetc_AMRequestMediumM(
     retval = gasneti_AMPSHM_RequestGeneric(gasneti_Medium, rank, handler,
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr);
+    va_end(argptr);
   } else
 #endif
   {
@@ -852,10 +854,10 @@ extern int gasnetc_AMRequestMediumM(
                                 source_addr, nbytes, 
                                 numargs, argptr));
     AMUNLOCK();
+    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
-  va_end(argptr);
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else return GASNET_OK;
+  return retval;
 }
 
 extern int gasnetc_AMRequestLongM(
@@ -878,6 +880,7 @@ extern int gasnetc_AMRequestLongM(
       retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, rank, handler,
                                              source_addr, nbytes, dest_addr,
                                              flags, numargs, argptr);
+      va_end(argptr);
   } else
 #endif
   {
@@ -897,10 +900,10 @@ extern int gasnetc_AMRequestLongM(
                                    dest_offset, 0,
                                    numargs, argptr));
     AMUNLOCK();
+    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
-  va_end(argptr);
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else return GASNET_OK;
+  return retval;
 }
 
 extern int gasnetc_AMReplyShortM( 
@@ -917,16 +920,17 @@ extern int gasnetc_AMReplyShortM(
       retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr);
+      va_end(argptr);
   } else
 #endif
   {
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyVA(token, handler, numargs, argptr));
+    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
-  va_end(argptr);
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else return GASNET_OK;
+  return retval;
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -946,6 +950,7 @@ extern int gasnetc_AMReplyMediumM(
        retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
                                             source_addr, nbytes, 0,
                                             flags, numargs, argptr);
+       va_end(argptr);
   } else
 #endif
   {
@@ -954,10 +959,10 @@ extern int gasnetc_AMReplyMediumM(
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
+    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
-  va_end(argptr);
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else return GASNET_OK;
+  return retval;
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -978,6 +983,7 @@ extern int gasnetc_AMReplyLongM(
       retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
                                            source_addr, nbytes, dest_addr,
                                            flags, numargs, argptr);
+      va_end(argptr);
   } else
 #endif
   {
@@ -996,10 +1002,10 @@ extern int gasnetc_AMReplyLongM(
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyXferVA(token, handler, source_addr, nbytes, dest_offset, numargs, argptr));
+    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
-  va_end(argptr);
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else return GASNET_OK;
+  return retval;
 }
 
 /* ------------------------------------------------------------------------------------ */
