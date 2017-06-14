@@ -466,6 +466,15 @@ gex_Event_t gex_Event_QueryLeaf(
 
 // Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
+// The result of each query function is guaranteed to be symmettric - ie 
+// 1. if two team members execute a given query on each other's ranks, with all
+//    other input arguments being equal, the queries are guaranteed to return the 
+//    same value. Note this does NOT imply any relationship between the results of
+//    different query functions (eg MaxRequestMedium versus MaxReplyMedium).
+// 2. if rank == GEX_RANK_INVALID, then all team members are guaranteed
+//   to get the same result given the same values of the other input arguments.
+// The result is guaranteed to be stable - ie for the same set of input arguments,
+// it will always return the same value.
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gex_Rank_t rank,
@@ -492,6 +501,9 @@ size_t gex_AM_MaxReplyMedium(
            int numargs);
 
 // Least-upper-bound payload queries (unknown peer, nargs, lc_opt and flags)
+// Guaranteed to be less than or equal to the result of the corresponding AM_Max* 
+// function, for all valid input parameters to that function.
+// The result of all four queries is guaranteed to be at least 512 (bytes).
 size_t gex_AM_LUBRequestLong(void);
 size_t gex_AM_LUBReplyLong(void);
 size_t gex_AM_LUBRequestMedium(void);
