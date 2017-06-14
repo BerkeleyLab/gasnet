@@ -187,10 +187,11 @@ static inline int gasnetc_is_exiting(void) {
  * Function Declarations
  *-------------------------------------------------*/
 GASNETI_INLINE(gasnetc_ofi_handle_am)
-void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, int nbytes);
+void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, size_t nbytes);
 void gasnetc_ofi_release_request_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_tx_poll();
+GASNETI_PLEASE_INLINE(gasnetc_ofi_am_recv_poll)
 void gasnetc_ofi_am_recv_poll(int is_request);
 
 /* Reads any user-provided settings from the environment to avoid clogging up
@@ -296,7 +297,7 @@ static void ofi_setup_address_vector() {
 
   char* alladdrs = gasneti_malloc(gasneti_nodes*total_len);
 
-  char* getname_error_msg = "fi_getname failed for the %s endpoint with error code %d.\n";
+  const char* getname_error_msg = "fi_getname failed for the %s endpoint with error code %d.\n";
   ret = fi_getname(&gasnetc_ofi_request_epfd->fid, on_node_addresses, &reqnamelen);
   if (FI_SUCCESS != ret) gasneti_fatalerror(getname_error_msg, "AM request", ret);
   ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, on_node_addresses+reqnamelen, &repnamelen);
@@ -702,37 +703,37 @@ void gasnetc_ofi_exit(void)
 
 /* Handle Active Messages */
 GASNETI_INLINE(gasnetc_ofi_handle_am)
-void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, int nbytes)
+void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t msg_len, size_t nbytes)
 {
 	uint8_t *addr;
 	int handler = header->handler;
 	gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
-	gasnetc_ofi_token_t token; 
-	gasnetc_ofi_token_t *token_p = &token; 
 	gasnet_handlerarg_t *args;
 	int numargs = header->argnum;
-	token.sourceid = header->sourceid;
-    int data_offset = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
+    int data_offset;
 	switch(header->type) {
 		case OFI_AM_SHORT:
             args = (gasnet_handlerarg_t *)header->short_buf.data;
-			GASNETI_RUN_HANDLER_SHORT(isreq, handler, handler_fn, token_p, args, numargs);
+			GASNETI_RUN_HANDLER_SHORT(isreq, handler, handler_fn, header, args, numargs);
 			break;
 		case OFI_AM_MEDIUM:
+            data_offset = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
             args = (gasnet_handlerarg_t *)header->medium_buf.data;
 			addr = header->medium_buf.data + data_offset;
-			GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, token_p, args, numargs, addr, nbytes);
+			GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG:
+            data_offset = sizeof(gasnet_handlerarg_t)*numargs;
             args = (gasnet_handlerarg_t *)header->long_buf.data;
 			addr = header->long_buf.dest_ptr;
-			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token_p, args, numargs, addr, nbytes);
+			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG_MEDIUM:
+            data_offset = sizeof(gasnet_handlerarg_t)*numargs;
             args = (gasnet_handlerarg_t *)header->long_buf.data;
 			addr = header->long_buf.dest_ptr;
 			memcpy(addr, header->long_buf.data + data_offset, nbytes);
-			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token_p, args, numargs, addr, nbytes);
+			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		default:
 			gasneti_fatalerror("undefined header type in gasnetc_ofi_handle_am: %d\n",
@@ -1226,8 +1227,7 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 	for (i = 0 ; i < numargs ; ++i) {
 		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
 	}
-	len = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
-
+	len = sizeof(gasnet_handlerarg_t)*numargs;
 #if !GASNET_PSHM
 	if(dest == gasneti_mynode) {
 		memcpy(dest_addr, source_addr, nbytes);
@@ -1267,7 +1267,7 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 		sendbuf->type = OFI_AM_LONG;
 	}
     len += offsetof(gasnetc_ofi_am_long_buf_t, data) + offsetof(gasnetc_ofi_am_send_buf_t, long_buf);
-    len = GASNETI_ALIGNUP(len, 8);
+    len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT);
 
 	/* Copy arg and handle into the buffer */
 	sendbuf->handler = (uint8_t) handler;

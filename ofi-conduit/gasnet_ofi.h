@@ -85,7 +85,7 @@ typedef  void (*rdma_callback_fn) (void *buf);
 
 
 typedef struct gasnetc_ofi_am_short_buf {
-    uint8_t 				data[gasnet_AMMaxArgs()];
+    gasnet_handlerarg_t     data[gasnet_AMMaxArgs()];
 
 } gasnetc_ofi_am_short_buf_t;
 
@@ -160,10 +160,6 @@ typedef struct gasnetc_ofi_bounce_op_ctxt {
     /* Counter to determine when the bbuf transfers are done */
     gasnetc_paratomic_t cntr;
 } gasnetc_ofi_bounce_op_ctxt_t;
-
-typedef struct gasnetc_ofi_token {
-  gasnet_node_t 		sourceid;
-} gasnetc_ofi_token_t;
 
 int gasnetc_ofi_init(int *argc, char ***argv,
 		gasnet_node_t *nodes_p, gasnet_node_t *mynode_p);
