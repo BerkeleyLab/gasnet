@@ -436,12 +436,23 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gex_Event_TestSome(events, 8, 0); });
 
 
-    TIME_OPERATION("do-nothing gex_NBI_Wait()",
+    TIME_OPERATION("do-nothing gex_NBI_Wait(ALL)",
       { gex_NBI_Wait(GEX_EC_ALL, 0); });
 
-    TIME_OPERATION("do-nothing gex_NBI_Test()",
+    TIME_OPERATION("do-nothing gex_NBI_Wait(PUT)",
+      { gex_NBI_Wait(GEX_EC_PUT, 0); });
+
+    TIME_OPERATION("do-nothing gex_NBI_Wait(GET)",
+      { gex_NBI_Wait(GEX_EC_GET, 0); });
+
+    TIME_OPERATION("do-nothing gex_NBI_Test(ALL)",
       { int junk = gex_NBI_Test(GEX_EC_ALL, 0); });
 
+    TIME_OPERATION("do-nothing gex_NBI_Test(PUT)",
+      { int junk = gex_NBI_Test(GEX_EC_PUT, 0); });
+
+    TIME_OPERATION("do-nothing gex_NBI_Test(GET)",
+      { int junk = gex_NBI_Test(GEX_EC_GET, 0); });
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gex_NBI_BeginAccessRegion(0);
