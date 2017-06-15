@@ -582,6 +582,59 @@ typedef uintptr_t gex_RMA_Value_t;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Active Message Source Descriptor */
+
+struct gasneti_srcdesc_s;
+typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
+#define GEX_AM_SRCDESC_NO_OP ((gex_AM_SrcDesc_t)(uintptr_t)0)
+
+#ifndef _GASNETI_AM_SRCDESC_T
+  typedef struct {
+  #if GASNET_DEBUG
+    #define GASNETI_AM_SRCDESC_MAGIC       GASNETI_MAKE_MAGIC('A','S','D','t')
+    #define GASNETI_AM_SRCDESC_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('A','S','D','t')
+    gasneti_magic_t      _magic;
+    gasnet_threadinfo_t  _thread;
+    int                  _isreq;
+    int                  _category; // true type: gasneti_category_t
+  #endif
+    void *               _addr;
+    size_t               _size;
+    void *               _tofree;
+    union {
+      struct {
+        gex_TM_t             _tm;
+        gex_Rank_t           _rank;
+      }                    _request;
+      struct {
+        gex_AM_Token_t       _token;
+      }                    _reply;
+    }                    _dest;
+    void *               _dest_addr; // Long only
+    gex_Event_t *        _lc_opt;
+    gex_Flags_t          _flags;
+    int                  _nargs;
+  #ifdef GASNETI_AM_SRCDESC_EXTRA
+    GASNETI_AM_SRCDESC_EXTRA
+  #endif
+  } *gasneti_AM_SrcDesc_t;
+  GASNETI_INLINE(gasneti_import_srcdesc)
+  gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
+    const gasneti_AM_SrcDesc_t _real_srcdesc = GASNETI_IMPORT_POINTER(gasneti_AM_SrcDesc_t,_srcdesc);
+    GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
+    return _real_srcdesc;
+  }
+  GASNETI_INLINE(gasneti_export_srcdesc)
+  gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
+    GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
+    return GASNETI_EXPORT_POINTER(gex_AM_SrcDesc_t, _real_srcdesc);
+  }
+  #define gex_AM_SrcDescAddr(sd)               ((void*)gasneti_import_srcdesc(sd)->_addr)
+  #define gex_AM_SrcDescSize(sd)               ((size_t)gasneti_import_srcdesc(sd)->_size)
+#endif
+
+
+/* ------------------------------------------------------------------------------------ */
 /* flags by group */
 
 #define GEX_FLAG_IMMEDIATE              (1U <<  0)

@@ -722,6 +722,24 @@ application-specific support.
 * GASNET_TMPDIR: if set to a valid directory name this is used instead of TMPDIR
  or "/tmp" as a location for creating temporary files.
 
+* GASNET_SD_INIT, GASNET_SD_INITVAL and GASNET_SD_INITLEN
+ These variables are *only* recognized in a build configured with --enable-debug.
+
+ When using the negotiated-payload AM APIs, GASNet can optionally initialize
+ buffers it allocates at Prepare time with a defined pattern, and verify at Commit
+ time that the client has written something else to these buffers.
+
+ GASNET_SD_INIT - Defaults to 1 in debug builds (and is effectively 0 otherwise)
+   Setting to 0 disables the initialization and checking
+ GASNET_SD_INITVAL - Defaults to "NAN"
+   Specifies the initialization pattern.
+   See GASNET_MALLOC_INITVAL for more info.
+ GASNET_SD_INITLEN - Defaults to 128
+   Specifies the minimum length of payload to subject to this checking.
+   If set too small then the likelihood of random payloads corresponding to the
+   initialization pattern may lead to false positives.
+   The minimum is 1 byte and smaller values will be silently replaced by 1.
+
 * OPTIONAL: GASNET_EXITTIMEOUT, GASNET_EXITTIMEOUT_MAX, GASNET_EXITTIMEOUT_MIN, and
  GASNET_EXITTIMEOUT_FACTOR - control exit-coordination timeout.  Some conduits use a
  timeout to distinguish orderly job exit from uncoordinated failure of one or more
