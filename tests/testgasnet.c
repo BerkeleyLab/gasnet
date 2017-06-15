@@ -288,6 +288,47 @@ typedef struct {
   size_t ReplyLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
 } amsz_t;
 
+extern gex_AM_Entry_t sizecheck_handlers[];
+GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
+  gex_Rank_t r;
+  gasnet_AMGetMsgSource(token, &r);
+  assert_always(r >= 0 && r < numranks);
+  assert_always(args >= 0 && args <= (gex_AM_Arg_t)gasnet_AMMaxArgs());
+  assert_always(nbytes == sizeof(amsz_t));
+  amsz_t *max = (amsz_t *)buf;
+  
+  // verify that AMMax*() return symmetric results in both directions
+  for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
+    for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
+      #define CHECK_MAX(cat) do {                                                             \
+        size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);             \
+        size_t lubval = gex_AM_LUB##cat();                                                    \
+        if (val < lubval)                                                                     \
+             MSG("*** ERROR - FAILED HANDLER LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i", \
+                  args,(int)r,lci,flagsi);                                                    \
+        if (val != max->cat[lci][flagsi])                                                     \
+              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
+                  args,lci,flagsi);                                                           \
+      } while (0)
+      CHECK_MAX(RequestMedium);
+      CHECK_MAX(ReplyMedium);
+      CHECK_MAX(RequestLong);
+      CHECK_MAX(ReplyLong);
+    } // flags
+  } // lc
+  #undef CHECK_MAX
+  gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
+}
+gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
+GASNETT_EXTERNC void sizecheck_reph(gex_AM_Token_t token) {
+  assert_always(gasnett_atomic_read(&sizecheck_ack,0) > 0);
+  gasnett_atomic_decrement(&sizecheck_ack,0);
+}
+gex_AM_Entry_t sizecheck_handlers[] = { // deliberately registered as don't-care indexes
+ { 0, (handler_fn_t)sizecheck_reqh, GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_REQUEST, 1, 0, "sizecheck_reqh" },
+ { 0, (handler_fn_t)sizecheck_reph, GEX_FLAG_AM_SHORT|GEX_FLAG_AM_REPLY, 0, 0, "sizecheck_reph" },
+};
+
 void doit(int partner, int *partnerseg) {
   int success = 1;
   BARRIER();
@@ -391,14 +432,25 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBRequestLong() >= 512);
   assert_always(gex_AM_LUBReplyLong() >= 512);
 
+  static int firsttime = 1;
+  if (firsttime) {
+    size_t numhand = sizeof(sizecheck_handlers)/sizeof(gex_AM_Entry_t);
+    GASNET_Safe(gex_EP_RegisterHandlers(myep, sizecheck_handlers, numhand));
+    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index > 0);
+    firsttime = 0;
+    BARRIER();
+  }
   /* verify Max >= LUB */
   amsz_t lub;
   memset(&lub,-1,sizeof(lub));
+  assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
   for (int args = 0; args <= (int)gasnet_AMMaxArgs(); args += (int)gasnet_AMMaxArgs()) {
     amsz_t ranklub;
     memset(&ranklub,-1,sizeof(ranklub));
-    for (gex_Rank_t r = myrank; r <= numranks; r++) {
-      if (r == numranks) r = GEX_RANK_INVALID; // min of maxes
+    for (gex_Rank_t d = 0; d <= numranks; d++) {
+      gex_Rank_t r;
+      if (d == numranks) r = GEX_RANK_INVALID; // min of maxes
+      else r = (myrank + d) % numranks;
       amsz_t max;
       for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
         for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
@@ -424,6 +476,10 @@ void doit(int partner, int *partnerseg) {
         } // flags
       } // lc
       if (r == GEX_RANK_INVALID) break;
+      else {
+        gasnett_atomic_increment(&sizecheck_ack,0);
+        gex_AM_RequestMedium1(myteam, r, sizecheck_handlers[0].gex_index, &max, sizeof(max), GEX_EVENT_NOW, 0, args);
+      }
     } // rank
   } // args
   #define CHECK_LUB(cat) do {                \
@@ -438,6 +494,8 @@ void doit(int partner, int *partnerseg) {
   CHECK_LUB(ReplyLong);
   #undef CHECK_LUB
   #undef GET_MAX
+  GASNET_BLOCKUNTIL(gasnett_atomic_read(&sizecheck_ack,0) == 0);
+  BARRIER();
 
   /* Event tests */
   gex_Event_t invalid = GEX_EVENT_INVALID;
