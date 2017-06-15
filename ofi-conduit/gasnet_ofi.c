@@ -135,6 +135,7 @@ static size_t max_am_send_buffs = 0;
 static size_t num_init_am_send_buffs = 0;
 static int out_of_send_buffers = 0;
 static gasnetc_paratomic_t num_allocated_send_buffers = gasnetc_paratomic_init(0);
+static size_t long_rma_threshold = 0;
 
 static uint64_t             	max_buffered_send;
 static uint64_t             	min_multi_recv;
@@ -244,6 +245,16 @@ static void gasnetc_ofi_read_env_vars() {
         gasneti_fatalerror("%s must be at least %d bytes on this build.\n"
                 "This is the size of gasnet_AMMaxMedium() plus the message header.\n", \
                 multirecv_size_env, (int)sizeof(gasnetc_ofi_am_buf_t));
+    }
+    const char* long_rma_threshold_env = "GASNET_OFI_LONG_AM_RMA_THRESH";
+    long_rma_threshold = gasneti_getenv_int_withdefault(long_rma_threshold_env, OFI_AM_MAX_DATA_LENGTH, 1);
+    if (long_rma_threshold > OFI_AM_MAX_DATA_LENGTH) {
+            gasneti_fatalerror(
+                "The value given for %s exceeds the amount\n"
+                "of data which can be packed into a medium message (%d bytes on this build).\n"
+                "Use a lower value or reconfigure GASNet for a bigger medium message size using\n"
+                "--with-ofi-max-medium=<new size>.\n",
+                long_rma_threshold_env, OFI_AM_MAX_DATA_LENGTH);
     }
 }
 
@@ -1234,7 +1245,7 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 		sendbuf->type = OFI_AM_LONG;
 	} else
 #endif
-	if(len + nbytes < OFI_AM_MAX_DATA_LENGTH)
+	if(len + nbytes < long_rma_threshold)
 	{
 		/* Pack the payload if it's small enough */
 		memcpy(sendbuf->long_buf.data + len, source_addr, nbytes);

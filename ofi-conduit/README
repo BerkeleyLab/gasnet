@@ -200,6 +200,15 @@ Recognized environment variables:
   --with-ofi-max-medium).
   Defaults: GASNET_OFI_NUM_MULIRECV_BUFFS=8, GASNET_OFI_MULTIRECV_BUFF_SIZE=1M
 
+* GASNET_OFI_LONG_AM_RMA_THRESH - Specifies the size threshold at which the
+  payload in a long active message will be trasferred via RMA. Otherwise, the
+  payload will be copied into a medium active message. The size must be less
+  than or equal to the maximum amount of data that can be transferred via a
+  medium active message, which is equal to gasnet_AMMaxMedium() less the size of
+  the conduit's message header.
+  Default: The maximum amount of data that can be sent via a medium active
+  message(dependent on conduit configuration).
+
 * FI_PROVIDER - set to a provider name to override the default OFI provider selection
 
 * All the environment variables provided by libfabric (see `fi_info -e`)
