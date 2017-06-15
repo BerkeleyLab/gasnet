@@ -281,7 +281,31 @@ void doit(int partner, int *partnerseg) {
   int success = 1;
   BARRIER();
 
+  #ifdef __cplusplus
+    #define assert_pointer(type) assert_always(sizeof(type) == sizeof(void *))
+  #else
+    #define assert_pointer(type)  do {                            \
+      type v = (void *)0; /* warnings here mean non-compliance */ \
+      assert_always(sizeof(type) == sizeof(void *));              \
+    } while (0)
+  #endif
+
   /* top-level object tests */
+  // try to ensure these are pointer types
+  assert_pointer(gex_Client_t);
+  assert_pointer(gex_EP_t);
+  assert_pointer(gex_TM_t);
+  assert_pointer(gex_Segment_t);
+
+  // check predefined object constants
+  #define CHECK_NULL_CONSTANT(type, constant) do { \
+    static type vz;                                \
+    type v = constant;                             \
+    assert_always(sizeof(constant) == sizeof(v));  \
+    assert_always(!memcmp(&v,&vz,sizeof(type)));   \
+  } while (0)
+  CHECK_NULL_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+
   if (strcmp(clientname, gex_Client_QueryName(myclient))) {
     MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
   }
@@ -298,22 +322,20 @@ void doit(int partner, int *partnerseg) {
     MSG("*** ERROR - FAILED TM EP TEST!!!!!");
   }
 
-  void *mydata = (void*)&main;
-  if (NULL != gex_Client_QueryCData(myclient) ||
-      mydata != (gex_Client_SetCData(myclient, mydata),
-                 gex_Client_QueryCData(myclient))) {
-    MSG("*** ERROR - FAILED CLIENT CDATA TEST!!!!!");
-  }
-  if (NULL != gex_EP_QueryCData(myep) ||
-      mydata != (gex_EP_SetCData(myep, mydata),
-                 gex_EP_QueryCData(myep))) {
-    MSG("*** ERROR - FAILED EP CDATA TEST!!!!!");
-  }
-  if (NULL != gex_TM_QueryCData(myteam) ||
-      mydata != (gex_TM_SetCData(myteam, mydata),
-                 gex_TM_QueryCData(myteam))) {
-    MSG("*** ERROR - FAILED TM CDATA TEST!!!!!");
-  }
+  #define TEST_CDATA(type,var) do {                                       \
+    static char *cdata_##type = 0;                                        \
+    if ((char *)gex_##type##_QueryCData(var) != cdata_##type)             \
+      MSG("*** ERROR - FAILED %s TEST!!!!!", "gex_" #type "_QueryCData"); \
+    cdata_##type = strdup(#type " cdata");                                \
+    gex_##type##_SetCData(var, cdata_##type);                             \
+    char *temp = (char *)gex_##type##_QueryCData(var);                    \
+    if (temp != cdata_##type)                                             \
+      MSG("*** ERROR - FAILED %s TEST!!!!!", "gex_" #type "_SetCData");   \
+  } while(0)
+
+  TEST_CDATA(Client,myclient);
+  TEST_CDATA(EP,myep);
+  TEST_CDATA(TM,myteam);
 
 #if GASNET_SEGMENT_EVERYTHING
   // test.h intercepted gex_Segment_Attach() but does not fake a gex_Segment_t
@@ -324,11 +346,7 @@ void doit(int partner, int *partnerseg) {
   if (mysegment != gex_EP_QuerySegment(myep)) {
     MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
   }
-  if (NULL != gex_Segment_QueryCData(mysegment) ||
-      mydata != (gex_Segment_SetCData(mysegment, mydata),
-                 gex_Segment_QueryCData(mysegment))) {
-    MSG("*** ERROR - FAILED SEGMENT CDATA TEST!!!!!");
-  }
+  TEST_CDATA(Segment,mysegment);
 
   // To be removed:
   assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());
@@ -350,8 +368,8 @@ void doit(int partner, int *partnerseg) {
   assert_unsigned(gex_Rank_t);
   assert(myrank == gex_TM_QueryRank(myteam));
   assert(numranks == gex_TM_QuerySize(myteam));
-  assert_always(myrank == gasnet_mynode());  // TODO-EX: remove
-  assert_always(numranks == gasnet_nodes()); // TODO-EX: remove
+  assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
+  assert_always(numranks == (gex_Rank_t)gasnet_nodes()); // TODO-EX: remove
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
 
@@ -368,9 +386,9 @@ void doit(int partner, int *partnerseg) {
   for (gex_Rank_t r = myrank; r <= numranks; r++) {
     if (r == numranks) r = GEX_RANK_INVALID; // min of maxes
     // TODO: record to check min of maxes and symmettry
-    for (int lci = 0; lci < sizeof(lcopt)/sizeof(lcopt[0]); lci++) {
-      for (int flagsi = 0; flagsi < sizeof(flags)/sizeof(flags[0]); flagsi++) {
-        for (int args = 0; args <= gasnet_AMMaxArgs(); args += gasnet_AMMaxArgs()) {
+    for (size_t lci = 0; lci < sizeof(lcopt)/sizeof(lcopt[0]); lci++) {
+      for (size_t flagsi = 0; flagsi < sizeof(flags)/sizeof(flags[0]); flagsi++) {
+        for (size_t args = 0; args <= gasnet_AMMaxArgs(); args += gasnet_AMMaxArgs()) {
           assert_always(gex_AM_MaxRequestMedium(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBRequestMedium());
           assert_always(gex_AM_MaxReplyMedium(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBReplyMedium());
           assert_always(gex_AM_MaxRequestLong(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBRequestLong());
@@ -438,7 +456,7 @@ void doit1(int partner, int *partnerseg) {
     gex_RMA_PutBlocking(myteam, partner, partnerseg, &val1, sizeof(int), 0);
     gex_RMA_GetBlocking(myteam, &val2, partner, partnerseg, sizeof(int), 0);
 
-    if (val2 == (myrank + 100)) MSG("*** passed blocking test!!");
+    if (val2 == (int)(myrank + 100)) MSG("*** passed blocking test!!");
     else MSG("*** ERROR - FAILED BLOCKING TEST!!!!!");
   }
 
@@ -461,7 +479,7 @@ void doit1(int partner, int *partnerseg) {
     }
     gex_Event_WaitAll(events, iters, 0);
     for (i=0; i < iters; i++) {
-      if (vals[i] != 100 + myrank + i) {
+      if (vals[i] != 100 + (int)myrank + i) {
         MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
             i, vals[i], 100 + myrank + i);
         success = 0;
@@ -491,7 +509,7 @@ void doit2(int partner, int *partnerseg) {
     }
     gex_NBI_Wait(GEX_EC_GET,0);
     for (i=0; i < 100; i++) {
-      if (vals[i] != myrank + i) {
+      if (vals[i] != (int)myrank + i) {
         MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
             i, vals[i], myrank + i);
         success = 0;
@@ -526,7 +544,7 @@ void doit3(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       int tmp1 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i, sizeof(int), 0);
       int tmp2 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i+200, sizeof(int), 0);
-      if (tmp1 != 1000 + myrank + i || tmp2 != 1000 + myrank + i) {
+      if (tmp1 != 1000 + (int)myrank + i || tmp2 != 1000 + (int)myrank + i) {
         MSG("*** ERROR - FAILED INT VALUE TEST 1!!!");
         printf("node %i/%i  i=%i tmp1=%i tmp2=%i (1000 + myrank + i)=%i\n", 
           (int)myrank, (int)numranks, 
