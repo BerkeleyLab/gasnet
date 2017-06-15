@@ -277,6 +277,17 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+gex_Event_t *am_lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
+gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0 };
+#define AM_LCOPT_CNT ((int)(sizeof(am_lcopt)/sizeof(am_lcopt[0])))
+#define AM_FLAGS_CNT ((int)(sizeof(am_flags)/sizeof(am_flags[0])))
+typedef struct { 
+  size_t RequestMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t ReplyMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t RequestLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t ReplyLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
+} amsz_t;
+
 void doit(int partner, int *partnerseg) {
   int success = 1;
   BARRIER();
@@ -381,23 +392,52 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBReplyLong() >= 512);
 
   /* verify Max >= LUB */
-  gex_Event_t *lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
-  gex_Flags_t flags[] = { GEX_FLAG_IMMEDIATE, 0 };
-  for (gex_Rank_t r = myrank; r <= numranks; r++) {
-    if (r == numranks) r = GEX_RANK_INVALID; // min of maxes
-    // TODO: record to check min of maxes and symmettry
-    for (size_t lci = 0; lci < sizeof(lcopt)/sizeof(lcopt[0]); lci++) {
-      for (size_t flagsi = 0; flagsi < sizeof(flags)/sizeof(flags[0]); flagsi++) {
-        for (size_t args = 0; args <= gasnet_AMMaxArgs(); args += gasnet_AMMaxArgs()) {
-          assert_always(gex_AM_MaxRequestMedium(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBRequestMedium());
-          assert_always(gex_AM_MaxReplyMedium(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBReplyMedium());
-          assert_always(gex_AM_MaxRequestLong(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBRequestLong());
-          assert_always(gex_AM_MaxReplyLong(myteam, r, lcopt[lci], flags[flagsi], args) >= gex_AM_LUBReplyLong());
-        }
-      }
-    }
-    if (r == GEX_RANK_INVALID) break;
-  }
+  amsz_t lub;
+  memset(&lub,-1,sizeof(lub));
+  for (int args = 0; args <= (int)gasnet_AMMaxArgs(); args += (int)gasnet_AMMaxArgs()) {
+    amsz_t ranklub;
+    memset(&ranklub,-1,sizeof(ranklub));
+    for (gex_Rank_t r = myrank; r <= numranks; r++) {
+      if (r == numranks) r = GEX_RANK_INVALID; // min of maxes
+      amsz_t max;
+      for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
+        for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
+          #define GET_MAX(cat) do {                                                              \
+            size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);            \
+            max.cat[lci][flagsi] = val;                                                          \
+            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
+            size_t lubval = gex_AM_LUB##cat();                                                   \
+            if (val < lubval)                                                                    \
+              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
+                  args,(int)r,lci,flagsi);                                                       \
+            if (r < GEX_RANK_INVALID) {                                                          \
+              ranklub.cat[lci][flagsi] = MIN(val,ranklub.cat[lci][flagsi]);                      \
+            } else if (val != ranklub.cat[lci][flagsi]) {                                        \
+              MSG("*** ERROR - FAILED ALL-RANK LUB TEST! args=%i lci=%i flagsi=%i",              \
+                  args,lci,flagsi);                                                              \
+            }                                                                                    \
+          } while (0)
+          GET_MAX(RequestMedium);
+          GET_MAX(ReplyMedium);
+          GET_MAX(RequestLong);
+          GET_MAX(ReplyLong);
+        } // flags
+      } // lc
+      if (r == GEX_RANK_INVALID) break;
+    } // rank
+  } // args
+  #define CHECK_LUB(cat) do {                \
+    size_t lubval = gex_AM_LUB##cat();       \
+    if (lub.cat[0][0] != lubval) {           \
+      MSG("*** ERROR - FAILED LUB TEST!");   \
+    }                                        \
+  } while (0)
+  CHECK_LUB(RequestMedium);
+  CHECK_LUB(ReplyMedium);
+  CHECK_LUB(RequestLong);
+  CHECK_LUB(ReplyLong);
+  #undef CHECK_LUB
+  #undef GET_MAX
 
   /* Event tests */
   gex_Event_t invalid = GEX_EVENT_INVALID;
