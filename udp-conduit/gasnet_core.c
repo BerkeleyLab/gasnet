@@ -1085,7 +1085,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
     #if GASNET_DEBUG
       // TODO-EX: per-EP table
       const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handlerId];
-      gasneti_amtbl_check(handler_entry, numargs, cat, isReq);
+      gasneti_amtbl_check(handler_entry, numargs, (gasneti_category_t)cat, isReq);
     #endif
     switch (cat) {
       case amudp_Short:
