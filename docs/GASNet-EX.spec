@@ -620,4 +620,27 @@ size_t gex_AM_LUBReplyLong(void);
 size_t gex_AM_LUBRequestMedium(void);
 size_t gex_AM_LUBReplyMedium(void);
 
+
+// Struct type for TokenInfo queries contains *at least* the following
+// fields, but their order is not assured
+typedef struct {
+    gex_Rank_t                 gex_srcproc; // Process id of sending process
+    const gex_AM_Entry_t      *gex_entry;   // Entry for running handler
+} gex_AM_TokenInfo_t;
+
+// Constants to request specific info from gex_AM_TokenInfo():
+#define GEX_AMTI_SRCPROC       ???
+#define GEX_AMTI_ENTRY         ???
+
+// Takes a token, address of client-allocated gex_AM_TokenInfo_t, and a mask.
+// The mask is a bit-wise OR of GEX_AMTI_* constants, which indicates which
+// fields of the gex_AM_TokenInfo_t should be set by the call.
+// The return value is of the same form of the mask, and indicates which
+// fields were set, which may be different than the requested set if the
+// conduit cannot provide certain values.
+extern unsigned int gex_AM_TokenInfo(
+                gex_AM_Token_t      token,
+                gex_AM_TokenInfo_t *info,
+                unsigned int        mask);
+
 // vim: syntax=c

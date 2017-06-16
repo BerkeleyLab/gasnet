@@ -147,6 +147,12 @@ extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex);
 
 #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 
+extern unsigned int gasnetc_AM_TokenInfo(
+                gex_AM_Token_t      _token,
+                gex_AM_TokenInfo_t *_info,
+                unsigned int        _mask);
+#define gex_AM_TokenInfo  gasnetc_AM_TokenInfo
+
 /* ------------------------------------------------------------------------------------ */
 #ifdef GASNETI_BLCR_ENABLED
 /* Collective and non-collective checkpoints */

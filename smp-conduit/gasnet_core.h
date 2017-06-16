@@ -145,6 +145,13 @@ extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex);
       gasneti_sync_reads();            \
     } while (0)
 #endif
+
+extern unsigned int gasnetc_AM_TokenInfo(
+                gex_AM_Token_t      _token,
+                gex_AM_TokenInfo_t *_info,
+                unsigned int        _mask);
+#define gex_AM_TokenInfo  gasnetc_AM_TokenInfo
+
 /* ------------------------------------------------------------------------------------ */
 
 #endif

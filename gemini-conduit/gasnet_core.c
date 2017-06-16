@@ -1131,6 +1131,30 @@ extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
   return GASNET_OK;
 }
 
+extern unsigned int gasnetc_AM_TokenInfo(
+                gex_AM_Token_t      token,
+                gex_AM_TokenInfo_t *info,
+                unsigned int        mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+  unsigned int result = 0;
+
+  if (mask & GEX_AMTI_SRCPROC) {
+    gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
+    result |= GEX_AMTI_SRCPROC;
+  }
+#if 0 // TODO-EX: need to implement this
+  if (mask & GEX_AMTI_ENTRY) {
+    /* (###) add code here to write the address of the handle entry into info->gex_entry */
+    info->gex_entry = ###;
+    result |= GEX_AMTI_ENTRY;
+  }
+#endif
+
+  return result;
+}
+
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE)
 {
   GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
