@@ -159,8 +159,8 @@ extern int gex_EP_Create(
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 on input == don't care
     void                  (*gex_fnptr)();  // Plus existing strict-proto goop
-    uintXX_t                gex_flags;     // width TBD
-    uint8_t                 gex_nargs;     // start requiring this!
+    gex_Flags_t             gex_flags;     // Including REQ/REP and S/M/L
+    unsigned int            gex_nargs;     // start requiring this!
 
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;     // Available to handler

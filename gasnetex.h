@@ -479,8 +479,8 @@ typedef struct {
    #else
     void                  (*gex_fnptr)();
    #endif
-    uint32_t                gex_flags;   // final width TBD
-    uint8_t                 gex_nargs;   // start requiring this (255 == not specified)
+    gex_Flags_t             gex_flags;
+    unsigned int            gex_nargs;
 
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;   // Available to handler
