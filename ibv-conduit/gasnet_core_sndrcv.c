@@ -772,7 +772,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   const gex_AM_Index_t handler_id = GASNETC_MSG_HANDLERID(flags);
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler_id];
-  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
+  const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
   const gasneti_category_t category = GASNETC_MSG_CATEGORY(flags);
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);

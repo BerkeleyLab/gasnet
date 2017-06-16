@@ -31,7 +31,7 @@
 #else
   #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE, GASNETI_PSHM_XPMEM, GASNETI_PSHM_GHEAP)
 #endif
-#include <gasnet_handler_internal.h> /* Need gasneti_handler_fn_t */
+#include <gasnet_handler_internal.h> /* Need gex_AM_Fn_t */
 
 #if GASNET_PAGESIZE < 4096
   #define GASNETI_PSHMNET_PAGESIZE 4096

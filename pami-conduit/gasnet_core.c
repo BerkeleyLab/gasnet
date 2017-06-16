@@ -845,7 +845,7 @@ void run_short(gasnetc_token_t *token) {
   gasnetc_shortmsg_t            *header = &token->shortmsg;
   const int                      is_req = header->is_req;
   const gex_AM_Index_t   handler_id = header->handler;
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
+  const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
   gex_AM_Token_t         client_token = (gex_AM_Token_t)token;
@@ -865,7 +865,7 @@ void run_medium(gasnetc_token_t *token) {
   gasnetc_medmsg_t              *header = &token->medmsg;
   const int                      is_req = header->is_req;
   const gex_AM_Index_t     handler_id = header->handler;
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
+  const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
   void * const                     data = GASNETC_TOKEN_PAYLOAD(token);
@@ -884,7 +884,7 @@ void run_long(gasnetc_token_t *token) {
   gasnetc_longmsg_t             *header = &token->longmsg;
   const int                      is_req = header->is_req;
   const gex_AM_Index_t     handler_id = header->handler;
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
+  const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
   void * const                     data = (void*)header->addr;
@@ -1208,7 +1208,7 @@ extern int gasnetc_AMRequestShortM(
   } else
 #else
   if (rank == gasneti_mynode) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     gex_AM_Token_t token = (gex_AM_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
@@ -1274,7 +1274,7 @@ extern int gasnetc_AMRequestMediumM(
   } else
 #else
   if (rank == gasneti_mynode) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
@@ -1368,7 +1368,7 @@ extern int gasnetc_AMRequestLongM(
   } else
 #else
   if (rank == gasneti_mynode) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
@@ -1447,7 +1447,7 @@ extern int gasnetc_AMReplyShortM(
   } else
 #else
   if (token == (gex_AM_Token_t)gasnetc_loopback_token) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     GASNETI_RUN_HANDLER_SHORT(0,handler,handler_fn,token,args,numargs);
@@ -1506,7 +1506,7 @@ extern int gasnetc_AMReplyMediumM(
   } else
 #else
   if (token == (gex_AM_Token_t)gasnetc_loopback_token) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
@@ -1593,7 +1593,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #else
   if (token == (gex_AM_Token_t)gasnetc_loopback_token) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gex_AM_Arg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);

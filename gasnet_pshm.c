@@ -1189,7 +1189,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gasneti_pshm_rank_t from;
   int category;
   gasnetc_handler_t handler_id;
-  gasneti_handler_fn_t handler_fn;
+  gex_AM_Fn_t handler_fn;
   int numargs;
   gex_AM_Arg_t *args;
   gex_AM_Token_t token;
@@ -1382,7 +1382,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
   /* Deliver message */
   if (loopback) {
     gex_EP_t ep = NULL; // TODO-EX: get true value
-    gasneti_handler_fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
+    gex_AM_Fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
     gex_AM_Token_t token = gasnetc_token_create(gasneti_mynode, isReq);
     gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     gasneti_AMPSHM_amtbl_check(ep, handler, numargs, category, isReq);

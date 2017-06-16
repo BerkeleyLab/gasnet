@@ -961,7 +961,7 @@ static void gasnetc_noop(void) { return; }
 static void gasnetc_disable_AMs(void) {
   int i;
   for (i = 0; i < GASNETC_MAX_NUMHANDLERS; ++i) {
-    gasnetc_handler[i].gex_fnptr = (gasneti_handler_fn_t)&gasnetc_noop;
+    gasnetc_handler[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
     gasnetc_handler[i].gex_flags = GASNETI_FLAG_AM_ANY;
   }
 }
@@ -1184,7 +1184,7 @@ int gasnetc_local_short_common(int is_req, gex_AM_Index_t handler,
   int i;
   
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
-  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
+  const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
@@ -1205,7 +1205,7 @@ int gasnetc_local_medium_common(int is_req, gex_AM_Index_t handler,
   int i;
   
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
-  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
+  const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
@@ -1228,7 +1228,7 @@ int gasnetc_local_long_common(int is_req, gex_AM_Index_t handler,
                                int numargs, va_list argptr)
 {
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
-  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
+  const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
