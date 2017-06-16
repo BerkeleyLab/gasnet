@@ -1013,7 +1013,7 @@ extern int gasnetc_AMReplyLongM(
     gex_Rank_t dest;
     uintptr_t dest_offset;
 
-    GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+    GASNETI_SAFE_PROPAGATE(gasnetc_AMGetMsgSource(token, &dest));
 #if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
 #else

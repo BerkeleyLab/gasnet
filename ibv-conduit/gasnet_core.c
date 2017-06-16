@@ -2806,7 +2806,7 @@ static void gasnetc_exit_role_reqh(gex_AM_Token_t token) {
 
   
   /* What role would the local node get if the requester is made the master? */
-  GASNETI_SAFE(gasnet_AMGetMsgSource(token, &src));
+  GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &src));
   local_role = (src == GASNETC_ROOT_NODE) ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
 
   /* Try atomically to assume the proper role.  Result determines role of requester */
@@ -2830,7 +2830,7 @@ static void gasnetc_exit_role_reph(gex_AM_Token_t token, gex_AM_Arg_t arg0) {
   #if GASNET_DEBUG
   {
     gex_Rank_t src;
-    GASNETI_SAFE(gasnet_AMGetMsgSource(token, &src));
+    GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &src));
     gasneti_assert(src == GASNETC_ROOT_NODE);	/* May only receive this reply from the root node */
   }
   #endif
@@ -3448,7 +3448,7 @@ void gasnetc_amrdma_grant_reqh_inner(gex_AM_Token_t token, int qpi, uint32_t rke
   gasnetc_cep_t *cep;
   gex_Rank_t node;
 
-  GASNETI_SAFE(gasnet_AMGetMsgSource(token, &node));
+  GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &node));
 
   cep = GASNETC_NODE2CEP(node) + (qpi - 1);
   gasneti_assert(cep->amrdma_send == NULL);
