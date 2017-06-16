@@ -487,6 +487,14 @@ extern unsigned int gasnetc_AM_TokenInfo(
   gasneti_assert(info);
   unsigned int result = 0;
 
+#if GASNET_PSHM
+  /* (###) If your conduit will support PSHM, let the PSHM code
+   * have a chance to recognize the token first, as shown here. */
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  }
+#endif
+
   if (mask & GEX_AMTI_SRCPROC) {
     /* (###) add code here to write the source into info->gex_srcproc */
     info->gex_srcproc = ###;

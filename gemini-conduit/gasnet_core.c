@@ -1140,6 +1140,12 @@ extern unsigned int gasnetc_AM_TokenInfo(
   gasneti_assert(info);
   unsigned int result = 0;
 
+#if GASNET_PSHM
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  }
+#endif
+
   if (mask & GEX_AMTI_SRCPROC) {
     gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
     result |= GEX_AMTI_SRCPROC;

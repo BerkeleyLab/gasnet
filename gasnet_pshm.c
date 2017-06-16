@@ -232,7 +232,8 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
   // TODO-EX: gasnetc_handler to be replaced w/ per-endpoint data when defined
-  #define gasnetc_get_handler(_ep,_index,_field) (gasnetc_handler[(_index)].gex_##_field)
+  #define gasnetc_get_hentry(_ep,_index) (&gasnetc_handler[(_index)])
+  #define gasnetc_get_handler(_ep,_index,_field) (gasnetc_get_hentry((_ep),(_index))->gex_##_field)
 #endif
 #ifndef GASNETC_TOKEN_CREATE
   /* Our default implementation is suitable for conduits that use a pointer
@@ -240,25 +241,37 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
    * set.  This distinguishes them from a valid pointer, but still allows a
    * (token != NULL) assertion.
    */
-  #if GASNET_DEBUG
     typedef struct {
       gex_Rank_t srcNode;
+      const gex_AM_Entry_t *entry;
+      gasneti_category_t category;
       int isReq;
+    #if GASNET_DEBUG
       int replySent;
+    #endif
     } gasneti_ampshm_token_t;
 
-    static gex_AM_Token_t gasnetc_token_create(gex_Rank_t src, int isReq) {
-      gasneti_ampshm_token_t *my_token = gasneti_malloc(sizeof(gasneti_ampshm_token_t));
+    GASNETI_INLINE(gasnetc_token_init)
+    gex_AM_Token_t gasnetc_token_init(
+                               gasneti_ampshm_token_t *my_token,
+                               gex_Rank_t src,
+                               gex_AM_Entry_t *entry,
+                               gasneti_category_t category,
+                               int isReq)
+    {
       gasneti_assert(!((uintptr_t)my_token & 1));
       gasneti_assert(gasneti_pshm_in_supernode(src));
       my_token->srcNode = src;
+      my_token->entry = entry;
+      my_token->category = category;
       my_token->isReq = isReq;
+    #if GASNET_DEBUG
       my_token->replySent = 0;
+    #endif
       return (gex_AM_Token_t)(1|(uintptr_t)my_token);
     }
 
-    #define gasnetc_token_destroy(tok) gasneti_free((void*)(1^(uintptr_t)(tok)))
-
+  #if GASNET_DEBUG
     extern void gasnetc_token_reply(gex_AM_Token_t token) {
       gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
       gasneti_assert(gasnetc_token_is_pshm(token));
@@ -267,6 +280,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       gasneti_assert(!my_token->replySent);
       my_token->replySent = 1;
     }
+  #endif
 
     extern int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr) {
       int retval = GASNET_ERR_BAD_ARG;
@@ -279,12 +293,30 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       }
       return retval;
     }
-  #else
-    /* We encode the source in a uintptr_t but ignore isReq.  */
-    #define gasnetc_token_create(_src, _isReq) \
-      ((gex_AM_Token_t)(1 | ((uintptr_t)(_src) << 1)))
-    #define gasnetc_token_destroy(tok) ((void)0)
-  #endif
+
+    extern unsigned int gasnetc_AMPSHM_TokenInfo(
+                gex_AM_Token_t      token,
+                gex_AM_TokenInfo_t *info,
+                unsigned int        mask)
+    {
+      gasneti_assert(gasnetc_token_is_pshm(token));
+      gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
+
+      gasneti_assert(info);
+      unsigned int result = 0;
+
+      if (mask & GEX_AMTI_SRCPROC) {
+        info->gex_srcproc = my_token->srcNode;
+        gasneti_assert(gasneti_pshm_in_supernode(info->gex_srcproc));
+        result |= GEX_AMTI_SRCPROC;
+      }
+      if (mask & GEX_AMTI_ENTRY) {
+        info->gex_entry = my_token->entry;
+        result |= GEX_AMTI_ENTRY;
+      }
+
+      return result;
+    }
 #endif
 
 
@@ -1164,7 +1196,7 @@ static void gasneti_AMPSHM_amtbl_check(
 {
   #ifndef GASNETC_GET_HANDLER
     // Conduit uses default implementation of handlerentry table
-    gasneti_amtbl_check(&gasnetc_handler[index], nargs, category, isReq); // TODO-EX: EP-specific table
+    gasneti_amtbl_check(gasnetc_get_hentry(ep,index), nargs, category, isReq); // TODO-EX: EP-specific table
   #else
     // Must construct a handlerentry table entry
     gex_AM_Entry_t entry;
@@ -1183,7 +1215,6 @@ static void gasneti_AMPSHM_amtbl_check(
 GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
 int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 {
-  gex_EP_t ep = NULL; // TODO-EX: get true value
   void *msg;
   size_t msgsz;
   gasneti_pshm_rank_t from;
@@ -1199,13 +1230,17 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   if (gasneti_pshmnet_recv(vnet, &msg, &msgsz, &from))
     return -1;
 
-  token = gasnetc_token_create(GASNETI_AMPSHM_MSG_SOURCE(msg), isReq);
+  handler_id = GASNETI_AMPSHM_MSG_HANDLERID(msg);
   category = GASNETI_AMPSHM_MSG_CATEGORY(msg);
   gasneti_assert((category == gasneti_Short) || 
                  (category == gasneti_Medium) || 
                  (category == gasneti_Long));
-  handler_id = GASNETI_AMPSHM_MSG_HANDLERID(msg);
-  handler_fn = gasnetc_get_handler(ep,handler_id,fnptr);
+  gex_EP_t ep = NULL; // TODO-EX: get true value
+  gex_AM_Entry_t *entry = gasnetc_get_hentry(ep,handler_id);
+  gasneti_ampshm_token_t my_token;
+  token = gasnetc_token_init(&my_token, GASNETI_AMPSHM_MSG_SOURCE(msg), entry, category, isReq);
+
+  handler_fn = entry->gex_fnptr;
   numargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
   args = GASNETI_AMPSHM_MSG_ARGS(msg);
 
@@ -1238,7 +1273,6 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
       break;
   }
   GASNETC_LEAVING_HANDLER_HOOK(category,isReq);
-  gasnetc_token_destroy(token);
   gasneti_pshmnet_recv_release(vnet, msg);
   return 0;
 }
@@ -1381,9 +1415,11 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
 
   /* Deliver message */
   if (loopback) {
+    gasneti_ampshm_token_t my_token;
     gex_EP_t ep = NULL; // TODO-EX: get true value
-    gex_AM_Fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
-    gex_AM_Token_t token = gasnetc_token_create(gasneti_mynode, isReq);
+    gex_AM_Entry_t *entry = gasnetc_get_hentry(ep,handler);
+    gex_AM_Token_t token = gasnetc_token_init(&my_token,gasneti_mynode,entry,category,isReq);
+    gex_AM_Fn_t handler_fn = entry->gex_fnptr;
     gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     gasneti_AMPSHM_amtbl_check(ep, handler, numargs, category, isReq);
     switch (category) {
@@ -1407,7 +1443,6 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
     }
     GASNETC_LEAVING_HANDLER_HOOK(category,isReq);
     gasneti_lifo_push(&loopback_freepool, msg);
-    gasnetc_token_destroy(token);
   } else {
     gasneti_pshmnet_deliver_send_buffer(vnet, msg, msgsz, target);
   }
