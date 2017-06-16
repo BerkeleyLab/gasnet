@@ -115,6 +115,9 @@ typedef struct gasneti_token_s *gex_AM_Token_t;
 typedef uint8_t gex_AM_Index_t;
 typedef int32_t gex_AM_Arg_t;
 
+// Handler function pointer type
+typedef ... gex_AM_Fn_t;
+
 // Widest scalar and width
 typedef uintptr_t gex_RMA_Value_t;
 #define SIZEOF_GEX_RMA_VALUE_T SIZEOF_VOID_P
@@ -158,7 +161,7 @@ extern int gex_EP_Create(
 // TBD: should default/recommended internal struct be the same?
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 on input == don't care
-    void                  (*gex_fnptr)();  // Plus existing strict-proto goop
+    gex_AM_Fn_t             gex_fnptr      // Hides existing strict-proto goop
     gex_Flags_t             gex_flags;     // Including REQ/REP and S/M/L
     unsigned int            gex_nargs;     // start requiring this!
 

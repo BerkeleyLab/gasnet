@@ -767,13 +767,8 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     gasnet_seginfo_t myseg;
 
     gex_AM_Entry_t mytab[] = {
-#if GASNET_USE_STRICT_PROTOTYPES
-      { 0, (void *)_test_seggather, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL },
-      { 0, (void *)_test_segbcast,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 1, NULL, NULL }
-#else
-      { 0, (void (*)())_test_seggather, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL },
-      { 0, (void (*)())_test_segbcast,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 1, NULL, NULL }
-#endif
+      { 0, (gex_AM_Fn_t)_test_seggather, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL },
+      { 0, (gex_AM_Fn_t)_test_segbcast,  GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDIUM, 1, NULL, NULL }
     };
     GASNET_Safe(gex_EP_RegisterHandlers(gex_TM_QueryEP(tm), mytab, 2));
     _test_seggather_idx = mytab[0].gex_index;
