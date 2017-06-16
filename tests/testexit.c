@@ -78,13 +78,14 @@ void test_exit_handler(gex_AM_Token_t token, gex_AM_Arg_t exitcode) {
 
 void ping_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   static int x = 1; 
-  gex_Rank_t src;
-  gasnet_AMGetMsgSource(token, &src);
+  gex_AM_TokenInfo_t info;
+  unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
+  assert(rc & GEX_AMTI_SRCPROC);
   x = !x;/* harmless race */
   if (x) 
     gex_AM_ReplyMedium0(token, hidx_noop_handler, buf, nbytes, GEX_EVENT_NOW, 0);
   else
-    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(src), GEX_EVENT_NOW, 0);
+    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(info.gex_srcproc), GEX_EVENT_NOW, 0);
 }
 
 void noop_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
