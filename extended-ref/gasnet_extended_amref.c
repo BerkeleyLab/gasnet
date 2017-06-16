@@ -4,8 +4,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_handler_internal.h>
-
 /* 
  * Guidance for conduit writers.
  * (See also "Tuning Parameters", below).

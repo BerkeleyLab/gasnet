@@ -8,7 +8,6 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler_internal.h>
 
 #if GASNET_DEBUG
 typedef struct {

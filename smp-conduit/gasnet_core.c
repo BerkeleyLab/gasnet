@@ -5,7 +5,6 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler_internal.h>
 #include <gasnet_core_internal.h>
 
 #include <errno.h>

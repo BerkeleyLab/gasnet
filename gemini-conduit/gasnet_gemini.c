@@ -1,6 +1,5 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
-#include <gasnet_handler_internal.h>
 #include <gasnet_gemini.h>
 #include <fcntl.h>
 #include <sys/mman.h>

@@ -5,7 +5,6 @@
  */
 #include <inttypes.h>
 #include <gasnet_internal.h>	/* gasnet mutex */
-#include <gasnet_handler_internal.h>
 
 /*
  * If we are building against a threaded client, firehose-smp support needs to

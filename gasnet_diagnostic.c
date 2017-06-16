@@ -17,7 +17,6 @@
 
 #define TEST_OMIT_CONFIGSTRINGS 1
 #include <../tests/test.h>
-#include <gasnet_handler_internal.h>
 
 /* this file should *only* contain symbols used for internal diagnostics,
    so that we can avoid needlessly linking it into production executables 

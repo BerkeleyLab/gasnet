@@ -7,8 +7,6 @@
 #ifndef _GASNET_EXTENDED_REFVIS_H
 #define _GASNET_EXTENDED_REFVIS_H
 
-#include <gasnet_handler_internal.h>
-
 /*---------------------------------------------------------------------------------*/
 /* ***  Parameters *** */
 /*---------------------------------------------------------------------------------*/
