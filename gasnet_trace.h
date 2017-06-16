@@ -299,9 +299,9 @@
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,numargs) \
           GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,numargs)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) do {         \
-          gex_Rank_t temp;                                            \
-          if (gasnet_AMGetMsgSource(token,&temp) != GASNET_OK)           \
-            gasneti_fatalerror("gasnet_AMGetMsgSource() failed");        \
+          gex_AM_TokenInfo_t info;                                       \
+          gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);              \
+          gex_Rank_t temp = info.gex_srcproc;                            \
           GASNETI_TRACE_AMSHORT(AMREPLY_SHORT,temp,handler,numargs);     \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_SHORT: Reply token: %s",      \
                             gasneti_formatdata(&token, sizeof(token)))); \
@@ -310,9 +310,9 @@
   #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,numargs) \
           GASNETI_TRACE_AMMEDIUM(AMREQUEST_MEDIUM,dest,handler,source_addr,nbytes,numargs)
   #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) do {      \
-          gex_Rank_t temp;                                                             \
-          if (gasnet_AMGetMsgSource(token,&temp) != GASNET_OK)                            \
-            gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                         \
+          gex_AM_TokenInfo_t info;                                                        \
+          gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);                               \
+          gex_Rank_t temp = info.gex_srcproc;                                             \
           GASNETI_TRACE_AMMEDIUM(AMREPLY_MEDIUM,temp,handler,source_addr,nbytes,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_MEDIUM: Reply token: %s",                      \
                             gasneti_formatdata(&token, sizeof(token))));                  \
@@ -321,9 +321,9 @@
   #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,numargs) \
           GASNETI_TRACE_AMLONG(AMREQUEST_LONG,dest,handler,source_addr,nbytes,dest_addr,numargs)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) do {    \
-          gex_Rank_t temp;                                                                   \
-          if (gasnet_AMGetMsgSource(token,&temp) != GASNET_OK)                                  \
-            gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                               \
+          gex_AM_TokenInfo_t info;                                                              \
+          gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);                                     \
+          gex_Rank_t temp = info.gex_srcproc;                                                   \
           GASNETI_TRACE_AMLONG(AMREPLY_LONG,temp,handler,source_addr,nbytes,dest_addr,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_LONG: Reply token: %s",                              \
                             gasneti_formatdata(&token, sizeof(token))));                        \
@@ -367,11 +367,11 @@
     } while(0)
 
   #define _GASNETI_TRACE_AMSHORT_HANDLER(name, handlerid, token, numargs, arghandle) do { \
-    gex_Rank_t src;                                                                    \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                 \
     _GASNETI_STAT_EVENT(A,name);                                                          \
-    if (gasnet_AMGetMsgSource(token,&src) != GASNET_OK)                                   \
-      gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                               \
+    gex_AM_TokenInfo_t info;                                                              \
+    gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);                                     \
+    gex_Rank_t src = info.gex_srcproc;                                                    \
     GASNETI_TRACE_PRINTF(A,(#name": src=%i handler=%i args:%s",                           \
       (int)src,(int)(handlerid),argstr));                                                 \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                           \
@@ -379,11 +379,11 @@
     } while(0)
 
   #define _GASNETI_TRACE_AMMEDLONG_HANDLER(name, handlerid, token, addr, nbytes, numargs, arghandle) do { \
-    gex_Rank_t src;                                                                                    \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                                 \
     _GASNETI_STAT_EVENT(A,name);                                                                          \
-    if (gasnet_AMGetMsgSource(token,&src) != GASNET_OK)                                                   \
-      gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                                               \
+    gex_AM_TokenInfo_t info;                                                                              \
+    gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);                                                     \
+    gex_Rank_t src = info.gex_srcproc;                                                                    \
     GASNETI_TRACE_PRINTF(A,(#name": src=%i handler=%i addr=" GASNETI_LADDRFMT " nbytes=%u args:%s",       \
       (int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(unsigned int)nbytes,argstr));                     \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                                           \
