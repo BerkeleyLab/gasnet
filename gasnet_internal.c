@@ -1787,70 +1787,9 @@ gex_TM_t          gasneti_thunk_tm       = NULL;
 gex_Segment_t     gasneti_thunk_segment  = NULL;
 
 /* ------------------------------------------------------------------------------------ */
-/* Debug memory management
-   debug memory format:
-  | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |
-                                             ptr returned by malloc ^
+/* Buffer management
  */
-#if GASNET_DEBUGMALLOC
-  /* READ BEFORE MODIFYING gasneti_memalloc_desc_t:
-   *
-   * malloc() is specified as returning memory "suitably aligned for any kind of variable".
-   * We don't know a priori what that alignment is, but we MUST preserve it in
-   * this debugging malloc implementation if we are to meet that same requirement.
-   * The current length of gasneti_memalloc_desc_t is:
-   *     ILP32: 32 bytes (4+4+4+4+8+8)
-   *   [I]LP64: 48 bytes (8+8+8+8+8+8)
-   * This means that any alignment up to 16-bytes will be preserved.  That is ideal
-   * since 16 is the strictest alignment requirement (long double on some platforms)
-   * that we have encountered in practice.
-   *
-   * If you change this structure, you MUST add padding to maintain the length
-   * at a multiple of 16-bytes AND please update the lengths above.
-   *
-   * NOTE: If the malloc() returns less than 16-byte alignment, then
-   * it is not our responsibility to create it where it did not exists.
-   * Any GASNet code needing larger alignment than 4- or 8-bytes should
-   * probably be using gasneti_{malloc,free}_aligned() (or gasnett_*).
-   */
-  typedef struct gasneti_memalloc_desc {  
-    struct gasneti_memalloc_desc * volatile prevdesc;
-    struct gasneti_memalloc_desc * volatile nextdesc;
-    const char *allocdesc_str; /* a file name, or file name:linenum */
-    uintptr_t   allocdesc_num; /* a line number, or zero for none */
-    uint64_t datasz;
-    uint64_t beginpost;
-  } gasneti_memalloc_desc_t;
-  static uint64_t gasneti_memalloc_allocatedbytes = 0;   /* num bytes ever allocated */
-  static uint64_t gasneti_memalloc_freedbytes = 0;       /* num bytes ever freed */
-  static uint64_t gasneti_memalloc_allocatedobjects = 0; /* num objects ever allocated */
-  static uint64_t gasneti_memalloc_freedobjects = 0;     /* num objects ever freed */
-  static uint64_t gasneti_memalloc_ringobjects = 0;      /* num objects in the ring */
-  static uint64_t gasneti_memalloc_ringbytes = 0;        /* num bytes in the ring */
-  static size_t   gasneti_memalloc_maxobjectsize = 0;    /* max object size ever allocated */
-  static uintptr_t gasneti_memalloc_maxobjectloc = 0;    /* max address ever allocated */
-  static uint64_t gasneti_memalloc_maxlivebytes = 0;     /* max num bytes live at any given time */
-  static uint64_t gasneti_memalloc_maxliveobjects = 0;   /* max num bytes live at any given time */
-  static int gasneti_memalloc_extracheck = 0;
-  static int gasneti_memalloc_init = -1;
-  static uint64_t gasneti_memalloc_initval = 0;
-  static int gasneti_memalloc_clobber = -1;
-  static uint64_t gasneti_memalloc_clobberval = 0;
-  static int gasneti_memalloc_leakall = -1;
-  static int gasneti_memalloc_scanfreed = -1;
-  static int gasneti_memalloc_envisinit = 0;
-  static gasneti_mutex_t gasneti_memalloc_lock = GASNETI_MUTEX_INITIALIZER;
-  static gasneti_memalloc_desc_t *gasneti_memalloc_pos = NULL;
-  #define GASNETI_MEM_BEGINPOST   ((uint64_t)0xDEADBABEDEADBABEULL)
-  #define GASNETI_MEM_LEAKMARK    ((uint64_t)0xBABEDEADCAFEBEEFULL)
-  #define GASNETI_MEM_ENDPOST     ((uint64_t)0xCAFEDEEDCAFEDEEDULL)
-  #define GASNETI_MEM_FREEMARK    ((uint64_t)0xBEEFEFADBEEFEFADULL)
-  #define GASNETI_MEM_HEADERSZ    (sizeof(gasneti_memalloc_desc_t))
-  #define GASNETI_MEM_TAILSZ      8     
-  #define GASNETI_MEM_EXTRASZ     (GASNETI_MEM_HEADERSZ+GASNETI_MEM_TAILSZ)     
-  #define GASNETI_MEM_MALLOCALIGN 4
-  #define gasneti_looksaligned(p) (!(((uintptr_t)(p)) & (GASNETI_MEM_MALLOCALIGN-1)))
-
+#if GASNET_DEBUGMALLOC || GASNET_DEBUG
   static uint64_t gasneti_memalloc_envint(const char *name, const char *deflt) {
     /* Signaling NaN: any bit pattern between 0x7ff0000000000001 and 0x7ff7ffffffffffff  
                    or any bit pattern between 0xfff0000000000001 and 0xfff7ffffffffffff
@@ -1916,6 +1855,71 @@ gex_Segment_t     gasneti_thunk_segment  = NULL;
     }
     return NULL;
   }
+#endif
+#if GASNET_DEBUGMALLOC
+/* ------------------------------------------------------------------------------------ */
+/* Debug memory management
+   debug memory format:
+  | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |
+                                             ptr returned by malloc ^
+ */
+  /* READ BEFORE MODIFYING gasneti_memalloc_desc_t:
+   *
+   * malloc() is specified as returning memory "suitably aligned for any kind of variable".
+   * We don't know a priori what that alignment is, but we MUST preserve it in
+   * this debugging malloc implementation if we are to meet that same requirement.
+   * The current length of gasneti_memalloc_desc_t is:
+   *     ILP32: 32 bytes (4+4+4+4+8+8)
+   *   [I]LP64: 48 bytes (8+8+8+8+8+8)
+   * This means that any alignment up to 16-bytes will be preserved.  That is ideal
+   * since 16 is the strictest alignment requirement (long double on some platforms)
+   * that we have encountered in practice.
+   *
+   * If you change this structure, you MUST add padding to maintain the length
+   * at a multiple of 16-bytes AND please update the lengths above.
+   *
+   * NOTE: If the malloc() returns less than 16-byte alignment, then
+   * it is not our responsibility to create it where it did not exists.
+   * Any GASNet code needing larger alignment than 4- or 8-bytes should
+   * probably be using gasneti_{malloc,free}_aligned() (or gasnett_*).
+   */
+  typedef struct gasneti_memalloc_desc {  
+    struct gasneti_memalloc_desc * volatile prevdesc;
+    struct gasneti_memalloc_desc * volatile nextdesc;
+    const char *allocdesc_str; /* a file name, or file name:linenum */
+    uintptr_t   allocdesc_num; /* a line number, or zero for none */
+    uint64_t datasz;
+    uint64_t beginpost;
+  } gasneti_memalloc_desc_t;
+  static uint64_t gasneti_memalloc_allocatedbytes = 0;   /* num bytes ever allocated */
+  static uint64_t gasneti_memalloc_freedbytes = 0;       /* num bytes ever freed */
+  static uint64_t gasneti_memalloc_allocatedobjects = 0; /* num objects ever allocated */
+  static uint64_t gasneti_memalloc_freedobjects = 0;     /* num objects ever freed */
+  static uint64_t gasneti_memalloc_ringobjects = 0;      /* num objects in the ring */
+  static uint64_t gasneti_memalloc_ringbytes = 0;        /* num bytes in the ring */
+  static size_t   gasneti_memalloc_maxobjectsize = 0;    /* max object size ever allocated */
+  static uintptr_t gasneti_memalloc_maxobjectloc = 0;    /* max address ever allocated */
+  static uint64_t gasneti_memalloc_maxlivebytes = 0;     /* max num bytes live at any given time */
+  static uint64_t gasneti_memalloc_maxliveobjects = 0;   /* max num bytes live at any given time */
+  static int gasneti_memalloc_extracheck = 0;
+  static int gasneti_memalloc_init = -1;
+  static uint64_t gasneti_memalloc_initval = 0;
+  static int gasneti_memalloc_clobber = -1;
+  static uint64_t gasneti_memalloc_clobberval = 0;
+  static int gasneti_memalloc_leakall = -1;
+  static int gasneti_memalloc_scanfreed = -1;
+  static int gasneti_memalloc_envisinit = 0;
+  static gasneti_mutex_t gasneti_memalloc_lock = GASNETI_MUTEX_INITIALIZER;
+  static gasneti_memalloc_desc_t *gasneti_memalloc_pos = NULL;
+  #define GASNETI_MEM_BEGINPOST   ((uint64_t)0xDEADBABEDEADBABEULL)
+  #define GASNETI_MEM_LEAKMARK    ((uint64_t)0xBABEDEADCAFEBEEFULL)
+  #define GASNETI_MEM_ENDPOST     ((uint64_t)0xCAFEDEEDCAFEDEEDULL)
+  #define GASNETI_MEM_FREEMARK    ((uint64_t)0xBEEFEFADBEEFEFADULL)
+  #define GASNETI_MEM_HEADERSZ    (sizeof(gasneti_memalloc_desc_t))
+  #define GASNETI_MEM_TAILSZ      8     
+  #define GASNETI_MEM_EXTRASZ     (GASNETI_MEM_HEADERSZ+GASNETI_MEM_TAILSZ)     
+  #define GASNETI_MEM_MALLOCALIGN 4
+  #define gasneti_looksaligned(p) (!(((uintptr_t)(p)) & (GASNETI_MEM_MALLOCALIGN-1)))
 
   GASNETI_INLINE(gasneti_memalloc_envinit)
   void gasneti_memalloc_envinit(void) {
