@@ -9,6 +9,9 @@
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
 #define TEST_MAXTHREADS 1
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ (128*1024) /* for put/overwrite test */
+#endif
 #include <test.h>
 
 #define TEST_GASNETEX 1
@@ -21,6 +24,7 @@
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
 /*void doit4(int partner, int *partnerseg); -- removed along with the memset*() calls */
@@ -194,49 +198,17 @@ void test_libgasnet_tools(void) {
   MSG("*** passed libgasnet_tools test!!");
 }
 /* ------------------------------------------------------------------------------------ */
+static const char *clientname = "testgasnet";
+static const gex_Flags_t clientflags = 0;
 int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
   gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
-  const char *myname = "testgasnet";
-  const gex_Flags_t myflags = 0;
-  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, myname, &argc, &argv, myflags));
-  if (strcmp(myname, gex_Client_QueryName(myclient))) {
-    MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
-  }
-  if (myflags != gex_Client_QueryFlags(myclient)) {
-    MSG("*** ERROR - FAILED CLIENT FLAGS TEST!!!!!");
-  }
-  if (myclient != gex_EP_QueryClient(myep)) {
-    MSG("*** ERROR - FAILED EP CLIENT TEST!!!!!");
-  }
-  if (myclient != gex_TM_QueryClient(myteam)) {
-    MSG("*** ERROR - FAILED TM CLIENT TEST!!!!!");
-  }
-  if (myep != gex_TM_QueryEP(myteam)) {
-    MSG("*** ERROR - FAILED TM EP TEST!!!!!");
-  }
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, clientname, &argc, &argv, clientflags));
   if (GEX_SEGMENT_INVALID != gex_EP_QuerySegment(myep)) {
     MSG("*** ERROR - FAILED EP NO-SEGMENT TEST!!!!!");
-  }
-
-  void *mydata = (void*)&main;
-  if (NULL != gex_Client_QueryCData(myclient) ||
-      mydata != (gex_Client_SetCData(myclient, mydata),
-                 gex_Client_QueryCData(myclient))) {
-    MSG("*** ERROR - FAILED CLIENT CDATA TEST!!!!!");
-  }
-  if (NULL != gex_EP_QueryCData(myep) ||
-      mydata != (gex_EP_SetCData(myep, mydata),
-                 gex_EP_QueryCData(myep))) {
-    MSG("*** ERROR - FAILED EP CDATA TEST!!!!!");
-  }
-  if (NULL != gex_TM_QueryCData(myteam) ||
-      mydata != (gex_TM_SetCData(myteam, mydata),
-                 gex_TM_QueryCData(myteam))) {
-    MSG("*** ERROR - FAILED TM CDATA TEST!!!!!");
   }
 
   myrank = gex_TM_QueryRank(myteam);
@@ -255,26 +227,6 @@ int main(int argc, char **argv) {
   #endif
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-#if GASNET_SEGMENT_EVERYTHING
-  // test.h intercepted gex_Segment_Attach() but does not fake a gex_Segment_t
-#else
-  if (myclient != gex_Segment_QueryClient(mysegment)) {
-    MSG("*** ERROR - FAILED SEGMENT CLIENT TEST!!!!!");
-  }
-  if (mysegment != gex_EP_QuerySegment(myep)) {
-    MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
-  }
-  if (NULL != gex_Segment_QueryCData(mysegment) ||
-      mydata != (gex_Segment_SetCData(mysegment, mydata),
-                 gex_Segment_QueryCData(mysegment))) {
-    MSG("*** ERROR - FAILED SEGMENT CDATA TEST!!!!!");
-  }
-
-  // To be removed:
-  assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());
-  assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
-#endif
-
   GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gex_AM_Entry_t)));
 
   test_init("testgasnet",0,"");
@@ -325,7 +277,275 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+gex_Event_t *am_lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
+gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0 };
+#define AM_LCOPT_CNT ((int)(sizeof(am_lcopt)/sizeof(am_lcopt[0])))
+#define AM_FLAGS_CNT ((int)(sizeof(am_flags)/sizeof(am_flags[0])))
+typedef struct { 
+  size_t RequestMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t ReplyMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t RequestLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t ReplyLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
+} amsz_t;
+
+extern gex_AM_Entry_t sizecheck_handlers[];
+GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
+  gex_Rank_t r;
+  gasnet_AMGetMsgSource(token, &r);
+  assert_always(r >= 0 && r < numranks);
+  assert_always(args >= 0 && args <= (gex_AM_Arg_t)gasnet_AMMaxArgs());
+  assert_always(nbytes == sizeof(amsz_t));
+  amsz_t *max = (amsz_t *)buf;
+  
+  // verify that AMMax*() return symmetric results in both directions
+  for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
+    for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
+      #define CHECK_MAX(cat) do {                                                             \
+        size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);             \
+        size_t lubval = gex_AM_LUB##cat();                                                    \
+        if (val < lubval)                                                                     \
+             MSG("*** ERROR - FAILED HANDLER LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i", \
+                  args,(int)r,lci,flagsi);                                                    \
+        if (val != max->cat[lci][flagsi])                                                     \
+              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
+                  args,lci,flagsi);                                                           \
+      } while (0)
+      CHECK_MAX(RequestMedium);
+      CHECK_MAX(ReplyMedium);
+      CHECK_MAX(RequestLong);
+      CHECK_MAX(ReplyLong);
+    } // flags
+  } // lc
+  #undef CHECK_MAX
+  gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
+}
+gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
+GASNETT_EXTERNC void sizecheck_reph(gex_AM_Token_t token) {
+  assert_always(gasnett_atomic_read(&sizecheck_ack,0) > 0);
+  gasnett_atomic_decrement(&sizecheck_ack,0);
+}
+gex_AM_Entry_t sizecheck_handlers[] = { // deliberately registered as don't-care indexes
+ { 0, (handler_fn_t)sizecheck_reqh, GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_REQUEST, 1, 0, "sizecheck_reqh" },
+ { 0, (handler_fn_t)sizecheck_reph, GEX_FLAG_AM_SHORT|GEX_FLAG_AM_REPLY, 0, 0, "sizecheck_reph" },
+};
+
 void doit(int partner, int *partnerseg) {
+  int success = 1;
+  BARRIER();
+
+  #ifdef __cplusplus
+    #define assert_pointer(type) assert_always(sizeof(type) == sizeof(void *))
+  #else
+    #define assert_pointer(type)  do {                            \
+      type v = (void *)0; /* warnings here mean non-compliance */ \
+      assert_always(sizeof(type) == sizeof(void *));              \
+    } while (0)
+  #endif
+
+  /* top-level object tests */
+  // try to ensure these are pointer types
+  assert_pointer(gex_Client_t);
+  assert_pointer(gex_EP_t);
+  assert_pointer(gex_TM_t);
+  assert_pointer(gex_Segment_t);
+
+  // check predefined object constants
+  #define CHECK_NULL_CONSTANT(type, constant) do { \
+    static type vz;                                \
+    type v = constant;                             \
+    assert_always(sizeof(constant) == sizeof(v));  \
+    assert_always(!memcmp(&v,&vz,sizeof(type)));   \
+  } while (0)
+  CHECK_NULL_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+
+  if (strcmp(clientname, gex_Client_QueryName(myclient))) {
+    MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
+  }
+  if (clientflags != gex_Client_QueryFlags(myclient)) {
+    MSG("*** ERROR - FAILED CLIENT FLAGS TEST!!!!!");
+  }
+  if (myclient != gex_EP_QueryClient(myep)) {
+    MSG("*** ERROR - FAILED EP CLIENT TEST!!!!!");
+  }
+  if (myclient != gex_TM_QueryClient(myteam)) {
+    MSG("*** ERROR - FAILED TM CLIENT TEST!!!!!");
+  }
+  if (myep != gex_TM_QueryEP(myteam)) {
+    MSG("*** ERROR - FAILED TM EP TEST!!!!!");
+  }
+
+  #define TEST_CDATA(type,var) do {                                       \
+    static char *cdata_##type = 0;                                        \
+    if ((char *)gex_##type##_QueryCData(var) != cdata_##type)             \
+      MSG("*** ERROR - FAILED %s TEST!!!!!", "gex_" #type "_QueryCData"); \
+    cdata_##type = strdup(#type " cdata");                                \
+    gex_##type##_SetCData(var, cdata_##type);                             \
+    char *temp = (char *)gex_##type##_QueryCData(var);                    \
+    if (temp != cdata_##type)                                             \
+      MSG("*** ERROR - FAILED %s TEST!!!!!", "gex_" #type "_SetCData");   \
+  } while(0)
+
+  TEST_CDATA(Client,myclient);
+  TEST_CDATA(EP,myep);
+  TEST_CDATA(TM,myteam);
+
+#if GASNET_SEGMENT_EVERYTHING
+  // test.h intercepted gex_Segment_Attach() but does not fake a gex_Segment_t
+#else
+  if (myclient != gex_Segment_QueryClient(mysegment)) {
+    MSG("*** ERROR - FAILED SEGMENT CLIENT TEST!!!!!");
+  }
+  if (mysegment != gex_EP_QuerySegment(myep)) {
+    MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
+  }
+  TEST_CDATA(Segment,mysegment);
+
+  // To be removed:
+  assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());
+  assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
+#endif
+
+  #define assert_signed(type)  do {              \
+    volatile type v = 0; /* prevent warnings */  \
+    assert_always((type)(v-1) < v);              \
+    test_static_assert((type)(-1) < (type)0);    \
+  } while (0)
+  #define assert_unsigned(type)  do {            \
+    volatile type v = 0; /* prevent warnings */  \
+    assert_always((type)(v-1) > v);              \
+    test_static_assert((type)(-1) > (type)0);    \
+  } while (0)
+
+  /* team/rank tests */
+  assert_unsigned(gex_Rank_t);
+  assert(myrank == gex_TM_QueryRank(myteam));
+  assert(numranks == gex_TM_QuerySize(myteam));
+  assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
+  assert_always(numranks == (gex_Rank_t)gasnet_nodes()); // TODO-EX: remove
+  assert_always(myrank < numranks);
+  assert_always(numranks < GEX_RANK_INVALID);
+
+  /* AM limit tests */
+  assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));
+  assert_always(gex_AM_LUBRequestMedium() >= 512);
+  assert_always(gex_AM_LUBReplyMedium() >= 512);
+  assert_always(gex_AM_LUBRequestLong() >= 512);
+  assert_always(gex_AM_LUBReplyLong() >= 512);
+
+  static int firsttime = 1;
+  if (firsttime) {
+    size_t numhand = sizeof(sizecheck_handlers)/sizeof(gex_AM_Entry_t);
+    GASNET_Safe(gex_EP_RegisterHandlers(myep, sizecheck_handlers, numhand));
+    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index > 0);
+    firsttime = 0;
+    BARRIER();
+  }
+  /* verify Max >= LUB */
+  amsz_t lub;
+  memset(&lub,-1,sizeof(lub));
+  assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
+  for (int args = 0; args <= (int)gasnet_AMMaxArgs(); args += (int)gasnet_AMMaxArgs()) {
+    amsz_t ranklub;
+    memset(&ranklub,-1,sizeof(ranklub));
+    for (gex_Rank_t d = 0; d <= numranks; d++) {
+      gex_Rank_t r;
+      if (d == numranks) r = GEX_RANK_INVALID; // min of maxes
+      else r = (myrank + d) % numranks;
+      amsz_t max;
+      for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
+        for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
+          #define GET_MAX(cat) do {                                                              \
+            size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);            \
+            max.cat[lci][flagsi] = val;                                                          \
+            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
+            size_t lubval = gex_AM_LUB##cat();                                                   \
+            if (val < lubval)                                                                    \
+              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
+                  args,(int)r,lci,flagsi);                                                       \
+            if (r < GEX_RANK_INVALID) {                                                          \
+              ranklub.cat[lci][flagsi] = MIN(val,ranklub.cat[lci][flagsi]);                      \
+            } else if (val != ranklub.cat[lci][flagsi]) {                                        \
+              MSG("*** ERROR - FAILED ALL-RANK LUB TEST! args=%i lci=%i flagsi=%i",              \
+                  args,lci,flagsi);                                                              \
+            }                                                                                    \
+          } while (0)
+          GET_MAX(RequestMedium);
+          GET_MAX(ReplyMedium);
+          GET_MAX(RequestLong);
+          GET_MAX(ReplyLong);
+        } // flags
+      } // lc
+      if (r == GEX_RANK_INVALID) break;
+      else {
+        gasnett_atomic_increment(&sizecheck_ack,0);
+        gex_AM_RequestMedium1(myteam, r, sizecheck_handlers[0].gex_index, &max, sizeof(max), GEX_EVENT_NOW, 0, args);
+      }
+    } // rank
+  } // args
+  #define CHECK_LUB(cat) do {                \
+    size_t lubval = gex_AM_LUB##cat();       \
+    if (lub.cat[0][0] != lubval) {           \
+      MSG("*** ERROR - FAILED LUB TEST!");   \
+    }                                        \
+  } while (0)
+  CHECK_LUB(RequestMedium);
+  CHECK_LUB(ReplyMedium);
+  CHECK_LUB(RequestLong);
+  CHECK_LUB(ReplyLong);
+  #undef CHECK_LUB
+  #undef GET_MAX
+  GASNET_BLOCKUNTIL(gasnett_atomic_read(&sizecheck_ack,0) == 0);
+  BARRIER();
+
+  /* Event tests */
+  gex_Event_t invalid = GEX_EVENT_INVALID;
+  gex_Event_t noop = GEX_EVENT_NO_OP;
+  assert_always(invalid == 0);
+  assert_always(noop != invalid);
+  gex_Event_t lc = 0;
+  size_t sz = MIN(8192,TEST_SEGSZ/2);
+  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_OFFSET | GEX_FLAG_DST_OFFSET); // TODO-EX
+  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_IN_BOUND_SEGMENT | GEX_FLAG_DST_IN_BOUND_SEGMENT);
+  if (rc) {
+    gex_Event_t qlc = gex_Event_QueryLeaf(rc, GEX_EC_LC);
+    if (lc && qlc) assert_always(lc == qlc);
+    gex_Event_Wait(lc);
+    assert_always(!gex_Event_Test(lc));
+    assert_always(!gex_Event_TestSome(&lc,1,0));
+    assert_always(!gex_Event_TestAll(&lc,1,0));
+    assert_always(!gex_Event_Test(qlc));
+    assert_always(!gex_Event_TestSome(&qlc,1,0));
+    assert_always(!gex_Event_TestAll(&qlc,1,0));
+    gex_Event_t qlc2 = gex_Event_QueryLeaf(rc, GEX_EC_LC);
+    if (lc && qlc2) assert_always(lc == qlc2);
+    assert_always(!gex_Event_Test(qlc2));
+    assert_always(!gex_Event_TestSome(&qlc2,1,0));
+    assert_always(!gex_Event_TestAll(&qlc2,1,0));
+    gex_Event_Wait(rc);
+  }
+
+  /* misc type tests */
+  gex_RMA_Value_t val;
+  assert_always(sizeof(val) == SIZEOF_GEX_RMA_VALUE_T);
+  assert_always(sizeof(val) >= sizeof(void *));
+  assert_always(sizeof(val) >= sizeof(long));
+  assert_unsigned(gex_RMA_Value_t);
+
+  gex_AM_Index_t ind;
+  assert_unsigned(gex_AM_Index_t);
+
+  gex_AM_Arg_t arg;
+  assert_always(sizeof(arg) >= 4);
+  assert_signed(gex_AM_Arg_t);
+
+  if (success) MSG("*** passed object test!!");
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit1(partner, partnerseg);
+}
+void doit1(int partner, int *partnerseg) {
+#endif
+
   BARRIER();
   /*  blocking test */
   { int val1=0, val2=0;
@@ -334,7 +554,7 @@ void doit(int partner, int *partnerseg) {
     gex_RMA_PutBlocking(myteam, partner, partnerseg, &val1, sizeof(int), 0);
     gex_RMA_GetBlocking(myteam, &val2, partner, partnerseg, sizeof(int), 0);
 
-    if (val2 == (myrank + 100)) MSG("*** passed blocking test!!");
+    if (val2 == (int)(myrank + 100)) MSG("*** passed blocking test!!");
     else MSG("*** ERROR - FAILED BLOCKING TEST!!!!!");
   }
 
@@ -357,7 +577,7 @@ void doit(int partner, int *partnerseg) {
     }
     gex_Event_WaitAll(events, iters, 0);
     for (i=0; i < iters; i++) {
-      if (vals[i] != 100 + myrank + i) {
+      if (vals[i] != 100 + (int)myrank + i) {
         MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
             i, vals[i], 100 + myrank + i);
         success = 0;
@@ -387,7 +607,7 @@ void doit2(int partner, int *partnerseg) {
     }
     gex_NBI_Wait(GEX_EC_GET,0);
     for (i=0; i < 100; i++) {
-      if (vals[i] != myrank + i) {
+      if (vals[i] != (int)myrank + i) {
         MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
             i, vals[i], myrank + i);
         success = 0;
@@ -422,7 +642,7 @@ void doit3(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       int tmp1 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i, sizeof(int), 0);
       int tmp2 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i+200, sizeof(int), 0);
-      if (tmp1 != 1000 + myrank + i || tmp2 != 1000 + myrank + i) {
+      if (tmp1 != 1000 + (int)myrank + i || tmp2 != 1000 + (int)myrank + i) {
         MSG("*** ERROR - FAILED INT VALUE TEST 1!!!");
         printf("node %i/%i  i=%i tmp1=%i tmp2=%i (1000 + myrank + i)=%i\n", 
           (int)myrank, (int)numranks, 
@@ -469,141 +689,147 @@ void doit5(int partner, int *partnerseg) {
   /* NB and NBI put/overwrite/get tests */
   #define MAXVALS (1024)
   #define MAXSZ (MAXVALS*8)
-  #define SEGSZ (MAXSZ*4)
-  #define VAL(sz, iter) \
-    (((uint64_t)(sz) << 32) | ((uint64_t)(100 + myrank) << 16) | ((iter) & 0xFF))
+  #define INSEGCHUNKS 3
+  #define NUMCHUNKS 6
+  #define SEGSZ (MAXSZ*NUMCHUNKS)
+  #define VAL(sz, chunkid, iter) \
+    (((uint64_t)(sz) << 36) | ((uint64_t)(chunkid) << 32) | ((uint64_t)(100 + myrank) << 16) | ((iter) & 0xFF))
   assert(TEST_SEGSZ >= 2*SEGSZ);
   { GASNET_BEGIN_FUNCTION();
-    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    uint64_t *localpos=(uint64_t *)test_malloc(SEGSZ);
     int success = 1;
     int i, sz;
     for (i = 0; i < MAX(1,iters/10); i++) {
-      uint64_t *localpos=localvals;
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
         gex_Event_t event;
+        gex_Event_t lcevt;
         int elems = sz/8;
-        int j;
-        uint64_t val = VAL(sz, i); /* setup known src value */
-        if (sz < 8) {
-          elems = 1;
-          memset(localpos, (val & 0xFF), sz);
-          memset(segpos, (val & 0xFF), sz);
-          memset(&val, (val & 0xFF), sz);
-        } else {
-          for (j=0; j < elems; j++) {
-            localpos[j] = val;
-            segpos[j] = val;
+        uint64_t val[NUMCHUNKS];
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          val[chunk] = VAL(sz, chunk, i); /* setup known src value */
+          if (sz < 8) {
+            elems = 1;
+            memset(localpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(segpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(&val[chunk], (val[chunk] & 0xFF), sz);
+          } else {
+            for (int j=0; j < elems; j++) {
+              (localpos+chunk*elems)[j] = val[chunk];
+              (segpos+chunk*elems)[j] = val[chunk];
+            }
           }
         }
         event = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
         gex_Event_Wait(event);
+        memset(localpos, 0xAA, sz); /* clear */
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
-        memset(localpos, 0xCC, sz); /* clear */
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos+elems, sz, GEX_EVENT_NOW, 0);
+        memset(localpos+elems, 0xBB, sz); /* clear */
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
+        lcevt = GEX_EVENT_INVALID;
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, localpos+2*elems, sz, &lcevt, 0);
+        gex_Event_Wait(lcevt);
+        memset(localpos+2*elems, 0xCC, sz); /* clear */
         gex_Event_Wait(event);
 
-        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
-        memset(segpos, 0xCC, sz); /* clear */
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
+        gex_Event_Wait(event);
+        memset(segpos, 0xDD, sz); /* clear */
+
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
+        memset(segpos+elems, 0xEE, sz); /* clear */
         gex_Event_Wait(event);
 
-        gex_Event_Wait(gex_RMA_GetNB(myteam, localpos, partner, rsegpos, sz, 0));
-        gex_Event_Wait(gex_RMA_GetNB(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
-        gex_Event_Wait(gex_RMA_GetNB(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
-        gex_Event_Wait(gex_RMA_GetNB(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
+        lcevt = GEX_EVENT_INVALID;
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, &lcevt, 0);
+        gex_Event_Wait(lcevt);
+        memset(segpos+2*elems, 0xFF, sz); /* clear */
+        gex_Event_Wait(event);
 
-        for (j=0; j < elems*2; j++) {
-          int ok;
-          ok = localpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, localpos[j], val);
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
+
+          for (int j=0; j < elems; j++) {
+            int ok = (localpos[j] == val[chunk]);
+            if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            if (!ok) {
+              MSG("*** ERROR - FAILED %s-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
+                  (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
               success = 0;
-          }
-          ok = segpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, segpos[j], val);
-              success = 0;
+            }
           }
         }
       }
     }
-    test_free(localvals);
+    test_free(localpos);
     if (success) MSG("*** passed nb put/overwrite test!!");
   }
   { GASNET_BEGIN_FUNCTION();
-    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    uint64_t *localpos=(uint64_t *)test_malloc(SEGSZ);
     int success = 1;
     int i, sz;
     for (i = 0; i < MAX(1,iters/10); i++) {
-      uint64_t *localpos=localvals;
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
         int elems = sz/8;
-        int j;
-        uint64_t val = VAL(sz, i+91); /* setup known src value, different from NB test */
-        if (sz < 8) {
-          elems = 1;
-          memset(localpos, (val & 0xFF), sz);
-          memset(segpos, (val & 0xFF), sz);
-          memset(&val, (val & 0xFF), sz);
-        } else {
-          for (j=0; j < elems; j++) {
-            localpos[j] = val;
-            segpos[j] = val;
+        uint64_t val[NUMCHUNKS];
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          val[chunk] = VAL(sz, chunk, i+91); /* setup known src value, different from NB test */
+          if (sz < 8) {
+            elems = 1;
+            memset(localpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(segpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(&val[chunk], (val[chunk] & 0xFF), sz);
+          } else {
+            for (int j=0; j < elems; j++) {
+              (localpos+chunk*elems)[j] = val[chunk];
+              (segpos+chunk*elems)[j] = val[chunk];
+            }
           }
         }
         gex_RMA_PutNBI(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
         gex_NBI_Wait(GEX_EC_PUT,0);
+        memset(localpos, 0xAA, sz); /* clear */
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos, sz, GEX_EVENT_NOW, 0);
-        memset(localpos, 0xCC, sz); /* clear */
+        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos+elems, sz, GEX_EVENT_NOW, 0);
+        memset(localpos+elems, 0xBB, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, localpos+2*elems, sz, GEX_EVENT_GROUP, 0);
+        gex_NBI_Wait(GEX_EC_LC, 0);
+        memset(localpos+2*elems, 0xCC, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
+        gex_NBI_Wait(GEX_EC_PUT,0);
+        memset(segpos, 0xDD, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
+        memset(segpos+elems, 0xEE, sz); /* clear */
+
+        gex_RMA_PutNBI(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, GEX_EVENT_GROUP, 0);
+        gex_NBI_Wait(GEX_EC_LC, 0);
+        memset(segpos+2*elems, 0xFF, sz); /* clear */
         gex_NBI_Wait(GEX_EC_PUT,0);
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, segpos, sz, GEX_EVENT_DEFER, 0);
-        gex_NBI_Wait(GEX_EC_PUT,0);
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
 
-        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos, sz, GEX_EVENT_NOW, 0);
-        memset(segpos, 0xCC, sz); /* clear */
-        gex_NBI_Wait(GEX_EC_PUT,0);
-
-        gex_RMA_GetNBI(myteam, localpos, partner, rsegpos, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-        gex_RMA_GetNBI(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-        gex_RMA_GetNBI(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-        gex_RMA_GetNBI(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
-        gex_NBI_Wait(GEX_EC_GET,0);
-
-        for (j=0; j < elems*2; j++) {
-          int ok;
-          ok = localpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, localpos[j], val);
+          for (int j=0; j < elems; j++) {
+            int ok = (localpos[j] == val[chunk]);
+            if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            if (!ok) {
+              MSG("*** ERROR - FAILED %s-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
+                  (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
               success = 0;
-          }
-          ok = segpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
-                  sz, j, segpos[j], val);
-              success = 0;
+            }
           }
         }
       }
     }
-    test_free(localvals);
+    test_free(localpos);
     if (success) MSG("*** passed nbi put/overwrite test!!");
   }
 

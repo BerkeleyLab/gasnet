@@ -58,21 +58,60 @@
   #define INCREP() gasnett_atomic_increment(&numrep,0)
   #define NUMREQ() gasnett_atomic_read(&numreq,0)
   #define NUMREP() gasnett_atomic_read(&numrep,0)
-  #define RequestShort(num,args)                gex_AM_RequestShort##num args
-  #define RequestMedium(num,args)               gex_AM_RequestMedium##num args
-  #define RequestLong(num,AMargs,GASNETargs)    gex_AM_RequestLong##num GASNETargs
+  gasnett_atomic_t amcnt_RequestShort = gasnett_atomic_init(0);
+  gasnett_atomic_t amcnt_ReplyShort = gasnett_atomic_init(0);
+  gasnett_atomic_t amcnt_RequestMedium = gasnett_atomic_init(0);
+  gasnett_atomic_t amcnt_ReplyMedium = gasnett_atomic_init(0);
+  gasnett_atomic_t amcnt_RequestLong = gasnett_atomic_init(0);
+  gasnett_atomic_t amcnt_ReplyLong = gasnett_atomic_init(0);
+  #if GASNETT_HAVE_ATOMIC_ADD_SUB
+    #define atomicinc(pvar) gasnett_atomic_add(pvar,1,0)
+  #else // non-atomicity just increases non-determinism
+    #define atomicinc(pvar) (gasnett_atomic_increment(pvar,0),gasnett_atomic_read(pvar))
+  #endif
+  #define AMSend(MLReq,cat,num,args) do {                   \
+    int id = atomicinc(&amcnt_##cat);                       \
+    gex_Event_t *lc_opt = GEX_EVENT_NOW;                    \
+    gex_Event_t lc = GEX_EVENT_NO_OP;                       \
+    if (MLReq) {                                            \
+      switch ((id >> 1) % 3) {                              \
+        case 0: /*lc_opt = GEX_EVENT_NOW;*/ break;          \
+        case 1:   lc_opt = GEX_EVENT_GROUP; break;          \
+        case 2:   lc_opt = &lc; break;                      \
+      }                                                     \
+    }                                                       \
+    do {                                                    \
+      if (id & 0x1) { /* try an immediate injection */      \
+        gex_Flags_t flags = GEX_FLAG_IMMEDIATE;             \
+        int result = gex_AM_##cat##num args;                \
+        if (!result) break; /* jump to lc sync */           \
+      }                                                     \
+      gex_Flags_t flags = 0; /* blocking injection */       \
+      int result = gex_AM_##cat##num args;                  \
+      assert_always(result == 0);                           \
+    } while (0);                                            \
+    if (MLReq && lc_opt == GEX_EVENT_GROUP) {               \
+      gex_NBI_Wait((id&0x2?GEX_EC_AM:GEX_EC_ALL), 0);       \
+    } else if (MLReq && lc_opt == &lc) {                    \
+      assert_always(lc != GEX_EVENT_NO_OP);                 \
+      gex_Event_Wait(lc);                                   \
+    }                                                       \
+  } while (0)
+  #define RequestShort(num,args)                AMSend(0,RequestShort,num,args)
+  #define RequestMedium(num,args)               AMSend(1,RequestMedium,num,args)
+  #define RequestLong(num,AMargs,GASNETargs)    AMSend(1,RequestLong,num,GASNETargs)
   #define RequestLongAsync                      RequestLong
-  #define ReplyShort(num,args)                  gex_AM_ReplyShort##num args
-  #define ReplyMedium(num,args)                 gex_AM_ReplyMedium##num args
-  #define ReplyLong(num,AMargs,GASNETargs)      gex_AM_ReplyLong##num GASNETargs
+  #define ReplyShort(num,args)                  AMSend(0,ReplyShort,num,args)
+  #define ReplyMedium(num,args)                 AMSend(0,ReplyMedium,num,args)
+  #define ReplyLong(num,AMargs,GASNETargs)      AMSend(0,ReplyLong,num,GASNETargs)
   #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())
   #define GETPARTNER(token)  gex_Rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
   #define ENDPOINT                 myteam,
-  #define EXTRA_S                  ,0
-  #define EXTRA_ML                 ,GEX_EVENT_NOW,0
+  #define EXTRA_S                  ,flags
+  #define EXTRA_ML                 ,lc_opt,flags
 #else
   #include "apputils.h"
   typedef int handlerarg_t;
