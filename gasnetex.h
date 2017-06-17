@@ -471,14 +471,16 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 #error "out-of-date #define of _GASNET_HANDLERENTRY_T"
 #endif
 
+#ifdef GASNET_USE_STRICT_PROTOTYPES
+  typedef void *gex_AM_Fn_t;
+#else
+  typedef void (*gex_AM_Fn_t)();
+#endif
+
 /*  struct type used to perform handler registration */
 typedef struct {
     gex_AM_Index_t      gex_index;   // 0 on input == don't care
-   #ifdef GASNET_USE_STRICT_PROTOTYPES
-    void                   *gex_fnptr;
-   #else
-    void                  (*gex_fnptr)();
-   #endif
+    gex_AM_Fn_t             gex_fnptr;
     gex_Flags_t             gex_flags;
     unsigned int            gex_nargs;
 

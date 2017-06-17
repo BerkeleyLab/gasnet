@@ -10,7 +10,6 @@
 #include <stddef.h>	/* for offsetof() */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler_internal.h>
 #include <firehose.h>
 
 #include <infiniband/verbs.h>

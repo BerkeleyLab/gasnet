@@ -44,11 +44,7 @@
   typedef gex_AM_Arg_t handlerarg_t;
  #define EXTERNC GASNETT_EXTERNC
  GASNETT_BEGIN_EXTERNC
- #ifdef GASNET_USE_STRICT_PROTOTYPES
-  typedef void *handler_fn_t;
- #else
-  typedef void (*handler_fn_t)();
- #endif
+  typedef gex_AM_Fn_t handler_fn_t;
  GASNETT_END_EXTERNC
   typedef gex_AM_Token_t token_t;
   typedef size_t bufsize_t;

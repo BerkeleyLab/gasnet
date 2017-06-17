@@ -2679,7 +2679,7 @@ static void gasnetc_disable_AMs(void) {
   int i;
 
   for (i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
-    gasnetc_handler[i].gex_fnptr = (gasneti_handler_fn_t)&gasnetc_noop;
+    gasnetc_handler[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
     gasnetc_handler[i].gex_flags = GASNETI_FLAG_AM_ANY;
   }
 }

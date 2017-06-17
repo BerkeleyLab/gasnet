@@ -170,30 +170,24 @@
 #define LONG_HANDLER_DECL         MEDIUM_HANDLER_DECL
 #define LONG_HANDLER_NOBITS_DECL  MEDIUM_HANDLER_NOBITS_DECL
 
-#if GASNET_USE_STRICT_PROTOTYPES
-typedef void *gasneti_handler_fn_t;
-#else
-typedef void (*gasneti_handler_fn_t)();  /* prototype for generic handler function */
-#endif
-
 /*  handler table construction */
 #define gasneti_handleridx(fnname) _hidx_ ## fnname
 #define _gasneti_handler_tableentry_flags(required_flag1, required_flag2, optional_flags) \
     (GEX_FLAG_AM_##required_flag1 | GEX_FLAG_AM_##required_flag2 | optional_flags)
 
 #define gasneti_handler_tableentry_no_bits(fnname, nargs, required_flag1, required_flag2, optional_flags) \
-  { gasneti_handleridx(fnname), (gasneti_handler_fn_t)(fnname), \
+  { gasneti_handleridx(fnname), (gex_AM_Fn_t)(fnname), \
     _gasneti_handler_tableentry_flags(required_flag1, required_flag2, optional_flags), \
     (nargs), NULL, _STRINGIFY(fnname) }
 
 #if PLATFORM_ARCH_32
   #define gasneti_handler_tableentry_with_bits(fnname, nargs32, nargs64, required_flag1, required_flag2, optional_flags) \
-  { gasneti_handleridx(fnname), (gasneti_handler_fn_t)(fnname ## _32), \
+  { gasneti_handleridx(fnname), (gex_AM_Fn_t)(fnname ## _32), \
     _gasneti_handler_tableentry_flags(required_flag1, required_flag2, optional_flags), \
     (nargs32), NULL, _STRINGIFY(fnname) }
 #elif PLATFORM_ARCH_64
   #define gasneti_handler_tableentry_with_bits(fnname, nargs32, nargs64, required_flag1, required_flag2, optional_flags) \
-  { gasneti_handleridx(fnname), (gasneti_handler_fn_t)(fnname ## _64), \
+  { gasneti_handleridx(fnname), (gex_AM_Fn_t)(fnname ## _64), \
     _gasneti_handler_tableentry_flags(required_flag1, required_flag2, optional_flags), \
     (nargs64), NULL, _STRINGIFY(fnname) }
 #endif

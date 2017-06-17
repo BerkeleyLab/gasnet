@@ -17,7 +17,6 @@
 
 #define TEST_OMIT_CONFIGSTRINGS 1
 #include <../tests/test.h>
-#include <gasnet_handler_internal.h>
 
 /* this file should *only* contain symbols used for internal diagnostics,
    so that we can avoid needlessly linking it into production executables 
@@ -1193,8 +1192,8 @@ static gex_AM_Entry_t gasneti_diag_handlers[] = {
     GASNETE_DIAG_HANDLERS(), /* should start at gasnete_diag_hidx_base */
   #endif
 
-  { gasneti_diag_hidx_base + 0, (gasneti_handler_fn_t)progressfn_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 },
-  { gasneti_diag_hidx_base + 1, (gasneti_handler_fn_t)progressfn_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 }
+  { gasneti_diag_hidx_base + 0, (gex_AM_Fn_t)progressfn_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 },
+  { gasneti_diag_hidx_base + 1, (gex_AM_Fn_t)progressfn_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 }
 };
 
 
