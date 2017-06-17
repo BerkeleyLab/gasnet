@@ -98,6 +98,7 @@ typedef struct {
     #endif
       int                   	needReply;
       uint32_t              	flags;
+      const gex_AM_Entry_t      *entry;
     }				am;
   } u;
 
@@ -114,6 +115,7 @@ typedef struct {
 #endif
 #define rbuf_needReply		u.am.needReply
 #define rbuf_flags		u.am.flags
+#define rbuf_entry		u.am.entry
 
 typedef enum {
 	GASNETC_OP_FREE,
@@ -790,6 +792,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   rbuf->rbuf_handlerRunning = 1;
 #endif
   rbuf->rbuf_flags = flags;
+  rbuf->rbuf_entry = handler_entry;
 
   /* Locate arguments */
   switch (category) {
@@ -3928,6 +3931,7 @@ gasnetc_sndrcv_quiesce(void) {
         rbuf.rbuf_needReply = 1;
       #if GASNET_DEBUG
         rbuf.rbuf_handlerRunning = 1;
+        rbuf.rbuf_entry = NULL;
       #endif
         rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, 0, node);
         gasnetc_ReplySysShort((gex_AM_Token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
@@ -4667,19 +4671,21 @@ extern unsigned int gasnetc_AM_TokenInfo(
   }
 #endif
 
+  const gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
   if (mask & GEX_AMTI_SRCPROC) {
-    uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
+    uint32_t flags = rbuf->rbuf_flags;
     if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
     info->gex_srcproc = GASNETC_MSG_SRCIDX(flags);
     result |= GEX_AMTI_SRCPROC;
   }
-#if 0 // TODO-EX: need to implement this
   if (mask & GEX_AMTI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
+    info->gex_entry = rbuf->rbuf_entry;
     result |= GEX_AMTI_ENTRY;
   }
-#endif
+
+  // TODO: rbuf can answer the following queries:
+  //   isShort = (GASNETC_MSG_CATEGORY(rbuf->flags) == gasneti_Short)
+  //   isReq = GASNETC_MSG_ISREQUEST(rbuf->flags)
 
   return result;
 }
