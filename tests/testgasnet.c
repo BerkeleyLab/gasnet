@@ -292,7 +292,7 @@ extern gex_AM_Entry_t sizecheck_handlers[];
 GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
   gex_Rank_t r;
   gasnet_AMGetMsgSource(token, &r);
-  assert_always(r >= 0 && r < numranks);
+  assert_always(r < numranks);
   assert_always(args >= 0 && args <= (gex_AM_Arg_t)gasnet_AMMaxArgs());
   assert_always(nbytes == sizeof(amsz_t));
   amsz_t *max = (amsz_t *)buf;
@@ -334,11 +334,11 @@ void doit(int partner, int *partnerseg) {
   BARRIER();
 
   #ifdef __cplusplus
-    #define assert_pointer(type) assert_always(sizeof(type) == sizeof(void *))
+    #define assert_pointer(type) test_static_assert(sizeof(type) == sizeof(void *))
   #else
     #define assert_pointer(type)  do {                            \
       type v = (void *)0; /* warnings here mean non-compliance */ \
-      assert_always(sizeof(type) == sizeof(void *));              \
+      test_static_assert(sizeof(type) == sizeof(void *));         \
     } while (0)
   #endif
 
@@ -353,6 +353,7 @@ void doit(int partner, int *partnerseg) {
   #define CHECK_NULL_CONSTANT(type, constant) do { \
     static type vz;                                \
     type v = constant;                             \
+    test_static_assert(sizeof(constant) == sizeof(type));  \
     assert_always(sizeof(constant) == sizeof(v));  \
     assert_always(!memcmp(&v,&vz,sizeof(type)));   \
   } while (0)
@@ -525,18 +526,40 @@ void doit(int partner, int *partnerseg) {
   }
 
   /* misc type tests */
-  gex_RMA_Value_t val;
-  assert_always(sizeof(val) == SIZEOF_GEX_RMA_VALUE_T);
-  assert_always(sizeof(val) >= sizeof(void *));
-  assert_always(sizeof(val) >= sizeof(long));
+  gex_RMA_Value_t val = 0;
+  test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
+  test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(void *));
+  test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(long));
   assert_unsigned(gex_RMA_Value_t);
 
-  gex_AM_Index_t ind;
+  gex_AM_Index_t ind = 0;
   assert_unsigned(gex_AM_Index_t);
 
-  gex_AM_Arg_t arg;
-  assert_always(sizeof(arg) >= 4);
+  gex_AM_Arg_t arg = 0;
+  test_static_assert(sizeof(gex_AM_Arg_t) >= 4);
   assert_signed(gex_AM_Arg_t);
+
+  #define typeissigned   <
+  #define typeisunsigned >
+  #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \
+    static volatile structtype S;                                            \
+    assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
+    assert_always((fieldtype)(S.fieldname-1) signedop (fieldtype)0);         \
+  } while (0)
+
+  #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
+    static volatile structtype S;                                            \
+    static fieldtype volatile v;                                             \
+    S.fieldname = v; /* warnings here mean non-compliance */                 \
+    assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
+  } while (0)
+
+  assert_field_int(gex_AM_Entry_t,     gex_AM_Index_t, gex_index, typeisunsigned);
+  assert_field_int(gex_AM_Entry_t,     gex_Flags_t,    gex_flags, typeisunsigned);
+  assert_field_int(gex_AM_Entry_t,     unsigned int,   gex_nargs, typeisunsigned);
+  assert_field_pointer(gex_AM_Entry_t, gex_AM_Fn_t,    gex_fnptr);
+  assert_field_pointer(gex_AM_Entry_t, void *,         gex_cdata);
+  assert_field_pointer(gex_AM_Entry_t, const char *,   gex_name);
 
   if (success) MSG("*** passed object test!!");
 
