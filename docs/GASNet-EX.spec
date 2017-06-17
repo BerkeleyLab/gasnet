@@ -451,7 +451,6 @@ int  gex_Event_TestAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags
 void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 
 // Identifiers to name Event Categories (such as local completion from NBI Puts)
-// TODO: these should have a distinct type
 // TODO: will eventually need COLL, VISMETA, etc.
 #define GEX_EC_ALL   ...
 #define GEX_EC_GET   ...
@@ -460,9 +459,9 @@ void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags
 #define GEX_EC_LC    ...
 
 // Sync of specified subset of NBI operations
-// Argument is bitwise-OR of GEX_EC_* constants
-int  gex_NBI_Test(unsigned int event_mask, gex_Flags_t flags);
-void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
+// The 'event_mask' argument is bitwise-OR of GEX_EC_* constants
+int  gex_NBI_Test(gex_EC_t event_mask, gex_Flags_t flags);
+void gex_NBI_Wait(gex_EC_t event_mask, gex_Flags_t flags);
 
 // Extract a leaf event from the root event
 // NOTE: name is subject to change
@@ -486,7 +485,7 @@ void gex_NBI_Wait(unsigned int event_mask, gex_Flags_t flags);
 // the *same* event.
 gex_Event_t gex_Event_QueryLeaf(
         gex_Event_t event,
-        unsigned int event_category);
+        gex_EC_t event_category);
 
 
 // Max payload queries for specific peer, nargs, lc_opt and flags

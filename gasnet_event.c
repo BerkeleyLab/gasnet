@@ -413,7 +413,7 @@ extern int  gasnete_test_all (gex_Event_t *pevent, size_t numevents GASNETI_THRE
 
 #ifndef gasnete_test_syncnbi_mask
 // TODO-EX: public header should dispatch to specialized functions on constant mask
-extern int gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
+extern int gasnete_test_syncnbi_mask(gex_EC_t mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   gasneti_assert(iop->threadidx == mythread->threadidx);
@@ -497,7 +497,7 @@ extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD
 
 #ifndef gasnete_Event_QueryLeaf
 #if GASNET_DEBUG
-static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
+static void _gasnete_get_leaf_check(gasnete_op_t *op, gex_EC_t event_id) {
   gasneti_assert(! gasneti_event_idx(op));
   switch (OPTYPE(op)) {
     case OPTYPE_IMPLICIT: {
@@ -526,7 +526,7 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
   #define _gasnete_get_leaf_check(op, event_id) ((void)0)
 #endif
 
-extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_id) {
+extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id) {
   gasnete_op_t *op = (gasnete_op_t*)root;
   _gasnete_get_leaf_check(op, event_id);
 
