@@ -620,13 +620,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    // TODO-EX: using limit=LUB here unless conduit has provided an alternative
-    // TODO-EX: expect to eventually use gex_Token_MaxReplyMedium()
-#if defined(gasnetc_Token_MaxReplyMedium)
     size_t limit = gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs);
-#else
-    size_t limit = gex_AM_LUBReplyMedium();
-#endif
     GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
 
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(token, nargs GASNETI_THREAD_PASS);
@@ -728,13 +722,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    // TODO-EX: using limit=LUB here unless conduit has provided an alternative
-    // TODO-EX: expect to eventually use gex_Token_MaxReplyLong()
-#if defined(gasnetc_Token_MaxReplyLong)
     size_t limit = gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs);
-#else
-    size_t limit = gex_AM_LUBReplyLong();
-#endif
     GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
 
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(token, nargs GASNETI_THREAD_PASS);
