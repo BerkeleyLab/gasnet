@@ -1126,18 +1126,20 @@ extern unsigned int gasnetc_AM_TokenInfo(
   }
 #endif
 
+  gasnetc_token_t *real_token = (gasnetc_token_t *)token;
   if (mask & GEX_AMTI_SRCPROC) {
-    info->gex_srcproc = ((gasnetc_token_t *)token)->source;
+    info->gex_srcproc = real_token->source;
     gasneti_assert(info->gex_srcproc < gasneti_nodes);
     result |= GEX_AMTI_SRCPROC;
   }
-#if 0 // TODO-EX: need to implement this
   if (mask & GEX_AMTI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
+    info->gex_entry = real_token->entry;
     result |= GEX_AMTI_ENTRY;
   }
-#endif
+
+  // TODO: real_token can (w/ fixes for identifier scope) answer the following:
+  //   isShort = (gasnetc_am_command(real_token->notify) == GC_CMD_AM_SHORT)
+  //   isRequest = (notify_get_type(real_token->notify) == notify_request)
 
   return result;
 }
@@ -1195,7 +1197,7 @@ int gasnetc_local_short_common(int is_req, gex_AM_Index_t handler,
   
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   
@@ -1216,7 +1218,7 @@ int gasnetc_local_medium_common(int is_req, gex_AM_Index_t handler,
   
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
@@ -1239,7 +1241,7 @@ int gasnetc_local_long_common(int is_req, gex_AM_Index_t handler,
 {
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   int i;
