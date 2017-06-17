@@ -1111,25 +1111,15 @@ static int gasnetc_am_init(void) {
   return GASNET_OK;
 }
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid;
-  GASNETI_CHECKATTACH();
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
+GASNETI_INLINE(gasnetc_msgsource)
+gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
 #if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let the PSHM code
-   * have a chance to recognize the token first, as shown here. */
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
+  gasneti_assert(! gasnetc_token_is_pshm(token));
 #endif
-  {
-    /* (###) add code here to write the source index into sourceid. */
-    sourceid = *(gex_Rank_t *)token;
-  }
-
+  gasneti_assert(token);
+  gex_Rank_t sourceid = *(gex_Rank_t *)token;
   gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+  return sourceid;
 }
 
 extern unsigned int gasnetc_AM_TokenInfo(
@@ -1148,7 +1138,7 @@ extern unsigned int gasnetc_AM_TokenInfo(
 #endif
 
   if (mask & GEX_AMTI_SRCPROC) {
-    gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
+    info->gex_srcproc = gasnetc_msgsource(token);
     result |= GEX_AMTI_SRCPROC;
   }
 #if 0 // TODO-EX: need to implement this
@@ -1490,8 +1480,7 @@ extern int gasnetc_AMReplyShortM(
     pami_result_t rc;
     gasnetc_shortmsg_t msg;
 
-    gex_Rank_t rank;
-    GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &rank));
+    gex_Rank_t rank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(short, token);
     GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
@@ -1569,8 +1558,7 @@ extern int gasnetc_AMReplyMediumM(
         cmd.events.remote_fn = NULL;
     }
 
-    gex_Rank_t rank;
-    GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &rank));
+    gex_Rank_t rank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(med, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
@@ -1654,8 +1642,7 @@ extern int gasnetc_AMReplyLongM(
         cmd.events.remote_fn = NULL;
     }
 
-    gex_Rank_t rank;
-    GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &rank));
+    gex_Rank_t rank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(long, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);

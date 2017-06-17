@@ -974,26 +974,6 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid = 0;
-  GASNETI_CHECKATTACH();
-  #if GASNET_DEBUG || GASNET_PSHM
-    GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  #else
-    GASNETI_CHECK_ERRR((token),BAD_ARG,"bad token");
-  #endif
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
-  /* add code here to write the source index into sourceid */
-#if GASNET_PSHM
-  GASNETI_SAFE_PROPAGATE(gasneti_AMPSHMGetMsgSource(token, &sourceid));
-#endif
-
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
-}
-
 extern unsigned int gasnetc_AM_TokenInfo(
                 gex_AM_Token_t      token,
                 gex_AM_TokenInfo_t *info,
@@ -1010,7 +990,7 @@ extern unsigned int gasnetc_AM_TokenInfo(
 #endif
 
   if (mask & GEX_AMTI_SRCPROC) {
-    gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
+    info->gex_srcproc = 0;
     result |= GEX_AMTI_SRCPROC;
   }
 #if 0 // TODO-EX: need to implement this

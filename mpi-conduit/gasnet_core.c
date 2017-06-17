@@ -660,27 +660,19 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  int retval;
-  gex_Rank_t sourceid;
-  GASNETI_CHECKATTACH();
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+GASNETI_INLINE(gasnetc_msgsource)
+gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
+  #if GASNET_PSHM
+    gasneti_assert(! gasnetc_token_is_pshm(token));
+  #endif
+    gasneti_assert(token);
 
-#if GASNET_PSHM
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
-#endif
-  {
     int tmp; /* AMMPI wants an int, but gex_Rank_t is uint32_t */
-    GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &tmp));
-    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+    gasneti_assert_zeroret(AMMPI_GetSourceId(token, &tmp));
     gasneti_assert(tmp >= 0);
-    sourceid = tmp;
-  }
-
+    gex_Rank_t sourceid = tmp;
     gasneti_assert(sourceid < gasneti_nodes);
-    *srcindex = sourceid;
-    return GASNET_OK;
+    return sourceid;
 }
 
 extern unsigned int gasnetc_AM_TokenInfo(
@@ -699,7 +691,7 @@ extern unsigned int gasnetc_AM_TokenInfo(
 #endif
 
   if (mask & GEX_AMTI_SRCPROC) {
-    gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
+    info->gex_srcproc = gasnetc_msgsource(token);
     result |= GEX_AMTI_SRCPROC;
   }
 #if 0 // TODO-EX: need to implement this
@@ -934,10 +926,9 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    gex_Rank_t dest;
+    gex_Rank_t dest = gasnetc_msgsource(token);
     uintptr_t dest_offset;
 
-    GASNETI_SAFE_PROPAGATE(gasnetc_AMGetMsgSource(token, &dest));
 #if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
 #else

@@ -242,7 +242,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
    * (token != NULL) assertion.
    */
     typedef struct {
-      gex_Rank_t srcNode;
+      gex_Rank_t srcNode; // gasneti_AMPSHM_msgsource() requires this is first
       const gex_AM_Entry_t *entry;
       gasneti_category_t category;
       int isReq;
@@ -281,18 +281,6 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       my_token->replySent = 1;
     }
   #endif
-
-    extern int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr) {
-      int retval = GASNET_ERR_BAD_ARG;
-      if (gasnetc_token_is_pshm(token)) {
-        gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
-        gex_Rank_t tmp = my_token->srcNode;
-        gasneti_assert(gasneti_pshm_in_supernode(tmp));
-        *src_ptr = tmp;
-        retval = GASNET_OK;
-      }
-      return retval;
-    }
 
     extern unsigned int gasnetc_AMPSHM_TokenInfo(
                 gex_AM_Token_t      token,

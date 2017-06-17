@@ -104,11 +104,9 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
 #else
   #define gasnetc_token_is_pshm(tok) ((uintptr_t)(tok)&1)
 
-  /* Conduits using the default gasnetc_token_create() will
-   * want/need to use this in their gasnetc_AMGetMsgSource().
-   * Returns GASNET_OK if token was recognized, GASNET_ERR_BAD_ARG otherwise.
-   */
-  extern int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr);
+  #define gasneti_AMPSHM_msgsource(tok)                \
+          (gasneti_assert(gasnetc_token_is_pshm(tok)), \
+           *(gex_Rank_t*)(1^(uintptr_t)(tok)))
 
   extern unsigned int gasnetc_AMPSHM_TokenInfo(
                 gex_AM_Token_t      token,
@@ -280,9 +278,8 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_AM_Token_t token,
                                 va_list argptr) 
 {
   int retval;
-  gex_Rank_t sourceid = 0; // init to avoid a maybe-uninit warning on gcc -O3 -Wall
   gasneti_assert(gasnetc_token_is_pshm(token));
-  gasneti_AMPSHMGetMsgSource(token, &sourceid);
+  gex_Rank_t sourceid = gasneti_AMPSHM_msgsource(token);
   gasneti_assert(gasneti_pshm_in_supernode(sourceid));
   gasnetc_token_reply(token);
   retval = gasnetc_AMPSHM_ReqRepGeneric(category, 0, sourceid, handler, source_addr, 

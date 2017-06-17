@@ -3866,10 +3866,8 @@ void gasnetc_sys_flush_reph(gex_AM_Token_t token, gex_AM_Arg_t credits) {
 static int gasnetc_close_recvd[16]; /* Note 16-bit GASNET_MAXNODES */
 
 void gasnetc_sys_close_reqh(gex_AM_Token_t token) {
-  gex_Rank_t peer;
+  gex_Rank_t peer = gasnetc_msgsource(token);
   int distance, shift;
-
-  gasnetc_AMGetMsgSource(token, &peer);
 
   distance = (peer > gasneti_mynode) ? peer - gasneti_mynode
                                      : peer + (gasneti_nodes - gasneti_mynode);
@@ -4627,14 +4625,18 @@ extern int gasnetc_ReplySysMedium(gex_AM_Token_t token,
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
+// NOTE: unlike other conduits this gets used outside the file, and w/ AMPSHM tokens too!
+gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
   gex_Rank_t sourceid;
-
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+  gasneti_assert(token);
 
 #if GASNET_PSHM
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
+  if (gasnetc_token_is_pshm(token)) {
+    gex_AM_TokenInfo_t info;
+    unsigned int rc = gasnetc_AMPSHM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
+    gasneti_assert(rc & GEX_AMTI_SRCPROC);
+    sourceid = info.gex_srcproc;
+  } else
 #endif
   {
     uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
@@ -4647,8 +4649,7 @@ extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
   }
 
   gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+  return sourceid;
 }
 
 extern unsigned int gasnetc_AM_TokenInfo(
@@ -4667,7 +4668,9 @@ extern unsigned int gasnetc_AM_TokenInfo(
 #endif
 
   if (mask & GEX_AMTI_SRCPROC) {
-    gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
+    uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
+    if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
+    info->gex_srcproc = GASNETC_MSG_SRCIDX(flags);
     result |= GEX_AMTI_SRCPROC;
   }
 #if 0 // TODO-EX: need to implement this

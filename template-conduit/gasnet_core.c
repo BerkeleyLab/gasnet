@@ -457,27 +457,6 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid;
-  GASNETI_CHECKATTACH();
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let the PSHM code
-   * have a chance to recognize the token first, as shown here. */
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
-#endif
-  {
-    /* (###) add code here to write the source index into sourceid. */
-    sourceid = ###;
-  }
-
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
-}
-
 extern unsigned int gasnetc_AM_TokenInfo(
                 gex_AM_Token_t      token,
                 gex_AM_TokenInfo_t *info,

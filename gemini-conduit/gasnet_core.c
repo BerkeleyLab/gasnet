@@ -1111,26 +1111,6 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid;
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let the PSHM code
-   * have a chance to recognize the token first, as shown here. */
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
-#endif
-  {
-    /* (###) add code here to write the source index into sourceid. */
-    sourceid = ((gasnetc_token_t *)token)->source;
-
-  }
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
-}
-
 extern unsigned int gasnetc_AM_TokenInfo(
                 gex_AM_Token_t      token,
                 gex_AM_TokenInfo_t *info,
@@ -1147,7 +1127,8 @@ extern unsigned int gasnetc_AM_TokenInfo(
 #endif
 
   if (mask & GEX_AMTI_SRCPROC) {
-    gasneti_assert_zeroret(gasnetc_AMGetMsgSource(token, &info->gex_srcproc));
+    info->gex_srcproc = ((gasnetc_token_t *)token)->source;
+    gasneti_assert(info->gex_srcproc < gasneti_nodes);
     result |= GEX_AMTI_SRCPROC;
   }
 #if 0 // TODO-EX: need to implement this

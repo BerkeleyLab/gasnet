@@ -2799,14 +2799,14 @@ static void gasnetc_exit_reduce_reqh(gex_AM_Token_t token,
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
 static void gasnetc_exit_role_reqh(gex_AM_Token_t token) {
-  gex_Rank_t src;
+  gex_Rank_t src = gasnetc_msgsource(token);
   int local_role, result;
 
   gasneti_assert(gasneti_mynode == GASNETC_ROOT_NODE);	/* May only send this request to the root node */
 
   
   /* What role would the local node get if the requester is made the master? */
-  GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &src));
+  
   local_role = (src == GASNETC_ROOT_NODE) ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
 
   /* Try atomically to assume the proper role.  Result determines role of requester */
@@ -2827,13 +2827,8 @@ static void gasnetc_exit_role_reqh(gex_AM_Token_t token) {
 static void gasnetc_exit_role_reph(gex_AM_Token_t token, gex_AM_Arg_t arg0) {
   int role;
 
-  #if GASNET_DEBUG
-  {
-    gex_Rank_t src;
-    GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &src));
-    gasneti_assert(src == GASNETC_ROOT_NODE);	/* May only receive this reply from the root node */
-  }
-  #endif
+  /* May only receive this reply from the root node */
+  gasneti_assert(gasnetc_msgsource(token) == GASNETC_ROOT_NODE);
 
   /* What role has this node been assigned? */
   role = (int)arg0;
@@ -3446,9 +3441,7 @@ extern void gasnetc_exit(int exitcode) {
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
 void gasnetc_amrdma_grant_reqh_inner(gex_AM_Token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
-  gex_Rank_t node;
-
-  GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &node));
+  gex_Rank_t node = gasnetc_msgsource(token);
 
   cep = GASNETC_NODE2CEP(node) + (qpi - 1);
   gasneti_assert(cep->amrdma_send == NULL);
