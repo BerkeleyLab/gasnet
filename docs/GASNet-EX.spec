@@ -184,8 +184,12 @@ int gex_EP_RegisterHandlers(
         int                     numentries);
 
 
-// The following are the *internal* prototypes for AM Request and Reply
-// The public API "instantiates" the "M" and the argument list.
+// NOTE 0: Prototypes in this section are "patterns"
+//
+//   These API instantiate the "[M]" at the end of each prototype with
+//   the integers 0 through 16 (a total of 17 functions per prototype).
+//   The '[,arg0, ... ,argM-1]' then represent the 0 to 16 arguments
+//   (each of type gex_AM_Arg_t).
 // 
 // NOTE 1: Return value
 // 
@@ -226,7 +230,7 @@ int gex_EP_RegisterHandlers(
 //   does not Poll, if we wanted to.]
 
 // Long
-int gex_AM_RequestLongM(
+int gex_AM_RequestLong[M](
            gex_TM_t tm,                   // Names a local context ("return address")
            gex_Rank_t rank,               // Together with 'tm', names a remote context
            gex_AM_Index_t handler,        // Index into handler table of remote context
@@ -234,47 +238,47 @@ int gex_AM_RequestLongM(
            size_t nbytes,                 // Payload length
            void *dest_addr,               // Payload destination address (or OFFSET)
            gex_Event_t *lc_opt,           // Local completion control (see above)
-           gex_Flags_t flags,             // Flags to control this operation
-           int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
-int gex_AM_ReplyLongM(
+           gex_Flags_t flags              // Flags to control this operation
+           [,arg0, ... ,argM-1])          // Argument list
+int gex_AM_ReplyLong[M](
            gex_AM_Token_t token,          // Names local and remote contexts
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
            void *dest_addr,
            gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           int numargs, ...);
+           gex_Flags_t flags
+           [,arg0, ... ,argM-1]);
 // Medium
-int gex_AM_RequestMediumM(
+int gex_AM_RequestMedium[M](
            gex_TM_t tm,
            gex_Rank_t rank,
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
            gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           int numargs, ...);
-int gex_AM_ReplyMediumM(
+           gex_Flags_t flags
+           [,arg0, ... ,argM-1]);
+int gex_AM_ReplyMedium[M](
            gex_AM_Token_t token,
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
            gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           int numargs, ...);
+           gex_Flags_t flags
+           [,arg0, ... ,argM-1]);
 // Short
-int gex_AM_RequestShortM(
+int gex_AM_RequestShort[M](
            gex_TM_t tm,
            gex_Rank_t rank,
            gex_AM_Index_t handler, 
-           gex_Flags_t flags,
-           int numargs, ...);
-int gex_AM_ReplyShortM(
+           gex_Flags_t flags
+           [,arg0, ... ,argM-1]);
+int gex_AM_ReplyShort[M](
            gex_AM_Token_t token,
            gex_AM_Index_t handler,
-           gex_Flags_t flags,
-           int numargs, ...);
+           gex_Flags_t flags
+           [,arg0, ... ,argM-1]);
 
 // Extended API
 //
