@@ -162,13 +162,31 @@ extern int gex_EP_Create(
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 on input == don't care
     gex_AM_Fn_t             gex_fnptr      // Hides existing strict-proto goop
-    gex_Flags_t             gex_flags;     // Including REQ/REP and S/M/L
-    unsigned int            gex_nargs;     // start requiring this!
+    gex_Flags_t             gex_flags;     // Incl. required S/M/L and REQ/REP
+    unsigned int            gex_nargs;     // Required
 
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;     // Available to handler
     const char             *gex_name;      // Used in debug messages
 } gex_AM_Entry_t;
+
+// Required flags for gex_flags field when registering AM handlers.
+//
+// When registering AM handlers, the gex_flags field of each
+// gex_AM_Entry_t must indicate how the handler will be called.
+// This requires ORing one constant from each of the following
+// two groups.
+
+// AM Category Flags:
+#define GEX_FLAG_AM_SHORT      ??? // Called only as a Short
+#define GEX_FLAG_AM_MEDIUM     ??? // Called only as a Medium
+#define GEX_FLAG_AM_LONG       ??? // Called only as a Long
+#define GEX_FLAG_AM_MEDLONG    ??? // Called as a Medium or Long
+
+// AM Request/Reply Flags:
+#define GEX_FLAG_AM_REQUEST    ??? // Called only as a Request
+#define GEX_FLAG_AM_REPLY      ??? // Called only as a Reply
+#define GEX_FLAG_AM_REQREP     ??? // Called as a Request or Reply
 
 // gex_EP_RegisterHandlers()
 //
