@@ -306,6 +306,24 @@ struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 #define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
 
+#ifdef GASNET_USE_STRICT_PROTOTYPES
+  typedef void *gex_AM_Fn_t;
+#else
+  typedef void (*gex_AM_Fn_t)();
+#endif
+
+/*  struct type used to perform handler registration */
+typedef struct {
+    gex_AM_Index_t          gex_index;   // 0 on input == don't care
+    gex_AM_Fn_t             gex_fnptr;
+    gex_Flags_t             gex_flags;
+    unsigned int            gex_nargs;
+
+    // Optional fields (both are "shallow copy")
+    const void             *gex_cdata;   // Available to handler
+    const char             *gex_name;    // Used in debug messages
+} gex_AM_Entry_t;
+
 #ifndef _GEX_CLIENT_T
   typedef struct {
   #if GASNET_DEBUG
@@ -388,6 +406,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     const void *       _cdata;
     gasneti_Segment_t  _segment;
     gex_Flags_t        _flags;
+    gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS];
     // TODO-EX: more fields to come
   #ifdef GASNETI_EP_EXTRA
     // conduit-specific fields w/o full override
@@ -472,24 +491,6 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 #ifdef _GASNET_HANDLERENTRY_T
 #error "out-of-date #define of _GASNET_HANDLERENTRY_T"
 #endif
-
-#ifdef GASNET_USE_STRICT_PROTOTYPES
-  typedef void *gex_AM_Fn_t;
-#else
-  typedef void (*gex_AM_Fn_t)();
-#endif
-
-/*  struct type used to perform handler registration */
-typedef struct {
-    gex_AM_Index_t      gex_index;   // 0 on input == don't care
-    gex_AM_Fn_t             gex_fnptr;
-    gex_Flags_t             gex_flags;
-    unsigned int            gex_nargs;
-
-    // Optional fields (both are "shallow copy")
-    const void             *gex_cdata;   // Available to handler
-    const char             *gex_name;    // Used in debug messages
-} gex_AM_Entry_t;
 
 
 /*  struct type used to return info from gex_Token_Info() */

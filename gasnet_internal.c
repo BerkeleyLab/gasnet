@@ -588,6 +588,7 @@ extern gasneti_EP_t gasneti_alloc_ep(
   endpoint->_cdata = NULL;
   endpoint->_segment = NULL;
   endpoint->_flags = flags;
+  gasneti_amtbl_init(endpoint->_amtbl);
 #ifdef GASNETI_EP_ALLOC_EXTRA
   GASNETI_EP_ALLOC_EXTRA(endpoint);
 #endif

@@ -20,8 +20,8 @@
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
-/* handler table (recommended impl) */
-extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+/* handler table (temporary global impl) */
+extern gex_AM_Entry_t *gasnetc_handler;
 
 /* ------------------------------------------------------------------------------------ */
 /* Assert that a value is aligned to at least the given size */

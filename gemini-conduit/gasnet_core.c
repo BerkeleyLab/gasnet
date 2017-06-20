@@ -26,8 +26,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
-// TODO-EX: will be replaced with per-EP tables
-gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
@@ -399,18 +398,6 @@ static void gasnetc_sys_coll_init(void)
   }
 
 done:
-  /*  PRE-register the two AM handlers we need */
-  { gex_AM_Entry_t early_handlers[] = {
-      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
-      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0)
-    };
-    int len = sizeof(early_handlers) / sizeof(gex_AM_Entry_t);
-    int numreg = 0;
-    if (gasneti_amregister(gasnetc_handler, early_handlers, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      gasneti_fatalerror("Error registering bootstrap AM handlers");
-    gasneti_assert(numreg == len);
-  }
-
   gasneti_spawner->Cleanup(); /* No further use of PMI-based colelctives */
 }
 
@@ -546,7 +533,13 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
 
 
 
-static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
+static int gasnetc_init( gex_Client_t            *client_p,
+                         gex_EP_t                *ep_p,
+                         const char              *clientName,
+                         int                     *argc,
+                         char                    ***argv,
+                         gex_Flags_t             flags)
+{
   uintptr_t msgspace;
   int ret;
   int localranks;
@@ -600,6 +593,19 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
                                           gasneti_nodemap_local_count * sizeof(gasnetc_exitcode_t));
     gasnetc_exitcodes[gasneti_nodemap_local_rank].present = 0;
   #endif
+
+  //  Create first Client and EP *here*, for use in subsequent bootstrap collectives
+  {
+    //  allocate the client object
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+    *client_p = gasneti_export_client(client);
+
+    //  create the initial endpoint with internal handlers
+    if (gasnetc_EP_Create(ep_p, *client_p, flags))
+      GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+    gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+    gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
+  }
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): node %i/%i calling gasnetc_init_messaging.\n", 
@@ -747,7 +753,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gasnetc_attach( gex_Client_t           *client_p,
-                           gex_EP_t               *endpoint_p,
+                           gex_EP_t               *ep_p,
                            gex_TM_t               *tm_p,
                            gex_Segment_t          *segment_p,
                            gasnet_handlerentry_t  *table,
@@ -756,6 +762,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
+  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -783,7 +790,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
   #endif
 
   /*  register client handlers */
-  if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
+  if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
     GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ensure everything is initialized across all nodes */
@@ -811,24 +818,25 @@ extern int gasnetc_Client_Init(
   gasneti_assert(argv);
 #endif
 
-  // TODO-EX: check name of client is unique
+  //  main init
+  // TODO-EX: must split off per-client and per-endpoint portions
+  if (!gasneti_init_done) { // First client
+    // NOTE: gasnetc_init() creates the first Client and EP for use in bootstrap comms
+    int retval = gasnetc_init(client_p, ep_p, clientName, argc, argv, flags);
+    if (retval != GASNET_OK) GASNETI_RETURN(retval);
+  #if 0
+    /* called within gasnetc_init to allow init tracing */
+    gasneti_trace_init(argc, argv);
+  #endif
+  } else { // NOT first client
+    //  allocate the client object
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+    *client_p = gasneti_export_client(client);
 
-  /*  main init  */
-  // TODO-EX: must split per-client vs. exactly once portions
-  int retval = gasnetc_init(argc, argv, flags);
-  if (retval != GASNET_OK) GASNETI_RETURN(retval);
-#if 0
-  /* called within gasnetc_init to allow init tracing */
-  gasneti_trace_init(argc, argv);
-#endif
-
-  // TODO-EX: create client
-  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
-  *client_p = gasneti_export_client(client);
-
-  /*  create the initial endpoint with internal handlers */
-  if (gasnetc_EP_Create(ep_p, *client_p, flags))
-    GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+    //  create the initial endpoint with internal handlers
+    if (gasnetc_EP_Create(ep_p, *client_p, flags))
+      GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
+  }
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // TODO-EX: create team
@@ -893,17 +901,13 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
   *ep_p = gasneti_export_ep(ep);
 
-  // Operate on global data until we have a real implementation of endpoints
-
-  gasneti_amtbl_init(gasnetc_handler);
-
   { /*  core API handlers */
     gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
@@ -914,7 +918,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
   }
@@ -925,7 +929,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
                                        int                     numentries) {
-  return gasneti_amregister_client(gasnetc_handler, table, numentries);
+  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_exit_in_signal = 0;  /* to avoid certain things in signal context */
