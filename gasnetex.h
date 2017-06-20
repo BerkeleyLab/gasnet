@@ -500,6 +500,14 @@ typedef struct {
 #define GEX_AMTI_SRCPROC       (1U<<0)
 #define GEX_AMTI_ENTRY         (1U<<1)
 
+// Default implementation
+#ifndef gex_AM_TokenInfo
+  #define gex_AM_TokenInfo gasnetc_AM_TokenInfo
+#endif
+extern unsigned int gex_AM_TokenInfo(
+                gex_AM_Token_t      _token,
+                gex_AM_TokenInfo_t *_info,
+                unsigned int        _mask);
 
 // GASNet-1 version of gex_AM_Entry_t
 // Visible to GASNet-1 clients and to internal code (for gasnetc_attach in particular)
