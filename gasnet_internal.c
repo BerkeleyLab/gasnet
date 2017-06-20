@@ -287,6 +287,7 @@ extern void gasneti_freezeForDebugger(void) {
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_defaultAMHandler(gex_AM_Token_t token) {
   gex_AM_TokenInfo_t info;
+  info.gex_srcproc = GEX_RANK_INVALID; // to print -1 if query were to fail
   gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
   gex_Rank_t srcnode = info.gex_srcproc;
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
