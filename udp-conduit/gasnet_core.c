@@ -1008,12 +1008,12 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    gex_Rank_t dest = gasnetc_msgsource(token);
     uintptr_t dest_offset;
 
 #if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
 #else
+    gex_Rank_t dest = gasnetc_msgsource(token);
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 #endif
 
