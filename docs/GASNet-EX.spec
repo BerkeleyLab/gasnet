@@ -452,11 +452,12 @@ void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags
 
 // Identifiers to name Event Categories (such as local completion from NBI Puts)
 // TODO: will eventually need COLL, VISMETA, etc.
-#define GEX_EC_ALL   ...
-#define GEX_EC_GET   ...
-#define GEX_EC_PUT   ...
-#define GEX_EC_AM    ...
-#define GEX_EC_LC    ...
+typedef [some integer type] gex_EC_t;
+#define GEX_EC_ALL   ((gex_EC_t)???)
+#define GEX_EC_GET   ((gex_EC_t)???)
+#define GEX_EC_PUT   ((gex_EC_t)???)
+#define GEX_EC_AM    ((gex_EC_t)???)
+#define GEX_EC_LC    ((gex_EC_t)???)
 
 // Sync of specified subset of NBI operations
 // The 'event_mask' argument is bitwise-OR of GEX_EC_* constants
