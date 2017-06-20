@@ -629,15 +629,32 @@ typedef struct {
 } gex_AM_TokenInfo_t;
 
 // Constants to request specific info from gex_AM_TokenInfo():
+// All listed constants are required, but the corresponding queries
+// are divided into Required ones and Optional ones.
+
+// REQUIRED: All implementations must support these queries:
 #define GEX_AMTI_SRCPROC       ???
+
+// OPTIONAL: Some implementations might not support these queries:
 #define GEX_AMTI_ENTRY         ???
 
 // Takes a token, address of client-allocated gex_AM_TokenInfo_t, and a mask.
 // The mask is a bit-wise OR of GEX_AMTI_* constants, which indicates which
 // fields of the gex_AM_TokenInfo_t should be set by the call.
-// The return value is of the same form of the mask, and indicates which
-// fields were set, which may be different than the requested set if the
-// conduit cannot provide certain values.
+//
+// The return value is of the same form as the mask.
+// The implementation is permitted to set fields not requested by the
+// caller to valid or *invalid* values.  The returned mask will indicate
+// which fields contain valid results
+//
+// Each GEX_AMTI_* corresponds to either a Required or Optional query.
+// When a client requests a Required query, a conforming implementation
+// MUST set these fields and the corresponding bit in the return value.
+// An Optional query may not be implemented on all conduits or all
+// configurations, or even under various conditions (e.g. may not be
+// supported in a Reply handler).  If the client makes an Optional request
+// the presence of the corresponding bit in the return value is the only
+// indication that the struct field is valid.
 extern unsigned int gex_AM_TokenInfo(
                 gex_AM_Token_t      token,
                 gex_AM_TokenInfo_t *info,
