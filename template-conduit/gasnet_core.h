@@ -141,16 +141,16 @@ typedef struct {
 /* Example for true functions:
 extern size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
+           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
 extern size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
+           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
 extern size_t gex_AM_MaxRequestLong(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
+           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
 extern size_t gex_AM_MaxReplyLong(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, int nargs);
+           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
  */
 
 /* ------------------------------------------------------------------------------------ */

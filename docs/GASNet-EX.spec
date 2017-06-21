@@ -505,25 +505,25 @@ size_t gex_AM_MaxRequestLong(
            gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
-           int numargs);
+           unsigned int numargs);
 size_t gex_AM_MaxReplyLong(
            gex_TM_t tm,
            gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
-           int numargs);
+           unsigned int numargs);
 size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm,
            gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
-           int numargs);
+           unsigned int numargs);
 size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm,
            gex_Rank_t rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
-           int numargs);
+           unsigned int numargs);
 
 // Least-upper-bound payload queries (unknown peer, nargs, lc_opt and flags)
 // Guaranteed to be less than or equal to the result of the corresponding AM_Max* 
