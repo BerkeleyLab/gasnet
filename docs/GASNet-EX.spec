@@ -507,10 +507,10 @@ void gex_NBI_BeginAccessRegion(gex_Flags_t flags);
 gex_Event_t gex_NBI_EndAccessRegion(gex_Flags_t flags);
 
 
-// Handle test/wait operations
+// Event test/wait operations
 // The operation is indicated by the suffix
 //  + _Test: no Poll call is made, returns zero on success, and non-zero otherwise.
-//  + _Wait: Polls until success, no return
+//  + _Wait: Polls until success, void return
 
 // Completion of a single NB event
 // Success is defined as when the passed event is complete.
