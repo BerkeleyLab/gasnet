@@ -272,32 +272,34 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
 */
 
 // The internal event categories
-#define GASNETI_EC_PUT (1 << 0)
-#define GASNETI_EC_ALC (1 << 1)
-#define GASNETI_EC_GET (1 << 2)
+#define GASNETI_EC_PUT (1U << 0)
+#define GASNETI_EC_ALC (1U << 1)
+#define GASNETI_EC_GET (1U << 2)
+
+typedef unsigned int gex_EC_t;
 
 #ifndef GEX_EC_PUT
-  #define GEX_EC_PUT  (GASNETI_EC_PUT|GASNETI_EC_ALC)
+  #define GEX_EC_PUT  ((gex_EC_t)(GASNETI_EC_PUT|GASNETI_EC_ALC))
 #endif
 #ifndef GEX_EC_GET
-  #define GEX_EC_GET  GASNETI_EC_GET
+  #define GEX_EC_GET  ((gex_EC_t)GASNETI_EC_GET)
 #endif
 #ifndef GEX_EC_AM
-  #define GEX_EC_AM   GASNETI_EC_ALC
+  #define GEX_EC_AM   ((gex_EC_t)GASNETI_EC_ALC)
 #endif
 #ifndef GEX_EC_LC
-  #define GEX_EC_LC   GASNETI_EC_ALC
+  #define GEX_EC_LC   ((gex_EC_t)GASNETI_EC_ALC)
 #endif
 #ifndef GEX_EC_ALL
-  #define GEX_EC_ALL  (~0)
+  #define GEX_EC_ALL  (~(gex_EC_t)0)
 #endif
 
 #ifndef gasnete_test_syncnbi_mask
-  extern int  gasnete_test_syncnbi_mask(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG);
+  extern int  gasnete_test_syncnbi_mask(gex_EC_t mask, gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gex_NBI_Test) GASNETI_WARN_UNUSED_RESULT
-int _gex_NBI_Test(unsigned int mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
+int _gex_NBI_Test(gex_EC_t mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   int retval = gasnete_test_syncnbi_mask(mask, flags GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI,retval);
   return retval;
@@ -338,7 +340,7 @@ extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD
   =====================================
 */
 #ifndef gasnete_Event_QueryLeaf
-extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, unsigned int event_id);
+extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id);
 #endif
 
 #define gex_Event_QueryLeaf(root, event_id) gasnete_Event_QueryLeaf(root, event_id)
