@@ -677,8 +677,8 @@ extern void gasnetc_trace_finish(void) {
       GASNETI_STATS_PRINTF(C,("AMUDP Statistics:"));
       if (!isglobal)
         GASNETI_STATS_PRINTF(C,("*** AMUDP stat dump reflects only local node info, because gasnet_exit is non-collective ***"));
-        statdump = AMUDP_DumpStatistics(NULL, &stats, isglobal);
-        GASNETI_STATS_PRINTF(C,("\n%s",statdump)); /* note, dump has embedded '%' chars */
+      statdump = AMUDP_DumpStatistics(NULL, &stats, isglobal);
+      GASNETI_STATS_PRINTF(C,("\n%s",statdump)); /* note, dump has embedded '%' chars */
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
     }
   }
