@@ -1,6 +1,64 @@
-// This is *not* a normative document.
+// This is *not* a final normative document.
+// This is "beta documentation" for a beta release.
+//
 // It is a place for collection of agreed-upon APIs and for initial
 // drafting of what may become the normative text.
+
+//
+// Specification and release versioning:
+//
+
+// Release version tuple
+//
+// This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
+// providing a clear distinction from GASNet-1 with MAJOR==1.
+#define GASNET_RELEASE_VERSION_MAJOR 2017
+#define GASNET_RELEASE_VERSION_MINOR 6
+#define GASNET_RELEASE_VERSION_PATCH 0
+
+// Major and Minor versions of the GASNet-EX specification.
+//
+// This is currently a version number for *this* document.
+#define GEX_SPEC_VERSION_MAJOR 0
+#define GEX_SPEC_VERSION_MINOR 1
+
+// Major and Minor versions of the GASNet-1 specification.
+//
+// This is the version to which the gasnet_* APIs adhere
+// and which prevails for all matters which this document
+// does not (yet) address.
+#define GASNET_SPEC_VERSION_MAJOR 1
+#define GASNET_SPEC_VERSION_MINOR 8
+
+// Major and Minor versions of the GASNet-Tools specification.
+//
+// This is the spec version for the GASNet Tools
+#define GASNETT_SPEC_VERSION_MAJOR 1
+#define GASNETT_SPEC_VERSION_MINOR 9
+
+//
+// Relationship to GASNet-1 APIs:
+//
+// This release should continue to support nearly all GASNet-1 APIs.
+// The following GASNet-1 APIs are the only ones known *not* to be
+// supported in this release:
+//   gasnet_memset()
+//   gasnet_memset_nb()
+//   gasnet_memset_nbi()
+//
+// Many gasnet_ APIs have gex_ counterparts that are either interoperable,
+// or which provide a superset of the most closely-related gasnet_ APIs.
+//
+// Where a gex_/GEX_ identifier is interoperable or synonymous with
+// a gasnet_/GASNET_ identifier, that should be clearly noted.
+//
+// This document includes the annotation [UNIMPLEMENTED] in several places
+// where we feel we have a suitable design ready for consideration, but
+// have yet to provide a complete and/or correct implementation.
+
+//
+// Basic types:
+//
 
 // An "Event" is an opaque scalar type
 // This type is interoperable with gasnet_handle_t
@@ -75,7 +133,7 @@ typedef [some integer type] gex_Flags_t;
 //
 // {SRC,DST}_IN_SEGMENT
 //
-// These flag bits assert that for the coresponding source or
+// These flag bits assert that for the corresponding source or
 // destination address the range of bytes [address, address+nbytes)
 // is contained within the union of current GASNet-EX segments.
 #define GEX_FLAG_SRC_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
@@ -83,7 +141,7 @@ typedef [some integer type] gex_Flags_t;
 //
 // {SRC,DST}_IN_BOUND_SEGMENT
 //
-// These flag bits assert that for the coresponding source or
+// These flag bits assert that for the corresponding source or
 // destination address the range of bytes [address, address+nbytes)
 // is contained within the segment bound to the respective source
 // or destination endpoint.
@@ -247,7 +305,7 @@ extern int gex_EP_Create(
                 gex_Flags_t             flags);
 
 // Client-facing type for describing one AM handler
-// This type replaces (is *not* interchangable with) gasnet_handlerentry_t
+// This type replaces (is *not* interchangeable with) gasnet_handlerentry_t
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 on input == don't care
     gex_AM_Fn_t             gex_fnptr      // Hides existing strict-proto goop
@@ -644,7 +702,7 @@ size_t gex_AM_LUBReplyMedium(void);
 // fields, but their order is not assured
 typedef struct {
     // "System rank" of the sending process.
-    // In a non-resilent build this will be the same as the rank in the team
+    // In a non-resilient build this will be the same as the rank in the team
     // constructed by gex_Client_Init() and will be identical across clients.
     // Semantics in a resilient build will be defined in a later release.
     gex_Rank_t                 gex_srcrank;
@@ -703,8 +761,8 @@ typedef {...} gex_HSL_t;
 // Synonymous with GASNET_HSL_INITIALIZER
 #define GEX_HSL_INITIALIZER {...}
 
-// The following operations on HSLs are are sematically identical
-// to the corresponsing gasnet_hsl_* functions:
+// The following operations on HSLs are are semantically identical
+// to the corresponding gasnet_hsl_* functions:
 void gex_HSL_Init   (gex_HSL_t *hsl);
 void gex_HSL_Destroy(gex_HSL_t *hsl);
 void gex_HSL_Lock   (gex_HSL_t *hsl);
