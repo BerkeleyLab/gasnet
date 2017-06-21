@@ -290,8 +290,10 @@ typedef struct {
 
 extern gex_AM_Entry_t sizecheck_handlers[];
 GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
-  gex_Rank_t r;
-  gasnet_AMGetMsgSource(token, &r);
+  gex_Token_Info_t info;
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  assert_always(rc & GEX_TI_SRCRANK);
+  gex_Rank_t r = info.gex_srcrank;
   assert_always(r < numranks);
   assert_always(args >= 0 && args <= (gex_AM_Arg_t)gex_AM_MaxArgs());
   assert_always(nbytes == sizeof(amsz_t));
