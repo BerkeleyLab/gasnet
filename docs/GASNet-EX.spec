@@ -44,68 +44,62 @@ typedef uint32_t gex_Rank_t;
 
 // Assume no more than 32 flags will be needed for any one family of calls
 // However, flags to p2p initiation and segment creation (as examples) could overlap
-typedef uint32_t gex_Flags_t;
+typedef [some integer type] gex_Flags_t;
 
-// SOME flags values - certainly not complete.
-// NOTE: Shifts of '999' are being used until the list is more fleshed out,
-// and with the hope that a compiler warning about "shift larger than width"
-// will ensure we fix them all eventually.
-enum {
-  //
-  // Flags for point-to-point communication initiation
-  //
-      //
-      // IMMEDIATE
-      //
-      // This flag indicates that GASNet-EX *may* return without initiating
-      // any communication if the conduit could determine that it would
-      // need to block temporarily to obtain the necessary resources.  In
-      // this case calls with return type 'gex_Event_t' return
-      // GEX_EVENT_NO_OP while those with return type 'int' will
-      // return non-zero.
-      //
-      GEX_FLAG_IMMEDIATE = (1 << 999),
-      //
-      // LC_COPY_{YES,NO}
-      //
-      // This mutually-exclusive pair of flags *may* override GASNet-EX's
-      // choice of whether or not to make a copy of a payload (of a
-      // non-blocking Put or AM) for the purpose of accelerating local
-      // completion.  In the absence of these flags the conduit-specific
-      // logic will apply.
-      //
-      // NOTE: these need more thought w.r.t. the implementation and
-      // specification
-      GEX_FLAG_LC_COPY_YES = (1 << 999),
-      GEX_FLAG_LC_COPY_NO  = (1 << 999),
-      //
-      // {SRC,DST}_IN_SEGMENT
-      //
-      // These flag bits assert that for the coresponding source or
-      // destination address the range of bytes [address, address+nbytes)
-      // is contained within the union of current GASNet-EX segments.
-      GEX_FLAG_SRC_IN_SEGMENT = (1 << 999),
-      GEX_FLAG_DST_IN_SEGMENT = (1 << 999),
-      //
-      // {SRC,DST}_IN_BOUND_SEGMENT
-      //
-      // These flag bits assert that for the coresponding source or
-      // destination address the range of bytes [address, address+nbytes)
-      // is contained within the segment bound to the respective source
-      // or destination endpoint.
-      // Implies the respective {SRC,DST}_IN_SEGMENT flag.
-      GEX_FLAG_SRC_IN_BOUND_SEGMENT = (1 << 999),
-      GEX_FLAG_DST_IN_BOUND_SEGMENT = (1 << 999),
-      //
-      // {SRC,DST}_OFFSET
-      //
-      // These flag bits indicate that the corresponding address argument
-      // is an *offset* relative to the segment base.
-      // Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
-      // implies the respective ..._IN_SEGMENT flag, indirectly).
-      GEX_FLAG_SRC_OFFSET = (1 << 999),
-      GEX_FLAG_DST_OFFSET = (1 << 999),
-};
+//
+// Flags for point-to-point communication initiation
+//
+//
+// IMMEDIATE
+//
+// This flag indicates that GASNet-EX *may* return without initiating
+// any communication if the conduit could determine that it would
+// need to block temporarily to obtain the necessary resources.  In
+// this case calls with return type 'gex_Event_t' return
+// GEX_EVENT_NO_OP while those with return type 'int' will
+// return non-zero.
+//
+#define GEX_FLAG_IMMEDIATE ((gex_Flags_t)???)
+//
+// LC_COPY_{YES,NO}
+//
+// This mutually-exclusive pair of flags *may* override GASNet-EX's
+// choice of whether or not to make a copy of a payload (of a
+// non-blocking Put or AM) for the purpose of accelerating local
+// completion.  In the absence of these flags the conduit-specific
+// logic will apply.
+//
+// NOTE: these need more thought w.r.t. the implementation and
+// specification
+#define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???)
+#define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???)
+//
+// {SRC,DST}_IN_SEGMENT
+//
+// These flag bits assert that for the coresponding source or
+// destination address the range of bytes [address, address+nbytes)
+// is contained within the union of current GASNet-EX segments.
+#define GEX_FLAG_SRC_IN_SEGMENT ((gex_Flags_t)???)
+#define GEX_FLAG_DST_IN_SEGMENT ((gex_Flags_t)???)
+//
+// {SRC,DST}_IN_BOUND_SEGMENT
+//
+// These flag bits assert that for the coresponding source or
+// destination address the range of bytes [address, address+nbytes)
+// is contained within the segment bound to the respective source
+// or destination endpoint.
+// Implies the respective {SRC,DST}_IN_SEGMENT flag.
+#define GEX_FLAG_SRC_IN_BOUND_SEGMENT ((gex_Flags_t)???)
+#define GEX_FLAG_DST_IN_BOUND_SEGMENT ((gex_Flags_t)???)
+//
+// {SRC,DST}_OFFSET
+//
+// These flag bits indicate that the corresponding address argument
+// is an *offset* relative to the segment base.
+// Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
+// implies the respective ..._IN_SEGMENT flag, indirectly).
+#define GEX_FLAG_SRC_OFFSET ((gex_Flags_t)???)
+#define GEX_FLAG_DST_OFFSET ((gex_Flags_t)???)
 
 // A "token" is an opaque scalar type
 struct gasneti_token_s;
