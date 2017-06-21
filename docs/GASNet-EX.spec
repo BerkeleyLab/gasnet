@@ -124,6 +124,10 @@ typedef struct gasneti_client_s *gex_Client_t;
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 
+// Pre-defined value of type gex_Segment_t
+// Used, for instance, to indicate no bound segment
+#define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
+
 // A "team member" is an opaque scalar type
 struct gasneti_team_member_s;
 typedef struct gasneti_team_member_s *gex_TM_t;
