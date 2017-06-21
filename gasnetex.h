@@ -312,7 +312,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     gasneti_magic_t    _magic;
   #endif
     const char *       _name;
-    void *             _cdata;
+    const void *       _cdata;
     gex_Flags_t        _flags;
     // TODO-EX: more fields to come
   #ifdef GASNETI_CLIENT_EXTRA
@@ -345,7 +345,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     gasneti_magic_t    _magic;
   #endif
     gasneti_Client_t   _client;
-    void *             _cdata;
+    const void *       _cdata;
     void *             _addr;
     void *             _ub;
     uintptr_t          _size;
@@ -383,7 +383,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     gasneti_magic_t    _magic;
   #endif
     gasneti_Client_t   _client;
-    void *             _cdata;
+    const void *       _cdata;
     gasneti_Segment_t  _segment;
     gex_Flags_t        _flags;
     // TODO-EX: more fields to come
@@ -418,7 +418,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
     gasneti_magic_t    _magic;
   #endif
     gasneti_EP_t       _ep;
-    void *             _cdata;
+    const void *       _cdata;
     gex_Flags_t        _flags;
     gex_Rank_t         _rank;
     gex_Rank_t         _size;

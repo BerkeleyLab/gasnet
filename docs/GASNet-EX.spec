@@ -135,13 +135,13 @@ typedef struct gasneti_team_member_s *gex_TM_t;
 // to set and retrieve one void* of client-specific data.  This field is NULL
 // for newly created objects.
 
-void  gex_Client_SetCData(gex_Client_t client, void *val);
+void  gex_Client_SetCData(gex_Client_t client, const void *val);
 void* gex_Client_QueryCData(gex_Client_t client);
-void  gex_Segment_SetCData(gex_Segment_t seg, void *val);
+void  gex_Segment_SetCData(gex_Segment_t seg, const void *val);
 void* gex_Segment_QueryCData(gex_Segment_t seg);
-void  gex_TM_SetCData(gex_TM_t tm, void *val);
+void  gex_TM_SetCData(gex_TM_t tm, const void *val);
 void* gex_TM_QueryCData(gex_TM_t tm);
-void  gex_EP_SetCData(gex_EP_t ep, void *val);
+void  gex_EP_SetCData(gex_EP_t ep, const void *val);
 void* gex_EP_QueryCData(gex_EP_t ep);
 
 //
