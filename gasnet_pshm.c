@@ -282,25 +282,25 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     }
   #endif
 
-    extern unsigned int gasnetc_AMPSHM_TokenInfo(
+    extern gex_TI_t gasnetc_AMPSHM_TokenInfo(
                 gex_AM_Token_t      token,
-                gex_AM_TokenInfo_t *info,
-                unsigned int        mask)
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
     {
       gasneti_assert(gasnetc_token_is_pshm(token));
       gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
 
       gasneti_assert(info);
-      unsigned int result = 0;
+      gex_TI_t result = 0;
 
-      if (mask & GEX_AMTI_SRCPROC) {
-        info->gex_srcproc = my_token->srcNode;
-        gasneti_assert(gasneti_pshm_in_supernode(info->gex_srcproc));
-        result |= GEX_AMTI_SRCPROC;
+      if (mask & GEX_TI_SRCRANK) {
+        info->gex_srcrank = my_token->srcNode;
+        gasneti_assert(gasneti_pshm_in_supernode(info->gex_srcrank));
+        result |= GEX_TI_SRCRANK;
       }
-      if (mask & GEX_AMTI_ENTRY) {
+      if (mask & GEX_TI_ENTRY) {
         info->gex_entry = my_token->entry;
-        result |= GEX_AMTI_ENTRY;
+        result |= GEX_TI_ENTRY;
       }
 
       return result;

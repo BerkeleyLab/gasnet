@@ -1225,9 +1225,9 @@ fh_am_move_reqh_inner(gex_AM_Token_t token, void *addr, size_t nbytes,
 	int			hit_pending = 0;
 	int			remote_callback = 0;
 
-	gex_AM_TokenInfo_t info;
-	gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-	gex_Rank_t node = info.gex_srcproc;
+	gex_Token_Info_t info;
+	gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+	gex_Rank_t node = info.gex_srcrank;
 
 	new_reg = (firehose_region_t *) addr;
 	old_reg = new_reg + r_new;
@@ -1348,9 +1348,9 @@ fh_am_move_reph_inner(gex_AM_Token_t token, void *addr,
 	fh_pollq_t		pendCallbacks;
 	int			numpend;
 
-	gex_AM_TokenInfo_t info;
-	gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-	gex_Rank_t node = info.gex_srcproc;
+	gex_Token_Info_t info;
+	gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+	gex_Rank_t node = info.gex_srcrank;
 
 	/* 
 	 * At least one pending request is attached to a bucket, so process them

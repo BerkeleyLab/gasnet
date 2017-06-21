@@ -1122,14 +1122,14 @@ gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
   return sourceid;
 }
 
-extern unsigned int gasnetc_AM_TokenInfo(
+extern gex_TI_t gasnetc_Token_Info(
                 gex_AM_Token_t      token,
-                gex_AM_TokenInfo_t *info,
-                unsigned int        mask)
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  unsigned int result = 0;
+  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -1137,15 +1137,15 @@ extern unsigned int gasnetc_AM_TokenInfo(
   }
 #endif
 
-  if (mask & GEX_AMTI_SRCPROC) {
-    info->gex_srcproc = gasnetc_msgsource(token);
-    result |= GEX_AMTI_SRCPROC;
+  if (mask & GEX_TI_SRCRANK) {
+    info->gex_srcrank = gasnetc_msgsource(token);
+    result |= GEX_TI_SRCRANK;
   }
 #if 0 // TODO-EX: need to implement this
-  if (mask & GEX_AMTI_ENTRY) {
+  if (mask & GEX_TI_ENTRY) {
     /* (###) add code here to write the address of the handle entry into info->gex_entry */
     info->gex_entry = ###;
-    result |= GEX_AMTI_ENTRY;
+    result |= GEX_TI_ENTRY;
   }
 #endif
 

@@ -457,14 +457,14 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern unsigned int gasnetc_AM_TokenInfo(
+extern gex_TI_t gasnetc_Token_Info(
                 gex_AM_Token_t      token,
-                gex_AM_TokenInfo_t *info,
-                unsigned int        mask)
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  unsigned int result = 0;
+  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let the PSHM code
@@ -474,15 +474,15 @@ extern unsigned int gasnetc_AM_TokenInfo(
   }
 #endif
 
-  if (mask & GEX_AMTI_SRCPROC) {
-    /* (###) add code here to write the source into info->gex_srcproc */
-    info->gex_srcproc = ###;
-    result |= GEX_AMTI_SRCPROC;
+  if (mask & GEX_TI_SRCRANK) {
+    /* (###) add code here to write the source into info->gex_srcrank */
+    info->gex_srcrank = ###;
+    result |= GEX_TI_SRCRANK;
   }
-  if (mask & GEX_AMTI_ENTRY) {
+  if (mask & GEX_TI_ENTRY) {
     /* (###) add code here to write the address of the handle entry into info->gex_entry */
     info->gex_entry = ###;
-    result |= GEX_AMTI_ENTRY;
+    result |= GEX_TI_ENTRY;
   }
 
   return result;

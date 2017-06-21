@@ -78,14 +78,14 @@ void test_exit_handler(gex_AM_Token_t token, gex_AM_Arg_t exitcode) {
 
 void ping_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {
   static int x = 1; 
-  gex_AM_TokenInfo_t info;
-  unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-  assert(rc & GEX_AMTI_SRCPROC);
+  gex_Token_Info_t info;
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  assert(rc & GEX_TI_SRCRANK);
   x = !x;/* harmless race */
   if (x) 
     gex_AM_ReplyMedium0(token, hidx_noop_handler, buf, nbytes, GEX_EVENT_NOW, 0);
   else
-    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(info.gex_srcproc), GEX_EVENT_NOW, 0);
+    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(info.gex_srcrank), GEX_EVENT_NOW, 0);
 }
 
 void noop_handler(gex_AM_Token_t token, void *buf, size_t nbytes) {

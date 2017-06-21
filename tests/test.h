@@ -742,10 +742,10 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   static void _test_seggather(gex_AM_Token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(gasnet_seginfo_t));
     assert(_test_seginfo != NULL);
-    gex_AM_TokenInfo_t info;
-    unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-    assert(rc & GEX_AMTI_SRCPROC);
-    gex_Rank_t srcid = info.gex_srcproc;
+    gex_Token_Info_t info;
+    gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+    assert(rc & GEX_TI_SRCRANK);
+    gex_Rank_t srcid = info.gex_srcrank;
     assert(srcid < TEST_PROCS);
     _test_seginfo[srcid] = *(gasnet_seginfo_t *)buf;
     gasnett_atomic_increment(&_test_seggather_done, GASNETT_ATOMIC_REL);

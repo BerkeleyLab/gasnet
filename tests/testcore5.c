@@ -115,10 +115,10 @@ enum {
 #define HCHECK(val) ; assert_always(arg##val == RAND_ARG(val))
 #define HBODY(args) do {                                           \
     gex_AM_Arg_t operation = arg1 - RAND_ARG(1);          \
-    gex_AM_TokenInfo_t info;                                       \
-    unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);\
-    assert_always(rc & GEX_AMTI_SRCPROC);                          \
-    gex_Rank_t srcid = info.gex_srcproc;                           \
+    gex_Token_Info_t info;                                       \
+    gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);  \
+    assert_always(rc & GEX_TI_SRCRANK);                          \
+    gex_Rank_t srcid = info.gex_srcrank;                           \
     assert_always(srcid == peer);                                  \
     HITER##args((void)0,HCHECK);                                   \
     arg1 = op_done;                                                \

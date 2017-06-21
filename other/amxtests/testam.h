@@ -105,10 +105,10 @@
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())
   #define GETPARTNER(token) gex_Rank_t partner; \
-                            do { gex_AM_TokenInfo_t info; \
-                                 unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC); \
-                                 assert_always(rc & GEX_AMTI_SRCPROC); \
-                                 partner = info.gex_srcproc; \
+                            do { gex_Token_Info_t info; \
+                                 gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK); \
+                                 assert_always(rc & GEX_TI_SRCRANK); \
+                                 partner = info.gex_srcrank; \
                             } while(0)
   #define ENDPOINT                 myteam,
   #define EXTRA_S                  ,flags

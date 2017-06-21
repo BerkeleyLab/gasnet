@@ -433,10 +433,10 @@ free_thread_data(void)
 void 
 ping_shorthandler(gex_AM_Token_t token, harg_t idx) 
 {
-        gex_AM_TokenInfo_t info;
-        unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-        assert(rc & GEX_AMTI_SRCPROC);
-        gex_Rank_t node = info.gex_srcproc;
+        gex_Token_Info_t info;
+        gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+        assert(rc & GEX_TI_SRCRANK);
+        gex_Rank_t node = info.gex_srcrank;
 
 	PRINT_AM(("node=%2d> AMShort Request for (%d,%d)", 
 			(int)myrank, (int)node, (int)idx));
@@ -459,10 +459,10 @@ pong_shorthandler(gex_AM_Token_t token, harg_t idx)
 void 
 ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t repsz)
 {
-        gex_AM_TokenInfo_t info;
-        unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-        assert(rc & GEX_AMTI_SRCPROC);
-        gex_Rank_t node = info.gex_srcproc;
+        gex_Token_Info_t info;
+        gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+        assert(rc & GEX_TI_SRCRANK);
+        gex_Rank_t node = info.gex_srcrank;
 
 	PRINT_AM(("node=%2d> AMMedium Request for (%d,%d)", 
 			(int)myrank, (int)node, (int)idx));
@@ -480,10 +480,10 @@ pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
 {
 	int	tid = tt_thread_data[idx].tid;
 
-        gex_AM_TokenInfo_t info;
-        unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-        assert(rc & GEX_AMTI_SRCPROC);
-        gex_Rank_t node = info.gex_srcproc;
+        gex_Token_Info_t info;
+        gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+        assert(rc & GEX_TI_SRCRANK);
+        gex_Rank_t node = info.gex_srcrank;
 
 	PRINT_AM(("node=%2d> AMMedium Reply for tid=%d, (%d,%d)", 
 			(int)myrank, tid, (int)myrank, (int)idx));
@@ -501,10 +501,10 @@ ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, har
 	int		tid;
 	void		*paddr;
 
-        gex_AM_TokenInfo_t info;
-        unsigned int rc = gex_AM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-        assert(rc & GEX_AMTI_SRCPROC);
-        gex_Rank_t node = info.gex_srcproc;
+        gex_Token_Info_t info;
+        gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+        assert(rc & GEX_TI_SRCRANK);
+        gex_Rank_t node = info.gex_srcrank;
 
 	tid = node * threads_num + idx;
 	paddr = tt_addr_map[tid];

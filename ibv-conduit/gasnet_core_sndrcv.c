@@ -4636,10 +4636,10 @@ gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
-    gex_AM_TokenInfo_t info;
-    unsigned int rc = gasnetc_AMPSHM_TokenInfo(token, &info, GEX_AMTI_SRCPROC);
-    gasneti_assert(rc & GEX_AMTI_SRCPROC);
-    sourceid = info.gex_srcproc;
+    gex_Token_Info_t info;
+    unsigned int rc = gasnetc_AMPSHM_TokenInfo(token, &info, GEX_TI_SRCRANK);
+    gasneti_assert(rc & GEX_TI_SRCRANK);
+    sourceid = info.gex_srcrank;
   } else
 #endif
   {
@@ -4656,14 +4656,14 @@ gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
   return sourceid;
 }
 
-extern unsigned int gasnetc_AM_TokenInfo(
+extern gex_TI_t gasnetc_Token_Info(
                 gex_AM_Token_t      token,
-                gex_AM_TokenInfo_t *info,
-                unsigned int        mask)
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  unsigned int result = 0;
+  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -4672,15 +4672,15 @@ extern unsigned int gasnetc_AM_TokenInfo(
 #endif
 
   const gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
-  if (mask & GEX_AMTI_SRCPROC) {
+  if (mask & GEX_TI_SRCRANK) {
     uint32_t flags = rbuf->rbuf_flags;
     if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
-    info->gex_srcproc = GASNETC_MSG_SRCIDX(flags);
-    result |= GEX_AMTI_SRCPROC;
+    info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
+    result |= GEX_TI_SRCRANK;
   }
-  if (mask & GEX_AMTI_ENTRY) {
+  if (mask & GEX_TI_ENTRY) {
     info->gex_entry = rbuf->rbuf_entry;
-    result |= GEX_AMTI_ENTRY;
+    result |= GEX_TI_ENTRY;
   }
 
   // TODO: rbuf can answer the following queries:
