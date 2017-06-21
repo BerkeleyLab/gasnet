@@ -489,6 +489,28 @@ typedef struct {
     const char             *gex_name;    // Used in debug messages
 } gex_AM_Entry_t;
 
+
+/*  struct type used to return info from gex_Token_Info() */
+typedef struct {
+    gex_Rank_t                 gex_srcrank;
+    const gex_AM_Entry_t      *gex_entry;
+} gex_Token_Info_t;
+
+/*  constants to request specific info from gex_Token_Info() */
+typedef unsigned int gex_TI_t;
+#define GEX_TI_SRCRANK       ((gex_TI_t)1<<0)
+#define GEX_TI_ENTRY         ((gex_TI_t)1<<1)
+#define GEX_TI_ALL           ((gex_TI_t)1<<2 - 1)
+
+// Default implementation
+#ifndef gex_Token_Info
+  #define gex_Token_Info gasnetc_Token_Info
+#endif
+extern gex_TI_t gex_Token_Info(
+                gex_AM_Token_t      _token,
+                gex_Token_Info_t    *_info,
+                gex_TI_t            _mask);
+
 // GASNet-1 version of gex_AM_Entry_t
 // Visible to GASNet-1 clients and to internal code (for gasnetc_attach in particular)
 #if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)

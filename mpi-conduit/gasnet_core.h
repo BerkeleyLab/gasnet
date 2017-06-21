@@ -179,9 +179,6 @@ typedef struct gasneti_hsl_s {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex);
-
-#define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
 #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 

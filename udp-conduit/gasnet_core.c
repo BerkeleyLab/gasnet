@@ -749,27 +749,49 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  int retval;
-  gex_Rank_t sourceid;
-  GASNETI_CHECKATTACH();
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+GASNETI_INLINE(gasnetc_msgsource)
+gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
+  #if GASNET_PSHM
+    gasneti_assert(! gasnetc_token_is_pshm(token));
+  #endif
+    gasneti_assert(token);
+
+    int tmp; /* AMUDP wants an int, but gex_Rank_t is uint32_t */
+    gasneti_assert_zeroret(AMUDP_GetSourceId(token, &tmp));
+    gasneti_assert(tmp >= 0);
+    gex_Rank_t sourceid = tmp;
+    gasneti_assert(sourceid < gasneti_nodes);
+    return sourceid;
+}
+
+extern gex_TI_t gasnetc_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+  gex_TI_t result = 0;
 
 #if GASNET_PSHM
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  }
 #endif
-  {
-    int tmp; /* AMUDP wants an int, but gex_Rank_t is uint16_t */
-    GASNETI_AM_SAFE_NORETURN(retval,AMUDP_GetSourceId(token, &tmp));
-    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-    gasneti_assert(tmp >= 0);
-    sourceid = tmp;
-  } 
 
-    gasneti_assert(sourceid < gasneti_nodes);
-    *srcindex = sourceid;
-    return GASNET_OK;
+  if (mask & GEX_TI_SRCRANK) {
+    info->gex_srcrank = gasnetc_msgsource(token);
+    result |= GEX_TI_SRCRANK;
+  }
+#if 0 // TODO-EX: need to implement this
+  if (mask & GEX_TI_ENTRY) {
+    /* (###) add code here to write the address of the handle entry into info->gex_entry */
+    info->gex_entry = ###;
+    result |= GEX_TI_ENTRY;
+  }
+#endif
+
+  return result;
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
@@ -986,13 +1008,12 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    gex_Rank_t dest;
     uintptr_t dest_offset;
 
-    GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
 #if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
 #else
+    gex_Rank_t dest = gasnetc_msgsource(token);
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 #endif
 

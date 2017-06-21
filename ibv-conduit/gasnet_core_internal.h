@@ -654,6 +654,7 @@ extern void gasnetc_cb_counter(gasnetc_atomic_val_t *);
 extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *);
 
 /* Routines in gasnet_core_sndrcv.c */
+extern gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token);
 extern int gasnetc_create_cq(struct ibv_context *, int,
                              struct ibv_cq * *, int *,
                              gasnetc_progress_thread_t *);

@@ -286,8 +286,10 @@ extern void gasneti_freezeForDebugger(void) {
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_defaultAMHandler(gex_AM_Token_t token) {
-  gex_Rank_t srcnode = (gex_Rank_t)-1;
-  gasnet_AMGetMsgSource(token, &srcnode);
+  gex_Token_Info_t info;
+  info.gex_srcrank = GEX_RANK_INVALID; // to print -1 if query were to fail
+  gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  gex_Rank_t srcnode = info.gex_srcrank;
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
                      "with no associated AM handler function registered", 
                      (int)gasnet_mynode(), (int)gasnet_nodes(), (int)srcnode);

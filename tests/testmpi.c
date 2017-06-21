@@ -219,11 +219,13 @@ void mpi_barrier(threaddata_t *tdata) {
 
 
 void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz) {
-  gex_Rank_t   node;
   int mpipeer;
   int tag;
   char *buf;
-  gasnet_AMGetMsgSource(token, &node);
+  gex_Token_Info_t info;
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  assert(rc & GEX_TI_SRCRANK);
+  gex_Rank_t node = info.gex_srcrank;
 
   PRINT_AM(("node=%2d> AMShort MPI Request for tid=%i, nbytes=%i\n",
             (int)myrank, (int)tid, (int)sz));
@@ -250,11 +252,13 @@ void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz) {
 }
 
 void mpi_probehandler(gex_AM_Token_t token, harg_t tid) {
-  gex_Rank_t   node;
   int mpipeer;
   int tag;
   int reply = 0;
-  gasnet_AMGetMsgSource(token, &node);
+  gex_Token_Info_t info;
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  assert(rc & GEX_TI_SRCRANK);
+  gex_Rank_t node = info.gex_srcrank;
   assert(tt_thread_map[tid] == node);
   mpipeer = gasnetnode_to_mpirank[node];
   tag = tid;

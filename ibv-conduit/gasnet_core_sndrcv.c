@@ -98,6 +98,7 @@ typedef struct {
     #endif
       int                   	needReply;
       uint32_t              	flags;
+      const gex_AM_Entry_t      *entry;
     }				am;
   } u;
 
@@ -114,6 +115,7 @@ typedef struct {
 #endif
 #define rbuf_needReply		u.am.needReply
 #define rbuf_flags		u.am.flags
+#define rbuf_entry		u.am.entry
 
 typedef enum {
 	GASNETC_OP_FREE,
@@ -790,6 +792,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   rbuf->rbuf_handlerRunning = 1;
 #endif
   rbuf->rbuf_flags = flags;
+  rbuf->rbuf_entry = handler_entry;
 
   /* Locate arguments */
   switch (category) {
@@ -3866,10 +3869,8 @@ void gasnetc_sys_flush_reph(gex_AM_Token_t token, gex_AM_Arg_t credits) {
 static int gasnetc_close_recvd[16]; /* Note 16-bit GASNET_MAXNODES */
 
 void gasnetc_sys_close_reqh(gex_AM_Token_t token) {
-  gex_Rank_t peer;
+  gex_Rank_t peer = gasnetc_msgsource(token);
   int distance, shift;
-
-  gasnetc_AMGetMsgSource(token, &peer);
 
   distance = (peer > gasneti_mynode) ? peer - gasneti_mynode
                                      : peer + (gasneti_nodes - gasneti_mynode);
@@ -3930,6 +3931,7 @@ gasnetc_sndrcv_quiesce(void) {
         rbuf.rbuf_needReply = 1;
       #if GASNET_DEBUG
         rbuf.rbuf_handlerRunning = 1;
+        rbuf.rbuf_entry = NULL;
       #endif
         rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, 0, node);
         gasnetc_ReplySysShort((gex_AM_Token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
@@ -4627,14 +4629,18 @@ extern int gasnetc_ReplySysMedium(gex_AM_Token_t token,
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
+// NOTE: unlike other conduits this gets used outside the file, and w/ AMPSHM tokens too!
+gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
   gex_Rank_t sourceid;
-
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+  gasneti_assert(token);
 
 #if GASNET_PSHM
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
+  if (gasnetc_token_is_pshm(token)) {
+    gex_Token_Info_t info;
+    unsigned int rc = gasnetc_AMPSHM_TokenInfo(token, &info, GEX_TI_SRCRANK);
+    gasneti_assert(rc & GEX_TI_SRCRANK);
+    sourceid = info.gex_srcrank;
+  } else
 #endif
   {
     uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
@@ -4647,8 +4653,41 @@ extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
   }
 
   gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+  return sourceid;
+}
+
+extern gex_TI_t gasnetc_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+  gex_TI_t result = 0;
+
+#if GASNET_PSHM
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  }
+#endif
+
+  const gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+  if (mask & GEX_TI_SRCRANK) {
+    uint32_t flags = rbuf->rbuf_flags;
+    if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
+    info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
+    result |= GEX_TI_SRCRANK;
+  }
+  if (mask & GEX_TI_ENTRY) {
+    info->gex_entry = rbuf->rbuf_entry;
+    result |= GEX_TI_ENTRY;
+  }
+
+  // TODO: rbuf can answer the following queries:
+  //   isShort = (GASNETC_MSG_CATEGORY(rbuf->flags) == gasneti_Short)
+  //   isReq = GASNETC_MSG_ISREQUEST(rbuf->flags)
+
+  return result;
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {

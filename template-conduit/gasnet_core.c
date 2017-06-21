@@ -457,25 +457,35 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid;
-  GASNETI_CHECKATTACH();
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+extern gex_TI_t gasnetc_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let the PSHM code
    * have a chance to recognize the token first, as shown here. */
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  }
 #endif
-  {
-    /* (###) add code here to write the source index into sourceid. */
-    sourceid = ###;
+
+  if (mask & GEX_TI_SRCRANK) {
+    /* (###) add code here to write the source into info->gex_srcrank */
+    info->gex_srcrank = ###;
+    result |= GEX_TI_SRCRANK;
+  }
+  if (mask & GEX_TI_ENTRY) {
+    /* (###) add code here to write the address of the handle entry into info->gex_entry */
+    info->gex_entry = ###;
+    result |= GEX_TI_ENTRY;
   }
 
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+  return result;
 }
 
 extern int gasnetc_AMPoll(void) {

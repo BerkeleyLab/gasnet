@@ -114,6 +114,15 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 #define gasnet_AMMaxLongReply()    gex_AM_LUBReplyLong()
 #define gasnet_AMMaxArgs()         ((size_t)gex_AM_MaxArgs())
 
+GASNETT_INLINE(gasnet_AMGetMsgSource)
+int gasnet_AMGetMsgSource(gex_AM_Token_t _token, gex_Rank_t *_srcrank) {
+  gex_Token_Info_t _info;
+  gex_TI_t _rc = gex_Token_Info(_token, &_info, GEX_TI_SRCRANK);
+  gasneti_assert(_rc & GEX_TI_SRCRANK);
+  *_srcrank = _info.gex_srcrank;
+  return 0;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Request/Reply Functions

@@ -1111,24 +1111,37 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid;
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+extern gex_TI_t gasnetc_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+  gex_TI_t result = 0;
 
 #if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let the PSHM code
-   * have a chance to recognize the token first, as shown here. */
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
-#endif
-  {
-    /* (###) add code here to write the source index into sourceid. */
-    sourceid = ((gasnetc_token_t *)token)->source;
-
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
   }
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+#endif
+
+  gasnetc_token_t *real_token = (gasnetc_token_t *)token;
+  if (mask & GEX_TI_SRCRANK) {
+    info->gex_srcrank = real_token->source;
+    gasneti_assert(info->gex_srcrank < gasneti_nodes);
+    result |= GEX_TI_SRCRANK;
+  }
+  if (mask & GEX_TI_ENTRY) {
+    info->gex_entry = real_token->entry;
+    result |= GEX_TI_ENTRY;
+  }
+
+  // TODO: real_token can (w/ fixes for identifier scope) answer the following:
+  //   isShort = (gasnetc_am_command(real_token->notify) == GC_CMD_AM_SHORT)
+  //   isRequest = (notify_get_type(real_token->notify) == notify_request)
+
+  return result;
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE)
@@ -1184,7 +1197,7 @@ int gasnetc_local_short_common(int is_req, gex_AM_Index_t handler,
   
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   
@@ -1205,7 +1218,7 @@ int gasnetc_local_medium_common(int is_req, gex_AM_Index_t handler,
   
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
@@ -1228,7 +1241,7 @@ int gasnetc_local_long_common(int is_req, gex_AM_Index_t handler,
 {
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
   gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   int i;

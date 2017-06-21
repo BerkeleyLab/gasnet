@@ -114,6 +114,7 @@ typedef struct gasnetc_post_descriptor gasnetc_post_descriptor_t;
 
 typedef struct {
   gex_Rank_t source;
+  const gex_AM_Entry_t *entry;
   int need_reply;
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;

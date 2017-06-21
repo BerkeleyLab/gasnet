@@ -974,24 +974,34 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid = 0;
-  GASNETI_CHECKATTACH();
-  #if GASNET_DEBUG || GASNET_PSHM
-    GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  #else
-    GASNETI_CHECK_ERRR((token),BAD_ARG,"bad token");
-  #endif
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+extern gex_TI_t gasnetc_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+  gex_TI_t result = 0;
 
-  /* add code here to write the source index into sourceid */
 #if GASNET_PSHM
-  GASNETI_SAFE_PROPAGATE(gasneti_AMPSHMGetMsgSource(token, &sourceid));
+  if (gasnetc_token_is_pshm(token)) {
+    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  }
 #endif
 
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+  if (mask & GEX_TI_SRCRANK) {
+    info->gex_srcrank = 0;
+    result |= GEX_TI_SRCRANK;
+  }
+#if 0 // TODO-EX: need to implement this
+  if (mask & GEX_TI_ENTRY) {
+    /* (###) add code here to write the address of the handle entry into info->gex_entry */
+    info->gex_entry = ###;
+    result |= GEX_TI_ENTRY;
+  }
+#endif
+
+  return result;
 }
 
 #if GASNET_PSHM 

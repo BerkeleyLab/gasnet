@@ -100,38 +100,18 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
   #define gasnetc_handler_t gex_AM_Index_t
 #endif
 #ifdef GASNETC_TOKEN_CREATE
-  #ifndef gasnetc_token_create
-    extern gex_AM_Token_t gasnetc_token_create(gex_Rank_t src, int isRequest);
-  #endif
-  #ifndef gasnetc_token_destroy
-    extern void gasnetc_token_destroy(gex_AM_Token_t token);
-  #endif
-  #ifndef gasnetc_token_reply
-    extern void gasnetc_token_reply(gex_AM_Token_t token);
-  #endif
-  #ifndef gasnetc_token_is_pshm
-    extern int gasnetc_token_is_pshm(gex_AM_Token_t token);
-  #endif
+  #error GASNETC_TOKEN_CREATE support has not been maintained
 #else
   #define gasnetc_token_is_pshm(tok) ((uintptr_t)(tok)&1)
 
-  /* Conduits using the default gasnetc_token_create() will
-   * want/need to use this in their gasnetc_AMGetMsgSource().
-   * Returns GASNET_OK if token was recognized, GASNET_ERR_BAD_ARG otherwise.
-   */
-  #if GASNET_DEBUG
-    extern int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr);
-  #else
-    GASNETI_INLINE(gasneti_AMPSHMGetMsgSource)
-    int gasneti_AMPSHMGetMsgSource(gex_AM_Token_t token, gex_Rank_t *src_ptr) {
-      if (gasnetc_token_is_pshm(token)) {
-        *src_ptr = (gex_Rank_t)((uintptr_t)token >> 1);
-        return GASNET_OK;
-      } else {
-        return GASNET_ERR_BAD_ARG;
-      }
-    }
-  #endif
+  #define gasneti_AMPSHM_msgsource(tok)                \
+          (gasneti_assert(gasnetc_token_is_pshm(tok)), \
+           *(gex_Rank_t*)(1^(uintptr_t)(tok)))
+
+  extern gex_TI_t gasnetc_AMPSHM_TokenInfo(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask);
 
   #if GASNET_DEBUG
     extern void gasnetc_token_reply(gex_AM_Token_t token);
@@ -298,9 +278,8 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_AM_Token_t token,
                                 va_list argptr) 
 {
   int retval;
-  gex_Rank_t sourceid = 0; // init to avoid a maybe-uninit warning on gcc -O3 -Wall
   gasneti_assert(gasnetc_token_is_pshm(token));
-  gasnetc_AMGetMsgSource(token, &sourceid);
+  gex_Rank_t sourceid = gasneti_AMPSHM_msgsource(token);
   gasneti_assert(gasneti_pshm_in_supernode(sourceid));
   gasnetc_token_reply(token);
   retval = gasnetc_AMPSHM_ReqRepGeneric(category, 0, sourceid, handler, source_addr, 

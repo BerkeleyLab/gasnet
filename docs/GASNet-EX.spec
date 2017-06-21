@@ -620,4 +620,55 @@ size_t gex_AM_LUBReplyLong(void);
 size_t gex_AM_LUBRequestMedium(void);
 size_t gex_AM_LUBReplyMedium(void);
 
+
+// Struct type for gex_Token_Info queries contains *at least* the following
+// fields, but their order is not assured
+typedef struct {
+    // "System rank" of the sending process.
+    // In a non-resilent build this will be the same as the rank in the team
+    // constructed by gex_Client_Init() and will be identical across clients.
+    // Semantics in a resilient build will be defined in a later release.
+    gex_Rank_t                 gex_srcrank;
+
+    // Entry for running handler.
+    const gex_AM_Entry_t      *gex_entry;
+} gex_Token_Info_t;
+
+// Constants to request specific info from gex_Token_Info():
+// All listed constants are required, but the corresponding queries
+// are divided into Required ones and Optional ones (with the
+// exception of GEX_TI_ALL).
+typedef [some integer type] gex_TI_t;
+
+// REQUIRED: All implementations must support these queries:
+#define GEX_TI_SRCRANK       ((gex_TI_t)???)
+
+// OPTIONAL: Some implementations might not support these queries:
+#define GEX_TI_ENTRY         ((gex_TI_t)???)
+
+// Convenience: all defined queries (Required and Optional)
+#define GEX_TI_ALL           ((gex_TI_t)???)
+
+// Takes a token, address of client-allocated gex_Token_Info_t, and a mask.
+// The mask is a bit-wise OR of GEX_TI_* constants, which indicates which
+// fields of the gex_Token_Info_t should be set by the call.
+//
+// The return value is of the same form as the mask.
+// The implementation is permitted to set fields not requested by the
+// caller to valid or *invalid* values.  The returned mask will indicate
+// which fields contain valid results
+//
+// Each GEX_TI_* corresponds to either a Required or Optional query.
+// When a client requests a Required query, a conforming implementation
+// MUST set these fields and the corresponding bit in the return value.
+// An Optional query may not be implemented on all conduits or all
+// configurations, or even under various conditions (e.g. may not be
+// supported in a Reply handler).  If the client makes an Optional request
+// the presence of the corresponding bit in the return value is the only
+// indication that the struct field is valid.
+extern gex_TI_t gex_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask);
+
 // vim: syntax=c
