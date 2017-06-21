@@ -690,4 +690,25 @@ extern gex_TI_t gex_Token_Info(
                 gex_Token_Info_t    *info,
                 gex_TI_t            mask);
 
+//
+// Handler-safe locks (HSLs)
+// Lock semantics are identical to those in GASNet-1
+//
+
+// Type for an HSL
+// This type interoperable with gasnet_hsl_t
+typedef {...} gex_HSL_t;
+
+// Static-initializer for an HSL
+// Synonymous with GASNET_HSL_INITIALIZER
+#define GEX_HSL_INITIALIZER {...}
+
+// The following operations on HSLs are are sematically identical
+// to the corresponsing gasnet_hsl_* functions:
+void gex_HSL_Init   (gex_HSL_t *hsl);
+void gex_HSL_Destroy(gex_HSL_t *hsl);
+void gex_HSL_Lock   (gex_HSL_t *hsl);
+void gex_HSL_Unlock (gex_HSL_t *hsl);
+int  gex_HSL_Trylock(gex_HSL_t *hsl);
+
 // vim: syntax=c
