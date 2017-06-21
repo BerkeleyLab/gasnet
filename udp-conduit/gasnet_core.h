@@ -119,7 +119,7 @@ typedef struct {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)AM_MaxShort())
+#define gex_AM_MaxArgs()            ((unsigned int)AM_MaxShort())
 #if GASNET_PSHM
   #define gex_AM_LUBRequestMedium() ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
   #define gex_AM_LUBReplyMedium()   ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))

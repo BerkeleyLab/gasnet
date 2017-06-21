@@ -1816,7 +1816,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
 
   gasneti_mutex_unlock(&ampoll_lock);
 
-  gasneti_assert(numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs <= gex_AM_MaxArgs());
   GASNETI_TRACE_PRINTF(D, ("msg from %d type %s/%s\n", peer->pe,
                            gasnetc_type_string(gasnetc_am_command(notify)),
                            is_req ? "REQ" : "REP"));

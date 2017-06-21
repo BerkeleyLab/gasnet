@@ -100,7 +100,7 @@
   #define ReplyShort(num,args)                  AMSend(0,ReplyShort,num,args)
   #define ReplyMedium(num,args)                 AMSend(0,ReplyMedium,num,args)
   #define ReplyLong(num,AMargs,GASNETargs)      AMSend(0,ReplyLong,num,GASNETargs)
-  #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
+  #define NUMHANDLERS_PER_TYPE     (gex_AM_MaxArgs()+1)
   #define MYPROC                   (gasnet_mynode())
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())

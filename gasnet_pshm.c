@@ -218,8 +218,8 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 
 /* Defaults if gasnet_core_fwd.h doesn't #define these preprocessor tokens */
 #ifndef GASNETC_MAX_ARGS_PSHM
-  /* Assumes gasnet_AMMaxArgs() expands to a compile-time constant */
-  #define GASNETC_MAX_ARGS_PSHM   (gasnet_AMMaxArgs())
+  /* Assumes gex_AM_MaxArgs() expands to a compile-time constant */
+  #define GASNETC_MAX_ARGS_PSHM   (gex_AM_MaxArgs())
 #endif
 #ifndef GASNETC_MAX_MEDIUM_PSHM
   /* Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants.

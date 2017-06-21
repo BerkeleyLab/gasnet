@@ -219,7 +219,7 @@ extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
 
   /*  verify sanity of the core interface */
-  gasneti_assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert_always(gex_AM_MaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
   gasneti_assert_always(gex_AM_LUBRequestMedium() >= 512);
   gasneti_assert_always(gex_AM_LUBReplyMedium() >= 512);
   gasneti_assert_always(gex_AM_LUBRequestLong() >= 512);
@@ -315,9 +315,9 @@ static void gasneti_am_validate(
   for (int i = 0; i < numentries; ++i) {
     int idx = table[i].gex_index;
 
-    if_pf (table[i].gex_nargs > gasnet_AMMaxArgs()) {
+    if_pf (table[i].gex_nargs > gex_AM_MaxArgs()) {
       gasneti_fatalerror("AM Handler table entry %d: invalid gex_nargs: %d (Max %d)",
-                         i, (int)table[i].gex_nargs, (int)gasnet_AMMaxArgs());
+                         i, (int)table[i].gex_nargs, (int)gex_AM_MaxArgs());
     }
 
     if_pf (0 == (table[i].gex_flags & (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY))) {

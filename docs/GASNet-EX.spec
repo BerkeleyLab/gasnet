@@ -199,8 +199,8 @@ int gex_EP_RegisterHandlers(
 // NOTE 0: Prototypes in this section are "patterns"
 //
 //   These API instantiate the "[M]" at the end of each prototype with
-//   the integers 0 through 16 (a total of 17 functions per prototype).
-//   The '[,arg0, ... ,argM-1]' then represent the 0 to 16 arguments
+//   the integers 0 through gex_AM_MaxArgs().
+//   The '[,arg0, ... ,argM-1]' then represent the arguments
 //   (each of type gex_AM_Arg_t).
 // 
 // NOTE 1: Return value
@@ -483,6 +483,10 @@ gex_Event_t gex_Event_QueryLeaf(
         gex_EC_t event_category);
 
 
+// Maximum number of supported AM arguments
+// Semantically indentical to gasnet_AMMaxArgs()
+unsigned int gex_AM_MaxArgs(void);
+
 // Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
 // The result of each query function is guaranteed to be symmettric - ie 
@@ -492,6 +496,7 @@ gex_Event_t gex_Event_QueryLeaf(
 //    different query functions (eg MaxRequestMedium versus MaxReplyMedium).
 // 2. if rank == GEX_RANK_INVALID, then all team members are guaranteed
 //   to get the same result given the same values of the other input arguments.
+// 3. 'nargs' must be between 0 and gex_AM_MaxArgs(), inclusive.
 // The result is guaranteed to be stable - ie for the same set of input arguments,
 // it will always return the same value.
 size_t gex_AM_MaxRequestLong(

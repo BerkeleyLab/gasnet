@@ -114,7 +114,7 @@ typedef struct {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)16)
+#define gex_AM_MaxArgs()          ((unsigned int)16)
 #define gex_AM_LUBRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
 #define gex_AM_LUBReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
 #define gex_AM_LUBRequestLong()   ((size_t)GASNETC_MAX_LONG)

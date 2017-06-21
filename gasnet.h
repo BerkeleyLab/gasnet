@@ -112,6 +112,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
                                        gex_AM_LUBReplyMedium())
 #define gasnet_AMMaxLongRequest()  gex_AM_LUBRequestLong()
 #define gasnet_AMMaxLongReply()    gex_AM_LUBReplyLong()
+#define gasnet_AMMaxArgs()         ((size_t)gex_AM_MaxArgs())
 
 /* ------------------------------------------------------------------------------------ */
 /*

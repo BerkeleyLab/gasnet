@@ -293,7 +293,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbyt
   gex_Rank_t r;
   gasnet_AMGetMsgSource(token, &r);
   assert_always(r < numranks);
-  assert_always(args >= 0 && args <= (gex_AM_Arg_t)gasnet_AMMaxArgs());
+  assert_always(args >= 0 && args <= (gex_AM_Arg_t)gex_AM_MaxArgs());
   assert_always(nbytes == sizeof(amsz_t));
   amsz_t *max = (amsz_t *)buf;
   
@@ -427,7 +427,7 @@ void doit(int partner, int *partnerseg) {
   assert_always(numranks < GEX_RANK_INVALID);
 
   /* AM limit tests */
-  assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));
+  assert_always(gex_AM_MaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));
   assert_always(gex_AM_LUBRequestMedium() >= 512);
   assert_always(gex_AM_LUBReplyMedium() >= 512);
   assert_always(gex_AM_LUBRequestLong() >= 512);
@@ -445,7 +445,7 @@ void doit(int partner, int *partnerseg) {
   amsz_t lub;
   memset(&lub,-1,sizeof(lub));
   assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
-  for (int args = 0; args <= (int)gasnet_AMMaxArgs(); args += (int)gasnet_AMMaxArgs()) {
+  for (int args = 0; args <= (int)gex_AM_MaxArgs(); args += (int)gex_AM_MaxArgs()) {
     amsz_t ranklub;
     memset(&ranklub,-1,sizeof(ranklub));
     for (gex_Rank_t d = 0; d <= numranks; d++) {

@@ -661,7 +661,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 
 #define TEST_PRINT_CONDUITINFO() do {                              \
   MSG0("%s conduit: v%s GASNET_ALIGNED_SEGMENTS=%i\n"              \
-       " gasnet_AMMaxArgs():             %i\n"                     \
+       " gex_AM_MaxArgs():             %i\n"                     \
        " gex_AM_LUBRequestMedium(): %i\n"                     \
        " gex_AM_LUBReplyMedium():   %i\n"                     \
        " gex_AM_LUBRequestLong():   %i\n"                     \
@@ -669,7 +669,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     ,                                                              \
     _STRINGIFY(GASNET_CORE_NAME), _STRINGIFY(GASNET_CORE_VERSION), \
     GASNET_ALIGNED_SEGMENTS,                                       \
-    (int)gasnet_AMMaxArgs(),                                       \
+    (int)gex_AM_MaxArgs(),                                       \
     (int)gex_AM_LUBRequestMedium(),                           \
     (int)gex_AM_LUBReplyMedium(),                             \
     (int)gex_AM_LUBRequestLong(),                             \

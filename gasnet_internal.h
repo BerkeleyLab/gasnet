@@ -581,13 +581,13 @@ extern int gasneti_VerboseErrors;
 
 #define GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs) do {      \
     GASNETI_CHECKATTACH();                                                     \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());             \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());             \
     GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,numargs);                     \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
 #define GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                           \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                   \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                   \
     GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
     GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,numargs)),\
@@ -597,7 +597,7 @@ extern int gasneti_VerboseErrors;
   } while (0)
 #define GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                           \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                           \
     GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
     GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,numargs)),  \
@@ -606,12 +606,12 @@ extern int gasneti_VerboseErrors;
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
   } while (0)
 #define GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs) do {    \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs()); \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs()); \
     GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);             \
   } while (0)
 // TODO-EX: need to restore bounds-check on nbytes in GASNETI_COMMON_AMREPLYMEDIUM
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                  \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies"); \
@@ -628,7 +628,7 @@ extern int gasneti_VerboseErrors;
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) ((void)0)
 #endif
 #define GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                          \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                          \
     GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs);          \
     _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs); \
   } while (0)

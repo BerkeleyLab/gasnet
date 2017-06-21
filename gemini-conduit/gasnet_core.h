@@ -115,7 +115,7 @@ typedef struct {
 */
 
 #define GASNETC_MAX_ARGS   16
-#define gasnet_AMMaxArgs() ((size_t)GASNETC_MAX_ARGS)
+#define gex_AM_MaxArgs() ((unsigned int)GASNETC_MAX_ARGS)
 
 #ifdef GASNET_CONDUIT_ARIES
   #define GASNETC_MAX_LONG 0x800000

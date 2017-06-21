@@ -114,7 +114,7 @@ typedef struct {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)###)
+#define gex_AM_MaxArgs()          ((unsigned int)###)
 
   /* Define least-upper-bound (worst case) limits on payload sizes */
 #if GASNET_PSHM

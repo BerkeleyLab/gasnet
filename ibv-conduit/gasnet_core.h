@@ -144,7 +144,7 @@ typedef struct {
   #define GASNETC_MAX_LONG_REP	GASNETC_MAX_PACKEDLONG
 #endif
 
-#define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS_USER)
+#define gex_AM_MaxArgs()          ((unsigned int)GASNETC_MAX_ARGS_USER)
 #define gex_AM_LUBRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
 #define gex_AM_LUBReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
 #define gex_AM_LUBRequestLong()   ((size_t)GASNETC_MAX_LONG_REQ)
