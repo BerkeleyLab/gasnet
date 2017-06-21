@@ -29,10 +29,6 @@ typedef struct gasneti_handle_t *gex_Event_t;
 #define GEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)???)
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
-// A "team member" is an opaque scalar type
-struct gasneti_team_member_s;
-typedef struct gasneti_team_member_s *gex_TM_t;
-
 // A "rank" is a position within a team
 typedef uint32_t gex_Rank_t;
 
@@ -71,16 +67,16 @@ typedef [some integer type] gex_Flags_t;
 //
 // NOTE: these need more thought w.r.t. the implementation and
 // specification
-#define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???)
-#define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???)
+#define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
 // {SRC,DST}_IN_SEGMENT
 //
 // These flag bits assert that for the coresponding source or
 // destination address the range of bytes [address, address+nbytes)
 // is contained within the union of current GASNet-EX segments.
-#define GEX_FLAG_SRC_IN_SEGMENT ((gex_Flags_t)???)
-#define GEX_FLAG_DST_IN_SEGMENT ((gex_Flags_t)???)
+#define GEX_FLAG_SRC_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_DST_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
 // {SRC,DST}_IN_BOUND_SEGMENT
 //
@@ -89,8 +85,8 @@ typedef [some integer type] gex_Flags_t;
 // is contained within the segment bound to the respective source
 // or destination endpoint.
 // Implies the respective {SRC,DST}_IN_SEGMENT flag.
-#define GEX_FLAG_SRC_IN_BOUND_SEGMENT ((gex_Flags_t)???)
-#define GEX_FLAG_DST_IN_BOUND_SEGMENT ((gex_Flags_t)???)
+#define GEX_FLAG_SRC_IN_BOUND_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_DST_IN_BOUND_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
 // {SRC,DST}_OFFSET
 //
@@ -98,8 +94,8 @@ typedef [some integer type] gex_Flags_t;
 // is an *offset* relative to the segment base.
 // Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
 // implies the respective ..._IN_SEGMENT flag, indirectly).
-#define GEX_FLAG_SRC_OFFSET ((gex_Flags_t)???)
-#define GEX_FLAG_DST_OFFSET ((gex_Flags_t)???)
+#define GEX_FLAG_SRC_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_DST_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
 
 // A "token" is an opaque scalar type
 struct gasneti_token_s;
@@ -128,6 +124,36 @@ typedef struct gasneti_client_s *gex_Client_t;
 struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 
+// A "team member" is an opaque scalar type
+struct gasneti_team_member_s;
+typedef struct gasneti_team_member_s *gex_TM_t;
+
+//
+// Client-Data (CData)
+//
+// The major opaque object types in GASNet-EX provide the means for the client
+// to set and retrieve one void* of client-specific data.  This field is NULL
+// for newly created objects.
+
+void  gex_Client_SetCData(gex_Client_t client, void *val);
+void* gex_Client_QueryCData(gex_Client_t client);
+void  gex_Segment_SetCData(gex_Segment_t seg, void *val);
+void* gex_Segment_QueryCData(gex_Segment_t seg);
+void  gex_TM_SetCData(gex_TM_t tm, void *val);
+void* gex_TM_QueryCData(gex_TM_t tm);
+void  gex_EP_SetCData(gex_EP_t ep, void *val);
+void* gex_EP_QueryCData(gex_EP_t ep);
+
+//
+// Operations on gex_Client_t
+//
+
+// Query flags passed to gex_Client_Init()
+gex_Flags_t  gex_Client_QueryFlags(gex_Client_t client);
+
+// Query passed to gex_Client_Init()
+const char * gex_Client_QueryName(gex_Client_t client);
+
 // Initialize the client
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
@@ -138,21 +164,73 @@ extern int gex_Client_Init(
                 const char             *clientName,
                 gex_Flags_t            flags);
 
+//
+// Operations on gex_Segment_t
+//
+// NOTE: currently gex_Segment_Attach() is the only way to create a segment.
+// However, additional APIs for segment creation will be added.
+//
+
+// Query owning client
+gex_Client_t gex_Segment_QueryClient(gex_Segment_t seg);
+
+// Query flags passed when segment was created
+gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
+
+// Query address and length of a segent
+void *       gex_Segment_QueryAddr(gex_Segment_t seg);
+uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
+
 // Collective allocation of segments
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               tm,
                 uintptr_t              length);
 
-// Create an endpoint
+//
+// Operations on gex_TM_t
+// NOTE: currently gex_Client_Init() is the only way to create a TM.
+// However, additional APIs for TM creation will be added.
+//
+
+// Query owning client
+gex_Client_t gex_TM_QueryClient(gex_TM_t tm);
+
+// Query corresponding endpoint
+gex_EP_t     gex_TM_QueryEP(gex_TM_t tm);
+
+// Query flags passed when tm was created
+gex_Flags_t  gex_TM_QueryFlags(gex_TM_t tm);
+
+// Query rank of team member, and size of team
+gex_Rank_t   gex_TM_QueryRank(gex_TM_t tm);
+gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
+
+//
+// Operations on gex_EP_t
+// NOTE: currently gex_Client_Init() is the only way to create an EP.
+// However, additional APIs for EP creation will be added.
+//
+
+// Query owning client
+gex_Client_t  gex_EP_QueryClient(gex_EP_t ep);
+
+// Query flag passed when ep was created
+gex_Flags_t   gex_EP_QueryFlags(gex_EP_t ep);
+
+// Query the bound segment
+// Newly-create EPs have no bound segment and will yield GEX_SEGMENT_INVALID.
+// In the current release gex_Segment_Attach() will bind the created segment
+// to the EP corresponding to the 'tm' argument.
+gex_Segment_t gex_EP_QuerySegment(gex_EP_t ep);
+
+// Create an endpoint [UNIMPLEMENTED]
 extern int gex_EP_Create(
                 gex_EP_t                *ep_p,
                 gex_Client_t            client,
                 gex_Flags_t             flags);
 
 // Client-facing type for describing one AM handler
-// TBD: need enum for flags values such as REQUEST/REPLY/EITHER
-// TBD: should default/recommended internal struct be the same?
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 on input == don't care
     gex_AM_Fn_t             gex_fnptr      // Hides existing strict-proto goop
@@ -184,17 +262,24 @@ typedef struct {
 
 // gex_EP_RegisterHandlers()
 //
-// Registers a client-provided list of AM handlers with the given EP,
-// with semantics like those of current gasnet_attach().   The client
-// is required to provide for any synchronization required to ensure
-// handlers are registered before any process may send a corresponding
+// Registers a client-provided list of AM handlers with the given EP, with
+// semantics similar to gasnet_attach().  However, unlike gasnet_attach()
+// this function is not collective and does not include an implicit barrier.
+// Therefore the client must provide for any synchronization required to
+// ensure handlers are registered before any process may send a corresponding
 // AM to the Endpoint.
-// REF: 'Conf call 2016.06.28' Google Doc
+// Like gasnet_attach() the handler indices specified in the table (other than
+// "don't care" zero indices) must be unique.  That now extends across multiple
+// calls on the same gex_EP_t (though provisions to selectively relax this
+// restriction are planned for a later release).
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
         gex_AM_Entry_t          *table,
         int                     numentries);
 
+//
+// Fixed-payload AM APIs
+//
 
 // NOTE 0: Prototypes in this section are "patterns"
 //
@@ -224,15 +309,15 @@ int gex_EP_RegisterHandlers(
 //   Short AMs have no payload and therefore have no 'lc_opt' argument.
 //
 //   The Medium and Long Requests accept the pre-defined constant values
-//   GEX_EVENT_NOW and GEX_EVENT_GROUP, and pointers to variables of
-//   type 'gex_Event_t'.  The NOW constant requires that the
-//   Request call not return until after local completion.  The GROUP
-//   constant allows the Request call to return without delaying for local
-//   completion and adds the AM operation to the set of operations for
-//   which the "LCnbi" calls [NAMES TBD] will check local completion.  Use
-//   of a pointer to a variable of type 'gex_Event_t' allows the
-//   call to return without delay, and requres the client to use the "LCnb"
-//   calls [NAMES TBD] to check local completion.
+//   GEX_EVENT_NOW and GEX_EVENT_GROUP, and pointers to variables of type
+//   'gex_Event_t'.  The NOW constant requires that the Request call not
+//   return until after local completion.  The GROUP constant allows the
+//   Request call to return without delaying for local completion and adds
+//   the AM operation to the set of operations for which
+//   gex_NBI_{Test,Wait}() call may check local completion when passed
+//   GEX_EC_AM.  Use of a pointer to a variable of type 'gex_Event_t'
+//   allows the call to return without delay, and requires the client to
+//   check local completion using gex_Event_{Test,Wait}*().
 //
 //   The 'lc_opt' argument to Medium and Long Reply calls behave as for the
 //   Requests with the exception that GEX_EVENT_GROUP is *not* permitted.
@@ -292,8 +377,10 @@ int gex_AM_ReplyShort[M](
            gex_Flags_t flags
            [,arg0, ... ,argM-1]);
 
+//
 // Extended API
 //
+
 // NOTE 1: Return value
 //
 //   An Extended API initiation call is a "no op" IF AND ONLY IF the value
@@ -316,11 +403,11 @@ int gex_AM_ReplyShort[M](
 //   return until the operation is locally complete.  The DEFER constant
 //   permits the call to return without delaying for local completion,
 //   which may occur as late as in the call which syncs (retires) the
-//   operation (could be an explicit-event call if using an nbi
-//   access region).  The GROUP constant allows the Request call to return
-//   without delaying for local completion and adds the Put operation to
-//   the set of operations for which the "LCnbi" calls [NAMES TBD] will
-//   check local completion.
+//   operation (could be an explicit-event call if using an nbi access
+//   region).  The GROUP constant allows the call to return without
+//   delaying for local completion and adds the operation to the set for
+//   which gex_NBI_{Test,Wait}() call may check local completion when
+//   passed GEX_EC_LC.
 //
 // NOTE 2b: The 'lc_opt' argument for local completion (NB case)
 //
@@ -332,9 +419,9 @@ int gex_AM_ReplyShort[M](
 //   locally complete.  The DEFER constant permits the call to return
 //   without delaying for local completion, which may occur as late as in
 //   the call which syncs (retires) the returned event.  Use of a pointer
-//   to a variable of type 'gex_Event_t' allows the call to return
-//   without delay, and requires that the client use the "LCnb" calls
-//   [NAMES TBD] to check for local completion.
+//   to a variable of type 'gex_Event_t' allows the call to return without
+//   delay, and requires the client to check local completion using
+//   gex_Event_{Test,Wait}*().
 
 // Put
 int gex_RMA_PutBlocking(
@@ -422,25 +509,25 @@ gex_Event_t gex_NBI_EndAccessRegion(gex_Flags_t flags);
 
 // Handle test/wait operations
 // The operation is indicated by the suffix
-//  + _test: no Poll call is made, returns zero on success, and non-zero otherwise.
-//  + _wait: Polls until success, no return
+//  + _Test: no Poll call is made, returns zero on success, and non-zero otherwise.
+//  + _Wait: Polls until success, no return
 
 // Completion of a single NB event
 // Success is defined as when the passed event is complete.
 int  gex_Event_Test (gex_Event_t event);
 void gex_Event_Wait (gex_Event_t event);
 
-// Completion of an NB event array - "some"
-// Success is defined as one or more handles have been completed, OR
+// Completion of an event array - "some"
+// Success is defined as one or more events have been completed, OR
 // the input array contains only GEX_EVENT_INVALID.
-// Completed handles, if any, are overwritten with GEX_EVENT_INVALID.
+// Completed events, if any, are overwritten with GEX_EVENT_INVALID.
 int  gex_Event_TestSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 void gex_Event_WaitSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 
 // Completion of an NB event array - "all"
-// Success is defined as all passed handles have been completed, OR
+// Success is defined as all passed events have been completed, OR
 // the input array contains only GEX_EVENT_INVALID.
-// Completed handles, if any, are overwritten with GEX_EVENT_INVALID.
+// Completed events, if any, are overwritten with GEX_EVENT_INVALID.
 int  gex_Event_TestAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 
@@ -484,12 +571,12 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 // Maximum number of supported AM arguments
-// Semantically indentical to gasnet_AMMaxArgs()
+// Semantically identical to gasnet_AMMaxArgs()
 unsigned int gex_AM_MaxArgs(void);
 
 // Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
-// The result of each query function is guaranteed to be symmettric - ie 
+// The result of each query function is guaranteed to be symmetric - ie
 // 1. if two team members execute a given query on each other's ranks, with all
 //    other input arguments being equal, the queries are guaranteed to return the 
 //    same value. Note this does NOT imply any relationship between the results of
