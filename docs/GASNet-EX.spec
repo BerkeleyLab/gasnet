@@ -3,6 +3,7 @@
 // drafting of what may become the normative text.
 
 // An "Event" is an opaque scalar type
+// This type is interoperable with gasnet_handle_t
 // - Sync operation: test/wait w/ one/all/some flavors
 //   + Success consumes the event
 struct gasneti_handle_t;
@@ -11,6 +12,7 @@ typedef struct gasneti_handle_t *gex_Event_t;
 // Pre-defined output values of type gex_Event_t
 // - GEX_EVENT_INVALID
 //   + result for already-completed operation
+//   + synonymous with GASNET_INVALID_HANDLE
 // - GEX_EVENT_NO_OP
 //   + Erroneous to pass this value to test/wait operations
 #define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
@@ -30,6 +32,7 @@ typedef struct gasneti_handle_t *gex_Event_t;
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
 // A "rank" is a position within a team
+// This type is interoperable with gasnet_node_t
 typedef uint32_t gex_Rank_t;
 
 // Pre-defined constant used to indicate "not a rank".
@@ -98,18 +101,27 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_DST_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
 
 // A "token" is an opaque scalar type
+// This type is interoperable with gasnet_token_t
 struct gasneti_token_s;
 typedef struct gasneti_token_s *gex_AM_Token_t;
 
-// Handler index and argument types are fixed-width integers
+// Handler index - a fixed-width integer type
+// This type is interoperable with gasnet_handler_t
 typedef uint8_t gex_AM_Index_t;
+
+// Handler argument - a fixed-width integer type
+// This type is interoperable with gasnet_handlerarg_t
 typedef int32_t gex_AM_Arg_t;
 
 // Handler function pointer type
 typedef ... gex_AM_Fn_t;
 
 // Widest scalar and width
+// This type is interoperable with gasnet_register_value_t
 typedef uintptr_t gex_RMA_Value_t;
+
+// Preprocess-time constant size of gex_RMA_Value_t
+// Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
 #define SIZEOF_GEX_RMA_VALUE_T SIZEOF_VOID_P
 
 // Opaque type for an endpoint
@@ -235,6 +247,7 @@ extern int gex_EP_Create(
                 gex_Flags_t             flags);
 
 // Client-facing type for describing one AM handler
+// This type replaces (is *not* interchangable with) gasnet_handlerentry_t
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 on input == don't care
     gex_AM_Fn_t             gex_fnptr      // Hides existing strict-proto goop
@@ -505,6 +518,8 @@ gex_Event_t gex_RMA_PutNBVal(
            gex_Flags_t flags);
 
 // NBI Access regions:
+// These are interoperable with, and have the same semantics as,
+// gasnet_{begin,end}_nbi_accessregion()
 // Note: no defined values for 'flags' for either call yet.
 
 void gex_NBI_BeginAccessRegion(gex_Flags_t flags);
