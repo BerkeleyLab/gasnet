@@ -313,7 +313,7 @@ typedef struct {
     unsigned int            gex_nargs;     // Required
 
     // Optional fields (both are "shallow copy")
-    void                   *gex_cdata;     // Available to handler
+    const void             *gex_cdata;     // Available to handler
     const char             *gex_name;      // Used in debug messages
 } gex_AM_Entry_t;
 
