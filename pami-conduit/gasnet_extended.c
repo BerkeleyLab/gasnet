@@ -420,7 +420,7 @@ gex_Event_t gasnete_put_nb(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       ldone_fn = gasnete_cb_ptr_lc;
-      *lc_opt = (gex_Event_t)op;
+      *lc_opt = gasneti_op_event(op, gasnete_eop_event_alc);
       GASNETE_EOP_LC_START(op);
     } else if (lc_opt == GEX_EVENT_NOW) {
       ldone_fn = gasnete_cb_eop_lc;
