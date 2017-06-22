@@ -502,10 +502,12 @@ void doit(int partner, int *partnerseg) {
   gex_Event_t noop = GEX_EVENT_NO_OP;
   assert_always(invalid == 0);
   assert_always(noop != invalid);
-  gex_Event_t lc = 0;
+  gex_Event_t lc = noop;
   size_t sz = MIN(8192,TEST_SEGSZ/2);
   //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_OFFSET | GEX_FLAG_DST_OFFSET); // TODO-EX
   gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_IN_BOUND_SEGMENT | GEX_FLAG_DST_IN_BOUND_SEGMENT);
+  assert_always(rc != noop);
+  assert_always(lc != noop);
   if (rc) {
     gex_Event_t qlc = gex_Event_QueryLeaf(rc, GEX_EC_LC);
     if (lc && qlc) assert_always(lc == qlc);
