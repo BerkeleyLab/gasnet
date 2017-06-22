@@ -94,6 +94,7 @@ gex_Event_t _gex_RMA_PutNB(
     GASNETI_TRACE_PUT_LOCAL(NB,rank,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
+    gasneti_leaf_finish(lc_opt);
     return GEX_EVENT_INVALID;
   } else {
     GASNETI_TRACE_PUT(NB,rank,dest,src,nbytes);
