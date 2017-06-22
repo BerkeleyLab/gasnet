@@ -1215,7 +1215,7 @@ extern int gasnetc_AMRequestShortM(
 {
   int retval = GASNET_OK;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,numargs,flags);
+  GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
   gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
