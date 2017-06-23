@@ -832,7 +832,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
 #else
   #define gasneti_init_sd_poison(a,l) ((void)0)
   #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min,max,lim,lc_opt,nargs,cat) ((void)0)
-  #define GASNETI_AMPREPREPLYCOMMON(tm,dest,cbuf,min,max,lim,lc_opt,nargs,cat) ((void)0)
+  #define GASNETI_AMPREPREPLYCOMMON(cbuf,minlen,maxlen,lim,lc_opt,nargs,cat) ((void)0)
   #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
   #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
 #endif
