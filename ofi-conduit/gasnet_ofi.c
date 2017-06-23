@@ -144,7 +144,7 @@ static int using_psm_provider = 0;
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
-gasnetc_ofi_recv_metadata_t* metadata_array;
+static gasnetc_ofi_recv_metadata_t* metadata_array;
 
 static gasnetc_paratomic_t pending_rdma = gasnetc_paratomic_init(0);
 static gasnetc_paratomic_t pending_am = gasnetc_paratomic_init(0);
