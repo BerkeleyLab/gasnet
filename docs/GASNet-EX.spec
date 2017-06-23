@@ -3,6 +3,10 @@
 //
 // It is a place for collection of agreed-upon APIs and for initial
 // drafting of what may become the normative text.
+//
+// This document assumes a reasonable degree of familiarity with the current
+// (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+
 
 //
 // Specification and release versioning:
