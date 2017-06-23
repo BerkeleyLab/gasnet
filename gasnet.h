@@ -60,39 +60,39 @@ typedef gex_Event_t gasnet_handle_t;
 */
 
 GASNETT_INLINE(gasnet_init)
-int gasnet_init(int *argc, char ***argv) {
+int gasnet_init(int *_argc, char ***_argv) {
   return gex_Client_Init (     &gasneti_thunk_client,
                                &gasneti_thunk_endpoint,
                                &gasneti_thunk_tm,
-                               "LEGACY", argc, argv,
+                               "LEGACY", _argc, _argv,
                                GASNETI_FLAG_INIT_LEGACY);
 }
 
-extern int gasnetc_attach( gex_Client_t      *client_p,
-                           gex_EP_t               *endpoint_p,
-                           gex_TM_t               *tm_p,
-                           gex_Segment_t     *segment_p,
-                           gasnet_handlerentry_t  *table,
-                           int                    numentries,
-                           uintptr_t              segsize);
+extern int gasnetc_attach( gex_Client_t           *_client_p,
+                           gex_EP_t               *_endpoint_p,
+                           gex_TM_t               *_tm_p,
+                           gex_Segment_t          *_segment_p,
+                           gasnet_handlerentry_t  *_table,
+                           int                    _numentries,
+                           uintptr_t              _segsize);
 GASNETT_INLINE(gasnet_attach)
-int gasnet_attach( gasnet_handlerentry_t *table, int numentries,
-                   uintptr_t segsize, uintptr_t minheapoffset ) {
+int gasnet_attach( gasnet_handlerentry_t *_table, int _numentries,
+                   uintptr_t _segsize, uintptr_t _minheapoffset ) {
   return gasnetc_attach( &gasneti_thunk_client, &gasneti_thunk_endpoint,
                          &gasneti_thunk_tm, &gasneti_thunk_segment,
-                         table, numentries, segsize);
+                         _table, _numentries, _segsize);
 }
 
 GASNETT_INLINE(gasnet_QueryGexObjects)
-void gasnet_QueryGexObjects( gex_Client_t      *client_p,
-                             gex_EP_t          *endpoint_p,
-                             gex_TM_t          *tm_p,
-                             gex_Segment_t     *segment_p) {
+void gasnet_QueryGexObjects( gex_Client_t      *_client_p,
+                             gex_EP_t          *_endpoint_p,
+                             gex_TM_t          *_tm_p,
+                             gex_Segment_t     *_segment_p) {
   GASNETI_CHECKATTACH();
-  if (client_p)   *client_p   = gasneti_thunk_client;
-  if (endpoint_p) *endpoint_p = gasneti_thunk_endpoint;
-  if (tm_p)     *tm_p     = gasneti_thunk_tm;
-  if (segment_p)  *segment_p  = gasneti_thunk_segment;
+  if (_client_p)   *_client_p   = gasneti_thunk_client;
+  if (_endpoint_p) *_endpoint_p = gasneti_thunk_endpoint;
+  if (_tm_p)       *_tm_p       = gasneti_thunk_tm;
+  if (_segment_p)  *_segment_p  = gasneti_thunk_segment;
 }
 
 // TODO-EX: undef's to be removed
@@ -435,33 +435,33 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
                 gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,0)
 
 typedef struct {
-  gex_RMA_Value_t v;
-  gex_Event_t         h;
+  gex_RMA_Value_t gasneti_valget_value;
+  gex_Event_t     gasneti_valget_event;
 } *gasnet_valget_handle_t;
 
 GASNETT_INLINE(gasnet_get_nb_val)
-gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t node, void *src, size_t nbytes)
+gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t _node, void *_src, size_t _nbytes)
 {
-  gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(*result));
+  gasnet_valget_handle_t _result = (gasnet_valget_handle_t)malloc(sizeof(*_result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
-  void *dest = (void*)((uintptr_t)&(result->v) + sizeof(gex_RMA_Value_t) - nbytes);
+  void *dest = (void*)((uintptr_t)&(_result->gasneti_valget_value) + sizeof(gex_RMA_Value_t) - _nbytes);
 #else /* little-endian */
-  void *dest = &result->v;
+  void *dest = &_result->gasneti_valget_value;
 #endif
-  result->v = 0;
-  //assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
-  result->h = gex_RMA_GetNB(gasneti_thunk_tm, dest, node, src, nbytes, 0);
-  return result;
+  _result->gasneti_valget_value = 0;
+  //assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
+  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, dest, _node, _src, _nbytes, 0);
+  return _result;
 }
 
 GASNETT_INLINE(gasnet_wait_syncnb_valget)
-gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
+gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle)
 {
-  gex_RMA_Value_t result;
-  gex_Event_Wait(handle->h);
-  result = handle->v;
-  free(handle);
-  return result;
+  gex_RMA_Value_t _result;
+  gex_Event_Wait(_handle->gasneti_valget_event);
+  _result = _handle->gasneti_valget_value;
+  free(_handle);
+  return _result;
 }
 
 
