@@ -212,7 +212,7 @@ static void gasnetc_ofi_read_env_vars() {
 
     if (max_am_send_buffs < num_init_am_send_buffs) {
         gasneti_fatalerror(max_err_string, max_am_send_buffs_env, num_init_send_buffs_env, 
-                num_init_am_send_buffs);
+                (int)num_init_am_send_buffs);
     }
 
     /* The number of RMA requests to be issued before a tx_poll takes place */
@@ -254,7 +254,7 @@ static void gasnetc_ofi_read_env_vars() {
                 "of data which can be packed into a medium message (%d bytes on this build).\n"
                 "Use a lower value or reconfigure GASNet for a bigger medium message size using\n"
                 "--with-ofi-max-medium=<new size>.\n",
-                long_rma_threshold_env, OFI_AM_MAX_DATA_LENGTH);
+                long_rma_threshold_env, (int)OFI_AM_MAX_DATA_LENGTH);
     }
 }
 
