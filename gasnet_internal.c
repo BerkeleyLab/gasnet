@@ -1012,7 +1012,7 @@ void gasnetc_AM_CommitRequestMediumM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
-    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1069,7 +1069,7 @@ void gasnetc_AM_CommitReplyMediumM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
-    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
     
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1126,7 +1126,7 @@ void gasnetc_AM_CommitRequestLongM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
-    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1184,7 +1184,7 @@ void gasnetc_AM_CommitReplyLongM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
-    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
     
     va_list argptr;
     va_start(argptr, sd_arg);
