@@ -453,6 +453,258 @@ int gex_AM_ReplyShort[M](
            [,arg0, ... ,argM-1]);
 
 //
+// Negotiated-payload AM APIs
+//
+
+// The fixed-payload APIs for Active Message Mediums and Longs (brought
+// forward from GASNet-1) allow sending any payload up to defined maximum
+// lengths.  However, this comes with the potential costs of extra in-memory
+// copies of the payload and/or conservative maximum lengths.  Use of the
+// negotiated-payload APIs can overcome these limitations to yield performance
+// improvements in two important cases.  First, when the client can begin the
+// negotiation before the payload is assembled (for instance concatenation of
+// a client-provided header and application-provided data) payload negotiation
+// can ensure that the GASNet conduit will not need to make an additional
+// in-memory copy to prepend its own header, or to send from pre-registered
+// memory.  Second, when the client has a need for fragmentation and
+// reassembly (due to a payload exceeding the maximums) use of negotiated
+// payload may permit a smaller number of fragments by taking advantage of
+// transient conditions (for instance in GASNet's buffer management) that
+// allow sending AMs with a larger payload than can be guaranteed in general.
+//
+// The basis of negotiated-payload AMs is a split-phase interface: "Prepare"
+// and "Commit".  The first phase is a Prepare function to which the client
+// passes an optional source buffer address, the minimum and maximum lengths
+// it is willing to send, and many (but not all) of the other parameters
+// normally passed when injecting an Active Message.  In this phase, GASNet
+// determines how much of the payload can be sent and whether it is preferable
+// to accept the client-provided source buffer or provide a replacement
+// buffer.
+//
+// The return from the Prepare call provides the client with an address and a
+// length.  The length is in the range defined by the minimum and maximum
+// lengths.  The address may either be the same as the client_buf argument or
+// it may be a GASNet-owned buffer of the indicated length, suitably aligned
+// to hold any data type.  These two cases are known, respectively as
+// "accepting" or "rejecting" the client_buf.
+//
+// Between the Prepare and the Commit calls the client is responsible for
+// assembling its payload (or the prefix of the given length) at the selected
+// address.  This may be a no-op if GASNet has accepted a client-provided
+// source buffer.  The client may also choose to send a length shorter than
+// the value returned from the Prepare, for instance rounding down to some
+// natural boundary.  The client may also defer until the Prepare-Commit
+// interval its selection of the AM handler and arguments, which might depend
+// on the address and length returned by the Prepare call (though the number
+// of args must be fixed at Prepare).  In the case of a Long, the client may
+// also defer selecting the destination address.  These various parameters are
+// passed to the Commit function which performs the actual AM injection.
+//
+// It is important to note that in the interval between a Prepare and Commit,
+// the client is bound by the same restrictions as in an Active Message Reply
+// handler (ie all communication calls are prohibited).  Prepare/commit pairs
+// do not nest.  Additionally, the Prepare returns a thread-specific object
+// that must be consumed (exactly once) by a Commit in the same thread. Calls
+// to Prepare are permitted in the same places as the corresponding
+// fixed-payload AM injection call.
+//
+// Currently the semantics of the min_length==0 case are unspecified.
+// We advise avoiding that case until a later release has resolved this.
+
+// Opaque type for AM Source Descriptor
+// Used in negotiated-payload AM calls:
+//   Produced by (returned from) gex_AM_Prepare*()
+//   Consumed by (passed to) gex_AM_Commit*()
+struct gasneti_srcdesc_s;
+typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
+
+// Predefined value of type gex_AM_SrcDesc_t
+// Guaranteed to be zero.
+// May be returned by gex_AM_Prepare*() when passed GEX_FLAG_IMMEDIATE passed,
+// but required resources are not available.
+// Must not be passed to gex_AM_Commit*() calls or the
+// gex_AM_SrcDesc*() queries.
+#define GEX_AM_SRCDESC_NO_OP ((gex_AM_SrcDesc_t)(uintptr_t)0)
+
+// Query the address component of a gex_AM_SrcDesc_t
+//
+// Will either be identical to the 'client_buf' passed
+// to the Prepare call, or will be GASNet-owned memory
+// suitably aligned to hold any data type.
+void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
+
+// Query the length component of a gex_AM_SrcDesc_t
+//
+// Will be between the 'min_length' and 'max_length' passed
+// to the Prepare call (inclusive).
+size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
+
+//
+// gex_AM_Prepare calls
+//
+// RETURNS: gex_AM_SrcDesc_t
+//   + An opaque scalar type (with accessors) described above
+//   + This is thread-specific value
+//   + This object is "consumed" by (cannot be used after) the
+//     Commit call
+// ARGUMENTS:
+//  gex_TM_t tm, gex_Rank_t rank [REQUEST ONLY]
+//   + These arguments name the destination of an AMRequest
+//  gex_AM_Token_t token [REPLY ONLY]
+//   + This argument identifies (implicitly) the destination of
+//     an AMReply
+//  const void *client_buf
+//   + If non-NULL the client is offering this buffer as a
+//     source_addr
+//   + If NULL, the client is requesting a GASNet-owned source
+//     buffer to populate
+//  size_t min_length
+//   + This is the minimum length that the Prepare call may
+//     return on success - ie the minimum-sized payload the
+//     client is willing to send at this time.
+//   + The value must not exceed the value of the
+//     gex_AM_Max[...]() call with the Prepare arguments
+//  size_t max_length
+//   + This is the maximum length that the Prepare call may
+//     return on success - ie a (not necessarily tight) upper
+//     bound on the payload size the client is willing to send at
+//     this time.
+//   + The value must not be less than min_length (but they may
+//     be equal).
+//   + The value *may* exceed the corresponding gex_AM_Max[...]().
+//  void *dest_addr [LONG ONLY]
+//   + If this value is non-NULL then GASNet may use this value
+//     (and flags in the GEX_FLAG_DST_* family) to guide its
+//     choice of outputs (addr and size)
+//   + If this value is non-NULL then the client is required to
+//     pass the same value to the Commit call.
+//   + May be NULL to request conservative behavior
+//   + In all cases the actual dest_addr is supplied at Commit.
+//  gex_Event_t *lc_opt
+//   + This argument acts as a stand-in for the lc_opt that will
+//     be passed to the Commit call, but is not identical in all
+//     cases.
+//   + If client_buf is NULL, this argument must also be NULL.
+//   + If client_buf is non-NULL, the lc_opt value required by
+//     Prepare depends on the value of lc_opt the client will
+//     pass to Commit, assuming client_buf is accepted:
+//      - GEX_EVENT_NOW: GEX_EVENT_NOW
+//      - GEX_EVENT_GROUP: GEX_EVENT_GROUP [REQUEST ONLY]
+//      - The address of a gex_Event_t: NULL
+//  gex_Flags_t flags
+//   + Bitwise OR of flags valid for the corresponding
+//     fixed-payload AM injection
+//   + GEX_FLAG_IMMEDIATE: the Prepare call may return
+//     GEX_AM_SRCDESC_NO_OP==0 if injection resources (in
+//     particular a buffer of size min_length or longer) cannot
+//     be obtained.
+//     The Commit-time behavior is unaffected by this flag.
+//   + [UNIMPLEMENTED] GEX_FLAG_SRC_OFFSET: is prohibited
+//   + [UNIMPLEMENTED] GEX_FLAG_SRC_*: these describe properties
+//     of the client_buf, if non-NULL
+//   + [UNIMPLEMENTED] GEX_FLAG_DST_*: [LONG ONLY] these describe
+//     properties of the dest_addr, if non-NULL
+//  unsigned int numargs
+//   + The number of arguments to be passed to the Commit call
+//
+extern gex_AM_SrcDesc_t gex_AM_PrepareRequestMedium(
+                gex_TM_t       tm,
+                gex_Rank_t     rank,
+                const void     *client_buf,
+                size_t         min_length,
+                size_t         max_length,
+                gex_Event_t    *lc_opt,
+                gex_Flags_t    flags,
+                unsigned int   numargs);
+extern gex_AM_SrcDesc_t gex_AM_PrepareReplyMedium(
+                gex_AM_Token_t token,
+                const void     *client_buf,
+                size_t         min_length,
+                size_t         max_length,
+                gex_Event_t    *lc_opt,
+                gex_Flags_t    flags,
+                unsigned int   numargs);
+extern gex_AM_SrcDesc_t gex_AM_PrepareRequestLong(
+                gex_TM_t       tm,
+                gex_Rank_t     rank,
+                const void     *client_buf,
+                size_t         min_length,
+                size_t         max_length,
+                void           *dest_addr,
+                gex_Event_t    *lc_opt,
+                gex_Flags_t    flags,
+                unsigned int   numargs);
+extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
+                gex_AM_Token_t token,
+                const void     *client_buf,
+                size_t         min_length,
+                size_t         max_length,
+                void           *dest_addr,
+                gex_Event_t    *lc_opt,
+                gex_Flags_t    flags,
+                unsigned int   numargs);
+
+//
+// gex_AM_Commit calls
+//
+// NOTE: Prototypes in this section are "patterns"
+//   These API instantiate the "[M]" at the end of each prototype with
+//   the integers 0 through gex_AM_MaxArgs().
+//   The '[,arg0, ... ,argM-1]' then represent the arguments
+//   (each of type gex_AM_Arg_t).
+//
+// RETURNS: void
+// ARGUMENTS:
+//  gex_AM_SrcDesc sd
+//   + The value returned by the immediately preceding Prepare
+//     call on this thread.
+//  gex_AM_Index_t handler
+//   + The index of the AM handler to run at the destination
+//  size_t nbytes
+//   + The client's payload length
+//   + Must be no larger than the size returned by the Prepare
+//   + Permitted to be anything <= size (including 0)
+//  void *dest_addr [LONG ONLY]
+//   + The destination address for transfer of Long payloads
+//   + If non-NULL dest_addr was passed to Prepare, this must
+//     be the same value
+//  gex_Event_t *lc_opt
+//   + If Prepare accepted a non-NULL client_buf argument, this
+//     argument acts exactly as in the fixed-payload AM injection
+//     APIs, with the additional constraint that the lc_opt
+//     argument to the preceding Prepare must correspond.
+//   + If Prepare did not accept its client_buf argument, or that
+//     argument was NULL, then this argument must be NULL
+//
+extern void gex_AM_CommitRequestMedium[M](
+                gex_AM_SrcDesc_t sd,
+                gex_AM_Index_t   handler,
+                size_t           nbytes,
+                gex_Event_t      *lc_opt
+                [,arg0, ... ,argM-1]);
+extern void gex_AM_CommitReplyMedium[M](
+                gex_AM_SrcDesc_t sd,
+                gex_AM_Index_t   handler,
+                size_t           nbytes,
+                gex_Event_t      *lc_opt
+                [,arg0, ... ,argM-1]);
+extern void gex_AM_CommitRequestLong[M](
+                gex_AM_SrcDesc_t sd,
+                gex_AM_Index_t   handler,
+                size_t           nbytes,
+                void             *dest_addr,
+                gex_Event_t      *lc_opt
+                [,arg0, ... ,argM-1]);
+extern void gex_AM_CommitReplyLong[M](
+                gex_AM_SrcDesc_t sd,
+                gex_AM_Index_t   handler,
+                size_t           nbytes,
+                void             *dest_addr,
+                gex_Event_t      *lc_opt
+                [,arg0, ... ,argM-1]);
+
+
+//
 // Extended API
 //
 
