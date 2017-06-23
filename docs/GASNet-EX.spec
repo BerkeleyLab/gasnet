@@ -604,6 +604,11 @@ int gex_AM_ReplyShort[M](
 // to hold any data type.  These two cases are known, respectively as
 // "accepting" or "rejecting" the client_buf.
 //
+// It is important to note that passing NULL for the client_buf argument to
+// a Prepare call requires GASNet to allocate buffer space of size no
+// smaller than min_length.  Care should be taken to keep such allocation
+// demands reasonable.
+//
 // Between the Prepare and the Commit calls the client is responsible for
 // assembling its payload (or the prefix of the given length) at the selected
 // address.  This may be a no-op if GASNet has accepted a client-provided
