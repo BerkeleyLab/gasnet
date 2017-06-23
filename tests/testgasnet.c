@@ -552,6 +552,7 @@ void doit(int partner, int *partnerseg) {
     static volatile structtype S;                                            \
     static fieldtype volatile v;                                             \
     S.fieldname = v; /* warnings here mean non-compliance */                 \
+    v = S.fieldname; /* warnings here mean non-compliance */                 \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
   } while (0)
 
@@ -559,7 +560,7 @@ void doit(int partner, int *partnerseg) {
   assert_field_int(gex_AM_Entry_t,     gex_Flags_t,    gex_flags, typeisunsigned);
   assert_field_int(gex_AM_Entry_t,     unsigned int,   gex_nargs, typeisunsigned);
   assert_field_pointer(gex_AM_Entry_t, gex_AM_Fn_t,    gex_fnptr);
-  assert_field_pointer(gex_AM_Entry_t, void *,         gex_cdata);
+  assert_field_pointer(gex_AM_Entry_t, const void *,   gex_cdata);
   assert_field_pointer(gex_AM_Entry_t, const char *,   gex_name);
 
   if (success) MSG("*** passed object test!!");
