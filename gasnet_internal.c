@@ -849,8 +849,14 @@ gex_AM_SrcDesc_t gasneti_prepare_common(
         sd->_tofree = NULL;
         sd->_addr   = (/*non-const*/void *)client_buf;
     } else {
-        sd->_tofree =
+#if GASNET_DEBUG
+        // Allocate at least one byte because zero-byte allocation
+        // returns NULL which then leads to ambiguity in argument checking.
+        sd->_addr   = gasneti_malloc(MAX(1,length));
+#else
         sd->_addr   = gasneti_malloc(length);
+#endif
+        sd->_tofree = sd->_addr;
         gasneti_init_sd_poison(sd->_tofree, length);
     }
     sd->_size     = length;
@@ -925,11 +931,11 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        unsigned int       nargs)
 {
     flags &= ~GEX_FLAG_IMMEDIATE;
-#if 0
-    size_t limit = gex_Token_MaxReplyMedium(token,lc_opt,flags,nargs);
+    // TODO-EX: using limit=LUB here unless conduit has provided an alternative
+    // TODO-EX: expect to eventually use gex_Token_MaxReplyMedium()
+#if defined(gasnetc_Token_MaxReplyMedium)
+    size_t limit = gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs);
 #else
-    // TODO-EX: until gex_Token_MaxReplyMedium() is available we use LUB which may be lower
-    // This is safe in GASNETI_AMPREPREPLYCOMMON() *only* because Max == LUB on all current conduits
     size_t limit = gex_AM_LUBReplyMedium();
 #endif
     GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
@@ -976,12 +982,11 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        unsigned int       nargs)
 {
     flags &= ~GEX_FLAG_IMMEDIATE;
-    // TODO-EX: using LUB here due to lack of conduit-indep way to extract tm or rank from the token
-#if 0
-    size_t limit = gex_Token_MaxReplyLong(token,lc_opt,flags,nargs);
+    // TODO-EX: using limit=LUB here unless conduit has provided an alternative
+    // TODO-EX: expect to eventually use gex_Token_MaxReplyLong()
+#if defined(gasnetc_Token_MaxReplyLong)
+    size_t limit = gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs);
 #else
-    // TODO-EX: until gex_Token_MaxReplyLong() is available we use LUB which may be lower
-    // This is safe in GASNETI_AMPREPREPLYCOMMON() *only* because Max == LUB on all current conduits
     size_t limit = gex_AM_LUBReplyLong();
 #endif
     GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
@@ -1007,6 +1012,7 @@ void gasnetc_AM_CommitRequestMediumM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
+    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1063,6 +1069,7 @@ void gasnetc_AM_CommitReplyMediumM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
+    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
     
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1119,6 +1126,7 @@ void gasnetc_AM_CommitRequestLongM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
+    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1176,6 +1184,7 @@ void gasnetc_AM_CommitReplyLongM(
     const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
+    if (sd->_tofree) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
     
     va_list argptr;
     va_start(argptr, sd_arg);

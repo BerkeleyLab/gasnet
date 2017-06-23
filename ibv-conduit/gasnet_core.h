@@ -156,6 +156,9 @@ typedef struct {
 #define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs) ((size_t)GASNETC_MAX_LONG_REQ)
 #define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_LONG_REP)
 
+// TODO-EX: a temporary interface for use PrepareReply - TO BE REMOVED
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM_(nargs))
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
