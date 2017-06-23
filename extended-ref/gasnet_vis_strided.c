@@ -816,7 +816,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, gasnet
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
-void gasnete_puts_AMPipeline_reqh_inner(gex_AM_Token_t token,
+void gasnete_puts_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *iop, void *dstaddr, 
   gex_AM_Arg_t stridelevels, gex_AM_Arg_t contiglevel,
@@ -927,7 +927,7 @@ gex_Event_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, gasnet
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_gets_AMPipeline_reqh_inner)
-void gasnete_gets_AMPipeline_reqh_inner(gex_AM_Token_t token,
+void gasnete_gets_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *_visop, void *srcaddr, 
   gex_AM_Arg_t stridelevels, gex_AM_Arg_t contiglevel,
@@ -970,7 +970,7 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reqh,6,8,
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3), a4,a5,a6,a7));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_gets_AMPipeline_reph_inner)
-void gasnete_gets_AMPipeline_reph_inner(gex_AM_Token_t token,
+void gasnete_gets_AMPipeline_reph_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *_visop, gex_AM_Arg_t packetidx,
   gex_AM_Arg_t contiglevel, gex_AM_Arg_t packetchunks) {

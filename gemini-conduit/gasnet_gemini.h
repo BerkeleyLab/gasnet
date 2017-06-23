@@ -400,7 +400,7 @@ int gasnetc_next_power_of_2(int x) {
 }
 
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
-gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_AM_Token_t t,
+gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
                                                                size_t length,
                                                                gex_Flags_t flags);
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest,

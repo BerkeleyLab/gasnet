@@ -1214,7 +1214,7 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
  * Firehose AM Request Handler
  */
 void
-fh_am_move_reqh_inner(gex_AM_Token_t token, void *addr, size_t nbytes,
+fh_am_move_reqh_inner(gex_Token_t token, void *addr, size_t nbytes,
 		      gex_AM_Arg_t flags,
 		      gex_AM_Arg_t r_new,
 		      gex_AM_Arg_t r_old,
@@ -1340,7 +1340,7 @@ MEDIUM_HANDLER(fh_am_move_reqh,4,5,
  * by the reply.
  */
 void
-fh_am_move_reph_inner(gex_AM_Token_t token, void *addr,
+fh_am_move_reph_inner(gex_Token_t token, void *addr,
 		      size_t nbytes, gex_AM_Arg_t r_new,
 		      void *context)
 {

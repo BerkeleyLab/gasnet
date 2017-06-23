@@ -237,7 +237,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 #endif
 #ifndef GASNETC_TOKEN_CREATE
   /* Our default implementation is suitable for conduits that use a pointer
-   * for gex_AM_Token_t.  We generate tokens with the least-significant bit
+   * for gex_Token_t.  We generate tokens with the least-significant bit
    * set.  This distinguishes them from a valid pointer, but still allows a
    * (token != NULL) assertion.
    */
@@ -252,7 +252,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     } gasneti_ampshm_token_t;
 
     GASNETI_INLINE(gasnetc_token_init)
-    gex_AM_Token_t gasnetc_token_init(
+    gex_Token_t gasnetc_token_init(
                                gasneti_ampshm_token_t *my_token,
                                gex_Rank_t src,
                                gex_AM_Entry_t *entry,
@@ -268,11 +268,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     #if GASNET_DEBUG
       my_token->replySent = 0;
     #endif
-      return (gex_AM_Token_t)(1|(uintptr_t)my_token);
+      return (gex_Token_t)(1|(uintptr_t)my_token);
     }
 
   #if GASNET_DEBUG
-    extern void gasnetc_token_reply(gex_AM_Token_t token) {
+    extern void gasnetc_token_reply(gex_Token_t token) {
       gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
       gasneti_assert(gasnetc_token_is_pshm(token));
       gasneti_assert(my_token);
@@ -283,7 +283,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   #endif
 
     extern gex_TI_t gasnetc_AMPSHM_TokenInfo(
-                gex_AM_Token_t      token,
+                gex_Token_t         token,
                 gex_Token_Info_t    *info,
                 gex_TI_t            mask)
     {
@@ -1162,7 +1162,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #define GASNETI_AMPSHM_MAX_REQUEST_PER_POLL 10
 
 #ifndef GASNETC_ENTERING_HANDLER_HOOK
-  /* extern void enterHook(int cat, int isReq, int handlerId, gex_AM_Token_t *token,
+  /* extern void enterHook(int cat, int isReq, int handlerId, gex_Token_t *token,
    *                       void *buf, size_t nbytes, int numargs, gex_AM_Arg_t *args);
    */
   #define GASNETC_ENTERING_HANDLER_HOOK(cat,isReq,handlerId,token,buf,nbytes,numargs,args) ((void)0)
@@ -1211,7 +1211,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gex_AM_Fn_t handler_fn;
   int numargs;
   gex_AM_Arg_t *args;
-  gex_AM_Token_t token;
+  gex_Token_t token;
 
   gasneti_assert(vnet != NULL);
 
@@ -1406,7 +1406,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
     gasneti_ampshm_token_t my_token;
     gex_EP_t ep = NULL; // TODO-EX: get true value
     gex_AM_Entry_t *entry = gasnetc_get_hentry(ep,handler);
-    gex_AM_Token_t token = gasnetc_token_init(&my_token,gasneti_mynode,entry,category,isReq);
+    gex_Token_t token = gasnetc_token_init(&my_token,gasneti_mynode,entry,category,isReq);
     gex_AM_Fn_t handler_fn = entry->gex_fnptr;
     gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     gasneti_AMPSHM_amtbl_check(ep, handler, numargs, category, isReq);

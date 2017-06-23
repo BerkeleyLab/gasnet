@@ -38,7 +38,7 @@ extern int gasnetc_AMRequestLongM(
                 GASNETI_THREAD_FARG,           // Hidden thread-specific info argument
                 int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
 extern int gasnetc_AMReplyLongM(
-                gex_AM_Token_t token,          // Names local and remote contexts
+                gex_Token_t token,             // Names local and remote contexts
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -58,7 +58,7 @@ extern int gasnetc_AMRequestMediumM(
                 GASNETI_THREAD_FARG,
                 int numargs, ...);
 extern int gasnetc_AMReplyMediumM(
-                gex_AM_Token_t token,
+                gex_Token_t token,
                 gex_AM_Index_t handler,
                 /*const*/ void *source_addr,
                 size_t nbytes,
@@ -74,7 +74,7 @@ extern int gasnetc_AMRequestShortM(
                 GASNETI_THREAD_FARG,
                 int numargs, ...);
 extern int gasnetc_AMReplyShortM(
-                gex_AM_Token_t token,
+                gex_Token_t token,
                 gex_AM_Index_t handler,
                 gex_Flags_t flags,
                 int numargs, ...);
@@ -341,7 +341,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
               #endif
                 gex_AM_SrcDesc_t _sd, ...);
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
-                gex_AM_Token_t _token,
+                gex_Token_t _token,
                 const void *_client_buf,
                 size_t _min_length,
                 size_t _max_length,
@@ -381,7 +381,7 @@ extern void gasnetc_AM_CommitRequestLongM(
               #endif
                 gex_AM_SrcDesc_t _sd, ...);
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
-                gex_AM_Token_t _token,
+                gex_Token_t _token,
                 const void *_client_buf,
                 size_t _min_length,
                 size_t _max_length,

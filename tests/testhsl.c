@@ -18,23 +18,23 @@ int flag = 0;
 uint64_t iters = 100;
 gex_HSL_t globallock = GEX_HSL_INITIALIZER;
 
-void okhandler3(gex_AM_Token_t token) {
+void okhandler3(gex_Token_t token) {
   gex_HSL_Lock(&globallock);
   flag++;
   gex_HSL_Unlock(&globallock);
 }
 
 
-void badhandler1(gex_AM_Token_t token) {
+void badhandler1(gex_Token_t token) {
   gex_HSL_Lock(&globallock);
 }
-void badhandler2(gex_AM_Token_t token) {
+void badhandler2(gex_Token_t token) {
   gex_HSL_Lock(&globallock);
   gex_AM_ReplyShort0(token, 250, 0);
 }
 
 uint64_t counter = 0;
-void increq(gex_AM_Token_t token) {
+void increq(gex_Token_t token) {
   gex_HSL_Lock(&globallock);
   counter++;
   gex_HSL_Unlock(&globallock);
@@ -42,14 +42,14 @@ void increq(gex_AM_Token_t token) {
 }
 gex_HSL_t replock = GEX_HSL_INITIALIZER;
 uint64_t repcounter = 0;
-void increp(gex_AM_Token_t token) {
+void increp(gex_Token_t token) {
   gex_HSL_Lock(&replock);
   repcounter++;
   gex_HSL_Unlock(&replock);
 }
 
 
-void donothing(gex_AM_Token_t token) {
+void donothing(gex_Token_t token) {
 }
 
 #if GASNET_PAR

@@ -45,7 +45,7 @@ extern gex_Segment_t     gasneti_thunk_segment;
 */
 
 typedef gex_Rank_t gasnet_node_t;
-typedef gex_AM_Token_t gasnet_token_t;
+typedef gex_Token_t gasnet_token_t;
 typedef gex_AM_Index_t gasnet_handler_t;
 typedef gex_AM_Arg_t gasnet_handlerarg_t;
 typedef gex_RMA_Value_t gasnet_register_value_t;
@@ -115,7 +115,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 #define gasnet_AMMaxArgs()         ((size_t)gex_AM_MaxArgs())
 
 GASNETT_INLINE(gasnet_AMGetMsgSource)
-int gasnet_AMGetMsgSource(gex_AM_Token_t _token, gex_Rank_t *_srcrank) {
+int gasnet_AMGetMsgSource(gex_Token_t _token, gex_Rank_t *_srcrank) {
   gex_Token_Info_t _info;
   gex_TI_t _rc = gex_Token_Info(_token, &_info, GEX_TI_SRCRANK);
   gasneti_assert(_rc & GEX_TI_SRCRANK);

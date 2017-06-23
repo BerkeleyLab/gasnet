@@ -285,7 +285,7 @@ extern void gasneti_freezeForDebugger(void) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-extern void gasneti_defaultAMHandler(gex_AM_Token_t token) {
+extern void gasneti_defaultAMHandler(gex_Token_t token) {
   gex_Token_Info_t info;
   info.gex_srcrank = GEX_RANK_INVALID; // to print -1 if query were to fail
   gex_Token_Info(token, &info, GEX_TI_SRCRANK);
@@ -674,7 +674,7 @@ extern gasneti_AM_SrcDesc_t gasneti_alloc_request_srcdesc(
 }
 
 extern gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
-                       gex_AM_Token_t token,
+                       gex_Token_t    token,
                        int            nargs
                        GASNETI_THREAD_FARG)
 {
@@ -921,7 +921,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 
 #ifndef gasnetc_AM_PrepareReplyMedium
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
-                       gex_AM_Token_t     token,
+                       gex_Token_t        token,
                        const void        *client_buf,
                        size_t             min_length,
                        size_t             max_length,
@@ -971,7 +971,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
 
 #ifndef gasnetc_AM_PrepareReplyLong
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
-                       gex_AM_Token_t     token,
+                       gex_Token_t        token,
                        const void        *client_buf,
                        size_t             min_length,
                        size_t             max_length,
@@ -1079,7 +1079,7 @@ void gasnetc_AM_CommitReplyMediumM(
     }
     va_end(argptr);
 
-    gex_AM_Token_t token   = sd->_dest._reply._token;
+    gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
     gex_Flags_t flags      = sd->_flags;
 
@@ -1194,7 +1194,7 @@ void gasnetc_AM_CommitReplyLongM(
     }
     va_end(argptr);
 
-    gex_AM_Token_t token   = sd->_dest._reply._token;
+    gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
     gex_Flags_t flags      = sd->_flags;
 

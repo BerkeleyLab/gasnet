@@ -109,12 +109,12 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
            *(gex_Rank_t*)(1^(uintptr_t)(tok)))
 
   extern gex_TI_t gasnetc_AMPSHM_TokenInfo(
-                gex_AM_Token_t      token,
+                gex_Token_t         token,
                 gex_Token_Info_t    *info,
                 gex_TI_t            mask);
 
   #if GASNET_DEBUG
-    extern void gasnetc_token_reply(gex_AM_Token_t token);
+    extern void gasnetc_token_reply(gex_Token_t token);
   #else
     #define gasnetc_token_reply(tok) ((void)0)
   #endif
@@ -272,7 +272,7 @@ int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
  * Divert your conduit's regular AM replies to this function if a call to
  * gasneti_pshm_in_supernode(dest) or gasnetc_token_is_pshm(token) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_ReplyGeneric)
-int gasneti_AMPSHM_ReplyGeneric(int category, gex_AM_Token_t token,
+int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
                                 gasnetc_handler_t handler, void *source_addr, 
                                 size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr) 

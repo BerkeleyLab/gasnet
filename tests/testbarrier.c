@@ -52,7 +52,7 @@ int my_barrier_wait(int value, int flags) {
 
 #define hidx_done_shorthandler   200
 volatile int done = 0;
-void done_shorthandler(gex_AM_Token_t token) {
+void done_shorthandler(gex_Token_t token) {
 	  done = 1;
 }
 gex_AM_Entry_t htable[] = {

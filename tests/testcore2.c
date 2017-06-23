@@ -99,21 +99,21 @@ gasnett_atomic_t pong_recvd;
   } while (0)
 
 
-void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
+void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes, 
                      gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Request (pre-reply)", buf, nbytes, iter, chunkidx);
   gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
   validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, chunkidx);
 }
-void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes,
                      gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Reply", buf, nbytes, iter, chunkidx);
   gasnett_atomic_increment(&pong_recvd,0);
 }
 
-void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
                      gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   uint8_t *srcbuf;
   INIT_CHECKS();
@@ -126,7 +126,7 @@ void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
   gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, peerrepseg+chunkidx*nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
 }
 
-void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+void pong_longhandler(gex_Token_t token, void *buf, size_t nbytes,
                      gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Long Reply", buf, nbytes, iter, chunkidx);

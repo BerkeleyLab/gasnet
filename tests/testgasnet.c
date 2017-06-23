@@ -51,10 +51,10 @@ static gex_Rank_t numranks;
   test_everything_seginfo_t myinfo;
   test_everything_seginfo_t partnerinfo;
   int done = 0;
-  GASNETT_EXTERNC void seg_everything_reqh(gex_AM_Token_t token) {
+  GASNETT_EXTERNC void seg_everything_reqh(gex_Token_t token) {
     gex_AM_ReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GEX_EVENT_NOW, 0);
   }
-  GASNETT_EXTERNC void seg_everything_reph(gex_AM_Token_t token, void *buf, size_t nbytes) {
+  GASNETT_EXTERNC void seg_everything_reph(gex_Token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(test_everything_seginfo_t));
     memcpy(&partnerinfo, buf, nbytes);
     gasnett_local_wmb();
@@ -289,7 +289,7 @@ typedef struct {
 } amsz_t;
 
 extern gex_AM_Entry_t sizecheck_handlers[];
-GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
+GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
   gex_Rank_t r = test_msgsource(token);
   assert_always(r < numranks);
   assert_always(args >= 0 && args <= (gex_AM_Arg_t)gex_AM_MaxArgs());
@@ -319,7 +319,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_AM_Token_t token, void *buf, size_t nbyt
   gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
 }
 gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
-GASNETT_EXTERNC void sizecheck_reph(gex_AM_Token_t token) {
+GASNETT_EXTERNC void sizecheck_reph(gex_Token_t token) {
   assert_always(gasnett_atomic_read(&sizecheck_ack,0) > 0);
   gasnett_atomic_decrement(&sizecheck_ack,0);
 }

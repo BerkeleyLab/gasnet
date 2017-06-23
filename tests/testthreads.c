@@ -120,9 +120,9 @@ void attach_test_mpi(void);
 void mpi_barrier(threaddata_t *tdata);
 void test_mpi(threaddata_t *tdata);
 
-void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz);
-void mpi_probehandler(gex_AM_Token_t token, harg_t tid);
-void mpi_replyhandler(gex_AM_Token_t token, harg_t tid);
+void mpi_handler(gex_Token_t token, harg_t tid, harg_t sz);
+void mpi_probehandler(gex_Token_t token, harg_t tid);
+void mpi_replyhandler(gex_Token_t token, harg_t tid);
 #endif
 
 testfunc_t	test_functions_all[] = {
@@ -138,17 +138,17 @@ testfunc_t	test_functions[NUM_FUNCTIONS] = { 0 };
 static int	functions_num = 0;
 
 /* AM Handlers */
-void	ping_shorthandler(gex_AM_Token_t token, harg_t tid);
-void 	pong_shorthandler(gex_AM_Token_t token, harg_t tid);
+void	ping_shorthandler(gex_Token_t token, harg_t tid);
+void 	pong_shorthandler(gex_Token_t token, harg_t tid);
 
-void	ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
+void	ping_medhandler(gex_Token_t token, void *buf, size_t nbytes, 
 		harg_t tid, harg_t repsz);
-void	pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
+void	pong_medhandler(gex_Token_t token, void *buf, size_t nbytes, 
 		harg_t tid);
 
-void	ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
+void	ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
 		harg_t tid, harg_t target_id, harg_t repsz);
-void	pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
+void	pong_longhandler(gex_Token_t token, void *buf, size_t nbytes, 
 		harg_t tid);
 
 #define hidx_ping_shorthandler   201
@@ -431,7 +431,7 @@ free_thread_data(void)
 #endif
 
 void 
-ping_shorthandler(gex_AM_Token_t token, harg_t idx) 
+ping_shorthandler(gex_Token_t token, harg_t idx) 
 {
         gex_Rank_t node = test_msgsource(token);
 
@@ -443,7 +443,7 @@ ping_shorthandler(gex_AM_Token_t token, harg_t idx)
 }
 
 void 
-pong_shorthandler(gex_AM_Token_t token, harg_t idx) 
+pong_shorthandler(gex_Token_t token, harg_t idx) 
 {
 	int	tid = tt_thread_data[idx].tid;
 	PRINT_AM(("node=%2d> AMShort Reply for tid=%d, (%d,%d)", 
@@ -454,7 +454,7 @@ pong_shorthandler(gex_AM_Token_t token, harg_t idx)
 }
 
 void 
-ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t repsz)
+ping_medhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t repsz)
 {
         gex_Rank_t node = test_msgsource(token);
 
@@ -469,7 +469,7 @@ ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, harg
 	gex_AM_ReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, idx);
 }
 void 
-pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, 
+pong_medhandler(gex_Token_t token, void *buf, size_t nbytes, 
 		gex_AM_Arg_t idx)
 {
 	int	tid = tt_thread_data[idx].tid;
@@ -487,7 +487,7 @@ pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes,
 }
 
 void 
-ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t target_id, harg_t repsz)
+ping_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t target_id, harg_t repsz)
 {
 	int		tid;
 	void		*paddr;
@@ -509,7 +509,7 @@ ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx, har
 }
 
 void 
-pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, harg_t idx) {
+pong_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx) {
 	int	tid = tt_thread_data[idx].tid;
 
 	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)", 

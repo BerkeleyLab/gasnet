@@ -2012,7 +2012,7 @@ static uint8_t *gasneti_exchg_data(int phase, size_t elemsz) {
   return data;
 }
 
-extern void gasnetc_exchg_reqh(gex_AM_Token_t token, void *buf, size_t nbytes,
+extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
                                gex_AM_Arg_t arg0, gex_AM_Arg_t elemsz) {
     const int phase = arg0 & 1;
     const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps            => 2^32 nodes

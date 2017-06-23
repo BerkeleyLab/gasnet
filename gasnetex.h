@@ -289,7 +289,7 @@ typedef uint32_t gex_Rank_t;
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;
-typedef struct gasneti_token_s *gex_AM_Token_t;
+typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
 typedef struct gasneti_team_s *gex_TM_t;
@@ -507,7 +507,7 @@ typedef unsigned int gex_TI_t;
   #define gex_Token_Info gasnetc_Token_Info
 #endif
 extern gex_TI_t gex_Token_Info(
-                gex_AM_Token_t      _token,
+                gex_Token_t         _token,
                 gex_Token_Info_t    *_info,
                 gex_TI_t            _mask);
 
@@ -607,7 +607,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
         gex_Rank_t           _rank;
       }                    _request;
       struct {
-        gex_AM_Token_t       _token;
+        gex_Token_t          _token;
       }                    _reply;
     }                    _dest;
     void *               _dest_addr; // Long only

@@ -34,19 +34,19 @@ void *addr_tbl[] = {
 
 volatile int flag = 0;
 
-void ping_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t addr_idx) {
+void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
   gex_AM_ReplyMedium0(token, hidx_pong_medhandler, source_addr, 0, GEX_EVENT_NOW, 0);
 }
-void pong_medhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
+void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
-void ping_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t addr_idx) {
+void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
   gex_AM_ReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg, GEX_EVENT_NOW, 0);
 }
-void pong_longhandler(gex_AM_Token_t token, void *buf, size_t nbytes) {
+void pong_longhandler(gex_Token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 

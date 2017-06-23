@@ -661,7 +661,7 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 #endif
 
 GASNETI_INLINE(gasnetc_msgsource)
-gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
+gex_Rank_t gasnetc_msgsource(gex_Token_t token) {
   #if GASNET_PSHM
     gasneti_assert(! gasnetc_token_is_pshm(token));
   #endif
@@ -676,7 +676,7 @@ gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token) {
 }
 
 extern gex_TI_t gasnetc_Token_Info(
-                gex_AM_Token_t      token,
+                gex_Token_t         token,
                 gex_Token_Info_t    *info,
                 gex_TI_t            mask)
 {
@@ -843,7 +843,7 @@ extern int gasnetc_AMRequestLongM(
 }
 
 extern int gasnetc_AMReplyShortM( 
-                            gex_AM_Token_t token,     /* token provided on handler entry */
+                            gex_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags,
                             int numargs, ...) {
@@ -871,7 +871,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gex_AM_Token_t token,     /* token provided on handler entry */
+                            gex_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
@@ -904,7 +904,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gex_AM_Token_t token,     /* token provided on handler entry */
+                            gex_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -1191,7 +1191,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
 #endif
 
 #if GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
-  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gex_AM_Token_t token,
+  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gex_Token_t token,
                                                void *buf, size_t nbytes, int numargs,
                                                gex_AM_Arg_t *args) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();

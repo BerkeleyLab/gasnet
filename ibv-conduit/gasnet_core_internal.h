@@ -654,14 +654,14 @@ extern void gasnetc_cb_counter(gasnetc_atomic_val_t *);
 extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *);
 
 /* Routines in gasnet_core_sndrcv.c */
-extern gex_Rank_t gasnetc_msgsource(gex_AM_Token_t token);
+extern gex_Rank_t gasnetc_msgsource(gex_Token_t token);
 extern int gasnetc_create_cq(struct ibv_context *, int,
                              struct ibv_cq * *, int *,
                              gasnetc_progress_thread_t *);
 extern int gasnetc_sndrcv_limits(void);
 extern int gasnetc_sndrcv_init(void);
-extern void gasnetc_sys_flush_reph(gex_AM_Token_t, gex_AM_Arg_t);
-extern void gasnetc_sys_close_reqh(gex_AM_Token_t);
+extern void gasnetc_sys_flush_reph(gex_Token_t, gex_AM_Arg_t);
+extern void gasnetc_sys_close_reqh(gex_Token_t);
 extern void gasnetc_sndrcv_quiesce(void);
 extern int gasnetc_sndrcv_shutdown(void);
 extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep);
@@ -680,7 +680,7 @@ extern int gasnetc_RequestGeneric(gasneti_category_t category,
 				  gasnetc_counter_t *counter, va_list argptr
                                   GASNETI_THREAD_FARG);
 extern int gasnetc_ReplyGeneric(gasneti_category_t category,
-				gex_AM_Token_t token, gex_AM_Index_t handler,
+				gex_Token_t token, gex_AM_Index_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				gex_Flags_t flags, int numargs,
 				gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
@@ -850,11 +850,11 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...);
 
-extern int gasnetc_ReplySysShort(gex_AM_Token_t token,
+extern int gasnetc_ReplySysShort(gex_Token_t token,
                                  gasnetc_counter_t *counter, /* counter for local completion */
                                  gex_AM_Index_t handler,
                                  int numargs, ...);
-extern int gasnetc_ReplySysMedium(gex_AM_Token_t token,
+extern int gasnetc_ReplySysMedium(gex_Token_t token,
                                   gasnetc_counter_t *counter, /* counter for local completion */
                                   gex_AM_Index_t handler,
                                   void *source_addr, size_t nbytes,

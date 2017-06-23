@@ -1575,7 +1575,7 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
   pd->type = GNI_POST_FMA_PUT_W_SYNCFLAG;
 }
 
-gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_AM_Token_t t,
+gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
                                                                size_t length,
                                                                gex_Flags_t flags)
 {
@@ -1812,7 +1812,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handlerindex];
   gex_AM_Fn_t handler = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { peer->pe, handler_entry, is_req, notify, NULL };
-  gex_AM_Token_t token = (gex_AM_Token_t)&the_token; /* RUN macros need an lvalue */
+  gex_Token_t token = (gex_Token_t)&the_token; /* RUN macros need an lvalue */
 
   gasneti_mutex_unlock(&ampoll_lock);
 

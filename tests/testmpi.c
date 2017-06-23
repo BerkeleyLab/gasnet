@@ -218,7 +218,7 @@ void mpi_barrier(threaddata_t *tdata) {
 #endif
 
 
-void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz) {
+void mpi_handler(gex_Token_t token, harg_t tid, harg_t sz) {
   int mpipeer;
   int tag;
   char *buf;
@@ -248,7 +248,7 @@ void mpi_handler(gex_AM_Token_t token, harg_t tid, harg_t sz) {
 
 }
 
-void mpi_probehandler(gex_AM_Token_t token, harg_t tid) {
+void mpi_probehandler(gex_Token_t token, harg_t tid) {
   int mpipeer;
   int tag;
   int reply = 0;
@@ -295,7 +295,7 @@ void mpi_probehandler(gex_AM_Token_t token, harg_t tid) {
   }
 }
 
-void mpi_replyhandler(gex_AM_Token_t token, harg_t tid) {
+void mpi_replyhandler(gex_Token_t token, harg_t tid) {
   int ltid = tid - myrank*threads_num;
   PRINT_AM(("node=%2d> Got AMShort MPI Reply for tid=%d\n",
                         (int)myrank, (int)tid));

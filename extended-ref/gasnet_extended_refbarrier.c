@@ -706,7 +706,7 @@ typedef struct {
   int volatile amdbarrier_recv_flags[2]; /*  consensus ambarrier flags */
 } gasnete_coll_amdbarrier_t;
   
-static void gasnete_amdbarrier_notify_reqh(gex_AM_Token_t token,
+static void gasnete_amdbarrier_notify_reqh(gex_Token_t token,
                                            gex_AM_Arg_t teamid, gex_AM_Arg_t phase, gex_AM_Arg_t step, gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
@@ -1745,7 +1745,7 @@ typedef struct {
 } gasnete_coll_amcbarrier_t;
 
 
-static void gasnete_amcbarrier_notify_reqh(gex_AM_Token_t token,
+static void gasnete_amcbarrier_notify_reqh(gex_Token_t token,
                                            gex_AM_Arg_t teamid, gex_AM_Arg_t phase, gex_AM_Arg_t value, gex_AM_Arg_t flags) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amcbarrier_t *barrier_data = team->barrier_data;
@@ -1773,7 +1773,7 @@ static void gasnete_amcbarrier_notify_reqh(gex_AM_Token_t token,
   gex_HSL_Unlock(&barrier_data->amcbarrier_lock);
 }
 
-static void gasnete_amcbarrier_done_reqh(gex_AM_Token_t token,
+static void gasnete_amcbarrier_done_reqh(gex_Token_t token,
   gex_AM_Arg_t teamid, gex_AM_Arg_t phase,
   gex_AM_Arg_t flags, gex_AM_Arg_t value) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);

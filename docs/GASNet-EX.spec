@@ -165,7 +165,7 @@ typedef [some integer type] gex_Flags_t;
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
 struct gasneti_token_s;
-typedef struct gasneti_token_s *gex_AM_Token_t;
+typedef struct gasneti_token_s *gex_Token_t;
 
 // Handler index - a fixed-width integer type
 // This type is interoperable with gasnet_handler_t
@@ -463,7 +463,7 @@ typedef [some integer type] gex_TI_t;
 // the presence of the corresponding bit in the return value is the only
 // indication that the struct field is valid.
 extern gex_TI_t gex_Token_Info(
-                gex_AM_Token_t      token,
+                gex_Token_t         token,
                 gex_Token_Info_t    *info,
                 gex_TI_t            mask);
 
@@ -529,7 +529,7 @@ int gex_AM_RequestLong[M](
            gex_Flags_t flags              // Flags to control this operation
            [,arg0, ... ,argM-1])          // Argument list
 int gex_AM_ReplyLong[M](
-           gex_AM_Token_t token,          // Names local and remote contexts
+           gex_Token_t token,             // Names local and remote contexts
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
@@ -548,7 +548,7 @@ int gex_AM_RequestMedium[M](
            gex_Flags_t flags
            [,arg0, ... ,argM-1]);
 int gex_AM_ReplyMedium[M](
-           gex_AM_Token_t token,
+           gex_Token_t token,
            gex_AM_Index_t handler,
            const void *source_addr,
            size_t nbytes,
@@ -563,7 +563,7 @@ int gex_AM_RequestShort[M](
            gex_Flags_t flags
            [,arg0, ... ,argM-1]);
 int gex_AM_ReplyShort[M](
-           gex_AM_Token_t token,
+           gex_Token_t token,
            gex_AM_Index_t handler,
            gex_Flags_t flags
            [,arg0, ... ,argM-1]);
@@ -666,7 +666,7 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 // ARGUMENTS:
 //  gex_TM_t tm, gex_Rank_t rank [REQUEST ONLY]
 //   + These arguments name the destination of an AMRequest
-//  gex_AM_Token_t token [REPLY ONLY]
+//  gex_Token_t token [REPLY ONLY]
 //   + This argument identifies (implicitly) the destination of
 //     an AMReply
 //  const void *client_buf
@@ -733,7 +733,7 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestMedium(
                 gex_Flags_t    flags,
                 unsigned int   numargs);
 extern gex_AM_SrcDesc_t gex_AM_PrepareReplyMedium(
-                gex_AM_Token_t token,
+                gex_Token_t    token,
                 const void     *client_buf,
                 size_t         min_length,
                 size_t         max_length,
@@ -751,7 +751,7 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestLong(
                 gex_Flags_t    flags,
                 unsigned int   numargs);
 extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
-                gex_AM_Token_t token,
+                gex_Token_t    token,
                 const void     *client_buf,
                 size_t         min_length,
                 size_t         max_length,
