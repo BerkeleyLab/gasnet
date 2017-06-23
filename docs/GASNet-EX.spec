@@ -405,6 +405,8 @@ size_t gex_AM_MaxReplyMedium(
 // Guaranteed to be less than or equal to the result of the corresponding AM_Max* 
 // function, for all valid input parameters to that function.
 // The result of all four queries is guaranteed to be at least 512 (bytes).
+// These functions correspond semantically to the gasnet_AMMax*() queries in GASNet-1,
+// which return a globally conservative maximum.
 size_t gex_AM_LUBRequestLong(void);
 size_t gex_AM_LUBReplyLong(void);
 size_t gex_AM_LUBRequestMedium(void);
@@ -634,8 +636,8 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 // Predefined value of type gex_AM_SrcDesc_t
 // Guaranteed to be zero.
-// May be returned by gex_AM_Prepare*() when passed GEX_FLAG_IMMEDIATE passed,
-// but required resources are not available.
+// May be returned by gex_AM_Prepare*() when the GEX_FLAG_IMMEDIATE flag 
+// was passed, but required resources are not available.
 // Must not be passed to gex_AM_Commit*() calls or the
 // gex_AM_SrcDesc*() queries.
 #define GEX_AM_SRCDESC_NO_OP ((gex_AM_SrcDesc_t)(uintptr_t)0)
