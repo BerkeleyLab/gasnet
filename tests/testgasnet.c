@@ -761,16 +761,16 @@ void doit5(int partner, int *partnerseg) {
 
         event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
         gex_Event_Wait(event);
-        memset(segpos, 0xDD, sz); /* clear */
+        memset(segpos+3*elems, 0xDD, sz); /* clear */
 
         event = gex_RMA_PutNB(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
-        memset(segpos+elems, 0xEE, sz); /* clear */
+        memset(segpos+4*elems, 0xEE, sz); /* clear */
         gex_Event_Wait(event);
 
         lcevt = GEX_EVENT_INVALID;
         event = gex_RMA_PutNB(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, &lcevt, 0);
         gex_Event_Wait(lcevt);
-        memset(segpos+2*elems, 0xFF, sz); /* clear */
+        memset(segpos+5*elems, 0xFF, sz); /* clear */
         gex_Event_Wait(event);
 
         for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
@@ -828,14 +828,14 @@ void doit5(int partner, int *partnerseg) {
 
         gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
         gex_NBI_Wait(GEX_EC_PUT,0);
-        memset(segpos, 0xDD, sz); /* clear */
+        memset(segpos+3*elems, 0xDD, sz); /* clear */
 
         gex_RMA_PutNBI(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
-        memset(segpos+elems, 0xEE, sz); /* clear */
+        memset(segpos+4*elems, 0xEE, sz); /* clear */
 
         gex_RMA_PutNBI(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, GEX_EVENT_GROUP, 0);
         gex_NBI_Wait(GEX_EC_LC, 0);
-        memset(segpos+2*elems, 0xFF, sz); /* clear */
+        memset(segpos+5*elems, 0xFF, sz); /* clear */
         gex_NBI_Wait(GEX_EC_PUT,0);
 
         for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
