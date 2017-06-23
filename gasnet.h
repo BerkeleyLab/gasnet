@@ -115,7 +115,7 @@ void gasnet_QueryGexObjects( gex_Client_t      *client_p,
 #define gasnet_AMMaxArgs()         ((size_t)gex_AM_MaxArgs())
 
 GASNETT_INLINE(gasnet_AMGetMsgSource)
-int gasnet_AMGetMsgSource(gex_Token_t _token, gex_Rank_t *_srcrank) {
+int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
   gex_Token_Info_t _info;
   gex_TI_t _rc = gex_Token_Info(_token, &_info, GEX_TI_SRCRANK);
   gasneti_assert(_rc & GEX_TI_SRCRANK);
@@ -440,7 +440,7 @@ typedef struct {
 } *gasnet_valget_handle_t;
 
 GASNETT_INLINE(gasnet_get_nb_val)
-gasnet_valget_handle_t gasnet_get_nb_val(gex_Rank_t node, void *src, size_t nbytes)
+gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t node, void *src, size_t nbytes)
 {
   gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(*result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
@@ -455,7 +455,7 @@ gasnet_valget_handle_t gasnet_get_nb_val(gex_Rank_t node, void *src, size_t nbyt
 }
 
 GASNETT_INLINE(gasnet_wait_syncnb_valget)
-gex_RMA_Value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
+gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 {
   gex_RMA_Value_t result;
   gex_Event_Wait(handle->h);
