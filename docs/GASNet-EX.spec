@@ -353,6 +353,116 @@ int gex_EP_RegisterHandlers(
         int                     numentries);
 
 //
+// Active Message (AM) limit queries
+//
+
+// Maximum number of supported AM arguments
+// Semantically identical to gasnet_AMMaxArgs()
+unsigned int gex_AM_MaxArgs(void);
+
+// Max fixed-payload queries for specific peer, nargs, lc_opt and flags
+// rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
+// The result of each query function is guaranteed to be symmetric - ie
+// 1. if two team members execute a given query on each other's ranks, with all
+//    other input arguments being equal, the queries are guaranteed to return the 
+//    same value. Note this does NOT imply any relationship between the results of
+//    different query functions (eg MaxRequestMedium versus MaxReplyMedium).
+// 2. if rank == GEX_RANK_INVALID, then all team members are guaranteed
+//   to get the same result given the same values of the other input arguments.
+// 3. 'nargs' must be between 0 and gex_AM_MaxArgs(), inclusive.
+// The result is guaranteed to be stable - ie for the same set of input arguments,
+// it will always return the same value.
+size_t gex_AM_MaxRequestLong(
+           gex_TM_t tm,
+           gex_Rank_t rank,
+           gex_Event_t *lc_opt,
+           gex_Flags_t flags,
+           unsigned int numargs);
+size_t gex_AM_MaxReplyLong(
+           gex_TM_t tm,
+           gex_Rank_t rank,
+           gex_Event_t *lc_opt,
+           gex_Flags_t flags,
+           unsigned int numargs);
+size_t gex_AM_MaxRequestMedium(
+           gex_TM_t tm,
+           gex_Rank_t rank,
+           gex_Event_t *lc_opt,
+           gex_Flags_t flags,
+           unsigned int numargs);
+size_t gex_AM_MaxReplyMedium(
+           gex_TM_t tm,
+           gex_Rank_t rank,
+           gex_Event_t *lc_opt,
+           gex_Flags_t flags,
+           unsigned int numargs);
+
+// Least-upper-bound fixed-payload queries (unknown peer, nargs, lc_opt and flags)
+// Guaranteed to be less than or equal to the result of the corresponding AM_Max* 
+// function, for all valid input parameters to that function.
+// The result of all four queries is guaranteed to be at least 512 (bytes).
+size_t gex_AM_LUBRequestLong(void);
+size_t gex_AM_LUBReplyLong(void);
+size_t gex_AM_LUBRequestMedium(void);
+size_t gex_AM_LUBReplyMedium(void);
+
+
+//
+// AM Token Info
+//
+
+// Struct type for gex_Token_Info queries contains *at least* the following
+// fields, but their order is not assured
+typedef struct {
+    // "System rank" of the sending process.
+    // In a non-resilient build this will be the same as the rank in the team
+    // constructed by gex_Client_Init() and will be identical across clients.
+    // Semantics in a resilient build will be defined in a later release.
+    gex_Rank_t                 gex_srcrank;
+
+    // Entry for running handler.
+    const gex_AM_Entry_t      *gex_entry;
+} gex_Token_Info_t;
+
+// Constants to request specific info from gex_Token_Info():
+// All listed constants are required, but the corresponding queries
+// are divided into Required ones and Optional ones (with the
+// exception of GEX_TI_ALL).
+typedef [some integer type] gex_TI_t;
+
+// REQUIRED: All implementations must support these queries:
+#define GEX_TI_SRCRANK       ((gex_TI_t)???)
+
+// OPTIONAL: Some implementations might not support these queries:
+#define GEX_TI_ENTRY         ((gex_TI_t)???)
+
+// Convenience: all defined queries (Required and Optional)
+#define GEX_TI_ALL           ((gex_TI_t)???)
+
+// Takes a token, address of client-allocated gex_Token_Info_t, and a mask.
+// The mask is a bit-wise OR of GEX_TI_* constants, which indicates which
+// fields of the gex_Token_Info_t should be set by the call.
+//
+// The return value is of the same form as the mask.
+// The implementation is permitted to set fields not requested by the
+// caller to valid or *invalid* values.  The returned mask will indicate
+// which fields contain valid results
+//
+// Each GEX_TI_* corresponds to either a Required or Optional query.
+// When a client requests a Required query, a conforming implementation
+// MUST set these fields and the corresponding bit in the return value.
+// An Optional query may not be implemented on all conduits or all
+// configurations, or even under various conditions (e.g. may not be
+// supported in a Reply handler).  If the client makes an Optional request
+// the presence of the corresponding bit in the return value is the only
+// indication that the struct field is valid.
+extern gex_TI_t gex_Token_Info(
+                gex_AM_Token_t      token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask);
+
+
+//
 // Fixed-payload AM APIs
 //
 
@@ -898,107 +1008,6 @@ gex_Event_t gex_Event_QueryLeaf(
         gex_Event_t event,
         gex_EC_t event_category);
 
-
-// Maximum number of supported AM arguments
-// Semantically identical to gasnet_AMMaxArgs()
-unsigned int gex_AM_MaxArgs(void);
-
-// Max payload queries for specific peer, nargs, lc_opt and flags
-// rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
-// The result of each query function is guaranteed to be symmetric - ie
-// 1. if two team members execute a given query on each other's ranks, with all
-//    other input arguments being equal, the queries are guaranteed to return the 
-//    same value. Note this does NOT imply any relationship between the results of
-//    different query functions (eg MaxRequestMedium versus MaxReplyMedium).
-// 2. if rank == GEX_RANK_INVALID, then all team members are guaranteed
-//   to get the same result given the same values of the other input arguments.
-// 3. 'nargs' must be between 0 and gex_AM_MaxArgs(), inclusive.
-// The result is guaranteed to be stable - ie for the same set of input arguments,
-// it will always return the same value.
-size_t gex_AM_MaxRequestLong(
-           gex_TM_t tm,
-           gex_Rank_t rank,
-           gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           unsigned int numargs);
-size_t gex_AM_MaxReplyLong(
-           gex_TM_t tm,
-           gex_Rank_t rank,
-           gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           unsigned int numargs);
-size_t gex_AM_MaxRequestMedium(
-           gex_TM_t tm,
-           gex_Rank_t rank,
-           gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           unsigned int numargs);
-size_t gex_AM_MaxReplyMedium(
-           gex_TM_t tm,
-           gex_Rank_t rank,
-           gex_Event_t *lc_opt,
-           gex_Flags_t flags,
-           unsigned int numargs);
-
-// Least-upper-bound payload queries (unknown peer, nargs, lc_opt and flags)
-// Guaranteed to be less than or equal to the result of the corresponding AM_Max* 
-// function, for all valid input parameters to that function.
-// The result of all four queries is guaranteed to be at least 512 (bytes).
-size_t gex_AM_LUBRequestLong(void);
-size_t gex_AM_LUBReplyLong(void);
-size_t gex_AM_LUBRequestMedium(void);
-size_t gex_AM_LUBReplyMedium(void);
-
-
-// Struct type for gex_Token_Info queries contains *at least* the following
-// fields, but their order is not assured
-typedef struct {
-    // "System rank" of the sending process.
-    // In a non-resilient build this will be the same as the rank in the team
-    // constructed by gex_Client_Init() and will be identical across clients.
-    // Semantics in a resilient build will be defined in a later release.
-    gex_Rank_t                 gex_srcrank;
-
-    // Entry for running handler.
-    const gex_AM_Entry_t      *gex_entry;
-} gex_Token_Info_t;
-
-// Constants to request specific info from gex_Token_Info():
-// All listed constants are required, but the corresponding queries
-// are divided into Required ones and Optional ones (with the
-// exception of GEX_TI_ALL).
-typedef [some integer type] gex_TI_t;
-
-// REQUIRED: All implementations must support these queries:
-#define GEX_TI_SRCRANK       ((gex_TI_t)???)
-
-// OPTIONAL: Some implementations might not support these queries:
-#define GEX_TI_ENTRY         ((gex_TI_t)???)
-
-// Convenience: all defined queries (Required and Optional)
-#define GEX_TI_ALL           ((gex_TI_t)???)
-
-// Takes a token, address of client-allocated gex_Token_Info_t, and a mask.
-// The mask is a bit-wise OR of GEX_TI_* constants, which indicates which
-// fields of the gex_Token_Info_t should be set by the call.
-//
-// The return value is of the same form as the mask.
-// The implementation is permitted to set fields not requested by the
-// caller to valid or *invalid* values.  The returned mask will indicate
-// which fields contain valid results
-//
-// Each GEX_TI_* corresponds to either a Required or Optional query.
-// When a client requests a Required query, a conforming implementation
-// MUST set these fields and the corresponding bit in the return value.
-// An Optional query may not be implemented on all conduits or all
-// configurations, or even under various conditions (e.g. may not be
-// supported in a Reply handler).  If the client makes an Optional request
-// the presence of the corresponding bit in the return value is the only
-// indication that the struct field is valid.
-extern gex_TI_t gex_Token_Info(
-                gex_AM_Token_t      token,
-                gex_Token_Info_t    *info,
-                gex_TI_t            mask);
 
 //
 // Handler-safe locks (HSLs)
