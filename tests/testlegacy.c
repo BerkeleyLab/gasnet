@@ -21,6 +21,7 @@
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
 void doit4(int partner, int32_t *partnerseg);
@@ -279,6 +280,64 @@ int main(int argc, char **argv) {
 
 void doit(int partner, int *partnerseg) {
   int mynode = gasnet_mynode();
+
+  // Verify documented equivalences provided by g2ex
+  // DO NOT CHANGE IDENTIFIER PREFIXES IN THIS FUNCTION
+
+  // verify that two types (and optionally two integer constant expressions)
+  // are all the same type and fully equal / assignment compatible
+  #define assert_equal(t1, t2, c1, c2) do {       \
+    static t1 volatile v1 = c2;                   \
+    static t2 volatile v2 = c1;                   \
+    t1 volatile * const p1 = &v2;                 \
+    t2 volatile * const p2 = &v1;                 \
+    test_static_assert(sizeof(t1) == sizeof(t2)); \
+    assert_always(c1 == c2);                      \
+    assert_always(v1 == c1);                      \
+    assert_always(v2 == c2);                      \
+    v1 = v2; v2 = v1;                             \
+    assert_always(v1 == v2);                      \
+    assert_always(*p1 == *p2);                    \
+  } while (0)
+
+  #define assert_equal_nonscalar(t1, t2, c1, c2) do {       \
+    static t1 v1 = c2;                            \
+    static t2 v2 = c1;                            \
+    t1 * const p1 = &v2;                          \
+    t2 * const p2 = &v1;                          \
+    test_static_assert(sizeof(t1) == sizeof(t2)); \
+    assert_always(!memcmp(p1,p2,sizeof(t1)));     \
+    v1 = v2; v2 = v1;                             \
+    assert_always(!memcmp(p1,p2,sizeof(t1)));     \
+  } while (0)
+    
+  // types
+  assert_equal(gasnet_handle_t, gex_Event_t, 
+               GASNET_INVALID_HANDLE, GEX_EVENT_INVALID);
+  assert_equal(gasnet_node_t, gex_Rank_t, 
+               GEX_RANK_INVALID, GEX_RANK_INVALID);
+  assert_always(GASNET_MAXNODES <= GEX_RANK_INVALID);
+  assert_equal(gasnet_token_t, gex_Token_t, NULL, NULL);
+  assert_equal(gasnet_handler_t, gex_AM_Index_t, 0, 0);
+  assert_equal(gasnet_handlerarg_t, gex_AM_Arg_t, 0, 0);
+  assert_equal(gasnet_register_value_t, gex_RMA_Value_t, 
+               SIZEOF_GASNET_REGISTER_VALUE_T, SIZEOF_GEX_RMA_VALUE_T);
+  assert_equal_nonscalar(gasnet_hsl_t, gex_HSL_t,
+               GASNET_HSL_INITIALIZER, GEX_HSL_INITIALIZER);
+
+  // AM limits
+  assert_always(MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium()) == gasnet_AMMaxMedium());
+  assert_always(gex_AM_LUBRequestLong() == gasnet_AMMaxLongRequest());
+  assert_always(gex_AM_LUBReplyLong() == gasnet_AMMaxLongReply());
+
+  MSG("*** passed object test!!");
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit1(partner, partnerseg);
+}
+void doit1(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
   /*  blocking test */
