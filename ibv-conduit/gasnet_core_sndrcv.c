@@ -3434,7 +3434,7 @@ extern int gasnetc_sndrcv_init(void) {
   /* create the SND CQ and associated semaphores */
   if (NULL == gasnetc_cq_semas) {
     gasnetc_cq_semas = (gasnetc_sema_t *)
-	  gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, gasnetc_num_hcas*sizeof(gasnetc_sema_t));
+	  gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, gasnetc_num_hcas*sizeof(gasnetc_sema_t));
     gasneti_leak_aligned(gasnetc_cq_semas);
   }
   gasnetc_op_oust_per_qp = MAX(1, gasnetc_op_oust_per_qp); /* Avoid error in single-node case */

@@ -283,14 +283,14 @@ static void malloc_test(int id) {
     int alignsz;
     for (alignsz = 1; alignsz < 64*1024; alignsz *= 2) {
       size_t sz = TEST_RAND(1,alignsz*2);
-      char * p = gasnett_malloc_aligned(alignsz,sz);
+      char * p = gasneti_malloc_aligned(alignsz,sz);
       assert_always(p);
       assert_always((((uintptr_t)p) & (alignsz-1)) == 0);
       p[0] = 'x'; p[sz - 1] = 'y';
       if (TEST_RAND_ONEIN(4)) {
         gasneti_leak_aligned(p);
       }
-      gasnett_free_aligned(p);
+      gasneti_free_aligned(p);
     }
   }
   gasneti_memcheck_all();
