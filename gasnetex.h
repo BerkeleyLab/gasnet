@@ -500,7 +500,7 @@ typedef struct {
 typedef unsigned int gex_TI_t;
 #define GEX_TI_SRCRANK       ((gex_TI_t)1<<0)
 #define GEX_TI_ENTRY         ((gex_TI_t)1<<1)
-#define GEX_TI_ALL           ((gex_TI_t)1<<2 - 1)
+#define GEX_TI_ALL          (((gex_TI_t)1<<2) - 1)
 
 // Default implementation
 #ifndef gex_Token_Info
