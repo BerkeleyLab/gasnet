@@ -121,7 +121,7 @@ sq_sema_alloc(int count)
     gasnetc_sema_t sema;
     void *link; /* Ensure anough space for the lifo links */
   } *p = (union dummy *)
-          gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * sizeof(union dummy));
+          gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * sizeof(union dummy));
   int i;
 
   gasneti_leak_aligned(p);
@@ -1413,7 +1413,7 @@ gasnetc_get_conn(gex_Rank_t node)
     conn->state = GASNETC_CONN_STATE_NONE;
     conn->info.node = node;
     conn->info.cep = (gasnetc_cep_t *)
-                       gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
+                       gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
                                               gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
     gasneti_leak_aligned(conn->info.cep);
     memset(conn->info.cep, 0, gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
@@ -2167,7 +2167,7 @@ gasnetc_connect_static(void)
     static gasnetc_cep_t *cep_table;
     if (NULL == cep_table) {
       cep_table = (gasnetc_cep_t *)
-        gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
+        gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
                                static_nodes * gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
       gasneti_leak_aligned(cep_table);
     }
@@ -2289,7 +2289,7 @@ gasnetc_connect_init(void)
   { size_t size = gasneti_nodes*sizeof(gasnetc_cep_t *);
     if (NULL == gasnetc_node2cep) {
       gasnetc_node2cep = (gasnetc_cep_t **)
-        gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, size);
+        gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, size);
       gasneti_leak_aligned(gasnetc_node2cep);
     }
     memset(gasnetc_node2cep, 0, size);

@@ -2024,7 +2024,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
         uintptr_t		addr;
         hca->rkeys = gasneti_calloc(gasneti_nodes*gasnetc_max_regs, sizeof(uint32_t));
         gasneti_leak(hca->rkeys);
-        hca->seg_lkeys = gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
+        hca->seg_lkeys = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
                                                 gasnetc_max_regs * sizeof(uint32_t));
         gasneti_leak_aligned(hca->seg_lkeys);
       #if GASNETC_IBV_SHUTDOWN
