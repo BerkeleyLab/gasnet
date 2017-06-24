@@ -442,7 +442,7 @@ typedef struct {
 GASNETT_INLINE(gasnet_get_nb_val)
 gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t _node, void *_src, size_t _nbytes)
 {
-  gasnet_valget_handle_t _result = (gasnet_valget_handle_t)malloc(sizeof(*_result));
+  gasnet_valget_handle_t _result = (gasnet_valget_handle_t)gasneti_extern_malloc(sizeof(*_result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
   void *dest = (void*)((uintptr_t)&(_result->gasneti_valget_value) + sizeof(gex_RMA_Value_t) - _nbytes);
 #else /* little-endian */
@@ -460,7 +460,7 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
   gex_RMA_Value_t _result;
   gex_Event_Wait(_handle->gasneti_valget_event);
   _result = _handle->gasneti_valget_value;
-  free(_handle);
+  gasneti_extern_free(_handle);
   return _result;
 }
 
