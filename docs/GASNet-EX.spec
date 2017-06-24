@@ -94,6 +94,7 @@ typedef struct gasneti_handle_t *gex_Event_t;
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
 // A "rank" is a position within a team
+// Guaranteed to be a 32-bit unsigned integer
 // This type is interoperable with gasnet_node_t
 typedef uint32_t gex_Rank_t;
 
@@ -101,6 +102,7 @@ typedef uint32_t gex_Rank_t;
 // Use may have different semantics in various contexts.
 // Guaranteed to be larger than any valid rank.
 // However, a specific value is NOT defined by specification.
+// In particular, might NOT be equal to GASNET_MAXNODES
 #define GEX_RANK_INVALID ((gex_Rank_t)???)
 
 // Assume no more than 32 flags will be needed for any one family of calls
