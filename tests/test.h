@@ -76,8 +76,20 @@ GASNETT_BEGIN_EXTERNC
 #define _CONCAT(a,b) _CONCAT_HELPER(a,b)
 #endif
 
-#define test_static_assert(cond) \
-  static const char *_CONCAT(static_assert_,__LINE__)[ (cond) ?1:-1] = { "Static assertion: " #cond }
+/* ------------------------------------------------------------------------------------ */
+// Static assertions : assert a property at compile time, generate an error otherwise
+// `cond` must be an integer constant expression - ie no non-integer types or variable references
+
+// static assertion in a block scope
+// safe to use multiple times per line (eg in a macro expansion)
+#define test_static_assert(cond) do { \
+  static const char *_test_static_assert[ (cond) ?1:-1] = { "Static assertion: " #cond }; \
+} while (0)
+
+// static assertion at file scope
+// safe to use multiple times per line only in C99 mode, not C++ mode
+#define test_static_assert_file(cond) \
+  static const char *_CONCAT(_test_static_assert_file_,__LINE__)[ (cond) ?1:-1]
 
 /* ------------------------------------------------------------------------------------ */
 /* generic message output utility
@@ -707,7 +719,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
       #define TEST_SEGSZ  alignup(TEST_SEGSZ_EXPR,PAGESZ)
     #else
       #define TEST_SEGSZ  alignup(TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD,PAGESZ)
-      test_static_assert(TEST_SEGSZ >= (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD));
+      test_static_assert_file(TEST_SEGSZ >= (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD));
     #endif
   #endif
 #else
@@ -721,9 +733,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 #endif
 #ifndef TEST_SEGSZ_EXPR
   // validate TEST_SEGSZ properties, when the value is statically-known
-  test_static_assert(TEST_SEGSZ > 0);
-  test_static_assert(TEST_SEGSZ % PAGESZ == 0);
-  test_static_assert(TEST_SEGSZ_REQUEST % PAGESZ == 0);
+  test_static_assert_file(TEST_SEGSZ > 0);
+  test_static_assert_file(TEST_SEGSZ % PAGESZ == 0);
+  test_static_assert_file(TEST_SEGSZ_REQUEST % PAGESZ == 0);
 #endif
 
 #define TEST_MINHEAPOFFSET  alignup(128*4096,PAGESZ)
