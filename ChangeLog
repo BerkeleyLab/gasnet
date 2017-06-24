@@ -1,3 +1,62 @@
+GASNet-EX ChangeLog
+-------------------
+----------------------------------------------------------------------
+06-30-2017: GASNet-EX 2017.6.0 Beta release
+
+* Initial BETA release of the GASNet-EX system.
+  This archive represents a lightly-tested snapshot of a work-in-progress.
+  Many planned features remain to be specified and/or implemented.
+  All interfaces and implementations are subject to change without notice.
+  Feedback or questions on any matters related to the EX project are
+  welcomed at: gasnet-devel@lbl.gov
+
+* Major new features implemented this release: (mostly reference implementation)
+  - Explicit Local Completion capability for Active Message and RMA Put APIs
+  - Immediate Operations capability for Active Message and RMA APIs
+  - New Active Message interfaces - including:
+    + Incremental AM handler registration
+    + Expanded AM handler registration properties
+    + Finer-grained AM payload limit queries
+    + Negotiated-payload AM injection interfaces
+    + New AM token query interface
+  - Job initialization interface rewritten to use EX objects
+
+* GASNet-EX Spec v0.1:
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+  - gasnetex.h is the new public header
+  - Major new EX object types have been defined, including:
+    + Client - an instance of the client interface to the GASNet library
+    + Segment - a client-declared memory segment for use in communication
+    + Endpoint - local representative of an isolated communication context
+    + Team Member - a collective communication context, used for endpoint naming
+    All these objects are restricted to a single instance per process in this version.
+  - Interfaces added for Local Completion, Immediates and new AM interfaces (see above)
+  - GASNet-1 handles generalized to EX events
+  - Most gasnet_ identifiers have new versions in the gex_ namespace
+  - Most interfaces now accept flags for extensible fine-tuning of behavior
+
+* Legacy backward-compatibility layer:
+  - gasnet.h now contains an implementation of GASNet-1 spec v1.8 in terms
+    of the new EX interfaces.
+  - Both layers interoperate freely so that legacy client code can be incrementally
+    migrated to use of the new EX interfaces and features.
+
+* This release only implements the following conduits:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
+The remainder of this file contains the unmodified ChangeLog from the GASNet-1
+code base, from which the EX code was branched (and is periodically
+synchronized).
+Note some entries below do not apply to the EX branch.
+----------------------------------------------------------------------
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------

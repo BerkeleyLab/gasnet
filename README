@@ -1,3 +1,36 @@
+=======================================================================
+=======================================================================
+
+              *** GASNet-EX Software Preview ***
+
+GASNet-EX is the next-generation replacement for the GASNet-1 communication
+system. The GASNet interfaces are being redesigned to accomodate the emerging
+needs of Exascale supercomputing, providing communication services to a
+variety of PGAS programming models on current and future HPC architectures.
+This upgrade is being done over the next several years as part of the DOE
+Exascale Computing Program (ECP).
+
+This archive represents a lightly-tested snapshot of a work-in-progress.
+Many planned features remain to be specified and/or implemented.
+All interfaces and implementations are subject to change without notice.
+
+Users interested in learning what's new in GASNet-EX are recommended to peruse 
+the ChangeLog file in this directory for a summary of recent developments.
+The docs/GASNet-EX.spec file provides more detailed information about
+the evolving EX specification.
+
+GASNet-EX notably includes a backwards-compatibility layer to assist in
+migration of current GASNet-1 client software. Existing GASNet clients can
+get started by relying on this layer (provided in gasnet.h), and incrementally 
+add calls to the new gex_* interfaces (defined in gasnetex.h) to access new 
+EX features and capabilities.
+
+Feedback or questions on any matters related to the GASNet-EX project are
+welcomed at: gasnet-devel@lbl.gov
+
+=======================================================================
+=======================================================================
+
 README file for GASNet
 http://gasnet.lbl.gov
 
