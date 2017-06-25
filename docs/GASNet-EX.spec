@@ -424,8 +424,16 @@ unsigned int gex_AM_MaxArgs(void);
 // 2. if rank == GEX_RANK_INVALID, then all team members are guaranteed
 //   to get the same result given the same values of the other input arguments.
 // 3. 'nargs' must be between 0 and gex_AM_MaxArgs(), inclusive.
+// 4. 'lc_opt' indicates the payload local completion option to be used for the AM injection in question,
+//    and should be either GEX_EVENT_NOW, GEX_EVENT_GROUP (Requests only), or NULL to indicate
+//    gex_Event_t-based AM local completion.
 // The result is guaranteed to be stable - ie for the same set of input arguments,
 // it will always return the same value.
+// Aside from the explicit guarantees above, the result may otherwise vary with the 
+// input arguments in unspecified ways, and thus only defines the fixed-payload limit
+// for an injection call with corresponding values of (tm, rank, lc_opt, flags and numargs).
+// For example, limits may vary between different pairs of ranks on the same team, or even
+// between the same pair of processes linked via different team or client.
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gex_Rank_t rank,
