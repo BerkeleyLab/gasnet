@@ -220,11 +220,6 @@ int main(int argc, char **argv) {
     myseg = alignup_ptr(space, PAGESZ);
   }
 
-  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
-  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
-  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
-  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0));
-
   if (crossmachinemode) {
     if ((numnode%2) && (mynode == numnode-1)) {
       sender = 1;
@@ -241,6 +236,11 @@ int main(int argc, char **argv) {
       peer = mynode;
     }
   }
+
+  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,GEX_EVENT_NOW,0,0));
+  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,peer,GEX_EVENT_NOW,0,0));
+  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,GEX_EVENT_NOW,0,0));
+  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,peer,GEX_EVENT_NOW,0,0));
 
   recvr = !sender || (peer == mynode);
 
