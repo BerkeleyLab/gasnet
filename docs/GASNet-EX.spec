@@ -118,9 +118,9 @@ typedef struct gasneti_handle_t *gex_Event_t;
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
 // A "rank" is a position within a team
-// Guaranteed to be a 32-bit unsigned integer
+// Guaranteed to be an unsigned integer type
 // This type is interoperable with gasnet_node_t
-typedef uint32_t gex_Rank_t;
+typedef [some unsigned integer type] gex_Rank_t;
 
 // Pre-defined constant used to indicate "not a rank".
 // Use may have different semantics in various contexts.

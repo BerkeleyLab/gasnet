@@ -419,7 +419,6 @@ void doit(int partner, int *partnerseg) {
 
   /* team/rank tests */
   assert_unsigned(gex_Rank_t);
-  test_static_assert(sizeof(gex_Rank_t) == 4);
   assert(myrank == gex_TM_QueryRank(myteam));
   assert(numranks == gex_TM_QuerySize(myteam));
   assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
