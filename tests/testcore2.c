@@ -4,7 +4,7 @@
  *
  * Description: GASNet Core checksum test
  * This stress tests the ability of the core to successfully send
- * AM Requests/Replies with correct data delivery
+ * AM Requests/Replies (fixed- and negotiated-payload) with correct data delivery
  * testing is run 'iters' times with Medium/Long payload sizes ranging from 1..'max_payload',
  *  with up to 'depth' AMs in-flight from a given node at any moment
  *
@@ -42,6 +42,9 @@ uint8_t *peerrepseg; /* long reply landing zone */
 uint8_t *localseg;
 uint8_t *privateseg;
 uint8_t *longreplysrc;
+
+// Test three injection modes
+#define INJMODE(iter) ((iter)%3)
 
 GASNETT_THREADKEY_DECLARE(mythread);
 GASNETT_THREADKEY_DEFINE(mythread);
@@ -103,7 +106,35 @@ void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes,
                      gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Request (pre-reply)", buf, nbytes, iter, chunkidx);
-  gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
+  gex_AM_SrcDesc_t sd;
+  switch (INJMODE(iter)) { // [0..2]
+    case 0: // Fixed-payload
+      gex_AM_ReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
+      break;
+
+    case 1: // Negotiated-payload with client-provided buffer
+    {
+      gex_Event_t *lc_opt = GEX_EVENT_NOW;
+      sd = gex_AM_PrepareReplyMedium(token, buf, nbytes, nbytes, lc_opt, 0, 2);
+      assert(sd != GEX_AM_SRCDESC_NO_OP);
+      assert(gex_AM_SrcDescSize(sd) == nbytes);
+      uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
+      if (pbuf != buf) {
+        memcpy(pbuf, buf, nbytes);
+        lc_opt = NULL;
+      }
+      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, lc_opt, iter, chunkidx);
+      break;
+    }
+
+    case 2: // Negotiated-payload without client-provided buffer
+      sd = gex_AM_PrepareReplyMedium(token, NULL, nbytes, nbytes, NULL, 0, 2);
+      assert(sd != GEX_AM_SRCDESC_NO_OP);
+      assert(gex_AM_SrcDescSize(sd) == nbytes);
+      memcpy(gex_AM_SrcDescAddr(sd), buf, nbytes);
+      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, NULL, iter, chunkidx);
+      break;
+  }
   validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, chunkidx);
 }
 void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes,
@@ -115,15 +146,38 @@ void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes,
 
 void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
                      gex_AM_Arg_t iter, gex_AM_Arg_t chunkidx) {
-  uint8_t *srcbuf;
   INIT_CHECKS();
   validate_chunk("Long Request", buf, nbytes, iter, chunkidx);
-  if (INSEG(iter)) srcbuf = buf;
-  else {
-    srcbuf = longreplysrc+chunkidx*nbytes;
-    memcpy(srcbuf, buf, nbytes);
+  gex_AM_SrcDesc_t sd;
+  uint8_t *srcbuf = INSEG(iter) ? buf : longreplysrc+chunkidx*nbytes;
+  uint8_t *dstbuf = peerrepseg+chunkidx*nbytes;
+  switch (INJMODE(iter)) { // [0..2]
+    case 0: // Fixed-payload
+      if (srcbuf != buf) memcpy(srcbuf, buf, nbytes);
+      gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, dstbuf, GEX_EVENT_NOW, 0, iter, chunkidx);
+      break;
+
+    case 1: // Negotiated-payload with client-provided buffer
+    {
+      gex_Event_t *lc_opt = GEX_EVENT_NOW;
+      sd = gex_AM_PrepareReplyLong(token, srcbuf, nbytes, nbytes, dstbuf, lc_opt, 0, 2);
+      assert(sd != GEX_AM_SRCDESC_NO_OP);
+      assert(gex_AM_SrcDescSize(sd) == nbytes);
+      uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
+      if (pbuf != buf) memcpy(pbuf, buf, nbytes);
+      if (pbuf != srcbuf) lc_opt = NULL;
+      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, lc_opt, iter, chunkidx);
+      break;
+    }
+
+    case 2: // Negotiated-payload without client-provided buffer
+      sd = gex_AM_PrepareReplyLong(token, NULL, nbytes, nbytes, dstbuf, NULL, 0, 2);
+      assert(sd != GEX_AM_SRCDESC_NO_OP);
+      assert(gex_AM_SrcDescSize(sd) == nbytes);
+      memcpy(gex_AM_SrcDescAddr(sd), buf, nbytes);
+      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, NULL, iter, chunkidx);
+      break;
   }
-  gex_AM_ReplyLong2(token, hidx_pong_longhandler, srcbuf, nbytes, peerrepseg+chunkidx*nbytes, GEX_EVENT_NOW, 0, iter, chunkidx);
 }
 
 void pong_longhandler(gex_Token_t token, void *buf, size_t nbytes,
@@ -190,7 +244,7 @@ int main(int argc, char **argv) {
   }
 
   if (argc > arg) { iters = atoi(argv[arg]); arg++; }
-  if (!iters) iters = 10;
+  if (!iters) iters = 30;
   if (argc > arg) { max_payload = atoi(argv[arg]); arg++; }
   if (!max_payload) max_payload = 1024*1024;
   if (argc > arg) { depth = atoi(argv[arg]); arg++; }
@@ -305,8 +359,37 @@ void *doit(void *id) {
         if (domed && sz <= maxmed) { /* test Medium AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
-            gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcseg+chunkidx*sz, sz,
-                                      GEX_EVENT_NOW, 0, iter, chunkidx);
+            gex_AM_SrcDesc_t sd;
+            void *srcbuf = srcseg+chunkidx*sz;
+            switch (INJMODE(iter)) { // [0..2]
+              case 0: // Fixed-payload
+                gex_AM_RequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcbuf,
+                                      sz, GEX_EVENT_NOW, 0, iter, chunkidx);
+                break;
+
+              case 1: // Negotiated-payload with client-provided buffer
+                sd = gex_AM_PrepareRequestMedium(myteam, peerproc, srcbuf, sz, sz, NULL, 0, 2);
+                assert(sd != GEX_AM_SRCDESC_NO_OP);
+                assert(gex_AM_SrcDescSize(sd) == sz);
+                uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
+                gex_Event_t lc = GEX_EVENT_INVALID;
+                gex_Event_t *lc_opt = &lc;
+                if (pbuf != srcbuf) {
+                  memcpy(pbuf, srcbuf, sz);
+                  lc_opt = NULL;
+                }
+                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, lc_opt, iter, chunkidx);
+                gex_Event_Wait(lc);
+                break;
+
+              case 2: // Negotiated-payload without client-provided buffer
+                sd = gex_AM_PrepareRequestMedium(myteam, peerproc, NULL, sz, sz, NULL, 0, 2);
+                assert(sd != GEX_AM_SRCDESC_NO_OP);
+                assert(gex_AM_SrcDescSize(sd) == sz);
+                memcpy(gex_AM_SrcDescAddr(sd), srcbuf, sz);
+                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, NULL, iter, chunkidx);
+                break;
+            }
           }
           /* wait for completion */
           GASNET_BLOCKUNTIL(gasnett_atomic_read(&pong_recvd,0) == depth);
@@ -316,8 +399,38 @@ void *doit(void *id) {
          if (dolong) { /* test Long AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
-            gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, srcseg+chunkidx*sz, sz,
-                                    peerreqseg+chunkidx*sz,  GEX_EVENT_NOW, 0, iter, chunkidx);
+            gex_AM_SrcDesc_t sd;
+            void *srcbuf = srcseg+chunkidx*sz;
+            void *dstbuf = peerreqseg+chunkidx*sz;
+            switch (INJMODE(iter)) { // [0..2]
+              case 0: // Fixed-payload
+                gex_AM_RequestLong2(myteam, peerproc, hidx_ping_longhandler, srcbuf, sz,
+                                    dstbuf, GEX_EVENT_NOW, 0, iter, chunkidx);
+                break;
+
+              case 1: // Negotiated-payload with client-provided buffer
+                sd = gex_AM_PrepareRequestLong(myteam, peerproc, srcbuf, sz, sz, dstbuf, NULL, 0, 2);
+                assert(sd != GEX_AM_SRCDESC_NO_OP);
+                assert(gex_AM_SrcDescSize(sd) == sz);
+                uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
+                gex_Event_t lc = GEX_EVENT_INVALID;
+                gex_Event_t *lc_opt = &lc;
+                if (pbuf != srcbuf) {
+                  memcpy(pbuf, srcbuf, sz);
+                  lc_opt = NULL;
+                }
+                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, lc_opt, iter, chunkidx);
+                gex_Event_Wait(lc);
+                break;
+
+              case 2: // Negotiated-payload without client-provided buffer
+                sd = gex_AM_PrepareRequestLong(myteam, peerproc, NULL, sz, sz, dstbuf, NULL, 0, 2);
+                assert(sd != GEX_AM_SRCDESC_NO_OP);
+                assert(gex_AM_SrcDescSize(sd) == sz);
+                memcpy(gex_AM_SrcDescAddr(sd), srcbuf, sz);
+                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, NULL, iter, chunkidx);
+                break;
+            }
           }
           /* wait for completion */
           GASNET_BLOCKUNTIL(gasnett_atomic_read(&pong_recvd,0) == depth);
