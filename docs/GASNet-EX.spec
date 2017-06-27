@@ -84,8 +84,7 @@
 // This type is interoperable with gasnet_handle_t
 // - Sync operation: test/wait w/ one/all/some flavors
 //   + Success consumes the event
-struct gasneti_handle_t;
-typedef struct gasneti_handle_t *gex_Event_t;
+typedef ... gex_Event_t;
 
 // Pre-defined output values of type gex_Event_t
 // - GEX_EVENT_INVALID
@@ -118,9 +117,9 @@ typedef struct gasneti_handle_t *gex_Event_t;
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
 // A "rank" is a position within a team
-// Guaranteed to be a 32-bit unsigned integer
+// Guaranteed to be an unsigned integer type
 // This type is interoperable with gasnet_node_t
-typedef uint32_t gex_Rank_t;
+typedef [some unsigned integer type] gex_Rank_t;
 
 // Pre-defined constant used to indicate "not a rank".
 // Use may have different semantics in various contexts.
@@ -191,8 +190,7 @@ typedef [some integer type] gex_Flags_t;
 
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
-struct gasneti_token_s;
-typedef struct gasneti_token_s *gex_Token_t;
+typedef ... gex_Token_t;
 
 // Handler index - a fixed-width integer type, used to name an AM handler
 // This type is interoperable with gasnet_handler_t
@@ -207,26 +205,23 @@ typedef ... gex_AM_Fn_t;
 
 // Widest scalar and width
 // This type is interoperable with gasnet_register_value_t
-typedef uintptr_t gex_RMA_Value_t;
+typedef [some unsigned integer type] gex_RMA_Value_t;
 
 // Preprocess-time constant size of gex_RMA_Value_t
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
-#define SIZEOF_GEX_RMA_VALUE_T SIZEOF_VOID_P
+#define SIZEOF_GEX_RMA_VALUE_T ...
 
 // gex_EP_t is an opaque scalar handle to an Endpoint (EP),
 // a local representative of an isolated communication context
-struct gasneti_endpoint_s;
-typedef struct gasneti_endpoint_s *gex_EP_t;
+typedef ... gex_EP_t;
 
 // gex_Client_t is an opaque scalar handle to a Client,
 // an instance of the client interface to the GASNet library
-struct gasneti_client_s;
-typedef struct gasneti_client_s *gex_Client_t;
+typedef ... gex_Client_t;
 
 // gex_Segment_t is an opaque scalar handle to a Segment,
 // a local client-declared memory range for use in communication
-struct gasneti_segment_s;
-typedef struct gasneti_segment_s *gex_Segment_t;
+typedef ... gex_Segment_t;
 
 // Pre-defined value of type gex_Segment_t
 // Used, for instance, to indicate no bound segment
@@ -236,8 +231,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 // a collective communication context used for remote endpoint naming.
 // A gex_TM_t specifies both an ordered set of Endpoints (local or remote),
 // and a local gex_Endpoint_t, a local representative of that team.
-struct gasneti_team_member_s;
-typedef struct gasneti_team_member_s *gex_TM_t;
+typedef ... gex_TM_t;
 
 //
 // Client-Data (CData)
@@ -270,6 +264,8 @@ const char * gex_Client_QueryName(gex_Client_t client);
 // Currently supports only one call per job.
 // * clientName must be a unique string used to identify this client, and
 //    should match the pattern: [A-Z][A-Z0-9_]+
+//   In future release this string will be used in such contexts as error messages
+//   and naming of environment variables to control per-client aspects of GASNet.
 // * argc/argv are optional references to the command-line arguments received by main().
 //   They are permitted to both be NULL, but providing them may improve portability or
 //   supplementary services.
@@ -298,6 +294,7 @@ extern int gex_Client_Init(
 gex_Client_t gex_Segment_QueryClient(gex_Segment_t seg);
 
 // Query flags passed when segment was created
+// There are no segment flags defined in the current release.
 gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 
 // Query address and length of a segent
@@ -310,7 +307,7 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 // In the current release allows up to one call per process.
 // * length is the size of the local segment to allocate and bind to the
 //   local Endpoint represented by tm. length is permitted to differ 
-//   across team members, and may be zero.
+//   across team members, and must be in [0 .. gasnet_getMaxLocalSegmentSize()].
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               tm,
@@ -357,10 +354,18 @@ extern int gex_EP_Create(
                 gex_Client_t            client,
                 gex_Flags_t             flags);
 
+// Minimum permitted fixed index for AM handler registration.
+// Guaranteed to be 128 or less.
+#define GEX_AM_INDEX_BASE ???
+
 // Client-facing type for describing one AM handler
 // This type replaces (is *not* interchangeable with) gasnet_handlerentry_t
+//
+// gex_index may either be in the range [GEX_AM_INDEX_BASE .. 255] to register
+// at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
+// more information on this case).
 typedef struct {
-    gex_AM_Index_t          gex_index;     // 0 on input == don't care
+    gex_AM_Index_t          gex_index;     // 0 or in [GEX_AM_INDEX_BASE .. 255]
     gex_AM_Fn_t             gex_fnptr      // Pointer to the handler on this process
     gex_Flags_t             gex_flags;     // Incl. required S/M/L and REQ/REP, see below
     unsigned int            gex_nargs;     // Required
@@ -396,11 +401,26 @@ typedef struct {
 // Therefore the client must provide for any synchronization required to
 // ensure handlers are registered before any process may send a corresponding
 // AM to the Endpoint.
+//
 // May be called multiple times on the same Endpoint to incrementally register handlers.
 // Like gasnet_attach() the handler indices specified in the table (other than
 // "don't care" zero indices) must be unique.  That now extends across multiple
 // calls on the same gex_EP_t (though provisions to selectively relax this
 // restriction are planned for a later release).
+//
+// Registration of handlers via a call to gasnet_attach() does *not* preclude
+// use of this function to register additional handlers.
+//
+// As in GASNet-1, handlers with a handler index (gex_index) of 0 on entry are
+// assigned values by GASNet after the non-zero (fixed index) entries have been
+// registered.  While GASNet-1 leaves the algorithm for the assignment
+// unspecified (only promising that it is deterministic) this specification
+// guarantees that entries with gex_index==0 are processed in the same order
+// they appear in 'table' and are assigned the highest-numbered index which is
+// then still unallocated (where 255 is the highest possible).
+//
+// If any sequence of calls attempts register a total of more than (256 -
+// GEX_AM_INDEX_BASE) handlers to a single gex_EP_t, the result is undefined
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
         gex_AM_Entry_t          *table,
@@ -696,8 +716,7 @@ int gex_AM_ReplyShort[M](
 // Used in negotiated-payload AM calls:
 //   Produced by (returned from) gex_AM_Prepare*()
 //   Consumed by (passed to) gex_AM_Commit*()
-struct gasneti_srcdesc_s;
-typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
+typedef ... gex_AM_SrcDesc_t;
 
 // Predefined value of type gex_AM_SrcDesc_t
 // Guaranteed to be zero.

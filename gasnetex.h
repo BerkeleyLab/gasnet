@@ -216,6 +216,8 @@ GASNETI_BEGIN_NOWARN
   #define GASNETC_MAX_NUMHANDLERS 256
 #endif
 
+#define GEX_AM_INDEX_BASE GASNETI_CLIENT_HANDLER_BASE
+
 #ifndef GASNET_MAXNODES
   /*  an integer representing the maximum number of nodes supported in a single GASNet job */
   #define GASNET_MAXNODES (0x7FFFFFFFu)

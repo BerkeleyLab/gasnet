@@ -15,7 +15,8 @@
 #include <test.h>
 
 #define TEST_GASNETEX 1
-#define SHORT_REQ_BASE 128
+#define SHORT_REQ_BASE GEX_AM_INDEX_BASE
+test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 #include <other/amxtests/testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
@@ -332,31 +333,15 @@ void doit(int partner, int *partnerseg) {
   int success = 1;
   BARRIER();
 
-  #ifdef __cplusplus
-    #define assert_pointer(type) test_static_assert(sizeof(type) == sizeof(void *))
-  #else
-    #define assert_pointer(type)  do {                            \
-      type v = (void *)0; /* warnings here mean non-compliance */ \
-      test_static_assert(sizeof(type) == sizeof(void *));         \
-    } while (0)
-  #endif
-
-  /* top-level object tests */
-  // try to ensure these are pointer types
-  assert_pointer(gex_Client_t);
-  assert_pointer(gex_EP_t);
-  assert_pointer(gex_TM_t);
-  assert_pointer(gex_Segment_t);
-
   // check predefined object constants
-  #define CHECK_NULL_CONSTANT(type, constant) do { \
+  #define CHECK_ZERO_CONSTANT(type, constant) do { \
     static type vz;                                \
     type v = constant;                             \
     test_static_assert(sizeof(constant) == sizeof(type));  \
     assert_always(sizeof(constant) == sizeof(v));  \
     assert_always(!memcmp(&v,&vz,sizeof(type)));   \
   } while (0)
-  CHECK_NULL_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+  CHECK_ZERO_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
 
   if (strcmp(clientname, gex_Client_QueryName(myclient))) {
     MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
@@ -418,7 +403,6 @@ void doit(int partner, int *partnerseg) {
 
   /* team/rank tests */
   assert_unsigned(gex_Rank_t);
-  test_static_assert(sizeof(gex_Rank_t) == 4);
   assert(myrank == gex_TM_QueryRank(myteam));
   assert(numranks == gex_TM_QuerySize(myteam));
   assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
@@ -437,7 +421,8 @@ void doit(int partner, int *partnerseg) {
   if (firsttime) {
     size_t numhand = sizeof(sizecheck_handlers)/sizeof(gex_AM_Entry_t);
     GASNET_Safe(gex_EP_RegisterHandlers(myep, sizecheck_handlers, numhand));
-    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index > 0);
+    const int maxidx = 255 - test_num_am_handlers; // Offset by any don't care registrations in test.h
+    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index == maxidx - i);
     firsttime = 0;
     BARRIER();
   }
@@ -593,9 +578,8 @@ void doit(int partner, int *partnerseg) {
   test_static_assert(sizeof(gex_AM_Arg_t) >= 4);
   assert_signed(gex_AM_Arg_t);
   
-  gex_AM_SrcDesc_t sd = NULL;
-  assert_pointer(gex_AM_SrcDesc_t);
-  CHECK_NULL_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
+  gex_AM_SrcDesc_t sd = 0;
+  CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
 
   #define typeissigned   <
   #define typeisunsigned >
