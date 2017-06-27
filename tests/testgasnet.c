@@ -342,22 +342,15 @@ void doit(int partner, int *partnerseg) {
     } while (0)
   #endif
 
-  /* top-level object tests */
-  // try to ensure these are pointer types
-  assert_pointer(gex_Client_t);
-  assert_pointer(gex_EP_t);
-  assert_pointer(gex_TM_t);
-  assert_pointer(gex_Segment_t);
-
   // check predefined object constants
-  #define CHECK_NULL_CONSTANT(type, constant) do { \
+  #define CHECK_ZERO_CONSTANT(type, constant) do { \
     static type vz;                                \
     type v = constant;                             \
     test_static_assert(sizeof(constant) == sizeof(type));  \
     assert_always(sizeof(constant) == sizeof(v));  \
     assert_always(!memcmp(&v,&vz,sizeof(type)));   \
   } while (0)
-  CHECK_NULL_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+  CHECK_ZERO_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
 
   if (strcmp(clientname, gex_Client_QueryName(myclient))) {
     MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
@@ -594,9 +587,8 @@ void doit(int partner, int *partnerseg) {
   test_static_assert(sizeof(gex_AM_Arg_t) >= 4);
   assert_signed(gex_AM_Arg_t);
   
-  gex_AM_SrcDesc_t sd = NULL;
-  assert_pointer(gex_AM_SrcDesc_t);
-  CHECK_NULL_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
+  gex_AM_SrcDesc_t sd = 0;
+  CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
 
   #define typeissigned   <
   #define typeisunsigned >

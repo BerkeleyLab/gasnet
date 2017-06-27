@@ -84,8 +84,7 @@
 // This type is interoperable with gasnet_handle_t
 // - Sync operation: test/wait w/ one/all/some flavors
 //   + Success consumes the event
-struct gasneti_handle_t;
-typedef struct gasneti_handle_t *gex_Event_t;
+typedef ... gex_Event_t;
 
 // Pre-defined output values of type gex_Event_t
 // - GEX_EVENT_INVALID
@@ -191,8 +190,7 @@ typedef [some integer type] gex_Flags_t;
 
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
-struct gasneti_token_s;
-typedef struct gasneti_token_s *gex_Token_t;
+typedef ... gex_Token_t;
 
 // Handler index - a fixed-width integer type, used to name an AM handler
 // This type is interoperable with gasnet_handler_t
@@ -215,18 +213,15 @@ typedef uintptr_t gex_RMA_Value_t;
 
 // gex_EP_t is an opaque scalar handle to an Endpoint (EP),
 // a local representative of an isolated communication context
-struct gasneti_endpoint_s;
-typedef struct gasneti_endpoint_s *gex_EP_t;
+typedef ... gex_EP_t;
 
 // gex_Client_t is an opaque scalar handle to a Client,
 // an instance of the client interface to the GASNet library
-struct gasneti_client_s;
-typedef struct gasneti_client_s *gex_Client_t;
+typedef ... gex_Client_t;
 
 // gex_Segment_t is an opaque scalar handle to a Segment,
 // a local client-declared memory range for use in communication
-struct gasneti_segment_s;
-typedef struct gasneti_segment_s *gex_Segment_t;
+typedef ... gex_Segment_t;
 
 // Pre-defined value of type gex_Segment_t
 // Used, for instance, to indicate no bound segment
@@ -236,8 +231,7 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 // a collective communication context used for remote endpoint naming.
 // A gex_TM_t specifies both an ordered set of Endpoints (local or remote),
 // and a local gex_Endpoint_t, a local representative of that team.
-struct gasneti_team_member_s;
-typedef struct gasneti_team_member_s *gex_TM_t;
+typedef ... gex_TM_t;
 
 //
 // Client-Data (CData)
@@ -716,8 +710,7 @@ int gex_AM_ReplyShort[M](
 // Used in negotiated-payload AM calls:
 //   Produced by (returned from) gex_AM_Prepare*()
 //   Consumed by (passed to) gex_AM_Commit*()
-struct gasneti_srcdesc_s;
-typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
+typedef ... gex_AM_SrcDesc_t;
 
 // Predefined value of type gex_AM_SrcDesc_t
 // Guaranteed to be zero.
