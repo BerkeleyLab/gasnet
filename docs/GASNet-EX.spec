@@ -264,6 +264,8 @@ const char * gex_Client_QueryName(gex_Client_t client);
 // Currently supports only one call per job.
 // * clientName must be a unique string used to identify this client, and
 //    should match the pattern: [A-Z][A-Z0-9_]+
+//   In future release this string will be used in such contexts as error messages
+//   and naming of environment variables to control per-client aspects of GASNet.
 // * argc/argv are optional references to the command-line arguments received by main().
 //   They are permitted to both be NULL, but providing them may improve portability or
 //   supplementary services.
@@ -292,6 +294,7 @@ extern int gex_Client_Init(
 gex_Client_t gex_Segment_QueryClient(gex_Segment_t seg);
 
 // Query flags passed when segment was created
+// There are no segment flags defined in the current release.
 gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 
 // Query address and length of a segent
@@ -304,7 +307,7 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 // In the current release allows up to one call per process.
 // * length is the size of the local segment to allocate and bind to the
 //   local Endpoint represented by tm. length is permitted to differ 
-//   across team members, and may be zero.
+//   across team members, and must be in [0 .. gasnet_getMaxLocalSegmentSize()].
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               tm,
