@@ -357,10 +357,18 @@ extern int gex_EP_Create(
                 gex_Client_t            client,
                 gex_Flags_t             flags);
 
+// Minimum permitted fixed index for AM handler registration.
+// Guaranteed to be 128 or less.
+#define GEX_AM_INDEX_BASE ???
+
 // Client-facing type for describing one AM handler
 // This type replaces (is *not* interchangeable with) gasnet_handlerentry_t
+//
+// gex_index may either be in the range [GEX_AM_INDEX_BASE .. 255] to register
+// at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
+// more information on this case).
 typedef struct {
-    gex_AM_Index_t          gex_index;     // 0 on input == don't care
+    gex_AM_Index_t          gex_index;     // 0 or in [GEX_AM_INDEX_BASE .. 255]
     gex_AM_Fn_t             gex_fnptr      // Pointer to the handler on this process
     gex_Flags_t             gex_flags;     // Incl. required S/M/L and REQ/REP, see below
     unsigned int            gex_nargs;     // Required
@@ -396,11 +404,23 @@ typedef struct {
 // Therefore the client must provide for any synchronization required to
 // ensure handlers are registered before any process may send a corresponding
 // AM to the Endpoint.
+//
 // May be called multiple times on the same Endpoint to incrementally register handlers.
 // Like gasnet_attach() the handler indices specified in the table (other than
 // "don't care" zero indices) must be unique.  That now extends across multiple
 // calls on the same gex_EP_t (though provisions to selectively relax this
 // restriction are planned for a later release).
+//
+// Registration of handlers via a call to gasnet_attach() does *not* preclude
+// use of this function to register additional handlers.
+//
+// As in GASNet-1, handlers with a handler index (gex_index) of 0 on entry are
+// assigned values by GASNet after the non-zero (fixed index) entries have been
+// registered.  While GASNet-1 leaves the algorithm for the assignment
+// unspecified (only promising that it is deterministic) this specification
+// guarantees that entries with gex_index==0 are processed in the same order
+// they appear in 'table' and are assigned the highest-numbered index which is
+// then still unallocated (where 255 is the highest possible).
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
         gex_AM_Entry_t          *table,

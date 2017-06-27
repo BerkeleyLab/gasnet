@@ -15,7 +15,8 @@
 #include <test.h>
 
 #define TEST_GASNETEX 1
-#define SHORT_REQ_BASE 128
+#define SHORT_REQ_BASE GEX_AM_INDEX_BASE
+test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 #include <other/amxtests/testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
@@ -437,7 +438,8 @@ void doit(int partner, int *partnerseg) {
   if (firsttime) {
     size_t numhand = sizeof(sizecheck_handlers)/sizeof(gex_AM_Entry_t);
     GASNET_Safe(gex_EP_RegisterHandlers(myep, sizecheck_handlers, numhand));
-    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index > 0);
+    const int maxidx = 255 - test_num_am_handlers; // Offset by any don't care registrations in test.h
+    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index == maxidx - i);
     firsttime = 0;
     BARRIER();
   }
