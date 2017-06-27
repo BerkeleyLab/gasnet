@@ -415,6 +415,9 @@ typedef struct {
 // guarantees that entries with gex_index==0 are processed in the same order
 // they appear in 'table' and are assigned the highest-numbered index which is
 // then still unallocated (where 255 is the highest possible).
+//
+// If any sequence of calls attempts register a total of more than (256 -
+// GEX_AM_INDEX_BASE) handlers to a single gex_EP_t, the result is undefined
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
         gex_AM_Entry_t          *table,
