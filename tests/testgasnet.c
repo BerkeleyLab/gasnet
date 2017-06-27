@@ -333,15 +333,6 @@ void doit(int partner, int *partnerseg) {
   int success = 1;
   BARRIER();
 
-  #ifdef __cplusplus
-    #define assert_pointer(type) test_static_assert(sizeof(type) == sizeof(void *))
-  #else
-    #define assert_pointer(type)  do {                            \
-      type v = (void *)0; /* warnings here mean non-compliance */ \
-      test_static_assert(sizeof(type) == sizeof(void *));         \
-    } while (0)
-  #endif
-
   // check predefined object constants
   #define CHECK_ZERO_CONSTANT(type, constant) do { \
     static type vz;                                \
