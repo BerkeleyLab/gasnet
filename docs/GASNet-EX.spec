@@ -205,11 +205,11 @@ typedef ... gex_AM_Fn_t;
 
 // Widest scalar and width
 // This type is interoperable with gasnet_register_value_t
-typedef uintptr_t gex_RMA_Value_t;
+typedef [some unsigned integer type] gex_RMA_Value_t;
 
 // Preprocess-time constant size of gex_RMA_Value_t
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
-#define SIZEOF_GEX_RMA_VALUE_T SIZEOF_VOID_P
+#define SIZEOF_GEX_RMA_VALUE_T ...
 
 // gex_EP_t is an opaque scalar handle to an Endpoint (EP),
 // a local representative of an isolated communication context
