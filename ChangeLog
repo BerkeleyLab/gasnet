@@ -60,7 +60,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-PENDING:
+06-30-2017: pending 1.30.0 work @8054d29
 
 * Cray uGNI (gemini- and aries-conduits)
   - Work-around bug 3480.  For more details see gemini-conduit/README (source),
