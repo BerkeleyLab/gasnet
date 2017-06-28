@@ -7,6 +7,7 @@ GASNet-EX ChangeLog
   This archive represents a lightly-tested snapshot of a work-in-progress.
   Many planned features remain to be specified and/or implemented.
   All interfaces and implementations are subject to change without notice.
+
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
@@ -41,7 +42,7 @@ GASNet-EX ChangeLog
   - Both layers interoperate freely so that legacy client code can be incrementally
     migrated to use of the new EX interfaces and features.
 
-* This release only implements the following conduits:
+* This release implements the following conduits only:
   - InfiniBand Verbs (ibv-conduit)
   - Cray uGNI (gemini- and aries-conduits)
   - IBM PAMI (pami-conduit)
