@@ -6,11 +6,11 @@
 #ifndef _APPUTILS_H
 #define _APPUTILS_H
 
-#include <errno.h>
-#ifdef WIN32
-  #include <windows.h>  
-  #define sleep(x) Sleep(1000*x)
+#if _FORTIFY_SOURCE > 0 && __OPTIMIZE__ <= 0 /* silence an annoying MPICH/Linux warning */
+#undef _FORTIFY_SOURCE
 #endif
+
+#include <errno.h>
 
 #if defined(AMUDP)
   #include <amudp.h>
@@ -52,6 +52,12 @@
 
 #if PLATFORM_COMPILER_MICROSOFT
   #pragma warning(disable: 4127)
+#endif
+
+#ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC extern
 #endif
 
 #ifdef __cplusplus
@@ -112,11 +118,7 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb);
 void printGlobalStats(void);
 
 
-#ifdef UETH
-  #define getCurrentTimeMicrosec() ueth_getustime()
-#else
-  extern int64_t getCurrentTimeMicrosec(void);
-#endif
+extern int64_t getCurrentTimeMicrosec(void);
 extern void outputTimerStats(void);
 
 #define TEST_32BIT_ONLY() do {                                         \
@@ -130,7 +132,6 @@ extern void outputTimerStats(void);
     }                                                                  \
   } while(0)
 
-#ifndef APPUTILS_OMIT_READWRITE
 uint32_t getWord(int proc, void *addr);
 void putWord(int proc, void *addr, uint32_t val);
 
@@ -139,14 +140,6 @@ void readSync(void);
 
 void writeWord(int proc, void *addr, uint32_t val);
 void writeSync(void);
-#else
-  #define getWord(a,b)     (AMX_FatalErr("APPUTILS_OMIT_READWRITE violation"),0)
-  #define putWord(a,b,c)   AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
-  #define readWord(a,b,c)  AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
-  #define readSync()       AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
-  #define writeWord(a,b,c) AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
-  #define writeSync()      AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
-#endif
 
 #ifdef __cplusplus
   }

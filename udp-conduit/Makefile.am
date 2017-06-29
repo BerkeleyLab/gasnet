@@ -35,14 +35,13 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/amudp $(blcr_extralibcflags)
+CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/amudp -I$(top_builddir)/other/amudp $(blcr_extralibcflags)
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = \
-	$(blcr_extraheaders)               \
-	$(top_srcdir)/other/amudp/amudp.h  \
-	$(top_srcdir)/other/amudp/socket.h \
-	$(top_srcdir)/other/amudp/ueth.h
+CONDUIT_EXTRAHEADERS =                                        \
+	$(blcr_extraheaders)                                  \
+	$(top_builddir)/other/amudp/amudp_portable_platform.h \
+	$(top_srcdir)/other/amudp/amudp_const.h 
 
 # headers selected by default rules that should NOT be installed
 CONDUIT_PRIVATEHEADERS = \
@@ -57,6 +56,8 @@ CONDUIT_EXTRADEPS = \
 
 $(top_builddir)/other/amudp/libamudp.a: force
 	cd $(top_builddir)/other/amudp && $(MAKE) libamudp.a
+
+$(top_builddir)/other/amudp/amudp_portable_platform.h: $(top_builddir)/other/amudp/libamudp.a
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
@@ -115,7 +116,7 @@ clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local
 else
-$(top_srcdir)/gasnet.h: do-error
+$(top_srcdir)/gasnetex.h: do-error
 endif
 
 

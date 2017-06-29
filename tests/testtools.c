@@ -8,9 +8,9 @@
 #include "test.h"
 #include <limits.h> /* For INT_MAX */
 
-/* specifically omit gasnet.h/test.h to test independence */
-#if defined(_GASNET_H) || defined(TEST_GASNET_H)
-#error testtools should *not* include gasnet.h
+/* specifically omit gasnetex.h/test.h to test independence */
+#if defined(_GASNETEX_H) || defined(TEST_GASNETEX_H)
+#error testtools should *not* include gasnetex.h
 #endif
 
 #ifdef HAVE_PTHREAD_H
@@ -48,16 +48,17 @@ void test_dummy2(void) GASNETT_NORETURN;
 GASNETT_NORETURNP(test_dummy2)
 void test_dummy2(void) { gasnett_fatalerror("test_dummy2"); }
 
+GASNETT_EXTERNC void test_dummy5(void);
+
 GASNETT_BEGIN_EXTERNC
 void *test_dummy3(void) GASNETT_MALLOC;
 void *test_dummy3(void) { return malloc(1); }
 GASNETT_INLINE(test_dummy4) GASNETT_MALLOC
 void *test_dummy4(void) { return malloc(1); }
+void test_dummy5(void) { }
 GASNETT_END_EXTERNC
 double volatile d_junk = 0;
 
-GASNETT_EXTERNC
-void test_dummy5(void) { }
 
 GASNETT_THREADKEY_DECLARE(sertest_key1);
 GASNETT_THREADKEY_DEFINE(sertest_key1);
@@ -155,7 +156,7 @@ int main(int argc, char **argv) {
     else {
       MSG("Physical memory size estimated to be: %s", sz_str);
       if (val > (1ULL<<50) || val < (1ULL<<20)) 
-        ERR("gasnett_getPhysMemSz() got a ridiculous result: %llu bytes", (unsigned long long)val);
+        ERR("gasnett_getPhysMemSz() got a ridiculous result: %" PRIu64 " bytes", val);
     }
   }
 
@@ -170,12 +171,12 @@ int main(int argc, char **argv) {
       int64_t y;
       gasnett_format_number(x, tmp_str, sizeof(tmp_str), 1);
       y = gasnett_parse_int(tmp_str, 1);
-      if (x != y) ERR("gasnett_format_number/gasnett_parse_int memsz mismatch: %lld != %lld (%s)",
-                      (long long)x, (long long)y, tmp_str);
+      if (x != y) ERR("gasnett_format_number/gasnett_parse_int memsz mismatch: %" PRId64 " != %" PRId64 " (%s)",
+                      x, y, tmp_str);
       gasnett_format_number(x, tmp_str, sizeof(tmp_str), 0);
       y = gasnett_parse_int(tmp_str, 0);
-      if (x != y) ERR("gasnett_format_number/gasnett_parse_int mismatch: %lld != %lld (%s)",
-                      (long long)x, (long long)y, tmp_str);
+      if (x != y) ERR("gasnett_format_number/gasnett_parse_int mismatch: %" PRId64 " != %" PRId64 " (%s)",
+                      x, y, tmp_str);
     }
   }
 
@@ -184,7 +185,7 @@ int main(int argc, char **argv) {
   gasnett_maximize_rlimits();
   TEST_TRACING_MACROS();
 
-  TEST_HEADER("Testing high-performance timers...")
+  TEST_HEADER("Testing high-performance timers and sleep...")
   { /* high performance timers */
     int i;
     gasnett_tick_t begin, start, end;
@@ -192,7 +193,13 @@ int main(int argc, char **argv) {
     int timeiters = MAX(1,iters / 10);
     gasnett_tick_t ticktimemin = GASNETT_TICK_MIN;
     gasnett_tick_t ticktimemax = GASNETT_TICK_MAX;
-    double slack = gasnett_getenv_dbl_withdefault("GASNET_TEST_TIME_SLACK", 0.01);
+    #if PLATFORM_OS_CYGWIN || PLATFORM_OS_WSL
+      // bug 2410: avoid false negatives due to cygwin's high gettimeofday() reference timer granularity
+      double default_slack = 0.05; // 50 ms for cygwin
+    #else
+      double default_slack = 0.01; // 10 ms, sufficient for most platforms
+    #endif
+    double slack = gasnett_getenv_dbl_withdefault("GASNET_TEST_TIME_SLACK", default_slack);
 
     double overhead = gasnett_tick_overheadus();
     double granularity = gasnett_tick_granularityus();
@@ -213,9 +220,10 @@ int main(int argc, char **argv) {
     if (!(gasnett_ticks_now() < ticktimemax)) ERR("!(now < max)");
 
     if (granularity <= 0.0 || overhead <= 0.0 ||
-        (granularity+0.1) < 0.5*overhead) 
+        (granularity+10*slack) < 0.5*overhead)
         /* allow some leeway for noise at granularities approaching cycle speed */
-        /*granularity < 0.5*overhead)*/
+        // leeway is scaled by slack to allow disabling this test
+        // on platforms where timers are unreliable (eg cpu emulator)
         ERR("nonsensical timer overhead/granularity measurements:\n"
              "  overhead: %.3fus  granularity: %.3fus\n",overhead, granularity);
 
@@ -237,14 +245,14 @@ int main(int argc, char **argv) {
         do {
           gasnett_tick_t next = gasnett_ticks_now();
           if (next < last) 
-            ERR("gasnett_ticks_to_us not monotonic! !(%llu <= %llu)",
-                 (unsigned long long)last, (unsigned long long)next);
+            ERR("gasnett_ticks_to_us not monotonic! !(%" PRIu64 " <= %" PRIu64 ")",
+                 (uint64_t)last, (uint64_t)next);
           if (next <= GASNETT_TICK_MIN) 
-            ERR("gasnett_ticks_to_us()=%llu <= GASNETT_TICK_MIN=%llu",
-                 (unsigned long long)next, (unsigned long long)GASNETT_TICK_MIN);
+            ERR("gasnett_ticks_to_us()=%" PRIu64 " <= GASNETT_TICK_MIN=%" PRIu64,
+                 (uint64_t)next, (uint64_t)GASNETT_TICK_MIN);
           if (next >= GASNETT_TICK_MAX) 
-            ERR("gasnett_ticks_to_us()=%llu >= GASNETT_TICK_MAX=%llu",
-                 (unsigned long long)next, (unsigned long long)GASNETT_TICK_MAX);
+            ERR("gasnett_ticks_to_us()=%" PRIu64 " >= GASNETT_TICK_MAX=%" PRIu64,
+                 (uint64_t)next, (uint64_t)GASNETT_TICK_MAX);
           d_junk *= 1.0001;
           last = next;
         } while (gasnett_ticks_to_us(last-start) < us_delay);
@@ -268,6 +276,19 @@ int main(int argc, char **argv) {
                      gasnett_ticks_to_us(end - start)) ) > 1)
         ERR("ticks_to_ns(A)/1000 != ticks_to_us(A)");
 
+    }
+
+    for (uint64_t ns_delay = 10; ns_delay < (uint64_t)2e9; ns_delay *= 14) {
+      start = gasnett_ticks_now();
+      int rc = gasnett_nsleep(ns_delay);
+      end = gasnett_ticks_now();
+      if (rc) ERR("gasnett_nsleep returned non-zero");
+      double elapsed_plus = gasnett_ticks_to_ns(end - start)
+                            + 0.0005 * ns_delay
+                            + 1000 * granularity;
+      if (elapsed_plus < ns_delay)
+        ERR("gasnett_nsleep(%" PRIu64 ") returned at least %" PRIu64 " nanoseconds too early",
+            ns_delay, (uint64_t)(ns_delay - elapsed_plus));
     }
   }
 
@@ -1190,14 +1211,14 @@ void * thread_fn(void *arg) {
       THREAD_BARRIER();
       oldval = gasnett_atomic64_read(&counter64,0);
       if (oldval != goal) 
-        ERR("failed 64-bit compare-and-swap test: counter=%llu expecting=%llu", (unsigned long long)oldval, (unsigned long long)goal);
+        ERR("failed 64-bit compare-and-swap test: counter=%" PRIu64 " expecting=%" PRIu64, oldval, goal);
       if (woncnt != share) 
-        ERR("failed 64-bit compare-and-swap test: woncnt=%llu share=%llu", (unsigned long long)woncnt, (unsigned long long)share);
+        ERR("failed 64-bit compare-and-swap test: woncnt=%" PRIu64 " share=%" PRIu64, woncnt, share);
     }
   }
 
   TEST_HEADER("parallel swap test...") {
-    #if GASNETI_HAVE_ATOMIC_CAS
+    #if GASNETT_HAVE_STRONGATOMIC_CAS
       const gasnett_atomic_val_t limit = MIN(GASNETT_ATOMIC_MAX, 8192);
       static gasnett_atomic_t var;
       static char *array;
@@ -1216,7 +1237,7 @@ void * thread_fn(void *arg) {
            The 'array' tracks which values have been seen and ensures no duplicates. */
         for (j = id; j < limit; j += NUM_THREADS) {
           gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, j, 0);
-          if_pt (idx != GASNETI_ATOMIC_MAX) {
+          if_pt (idx != GASNETT_ATOMIC_MAX) {
             if (array[idx] != 0)
               ERR("gasnett_atomic_swap produced a duplicate value %d", idx);
             array[idx] = 1;
@@ -1227,7 +1248,7 @@ void * thread_fn(void *arg) {
 
         if (0 == id) {
           /* One final swap to simplify the validation */
-          gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, GASNETI_ATOMIC_MAX, 0);
+          gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, GASNETT_ATOMIC_MAX, 0);
           if (array[idx] != 0)
             ERR("gasnett_atomic_swap produced a duplicate value %d", i);
           array[idx] = 1;

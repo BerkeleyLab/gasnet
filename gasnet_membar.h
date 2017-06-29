@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNET_H)
-  #error This file is not meant to be included directly- clients should include gasnet.h or gasnet_tools.h
+#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNETEX_H)
+  #error This file is not meant to be included directly- clients should include gasnetex.h or gasnet_tools.h
 #endif
 
 #ifndef _GASNET_MEMBAR_H
@@ -177,10 +177,12 @@
    /* "lwsync" = "sync 1", executed as "sync" on older CPUs */
    #define GASNETI_PPC_WMB_ASM "7c2004ac"
 
+   static void _gasneti_do_wmb(void);
    #pragma mc_func _gasneti_do_wmb { GASNETI_PPC_WMB_ASM }
    #pragma reg_killed_by _gasneti_do_wmb
    #define gasneti_local_wmb() _gasneti_do_wmb()
 
+   static void _gasneti_do_compilerfence(void);
    #pragma mc_func _gasneti_do_compilerfence { "" }
    #pragma reg_killed_by _gasneti_do_compilerfence
    #define gasneti_compiler_fence() _gasneti_do_compilerfence()
@@ -329,22 +331,22 @@
   #error Slow membars are only a hack-around for C++ compilers lacking inline assembly support
 #endif
 #if GASNETI_USING_SLOW_MEMBARS || defined(GASNETI_LOCAL_WMB_BODY)
-  GASNETI_EXTERNC void gasneti_slow_local_wmb();
+  extern void gasneti_slow_local_wmb();
   #undef gasneti_local_wmb
   #define gasneti_local_wmb() gasneti_slow_local_wmb()
 #endif
 #if GASNETI_USING_SLOW_MEMBARS || defined(GASNETI_LOCAL_RMB_BODY)
-  GASNETI_EXTERNC void gasneti_slow_local_rmb();
+  extern void gasneti_slow_local_rmb();
   #undef gasneti_local_rmb
   #define gasneti_local_rmb() gasneti_slow_local_rmb()
 #endif
 #if GASNETI_USING_SLOW_MEMBARS || defined(GASNETI_LOCAL_MB_BODY)
-  GASNETI_EXTERNC void gasneti_slow_local_mb();
+  extern void gasneti_slow_local_mb();
   #undef gasneti_local_mb
   #define gasneti_local_mb() gasneti_slow_local_mb()
 #endif
 #if GASNETI_USING_SLOW_MEMBARS || defined(GASNETI_COMPILER_FENCE_BODY)
-  GASNETI_EXTERNC void gasneti_slow_compiler_fence();
+  extern void gasneti_slow_compiler_fence();
   #undef gasneti_compiler_fence
   #define gasneti_compiler_fence() gasneti_slow_compiler_fence()
 #endif

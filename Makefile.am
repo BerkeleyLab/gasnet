@@ -8,7 +8,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 ACLOCAL_AMFLAGS = -I other/plpa/config
 
 # Directories for automake to recurse into:
-SUBDIRS = .          \
+SUBDIRS =            \
 	config-aux   \
         other
 
@@ -34,16 +34,19 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	pami-conduit			\
 	ofi-conduit
 CONDUITMODE_headers = 		\
+	gasnetex.h           	\
 	gasnet.h           	\
 	gasnet_ammacros.h  	\
 	gasnet_coll.h      	\
-	gasnet_handler.h   	\
+	gasnet_handler_internal.h \
 	gasnet_trace.h     	\
 	gasnet_vis.h      
 CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
 	template-conduit  	\
+	gasnet_event.c 	\
+	gasnet_event_internal.h 	\
 	gasnet_internal.h 	\
 	gasnet_internal.c 	\
 	gasnet_mmap.c  	  	\
@@ -54,7 +57,8 @@ CONDUITMODE_EXTRA_DIST =    	\
 	gasnet_trace.c
 # GASNET_TOOLSONLY_FALSE_END
 
-DIST_SUBDIRS = $(SUBDIRS) $(CONDUITMODE_DIST_SUBDIRS)
+# bug3285: Order matters here: other should follow conduits to maintain dependencies for distclean
+DIST_SUBDIRS = $(CONDUITMODE_DIST_SUBDIRS) $(SUBDIRS)
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)
@@ -76,9 +80,6 @@ headers =                  	\
 
 EXTRA_DIST =              		\
 	README				\
-	README-devel			\
-	README-git			\
-	README-release			\
  	README-tools 			\
 	ChangeLog	  		\
 	license.txt       		\
@@ -95,19 +96,12 @@ EXTRA_DIST =              		\
 
 include_HEADERS = $(headers)
 
+# deliberately omitted git-only docs: README-devel README-git README-release gasnet.*
 INSTALL_DOCS =			\
 	README			\
-	README-devel		\
-	README-git		\
-	README-release		\
 	README-tools		\
 	license.txt		\
-	docs/autotuner.txt	\
-	docs/pshm-design.txt	\
-	docs/gasnet.txt		\
-	docs/gasnet.html	\
-	docs/gasnet.pdf		\
-	docs/gasnet.ps	
+	docs/GASNet-EX.spec
 
 force:
 
@@ -118,14 +112,17 @@ if BUILD_SEQ_LIBS
 libgasnet_tools_seq_a_SOURCES =
 libraries_seq = libgasnet_tools-seq.a 
 fragments_seq = gasnet_tools-seq.mak
+pkgconfig_seq = gasnet_tools-seq.pc
 endif
 if BUILD_PAR_LIBS
 libgasnet_tools_par_a_SOURCES =
 libraries_par = libgasnet_tools-par.a 
 fragments_par = gasnet_tools-par.mak
+pkgconfig_par = gasnet_tools-par.pc
 endif
 libraries = $(libraries_seq) $(libraries_par)
 fragments = $(fragments_seq) $(fragments_par)
+pkgconfig = $(pkgconfig_seq) $(pkgconfig_par)
 
 # leading - prevents distclean failures
 -include $(top_builddir)/other/Makefile-libgasnet.mak
@@ -210,10 +207,11 @@ else
 TOOLSONLY_CHECK = run-tests
 TOOLSONLY_TESTS = testtools
 test: tests
-tests: force
+tests: $(TOOLSONLY_TESTS)
+$(TOOLSONLY_TESTS): force
 	@$(MAKE) -f $(top_builddir)/tests/Makefile \
 	        GASNET_INCLUDES="-I@TOP_BUILDDIR@ -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/other" \
-		$(TOOLSONLY_TESTS)
+		$@
 run-tests: tests
 	./testtools
 CLEANFILES = $(TOOLSONLY_TESTS)
@@ -222,8 +220,7 @@ endif
 # Build, clean, install, uninstall, etc. the conduits - in parallel if possible.
 # Instead of automake's loop over subdir, we expand to one target per subdir.
 # Care is taken w/ the 'clean-local' rule in case distclean has wiped the 
-# local or conduit Makefiles (order depends on the version of automake).
-# The same goes for 'distclean-local' rule.
+# local or conduit Makefiles
 # Note that if ($VAR:%=%FOO) doesn't work for a given make, then we are
 # reduced to using actual conduit names as PHONY targets, but the rule for
 # $(recurse_local) is tailored to work correctly regardless.
@@ -240,16 +237,19 @@ recurse_special:
 	    cd $$dir && $(MAKE) $(DO_WHAT) || exit $$? ; \
 	  fi ; \
 	 done
-all-local: $(lib_LIBRARIES) $(fragments)
+all-local: $(lib_LIBRARIES) $(fragments) $(pkgconfig)
 	@$(MAKE) $(recurse_local) DO_WHAT=$${DO_WHAT=all}
 	@$(MAKE) recurse_special  DO_WHAT=$${DO_WHAT=all}
 clean-local:
-	rm -f $(fragments)
+	rm -f $(fragments) $(pkgconfig)
 	@if test -f Makefile -a -f smp-conduit/Makefile; then \
 	  $(MAKE) $(recurse_local) DO_WHAT=clean || exit $$? ; \
 	 fi
-	@$(MAKE) recurse_special DO_WHAT=clean
+	@if test -f Makefile; then                   \
+	  $(MAKE) recurse_special DO_WHAT=clean ;    \
+	 fi
 check-local: check-exports $(TOOLSONLY_CHECK)
+	$(MAKE) check-pkgconfig CHECK_FILES="$(pkgconfig)"
 seq par parsync:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
 check tests-clean:
@@ -276,19 +276,19 @@ install-data-local:
 	    $(INSTALL_DATA) $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
 	  fi ; \
 	done
+	$(mkinstalldirs) $(DESTDIR)$(libdir)/pkgconfig
 	@list='$(fragments)'; for p in $$list; do \
           if test -f $$p; then \
             filename=`basename $$p`; \
-            echo @GASNET_INSTALL_CMD@ " < $$p > $(DESTDIR)$(includedir)/$$filename"; \
-            @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/$$filename || exit $$? ; \
+            destmak="$(DESTDIR)$(includedir)/$$filename"; \
+            echo @GASNET_INSTALL_CMD@ " < $$p > $$destmak"; \
+            @GASNET_INSTALL_CMD@ < $$p > $$destmak || exit $$? ; \
+            thread_model=`echo "$$filename" | sed 's/^.*-\(.*\)\.mak$$/\1/'` ; \
+            destpc="$(DESTDIR)$(libdir)/pkgconfig/gasnet_tools-$$thread_model.pc"; \
+            $(MAKE) do-pkgconfig-tools thread_model=$$thread_model pkgconfig_file="$$destpc" FRAGMENT="$$destmak" || exit $$? ; \
+            chmod 644 "$$destpc" || exit $$? ; \
           else :; fi; \
         done
-	for file in @PATCHED_HEADER@ DUMMY ; do \
-	  if test -f $$file ; then \
-	    $(mkinstalldirs) $(DESTDIR)$(includedir)/patched-headers ; \
-	    $(INSTALL_DATA) patched-headers/$$file $(DESTDIR)$(includedir)/patched-headers/$$file || exit $$? ; \
-	  fi ; \
-	done
 install-exec-local:
 	@if test -n "$(DESTDIR)" -a `expr "X$(DESTDIR)" : X/` = 0; then \
           echo "ERROR: \$$DESTDIR must begin with a '/' character."; \
@@ -315,23 +315,25 @@ uninstall-local:
 	for file in $(fragments) ; do \
 	  rm -f $(DESTDIR)$(includedir)/$$file ; \
 	done
-	for file in @PATCHED_HEADER@ ; do \
-	  rm -f $(DESTDIR)$(includedir)/patched-headers/$$file ; \
-	done
+	rm -f $(DESTDIR)$(libdir)/pkgconfig/gasnet_tools-*.pc
 
-# automake 1.4 doesn't automatically make distclean in DIST_SUBDIRS
-# So, we run it here if it doesn't appear to have already been run.
-# We also take care of tests, which contains a generated Makefile
-# that older autotools fail to automatically remove as well.
-distclean-local:
-	@for dir in $(CONDUIT_DIRS) tests; do               \
+# Bug3285: the behavior of distclean-recursive varies in incompatible ways
+# across automake versions, such that no matter what variables we specify
+# some versions will break the dependencies between subdirectories.
+# Very early automakes ignore DIST_SUBDIRS entirely.
+# We override it with our own top-level rule to ensure consistent ordering.
+distclean: force
+	@for dir in $(DIST_SUBDIRS); do                     \
 	   if test -f "$$dir/Makefile"; then                \
 	     ( cd "$$dir" && $(MAKE) distclean ) || exit 1; \
 	   fi;                                              \
 	 done
-	@if test -f Makefile; then                   \
-	  $(MAKE) recurse_special DO_WHAT=distclean; \
-	 fi
+	$(MAKE) recurse_special DO_WHAT=distclean
+	$(MAKE) $(AM_MAKEFLAGS) distclean-am
+	rm -f tests/Makefile
+	rm -f $(am__CONFIG_DISTCLEAN_FILES)
+	rm -f config.status gasnet_config.h stamp-h1
+	rm -f Makefile
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
@@ -345,9 +347,13 @@ TESTDIST = `find . -print`
 endif
 
 dist-hook:
+	@if grep -q 'cache_file=/dev/null' $(srcdir)/configure; then \
+           echo ERROR: Refusing to distribute configure not generated by Bootstrap. Please start with a clean source tree and Bootstrap. ; \
+           exit 1 ; \
+        fi
 	if test -d $(srcdir)/.git ; then \
 	  GASNET_DESC=`$${GIT=git} --git-dir=$(srcdir)/.git describe` || exit $$? ; \
-	  $(PERL) -pi -e "s/no-version-control-info/$$GASNET_DESC/;" -- $(distdir)/configure || exit $$? ; \
+	  $(PERL) -pi -e "s:no-version-control-info:$$GASNET_DESC:;" -- $(distdir)/configure || exit $$? ; \
 	  echo $$GASNET_DESC > $(distdir)/version.git || exit $$? ; \
 	fi
 	if test -f $(distdir)/docs/Makefile ; then \

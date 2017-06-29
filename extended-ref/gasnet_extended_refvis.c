@@ -36,7 +36,8 @@ extern void gasnete_vis_init(void) {
   } while (0)
   #if GASNETE_USE_AMPIPELINE
   GASNETE_VIS_ENV_YN(gasnete_vis_use_ampipe,GASNET_VIS_AMPIPE, GASNETE_USE_AMPIPELINE);
-  gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnet_AMMaxMedium()-2*sizeof(void*),1);
+  gasnete_vis_maxchunk = MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())-2*sizeof(void*);
+  gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnete_vis_maxchunk, 1);
   #endif
   #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
   GASNETE_VIS_ENV_YN(gasnete_vis_use_remotecontig,GASNET_VIS_REMOTECONTIG, GASNETE_USE_REMOTECONTIG_GATHER_SCATTER);
@@ -84,14 +85,14 @@ extern void gasneti_vis_progressfn(void) {
     switch (visop->type) {
     #ifdef GASNETE_PUTV_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTV_GATHER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
     #endif
     #ifdef GASNETE_GETV_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETV_SCATTER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
           gasnet_memvec_t const * const savedlst = (gasnet_memvec_t const *)(visop + 1);
           void const * const packedbuf = savedlst + visop->count;
           gasnete_memvec_unpack(visop->count, savedlst, packedbuf, 0, (size_t)-1);
@@ -101,14 +102,14 @@ extern void gasneti_vis_progressfn(void) {
     #endif
     #ifdef GASNETE_PUTI_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTI_GATHER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { 
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
     #endif
     #ifdef GASNETE_GETI_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETI_SCATTER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
           void * const * const savedlst = (void * const *)(visop + 1);
           void const * const packedbuf = savedlst + visop->count;
           gasnete_addrlist_unpack(visop->count, savedlst, visop->len, packedbuf, 0, (size_t)-1);
@@ -118,14 +119,14 @@ extern void gasneti_vis_progressfn(void) {
     #endif
     #ifdef GASNETE_PUTS_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTS_GATHER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { 
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
     #endif
     #ifdef GASNETE_GETS_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETS_SCATTER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
           size_t stridelevels = visop->len;
           size_t * const savedstrides = (size_t *)(visop + 1);
           size_t * const savedcount = savedstrides + stridelevels;

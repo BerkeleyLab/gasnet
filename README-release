@@ -1,14 +1,16 @@
-GASNet Release Procedure
-------------------------
+README-release file for GASNet
+http://gasnet.lbl.gov
 
 The purpose of this document is to record the steps required for a public
 release of GASNet.  This is NOT required reading for most developers.
 
 See also:
- + README: includes GASNet's coding standards
- + README-devel: rules developers are expected to follow when committing
- + README-git: overview and examples of GASNet's recommended git workflow
+ + README: GASNet usage documentation
+ + README-devel: GASNet design information and coding standards
+ + README-git: Rules developers are expected to follow when committing
 
+GASNet Release Procedure
+========================
 
 * Start from a *clean* clone of the git repo.
   Either start from a NEW clone, or use one of "git clean" or "git stash -o"
@@ -41,6 +43,7 @@ See also:
     big bugfix), and/or whenever we put out a new 'stable' release (or hand
     out a snapshot to a user). The patch-level should be even for beta versions
     marked as "stable" for users, or odd for general development.
+  other/gasnet_portable_platform.h - increment EVERY release (even without changes)
   GASNet spec version numbers, in configure.in:
     GASNET_SPEC_VERSION_MAJOR - increment on backwards compatibility break
     GASNET_SPEC_VERSION_MINOR - increment for new features that don't break
@@ -72,7 +75,7 @@ See also:
   contains any cross-configure scripts that are intended for distribution.
   The following command may be used to list any files which have been
   added to the Git repository since the previous release:
-    $ git diff --name-status [prevous-release-tag] | grep ^A
+    $ git diff --name-status [previous-release-tag] | grep ^A
 
 * Verify that ./unBootstrap removes all generated files:
   In the repository directory:
@@ -93,19 +96,22 @@ See also:
   with both debug+stats+trace and ndebug configs, and all supported backend
   C compilers:
    IBM BG/Q: pami (and mpi if time/allocation allows)
-   Cray XE: gemini (and mpi if time/allocation allows)
+   Cray XE/XK: gemini (and mpi if time/allocation allows)
    Cray XC: aries (and mpi if time/allocation allows)
-   Linux-Ethernet: mpi, udp
+   Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv (and portals4 & mxm, if possible)
-   Linux-Altix: smp, shmem
+   Linux-OmniPath: psm, ofi (plus mpi and ibv if time/allocation allows)
+   Linux-Altix: smp, shmem (NOTE: no current access)
    Windows/Cygwin: smp+pthreads
-   Mac OS X: smp+pthreads
+   Mac OS X: smp+pthreads, smp+sysv
+  SEGMENT_EVERYTHING should be tested on all conduits supporting it.
   In most cases these test will be conducted as part of Berkeley UPC's
   release testing (the "gasnet-tests" suite of the BUPC test harness).
 
 * Install the release candidate and ensure that share/docs/gasnet contains
   all the intended documentation, including any files referenced by README.
   Any missing should be added to INSTALL_DOCS in the top-level Makefile.am
+  Do NOT add developer-only documents (eg this file) to the distribution.
 
 * Resolutions for any "issues" (bugs, missing docs, etc.) should be fixed
   on the release branch and re-tested as necessary.  These will be merged
@@ -123,8 +129,6 @@ See also:
   The use of the URL for anonymous access to BitBucket is INTENTIONAL,
   so that you cannot accidentally commit the re-writes done by the
   "-o" option to ./Bootstrap.
-
-* Merge with Titanium and test SEGMENT_EVERYTHING functionality 
 
 * Iterate the appropriate steps above until you have final release
   tarballs for both GASNet and GASNet_Tools
@@ -232,17 +236,30 @@ See also:
 * In gasnet-web CVS repository:
   + Add both tarballs (GASNet and GASNet_Tools) to CVS
   + Update index.html for the new release
-    Minimum update is new versions and MD5s for the tarballs
+    Minimum update is new versions, sizes and MD5s for the tarballs
+  + Add new version to .cvsignore
 
 * On the gasnet.lbl.gov server:
   + "cvs up" to get the new tarballs and index.html
   + "tar xfz ..." to extract the new GASNet release (not Tools)
   + Move the "dist" symbolic link:
-    $ ln -sf GASNet-9.8.0 dist
+    $ ln -sfn GASNet-9.8.0 dist
 
-* Email a release notice with the most recent ChangeLog entry
+* Email a release notice with the most recent ChangeLog entry, using
+  the following headers:
+  To: gasnet-announce@lbl.gov, gasnet-users@lbl.gov
+  Reply-To: gasnet-devel@lbl.gov
+  Subject: GASNet Release A.B.C
 
-* In Bugzilla CLOSE the bugs resolved in this release (not time critical).
-  BUPC's release procedure contains recommended text for the bug closures.
+* In Bugzilla CLOSE the bugs resolved in this release, following the 
+  protocol described in the BUPC's release procedure.
 
 * Revise this document with any additions, corrections or changes
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
+
+  For more information, please email: gasnet-devel@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------

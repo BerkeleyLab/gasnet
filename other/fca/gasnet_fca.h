@@ -5,7 +5,7 @@
 #ifndef GASNET_FCA_H
 #define GASNET_FCA_H
 
-#ifndef _INCLUDED_GASNET_H
+#ifndef _INCLUDED_GASNETEX_H
 #include <gasnet_internal.h>
 #endif
 

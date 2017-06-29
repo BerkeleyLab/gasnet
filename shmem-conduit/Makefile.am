@@ -33,7 +33,7 @@ CONDUIT_SOURCELIST =                       \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @SHMEM_FLAGS@
+CONDUIT_EXTRALIBCFLAGS = @SHMEM_INCLUDES@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
@@ -96,6 +96,6 @@ clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local
 else
-$(top_srcdir)/gasnet.h: do-error
+$(top_srcdir)/gasnetex.h: do-error
 endif
 

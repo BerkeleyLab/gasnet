@@ -4,14 +4,12 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
-
-GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 
@@ -24,7 +22,5 @@ GASNETI_BEGIN_EXTERNC
 #endif
 
 #define GASNETC_MAX_LONG   ((size_t)0x7fffffff) /* unlimited */
-
-GASNETI_END_EXTERNC
 
 #endif

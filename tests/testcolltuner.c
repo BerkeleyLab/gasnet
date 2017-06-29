@@ -8,13 +8,18 @@
 #include <stdlib.h>
 
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_tools.h>
 #include <gasnet_coll.h>
 
 /*file for writing out XML information*/
 #include <myxml/myxml.h>
 
+
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 typedef struct {
   int my_local_thread;
@@ -31,7 +36,7 @@ typedef struct {
 #define VERBOSE_VERIFICATION_OUTPUT 0
 
 /*max_dsize is a variable set in main*/
-#define TOTAL_THREADS threads_per_node*gasnet_nodes()
+#define TOTAL_THREADS threads_per_node*gex_TM_QuerySize(myteam)
 
 #if 1
 #define ERROR_EXIT() gasnet_exit(1)
@@ -39,8 +44,8 @@ typedef struct {
 #define ERROR_EXIT() do {} while(0)
 #endif
 
-gasnet_node_t mynode;
-gasnet_node_t nodes;
+gex_Rank_t mynode;
+gex_Rank_t nodes;
 gasnet_image_t threads_per_node;
 gasnet_image_t THREADS;
 
@@ -216,7 +221,7 @@ int main(int argc, char **argv) {
   int i,j;
   static uint8_t *A, *B;
   thread_data_t *td_arr;
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcolltuner", &argc, &argv, 0));
   
   performance_iters = DEFAULT_PERFORMANCE_ITERS;
     
@@ -257,11 +262,11 @@ int main(int argc, char **argv) {
     gasnet_exit(0);
   }
   
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
   THREADS = nodes * threads_per_node;
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   /* ?? test_init("testcolltuner",0,"(-i iters) (-f output_file)"); */
   A = TEST_MYSEG();
   B = A+(SEG_PER_THREAD*threads_per_node);

@@ -3,28 +3,15 @@
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <ammpi_internal.h>
-#include <ammpi_spmd.h>
-
-#include <stdio.h>
-#ifdef WIN32
-  #include <process.h>
-#else
-  #include <unistd.h>
-  #if (PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX) && !defined(__USE_GNU)
-    /* some Linuxes need this to pull in F_SETSIG */
-    #define __USE_GNU
-    #include <fcntl.h>
-    #undef __USE_GNU
-  #else
-    #include <fcntl.h>
-  #endif
+#if _FORTIFY_SOURCE > 0 && __OPTIMIZE__ <= 0 /* silence an annoying MPICH/Linux warning */
+#undef _FORTIFY_SOURCE
 #endif
 
+#include <stdio.h>
+#include <unistd.h>
 
-#define FD_STDIN 0
-#define FD_STDOUT 1
-#define FD_STDERR 2
+#include <ammpi_spmd.h>
+#include "ammpi_internal.h" /* must come after any other headers */
 
 #ifndef FREEZE_SLAVE
   #define FREEZE_SLAVE  0
@@ -100,11 +87,7 @@ static void flushStreams(const char *context) {
     do_sync = ((c == '1') || (c == 'y') || (c == 'Y'));
   }
   if (do_sync) {
-  #if PLATFORM_OS_MTA
-    mta_sync();
-  #elif !PLATFORM_OS_CATAMOUNT
     sync();
-  #endif
   }
   ammpi_sched_yield();
 }
@@ -142,45 +125,38 @@ extern int AMMPI_SPMDMyProc(void) {
   return AMMPI_SPMDMYPROC;
 }
 /* ------------------------------------------------------------------------------------ */
+#ifndef HAVE_MPI_INIT_THREAD
+#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2)
+#endif
+#ifndef HAVE_MPI_QUERY_THREAD
+#define HAVE_MPI_QUERY_THREAD (MPI_VERSION >= 2)
+#endif
 static int threadstr2int(const char *str) {
   char tmp[80];
   char *p;
+  int ret = -1;
   strncpy(tmp, str, sizeof(tmp));
   for (p = tmp; *p; p++) if (*p >= 'a' && *p <= 'z') *p -= 'a'-'A'; /* upper-case */
-  #ifdef MPI_THREAD_SINGLE
+  #if HAVE_MPI_INIT_THREAD
     if (strstr(tmp,"SINGLE")) return MPI_THREAD_SINGLE;
-  #endif
-  #ifdef MPI_THREAD_FUNNELED
     if (strstr(tmp,"FUNNELED")) return MPI_THREAD_FUNNELED;
-  #endif
-  #ifdef MPI_THREAD_SERIALIZED
     if (strstr(tmp,"SERIALIZED")) return MPI_THREAD_SERIALIZED;
-  #endif
-  #ifdef MPI_THREAD_MULTIPLE
     if (strstr(tmp,"MULTIPLE")) return MPI_THREAD_MULTIPLE;
+    ret = MPI_THREAD_SINGLE-1;
   #endif
-  return -1;
+  return ret;
 }
 static const char *threadint2str(int id) {
   switch (id) {
-    #ifdef MPI_THREAD_SINGLE
+  #if HAVE_MPI_INIT_THREAD
       case MPI_THREAD_SINGLE:     return "MPI_THREAD_SINGLE";
-    #endif
-    #ifdef MPI_THREAD_FUNNELED
       case MPI_THREAD_FUNNELED:   return "MPI_THREAD_FUNNELED";
-    #endif
-    #ifdef MPI_THREAD_SERIALIZED
       case MPI_THREAD_SERIALIZED: return "MPI_THREAD_SERIALIZED";
-    #endif
-    #ifdef MPI_THREAD_MULTIPLE
       case MPI_THREAD_MULTIPLE:   return "MPI_THREAD_MULTIPLE";
-    #endif
       default: return "UNKNOWN VALUE";
+  #endif
   }
 }
-#ifndef HAVE_MPI_INIT_THREAD
-#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED)))
-#endif
 extern int AMMPI_SPMDSetThreadMode(int usingthreads, const char **provided_level, int *argc, char ***argv) {
   int initialized = 0;
   if (AMMPI_SPMDStartupCalled) AMMPI_RETURN_ERR(RESOURCE);
@@ -193,11 +169,17 @@ extern int AMMPI_SPMDSetThreadMode(int usingthreads, const char **provided_level
       const char *override = getenv("AMMPI_MPI_THREAD");
       if (!override) override = getenv("GASNET_MPI_THREAD");
       if (override) {
-        required = MAX(required,threadstr2int(override));
+        int overreq = threadstr2int(override);
+        if (overreq >= MPI_THREAD_SINGLE) required = overreq;
+        else { fprintf(stderr,"WARNING: Ignoring unrecognized GASNET_MPI_THREAD value."); fflush(stderr); }
       }
       MPI_SAFE(MPI_Initialized(&initialized));
       if (initialized) {  /* MPI already init, query current thread support level */
-        MPI_SAFE(MPI_Query_thread(&provided));
+        #if HAVE_MPI_QUERY_THREAD
+          MPI_SAFE(MPI_Query_thread(&provided));
+        #else
+          provided = required;
+        #endif
       } else { /* init MPI and request our needed level of thread safety */
         MPI_SAFE(MPI_Init_thread(argc, argv, required, &provided));
       }

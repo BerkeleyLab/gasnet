@@ -8,7 +8,6 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 
 #if GASNET_DEBUG
 typedef struct {
@@ -27,22 +26,12 @@ typedef struct {
 #define GASNETC_HSL_SPINLOCK 1
 
 /* ------------------------------------------------------------------------------------ */
-#define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_exchg_reqh              (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-#define GASNETC_MAX_NUMHANDLERS   256
-extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
-
-/* ------------------------------------------------------------------------------------ */
-/* AM category (recommended impl if supporting PSHM) */
-typedef enum {
-  gasnetc_Short=0,
-  gasnetc_Medium=1,
-  gasnetc_Long=2
-} gasnetc_category_t;
+extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNETI_CLIENT_THREADS

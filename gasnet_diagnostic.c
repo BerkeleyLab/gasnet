@@ -17,7 +17,6 @@
 
 #define TEST_OMIT_CONFIGSTRINGS 1
 #include <../tests/test.h>
-#include <gasnet_handler.h>
 
 /* this file should *only* contain symbols used for internal diagnostics,
    so that we can avoid needlessly linking it into production executables 
@@ -87,10 +86,11 @@ static int id = 0;
     }
   }
 #else
-  #define auxseg_test()   TEST_HEADER("auxseg test - SKIPPED")
+  #define auxseg_test()   TEST_HEADER("auxseg test - SKIPPED") do { } while(0)
 #endif
 
 static void mutex_test(int id);
+static void rwlock_test(int id);
 static void spinlock_test(int id);
 static void cond_test(int id);
 static void semaphore_test(int id);
@@ -100,13 +100,15 @@ static void malloc_test(int id);
 static void progressfns_test(int id);
 static void op_test(int id);
 
+static gex_TM_t myteam;
+
 /* ------------------------------------------------------------------------------------ */
 /* run iters iterations of diagnostics and return zero on success 
    must be called collectively by exactly one thread on each node
    in par mode, the test may internally spawn up to threadcnt threads
  */
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
-                                   gasnet_seginfo_t const *seginfo) { 
+                                   gex_TM_t myteam_arg, gasnet_seginfo_t const *seginfo) {
   int i;
   int partner = (gasnet_mynode() ^ 1);
   if (partner == gasnet_nodes()) partner = gasnet_mynode();
@@ -122,6 +124,7 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
     assert_always(_test_seginfo[i].size >= TEST_SEGSZ);
     assert_always((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
   }
+  myteam = myteam_arg;
   myseg = TEST_MYSEG();
   peerseg = TEST_SEG(peer);
   peersegmid = (char *)peerseg + TEST_SEGSZ/2;
@@ -139,6 +142,9 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
 
   BARRIER();
   TEST_HEADER("gasneti_cond_t test") cond_test(0);
+
+  BARRIER();
+  TEST_HEADER("gasneti_rwlock_t test") rwlock_test(0);
 
   BARRIER();
   spinlock_test(0);
@@ -212,9 +218,14 @@ static void malloc_test(int id) {
     PTHREAD_LOCALBARRIER(num_threads);
   }
 
+  // bug 2788: try to isolate this test from conduit allocations that may take place during global barrier
+  sleep(1);
+  gasnet_AMPoll();
+  PTHREAD_LOCALBARRIER(num_threads);
+
   if (!id) gasneti_getheapstats(&stats_before);
     
-  PTHREAD_BARRIER(num_threads);
+  PTHREAD_LOCALBARRIER(num_threads);
 
   gasneti_memcheck_all();
   ptrs = gasneti_malloc_allowfail(8);
@@ -225,7 +236,7 @@ static void malloc_test(int id) {
   gasneti_free(ptrs);
   gasneti_free(NULL);
 
-  PTHREAD_BARRIER(num_threads);
+  PTHREAD_LOCALBARRIER(num_threads);
   
   maxobjs = MIN(iters0,10000/num_threads);
   ptrs = gasneti_calloc(maxobjs,sizeof(void*));
@@ -268,47 +279,52 @@ static void malloc_test(int id) {
   gasneti_free(ptrs);
   gasneti_memcheck_all();
 
-  PTHREAD_BARRIER(num_threads);
+  PTHREAD_LOCALBARRIER(num_threads);
 
   for (i = 0; i < iters/num_threads; i++) {
     int alignsz;
     for (alignsz = 1; alignsz < 64*1024; alignsz *= 2) {
       size_t sz = TEST_RAND(1,alignsz*2);
-      char * p = gasnett_malloc_aligned(alignsz,sz);
+      char * p = gasneti_malloc_aligned(alignsz,sz);
       assert_always(p);
       assert_always((((uintptr_t)p) & (alignsz-1)) == 0);
       p[0] = 'x'; p[sz - 1] = 'y';
       if (TEST_RAND_ONEIN(4)) {
         gasneti_leak_aligned(p);
       }
-      gasnett_free_aligned(p);
+      gasneti_free_aligned(p);
     }
   }
   gasneti_memcheck_all();
 
-  PTHREAD_BARRIER(num_threads);
+  PTHREAD_LOCALBARRIER(num_threads);
 
   if (!id) {
     gasneti_getheapstats(&stats_after);
     #if GASNET_DEBUG
     {
     #if GASNETI_CONDUIT_THREADS
-      float tol = 0.1; /* allow for some heap change if a conduit thread is around */
+      double tol = 0.1; /* allow for some heap change if a conduit thread is around */
     #else
-      float tol = 0; /* we have all the threads, and nothing else should be allocating */
+      double tol = 0; /* we have all the threads, and nothing else should be allocating */
     #endif
-      long delta_bytes = (long long)stats_before.live_bytes - (long long)stats_after.live_bytes;
-      long delta_objects = (long long)stats_before.live_objects - (long long)stats_after.live_objects;
-      if (labs(delta_bytes)/(double)stats_after.live_bytes > tol ||
-          labs(delta_objects)/(double)stats_after.live_objects > tol) 
+      int64_t delta_bytes = (int64_t)stats_before.live_bytes - (int64_t)stats_after.live_bytes;
+      int64_t delta_objects = (int64_t)stats_before.live_objects - (int64_t)stats_after.live_objects;
+      if (delta_bytes < 0) delta_bytes = -delta_bytes;
+      if (delta_objects < 0) delta_objects = -delta_objects;
+      if (delta_bytes/(double)stats_after.live_bytes > tol ||
+          delta_objects/(double)stats_after.live_objects > tol) 
         MSG("ERROR: unexpected heap size change:\n"
-        "  stats_before.live_bytes=%llu stats_after.live_bytes=%llu\n"
-        "  stats_before.live_objects=%llu stats_after.live_objects=%llu",
-        (unsigned long long)stats_before.live_bytes,   (unsigned long long)stats_after.live_bytes,
-        (unsigned long long)stats_before.live_objects, (unsigned long long)stats_after.live_objects);
+            "  stats_before.live_bytes=%"PRIu64" stats_after.live_bytes=%"PRIu64"\n"
+            "  stats_before.live_objects=%"PRIu64" stats_after.live_objects=%"PRIu64,
+            stats_before.live_bytes,   stats_after.live_bytes,
+            stats_before.live_objects, stats_after.live_objects);
     }
     #endif
   }
+
+  sleep(1);
+
   PTHREAD_BARRIER(num_threads);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -372,7 +388,8 @@ static void mutex_test(int id) {
 
   PTHREAD_BARRIER(num_threads);
 
-    if (!id) {
+  if (!id) {
+    for (i=0; i<10; i++) {
       gasneti_mutex_assertunlocked(&lock1);
       gasneti_mutex_lock(&lock1);
       gasneti_mutex_assertlocked(&lock1);
@@ -390,11 +407,9 @@ static void mutex_test(int id) {
       gasneti_mutex_unlock(&lock2);
       gasneti_mutex_assertunlocked(&lock2);
       gasneti_mutex_destroy(&lock2);
-      gasneti_mutex_init(&lock2);
-      gasneti_mutex_assertunlocked(&lock2);
-
-      counter = 0;
     }
+    counter = 0;
+  }
 
   PTHREAD_BARRIER(num_threads);
 
@@ -415,6 +430,122 @@ static void mutex_test(int id) {
 
     if (counter != (num_threads * count)) 
       ERR("failed mutex test: counter=%i expecting=%i", counter, (num_threads * count));
+
+  PTHREAD_BARRIER(num_threads);
+}
+/* ------------------------------------------------------------------------------------ */
+static void rwlock_test(int id) {
+  static gasneti_rwlock_t lock1 = GASNETI_RWLOCK_INITIALIZER;
+  static gasneti_rwlock_t lock2;
+  #define NUMCHECK 256
+  static unsigned int check[NUMCHECK];
+  static unsigned int *numwrites;
+  unsigned int count = iters2 / num_threads;
+  int i;
+  int trywrite = 0;
+
+  PTHREAD_BARRIER(num_threads);
+
+  if (!id) { /* serial tests */
+    for (i=0; i<10; i++) {
+      gasneti_rwlock_assertunlocked(&lock1);
+      gasneti_rwlock_rdlock(&lock1);
+      gasneti_rwlock_assertlocked(&lock1);
+      gasneti_rwlock_assertrdlocked(&lock1);
+      gasneti_rwlock_unlock(&lock1);
+      gasneti_rwlock_assertunlocked(&lock1);
+      gasneti_rwlock_wrlock(&lock1);
+      gasneti_rwlock_assertlocked(&lock1);
+      gasneti_rwlock_assertwrlocked(&lock1);
+      gasneti_rwlock_unlock(&lock1);
+      gasneti_rwlock_assertunlocked(&lock1);
+
+      assert_always(gasneti_rwlock_tryrdlock(&lock1) == GASNET_OK);
+      gasneti_rwlock_assertlocked(&lock1);
+      gasneti_rwlock_assertrdlocked(&lock1);
+      gasneti_rwlock_unlock(&lock1);
+      assert_always(gasneti_rwlock_trywrlock(&lock1) == GASNET_OK);
+      gasneti_rwlock_assertlocked(&lock1);
+      gasneti_rwlock_assertwrlocked(&lock1);
+      gasneti_rwlock_unlock(&lock1);
+
+      gasneti_rwlock_init(&lock2);
+      gasneti_rwlock_assertunlocked(&lock2);
+      gasneti_rwlock_rdlock(&lock2);
+      gasneti_rwlock_assertlocked(&lock2);
+      gasneti_rwlock_assertrdlocked(&lock2);
+      gasneti_rwlock_unlock(&lock2);
+      gasneti_rwlock_wrlock(&lock2);
+      gasneti_rwlock_assertlocked(&lock2);
+      gasneti_rwlock_assertwrlocked(&lock2);
+      gasneti_rwlock_unlock(&lock2);
+      gasneti_rwlock_assertunlocked(&lock2);
+      gasneti_rwlock_destroy(&lock2);
+    }
+    numwrites = gasneti_calloc(num_threads, sizeof(*numwrites));
+    memset(check, 0, sizeof(check));
+  }
+
+  PTHREAD_BARRIER(num_threads);
+
+    for (i=0;i<count;i++) {
+      int j;
+      const int writer = ((id + i + 1) & 0xFF) == 1; /* early and infrequent writes */
+      if (writer) { /* write lock */
+        if (trywrite++ & 1) {
+          int retval;
+          while ((retval=gasneti_rwlock_trywrlock(&lock1)) != 0) {
+            assert_always(retval == EBUSY);
+          }
+        } else {
+          gasneti_rwlock_wrlock(&lock1);
+        }
+        gasneti_rwlock_assertwrlocked(&lock1);
+        /* perform writes */
+        for (j=NUMCHECK-1; j >= 0; j--) {
+          check[j]++;
+        }
+        numwrites[id]++;
+      }
+      if (!writer) { /* read lock */
+        if (i & 1) {
+          int retval;
+          while ((retval=gasneti_rwlock_tryrdlock(&lock1)) != 0) {
+            assert_always(retval == EBUSY);
+          }
+        } else {
+          gasneti_rwlock_rdlock(&lock1);
+        }
+        gasneti_rwlock_assertrdlocked(&lock1);
+      }
+      { /* read-only check */
+        const unsigned int val = check[0]; /* try to detect a concurrent writer */
+        int k;
+        for (j=0; j < 10; j++) {
+          for (k=0; k < NUMCHECK; k++) {
+            unsigned int cv = check[k];
+            if_pf (cv != val)
+             ERR("failed rwlock test: check[%i]=%i expecting=%i", k, cv, val);
+          }
+        }
+      }
+
+      gasneti_rwlock_unlock(&lock1);
+    }
+
+  PTHREAD_BARRIER(num_threads);
+
+    if (!id) { /* final verification */
+      int sum = 0;
+      for (i=0; i < num_threads; i++) sum += numwrites[i];
+      assert_always(sum > 0);
+      for (i=0; i < NUMCHECK; i++) {
+        unsigned int cv = check[i];
+        if_pf (cv != sum)
+          ERR("failed rwlock test: check[%i]=%i expecting=%i", i, cv, sum);
+      }  
+      gasneti_free(numwrites);
+    }
 
   PTHREAD_BARRIER(num_threads);
 }
@@ -470,7 +601,7 @@ static void spinlock_test(int id) {
 }
 #else
 static void spinlock_test(int id) {
-  TEST_HEADER("spinlock test - SKIPPED");
+  TEST_HEADER("spinlock test - SKIPPED"); else return;
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -606,7 +737,7 @@ static void atomic128_test(int id) {
 }
 #else
 static void atomic128_test(int id) {
-  TEST_HEADER("128-bit atomic test - SKIPPED");
+  TEST_HEADER("128-bit atomic test - SKIPPED"); else return;
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -715,22 +846,24 @@ static void lifo_test(int id) {
 }
 /* ------------------------------------------------------------------------------------ */
 static int pf_cnt_boolean, pf_cnt_counted;
-static gasnet_hsl_t pf_lock = GASNET_HSL_INITIALIZER;
+static gex_HSL_t pf_lock = GEX_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
-static void progressfn_reqh(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes));
+static void progressfn_reqh(gex_Token_t token, void *buf, size_t nbytes) {
+  // TODO-EX: nbytes = MIN(nbytes, gex_AM_MaxReplyMedium(..., GEX_EVENT_NOW, 0, 0));
+  nbytes = MIN(nbytes, gex_AM_LUBReplyMedium()); /* In case Reply size smaller than Request */
+  gex_AM_ReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GEX_EVENT_NOW, 0);
 }
-static void progressfn_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+static void progressfn_reph(gex_Token_t token, void *buf, size_t nbytes) {
   gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
 }
 static void progressfn_tester(int *counter) {
   static int active = 0; /* protocol provides mutual exclusion & recursion protection */
   int iamactive = 0;
-  gasnet_hsl_lock(&pf_lock);
+  gex_HSL_Lock(&pf_lock);
     (*counter)++;
     if (!active) { active = 1; iamactive = 1; }
-  gasnet_hsl_unlock(&pf_lock);
+  gex_HSL_Unlock(&pf_lock);
   if (!iamactive) return;
 
   /* do some work that should be legal inside a progress fn */
@@ -740,19 +873,20 @@ static void progressfn_tester(int *counter) {
 #endif
   { static int tmp = 47;
     int sz;
-    gasnet_put_nbi(peer, peersegmid, &tmp, sizeof(tmp));
-    gasnet_get_nbi(&tmp, peer, peersegmid, sizeof(tmp));
+    gex_RMA_PutNBI(myteam, peer, peersegmid, &tmp, sizeof(tmp), GEX_EVENT_NOW, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
-      gasnet_put_nbi_bulk(peer, peersegmid, myseg, sz);
-      gasnet_get_nbi_bulk(myseg, peer, peersegmid, sz);
+      gex_RMA_PutNBI(myteam, peer, peersegmid, myseg, sz, GEX_EVENT_DEFER, 0);
+      gex_RMA_GetNBI(myteam, myseg, peer, peersegmid, sz, 0);
     }
-    sz = gasnet_try_syncnbi_all();
+    sz = (gasnet_AMPoll(),gex_NBI_Test(GEX_EC_ALL,0));
     if (gasneti_diag_havehandlers) {
-      for (sz = 1; sz <= MIN(gasnet_AMMaxMedium(),MIN(64*1024,TEST_SEGSZ/2)); sz = (sz < 64?sz*2:sz*8)) {
+      const size_t max_sz = MIN(gex_AM_MaxRequestMedium(myteam, peer, GEX_EVENT_NOW, 0, 0),
+                                MIN(64*1024,TEST_SEGSZ/2));
+      for (sz = 1; sz <= max_sz; sz = (sz < 64?sz*2:sz*8)) {
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnet_AMRequestMedium0(peer, gasneti_diag_hidx_base + 0, myseg, sz);
+        gex_AM_RequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GEX_EVENT_NOW, 0);
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnet_AMRequestLong0(peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid);
+        gex_AM_RequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GEX_EVENT_NOW, 0);
       }
     }
   }
@@ -789,10 +923,10 @@ static void progressfns_test(int id) {
     /* do some work that should cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnet_put(peer, peerseg, &tmp, sizeof(tmp));
-      gasnet_get(&tmp, peer, peerseg, sizeof(tmp));
-      gasnet_put_bulk(peer, peersegmid, myseg, 1024);
-      gasnet_get_bulk(myseg, peer, peersegmid, 1024);
+      gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
+      gex_RMA_GetBlocking(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -814,10 +948,10 @@ static void progressfns_test(int id) {
     /* do some work that might cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnet_put(peer, peerseg, &tmp, sizeof(tmp));
-      gasnet_get(&tmp, peer, peerseg, sizeof(tmp));
-      gasnet_put_bulk(peer, peersegmid, myseg, 1024);
-      gasnet_get_bulk(myseg, peer, peersegmid, 1024);
+      gex_RMA_PutBlocking(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gex_RMA_GetBlocking(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gex_RMA_PutBlocking(myteam, peer, peersegmid, myseg, 1024, 0);
+      gex_RMA_GetBlocking(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -841,69 +975,69 @@ static void op_test(int id) {
     int peerid = ( id + 1 ) % num_threads;
 
     PTHREAD_BARRIER(num_threads);
-    gasnet_wait_syncnbi_all();
+    gex_NBI_Wait(GEX_EC_ALL,0);
     PTHREAD_BARRIER(num_threads);
     if (!id) share = test_malloc(sizeof(void *)*num_threads);
     PTHREAD_BARRIER(num_threads);
 
     { gasneti_eop_t *eop;
-      gasnet_handle_t h;
-      eop = gasneti_eop_create(GASNETE_THREAD_GET_ALONE);
+      gex_Event_t h;
+      eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
       assert_always(eop);
-      h = gasneti_eop_to_handle(eop);
-      assert_always(gasnet_try_syncnb(h) == GASNET_ERR_NOT_READY);
+      h = gasneti_eop_to_event(eop);
+      assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
       share[id] = eop; /* hand-off eop to neighbor thread */
       PTHREAD_BARRIER(num_threads);
       gasneti_eop_markdone(share[peerid]); /* mark right neighbor's eop done */
       PTHREAD_BARRIER(num_threads);
-      assert_always(gasnet_try_syncnb(h) == GASNET_OK);
+      assert_always(gex_Event_Test(h) == GASNET_OK);
     }
     PTHREAD_BARRIER(num_threads);
     { /* inc the get and put counts on my iop */
-      gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETE_THREAD_GET);
+      gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_GET);
         assert_always(iop);
-        assert_always(gasnet_try_syncnbi_puts() == GASNET_ERR_NOT_READY);
-        assert_always(gasnet_try_syncnbi_gets() == GASNET_OK);
-        assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY);
-      assert_always(iop == gasneti_iop_register(2, 1 GASNETE_THREAD_GET));
-        assert_always(gasnet_try_syncnbi_puts() == GASNET_ERR_NOT_READY);
-        assert_always(gasnet_try_syncnbi_gets() == GASNET_ERR_NOT_READY);
-        assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_OK);
+        assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY);
+      assert_always(iop == gasneti_iop_register(2, 1 GASNETI_THREAD_GET));
+        assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY);
 
       share[id] = iop; /* hand-off iop to neighbor thread */
       PTHREAD_BARRIER(num_threads);
       gasneti_iop_markdone(share[peerid], 1, 0); /* mark right neighbor's iop puts done */
       PTHREAD_BARRIER(num_threads);
-        assert_always(gasnet_try_syncnbi_puts() == GASNET_OK);
-        assert_always(gasnet_try_syncnbi_gets() == GASNET_ERR_NOT_READY);
-        assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_OK);
+        assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_ERR_NOT_READY);
+        assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY);
       PTHREAD_BARRIER(num_threads);
       gasneti_iop_markdone(share[peerid], 2, 1); /* mark right neighbor's iop gets done */
       PTHREAD_BARRIER(num_threads);
-        assert_always(gasnet_try_syncnbi_puts() == GASNET_OK);
-        assert_always(gasnet_try_syncnbi_gets() == GASNET_OK);
-        assert_always(gasnet_try_syncnbi_all() == GASNET_OK);
+        assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_OK);
+        assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_OK);
+        assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_OK);
     }
     PTHREAD_BARRIER(num_threads);
     { int isget;
       for (isget = 0; isget <= 1; isget++) { 
         #define ASSERT_NBI_SYNCED() (                            \
-          assert_always(gasnet_try_syncnbi_puts() == GASNET_OK), \
-          assert_always(gasnet_try_syncnbi_gets() == GASNET_OK), \
-          assert_always(gasnet_try_syncnbi_all() == GASNET_OK) )
+          assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_OK), \
+          assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_OK), \
+          assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_OK) )
         #define ASSERT_NBI_NOTSYNCED() (isget? (                            \
-          assert_always(gasnet_try_syncnbi_puts() == GASNET_OK),            \
-          assert_always(gasnet_try_syncnbi_gets() == GASNET_ERR_NOT_READY), \
-          assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY)   \
-          ) : (                                                             \
-          assert_always(gasnet_try_syncnbi_puts() == GASNET_ERR_NOT_READY), \
-          assert_always(gasnet_try_syncnbi_gets() == GASNET_OK),            \
-          assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY)) )
+          assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_OK),            \
+          assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_ERR_NOT_READY), \
+          assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY)  \
+          ) : (                                                              \
+          assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_ERR_NOT_READY), \
+          assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_OK),            \
+          assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY)) )
 
         gasneti_iop_t *iop1, *iop2;
         gasneti_iop_t *peer_iop1, *peer_iop2;
         ASSERT_NBI_SYNCED();
-        iop1 = gasneti_iop_register(5, isget GASNETE_THREAD_GET); /* iop1 = 5 */
+        iop1 = gasneti_iop_register(5, isget GASNETI_THREAD_GET); /* iop1 = 5 */
         assert_always(iop1);
         ASSERT_NBI_NOTSYNCED();
         PTHREAD_BARRIER(num_threads);
@@ -915,12 +1049,12 @@ static void op_test(int id) {
         ASSERT_NBI_NOTSYNCED();
 
         { /* implicit access region */
-          gasnet_handle_t h;
+          gex_Event_t h;
           gasneti_eop_t *eop;
-          gasnet_handle_t h2;
+          gex_Event_t h2;
 
-          gasnet_begin_nbi_accessregion();
-          iop2 = gasneti_iop_register(1, isget GASNETE_THREAD_GET); /* iop2 = 1 */
+          gex_NBI_BeginAccessRegion(0);
+          iop2 = gasneti_iop_register(1, isget GASNETI_THREAD_GET); /* iop2 = 1 */
           assert_always(iop2);
           assert_always(iop2 != iop1);
           PTHREAD_BARRIER(num_threads);
@@ -929,63 +1063,63 @@ static void op_test(int id) {
           peer_iop2 = share[peerid];
           gasneti_iop_markdone(peer_iop2, 1, isget);  /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
-          assert_always(iop2 == gasneti_iop_register(2, isget GASNETE_THREAD_GET)); /* iop2 += 2 */
+          assert_always(iop2 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop2 += 2 */
 
-          eop = gasneti_eop_create(GASNETE_THREAD_GET_ALONE);
+          eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
           assert_always(eop);
-          h2 = gasneti_eop_to_handle(eop);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          h2 = gasneti_eop_to_event(eop);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
 
-          h = gasnet_end_nbi_accessregion();
-          assert_always(gasnet_try_syncnb(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          h = gex_NBI_EndAccessRegion(0);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop1, 2, isget); /* iop1 -= 2 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnet_try_syncnb(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop2, 1, isget); /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnet_try_syncnb(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop1, 1, isget); /* iop1 -= 1 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_SYNCED();
-          assert_always(gasnet_try_syncnb(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
-          assert_always(iop1 == gasneti_iop_register(2, isget GASNETE_THREAD_GET)); /* iop1 += 2 */
+          assert_always(iop1 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop1 += 2 */
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnet_try_syncnb(h) == GASNET_ERR_NOT_READY);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop2, 1, isget); /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_NOTSYNCED();
-          assert_always(gasnet_try_syncnb(h) == GASNET_OK);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h) == GASNET_OK);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
           gasneti_iop_markdone(peer_iop1, 2, isget); /* iop1 -= 2 */
           PTHREAD_BARRIER(num_threads);
           ASSERT_NBI_SYNCED();
 
-          assert_always(gasnet_try_syncnb(h2) == GASNET_ERR_NOT_READY);
+          assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
           share[id] = eop; /* hand-off eop to neighbor thread */
           PTHREAD_BARRIER(num_threads);
           gasneti_eop_markdone(share[peerid]); /* mark right neighbor's eop done */
           PTHREAD_BARRIER(num_threads);
-          assert_always(gasnet_try_syncnb(h2) == GASNET_OK);
+          assert_always(gex_Event_Test(h2) == GASNET_OK);
           ASSERT_NBI_SYNCED();
 
           PTHREAD_BARRIER(num_threads);
@@ -1015,6 +1149,9 @@ static void * thread_fn(void *arg) {
 
   PTHREAD_BARRIER(num_threads);
   TEST_HEADER("gasneti_cond_t test") cond_test(id);
+
+  PTHREAD_BARRIER(num_threads);
+  TEST_HEADER("gasneti_rwlock_t test") rwlock_test(id);
 
   PTHREAD_BARRIER(num_threads);
   spinlock_test(id);
@@ -1047,7 +1184,7 @@ static void * thread_fn(void *arg) {
 }
 #endif
 
-static gasnet_handlerentry_t gasneti_diag_handlers[] = {
+static gex_AM_Entry_t gasneti_diag_handlers[] = {
   #ifdef GASNETC_DIAG_HANDLERS
     GASNETC_DIAG_HANDLERS(), /* should start at gasnetc_diag_hidx_base */
   #endif
@@ -1055,15 +1192,15 @@ static gasnet_handlerentry_t gasneti_diag_handlers[] = {
     GASNETE_DIAG_HANDLERS(), /* should start at gasnete_diag_hidx_base */
   #endif
 
-  { gasneti_diag_hidx_base + 0, (gasneti_handler_fn_t)progressfn_reqh },
-  { gasneti_diag_hidx_base + 1, (gasneti_handler_fn_t)progressfn_reph }
+  { gasneti_diag_hidx_base + 0, (gex_AM_Fn_t)progressfn_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 0 },
+  { gasneti_diag_hidx_base + 1, (gex_AM_Fn_t)progressfn_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0 }
 };
 
 
-void gasneti_diagnostic_gethandlers(gasnet_handlerentry_t **htable, int *htable_cnt) {
+void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **htable, int *htable_cnt) {
   assert(htable && htable_cnt);
   *htable = gasneti_diag_handlers;
-  *htable_cnt = (int)(sizeof(gasneti_diag_handlers)/sizeof(gasnet_handlerentry_t));
+  *htable_cnt = (int)(sizeof(gasneti_diag_handlers)/sizeof(gex_AM_Entry_t));
   gasneti_diag_havehandlers = 1;
 }
 

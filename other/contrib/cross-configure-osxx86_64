@@ -9,9 +9,6 @@
 CC='gcc -arch x86_64' ; export CC  # vanilla target C compiler
 CXX='g++ -arch x86_64' ; export CXX  # vanilla target C++ compiler
 
-# need the SDK to ensure we link when cross compiling from an older chip missing the target from libSystem
-LDFLAGS='-isysroot /Developer/SDKs/MacOSX10.4u.sdk/' ; export LDFLAGS
-
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/
 # to get the correct assembler if gcc is your host compiler
@@ -63,11 +60,11 @@ CROSS_CHAR_IS_SIGNED='1' ; export CROSS_CHAR_IS_SIGNED
 CROSS_SIZEOF_CHAR='1' ; export CROSS_SIZEOF_CHAR
 CROSS_SIZEOF_SHORT='2' ; export CROSS_SIZEOF_SHORT
 CROSS_SIZEOF_INT='4' ; export CROSS_SIZEOF_INT
-CROSS_SIZEOF_LONG='4' ; export CROSS_SIZEOF_LONG
+CROSS_SIZEOF_LONG='8' ; export CROSS_SIZEOF_LONG
 CROSS_SIZEOF_LONG_LONG='8' ; export CROSS_SIZEOF_LONG_LONG
-CROSS_SIZEOF_VOID_P='4' ; export CROSS_SIZEOF_VOID_P
-CROSS_SIZEOF_SIZE_T='4' ; export CROSS_SIZEOF_SIZE_T
-CROSS_SIZEOF_PTRDIFF_T='4' ; export CROSS_SIZEOF_PTRDIFF_T
+CROSS_SIZEOF_VOID_P='8' ; export CROSS_SIZEOF_VOID_P
+CROSS_SIZEOF_SIZE_T='8' ; export CROSS_SIZEOF_SIZE_T
+CROSS_SIZEOF_PTRDIFF_T='8' ; export CROSS_SIZEOF_PTRDIFF_T
 
 # System signal values
 
@@ -84,29 +81,21 @@ if test ! -f "$SRCDIR/configure" ; then
   echo "ERROR: The $0 script should be placed in the same directory as the configure script before execution"
   exit 1
 fi
-# Detect the build host machine type
-HOST_ARG=`echo "$@" | grep -e --host`
+# Detect the build+host machine type
 HOST_APPEND=
-if test "$HOST_ARG" = ""; then
-  oldCC_FOR_BUILD="$CC_FOR_BUILD"
-  oldHOST_CC="$HOST_CC"
-  oldCC="$CC"
-  CC_FOR_BUILD=
-  HOST_CC=
-  CC=
-  if test "$HOST_ID" = ""; then
-    HOST_ID=`$SRCDIR/config-aux/config.guess`
+for sys in host build; do
+  SYS_ARG=`echo "$@" | grep -i -e --$sys`
+  if test -z "$SYS_ARG"; then
+    if test -z "$HOST_ID"; then
+      HOST_ID=`env CC= HOST_CC= CC_FOR_BUILD= $SRCDIR/config-aux/config.guess`
+      if test -z "$HOST_ID"; then
+        echo 'ERROR: failed to auto-detect build host. Please run with --host=machineid --build=machineid to identify the host machine running this script'
+        exit 1
+      fi
+    fi
+    HOST_APPEND="$HOST_APPEND --$sys=$HOST_ID"
   fi
-  if test "$HOST_ID" = ""; then
-    echo 'ERROR: failed to auto-detect build host. Please run with --host=machineid to identify the host machine running this script'
-    exit 1
-  else
-    HOST_APPEND="--host=$HOST_ID"
-  fi
-  CC_FOR_BUILD="$oldCC_FOR_BUILD"
-  HOST_CC="$oldHOST_CC"
-  CC="$oldCC"
-fi
+done
 # Now that everything is setup, run the actual configure script
-$SRCDIR/configure --enable-cross-compile $HOST_APPEND --build=$TARGET_ID --target=$TARGET_ID --program-prefix='' $EXTRA_CONFIGURE_ARGS "$@"
+$SRCDIR/configure --enable-cross-compile$HOST_APPEND --target=$TARGET_ID $EXTRA_CONFIGURE_ARGS "$@"
 

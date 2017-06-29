@@ -89,7 +89,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   int result = 0;
   int child;
@@ -232,7 +232,7 @@ static int gasnete_coll_pf_bcastM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
   const gasnete_coll_broadcastM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcastM);
   int result = 0;
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   int child;
   
@@ -378,7 +378,7 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
   const gasnete_coll_scatter_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatter);
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   int result = 0;
   int child;
@@ -584,7 +584,7 @@ static int gasnete_coll_pf_scatM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
   const gasnete_coll_scatterM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatterM);
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   int result = 0;
   int child;
@@ -770,9 +770,9 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
   const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
   int result = 0;
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  gasnet_node_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
+  gex_Rank_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -957,9 +957,9 @@ static int gasnete_coll_pf_gathM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   const gasnete_coll_gatherM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gatherM);
   int result = 0;
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  gasnet_node_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
+  gex_Rank_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -1051,7 +1051,7 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
   }
   
   if(data->state == 1) {
-    gasnet_node_t dst;
+    gex_Rank_t dst;
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     
     if_pt(op->team->total_ranks > 1) {
@@ -1145,7 +1145,7 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETE_THREAD
   if(data->state >= 2 && data->state <= (dissem->dissemination_phases-1)*2+1) {
     uint32_t phase = (data->state-2)/2;
     size_t curr_len = args->nbytes*(1<<phase); /* length = nbytes * 2^phase*/
-    gasnet_node_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
+    gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
     
     if(data->state % 2 == 0) {
       /* send in this phase */
@@ -1166,7 +1166,7 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETE_THREAD
     uint32_t phase = (data->state-2)/2;
     size_t nblk = op->team->total_ranks - (1<<phase); 
     size_t curr_len = args->nbytes*(nblk);
-    gasnet_node_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
+    gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
     gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, dstnode), data->p2p->data,
                                         curr_len, args->nbytes, (1<<phase), phase);
 
@@ -1230,7 +1230,7 @@ static int gasnete_coll_pf_gallM_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THRE
   }
   
   if(data->state == 1) {
-    gasnet_node_t dst;
+    gex_Rank_t dst;
     int8_t* mydata;
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     /*Gather the data into the start of the scratch space*/
@@ -1338,7 +1338,7 @@ static int gasnete_coll_pf_gallM_EagerDissem(gasnete_coll_op_t *op GASNETE_THREA
   if(data->state >= 2 && data->state <= (dissem->dissemination_phases-1)*2+1) {
     uint32_t phase = (data->state-2)/2;
     size_t curr_len = op->team->my_images*args->nbytes*(1<<phase); /* length = nbytes * 2^phase*/
-    gasnet_node_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
+    gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
     
     if(data->state % 2 == 0) {
       /* send in this phase */
@@ -1359,7 +1359,7 @@ static int gasnete_coll_pf_gallM_EagerDissem(gasnete_coll_op_t *op GASNETE_THREA
     uint32_t phase = (data->state-2)/2;
     size_t nblk = op->team->total_ranks - (1<<phase); 
     size_t curr_len = op->team->my_images*args->nbytes*(nblk);
-    gasnet_node_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
+    gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
     gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, dstnode), data->p2p->data,
                                         curr_len, op->team->my_images*args->nbytes, (1<<phase), phase);
     
@@ -1508,7 +1508,7 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(Eager)
 static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   const gasnete_coll_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, reduce);
   gasnete_coll_p2p_t *p2p = data->p2p;
@@ -1626,7 +1626,7 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(TreeEager)
 static int gasnete_coll_pf_reduceM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   const gasnete_coll_reduceM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, reduceM);
   gasnete_coll_p2p_t *p2p = data->p2p;

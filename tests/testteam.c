@@ -6,22 +6,27 @@
    test.  Column teams and row teams of a process grid are created and
    team barriers are performed on these teams. */
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_coll.h>
-#include <gasnet_coll_team.h>
 
-#define SEG_PER_THREAD (2*1024*1024)
-#define TEST_SEGSZ_EXPR (SEG_PER_THREAD)
+#ifndef TEST_SEGSZ
+#define TEST_SEGSZ (2*1024*1024)
+#endif
 
 #include <math.h> /* for sqrt() */
 #include <test.h>
+
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int main(int argc, char **argv) 
 {
   int mynode, nodes, iters=0;
   int64_t start,total;
   int i = 0;
-  gasnet_node_t nrows, ncols, my_row, my_col;
+  gex_Rank_t nrows, ncols, my_row, my_col;
   void *clientdata = NULL;
   gasnet_team_handle_t my_row_team, my_col_team;
   static uint8_t *A, *B;
@@ -31,9 +36,9 @@ int main(int argc, char **argv)
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
   gasnet_seginfo_t const * test_segs;
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteam", &argc, &argv, 0));
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   
 #if !GASNET_SEQ
   MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
@@ -46,8 +51,8 @@ int main(int argc, char **argv)
 
   test_init("testteam", 1, "(iters) (nrows) (ncols)");
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
   test_segs = TEST_SEGINFO();
   
   teamA_scratch.addr = test_segs[mynode].addr;

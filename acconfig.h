@@ -5,8 +5,8 @@
 
 #ifndef _INCLUDE_GASNET_CONFIG_H_
 #define _INCLUDE_GASNET_CONFIG_H_
-#if !defined(_IN_GASNET_H) && !defined(_IN_GASNET_TOOLS_H)
-  #error This file is not meant to be included directly- clients should include gasnet.h or gasnet_tools.h
+#if !defined(_IN_GASNETEX_H) && !defined(_IN_GASNET_TOOLS_H)
+  #error This file is not meant to be included directly- clients should include gasnetex.h or gasnet_tools.h
 #endif
 
 @TOP@
@@ -24,8 +24,10 @@
 #undef GASNETI_RELEASE_VERSION
 #undef GASNETI_SPEC_VERSION_MAJOR
 #undef GASNETI_SPEC_VERSION_MINOR
-#undef GASNETIT_SPEC_VERSION_MAJOR
-#undef GASNETIT_SPEC_VERSION_MINOR
+#undef GASNETI_TOOLS_SPEC_VERSION_MAJOR
+#undef GASNETI_TOOLS_SPEC_VERSION_MINOR
+#undef GASNETI_EX_SPEC_VERSION_MAJOR
+#undef GASNETI_EX_SPEC_VERSION_MINOR
 
 /* configure-detected conduits */
 #undef GASNETI_CONDUITS
@@ -49,6 +51,7 @@
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+#undef GASNETI_HAVE_CC_PRAGMA_GCC_DIAGNOSTIC
 
 /* CXX attributes support */
 #undef GASNETI_HAVE_CXX_ATTRIBUTE
@@ -69,6 +72,7 @@
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+#undef GASNETI_HAVE_CXX_PRAGMA_GCC_DIAGNOSTIC
 
 /* MPI_CC attributes support */
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE
@@ -89,6 +93,7 @@
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+#undef GASNETI_HAVE_MPI_CC_PRAGMA_GCC_DIAGNOSTIC
 
 /* identification of the C compiler used at configure time */
 #undef GASNETI_PLATFORM_COMPILER_IDSTR
@@ -108,6 +113,8 @@
 #undef GASNETI_PLATFORM_MPI_CC_ID
 #undef GASNETI_PLATFORM_MPI_CC_VERSION
 #undef GASNETI_MPI_VERSION
+#undef HAVE_MPI_INIT_THREAD
+#undef HAVE_MPI_QUERY_THREAD
 
 /* Defined to be the inline function modifier supported by the C
    compilers (if supported), prefixed by 'static' (if permitted) */
@@ -136,10 +143,8 @@
 #undef GASNETI_HAVE_CXX_SYNC_ATOMICS_64
 #undef GASNETI_HAVE_MPI_CC_SYNC_ATOMICS_64
 
-/* Does CC support C99-type non-constant initializers for structs? */
-#undef HAVE_NONCONST_STRUCT_INIT
-/* Does CC support C99-type constructor expressions? */
-#undef HAVE_CONSTRUCTOR_EXPR
+/* Does CXX support C99 __VA_ARGS__ */
+#undef GASNETI_CXX_HAS_VA_ARGS
 
 /* Defined if __PIC__ defined at configure time */
 #undef GASNETI_CONFIGURED_PIC
@@ -157,17 +162,26 @@
 #undef HAVE_MAP_ANON
 #undef HAVE_MAP_ANONYMOUS
 
+/* avoid mmap()-after-munmap() failures */
+#undef GASNETI_BUG3480_WORKAROUND
+
 /* --with-segment-mmap-max value (if given) */
 #undef GASNETI_MMAP_MAX_SIZE
 
 /* --with-max-threads value (if given) */
 #undef GASNETI_MAX_THREADS_CONFIGURE
 
+/* has clock_gettime() */
+#undef HAVE_CLOCK_GETTIME
+
 /* has usleep() */
 #undef HAVE_USLEEP
 
 /* has nanosleep() */
 #undef HAVE_NANOSLEEP
+
+/* has clock_nanosleep() */
+#undef HAVE_CLOCK_NANOSLEEP
 
 /* has nsleep() */
 #undef HAVE_NSLEEP
@@ -222,7 +236,6 @@
 
 /* BLCR support, path and features */
 #undef GASNETI_BLCR_ENABLED
-#undef GASNETI_BLCR_BINDIR
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H
@@ -247,6 +260,9 @@
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
 
+/* has pthread rwlock support */
+#undef GASNETI_HAVE_PTHREAD_RWLOCK
+
 /* has __thread thread-local-storage support */
 #undef GASNETI_HAVE_TLS_SUPPORT
 
@@ -265,6 +281,9 @@
 
 /* has ARM kernel-level support for membar */
 #undef GASNETI_HAVE_ARM_MEMBAR
+
+/* has usable AARCH64 (ARMV8) system counter support */
+#undef GASNETI_HAVE_AARCH64_CNTVCT_EL0
 
 /* has x86 EBX register (not reserved for GOT) */
 #undef GASNETI_HAVE_X86_EBX
@@ -351,6 +370,9 @@
 /* platform is an IBM BlueGene/Q multiprocessor */
 #undef GASNETI_ARCH_BGQ
 
+/* platform is Microsoft Windows Subsystem for Linux */
+#undef GASNETI_ARCH_WSL
+
 /* have (potentially buggy) MIPS R10000 multiprocessor */
 #undef GASNETI_ARCH_SGI_IP27
 
@@ -389,7 +411,12 @@
 #undef GASNETC_GNI_MAX_MEDIUM
 #undef GASNETC_GNI_MULTI_DOMAIN
 #undef GASNETC_GNI_UDREG
-#undef GASNETC_GNI_FIREHOSE
+
+/* GASNet ofi-conduit settings */
+#undef GASNETC_OFI_MAX_MEDIUM
+#undef GASNETC_OFI_NUM_COMPLETIONS
+#undef GASNETC_OFI_HAS_MR_SCALABLE
+#undef GASNETC_OFI_USE_THREAD_DOMAIN
 
 /* GASNet ibv-conduit features and bug work-arounds */
 #undef HAVE_IBV_SRQ
@@ -397,6 +424,9 @@
 #undef GASNETC_IBV_RCV_THREAD
 #undef GASNETC_IBV_CONN_THREAD
 #undef GASNETC_IBV_MAX_HCAS
+
+/* GASNet pami-conduit settings */
+#undef GASNETI_SIZEOF_PAMI_TASK_T
 
 /* GASNet bug1389 detection/work-around */
 #undef GASNETI_BUG1389_WORKAROUND
@@ -420,6 +450,9 @@
 #define _LARGEFILE64_SOURCE 1
 #define _LARGEFILE_SOURCE 1
 #ifdef HAVE_FEATURES_H
+ #if _FORTIFY_SOURCE > 0 && __OPTIMIZE__ <= 0 /* silence an annoying MPICH/Linux warning */
+ #trueundef _FORTIFY_SOURCE
+ #endif
 # include <features.h>
 #endif
 

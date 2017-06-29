@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#include "gasnet.h"
+#include <gasnetex.h>
 #include "gasnet_vis.h"
 
 uintptr_t maxsz = 0;
@@ -12,6 +12,11 @@ uintptr_t maxsz = 0;
   #define TEST_SEGSZ_EXPR (maxsz)
 #endif
 #include "test.h"
+
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int insegment = 0;
 int doputs = 1;
@@ -66,7 +71,7 @@ int main(int argc, char **argv) {
   int help = 0;   
 
   /* call startup */
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testvisperf", &argc, &argv, 0));
 
   /* parse arguments */
   arg = 1;
@@ -158,7 +163,7 @@ int main(int argc, char **argv) {
   if (!max_contig) max_contig = MIN(256*1024,max_payload);
   if (!min_payload) min_payload = min_contig;
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testvisperf",1, "[options] (iters) (test_sections)\n"
              "  -p/-g     selects puts only or gets only (default is both).\n"
              "  -r/-l     selects remotely contiguous or locally contiguous (default is neither).\n"
@@ -180,8 +185,8 @@ int main(int argc, char **argv) {
   if (help || argc > arg) test_usage();
 
   /* get SPMD info */
-  myproc = gasnet_mynode();
-  numprocs = gasnet_nodes();
+  myproc = gex_TM_QueryRank(myteam);
+  numprocs = gex_TM_QuerySize(myteam);
 
   if (!firstlastmode) {
     /* Only allow 1 or even number for numprocs */
@@ -267,7 +272,7 @@ int main(int argc, char **argv) {
             if (singlesender) snprintf(mystr, sizeof(mystr), "%8i: ", (int)datasz);
             else  snprintf(mystr, sizeof(mystr), "P%i: %6i: ", myproc, (int)datasz);
             for (di = 0; di < densitysteps; di++) {
-              gasnett_tick_t begin, end;
+              gasnett_tick_t begin=0, end=0;
               size_t Lcnt = (localcontig ? 1 : datasz/contigsz);
               size_t Rcnt = (remotecontig? 1 : datasz/contigsz);
               size_t Lsz = datasz/Lcnt;
@@ -343,7 +348,7 @@ int main(int argc, char **argv) {
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \
-                gasnet_wait_syncnbi_all();                                                       \
+                gex_NBI_Wait(GEX_EC_ALL,0);                                                      \
               } while (0)
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();

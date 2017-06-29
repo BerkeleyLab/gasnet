@@ -21,7 +21,7 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_get(gasnet_team_handle_t team,
                                                  size_t nbytes, int flags, 
                                                  gasnete_coll_implementation_t coll_params, 
                                                  uint32_t sequence
-                                                 GASNETE_THREAD_FARG) {
+                                                 GASNETI_THREAD_FARG) {
   
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
@@ -40,7 +40,7 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_put(gasnet_team_handle_t team,
                                             size_t nbytes, int flags, 
                                             gasnete_coll_implementation_t coll_params, 
                                             uint32_t sequence
-                                            GASNETE_THREAD_FARG) {
+                                            GASNETI_THREAD_FARG) {
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
@@ -61,7 +61,7 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
                                             size_t nbytes, int flags, 
                                             gasnete_coll_implementation_t coll_params, 
                                             uint32_t sequence
-                                            GASNETE_THREAD_FARG) {
+                                            GASNETI_THREAD_FARG) {
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasneti_assert(coll_params->num_params >= 1);
@@ -85,7 +85,7 @@ gasnete_coll_smp_reduceM_flat(gasnet_team_handle_t team,
                                 int flags, 
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                              GASNETE_THREAD_FARG) {
+                              GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -106,7 +106,7 @@ gasnete_coll_smp_scatM_flat_put(gasnet_team_handle_t team,
                             size_t nbytes, size_t dist, int flags,
                             gasnete_coll_implementation_t coll_params,
                             uint32_t sequence
-                            GASNETE_THREAD_FARG) {
+                            GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -129,7 +129,7 @@ gasnet_coll_handle_t gasnete_coll_smp_scatM_flat_get(gasnet_team_handle_t team,
                                                      size_t nbytes, size_t dist, int flags,
                                                      gasnete_coll_implementation_t coll_params,
                                                      uint32_t sequence
-                                                     GASNETE_THREAD_FARG) {
+                                                     GASNETI_THREAD_FARG) {
   
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
@@ -148,7 +148,7 @@ gasnete_coll_smp_gathM_flat_put(gasnet_team_handle_t team,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                                GASNETE_THREAD_FARG) {
+                                GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -166,7 +166,7 @@ gasnete_coll_smp_gathM_flat_get(gasnet_team_handle_t team,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                                GASNETE_THREAD_FARG) {
+                                GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -190,7 +190,7 @@ gasnete_coll_smp_gath_allM_flat_put(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int dst;
 #if GASNET_PAR
@@ -216,7 +216,7 @@ gasnete_coll_smp_gath_allM_flat_get(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int src;
 #if GASNET_PAR
@@ -242,7 +242,7 @@ gasnete_coll_smp_exchgM_flat_put(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int dst;
 #if GASNET_PAR
@@ -268,7 +268,7 @@ gasnete_coll_smp_exchgM_flat_get(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int src;
 #if GASNET_PAR
@@ -298,7 +298,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_bcast_flat_get, "SMP_BCAST_FLAT_GET");
+                                           gasnete_coll_smp_bcast_flat_get, "SMP_BCAST_FLAT_GET");
   
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCAST_SMP_FLAT_PUT] =
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -309,7 +309,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                              0,
 #endif                                             
                                              0, 0, 0, 0, NULL, 
-                                             (void*) gasnete_coll_smp_bcast_flat_put, "SMP_BCAST_FLAT_PUT");
+                                             gasnete_coll_smp_bcast_flat_put, "SMP_BCAST_FLAT_PUT");
 
   {
     GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNETE_COLL_SMP_COLL_TREE_RADIX, 2, MAX(2,info->team->my_images), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY); 
@@ -323,7 +323,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                              0,
 #endif                                             
                                              0, 0, 0, 1, tuning_params,  
-                                             (void*) gasnete_coll_smp_bcast_tree_intflags, "SMP_BCAST_TREE_INTFLAGS");
+                                             gasnete_coll_smp_bcast_tree_intflags, "SMP_BCAST_TREE_INTFLAGS");
   }
   
   info->collective_algorithms[GASNET_COLL_REDUCEM_OP][GASNETE_COLL_REDUCE_SMP_FLAT] =
@@ -335,7 +335,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_reduceM_flat, "SMP_REDUCE_FLAT_PUT");
+                                           gasnete_coll_smp_reduceM_flat, "SMP_REDUCE_FLAT_PUT");
   
   info->collective_algorithms[GASNET_COLL_SCATTERM_OP][GASNETE_COLL_SCATTER_SMP_FLAT_PUT] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_SCATTERM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -346,7 +346,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_scatM_flat_put, "SMP_SCATTER_FLAT_PUT");
+                                           gasnete_coll_smp_scatM_flat_put, "SMP_SCATTER_FLAT_PUT");
   
   info->collective_algorithms[GASNET_COLL_SCATTERM_OP][GASNETE_COLL_SCATTER_SMP_FLAT_GET] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_SCATTERM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -357,7 +357,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_scatM_flat_get, "SMP_SCATTER_FLAT_GET");
+                                           gasnete_coll_smp_scatM_flat_get, "SMP_SCATTER_FLAT_GET");
   
   info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHER_SMP_FLAT_PUT] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHERM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -368,7 +368,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_gathM_flat_put, "SMP_GATHER_FLAT_PUT");
+                                           gasnete_coll_smp_gathM_flat_put, "SMP_GATHER_FLAT_PUT");
   
   info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHER_SMP_FLAT_GET] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHERM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -379,7 +379,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_gathM_flat_get, "SMP_GATHER_FLAT_GET");
+                                           gasnete_coll_smp_gathM_flat_get, "SMP_GATHER_FLAT_GET");
   
   info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP][GASNETE_COLL_GATHER_ALL_SMP_FLAT_PUT] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHER_ALLM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -390,7 +390,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_gath_allM_flat_put, "SMP_GATHER_ALL_FLAT_PUT");
+                                           gasnete_coll_smp_gath_allM_flat_put, "SMP_GATHER_ALL_FLAT_PUT");
   
   info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP][GASNETE_COLL_GATHER_ALL_SMP_FLAT_GET] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHER_ALLM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -401,7 +401,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_gath_allM_flat_get, "SMP_GATHER_ALL_FLAT_GET");
+                                           gasnete_coll_smp_gath_allM_flat_get, "SMP_GATHER_ALL_FLAT_GET");
   
   info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP][GASNETE_COLL_EXCHANGE_SMP_FLAT_PUT] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_EXCHANGEM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -412,7 +412,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_exchgM_flat_put, "SMP_EXCHANGE_FLAT_PUT");
+                                           gasnete_coll_smp_exchgM_flat_put, "SMP_EXCHANGE_FLAT_PUT");
   
   info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP][GASNETE_COLL_EXCHANGE_SMP_FLAT_GET] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_EXCHANGEM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -423,7 +423,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                            0,
 #endif                                             
                                            0, 0, 0, 0, NULL, 
-                                           (void*) gasnete_coll_smp_exchgM_flat_get, "SMP_EXCHANGE_FLAT_GET");
+                                           gasnete_coll_smp_exchgM_flat_get, "SMP_EXCHANGE_FLAT_GET");
   
 
 }

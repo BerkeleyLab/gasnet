@@ -1,15 +1,28 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
-#include <gasnet_handler.h>
-#include <pmi-spawner/gasnet_bootstrap_internal.h>
 #include <gasnet_gemini.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <signal.h>
 #include <string.h>
 
+#ifndef container_of
+/* Convert from address of a member to address of the containing structure
+ * ptr = member pointer
+ * type = container's type
+ * field = member's field name
+ */
+  #define container_of(ptr,type,field) ((type*) ((uintptr_t)(ptr) - offsetof(type,field)))
+#endif
+
 #define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
+
+// Should IMMEDIATE flag poll for AM recvs? (1 or undefined)
+#ifdef GASNETC_IMMEDIATE_AMPOLLS
+#undef GASNETC_IMMEDIATE_AMPOLLS
+#define GASNETC_IMMEDIATE_AMPOLLS 1
+#endif
 
 #ifdef GASNET_CONDUIT_GEMINI
   /* Use remote event + PI_FLUSH to get "proper" ordering w/ relaxed and default PI ordering */
@@ -23,6 +36,7 @@
 #else
   #define GASNETC_CDM_MODE GNI_CDM_MODE_FORK_FULLCOPY
 #endif
+static uint32_t gasnetc_cdm_mode = GASNETC_CDM_MODE;
 
 int      gasnetc_dev_id;
 uint32_t gasnetc_cookie;
@@ -35,7 +49,8 @@ static int gasnetc_mem_consistency;
 typedef struct peer_struct {
   unsigned int pe;
   gni_ep_handle_t ep_handle;
-  gni_mem_handle_t mem_handle;
+  gni_mem_handle_t mem_handle; // client segment
+  gni_mem_handle_t aux_handle;
   gni_mem_handle_t am_handle;
 
   gasnetc_notify_t *remote_notify_base;
@@ -82,6 +97,7 @@ static uint32_t notify_ring_mask; /* ring size minus 1 */
 static unsigned int am_slotsz;
 static unsigned int am_slot_bits;
 
+static int have_auxseg = 0;
 static int have_segment = 0;
 
 static gni_cq_handle_t am_cq_handle;
@@ -97,7 +113,9 @@ size_t gasnetc_max_get_unaligned;
 size_t gasnetc_max_put_lc;
 
 /* read-only: */
+// TODO-EX: this needs to be more general for multi-segment support
 static gni_mem_handle_t my_mem_handle;
+static gni_mem_handle_t my_aux_handle;
 
 #if GASNETC_USE_MULTI_DOMAIN
 static unsigned int gasnetc_domain_count;
@@ -295,7 +313,7 @@ int gasnetc_try_pin(void *addr, uintptr_t size)
 #  define DOMAIN_SPECIFIC_VAR(_type, _var)  _type _var = DOMAIN_SPECIFIC_VAL(_var)
 #else
 #  define DOMAIN_SPECIFIC_VAL(_var)         (_var)
-#  define DOMAIN_SPECIFIC_VAR(_type, _var)  GASNETI_UNUSED char _dummy##_var = 0
+#  define DOMAIN_SPECIFIC_VAR(_type, _var)  char _dummy##_var = 0
 #endif
 
 /*------ Macros for lock operations */
@@ -408,7 +426,7 @@ gasnetc_udreg_deregister(void *data_arg, void *context) {
 
 /* Register local side of a pd, with unbounded retry on resource shortage.
    Returns 1 on success, or 0 on INVAL_PARAM */
-static int gasnetc_register_udreg(gasnetc_post_descriptor_t *gpd, uint32_t flags)
+static int gasnetc_register_udreg(gasnetc_post_descriptor_t *gpd, uint32_t memreg_flags)
 {
   GASNETC_DIDX_POST(gpd->domain_idx);
   gni_post_descriptor_t * const pd = &gpd->pd;
@@ -480,7 +498,7 @@ static gasneti_weakatomic_val_t gasnetc_reg_credit_max;
 
 /* Register local side of a pd, with unbounded retry on ERR_RESOURCE.
    Returns 1 on success, or 0 on ERR_INVAL_PARAM */
-static int gasnetc_register_gni(gasnetc_post_descriptor_t *gpd, uint32_t flags)
+static int gasnetc_register_gni(gasnetc_post_descriptor_t *gpd, uint32_t memreg_flags)
 {
   GASNETC_DIDX_POST(gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
@@ -506,11 +524,11 @@ first:
     if_pf (stall) GASNETC_TRACE_WAIT_END(MEM_REG_STALL);
   }
 
-  flags |= gasnetc_memreg_flags;
+  memreg_flags |= gasnetc_memreg_flags;
   for (;;) {
     GASNETC_LOCK_GNI();
     status = GNI_MemRegister(nic_handle, addr, nbytes, NULL,
-                             flags, -1, &pd->local_mem_hndl);
+                             memreg_flags, -1, &pd->local_mem_hndl);
     GASNETC_UNLOCK_GNI();
     if_pt (status == GNI_RC_SUCCESS) {
       if (trial) GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
@@ -546,14 +564,14 @@ void gasnetc_deregister_gni(gasnetc_post_descriptor_t *gpd)
 
 /* Register local side of a pd */
 GASNETI_INLINE(gasnetc_register_gpd)
-int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd, uint32_t flags)
+int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd, uint32_t memreg_flags)
 {
 #if GASNETC_GNI_UDREG
   if_pt (gasnetc_udreg_hndl) {
-    return gasnetc_register_udreg(gpd, flags);
+    return gasnetc_register_udreg(gpd, memreg_flags);
   } else
 #endif
-  return gasnetc_register_gni(gpd, flags);
+  return gasnetc_register_gni(gpd, memreg_flags);
 }
 
 /* Deregister local side of a pd */
@@ -568,35 +586,6 @@ void gasnetc_deregister_gpd(gasnetc_post_descriptor_t *gpd)
   gasnetc_deregister_gni(gpd);
 }
 
-#if GASNETC_GNI_FIREHOSE
-/* Acquire firehose covering (at least some leading portion of) the xfer given by gdp */
-GASNETI_INLINE(gasnetc_firehose_acquire)
-size_t gasnetc_firehose_acquire(gasnetc_post_descriptor_t *gpd)
-{
-  gni_post_descriptor_t * const pd = &gpd->pd;
-  const uintptr_t loc_addr = pd->local_addr;
-  const size_t aligned = (2 * gasnetc_fh_align) - (loc_addr & gasnetc_fh_align_mask);
-  const firehose_request_t * fh_loc;
-  fh_loc = firehose_local_pin(loc_addr, MIN(pd->length, aligned), &gpd->u.fh_req);
-  gasneti_assert(fh_loc == &gpd->u.fh_req);
-  pd->local_mem_hndl = gpd->u.fh_req.client;
-  if_pf (! gasneti_valid_client_t(& pd->local_mem_hndl)) {
-    /* Failed memory registration */
-    firehose_release(&fh_loc, 1);
-    return 0;
-  }
-  return MIN(pd->length, fh_loc->addr + fh_loc->len - loc_addr);
-}
-
-/* Release firehose linked to gpd */
-GASNETI_INLINE(gasnetc_firehose_release)
-void gasnetc_firehose_release(gasnetc_post_descriptor_t *gpd)
-{
-  const firehose_request_t *fh_req = &gpd->u.fh_req;
-  firehose_release(&fh_req, 1);
-}
-#endif
-
 /*-------------------------------------------------*/
 /* We don't allocate resources for comms w/ self or PSHM-reachable peers */
 
@@ -608,7 +597,7 @@ void gasnetc_firehose_release(gasnetc_post_descriptor_t *gpd)
 
 /* From point-of-view of a remote node, what is MY index in the mailbox array */
 GASNETI_INLINE(my_mb_index)
-int my_mb_index(gasnet_node_t remote_node) {
+int my_mb_index(gex_Rank_t remote_node) {
 #if GASNET_PSHM
   int i, result = 0;
 
@@ -624,20 +613,28 @@ int my_mb_index(gasnet_node_t remote_node) {
 #endif
 }
 
+// Forward declarations
+static void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE);
+static void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE);
+
 /*-------------------------------------------------*/
-/* called after segment init. See gasneti_seginfo */
-/* allgather the memory handles for the segments */
-/* create endpoints */
-void gasnetc_init_segment(void *segment_start, size_t segment_size)
+/* called after aux segment init.
+ * compute settings
+ * setup udreg (if applicable)
+ * register the auxseg
+ * allgather the memory handles for the auxseg
+ * create parallen domains (if applicable)
+ */
+void gasnetc_init_gni(gasnet_seginfo_t seginfo)
 {
   gni_return_t status;
-  /* Map the shared segment */
 #if GASNETC_USE_MULTI_DOMAIN
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gni_cq_handle_t  destination_cq_handle = NULL;
 #endif
+
   size_t bb_size = gasnetc_bounce_buffers.size / gasnetc_domain_count;
   int max_memreg = gasneti_getenv_int_withdefault("GASNET_GNI_MEMREG", GASNETC_GNI_MEMREG_DEFAULT, 0);
 
@@ -776,14 +773,72 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   {
     int count = 0;
     for (;;) {
-      status = GNI_MemRegister(nic_handle, (uint64_t) segment_start, 
-			       (uint64_t) segment_size, destination_cq_handle,
+      status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
+			       (uint64_t) seginfo.size, destination_cq_handle,
+			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
+			       &my_aux_handle);
+      if (status == GNI_RC_SUCCESS) break;
+      if (status == GNI_RC_ERROR_RESOURCE) {
+	gasnetc_GNIT_Log("MemRegister auxseg fault %d at  %p %"PRIxPTR", code %s",
+		count, seginfo.addr, seginfo.size, gasnetc_gni_rc_string(status));
+	count += 1;
+	if (count >= 10) break;
+      } else {
+	break;
+      }
+    }
+  }
+  have_auxseg = 1;
+
+  gasneti_assert_always (status == GNI_RC_SUCCESS);
+
+  {
+    gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
+    gasnetc_bootstrapExchange_gni(&my_aux_handle, sizeof(gni_mem_handle_t), all_mem_handle);
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+      peer_data[i].aux_handle = all_mem_handle[i];
+    }
+    gasneti_free(all_mem_handle);
+  }
+
+  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
+
+#if GASNETC_USE_MULTI_DOMAIN
+  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
+
+ #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
+  for (int i = 1; i < gasnetc_domain_count; i++) {
+    gasnetc_create_parallel_domain(gasnetc_get_domain_first_thread_idx(i));
+  }
+ #endif
+#endif
+}
+
+/*-------------------------------------------------*/
+/* called after client segment init. */
+/* allgather the memory handles for the segments */
+void gasnetc_init_segment(gasnet_seginfo_t seginfo)
+{
+  gni_return_t status;
+#if GASNETC_USE_MULTI_DOMAIN
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
+  gni_cq_handle_t  destination_cq_handle = NULL;
+#endif
+
+  {
+    int count = 0;
+    for (;;) {
+      status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
+			       (uint64_t) seginfo.size, destination_cq_handle,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
 			       &my_mem_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
-	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s", 
-		count, segment_start, segment_size, gasnetc_gni_rc_string(status));
+	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s",
+		count, seginfo.addr, seginfo.size, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -797,24 +852,28 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
-    gasnet_node_t i;
+  #if 0// Cannot use gni-specific bootstrap collectives this late
     gasnetc_bootstrapExchange_gni(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-    for (i = 0; i < gasneti_nodes; ++i) {
+  #else
+    // TODO-EX: but we want real collectives here eventually anyway
+    gasneti_defaultExchange(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
+  #endif
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].mem_handle = all_mem_handle[i];
     }
     gasneti_free(all_mem_handle);
   }
 
-#if GASNETC_USE_MULTI_DOMAIN
-  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
-  
- #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
-  {
-    int i;
-    for(i=1;i<gasnetc_domain_count;i++)
-      gasnetc_create_parallel_domain(gasnetc_get_domain_first_thread_idx(i));
+#if GASNETC_USE_MULTI_DOMAIN && (GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
+  /* Replicate mem handle - not stricty necessary, but cache-friendly: */
+  for (int d = 1; d < gasnetc_domain_count; d++) {
+    gasnete_threadidx_t tidx = gasnetc_get_domain_first_thread_idx(d);
+    GASNETC_DIDX_POST(gasnetc_get_domain_idx(tidx));
+
+    for (gex_Rank_t n = 0; n < gasneti_nodes; ++n) {
+      DOMAIN_SPECIFIC_VAL(peer_data[n]).mem_handle = gasnetc_cdom_data[0].peer_data[n].mem_handle;
+    }
   }
- #endif
 #endif
 }
 
@@ -839,7 +898,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   inst_id = gasneti_mynode + GASNETC_DIDX * gasneti_nodes;
   status = GNI_CdmCreate(inst_id,
                         gasnetc_ptag, gasnetc_cookie,
-                        GASNETC_CDM_MODE,
+                        gasnetc_cdm_mode,
                         &DOMAIN_SPECIFIC_VAL(cdm_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
@@ -847,6 +906,13 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
                         gasnetc_dev_id,
                         &local_address,
                         &DOMAIN_SPECIFIC_VAL(nic_handle));
+#if defined(GNI_CDM_MODE_FMA_DEDICATED)
+  if_pf ((GNI_RC_ERROR_RESOURCE == status) &&
+         (gasnetc_cdm_mode & GNI_CDM_MODE_FMA_DEDICATED)) {
+    // TODO: supernode-scoped reduction followed by *automatic* enable of FMA sharing if needed
+    gasneti_fatalerror("GNI_CdmAttach failed: please try setting environment variable GASNET_GNI_FMA_SHARING=1");
+  }
+#endif
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
   status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), num_pd + 2, 0, GNI_CQ_NOBLOCK, 
@@ -888,6 +954,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 
   /* TODO: this replication is unnecessary, but cache-friendly: */
   for (i = 0; i < gasneti_nodes; ++i) {
+    DOMAIN_SPECIFIC_VAL(peer_data[i]).aux_handle = gasnetc_cdom_data[0].peer_data[i].aux_handle;
     DOMAIN_SPECIFIC_VAL(peer_data[i]).mem_handle = gasnetc_cdom_data[0].peer_data[i].mem_handle;
   }
 
@@ -901,7 +968,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 
 uintptr_t gasnetc_init_messaging(void)
 {
-  const gasnet_node_t remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
+  const gex_Rank_t remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
   gni_return_t status;
   uint32_t local_address;
   uint32_t i;
@@ -937,12 +1004,43 @@ uintptr_t gasnetc_init_messaging(void)
   for(i=0;i<gasnetc_domain_count;i++)
     reset_comm_data(gasnetc_cdom_data+i);
 #endif
+
+  // Process GASNET_GNI_FMA_SHARING, if supported
+  // Default is NO, unless we project resource exhaustion otherwise
+  #if defined(GNI_CDM_MODE_FMA_SHARED) && defined(GNI_CDM_MODE_FMA_DEDICATED)
+  {
+    int my_cdm_count = gasneti_myhost.node_count * gasnetc_domain_count;
+    int avail_cmd_count = 123; // TODO: reduce by any used by MPI?
+    int fma_sharing = gasneti_getenv_yesno_withdefault("GASNET_GNI_FMA_SHARING",
+                                                       my_cdm_count > avail_cmd_count);
+    gasnetc_cdm_mode |= fma_sharing ? GNI_CDM_MODE_FMA_SHARED: GNI_CDM_MODE_FMA_DEDICATED;
+  }
+  #endif
+
+  // Process GASNET_GNI_MDD_SHARING, if supported
+  // Default is YES: use shared MDD to avoid likely resource exhaustion
+  #if defined(GNI_CDM_MODE_MDD_SHARED) && defined(GNI_CDM_MODE_MDD_DEDICATED)
+  {
+    int mdd_sharing = gasneti_getenv_yesno_withdefault("GASNET_GNI_MDD_SHARING", 1);
+    gasnetc_cdm_mode |= mdd_sharing ? GNI_CDM_MODE_MDD_SHARED: GNI_CDM_MODE_MDD_DEDICATED;
+  }
+  #endif
+
+  // Process GASNET_GNI_BTE_MULTI_CHANNEL, if supported
+  // Default is NO: use all available BTE channels
+  #if defined(GNI_CDM_MODE_BTE_SINGLE_CHANNEL)
+  {
+    int bte_multi_channel = gasneti_getenv_yesno_withdefault("GASNET_GNI_BTE_MULTI_CHANNEL", 1);
+    gasnetc_cdm_mode |= bte_multi_channel ? 0: GNI_CDM_MODE_BTE_SINGLE_CHANNEL;
+  }
+  #endif
+
   GASNETC_INITLOCK_GNI();
   GASNETC_INITLOCK_AM_BUFFER();
 
   status = GNI_CdmCreate(gasneti_mynode,
 			 gasnetc_ptag, gasnetc_cookie,
-			 GASNETC_CDM_MODE,
+			 gasnetc_cdm_mode,
 			 &cdm_handle);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
@@ -950,6 +1048,13 @@ uintptr_t gasnetc_init_messaging(void)
 			 gasnetc_dev_id,
 			 &local_address,
 			 &nic_handle);
+#if defined(GNI_CDM_MODE_FMA_DEDICATED)
+  if_pf ((GNI_RC_ERROR_RESOURCE == status) &&
+         (gasnetc_cdm_mode & GNI_CDM_MODE_FMA_DEDICATED)) {
+    // TODO: supernode-scoped reduction followed by *automatic* enable of FMA sharing if needed
+    gasneti_fatalerror("GNI_CdmAttach failed: please try setting environment variable GASNET_GNI_FMA_SHARING=1");
+  }
+#endif
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
   /* Determine space for AM Requests: GASNET_NETWORKDEPTH_SPACE */
@@ -979,7 +1084,7 @@ uintptr_t gasnetc_init_messaging(void)
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
     int cq_entries;
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
-                                            GASNETC_GNI_NUM_PD_DEFAULT,1);
+                                            GASNETC_GNI_NUM_PD_DEFAULT,0);
     num_pd = MAX(32, num_pd); /* Min is 32 (XXX: should be cores+1) */
 
     cq_entries = num_pd+2; /* XXX: why +2 ?? */
@@ -1042,8 +1147,8 @@ uintptr_t gasnetc_init_messaging(void)
 			       &am_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
-	gasnetc_GNIT_Log("MemRegister am fault %d at  %p %lx, code %s",
-		count, am_mmap_ptr, am_mmap_bytes, gasnetc_gni_rc_string(status));
+	gasnetc_GNIT_Log("MemRegister am fault %d at  %p %"PRIxPTR", code %s",
+		count, am_mmap_ptr, (uintptr_t)am_mmap_bytes, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -1089,7 +1194,7 @@ uintptr_t gasnetc_init_messaging(void)
     struct am_exchange *all_am_exchg = gasneti_malloc(gasneti_nodes * sizeof(struct am_exchange));
     uint8_t *local_peer_base = (uint8_t *)am_mmap_ptr + reply_region_length;
 
-    gasneti_bootstrapExchange_pmi(&my_am_exchg, sizeof(struct am_exchange), all_am_exchg);
+    gasneti_spawner->Exchange(&my_am_exchg, sizeof(struct am_exchange), all_am_exchg);
   
     /* At this point all_am_exchg has the required information for everyone */
     for (i = 0; i < gasneti_nodes; i += 1) {
@@ -1177,7 +1282,7 @@ void gasnetc_shutdown(void)
    */
 
 #if GASNETC_GNI_UDREG
-  if (have_segment && gasnetc_udreg_hndl) {
+  if (have_auxseg && gasnetc_udreg_hndl) {
     udreg_return_t rc;
     rc = UDREG_CacheRelease(gasnetc_udreg_hndl);
     if (UDREG_RC_SUCCESS != rc) {
@@ -1259,6 +1364,13 @@ void gasnetc_shutdown(void)
           gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gasnetc_gni_rc_string(status));
         }
       }
+
+      if_pt (have_auxseg) {
+        status = GNI_MemDeregister(nic_handle, &my_aux_handle);
+        if_pf (status != GNI_RC_SUCCESS) {
+          gasnetc_GNIT_Log("MemDeregister(auxseg) failed with %s", gasnetc_gni_rc_string(status));
+        }
+      }
 #if GASNETC_USE_MULTI_DOMAIN
     }
 #endif
@@ -1296,14 +1408,14 @@ extern void gasnetc_trace_finish(void) {
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_HIT, &hit);
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_MISS, &miss);
     (void)UDREG_GetStat(gasnetc_udreg_hndl, UDREG_STAT_CACHE_EVICTED, &evict);
-    GASNETI_STATS_PRINTF(C,("UDREG size=%d hit/miss/evict: %lu/%lu/%lu\n", max_memreg,
-                            (unsigned long)hit, (unsigned long)miss, (unsigned long)evict));
+    GASNETI_STATS_PRINTF(C,("UDREG size=%d hit/miss/evict: %"PRIu64"/%"PRIu64"/%"PRIu64"\n", max_memreg,
+                            hit, miss, evict));
   }
 #endif
 }
 
 static GASNETI_MALLOC
-void *gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
+void *gasnetc_alloc_bounce_buffer(gex_Flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(bounce_buffer_pool);
   void *buf = gasneti_lifo_pop(pool_p);
@@ -1311,16 +1423,16 @@ void *gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
-    int stall = 0;
-    goto first;
-    do {
-      GASNETI_WAITHOOK();
-      stall = 1;
-first:
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-      buf = gasneti_lifo_pop(pool_p);
-    } while (!buf);
-    if_pf (stall) GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+    buf = gasneti_lifo_pop(pool_p);
+    if_pf (!buf && !(flags & GEX_FLAG_IMMEDIATE)) {
+      do {
+        GASNETI_WAITHOOK();
+        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        buf = gasneti_lifo_pop(pool_p);
+      } while (!buf);
+      GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
+    }
   }
   return(buf);
 }
@@ -1397,13 +1509,17 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 }
 
 GASNETI_INLINE(gasnetc_send_notify)
-int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify)
+int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify, gasneti_weakatomic_t *cntr)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int slot;
 
+  if (cntr) {
+    gpd->gpd_completion = (uintptr_t)cntr;
+    gpd->gpd_flags = GC_POST_COMPLETION_CNTR;
+  }
   gpd->u.notify = notify;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
@@ -1425,30 +1541,31 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
   GASNETI_TRACE_PRINTF(D, ("msg to %d type AM_CREDIT\n", peer->pe));
   gasneti_assert(notify_get_type(notify) == notify_request);
   notify += build_notify((notify_credit - notify_request),0,0); /* just modify the notify type */
-  return(gasnetc_send_notify(peer, notify));
+  return(gasnetc_send_notify(peer, notify, NULL));
 }
 
 /* Send a 3-byte control message (could have us much as 7 bytes if ever needed) */
 /* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
-int gasnetc_send_control(gasnet_node_t dest, uint8_t op, uint16_t arg)
+GASNETI_INLINE(gasnetc_send_control)
+int gasnetc_send_control(gex_Rank_t dest, uint8_t op, uint16_t arg, gasneti_weakatomic_t *cntr)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[dest];
   GASNETI_TRACE_PRINTF(D, ("msg to %d type CONTROL op=%d arg=0x%x\n",
                            (int)dest, (int)op, (int)arg));
-  return(gasnetc_send_notify(peer, build_ctrl_notify(op, arg)));
+  return(gasnetc_send_notify(peer, build_ctrl_notify(op, arg), cntr));
 }
 
 GASNETI_INLINE(gasnetc_format_am_gpd) 
 void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd, 
                            gasnetc_packet_t *p,
                            peer_struct_t *peer,
-                           size_t length, uint32_t flags)
+                           size_t length, uint32_t gpd_flags)
 {
   gni_post_descriptor_t *pd = &gpd->pd;
 
-  gpd->flags = flags;
+  gpd->gpd_flags = gpd_flags;
   gpd->gpd_am_peer = (uint64_t) peer; 
   pd->length = length;
   pd->local_addr = (uint64_t)p;
@@ -1458,18 +1575,21 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
   pd->type = GNI_POST_FMA_PUT_W_SYNCFLAG;
 }
 
-gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
-                                                               size_t length)
+gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
+                                                               size_t length,
+                                                               gex_Flags_t flags)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gasnetc_token_t *token = (gasnetc_token_t *)t;
   peer_struct_t * const peer = &peer_data[token->source];
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
-  gni_post_descriptor_t *pd = &gpd->pd;
   gasnetc_notify_t notify = token->notify;
   gasnetc_packet_t *packet;
-  uint32_t flags = 0;
+  uint32_t gpd_flags = 0;
+
+  // Unlike the AMRequest path, it is safe (and easier) to acquire gpd first
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+  if_pf (!gpd) goto out_immediate_1;
 
   /* Find space to construct the Reply.
    * NOTE that we don't *need* registered memory.
@@ -1510,18 +1630,20 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
 
     if (length > req_len) {
       /* need a bounce buffer */
-      packet = (gasnetc_packet_t *) gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
-      flags = GC_POST_UNBOUNCE;
+      packet = (gasnetc_packet_t *) gasnetc_alloc_bounce_buffer(flags GASNETC_DIDX_PASS);
+      if_pf (!packet) goto out_immediate_2;
+      gpd_flags = GC_POST_UNBOUNCE;
     }
   }
 
   /* modify the notify type and clear its AM header bits */
+  gni_post_descriptor_t *pd = &gpd->pd;
   gasneti_assert(notify_get_type(notify) == notify_request);
   pd->sync_flag_value = (notify & 0xffffffffUL) + build_notify((notify_reply - notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base +
                                 GASNETC_MSG_MAXSIZE * notify_get_initiator_slot(notify));
-  gasnetc_format_am_gpd(gpd, packet, peer, length, flags);
+  gasnetc_format_am_gpd(gpd, packet, peer, length, gpd_flags);
   gasneti_assert(token->need_reply);
   token->need_reply = 0;
   /* If Medium payload is in-use, then defer sending Reply until Request returns (avoids overwrite race) */
@@ -1529,19 +1651,50 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
     gasneti_assert(GC_CMD_AM_MEDIUM == gasnetc_am_command(notify));
     token->deferred_reply = gpd;
   }
-  return(gpd);
+  return gpd;
+
+out_immediate_2:
+  gasnetc_free_post_descriptor(gpd);
+out_immediate_1:
+  return NULL;
 }
 
-#define BUSYWAIT(_condition, _poll, _trace)  \
+// Spin poll until (!_condition), but with some added complications.
+// The idea is that if _condition is initally true, in may become false after
+// a single _poll if the resource(s) it requires are released by pending CQ
+// events.  Only if the first _poll does *not* lead to a false (_condition)
+// is this considered a "stall" which leads to calls to GASNETI_WAITHOOK() and
+// tracing output giving the length of the stall once _condition is false.
+// Additionally, _escape is an expression (with a goto) that allows for the
+// premature exit in the case of GEX_FLAG_IMMEDIATE.
+//
+//  + The AM buffer lock is held on entry and exit
+//    - Must hold AM buffer lock to evaluate _condution
+//    - Must release AM buffer lock to call _poll
+//  + Must evaluate _escapeN to allow for IMMEDIATE support
+//    - _escape1 when _condition is first known to be false
+//    - _escape2 if _condition is still false after an initial _poll
+//  + If first _poll did not satisfy (!_condition) this is a stall event
+//    - Will call WAITHOOK before each additional _poll
+//    - Will _trace the stall time at end
+//
+#define BUSYWAIT(_condition, _escape1, _escape2, _poll, _trace)  \
     if_pf (_condition) {                     \
+      _escape1;                              \
       GASNETC_TRACE_WAIT_BEGIN();            \
-      do {                                   \
-        GASNETC_UNLOCK_AM_BUFFER();          \
-        GASNETI_WAITHOOK();                  \
-        _poll();                             \
-        GASNETC_LOCK_AM_BUFFER();            \
-      } while (_condition);                  \
-      GASNETC_TRACE_WAIT_END(_trace);        \
+      GASNETC_UNLOCK_AM_BUFFER();            \
+      _poll;                                 \
+      GASNETC_LOCK_AM_BUFFER();              \
+      if_pf (_condition) {                   \
+        _escape2;                            \
+        do {                                 \
+          GASNETC_UNLOCK_AM_BUFFER();        \
+          GASNETI_WAITHOOK();                \
+          _poll;                             \
+          GASNETC_LOCK_AM_BUFFER();          \
+        } while (_condition);                \
+        GASNETC_TRACE_WAIT_END(_trace);      \
+      }                                      \
     }                   
 
 static int
@@ -1556,34 +1709,52 @@ gasnetc_remote_slot(peer_struct_t * const peer, const uint64_t mask)
   return 64;
 }
 
-gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t dest, 
-                                                                 size_t length)
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest,
+                                                                 size_t length,
+                                                                 gex_Flags_t flags
+                                                                 GASNETI_THREAD_FARG)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[dest];
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
-  gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int my_slot;
   unsigned int remote_slot;
   const unsigned int slots = MAX(1, ((length + am_slotsz - 1) >> am_slot_bits));
   uint64_t mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
   reply_pool_t *r;
+  gex_Flags_t imm_flag = flags & GEX_FLAG_IMMEDIATE;
+
+#if GASNETC_IMMEDIATE_AMPOLLS
+  // BUSYWAIT may AMPoll at most once when IMMEDIATE flag is set
+  int did_poll = 0;
+  #define ESCAPE1(label) do { if (imm_flag && did_poll++) goto label; } while(0)
+  #define ESCAPE2(label) do { if (imm_flag) goto label; } while(0)
+#else
+  // BUSYWAIT will never AMPoll when IMMEDIATE flag is set
+  #define ESCAPE1(label) do { if (imm_flag) goto label; } while(0)
+  #define ESCAPE2(label) gasneti_assert(!imm_flag)
+#endif
 
   GASNETC_LOCK_AM_BUFFER();
 
 #if GASNET_PAR
   /* Prevent starvation of large allocations by small ones. */
-  while (peer->remote_request_lock) {
-    GASNETC_UNLOCK_AM_BUFFER();
-    while (peer->remote_request_lock) GASNETI_WAITHOOK();
-    GASNETC_LOCK_AM_BUFFER();
+  /* Note that we spin here (*not* polling) IFF another thread *IS* spin polling */
+  if_pf (peer->remote_request_lock) {
+    if (imm_flag) goto out_immediate_1;
+    do {
+      GASNETC_UNLOCK_AM_BUFFER();
+      while (peer->remote_request_lock) GASNETI_WAITHOOK();
+      GASNETC_LOCK_AM_BUFFER();
+    } while (peer->remote_request_lock);
   }
   peer->remote_request_lock = 1;
 #endif
 
   BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
-           gasnetc_AMPoll,
+           ESCAPE1(out_immediate_2),
+           ESCAPE2(out_immediate_2),
+           gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
   mask <<= remote_slot;
   peer->remote_request_map ^= mask;
@@ -1592,20 +1763,44 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
 #endif
 
   BUSYWAIT(((r = reply_freelist) == NULL), 
-           gasnetc_AMPoll,
+           ESCAPE1(out_immediate_3),
+           ESCAPE2(out_immediate_3),
+           gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_LOC_BUFFER_STALL);
   reply_freelist = r->u.next;
 
   GASNETC_UNLOCK_AM_BUFFER();
 
-  r->u.request_bits = mask;
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+  if_pf (!gpd) goto out_immediate_4;
+  gasnetc_format_am_gpd(gpd, r->packet, peer, length, 0);
 
+  gni_post_descriptor_t *pd = &gpd->pd;
   pd->remote_addr = (uint64_t) peer->remote_request_base + (remote_slot << am_slot_bits);
   pd->sync_flag_value = build_notify(notify_request, r - reply_pool, remote_slot);
+
+  r->u.request_bits = mask;
   
-  gasnetc_format_am_gpd(gpd, r->packet, peer, length, 0);
-  
-  return(gpd);
+  return gpd;
+
+out_immediate_4:
+  GASNETC_LOCK_AM_BUFFER();
+    // Return reply state to freelist
+    r->u.next = reply_freelist;
+    reply_freelist = r;
+out_immediate_3:
+    // Restore bits corresponding to remote buffer allocation
+    peer->remote_request_map |= mask;
+    goto out_immediate_1; // peer->remote_request_lock=0 would be erroneous
+out_immediate_2:
+  #if GASNET_PAR
+    // Release our lock on the per-peer remote buffer allocator
+    peer->remote_request_lock = 0;
+  #endif
+out_immediate_1:
+  GASNETC_UNLOCK_AM_BUFFER();
+
+  return NULL;
 }
 
 /* Choice to inline or not is left to the compiler */
@@ -1614,28 +1809,31 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
   int is_req = (notify_get_type(notify) == notify_request);
   const int numargs = gasnetc_am_numargs(notify);
   const int handlerindex = gasnetc_am_handler(notify);
-  gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
-  gasnetc_token_t the_token = { peer->pe, is_req, notify, NULL };
-  gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
+  const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handlerindex];
+  gex_AM_Fn_t handler = handler_entry->gex_fnptr;
+  gasnetc_token_t the_token = { peer->pe, handler_entry, is_req, notify, NULL };
+  gex_Token_t token = (gex_Token_t)&the_token; /* RUN macros need an lvalue */
 
   gasneti_mutex_unlock(&ampoll_lock);
 
-  gasneti_assert(numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs <= gex_AM_MaxArgs());
   GASNETI_TRACE_PRINTF(D, ("msg from %d type %s/%s\n", peer->pe,
                            gasnetc_type_string(gasnetc_am_command(notify)),
                            is_req ? "REQ" : "REP"));
-  
+
   switch (gasnetc_am_command(notify)) {
   case GC_CMD_AM_SHORT:
+      gasneti_amtbl_check(handler_entry, numargs, gasneti_Short, is_req);
       GASNETI_RUN_HANDLER_SHORT(is_req, handlerindex, handler,
                                 token, packet->gasp.args, numargs);
       break;
       
   case GC_CMD_AM_MEDIUM: {
+      gasneti_amtbl_check(handler_entry, numargs, gasneti_Medium, is_req);
       const size_t head_len = GASNETC_HEADLEN(medium, numargs);
       uint8_t * data = (uint8_t *)packet + head_len;
       gasneti_assert(0 == (((uintptr_t) data) % GASNETI_MEDBUF_ALIGNMENT));
-      gasneti_assert(gasnetc_am_nbytes(notify) <= gasnet_AMMaxMedium());
+      gasneti_assert(gasnetc_am_nbytes(notify) <= GASNETC_MAX_MEDIUM);
       GASNETI_RUN_HANDLER_MEDIUM(is_req, handlerindex, handler,
                                  token, packet->gamp.args, numargs,
                                  data, gasnetc_am_nbytes(notify));
@@ -1651,6 +1849,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
       }
       /* fall through... */
   case GC_CMD_AM_LONG:
+      gasneti_amtbl_check(handler_entry, numargs, gasneti_Long, is_req);
       GASNETI_RUN_HANDLER_LONG(is_req, handlerindex, handler,
                                token, packet->galp.args, numargs,
                                packet->galp.data, packet->galp.data_length);
@@ -1868,8 +2067,7 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
   }
   GASNETC_UNLOCK_GNI();
 
-  /* NOTE: we rely here on the fact that pd is first member of gpd */
-  return (gasnetc_post_descriptor_t *) result;
+  return result ? container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
 }
 
 GASNETI_NEVER_INLINE(gasnetc_poll_local_queue,
@@ -1883,46 +2081,59 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
     if_pt (! gpd) { /* empty Cq is common case */
       break;
     } else {
-      const uint32_t flags = gpd->flags; /* see note w/ GC_POST_COMPLETION_FLAG */
+      const uint32_t gpd_flags = gpd->gpd_flags; /* see note w/ GC_POST_COMPLETION_FLAG */
 
       /* handle remaining work */
-      if (flags & GC_POST_COPY_IMM) {
+      if (gpd_flags & GC_POST_COPY_IMM) {
         memcpy((void *) gpd->gpd_get_dst, (void *) gpd->u.immediate, gpd->pd.length);
         gasneti_sync_writes(); /* sync memcpy */
       } else
-      if (flags & GC_POST_COPY) {
-        const size_t length = gpd->pd.length - (flags & GC_POST_COPY_TRIM);
+      if (gpd_flags & GC_POST_COPY) {
+        const size_t length = gpd->pd.length - (gpd_flags & GC_POST_COPY_TRIM);
         memcpy((void *) gpd->gpd_get_dst, (void *) gpd->gpd_get_src, length);
         gasneti_sync_writes(); /* sync memcpy */
       }
 
       /* indicate completion */
-      if (flags & GC_POST_COMPLETION_FLAG) {
-        *(volatile int *) gpd->gpd_completion = 1;
-        /* NOTE: if (flags & GC_POST_KEEP_GPD) then caller might free gpd now */
-      } else if(flags & GC_POST_COMPLETION_CNTR) {
-        gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
-      } else if (flags & GC_POST_COMPLETION_SEND) {
-        gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
-        if (gasneti_weakatomic_decrement_and_test(&next->u.counter, 0)) {
-          int rc = gasnetc_send_am(next);
-          gasneti_assert_always (rc == GASNET_OK);
+      // TODO-EX: separate iop inside and outside accesregion?
+      const uint32_t comp = (gpd_flags & GC_POST_COMPLETION_MASK);
+      gasneti_assert(GASNETI_POWEROFTWO(comp)); // Zero or one bit is set
+
+      switch (comp) {
+        case GC_POST_COMPLETION_FLAG:
+          *(volatile int *) gpd->gpd_completion = 1;
+          /* NOTE: if (gpd_flags & GC_POST_KEEP_GPD) then caller might free gpd now */
+          break;
+        case GC_POST_COMPLETION_CNTR:
+          gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
+          break;
+        case GC_POST_COMPLETION_EOP:
+          GASNETE_EOP_MARKDONE((gasnete_eop_t *) gpd->gpd_completion);
+          break;
+        case GC_POST_COMPLETION_IPUT:
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, put, 1, 0);
+          break;
+        case GC_POST_COMPLETION_IGET:
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, get, 1, 0);
+          break;
+        case GC_POST_COMPLETION_SEND: {
+          gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
+          if (gasneti_weakatomic_decrement_and_test(&next->u.counter, 0)) {
+            int rc = gasnetc_send_am(next);
+            gasneti_assert_always (rc == GASNET_OK);
+          }
+          break;
         }
       } 
 
       /* release resources */
-      if (flags & GC_POST_UNREGISTER) {
+      if (gpd_flags & GC_POST_UNREGISTER) {
         gasnetc_deregister_gpd(gpd);
-      } else if (flags & GC_POST_UNBOUNCE) {
+      } else if (gpd_flags & GC_POST_UNBOUNCE) {
         gasnetc_free_bounce_buffer(gpd);
       }
-#if GASNETC_GNI_FIREHOSE
-      else if (flags & GC_POST_FIREHOSE) {
-        gasnetc_firehose_release(gpd);
-      }
-#endif
 
-      if (!(flags & GC_POST_KEEP_GPD)) {
+      if (!(gpd_flags & GC_POST_KEEP_GPD)) {
         gasnetc_free_post_descriptor(gpd);
       }
     }
@@ -1960,24 +2171,25 @@ void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
 
 GASNETI_NEVER_INLINE(print_post_desc,
 static void print_post_desc(const char *title, gni_post_descriptor_t *cmd)) {
-  const int in_seg = gasneti_in_segment(gasneti_mynode, (void *) cmd->local_addr, cmd->length);
-  printf("r %d %s-segment %s, desc addr %p\n", gasneti_mynode, (in_seg?"in":"non"), title, cmd);
-  printf("r %d status: %ld\n", gasneti_mynode, cmd->status);
+  const int in_seg = gasneti_in_segment(NULL/*tm*/, gasneti_mynode, (void *) cmd->local_addr, cmd->length);
+  const int in_aux = gasneti_in_auxsegment(NULL/*tm*/, gasneti_mynode, (void *) cmd->local_addr, cmd->length);
+  printf("r %d %s-segment %s, desc addr %p\n", gasneti_mynode, (in_seg?"in":(in_aux?"aux":"non")), title, cmd);
+  printf("r %d status: %"PRIu64"\n", gasneti_mynode, cmd->status);
   printf("r %d cq_mode_complete: 0x%x\n", gasneti_mynode, cmd->cq_mode_complete);
   printf("r %d type: %d (%s)\n", gasneti_mynode, cmd->type, gasnetc_post_type_string(cmd->type));
   printf("r %d cq_mode: 0x%x\n", gasneti_mynode, cmd->cq_mode);
   printf("r %d dlvr_mode: 0x%x\n", gasneti_mynode, cmd->dlvr_mode);
-  printf("r %d local_address: %p(0x%lx, 0x%lx)\n", gasneti_mynode, (void *) cmd->local_addr, 
+  printf("r %d local_address: %p(0x%"PRIx64", 0x%"PRIx64")\n", gasneti_mynode, (void *) cmd->local_addr, 
 	 cmd->local_mem_hndl.qword1, cmd->local_mem_hndl.qword2);
-  printf("r %d remote_address: %p(0x%lx, 0x%lx)\n", gasneti_mynode, (void *) cmd->remote_addr, 
+  printf("r %d remote_address: %p(0x%"PRIx64", 0x%"PRIx64")\n", gasneti_mynode, (void *) cmd->remote_addr, 
 	 cmd->remote_mem_hndl.qword1, cmd->remote_mem_hndl.qword2);
-  printf("r %d length: 0x%lx\n", gasneti_mynode, cmd->length);
+  printf("r %d length: 0x%"PRIx64"\n", gasneti_mynode, cmd->length);
   printf("r %d rdma_mode: 0x%x\n", gasneti_mynode, cmd->rdma_mode);
   printf("r %d src_cq_hndl: %p\n", gasneti_mynode, cmd->src_cq_hndl);
-  printf("r %d sync: (0x%lx,0x%lx)\n", gasneti_mynode, cmd->sync_flag_value, cmd->sync_flag_addr);
+  printf("r %d sync: (0x%"PRIx64",0x%"PRIx64")\n", gasneti_mynode, cmd->sync_flag_value, cmd->sync_flag_addr);
   printf("r %d amo_cmd: %d\n", gasneti_mynode, cmd->amo_cmd);
-  printf("r %d amo: 0x%lx, 0x%lx\n", gasneti_mynode, cmd->first_operand, cmd->second_operand);
-  printf("r %d cqwrite_value: 0x%lx\n", gasneti_mynode, cmd->cqwrite_value);
+  printf("r %d amo: 0x%"PRIx64", 0x%"PRIx64"\n", gasneti_mynode, cmd->first_operand, cmd->second_operand);
+  printf("r %d cqwrite_value: 0x%"PRIx64"\n", gasneti_mynode, cmd->cqwrite_value);
 }
 
 static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
@@ -2032,74 +2244,21 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd
   return status;
 }
 
-#if GASNETC_GNI_FIREHOSE
-/* Perform an fma/rdma Pet with out-of-segment source.
- * Returns length of the request issued to GNI, which may be less
- * than nbytes due to memory registration boundaries.
- * Legal only for out-of-segment source_addr.
- */
-size_t gasnetc_rdma_put_fh(gasnet_node_t node,
-		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
-{
-  GASNETC_DIDX_POST(gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
-  peer_struct_t * const peer = &peer_data[node];
-  gni_post_descriptor_t * const pd = &gpd->pd;
-  gni_return_t status;
-
-  gasneti_assert(!node_is_local(node));
-  gasneti_boundscheck(node, dest_addr, nbytes);
-  gasneti_assert(!gasneti_in_segment(gasneti_mynode, source_addr, nbytes));
-
-  /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
-  pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
-  pd->remote_addr = (uint64_t) dest_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
-  pd->local_addr = (uint64_t) source_addr;
-  pd->length = nbytes;
-
-  if (nbytes <= gasnetc_put_fma_rdma_cutover) {
-    /* Small enough for FMA - no local memory registration is required */
-    pd->type = GNI_POST_FMA_PUT;
-#if FIX_HT_ORDERING
-    pd->cq_mode = gasnetc_fma_put_cq_mode;
-#endif
-    pd->local_mem_hndl = my_mem_handle;
-    status = myPostFma(peer->ep_handle, gpd);
-  } else {
-    /* TODO: look at ibv-conduit logic which works to align registrations for better reuse */
-    pd->type = GNI_POST_RDMA_PUT;
-    nbytes = gasnetc_firehose_acquire(gpd);
-    if_pt (nbytes) {
-      gpd->flags |= GC_POST_FIREHOSE;
-    } else {
-      /* Memory could not be registered - fall back to bounce buffers */
-      pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
-      pd->local_mem_hndl = my_mem_handle;
-      gpd->flags |= GC_POST_UNBOUNCE;
-      nbytes = MIN(pd->length, gasnetc_put_bounce_register_cutover);
-      memcpy((void *) pd->local_addr, source_addr, nbytes);
-    }
-    pd->length = nbytes;
-    status = myPostRdma(peer->ep_handle, gpd);
-  }
-
-  if_pf (status != GNI_RC_SUCCESS) {
-    print_post_desc("Put", pd);
-    gasnetc_GNIT_Abort("Put failed with %s", gasnetc_gni_rc_string(status));
-  }
-
-  return nbytes;
+// TODO-EX: this is our auxseg support until real multi-segment support arrives
+GASNETI_INLINE(gasnetc_local_mh)
+gni_mem_handle_t gasnetc_local_mh(void *addr) {
+  return  gasneti_in_auxsegment(NULL/*tm*/,gasneti_mynode,addr,0) ? my_aux_handle : my_mem_handle;
 }
-#endif
+GASNETI_INLINE(gasnetc_remote_mh)
+gni_mem_handle_t gasnetc_remote_mh(peer_struct_t * const peer, void *addr) {
+  return  gasneti_in_auxsegment(NULL/*tm*/,peer->pe,addr,0) ? peer->aux_handle : peer->mem_handle;
+}
 
 /* Perform an rdma/fma Put with no concern for local completion.
  * Returns length of the request issued to GNI, which may be less
  * than nbytes (for instance due to a failed call to MemRegister).
  */
-size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
+size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2115,15 +2274,15 @@ size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) dest_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
 
   /* confirm that the destination is in-segment on the far end */
-  gasneti_boundscheck(node, dest_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, dest_addr, nbytes);
 
   /* Start with defaults suitable for FMA or in-segment case */
   pd->local_addr = (uint64_t) source_addr;
-  pd->local_mem_hndl = my_mem_handle;
+  pd->local_mem_hndl = gasnetc_local_mh(source_addr);
 
   if (nbytes <= gasnetc_put_fma_rdma_cutover) {
     /* Small enough for FMA - no local memory registration is required */
@@ -2133,23 +2292,26 @@ size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
 #endif
     status = myPostFma(peer->ep_handle, gpd);
   } else { /* Using RDMA, which requires local memory registration */
-    if_pf (!gasneti_in_segment(gasneti_mynode, source_addr, nbytes)) {
+    if_pf (!gasneti_in_segment(NULL/*tm*/, gasneti_mynode, source_addr, nbytes) &&
+           !gasneti_in_auxsegment(NULL/*tm*/, gasneti_mynode, source_addr, nbytes)) {
       /* Use a bounce buffer or mem-reg according to size.
        * Use of gpd->u.immedate would only be reachable if
        *     (put_fma_rdma_cutover < IMMEDIATE_BOUNCE_SIZE),
        * which is not the default (nor recommended).
        */
-      gasneti_assert(!gasnetc_use_firehose);
-      if ((nbytes <= gasnetc_put_bounce_register_cutover) ||
-          /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
+      if (// Note short-circuit evaluation: cases 1 and 3 lead to THEN body and case 2 to ELSE body.
+          // Case 1: nbytes at or below bounce-to-register cutover.  Use bounce buffer.
+          (nbytes <= gasnetc_put_bounce_register_cutover) ||
+          // Case 2: nbytes larger than cutover.  Attempt to register the local memory.
           (!gasnetc_register_gpd(gpd, GNI_MEM_READ_ONLY) &&
-           ((pd->length = nbytes = gasnetc_put_bounce_register_cutover),
-            (pd->local_mem_hndl = my_mem_handle),1))) {
-        void * const buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+          // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
+           (pd->length = nbytes = gasnetc_put_bounce_register_cutover))) {
+        void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
-        gpd->flags |= GC_POST_UNBOUNCE;
+        pd->local_mem_hndl = my_aux_handle;
+        gpd->gpd_flags |= GC_POST_UNBOUNCE;
       } else {
-        gpd->flags |= GC_POST_UNREGISTER;
+        gpd->gpd_flags |= GC_POST_UNREGISTER;
       }
     }
     pd->type = GNI_POST_RDMA_PUT;
@@ -2168,7 +2330,7 @@ size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
  * NOTE: be sure to update gasnetc_max_put_lc if the logic here changes
  */
 void
-gasnetc_rdma_put_lc(gasnet_node_t node,
+gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2185,11 +2347,11 @@ gasnetc_rdma_put_lc(gasnet_node_t node,
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) dest_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
 
   /* confirm that the destination is in-segment on the far end */
-  gasneti_boundscheck(node, dest_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, dest_addr, nbytes);
 
   /* Start with defaults suitable for FMA or in-segment case */
   pd->local_addr = (uint64_t) source_addr;
@@ -2214,9 +2376,10 @@ gasnetc_rdma_put_lc(gasnet_node_t node,
     } else
   #endif
     {
-      void * const buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+      void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
       pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
-      gpd->flags |= GC_POST_UNBOUNCE;
+      pd->local_mem_hndl = my_aux_handle;
+      gpd->gpd_flags |= GC_POST_UNBOUNCE;
       gasneti_assert(nbytes <= gasnetc_put_bounce_register_cutover);
     }
  
@@ -2242,7 +2405,7 @@ gasnetc_rdma_put_lc(gasnet_node_t node,
 }
 
 /* FMA Put from a specified buffer */
-void gasnetc_rdma_put_buff(gasnet_node_t node,
+void gasnetc_rdma_put_buff(gex_Rank_t node,
 		void *dest_addr, void *source_addr,
 		size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2255,13 +2418,13 @@ void gasnetc_rdma_put_buff(gasnet_node_t node,
   gasneti_assert(!node_is_local(node));
 
   /* confirm that the destination is in-segment on the far end */
-  gasneti_boundscheck(node, dest_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, dest_addr, nbytes);
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) dest_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
   pd->length = nbytes;
   pd->local_addr = (uint64_t) source_addr;
 
@@ -2300,75 +2463,11 @@ void gasnetc_post_get(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
   }
 }
 
-#if GASNETC_GNI_FIREHOSE
-/* Perform an fma/rdma Get with out-of-segment destination.
- * Returns length of the request issued to GNI, which may be less
- * than nbytes due to memory registration boundaries.
- * Legal only for out-of-segment dest_addr.
- */
-size_t gasnetc_rdma_get_fh(gasnet_node_t node,
-		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
-{
-  GASNETC_DIDX_POST(gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
-  peer_struct_t * const peer = &peer_data[node];
-  gni_post_descriptor_t * const pd = &gpd->pd;
-
-  gasneti_assert(!node_is_local(node));
-  gasneti_boundscheck(node, source_addr, nbytes);
-  gasneti_assert(!gasneti_in_segment(gasneti_mynode, dest_addr, nbytes));
-
-  /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
-  pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
-  pd->remote_addr = (uint64_t) source_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
-  pd->length = nbytes;
-
-#if GASNET_PAR
-  /* Exactly when is IMMEDIATE_BOUNCE cheaper than a firehose lookup?
-     Results from testsmall-seq runs show the FH hit is cheaper.  However,
-     testcontend-par results slightly favor IMMEDIATE_BOUNCE (due to lock
-     contention in FH).  The testcontend-par results with multi-domain are even
-     more favorable (since FH becomes the only serialization).
-     TODO: revisit if/when anything changes that could impact these timings.
-  */
-  if (nbytes < GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
-    pd->local_mem_hndl = my_mem_handle;
-    gpd->flags |= GC_POST_COPY_IMM;
-    pd->local_addr = (uint64_t) gpd->u.immediate;
-    gpd->gpd_get_dst = (uint64_t) dest_addr;
-  } else
-#endif
-  {
-    pd->local_addr = (uint64_t) dest_addr;
-    nbytes = gasnetc_firehose_acquire(gpd);
-    if_pt (nbytes) {
-      gpd->flags |= GC_POST_FIREHOSE;
-    } else {
-      /* Memory could not be registered - fall back to bounce buffers */
-      pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
-      pd->local_mem_hndl = my_mem_handle;
-      gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
-      gpd->gpd_get_src = pd->local_addr;
-      gpd->gpd_get_dst = (uint64_t) dest_addr;
-      nbytes = MIN(pd->length, gasnetc_get_bounce_register_cutover);
-    }
-    pd->length = nbytes;
-  }
-
-  gasnetc_post_get(peer->ep_handle, gpd);
-
-  return nbytes;
-}
-#endif
-
 /* Perform an rdma/fma Get.
  * Returns length of the request issued to GNI, which may be less
  * than nbytes (for instance due to a failed call to MemRegister).
  */
-size_t gasnetc_rdma_get(gasnet_node_t node,
+size_t gasnetc_rdma_get(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2383,37 +2482,42 @@ size_t gasnetc_rdma_get(gasnet_node_t node,
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) source_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = nbytes;
 
   /* confirm that the source is in-segment on the far end */
-  gasneti_boundscheck(node, source_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, source_addr, nbytes);
 
   /* Start with defaults suitable for in-segment case */
   pd->local_addr = (uint64_t) dest_addr;
-  pd->local_mem_hndl = my_mem_handle;
+  pd->local_mem_hndl = gasnetc_local_mh(dest_addr);
 
   /* check where the local addr is */
-  if_pf (!gasneti_in_segment(gasneti_mynode, dest_addr, nbytes)) {
+  if_pf (!gasneti_in_segment(NULL/*tm*/, gasneti_mynode, dest_addr, nbytes) &&
+         !gasneti_in_auxsegment(NULL/*tm*/, gasneti_mynode, dest_addr, nbytes)) {
     /* dest not (entirely) in segment */
     /* if (nbytes <= gasnetc_get_bounce_register_cutover)  then use bounce buffer
      * else mem-register
      */
-    gasneti_assert(!gasnetc_use_firehose);
     if (nbytes <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
-      gpd->flags |= GC_POST_COPY_IMM;
+      gpd->gpd_flags |= GC_POST_COPY_IMM;
       pd->local_addr = (uint64_t) gpd->u.immediate;
+      pd->local_mem_hndl = my_aux_handle;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
-    } else if ((nbytes <= gasnetc_get_bounce_register_cutover) ||
-               /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
+    } else if (// Note short-circuit evaluation: cases 1 and 3 lead to THEN body and case 2 to ELSE body.
+               // Case 1: nbytes at or below bounce-to-register cutover.  Use bounce buffer.
+               (nbytes <= gasnetc_get_bounce_register_cutover) ||
+               // Case 2: nbytes larger than cutover.  Attempt to register the local memory.
                (!gasnetc_register_gpd(gpd, GNI_MEM_READWRITE) &&
-                ((pd->length = nbytes = gasnetc_get_bounce_register_cutover),
-                 (pd->local_mem_hndl = my_mem_handle),1))) {
-      gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
-      gpd->gpd_get_src = pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+               // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
+                (pd->length = nbytes = gasnetc_get_bounce_register_cutover))) {
+      gpd->gpd_flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
+      pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
+      pd->local_mem_hndl = my_aux_handle;
+      gpd->gpd_get_src = pd->local_addr;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
     } else {
-      gpd->flags |= GC_POST_UNREGISTER;
+      gpd->gpd_flags |= GC_POST_UNREGISTER;
     }
   }
 
@@ -2425,7 +2529,7 @@ size_t gasnetc_rdma_get(gasnet_node_t node,
 /* for get in which one or more of dest_addr, source_addr or nbytes is NOT divisible by 4
  * NOTE: be sure to update gasnetc_max_get_unaligned if the logic here changes
  */
-void gasnetc_rdma_get_unaligned(gasnet_node_t node,
+void gasnetc_rdma_get_unaligned(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2444,26 +2548,26 @@ void gasnetc_rdma_get_unaligned(gasnet_node_t node,
   gasneti_assert(length <= gasnetc_max_get_unaligned);
 
   gasneti_assert(0 == (overfetch & ~GC_POST_COPY_TRIM));
-  gpd->flags |= GC_POST_COPY | overfetch;
+  gpd->gpd_flags |= GC_POST_COPY | overfetch;
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) source_addr - pre;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = length;
-  pd->local_mem_hndl = my_mem_handle;
+  pd->local_mem_hndl = my_aux_handle;
 
   /* confirm that the source is in-segment on the far end */
-  gasneti_boundscheck(node, (void*)pd->remote_addr, pd->length);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, (void*)pd->remote_addr, pd->length);
 
   /* must always use immediate or bounce buffer */
   if (length <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
     buffer = gpd->u.immediate;
   } else {
     gasneti_assert(length <= gasnetc_get_bounce_register_cutover);
-    gpd->flags |= GC_POST_UNBOUNCE;
-    buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
+    gpd->gpd_flags |= GC_POST_UNBOUNCE;
+    buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
   }
 
   pd->local_addr = (uint64_t) buffer;
@@ -2479,7 +2583,7 @@ void gasnetc_rdma_get_unaligned(gasnet_node_t node,
    Caller must be allow for space (upto 6 bytes) for the overfetch.
    Returns offset to start of data after adjustment for overfetch
  */
-int gasnetc_rdma_get_buff(gasnet_node_t node,
+int gasnetc_rdma_get_buff(gex_Rank_t node,
 		void *dest_addr, void *source_addr,
 		size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -2497,16 +2601,16 @@ int gasnetc_rdma_get_buff(gasnet_node_t node,
   gasneti_assert(nbytes  <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
 
   /* confirm that the source is in-segment on the far end */
-  gasneti_boundscheck(node, source_addr, nbytes);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, source_addr, nbytes);
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) source_addr - pre;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->length = length;
   pd->local_addr = (uint64_t) dest_addr;
-  pd->local_mem_hndl = my_mem_handle;
+  pd->local_mem_hndl = gasnetc_local_mh(dest_addr);
 
   /* now initiate - *always* FMA for now */
   pd->type = GNI_POST_FMA_GET;
@@ -2523,7 +2627,7 @@ int gasnetc_rdma_get_buff(gasnet_node_t node,
 #if GASNETC_GNI_FETCHOP
 /* Perform an 8-byte fetch-and-op */
 void gasnetc_fetchop_u64(
-                gasnet_node_t node, void *source_addr,
+                gex_Rank_t node, void *source_addr,
                 gni_fma_cmd_type_t cmd, uint64_t operand,
                 gasnetc_post_descriptor_t *gpd)
 {
@@ -2533,7 +2637,7 @@ void gasnetc_fetchop_u64(
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-  gasneti_boundscheck(node, source_addr, 8);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, source_addr, 8);
 
   pd->type = GNI_POST_AMO;
   pd->amo_cmd = cmd;
@@ -2541,7 +2645,7 @@ void gasnetc_fetchop_u64(
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->remote_addr = (uint64_t) source_addr;
-  pd->remote_mem_hndl = peer->mem_handle;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->local_addr = (uint64_t) gpd->u.immediate;
   pd->local_mem_hndl = my_mem_handle;
   pd->length = 8;
@@ -2555,48 +2659,52 @@ void gasnetc_fetchop_u64(
 
 
 /* Needs no lock because it is called only from the init code */
+static
 void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE) 
 {
   int i;
-  const int count = gasnetc_pd_buffers.size / sizeof(gasnetc_post_descriptor_t) / gasnetc_domain_count;
-  gasnetc_post_descriptor_t *gpd;
+  const int count = gasnetc_pd_buffers.size / GASNETC_SIZEOF_GDP /  gasnetc_domain_count;
+  uintptr_t addr;
+
   gasneti_assert_always(gasnetc_pd_buffers.addr != NULL);
 
 #if GASNETC_USE_MULTI_DOMAIN
   /* must first destroy the temporary pool of post descriptors (only first domain) */
   if_pf (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) {
     for (i=0; i < gasnetc_log2_remote; ++i) {
-      gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
       gasneti_free(gpd);
     }
   }
 
-  gpd = gasnetc_pd_buffers.addr;
-  gpd += count * GASNETC_DIDX;
-  memset(gpd, 0, count * sizeof(gasnetc_post_descriptor_t)); /* Just in case */
+  addr = (uintptr_t) gasnetc_pd_buffers.addr;
+  addr += count * GASNETC_DIDX * GASNETC_SIZEOF_GDP;
+  memset((void*)addr, 0, count * GASNETC_SIZEOF_GDP); /* Just in case */
   /* sacrifice the first one to work as a padding */
   for (i = 1; i < count; i += 1) {
-    gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(post_descriptor_pool), gpd + i);
+    addr += GASNETC_SIZEOF_GDP;
+    gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(post_descriptor_pool), (void*)addr);
   }
 #else
   /* must first destroy the temporary pool of post descriptors */
   for (i=0; i < gasnetc_log2_remote; ++i) {
-    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gasneti_free(gpd);
   }
 
   /* now create the new pool */
-  gpd = gasnetc_pd_buffers.addr;
-  memset(gpd, 0, gasnetc_pd_buffers.size); /* Just in case */
+  addr = (uintptr_t) gasnetc_pd_buffers.addr;
+  memset((void*)addr, 0, count * GASNETC_SIZEOF_GDP); /* Just in case */
   for (i = 0; i < count; i += 1) {
-    gasneti_lifo_push(&post_descriptor_pool, gpd + i);
+    gasneti_lifo_push(&post_descriptor_pool, (void*)addr);
+    addr += GASNETC_SIZEOF_GDP;
   }
 #endif
 }
 
 /* This needs no lock because there is an internal lock in the queue */
 GASNETI_MALLOC
-gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE)
+gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(post_descriptor_pool);
   gasnetc_post_descriptor_t *gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
@@ -2604,18 +2712,22 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
-    int stall = 0;
-    goto first;
-    do {
-      GASNETI_WAITHOOK();
-      stall = 1;
-first:
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-      gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
-    } while (!gpd);
-    if_pf (stall) GASNETC_TRACE_WAIT_END(ALLOC_PD_STALL);
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+    gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
+    if (gpd) {
+      /* nothing to do */
+    } else if (flags & GEX_FLAG_IMMEDIATE) {
+      return NULL;
+    } else {
+      do {
+        GASNETI_WAITHOOK();
+        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
+      } while (!gpd);
+      GASNETC_TRACE_WAIT_END(ALLOC_PD_STALL);
+    }
   }
-  gpd->flags = 0;
+  gpd->gpd_flags = 0;
 #if GASNETC_USE_MULTI_DOMAIN
   gpd->domain_idx = GASNETC_DIDX;
 #endif
@@ -2635,6 +2747,9 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd)
 /* exit related */
 volatile int gasnetc_shutdownInProgress = 0;
 double gasnetc_shutdown_seconds = 0.0;
+static             uint32_t sys_exit_sent_mask = 0;
+static                  int sys_exit_sent_init = 0;
+static gasneti_weakatomic_t sys_exit_sent_fini = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t sys_exit_rcvd = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t sys_exit_code = gasneti_weakatomic_init(0);
 
@@ -2680,11 +2795,11 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
 #if GASNET_PSHM                  
-  const gasnet_node_t size = gasneti_nodemap_global_count;
-  const gasnet_node_t rank = gasneti_nodemap_global_rank;
+  const gex_Rank_t size = gasneti_nodemap_global_count;
+  const gex_Rank_t rank = gasneti_nodemap_global_rank;
 #else
-  const gasnet_node_t size = gasneti_nodes;
-  const gasnet_node_t rank = gasneti_mynode;
+  const gex_Rank_t size = gasneti_nodes;
+  const gex_Rank_t rank = gasneti_mynode;
 #endif
   uint32_t goal = 0;
   uint32_t distance;
@@ -2709,6 +2824,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 
     /* wait for leader to publish final result */
     while (! lead->present) {
+      GASNETI_WAITHOOK();
       gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
         result = 1; /* failure */
@@ -2727,9 +2843,10 @@ extern int gasnetc_sys_exit(int *exitcode_p)
       gasnetc_exitcode_t * const peer = &gasnetc_exitcodes[i];
 
       while (! peer->present) {
+        GASNETI_WAITHOOK();
         gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
         if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
-          result = 1; /* failure */
+          result = 2; /* failure */
           goto out;
         }
       }
@@ -2740,24 +2857,29 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 #endif
 
   for (distance = 1, shift = 0; distance < size; distance *= 2, ++shift) {
-    gasnet_node_t peeridx = (distance >= size - rank) ? rank - (size - distance)
+    gex_Rank_t peeridx = (distance >= size - rank) ? rank - (size - distance)
                                                       : rank + distance;
   #if GASNET_PSHM
-    gasnet_node_t dest = gasneti_pshm_firsts[peeridx];
+    gex_Rank_t dest = gasneti_pshm_firsts[peeridx];
   #else
-    gasnet_node_t dest = peeridx;
+    gex_Rank_t dest = peeridx;
   #endif
 
-    GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",
-                            dest,shift,exitcode));
-    gasnetc_send_control(dest, GC_CTRL_SHUTDOWN, (shift << 8) | (exitcode & 0xff));
+   if (0 == (sys_exit_sent_mask & distance)) {
+      GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",
+                              dest,shift,exitcode));
+      gasnetc_send_control(dest, GC_CTRL_SHUTDOWN, (shift << 8) | (exitcode & 0xff), &sys_exit_sent_fini);
+      sys_exit_sent_init += 1;
+      sys_exit_sent_mask |= distance;
+    }
 
     /* wait for completion of the proper receive, which might arrive out of order */
     goal |= distance;
     while ((gasneti_weakatomic_read(&sys_exit_rcvd, 0) & goal) != goal) {
+      GASNETI_WAITHOOK();
       gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
-        result = 1; /* failure */
+        result = 3; /* failure */
         goto out;
       }
     }
@@ -2778,9 +2900,39 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 out:
   *exitcode_p = exitcode;
 
+  GASNETI_TRACE_PRINTF(C,("Leaving SYS EXIT with result=%d", result));
   return result;
 }
 
+/* Clean ups prior to "bottom half" of gasnetc_exit() */
+extern void gasnetc_sys_fini(void) {
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+
+  /* Drain completions for sent exitcode-reduction messages */
+  if (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
+    gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+    while (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
+      GASNETI_WAITHOOK();
+      gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+    }
+  }
+
+#if GASNET_PSHM
+  /* Coordinate release of of PSHM aux segment */
+  if (gasneti_nodemap_local_rank) {
+    gasnetc_exitcodes[gasneti_nodemap_local_rank].present = 0;
+  } else {
+    /* await acknowledgements */
+    for (int i = 1; i < gasneti_nodemap_local_count; ++i) {
+      gasnetc_exitcode_t * const peer = &gasnetc_exitcodes[i];
+      while (peer->present) {
+        GASNETI_WAITHOOK();
+        gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+      }
+    }
+  }
+#endif
+}
 
 /* AuxSeg setup for registered bounce buffer space*/
 #if GASNETC_USE_MULTI_DOMAIN
@@ -2811,16 +2963,7 @@ gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_in
 /* AuxSeg setup for registered post descriptors*/
 /* This ident string is used by upcrun (and potentially by other tools) to estimate
  * the auxseg requirements, and gets rounded up.
- * So, this doesn't need to be an exact value.
- * As of 2013.03.06 I have systems with
- *     Gemini = 304 bytes
- *     Aries  = 320 bytes
  */
-#if GASNET_CONDUIT_GEMINI
-  #define GASNETC_SIZEOF_GDP 304
-#else
-  #define GASNETC_SIZEOF_GDP 320
-#endif
 #if GASNETC_USE_MULTI_DOMAIN
   GASNETI_IDENT(gasneti_pd_auxseg_IdentString,
               "$GASNetAuxSeg_pd: " _STRINGIFY(GASNETC_SIZEOF_GDP) "*"
@@ -2835,7 +2978,8 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   gasneti_auxseg_request_t retval;
   
   retval.minsz =
-  retval.optimalsz = gasnetc_domain_count * num_pd * sizeof(gasnetc_post_descriptor_t);
+  retval.optimalsz = gasnetc_domain_count * num_pd * GASNETC_SIZEOF_GDP;
+  gasneti_assert_always(GASNETC_SIZEOF_GDP >= sizeof(gasnetc_post_descriptor_t));
 
   if (auxseg_info != NULL) { /* auxseg granted */
     /* The only one we care about is our own node */
@@ -2845,6 +2989,7 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   return retval;
 }
 
+static
 void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE)
 {
   int i;
@@ -2874,87 +3019,3 @@ void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE)
 #endif
 }
 
-
-/* ============================================================== */
-#if GASNETC_GNI_FIREHOSE
-/* Implement client-specific callbacks for use by firehose-region */
-
-#if GASNETI_STATS_OR_TRACE
-  #define GASNETC_TRACE_MR(_event, _verb, _region) do {                  \
-	const firehose_region_t *_reg = (_region);                       \
-	int _pages = (int)(_reg->len/GASNET_PAGESIZE);                   \
-	GASNETI_TRACE_PRINTF(D, ("FIREHOSE_MOVE: " _STRINGIFY(_verb)     \
-				 " %d page(s) at " GASNETI_LADDRFMT,     \
-				 _pages, GASNETI_LADDRSTR(_reg->addr))); \
-	GASNETC_STAT_EVENT_VAL(_event, _pages);                          \
-  } while(0)
-  #define GASNETC_TRACE_PIN(_region)	GASNETC_TRACE_MR(FIREHOSE_PIN, pin, (_region))
-  #define GASNETC_TRACE_UNPIN(_region)	GASNETC_TRACE_MR(FIREHOSE_UNPIN, unpin, (_region))
-#else
-  #define GASNETC_TRACE_PIN(_region) 	((void)0)
-  #define GASNETC_TRACE_UNPIN(_region) 	((void)0)
-#endif
-
-extern int
-firehose_move_callback(gasnet_node_t node,
-                       const firehose_region_t *unpin_list,
-                       size_t unpin_num,
-                       firehose_region_t *pin_list,
-                       size_t pin_num)
-{
-#if GASNETC_USE_MULTI_DOMAIN
-  GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
-#endif
-  GASNETC_TRACE_WAIT_BEGIN();
-  gni_return_t status;
-  int i;
-
-  GASNETC_LOCK_GNI();
-  {
-    /* Take care of any unpins first */
-    for (i = 0; i < unpin_num; i++) {
-      const firehose_region_t *region = unpin_list + i;
-      if_pt (gasneti_valid_client_t(&region->client)) {
-        gni_mem_handle_t handle = region->client; /* Copy due to const */
-        status = GNI_MemDeregister(nic_handle, &handle);
-        gasneti_assert_always(status == GNI_RC_SUCCESS);
-      }
-      GASNETC_TRACE_UNPIN(&unpin_list[i]);
-    }
-
-    /* Take care of any pins */
-    for (i = 0; i < pin_num; i++) {
-      firehose_region_t *region = pin_list + i;
-      status = GNI_MemRegister(nic_handle, region->addr, region->len, NULL,
-                               gasnetc_memreg_flags|GNI_MEM_READWRITE, -1, &region->client);
-      if_pf (GNI_RC_SUCCESS != status) {
-        if (GNI_RC_INVALID_PARAM == status || GNI_RC_PERMISSION_ERROR == status) {
-          /* Memory could not be registered (e.g. memory imported by XPMEM or r/o data). */
-          gasneti_invalidate_client_t(&region->client);
-        } else {
-          /* Any other failure mode is fatal */
-          gasnetc_GNIT_Abort("MemRegister failed at %p + %p with %s",
-                             (void*)region->addr, (void*)region->len,
-                             gasnetc_gni_rc_string(status));
-        }
-      }
-      GASNETC_TRACE_PIN(&pin_list[i]);
-    }
-  }
-  GASNETC_UNLOCK_GNI();
-
-  GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
-  return 0;
-}
-
-extern int
-firehose_remote_callback(gasnet_node_t node,
-                         const firehose_region_t *pin_list, size_t num_pinned,
-                         firehose_remotecallback_args_t *args)
-{
-  /* DO NOTHING.  IF WE GET CALLED WE COMPLAIN. */
-  gasneti_fatalerror("invalid attempted to call firehose_remote_callback()");
-  return -1;
-}
-#endif

@@ -5,7 +5,7 @@
 # The GASNet specification in distributed in 3 primary formats (text, html and postscript)
 # note that older version of makeinfo and TeX may have trouble correctly generating gasnet.ps
 
-all: gasnet.txt gasnet.html gasnet.ps gasnet.pdf
+all: # gasnet.txt gasnet.html gasnet.ps gasnet.pdf
 
 # ------------------------------------------------------------------------------------
 # TeX Postscript
@@ -56,15 +56,8 @@ clean: temp-clean
 	rm -f gasnet.info gasnet.html gasnet.ps gasnet.txt gasnet.pdf gasnet2.pdf
 	rm -Rf gasnet
 
-dist-hook: all temp-clean
-	rm -f texinfo.tex gasnet.texi Makefile
-	@: # Use "blessed" GASNet docs if specified
-	@if test -n "$(GASNET_DOCS)"; then \
-	   list=`cd $(GASNET_DOCS) && echo gasnet.*`; for f in $$list; do \
-	     if test -f $$f; then rm -f $$f; fi; \
-	     cmd="cp -p $(GASNET_DOCS)/$$f . && chmod a=r $$f"; \
-	     echo $$cmd; eval $$cmd || exit $$?; \
-	   done; \
-	 fi
+# Do not distribute the GASNet-1 spec:
+dist-hook: clean
+	rm -f gasnet.texi texinfo.tex
 
 .PHONY: unix info gasnet clean

@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#if !defined(_IN_GASNET_H) && !defined(_IN_GASNET_TOOLS_H)
-  #error This file is not meant to be included directly- clients should include gasnet.h or gasnet_tools.h
+#if !defined(_IN_GASNETEX_H) && !defined(_IN_GASNET_TOOLS_H)
+  #error This file is not meant to be included directly- clients should include gasnetex.h or gasnet_tools.h
 #endif
 
 #ifndef _GASNET_TOOLHELP_H
@@ -37,8 +37,6 @@
   #define STDERR_FILENO 2
 #endif
 
-GASNETI_BEGIN_EXTERNC
-
 #if PLATFORM_OS_MTA
    #include <machine/runtime.h>
    #define _gasneti_sched_yield() mta_yield()
@@ -54,14 +52,15 @@ extern void gasneti_filesystem_sync(void);
 
 #if PLATFORM_COMPILER_GNU_CXX /* bug 1681 */
   #define GASNETI_CURRENT_FUNCTION __PRETTY_FUNCTION__
-#elif defined(__GNUC__) || defined(__FUNCTION__)
-  #define GASNETI_CURRENT_FUNCTION __FUNCTION__
-#elif defined(HAVE_FUNC) && !defined(__cplusplus)
-  /* __func__ should also work for ISO C99 compilers */
+#elif (defined(HAVE_FUNC) && !GASNETI_CONFIGURE_MISMATCH) || __STDC_VERSION__ >= 199901 || __cplusplus >= 201103L
+  /* __func__ should also work for ISO C99 or C++11 compilers */
   #define GASNETI_CURRENT_FUNCTION __func__
+#elif PLATFORM_COMPILER_GNU /* fallback on gcc, last resort because it generates warnings w/-pedantic */
+  #define GASNETI_CURRENT_FUNCTION __FUNCTION__
 #else
   #define GASNETI_CURRENT_FUNCTION ""
 #endif
+
 extern char *gasneti_build_loc_str(const char *funcname, const char *filename, int linenum);
 #define gasneti_current_loc gasneti_build_loc_str(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__)
 
@@ -115,22 +114,6 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define gasneti_assert_nzeroret(op) op
 #endif
 
-#if GASNET_DEBUG
-  #define GASNETI_UNUSED_UNLESS_DEBUG
-#else
-  #define GASNETI_UNUSED_UNLESS_DEBUG GASNETI_UNUSED
-#endif
-#if GASNETI_THREADS
-  #define GASNETI_UNUSED_UNLESS_THREADS
-#else
-  #define GASNETI_UNUSED_UNLESS_THREADS GASNETI_UNUSED
-#endif
-#if !GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF || GASNETI_THREADS
-  #define GASNETI_THREAD_TYPEDEF
-#else
-  #define GASNETI_THREAD_TYPEDEF GASNETI_UNUSED
-#endif
-
 /* return physical memory of machine
    on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0 */
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal); 
@@ -171,6 +154,8 @@ const char *gasnett_signame_fromval(int sigval);
 
 /* return a fast but simple/insecure 64-bit checksum of arbitrary data */
 extern uint64_t gasneti_checksum(const void *p, int numbytes);
+
+extern int gasneti_nsleep(uint64_t ns_delay);
 
 /* ------------------------------------------------------------------------------------ */
 /* Count zero bytes in a region w/ or w/o a memcpy(), or in a "register" */
@@ -214,7 +199,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   int gasneti_count0s_uint64_t(uint64_t x) {
   #if 0
     x |= (x >> 4); x |= (x >> 2); x |= (x >> 1);
-    x &= 0x0101010101010101UL;
+    x &= 0x0101010101010101ULL;
     x += (x >> 32); x += (x >> 16); x += (x >> 8);
     return sizeof(x) - (x & 0xf);
   #else
@@ -279,8 +264,11 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #endif
 
 #if GASNETI_USE_TRUE_MUTEXES && PLATFORM_OS_CYGWIN
-  /* bug1847: Cygwin mutexes initialized using PTHREAD_MUTEX_INITIALIZER are unsafe upon first acquire */
-  #define GASNETI_MUTEX_CAUTIOUS_INIT 1
+  #include <cygwin/version.h>
+  /* bug1847: Until Cygwin 1.7-3, mutexes initialized using PTHREAD_MUTEX_INITIALIZER were unsafe upon first acquire */
+  #if CYGWIN_VERSION_DLL_MAJOR < 1007 || (CYGWIN_VERSION_DLL_MAJOR == 1007 && CYGWIN_VERSION_DLL_MINOR < 3)
+    #define GASNETI_MUTEX_CAUTIOUS_INIT 1
+  #endif
 #endif
 
 #if GASNETI_MUTEX_CAUTIOUS_INIT
@@ -324,7 +312,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       pthread_mutex_t lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
-    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    } gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -397,7 +385,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
       volatile GASNETI_THREADID_T owner;
-    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
@@ -424,7 +412,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
-    typedef pthread_mutex_t           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    typedef pthread_mutex_t           gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -462,7 +450,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #endif
     #define gasneti_mutex_destroy(pl)   gasneti_mutex_destroy_ignoreerr(pl)
   #else
-    typedef char           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    typedef char           gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER '\0'
     #define gasneti_mutex_lock(pl)    ((void)0)
     #define gasneti_mutex_trylock(pl) 0
@@ -485,7 +473,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   typedef struct {
     pthread_cond_t cond;
     GASNETI_BUG2231_WORKAROUND_PAD
-  } gasneti_cond_t GASNETI_THREAD_TYPEDEF;
+  } gasneti_cond_t;
 
   #define GASNETI_COND_INITIALIZER    { PTHREAD_COND_INITIALIZER }
   #define gasneti_cond_init(pc) do {                       \
@@ -516,7 +504,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     } while (0)
   #endif
 #else
-  typedef char           gasneti_cond_t GASNETI_THREAD_TYPEDEF;
+  typedef char           gasneti_cond_t;
   #define GASNETI_COND_INITIALIZER  '\0'
   #define gasneti_cond_init(pc)       ((void)0)
   #define gasneti_cond_destroy(pc)    ((void)0)
@@ -527,10 +515,112 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Reader-writer lock support */
+
+typedef enum {
+  _GASNETI_RWLOCK_UNLOCKED=0,
+  _GASNETI_RWLOCK_RDLOCKED,
+  _GASNETI_RWLOCK_WRLOCKED
+} _gasneti_rwlock_state; /* must always be defined for gasnet_tools-par */
+
+#if !GASNETI_USE_TRUE_MUTEXES ||  /* mutexes compile away to nothing */ \
+    !GASNETI_HAVE_PTHREAD_RWLOCK || /* OS rwlocks missing, use standard mutex (no read concurrency) */ \
+    GASNETI_MUTEX_CAUTIOUS_INIT     /* assume pthread_rwlocks are also broken */
+  #define gasneti_rwlock_t              gasneti_mutex_t
+  #define gasneti_rwlock_init           gasneti_mutex_init
+  #define gasneti_rwlock_destroy        gasneti_mutex_destroy
+  #define gasneti_rwlock_rdlock         gasneti_mutex_lock
+  #define gasneti_rwlock_wrlock         gasneti_mutex_lock
+  #define gasneti_rwlock_tryrdlock      gasneti_mutex_trylock
+  #define gasneti_rwlock_trywrlock      gasneti_mutex_trylock
+  #define gasneti_rwlock_unlock         gasneti_mutex_unlock    
+  #define GASNETI_RWLOCK_INITIALIZER    GASNETI_MUTEX_INITIALIZER
+  #define gasneti_rwlock_assertlocked   gasneti_mutex_assertlocked
+  #define gasneti_rwlock_assertrdlocked gasneti_mutex_assertlocked
+  #define gasneti_rwlock_assertwrlocked gasneti_mutex_assertlocked
+  #define gasneti_rwlock_assertunlocked gasneti_mutex_assertunlocked   
+
+#elif GASNET_DEBUG /* debug checking rwlocks */
+  #define gasneti_rwlock_t            pthread_rwlock_t
+  #define GASNETI_RWLOCK_INITIALIZER  PTHREAD_RWLOCK_INITIALIZER
+
+  extern _gasneti_rwlock_state _gasneti_rwlock_query(gasneti_rwlock_t const *l);
+  extern void _gasneti_rwlock_insert(gasneti_rwlock_t const *l, _gasneti_rwlock_state state);
+  extern void _gasneti_rwlock_remove(gasneti_rwlock_t const *l);
+
+  #define gasneti_rwlock_assertlocked(pl)   \
+          gasneti_assert(_gasneti_rwlock_query(pl))
+  #define gasneti_rwlock_assertrdlocked(pl) \
+          gasneti_assert(_gasneti_rwlock_query(pl) == _GASNETI_RWLOCK_RDLOCKED)
+  #define gasneti_rwlock_assertwrlocked(pl) \
+          gasneti_assert(_gasneti_rwlock_query(pl) == _GASNETI_RWLOCK_WRLOCKED)
+  #define gasneti_rwlock_assertunlocked(pl) \
+          gasneti_assert(!_gasneti_rwlock_query(pl)) 
+
+  #define gasneti_rwlock_init(pl) \
+          gasneti_assert_zeroret(pthread_rwlock_init(pl,NULL))
+  #define gasneti_rwlock_destroy(pl) do {                                      \
+    gasneti_rwlock_assertunlocked(pl);                                         \
+    gasneti_assert_zeroret(pthread_rwlock_destroy(pl));                        \
+  } while (0)
+
+  #define gasneti_rwlock_rdlock(pl) do {                                       \
+    int _ret;                                                                  \
+    gasneti_rwlock_assertunlocked(pl);                                         \
+    while ((_ret = pthread_rwlock_rdlock(pl)) == EAGAIN)                       \
+      gasneti_sched_yield(); /* too many readers */                            \
+    if (_ret) gasneti_fatalerror("pthread_rwlock_rdlock()=%s",strerror(_ret)); \
+    _gasneti_rwlock_insert(pl, _GASNETI_RWLOCK_RDLOCKED);                      \
+  } while (0)
+
+  #define gasneti_rwlock_wrlock(pl) do {                                       \
+    gasneti_rwlock_assertunlocked(pl);                                         \
+    gasneti_assert_zeroret(pthread_rwlock_wrlock(pl));                         \
+    _gasneti_rwlock_insert(pl, _GASNETI_RWLOCK_WRLOCKED);                      \
+  } while (0)
+
+  #define gasneti_rwlock_unlock(pl) do {                                       \
+    gasneti_rwlock_assertlocked(pl);                                           \
+    gasneti_assert_zeroret(pthread_rwlock_unlock(pl));                         \
+    _gasneti_rwlock_remove(pl);                                                \
+  } while (0)
+
+  GASNETI_INLINE(_gasneti_rwlock_trylock)
+  int _gasneti_rwlock_trylock(gasneti_rwlock_t *pl, int writer) {
+    int ret;
+    gasneti_rwlock_assertunlocked(pl);
+    if (writer) ret = pthread_rwlock_trywrlock(pl);
+    else        ret = pthread_rwlock_tryrdlock(pl);
+    if (ret == EBUSY) return EBUSY;
+    if (ret) gasneti_fatalerror("pthread_rwlock_trylock()=%s",strerror(ret));
+    _gasneti_rwlock_insert(pl, 
+      (writer ? _GASNETI_RWLOCK_WRLOCKED : _GASNETI_RWLOCK_RDLOCKED));
+    return 0;
+  }
+  #define gasneti_rwlock_tryrdlock(pl)  _gasneti_rwlock_trylock(pl,0)
+  #define gasneti_rwlock_trywrlock(pl)  _gasneti_rwlock_trylock(pl,1)
+
+#else /* using real, OS-provided rwlocks */
+  #define gasneti_rwlock_t            pthread_rwlock_t
+  #define gasneti_rwlock_init(pl)     pthread_rwlock_init(pl,NULL)
+  #define gasneti_rwlock_destroy      pthread_rwlock_destroy
+  #define gasneti_rwlock_rdlock(pl)   /* mask too-many-readers failure */ \
+    while (GASNETT_PREDICT_FALSE(pthread_rwlock_rdlock(pl) == EAGAIN)) gasneti_sched_yield()
+  #define gasneti_rwlock_wrlock       pthread_rwlock_wrlock
+  #define gasneti_rwlock_tryrdlock    pthread_rwlock_tryrdlock
+  #define gasneti_rwlock_trywrlock    pthread_rwlock_trywrlock
+  #define gasneti_rwlock_unlock       pthread_rwlock_unlock    
+  #define GASNETI_RWLOCK_INITIALIZER  PTHREAD_RWLOCK_INITIALIZER
+  #define gasneti_rwlock_assertlocked(pl)   ((void)0)
+  #define gasneti_rwlock_assertrdlocked(pl) ((void)0)
+  #define gasneti_rwlock_assertwrlocked(pl) ((void)0)
+  #define gasneti_rwlock_assertunlocked(pl) ((void)0)
+#endif
+/* ------------------------------------------------------------------------------------ */
 /* Wrappers for thread-local data storage
    See README-tools for usage information.
 */
-#define _GASNETI_THREADKEY_MAGIC 0xFF00ABCDEF573921ULL
+#define _GASNETI_THREADKEY_MAGIC ((uint64_t)0xFF00ABCDEF573921ULL)
 
 #if GASNETI_THREADS
   #if GASNETI_HAVE_TLS_SUPPORT /* use __thread, if available */
@@ -553,13 +643,13 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       gasneti_mutex_t initmutex;
       volatile int isinit;
       pthread_key_t value;
-  } _gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
+  } _gasneti_threadkey_t;
   #define _GASNETI_THREADKEY_INITIALIZER \
     { _GASNETI_THREADKEY_MAGIC_INIT      \
       GASNETI_MUTEX_INITIALIZER,         \
       0 /* value field left NULL */ }
 #else
-  typedef void *_gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
+  typedef void *_gasneti_threadkey_t;
   #define _GASNETI_THREADKEY_INITIALIZER NULL
 #endif
 
@@ -693,12 +783,55 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+#if !defined(GASNETI_BUG3430_WORKAROUND) && PLATFORM_OS_CYGWIN
+  #define GASNETI_BUG3430_WORKAROUND       1
+#endif
+#if GASNETI_THREADS && GASNETI_BUG3430_WORKAROUND
+  // a workaround for the Cygwin pthread_create vs. sched_yield performance bug
+  extern gasneti_mutex_t gasneti_bug3430_lock;
+  extern gasneti_cond_t gasneti_bug3430_cond;
+  extern volatile int gasneti_bug3430_creating;
+
+  static int gasneti_bug3430_sched_yield(void) {
+    if (gasneti_bug3430_creating) { // deliberately unsynchronized "optimistic" read
+      gasneti_mutex_lock(&gasneti_bug3430_lock);
+        while (gasneti_bug3430_creating) { // sleep thru pthread_create
+          gasneti_cond_wait(&gasneti_bug3430_cond, &gasneti_bug3430_lock);
+        }
+      gasneti_mutex_unlock(&gasneti_bug3430_lock);
+    }
+    return _gasneti_sched_yield();
+  }
+
+  static int gasneti_bug3430_pthread_create(pthread_t * GASNETI_RESTRICT _thread,
+           const pthread_attr_t * GASNETI_RESTRICT _attr,
+           void *(*_start_routine)(void*), void * GASNETI_RESTRICT _arg) {
+    gasneti_mutex_lock(&gasneti_bug3430_lock);
+      gasneti_bug3430_creating++;
+      int _ret = pthread_create(_thread, _attr, _start_routine, _arg);
+      gasneti_bug3430_creating--;
+      gasneti_cond_broadcast(&gasneti_bug3430_cond);
+    gasneti_mutex_unlock(&gasneti_bug3430_lock);
+    return _ret;
+  }
+
+  // install hooks via macro
+  #undef  sched_yield
+  #define sched_yield    gasneti_bug3430_sched_yield
+  #undef  _gasneti_sched_yield
+  #define _gasneti_sched_yield() gasneti_bug3430_sched_yield()
+  #undef  pthread_create
+  #define pthread_create gasneti_bug3430_pthread_create
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* environment support 
    see README-tools for usage information 
  */
 
 extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_mem_size);
 extern int64_t gasneti_parse_int(const char *str, uint64_t mem_size_multiplier);
+extern int gasneti_parse_dbl(const char *str, double *result_ptr);
 extern void gasneti_setenv(const char *key, const char *value);
 extern void gasneti_unsetenv(const char *key);
 
@@ -714,11 +847,11 @@ extern void gasneti_envdbl_display(const char *key, double val, int is_dflt);
 
 extern const char *gasneti_tmpdir(void);
 
-/* Conduit-specific supplement to gasneti_getenv
+/* Custom (spawner- or conduit-specific) supplement to gasneti_getenv
  * If set to non-NULL this has precedence over gasneti_globalEnv.
  */
 typedef char *(gasneti_getenv_fn_t)(const char *keyname);
-extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
+extern gasneti_getenv_fn_t *gasneti_getenv_hook;
 
 
 /* ------------------------------------------------------------------------------------ */
@@ -887,7 +1020,5 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-
-GASNETI_END_EXTERNC
 
 #endif

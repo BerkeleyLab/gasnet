@@ -10,6 +10,18 @@ Implementation by:
     Filip Blagojevic <FBlagojevic@lbl.gov>
     Paul H. Hargrove <PHHargrove@lbl.gov>
 
+===============================================================
+WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+
+The contents of this file are no longer maintained, and user
+documentation has moved into the top-level GASNet README.
+
+For current information on using GASNet's PSHM support, please
+consult the main GASNet README.
+
+WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+===============================================================
+
 Goal:
 ----
 Provide GASNet with a mechanism to communicate through shared memory among
@@ -22,177 +34,6 @@ as asynchronous bulk memory copy w/o cache pollution).
 
 We appreciate your feedback related to PSHM (both positive and
 negative) and would be happy to work with you to improve PSHM.
-
-To use:
-------
-In the current release, GASNet's PSHM support is enabled by default only on
-Linux.  On all other platforms, one must pass --enable-pshm if PSHM support
-is desired.  On Linux PSHM can be disabled by passing --disable-pshm at
-configure time.
-
-The PSHM support in GASNet can operate via three generic mechanisms: POSIX
-shared memory, SystemV shared memory, or mmap()ed disk files.  When PSHM is
-enabled, the default is for the configure step to probe only for support
-via POSIX shared memory (except on MacOS, where it is known to be broken).
-If no POSIX shared memory support if found, there is no automatic fallback
-to any other mechanism.  So, if one wishes to use SystemV shared memory or
-mmap()ed files, one should explicitly disable the POSIX support and enable
-the desired mechanism:
-
-	Usage Summary (flags to be passed to the configure script):
-	----------------------------------------------------------
-          OFF: --disable-pshm
-        POSIX: --enable-pshm
-         SYSV: --enable-pshm --disable-pshm-posix --enable-pshm-sysv
-         FILE: --enable-pshm --disable-pshm-posix --enable-pshm-file
-
-        On Linux "--enable-pshm" is the default.
-        On all other platforms "--disable-pshm" is the default.
-
-There are also implementations which are specifc to certain platforms:
-
-For Cray XE, XK and XC systems, PSHM-over-XPMEM is enabled automatically
-by the corresponding cross-configure scripts.  However, one can also
-optionally enable PSHM-over-XPMEM on an SGI Altix as follows:
-        XPMEM: --enable-pshm --disable-pshm-posix --enable-pshm-xpmem
-
-For BlueGene/Q, PSHM via the "common heap" is enabled automatically by
-the corresponding cross-configure scripts.  However, one can also use:
-        GHEAP: --enable-pshm --disable-pshm-posix --enable-pshm-gheap
-
-For Linux systems with libhugetlbfs and a hugetlbfs mount, there is also
-experimental support for mmap()ed files on hugetlbfs, which can be
-enabled with:
-    HUGETLBFS: --enable-pshm --disable-pshm-posix --enable-pshm-hugetlbfs
-
-PSHM includes an environment variable for controlling use of memory for
-intra-memory AM traffic:
-
-  GASNET_PSHMNET_QUEUE_DEPTH
-     Minimum number of PSHM-AMs a process must be capable of sending before
-     it may stall (default 32).  The shared memory allocated on a compute
-     node with P processes is roughly (2 * P * Depth * MaxMsgSz).
-
-Parameters Setting:
-------------------
-Although recommended as the first option, POSIX shared memory is not
-available on all systems, even systems running Linux may not be configured
-to support it.  In the absence of the POSIX shared memory, users are
-advised to use the SystemV shared memory as the next-best option.
-
-In the absence of both, POSIX and SystemV shared memory, a user may try
-using mmap()ed disk files. However, on some systems we see significant
-performance degradation when using files (apparently due to committing the
-changes from memory to disk).
-
-On most operating systems the amount of available SystemV shared memory
-and the number of shared memory segments is controlled by the kernel
-parameters: shmmax, shmall and shmmni.
-   shmmax = largest size of a shared memory segment (in bytes)
-   shmall = total amount of memory allocatable as shared (in pages)
-   shmmni = maximum number of shared memory segments
-
-Insufficient amount of SystemV shared memory will lead to failures at
-start-up of any application using a runtime configured to use PSHM over
-SystemV.  Setting these parameters is system-specific and requires
-administrator privileges.
-
-* Examples to set:
-
-   - Linux:	
-	sudo /sbin/sysctl -w kernel.shmmax=<large value>
-	sudo /sbin/sysctl -w kernel.shmall=<large value>
-	sudo /sbin/sysctl -w kernel.shmmni=<larger than number of
-					    PSHM processes + 1>
-   - MacOS:
-	sudo /sbin/sysctl -w kern.sysv.shmmax=<large value>
-	sudo /sbin/sysctl -w kern.sysv.shmall=<large value>
-	sudo /sbin/sysctl -w kern.sysv.shmmni=<larger than number of
-					 PSHM processes + 1>
-
-   - Various BSD flavors:
-        FreeBSD: follow MacOS example, replacing "sysv" with "ipc".
-        NetBSD: follow MacOS example, replacing "sysv" with "ipc".
-        OpenBSD: follow MacOS example, replacing "sysv" with "shminfo".
-
-   - Solaris:
-        Depends on version.  Please see the Sun/Oracle documentation.
-
-   - Cygwin:
-        See Cygwin under "change parameters permanently", below.
-
-* To change parameters permanently:
-
-   - Linux:
-	Add the following lines to /etc/sysctl.conf (sudo required):
-	kernel.shmmax=<large value>
-	kernel.shmall=<large value>
-	kernel.shmmni=<larger than number of
-	               PSHM processes + 1>
-
-	To reload the new settings:
-	sudo /sbin/sysctl -p /etc/sysctl.conf
-
-   - MacOS:
-	Add the following lines to /etc/sysctl.conf (sudo required):
-	kern.sysv.shmmax=<large value>
-	kern.sysv.shmall=<large value>
-	kern.sysv.shmmni=<larger than number of
-	                  PSHM processes + 1>
-
-	To reload the new settings: reboot the machine.
-
-   - Various BSD flavors:
-        FreeBSD: follow MacOS example, replacing "sysv" with "ipc".
-        NetBSD: follow MacOS example, replacing "sysv" with "ipc".
-        OpenBSD: follow MacOS example, replacing "sysv" with "shminfo".
-
-   - Solaris:
-        Depends on version.  Please see the Sun/Oracle documentation.
-
-   - Cygwin:
-        If you have not done so yet, please Read the Cygwin documentation
-        on "cygserver-config" to create an initial /etc/cygsever.conf
-        and start the server as a Windows service (optional).
-        You may then edit /etc/cygserver to edit
-          kern.ipc.shmmaxpgs
-          kern.ipc.shmmni
-          kern.ipc.shmseg
-        Except for shmmaxpgs, the defaults are often large enough.
-        These configuration values are only read when cygserver starts.
-        So, read the Cygwin documentation to determine if/how to restart
-        the cygserver service.
-        Under Cygwin-1.5 you may also need to add "server" to the value
-        of the CYGWIN environment variable.  Again, you should see the
-        Cygwin documentation for more information on this subject.
-
-IMPORTANT, SYSTEM CLEANING:
---------------------------
-If a GASNet application using PSHM is terminated before ending the
-initialization phase, there is a possibility that the shared memory objects
-will remain in the system.  A large amount of memory or disk space can
-remain allocated, preventing users from fully utilizing all available
-hardware resources.
-
-In the SystemV case, the allocated (but not released) shared memory
-segments can be listed via the "ipcs" command, and can be removed via the
-"ipcrm" command.  Note that on the systems with a batch scheduler, the
-"ipcs" and "ipcrm" instructions need to be run on the compute nodes.
-
-In the mmap()ed file case, the allocated but not released shared memory files
-can be found in the directory pointed by the TMPDIR environment variable
-(default: /tmp). These files are named with the prefix GASNT (the lack of an
-'E' is not a typo), and can be deleted using the "rm" command.
-
-The case of mmap()ed file on hugetlbfs is like the regular mmap()ed file
-case except that the directory will be the hugetlbfs mount point.  This is
-typically something like /dev/hugepages.  If uncertain of the mount point,
-the command "mount|grep hugetlbfs" should locate it for you.
-
-In the case of POSIX shared memory, the implementation is system-specific.
-In the case of Linux and Solaris, POSIX shared memory objects are visible
-in the file system.  For Linux the default location is /dev/shm and on
-Solaris the default is /tmp.
 
 Scope:
 -----
@@ -232,13 +73,13 @@ Interface notes:
   supernode rank (which need not be the same when GASNET_SUPERNODE_MAXSIZE
   is non-zero) for each node.  Only nodes with the same supernode rank as
   the caller are addressable via PSHM.  When PSHM is enabled the "offset"
-  field givies the difference between X's address for its own segment and the
+  field gives the difference between X's address for its own segment and the
   address (if any) at which that segment is mapped in the caller's address
   space.
 * Client may directly load/store into the segments of any node sharing their
   supernode (currently implemented in Berkeley UPC runtime library)
 * remotely-addressable segment restrictions on gasnet_put/get/AMLong apply to
-  the individual segments - ie gasnet_put() to an address in the segment of
+  the individual segments - i.e. gasnet_put() to an address in the segment of
   node X must give node X as the target node, not some other supernode peer
 
 Restrictions:
@@ -277,7 +118,7 @@ A3) All supported conduits are attaching to segments in gasnet_attach().  We
     fork-based spawner inside gasnetc_init()).
 
 Q4) Does the client code between init/attach need to know the supernode
-    associations? (eg to make segsize decision)
+    associations? (e.g. to make segsize decision)
 A4) So far we have not seen a need for this (though internal to GASNet we do).
 
 Q5) Can/do we still get allocate on first write mapping for the segment?
@@ -289,7 +130,7 @@ A5) We have each node mmap() its own segment before any cross-mapping is done
     the OS does page frame allocation on touch, rather than mmap().
 
 Q6) Do we ever want to allow supernodes to share a physical node?
-    (eg to increase segment size or to leverage NUMA affinity)
+    (e.g. to increase segment size or to leverage NUMA affinity)
     - if so, need an interface to specify this (probably environment variables)
 A6) The GASNET_SUPERNODE_MAXSIZE env var bounds the number of processes which
     will be joined into a single supernode (with 0 meaning no bound).  When
@@ -314,34 +155,6 @@ Known Problems / To do:
 * The mechanism we are using to probe for maximum segment size works fine on a
   system with plenty of memory, but dies on systems with less.  The work
   around is to set the GASNET_MAX_SEGSIZE small enough for a given system.
-* There are still error cases that will leak shared memory.
-
-Status:
-------
-* The entire GASNet and Berkeley UPC test suites are run on the platforms
-  which support PSHM, and it is considered stable on Linux, AIX, Solaris,
-  {Free,Net,Open}BSD and BG/Q.
-* IBM BG/Q platform-specific notes:
-  - The PAMI conduit supports PSHM, and the provided cross-configure script
-    will --enable-pshm-gheap
-  - One must set BG_MAPCOMMONHEAP=1 in the compute node environment.
-    This is handled automatically by the gasnetrun_mpi and gasnetrun_pami
-    scripts, but must be handled manually when using runjob directly (or
-    a wrapper like qsub from ANL's Cobalt suite).
-* Cray XE, XK and XC platform-specific notes:
-  - The Gemini and Aries conduits support PSHM, and the provided cross-
-    configure scripts --enable-pshm-hugetlbfs.
-* MacOS X platform-specific notes:
-  - MacOS X with POSIX shared memory is NOT supported because we appear to 
-    trigger a kernel memory leak.
-  - SystemV shared memory is a valid choice:
-       --enable-pshm --enable-pshm-sysv
-  - Use of mmap()ed files has been seen to cause VERY slow start-up.
-* {Free,Open,Net}BSD platform-specific notes:
-  - FreeBSD supports POSIX shared memory and has been well tested
-  - OpenBSD and NetBSD do not support POSIX shared memory, but do
-    support SystemV:
-       --enable-pshm --enable-pshm-sysv
 
 * GASNet conduits known NOT to work:
   - SHMEM conduit does not support PSHM, but there is no reason to think

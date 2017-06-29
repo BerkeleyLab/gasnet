@@ -25,36 +25,36 @@ include $(top_builddir)/other/firehose/firehose.mak
 ##
 ## SSH bootstrap support (built unless fork() is unavailable)
 ##
-if IBV_BOOTSTRAP_SSH
+if HAVE_BOOTSTRAP_SSH
 ssh_defines = -DHAVE_SSH_SPAWNER
 ssh_srcdir = $(top_srcdir)/other/ssh-spawner
 ssh_sources = $(ssh_srcdir)/gasnet_bootstrap_ssh.c
-ssh_deps = $(ssh_srcdir)/*.h
+ssh_deps = $(ssh_srcdir)/*.[ch]
 endif
 
 ##
 ## MPI bootstrap support (optional)
 ## XXX: should have a way to control this independent of MPI conduit
 ##
-if IBV_BOOTSTRAP_MPI
+if HAVE_BOOTSTRAP_MPI
 mpi_defines = -DHAVE_MPI_SPAWNER
 mpi_srcdir = $(top_srcdir)/other/mpi-spawner
-mpi_deps = $(mpi_srcdir)/*.h $(mpi_srcdir)/*.c
+mpi_deps = $(mpi_srcdir)/*.[ch]
 # We must compile this one object with MPI_CC.
 mpi_special_objs = $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o
 $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o: force
 	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) \
-		-o $@ -c $(mpi_srcdir)/gasnet_bootstrap_mpi.c
+		$(MANUAL_MPICFLAGS) -o $@ -c $(mpi_srcdir)/gasnet_bootstrap_mpi.c
 endif
 
 ##
 ## PMI bootstrap support (optional)
 ##
 if HAVE_BOOTSTRAP_PMI
-pmi_cppflags = -DHAVE_PMI_SPAWNER @PMI_SPAWNER_INCLUDES@
+pmi_cppflags = -DHAVE_PMI_SPAWNER @PMI_SPAWNER_CFLAGS@
 pmi_srcdir = $(top_srcdir)/other/pmi-spawner
 pmi_sources = $(pmi_srcdir)/gasnet_bootstrap_pmi.c
-pmi_deps = $(pmi_srcdir)/*.h
+pmi_deps = $(pmi_srcdir)/*.[ch]
 endif
 
 ##
@@ -82,8 +82,8 @@ CONDUIT_FILELIST =               \
       gasnet_core_internal.h     \
       gasnet_extended.c          \
       gasnet_extended_fwd.h      \
-      gasnet_extended_internal.h \
       gasnet_firehose.c          \
+      gasnet_ibv.h               \
       firehose_fwd.h             \
       license.txt                
 
@@ -101,15 +101,15 @@ CONDUIT_SOURCELIST =                 \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@IBV_INCLUDE@ $(fh_extralibcflags) $(ssh_defines) $(mpi_defines) $(pmi_cppflags) $(fca_extralibcflags)\
-			 @IBV_LIBCFLAGS@ $(ibv_thread_defines) $(blcr_extralibcflags)
+CONDUIT_EXTRALIBCFLAGS = @IBV_CFLAGS@ $(fh_extralibcflags) $(ssh_defines) $(mpi_defines) $(pmi_cppflags) $(fca_extralibcflags)\
+			 $(ibv_thread_defines) $(blcr_extralibcflags)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(fh_extraheaders) $(fca_extraheaders) $(blcr_extraheaders)
 
 
 # headers selected by default rules that should NOT be installed
-CONDUIT_PRIVATEHEADERS = $(fh_privheaders) $(fca_privheaders) $(blcr_privheaders)
+CONDUIT_PRIVATEHEADERS = $(fh_privheaders) $(fca_privheaders) $(blcr_privheaders) gasnet_ibv.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
@@ -168,7 +168,7 @@ clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local
 else
-$(top_srcdir)/gasnet.h: do-error
+$(top_srcdir)/gasnetex.h: do-error
 endif
 
 

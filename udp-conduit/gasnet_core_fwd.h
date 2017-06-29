@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_CORE_FWD_H
@@ -44,8 +44,6 @@
 #endif
 
 #define GASNET_MAXNODES AMUDP_MAX_NUMTRANSLATIONS
-#define _GASNET_NODE_T
-typedef uint16_t gasnet_node_t;
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
@@ -53,10 +51,8 @@ typedef uint16_t gasnet_node_t;
    */
 /* #define GASNETI_CONDUIT_THREADS 1 */
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
-   */
-/* #define GASNETC_USE_INTERRUPTS 1 */
+/* udp-conduit supports top-level poll throttling */
+#define GASNETC_USING_SUSPEND_RESUME 1
 
 /*  override default error values to use those defined by AMUDP */
 #define _GASNET_ERRORS
@@ -66,6 +62,11 @@ typedef uint16_t gasnet_node_t;
 #define GASNET_ERR_BAD_ARG              2
 #define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
 #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
+
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
+   */
+#define GASNETC_AMREGISTER 1
 
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
@@ -89,5 +90,7 @@ extern void _gasnetc_set_waitmode(int wait_mode);
 /* udp-conduit's default spawner produces random node placements.
    could in theory leave at 0 when SPAWNFN='L' */
 #define GASNETC_DEFAULT_NODEMAP_EXACT 1
+
+/* Configure gasnet_handle.[ch] */
 
 #endif

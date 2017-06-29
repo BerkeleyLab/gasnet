@@ -4,15 +4,19 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
 #define TEST_MAXTHREADS 1
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ (128*1024) /* for put/overwrite test */
+#endif
 #include <test.h>
 
-#define TEST_GASNET 1
-#define SHORT_REQ_BASE 128
+#define TEST_GASNETEX 1
+#define SHORT_REQ_BASE GEX_AM_INDEX_BASE
+test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 #include <other/amxtests/testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
@@ -21,10 +25,19 @@
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
-void doit4(int partner, int *partnerseg);
+/*void doit4(int partner, int *partnerseg); -- removed along with the memset*() calls */
 void doit5(int partner, int *partnerseg);
+
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
+
+static gex_Rank_t myrank;
+static gex_Rank_t numranks;
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_SEGMENT_EVERYTHING
@@ -39,25 +52,25 @@ void doit5(int partner, int *partnerseg);
   test_everything_seginfo_t myinfo;
   test_everything_seginfo_t partnerinfo;
   int done = 0;
-  void seg_everything_reqh(gasnet_token_t token) {
-    GASNET_Safe(gasnet_AMReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t)));
+  GASNETT_EXTERNC void seg_everything_reqh(gex_Token_t token) {
+    gex_AM_ReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GEX_EVENT_NOW, 0);
   }
-  void seg_everything_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+  GASNETT_EXTERNC void seg_everything_reph(gex_Token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(test_everything_seginfo_t));
     memcpy(&partnerinfo, buf, nbytes);
     gasnett_local_wmb();
     done = 1;
   }
   #define EVERYTHING_SEG_HANDLERS() \
-    { 250, (handler_fn_t)seg_everything_reqh }, \
-    { 251, (handler_fn_t)seg_everything_reph },
+    { 250, (handler_fn_t)seg_everything_reqh, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_SHORT, 0, NULL, NULL }, \
+    { 251, (handler_fn_t)seg_everything_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 0, NULL, NULL },
 
   char _static_seg[TEST_SEGSZ+PAGESZ] = {1};
   char _common_seg[TEST_SEGSZ+PAGESZ];
   void everything_tests(int partner) {
     char _stack_seg[TEST_SEGSZ+PAGESZ];
 
-    if (gasnet_mynode() == 0) MSG("*** gathering data segment info for SEGMENT_EVERYTHING tests...");
+    if (myrank == 0) MSG("*** gathering data segment info for SEGMENT_EVERYTHING tests...");
     BARRIER();
     myinfo.static_seg = alignup_ptr(&_static_seg, PAGESZ);
     myinfo.common_seg = alignup_ptr(&_common_seg, PAGESZ);
@@ -69,24 +82,24 @@ void doit5(int partner, int *partnerseg);
     myinfo.stack_seg = alignup_ptr(&_stack_seg, PAGESZ);
     BARRIER();
     /* fetch partner's addresses into partnerinfo */
-    GASNET_Safe(gasnet_AMRequestShort0((gasnet_node_t)partner, 250));
+    gex_AM_RequestShort0(myteam, (gex_Rank_t)partner, 250, 0);
     GASNET_BLOCKUNTIL(done);
     BARRIER();
 
     /* test that remote access works will all the various data areas */
-    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ static data area ---");
+    if (myrank == 0) MSG(" --- testgasnet w/ static data area ---");
     doit(partner, (int*)partnerinfo.static_seg);
-    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ common block data area ---");
+    if (myrank == 0) MSG(" --- testgasnet w/ common block data area ---");
     doit(partner, (int*)partnerinfo.common_seg);
-    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ malloc data area ---");
+    if (myrank == 0) MSG(" --- testgasnet w/ malloc data area ---");
     doit(partner, (int*)partnerinfo.malloc_seg);
-    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ sbrk data area ---");
+    if (myrank == 0) MSG(" --- testgasnet w/ sbrk data area ---");
     doit(partner, (int*)partnerinfo.sbrk_seg);
     #ifdef HAVE_MMAP
-      if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ mmap'd data area ---");
+      if (myrank == 0) MSG(" --- testgasnet w/ mmap'd data area ---");
       doit(partner, (int*)partnerinfo.mmap_seg);
     #endif
-    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ stack data area ---");
+    if (myrank == 0) MSG(" --- testgasnet w/ stack data area ---");
     doit(partner, (int*)partnerinfo.stack_seg);
     BARRIER();
   }
@@ -95,19 +108,16 @@ void doit5(int partner, int *partnerseg);
 #endif
 
 #if GASNET_PAR
-#if (TEST_MAXTHREADS < 10)
-  #define NUM_THREADS TEST_MAXTHREADS
+  #define MAX_THREADS 10
 #else
-  #define NUM_THREADS 10
+  #define MAX_THREADS 1
 #endif
-#else
-  #define NUM_THREADS 1
-#endif
+int num_threads = MAX_THREADS;
 
 void test_threadinfo(int threadid, int numthreads) {
   int i;
   gasnet_threadinfo_t my_ti;
-  static gasnet_threadinfo_t all_ti[NUM_THREADS];
+  static gasnet_threadinfo_t all_ti[MAX_THREADS];
 
   { GASNET_BEGIN_FUNCTION();
     my_ti = GASNET_GET_THREADINFO();
@@ -119,7 +129,7 @@ void test_threadinfo(int threadid, int numthreads) {
     gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
     assert_always(ti == my_ti);
   }
-  assert(threadid < numthreads && numthreads <= NUM_THREADS);
+  assert(threadid < numthreads && numthreads <= MAX_THREADS);
   all_ti[threadid] = my_ti;
   PTHREAD_LOCALBARRIER(numthreads);
   for (i = 0; i < numthreads; i++) {
@@ -136,9 +146,9 @@ void test_threadinfo(int threadid, int numthreads) {
   #endif
   void *test_libgasnetpar_tools(void *p) {
     int idx = (int)(uintptr_t)p;
-    PTHREAD_LOCALBARRIER(NUM_THREADS);
-    test_threadinfo(idx, NUM_THREADS);
-    PTHREAD_LOCALBARRIER(NUM_THREADS);
+    PTHREAD_LOCALBARRIER(num_threads);
+    test_threadinfo(idx, num_threads);
+    PTHREAD_LOCALBARRIER(num_threads);
   #if GASNETI_ARCH_ALTIX
     /* Don't pin threads because system is either shared or using cgroups */
   #elif GASNETI_ARCH_IBMPE
@@ -146,7 +156,7 @@ void test_threadinfo(int threadid, int numthreads) {
   #else
     gasnett_set_affinity(idx);
   #endif
-    PTHREAD_LOCALBARRIER(NUM_THREADS);
+    PTHREAD_LOCALBARRIER(num_threads);
     return NULL;
   }
 #endif
@@ -183,18 +193,28 @@ void test_libgasnet_tools(void) {
   }
   #endif
   #if GASNET_PAR
-    test_createandjoin_pthreads(NUM_THREADS, &test_libgasnetpar_tools, NULL, 0);
+    num_threads = test_thread_limit(num_threads);
+    test_createandjoin_pthreads(num_threads, &test_libgasnetpar_tools, NULL, 0);
   #endif
   MSG("*** passed libgasnet_tools test!!");
 }
 /* ------------------------------------------------------------------------------------ */
+static const char *clientname = "testgasnet";
+static const gex_Flags_t clientflags = 0;
 int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
-  gasnet_handlerentry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
+  gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, clientname, &argc, &argv, clientflags));
+  if (GEX_SEGMENT_INVALID != gex_EP_QuerySegment(myep)) {
+    MSG("*** ERROR - FAILED EP NO-SEGMENT TEST!!!!!");
+  }
+
+  myrank = gex_TM_QueryRank(myteam);
+  numranks = gex_TM_QuerySize(myteam);
+
   local_segsz = gasnet_getMaxLocalSegmentSize();
   global_segsz = gasnet_getMaxGlobalSegmentSize();
   #if GASNET_SEGMENT_EVERYTHING
@@ -206,17 +226,9 @@ int main(int argc, char **argv) {
     assert_always(global_segsz % GASNET_PAGESIZE == 0);
     assert_always(global_segsz > 0);
   #endif
-#if 0
-  assert_always(GASNET_ERR_NOT_INIT == gasnet_init(&argc, &argv)); /* Duplicate init */
-#endif
 
-  GASNET_Safe(gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-#if 0
-  assert_always(GASNET_ERR_NOT_INIT == /* Duplicate attach */
-                gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
-                              TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-#endif
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gex_AM_Entry_t)));
 
   test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
@@ -231,14 +243,13 @@ int main(int argc, char **argv) {
   }
   BARRIER();
 
-  { int smaj = GASNET_SPEC_VERSION_MAJOR;
-    int smin = GASNET_SPEC_VERSION_MINOR;
+  { int smaj = GEX_SPEC_VERSION_MAJOR;
+    int smin = GEX_SPEC_VERSION_MINOR;
     int rmaj = GASNET_RELEASE_VERSION_MAJOR;
     int rmin = GASNET_RELEASE_VERSION_MINOR;
     int rpat = GASNET_RELEASE_VERSION_PATCH;
-    int smaj2 = GASNET_VERSION;
-    assert_always(smaj > 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
-    assert_always(smaj == smaj2);
+    // TODO-EX: (smaj > 0) when we reach 1.0
+    assert_always(smaj >= 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
   }
 
   { int i;
@@ -254,7 +265,7 @@ int main(int argc, char **argv) {
   TEST_BACKTRACE();
 
   test_libgasnet_tools();
-  partner = (gasnet_mynode() + 1) % gasnet_nodes();
+  partner = (myrank + 1) % numranks;
   #if GASNET_SEGMENT_EVERYTHING
     everything_tests(partner);
   #else
@@ -267,18 +278,352 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+gex_Event_t *am_lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
+gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0 };
+#define AM_LCOPT_CNT ((int)(sizeof(am_lcopt)/sizeof(am_lcopt[0])))
+#define AM_FLAGS_CNT ((int)(sizeof(am_flags)/sizeof(am_flags[0])))
+typedef struct { 
+  size_t RequestMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t ReplyMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t RequestLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  size_t ReplyLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
+} amsz_t;
+
+extern gex_AM_Entry_t sizecheck_handlers[];
+GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes, gex_AM_Arg_t args) {
+  gex_Rank_t r = test_msgsource(token);
+  assert_always(r < numranks);
+  assert_always(args >= 0 && args <= (gex_AM_Arg_t)gex_AM_MaxArgs());
+  assert_always(nbytes == sizeof(amsz_t));
+  amsz_t *max = (amsz_t *)buf;
+  
+  // verify that AMMax*() return symmetric results in both directions
+  for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
+    for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
+      #define CHECK_MAX(cat) do {                                                             \
+        size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);             \
+        size_t lubval = gex_AM_LUB##cat();                                                    \
+        if (val < lubval)                                                                     \
+             MSG("*** ERROR - FAILED HANDLER LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i", \
+                  args,(int)r,lci,flagsi);                                                    \
+        if (val != max->cat[lci][flagsi])                                                     \
+              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
+                  args,lci,flagsi);                                                           \
+      } while (0)
+      CHECK_MAX(RequestMedium);
+      CHECK_MAX(ReplyMedium);
+      CHECK_MAX(RequestLong);
+      CHECK_MAX(ReplyLong);
+    } // flags
+  } // lc
+  #undef CHECK_MAX
+  gex_AM_ReplyShort0(token, sizecheck_handlers[1].gex_index, 0);
+}
+gasnett_atomic_t sizecheck_ack = gasnett_atomic_init(0);
+GASNETT_EXTERNC void sizecheck_reph(gex_Token_t token) {
+  assert_always(gasnett_atomic_read(&sizecheck_ack,0) > 0);
+  gasnett_atomic_decrement(&sizecheck_ack,0);
+}
+gex_AM_Entry_t sizecheck_handlers[] = { // deliberately registered as don't-care indexes
+ { 0, (handler_fn_t)sizecheck_reqh, GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_REQUEST, 1, 0, "sizecheck_reqh" },
+ { 0, (handler_fn_t)sizecheck_reph, GEX_FLAG_AM_SHORT|GEX_FLAG_AM_REPLY, 0, 0, "sizecheck_reph" },
+};
+
 void doit(int partner, int *partnerseg) {
-  int mynode = gasnet_mynode();
+  int success = 1;
+  BARRIER();
+
+  // check predefined object constants
+  #define CHECK_ZERO_CONSTANT(type, constant) do { \
+    static type vz;                                \
+    type v = constant;                             \
+    test_static_assert(sizeof(constant) == sizeof(type));  \
+    assert_always(sizeof(constant) == sizeof(v));  \
+    assert_always(!memcmp(&v,&vz,sizeof(type)));   \
+  } while (0)
+  CHECK_ZERO_CONSTANT(gex_Segment_t, GEX_SEGMENT_INVALID);
+
+  if (strcmp(clientname, gex_Client_QueryName(myclient))) {
+    MSG("*** ERROR - FAILED CLIENT NAME TEST!!!!!");
+  }
+  if (clientflags != gex_Client_QueryFlags(myclient)) {
+    MSG("*** ERROR - FAILED CLIENT FLAGS TEST!!!!!");
+  }
+  if (myclient != gex_EP_QueryClient(myep)) {
+    MSG("*** ERROR - FAILED EP CLIENT TEST!!!!!");
+  }
+  if (myclient != gex_TM_QueryClient(myteam)) {
+    MSG("*** ERROR - FAILED TM CLIENT TEST!!!!!");
+  }
+  if (myep != gex_TM_QueryEP(myteam)) {
+    MSG("*** ERROR - FAILED TM EP TEST!!!!!");
+  }
+
+  #define TEST_CDATA(type,var) do {                                       \
+    static char *cdata_##type = 0;                                        \
+    if ((char *)gex_##type##_QueryCData(var) != cdata_##type)             \
+      MSG("*** ERROR - FAILED %s TEST!!!!!", "gex_" #type "_QueryCData"); \
+    cdata_##type = strdup(#type " cdata");                                \
+    gex_##type##_SetCData(var, cdata_##type);                             \
+    char *temp = (char *)gex_##type##_QueryCData(var);                    \
+    if (temp != cdata_##type)                                             \
+      MSG("*** ERROR - FAILED %s TEST!!!!!", "gex_" #type "_SetCData");   \
+  } while(0)
+
+  TEST_CDATA(Client,myclient);
+  TEST_CDATA(EP,myep);
+  TEST_CDATA(TM,myteam);
+
+#if GASNET_SEGMENT_EVERYTHING
+  // test.h intercepted gex_Segment_Attach() but does not fake a gex_Segment_t
+#else
+  if (myclient != gex_Segment_QueryClient(mysegment)) {
+    MSG("*** ERROR - FAILED SEGMENT CLIENT TEST!!!!!");
+  }
+  if (mysegment != gex_EP_QuerySegment(myep)) {
+    MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
+  }
+  TEST_CDATA(Segment,mysegment);
+
+  // To be removed:
+  assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());
+  assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
+#endif
+
+  #define assert_signed(type)  do {              \
+    volatile type v = 0; /* prevent warnings */  \
+    assert_always((type)(v-1) < v);              \
+    test_static_assert((type)(-1) < (type)0);    \
+  } while (0)
+  #define assert_unsigned(type)  do {            \
+    volatile type v = 0; /* prevent warnings */  \
+    assert_always((type)(v-1) > v);              \
+    test_static_assert((type)(-1) > (type)0);    \
+  } while (0)
+
+  /* team/rank tests */
+  assert_unsigned(gex_Rank_t);
+  assert(myrank == gex_TM_QueryRank(myteam));
+  assert(numranks == gex_TM_QuerySize(myteam));
+  assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
+  assert_always(numranks == (gex_Rank_t)gasnet_nodes()); // TODO-EX: remove
+  assert_always(myrank < numranks);
+  assert_always(numranks < GEX_RANK_INVALID);
+
+  /* AM limit tests */
+  assert_always(gex_AM_MaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));
+  assert_always(gex_AM_LUBRequestMedium() >= 512);
+  assert_always(gex_AM_LUBReplyMedium() >= 512);
+  assert_always(gex_AM_LUBRequestLong() >= 512);
+  assert_always(gex_AM_LUBReplyLong() >= 512);
+
+  static int firsttime = 1;
+  if (firsttime) {
+    size_t numhand = sizeof(sizecheck_handlers)/sizeof(gex_AM_Entry_t);
+    GASNET_Safe(gex_EP_RegisterHandlers(myep, sizecheck_handlers, numhand));
+    const int maxidx = 255 - test_num_am_handlers; // Offset by any don't care registrations in test.h
+    for (size_t i = 0; i < numhand; i++) assert_always(sizecheck_handlers[i].gex_index == maxidx - i);
+    firsttime = 0;
+    BARRIER();
+  }
+  /* verify Max >= LUB */
+  amsz_t lub;
+  memset(&lub,-1,sizeof(lub));
+  assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
+  for (int args = 0; args <= (int)gex_AM_MaxArgs(); args += (int)gex_AM_MaxArgs()) {
+    amsz_t ranklub;
+    memset(&ranklub,-1,sizeof(ranklub));
+    for (gex_Rank_t d = 0; d <= numranks; d++) {
+      gex_Rank_t r;
+      if (d == numranks) r = GEX_RANK_INVALID; // min of maxes
+      else r = (myrank + d) % numranks;
+      amsz_t max;
+      for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
+        for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
+          #define GET_MAX(cat) do {                                                              \
+            size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);            \
+            max.cat[lci][flagsi] = val;                                                          \
+            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
+            size_t lubval = gex_AM_LUB##cat();                                                   \
+            if (val < lubval)                                                                    \
+              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
+                  args,(int)r,lci,flagsi);                                                       \
+            if (r < GEX_RANK_INVALID) {                                                          \
+              ranklub.cat[lci][flagsi] = MIN(val,ranklub.cat[lci][flagsi]);                      \
+            } else if (val != ranklub.cat[lci][flagsi]) {                                        \
+              MSG("*** ERROR - FAILED ALL-RANK LUB TEST! args=%i lci=%i flagsi=%i",              \
+                  args,lci,flagsi);                                                              \
+            }                                                                                    \
+          } while (0)
+          GET_MAX(RequestMedium);
+          GET_MAX(ReplyMedium);
+          GET_MAX(RequestLong);
+          GET_MAX(ReplyLong);
+        } // flags
+      } // lc
+      if (r == GEX_RANK_INVALID) break;
+      else {
+        gasnett_atomic_increment(&sizecheck_ack,0);
+        gex_AM_RequestMedium1(myteam, r, sizecheck_handlers[0].gex_index, &max, sizeof(max), GEX_EVENT_NOW, 0, args);
+      }
+    } // rank
+  } // args
+  #define CHECK_LUB(cat) do {                \
+    size_t lubval = gex_AM_LUB##cat();       \
+    if (lub.cat[0][0] != lubval) {           \
+      MSG("*** ERROR - FAILED LUB TEST!");   \
+    }                                        \
+  } while (0)
+  CHECK_LUB(RequestMedium);
+  CHECK_LUB(ReplyMedium);
+  CHECK_LUB(RequestLong);
+  CHECK_LUB(ReplyLong);
+  #undef CHECK_LUB
+  #undef GET_MAX
+  GASNET_BLOCKUNTIL(gasnett_atomic_read(&sizecheck_ack,0) == 0);
+  BARRIER();
+
+  /* Event tests */
+  gex_Event_t invalid = GEX_EVENT_INVALID;
+  gex_Event_t noop = GEX_EVENT_NO_OP;
+  assert_always(invalid == 0);
+  assert_always(noop != invalid);
+  gex_Event_t lc = noop;
+  size_t sz = MIN(8192,TEST_SEGSZ/2);
+  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_OFFSET | GEX_FLAG_DST_OFFSET); // TODO-EX
+  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_IN_BOUND_SEGMENT | GEX_FLAG_DST_IN_BOUND_SEGMENT);
+  assert_always(rc != noop);
+  assert_always(lc != noop);
+  if (rc) {
+    gex_Event_t qlc = gex_Event_QueryLeaf(rc, GEX_EC_LC);
+    if (lc && qlc) assert_always(lc == qlc);
+    gex_Event_Wait(lc);
+    assert_always(!gex_Event_Test(lc));
+    assert_always(!gex_Event_TestSome(&lc,1,0));
+    assert_always(!gex_Event_TestAll(&lc,1,0));
+    assert_always(!gex_Event_Test(qlc));
+    assert_always(!gex_Event_TestSome(&qlc,1,0));
+    assert_always(!gex_Event_TestAll(&qlc,1,0));
+    gex_Event_t qlc2 = gex_Event_QueryLeaf(rc, GEX_EC_LC);
+    if (lc && qlc2) assert_always(lc == qlc2);
+    assert_always(!gex_Event_Test(qlc2));
+    assert_always(!gex_Event_TestSome(&qlc2,1,0));
+    assert_always(!gex_Event_TestAll(&qlc2,1,0));
+    gex_Event_Wait(rc);
+  }
+
+  /* misc type tests */
+  static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
+    GEX_FLAG_IMMEDIATE,
+    GEX_FLAG_SRC_IN_SEGMENT,
+    GEX_FLAG_SRC_IN_BOUND_SEGMENT,
+    GEX_FLAG_SRC_OFFSET,
+    GEX_FLAG_DST_IN_SEGMENT,
+    GEX_FLAG_DST_IN_BOUND_SEGMENT,
+    GEX_FLAG_DST_OFFSET,
+    GEX_FLAG_AM_SHORT,
+    GEX_FLAG_AM_MEDIUM,
+    GEX_FLAG_AM_LONG,
+    GEX_FLAG_AM_MEDLONG,
+    GEX_FLAG_AM_REQUEST,
+    GEX_FLAG_AM_REPLY,
+    GEX_FLAG_AM_REQREP,
+  };
+  size_t const flags_cnt = sizeof(flags_arr)/sizeof(gex_Flags_t);
+  for (size_t i = 0; i < flags_cnt; i++) {
+    assert_always(flags_arr[i] != 0);
+  }
+
+  static gex_EC_t const ec_all = GEX_EC_ALL;
+  static gex_EC_t const ec_arr[] = { // all the flags but _ALL
+     GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC 
+  };
+  size_t const ec_cnt = sizeof(ec_arr)/sizeof(gex_EC_t);
+  gex_EC_t ec_some = 0;
+  for (size_t i = 0; i < ec_cnt; i++) {
+    assert_always(ec_arr[i] != 0);
+    ec_some |= ec_arr[i];
+  }
+  assert_always((ec_some & ~ec_all) == 0); // verify ALL includes them all
+
+  static gex_TI_t const ti_all = GEX_TI_ALL;
+  static gex_TI_t const ti_arr[] = { GEX_TI_SRCRANK, GEX_TI_ENTRY }; // all flags but _ALL
+  size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
+  // TI constants should not alias, because they are used to indicate
+  // field validity, and thus cannot be safely conflated in general
+  // in particular, each flag needs at least one unique bit
+  gex_TI_t ti_some = 0;
+  for (size_t i = 0; i < ti_cnt; i++) {
+    gex_TI_t ti_other = 0;
+    for (size_t j = 0; j < ti_cnt; j++) {
+      if (i != j) {
+        ti_other |= ti_arr[j];
+      }
+    }
+    assert_always((ti_other | ti_arr[i]) != ti_other); // ti_arr[i] has a unique bit
+    ti_some |= ti_arr[i];
+  }
+  assert_always((ti_some & ~ti_all) == 0); // verify ALL includes them all
+
+  gex_RMA_Value_t val = 0;
+  test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
+  test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(void *));
+  test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(long));
+  assert_unsigned(gex_RMA_Value_t);
+
+  gex_AM_Index_t ind = 0;
+  assert_unsigned(gex_AM_Index_t);
+
+  gex_AM_Arg_t arg = 0;
+  test_static_assert(sizeof(gex_AM_Arg_t) >= 4);
+  assert_signed(gex_AM_Arg_t);
+  
+  gex_AM_SrcDesc_t sd = 0;
+  CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
+
+  #define typeissigned   <
+  #define typeisunsigned >
+  #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \
+    static volatile structtype S;                                            \
+    assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
+    assert_always((fieldtype)(S.fieldname-1) signedop (fieldtype)0);         \
+  } while (0)
+
+  #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
+    static volatile structtype S;                                            \
+    static fieldtype volatile v;                                             \
+    S.fieldname = v; /* warnings here mean non-compliance */                 \
+    v = S.fieldname; /* warnings here mean non-compliance */                 \
+    assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
+  } while (0)
+
+  assert_field_int(gex_AM_Entry_t,     gex_AM_Index_t, gex_index, typeisunsigned);
+  assert_field_int(gex_AM_Entry_t,     gex_Flags_t,    gex_flags, typeisunsigned);
+  assert_field_int(gex_AM_Entry_t,     unsigned int,   gex_nargs, typeisunsigned);
+  assert_field_pointer(gex_AM_Entry_t, gex_AM_Fn_t,    gex_fnptr);
+  assert_field_pointer(gex_AM_Entry_t, const void *,   gex_cdata);
+  assert_field_pointer(gex_AM_Entry_t, const char *,   gex_name);
+
+  assert_field_int(gex_Token_Info_t,     gex_Rank_t,             gex_srcrank, typeisunsigned);
+  assert_field_pointer(gex_Token_Info_t, const gex_AM_Entry_t *, gex_entry);
+
+  if (success) MSG("*** passed object test!!");
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit1(partner, partnerseg);
+}
+void doit1(int partner, int *partnerseg) {
+#endif
 
   BARRIER();
   /*  blocking test */
   { int val1=0, val2=0;
-    val1 = mynode + 100;
+    val1 = myrank + 100;
 
-    gasnet_put(partner, partnerseg, &val1, sizeof(int));
-    gasnet_get(&val2, partner, partnerseg, sizeof(int));
+    gex_RMA_PutBlocking(myteam, partner, partnerseg, &val1, sizeof(int), 0);
+    gex_RMA_GetBlocking(myteam, &val2, partner, partnerseg, sizeof(int), 0);
 
-    if (val2 == (mynode + 100)) MSG("*** passed blocking test!!");
+    if (val2 == (int)(myrank + 100)) MSG("*** passed blocking test!!");
     else MSG("*** ERROR - FAILED BLOCKING TEST!!!!!");
   }
 
@@ -286,24 +631,24 @@ void doit(int partner, int *partnerseg) {
   /*  blocking list test */
   #define iters 100
   { GASNET_BEGIN_FUNCTION();
-    gasnet_handle_t handles[iters];
+    gex_Event_t events[iters];
     int val1;
     int vals[iters];
     int success = 1;
     int i;
     for (i = 0; i < iters; i++) {
-      val1 = 100 + i + mynode;
-      handles[i] = gasnet_put_nb(partner, partnerseg+i, &val1, sizeof(int));
+      val1 = 100 + i + myrank;
+      events[i] = gex_RMA_PutNB(myteam, partner, partnerseg+i, &val1, sizeof(int), GEX_EVENT_NOW, 0);
     }
-    gasnet_wait_syncnb_all(handles, iters); 
+    gex_Event_WaitAll(events, iters, 0);
     for (i = 0; i < iters; i++) {
-      handles[i] = gasnet_get_nb(&vals[i], partner, partnerseg+i, sizeof(int));
+      events[i] = gex_RMA_GetNB(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gasnet_wait_syncnb_all(handles, iters); 
+    gex_Event_WaitAll(events, iters, 0);
     for (i=0; i < iters; i++) {
-      if (vals[i] != 100 + mynode + i) {
+      if (vals[i] != 100 + (int)myrank + i) {
         MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
-            i, vals[i], 100 + mynode + i);
+            i, vals[i], 100 + myrank + i);
         success = 0;
       }
     }
@@ -314,7 +659,6 @@ void doit(int partner, int *partnerseg) {
   doit2(partner, partnerseg);
 }
 void doit2(int partner, int *partnerseg) {
-  int mynode = gasnet_mynode();
 #endif
 
   BARRIER();
@@ -323,18 +667,18 @@ void doit2(int partner, int *partnerseg) {
     int vals[100];
     int i, success=1;
     for (i=0; i < 100; i++) {
-      int tmp = mynode + i;
-      gasnet_put_nbi(partner, partnerseg+i, &tmp, sizeof(int));
+      int tmp = myrank + i;
+      gex_RMA_PutNBI(myteam, partner, partnerseg+i, &tmp, sizeof(int), GEX_EVENT_NOW, 0);
     }
-    gasnet_wait_syncnbi_puts();
+    gex_NBI_Wait(GEX_EC_PUT,0);
     for (i=0; i < 100; i++) {
-      gasnet_get_nbi(&vals[i], partner, partnerseg+i, sizeof(int));
+      gex_RMA_GetNBI(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gasnet_wait_syncnbi_gets();
+    gex_NBI_Wait(GEX_EC_GET,0);
     for (i=0; i < 100; i++) {
-      if (vals[i] != mynode + i) {
+      if (vals[i] != (int)myrank + i) {
         MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
-            i, vals[i], mynode + i);
+            i, vals[i], myrank + i);
         success = 0;
       }
     }
@@ -345,7 +689,6 @@ void doit2(int partner, int *partnerseg) {
   doit3(partner, partnerseg);
 }
 void doit3(int partner, int *partnerseg) {
-  int mynode = gasnet_mynode();
 #endif
 
   BARRIER();
@@ -355,79 +698,49 @@ void doit3(int partner, int *partnerseg) {
     int i, success=1;
     unsigned char *partnerbase2 = (unsigned char *)(partnerseg+300);
     for (i=0; i < 100; i++) {
-      gasnet_put_val(partner, partnerseg+i, 1000 + mynode + i, sizeof(int));
+      gex_RMA_PutBlockingVal(myteam, partner, partnerseg+i, 1000 + myrank + i, sizeof(int), 0);
     }
     for (i=0; i < 100; i++) {
-      gasnet_wait_syncnb(gasnet_put_nb_val(partner, partnerseg+i+100, 1000 + mynode + i, sizeof(int)));
+      gex_Event_Wait(gex_RMA_PutNBVal(myteam, partner, partnerseg+i+100, 1000 + myrank + i, sizeof(int), 0));
     }
     for (i=0; i < 100; i++) {
-      gasnet_put_nbi_val(partner, partnerseg+i+200, 1000 + mynode + i, sizeof(int));
+      gex_RMA_PutNBIVal(myteam, partner, partnerseg+i+200, 1000 + myrank + i, sizeof(int), 0);
     }
-    gasnet_wait_syncnbi_puts();
+    gex_NBI_Wait(GEX_EC_PUT,0);
 
     for (i=0; i < 100; i++) {
-      int tmp1 = gasnet_get_val(partner, partnerseg+i, sizeof(int));
-      int tmp2 = gasnet_get_val(partner, partnerseg+i+200, sizeof(int));
-      if (tmp1 != 1000 + mynode + i || tmp2 != 1000 + mynode + i) {
+      int tmp1 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i, sizeof(int), 0);
+      int tmp2 = gex_RMA_GetBlockingVal(myteam, partner, partnerseg+i+200, sizeof(int), 0);
+      if (tmp1 != 1000 + (int)myrank + i || tmp2 != 1000 + (int)myrank + i) {
         MSG("*** ERROR - FAILED INT VALUE TEST 1!!!");
-        printf("node %i/%i  i=%i tmp1=%i tmp2=%i (1000 + mynode + i)=%i\n", 
-          (int)gasnet_mynode(), (int)gasnet_nodes(), 
-          i, tmp1, tmp2, 1000 + mynode + i); fflush(stdout); 
+        printf("node %i/%i  i=%i tmp1=%i tmp2=%i (1000 + myrank + i)=%i\n", 
+          (int)myrank, (int)numranks, 
+          i, tmp1, tmp2, 1000 + myrank + i); fflush(stdout); 
         success = 0;
       }
     }
-    { gasnet_valget_handle_t handles[100];
-      for (i=0; i < 100; i++) {
-        handles[i] = gasnet_get_nb_val(partner, partnerseg+i+100, sizeof(int));
-      }
-      for (i=0; i < 100; i++) {
-        int tmp = (int)gasnet_wait_syncnb_valget(handles[i]);
-        if (tmp != 1000 + mynode + i) {
-          MSG("*** ERROR - FAILED INT VALUE TEST 2!!!");
-          printf("node %i/%i  i=%i tmp1=%i (1000 + mynode + i)=%i\n", 
-            (int)gasnet_mynode(), (int)gasnet_nodes(), 
-            i, tmp, 1000 + mynode + i); fflush(stdout); 
-          success = 0;
-        }
-      }
-    }
 
     for (i=0; i < 100; i++) {
-      gasnet_put_val(partner, partnerbase2+i, 100 + mynode + i, sizeof(unsigned char));
+      gex_RMA_PutBlockingVal(myteam, partner, partnerbase2+i, 100 + myrank + i, sizeof(unsigned char), 0);
     }
     for (i=0; i < 100; i++) {
-      gasnet_wait_syncnb(gasnet_put_nb_val(partner, partnerbase2+i+100, 100 + mynode + i, sizeof(unsigned char)));
+      gex_Event_Wait(gex_RMA_PutNBVal(myteam, partner, partnerbase2+i+100, 100 + myrank + i, sizeof(unsigned char), 0));
     }
     for (i=0; i < 100; i++) {
-      gasnet_put_nbi_val(partner, partnerbase2+i+200, 100 + mynode + i, sizeof(unsigned char));
+      gex_RMA_PutNBIVal(myteam, partner, partnerbase2+i+200, 100 + myrank + i, sizeof(unsigned char), 0);
     }
-    gasnet_wait_syncnbi_puts();
+    gex_NBI_Wait(GEX_EC_PUT,0);
 
     for (i=0; i < 100; i++) {
-      unsigned int tmp1 = (unsigned int)gasnet_get_val(partner, partnerbase2+i, sizeof(unsigned char));
-      unsigned int tmp2 = (unsigned int)gasnet_get_val(partner, partnerbase2+i+200, sizeof(unsigned char));
-      if (tmp1 != (unsigned char)(100 + mynode + i) || 
-          tmp2 != (unsigned char)(100 + mynode + i)) {
+      unsigned int tmp1 = (unsigned int)gex_RMA_GetBlockingVal(myteam, partner, partnerbase2+i, sizeof(unsigned char), 0);
+      unsigned int tmp2 = (unsigned int)gex_RMA_GetBlockingVal(myteam, partner, partnerbase2+i+200, sizeof(unsigned char), 0);
+      if (tmp1 != (unsigned char)(100 + myrank + i) || 
+          tmp2 != (unsigned char)(100 + myrank + i)) {
         MSG("*** ERROR - FAILED CHAR VALUE TEST 1!!!");
-        printf("node %i/%i  i=%i tmp1=%i tmp2=%i (100 + mynode + i)=%i\n", 
-          (int)gasnet_mynode(), (int)gasnet_nodes(), 
-          i, tmp1, tmp2, 100 + mynode + i); fflush(stdout); 
+        printf("node %i/%i  i=%i tmp1=%i tmp2=%i (100 + myrank + i)=%i\n", 
+          (int)myrank, (int)numranks, 
+          i, tmp1, tmp2, 100 + myrank + i); fflush(stdout); 
         success = 0;
-      }
-    }
-    { gasnet_valget_handle_t handles[100];
-      for (i=0; i < 100; i++) {
-        handles[i] = gasnet_get_nb_val(partner, partnerbase2+i+100, sizeof(unsigned char));
-      }
-      for (i=0; i < 100; i++) {
-        unsigned int tmp = (unsigned int)gasnet_wait_syncnb_valget(handles[i]);
-        if (tmp != (unsigned char)(100 + mynode + i)) {
-          MSG("*** ERROR - FAILED CHAR VALUE TEST 2!!!");
-          printf("node %i/%i  i=%i tmp1=%i (100 + mynode + i)=%i\n", 
-            (int)gasnet_mynode(), (int)gasnet_nodes(), 
-            i, tmp, 100 + mynode + i); fflush(stdout); 
-          success = 0;
-        }
       }
     }
 
@@ -435,51 +748,9 @@ void doit3(int partner, int *partnerseg) {
   }
 
 #ifndef TESTGASNET_NO_SPLIT
-  doit4(partner, partnerseg);
-}
-void doit4(int partner, int *partnerseg) {
-  /* int mynode = gasnet_mynode(); UNUSED */
-#endif
-
-  BARRIER();
-
-  { /*  memset test */
-    GASNET_BEGIN_FUNCTION();
-    int i, success=1;
-    int vals[300];
-
-    gasnet_memset(partner, partnerseg, 0x55, 100*sizeof(int));
-    gasnet_wait_syncnb(gasnet_memset_nb(partner, partnerseg+100, 0x66, 100*sizeof(int)));
-    gasnet_memset_nbi(partner, partnerseg+200, 0x77, 100*sizeof(int));
-    gasnet_wait_syncnbi_puts();
-
-    gasnet_get(&vals, partner, partnerseg, 300*sizeof(int));
-
-    for (i=0; i < 100; i++) {
-      unsigned long long five  = 0x5555555555555555ull;
-      unsigned long long six   = 0x6666666666666666ull;
-      unsigned long long seven = 0x7777777777777777ull;
-      if (vals[i] != ((int)five)) {
-        MSG("*** ERROR - FAILED MEMSET TEST!!!");
-        success = 0;
-      }
-      if (vals[i+100] != ((int)six)) {
-        MSG("*** ERROR - FAILED MEMSET TEST!!!");
-        success = 0;
-      }
-      if (vals[i+200] != ((int)seven)) {
-        MSG("*** ERROR - FAILED MEMSET TEST!!!");
-        success = 0;
-      }
-    }
-    if (success) MSG("*** passed memset test!!");
-  }
-
-#ifndef TESTGASNET_NO_SPLIT
   doit5(partner, partnerseg);
 }
 void doit5(int partner, int *partnerseg) {
-  int mynode = gasnet_mynode();
 #endif
 
   BARRIER();
@@ -487,141 +758,147 @@ void doit5(int partner, int *partnerseg) {
   /* NB and NBI put/overwrite/get tests */
   #define MAXVALS (1024)
   #define MAXSZ (MAXVALS*8)
-  #define SEGSZ (MAXSZ*4)
-  #define VAL(sz, iter) \
-    (((uint64_t)(sz) << 32) | ((uint64_t)(100 + mynode) << 16) | ((iter) & 0xFF))
+  #define INSEGCHUNKS 3
+  #define NUMCHUNKS 6
+  #define SEGSZ (MAXSZ*NUMCHUNKS)
+  #define VAL(sz, chunkid, iter) \
+    (((uint64_t)(sz) << 36) | ((uint64_t)(chunkid) << 32) | ((uint64_t)(100 + myrank) << 16) | ((iter) & 0xFF))
   assert(TEST_SEGSZ >= 2*SEGSZ);
   { GASNET_BEGIN_FUNCTION();
-    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    uint64_t *localpos=(uint64_t *)test_malloc(SEGSZ);
     int success = 1;
     int i, sz;
     for (i = 0; i < MAX(1,iters/10); i++) {
-      uint64_t *localpos=localvals;
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
-        gasnet_handle_t handle;
+        gex_Event_t event;
+        gex_Event_t lcevt;
         int elems = sz/8;
-        int j;
-        uint64_t val = VAL(sz, i); /* setup known src value */
-        if (sz < 8) {
-          elems = 1;
-          memset(localpos, (val & 0xFF), sz);
-          memset(segpos, (val & 0xFF), sz);
-          memset(&val, (val & 0xFF), sz);
-        } else {
-          for (j=0; j < elems; j++) {
-            localpos[j] = val;
-            segpos[j] = val;
+        uint64_t val[NUMCHUNKS];
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          val[chunk] = VAL(sz, chunk, i); /* setup known src value */
+          if (sz < 8) {
+            elems = 1;
+            memset(localpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(segpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(&val[chunk], (val[chunk] & 0xFF), sz);
+          } else {
+            for (int j=0; j < elems; j++) {
+              (localpos+chunk*elems)[j] = val[chunk];
+              (segpos+chunk*elems)[j] = val[chunk];
+            }
           }
         }
-        handle = gasnet_put_nb_bulk(partner, rsegpos, localpos, sz);
-        gasnet_wait_syncnb(handle);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
+        gex_Event_Wait(event);
+        memset(localpos, 0xAA, sz); /* clear */
 
-        handle = gasnet_put_nb(partner, rsegpos+elems, localpos, sz);
-        memset(localpos, 0xCC, sz); /* clear */
-        gasnet_wait_syncnb(handle);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+elems, localpos+elems, sz, GEX_EVENT_NOW, 0);
+        memset(localpos+elems, 0xBB, sz); /* clear */
+        gex_Event_Wait(event);
 
-        handle = gasnet_put_nb_bulk(partner, rsegpos+2*elems, segpos, sz);
-        gasnet_wait_syncnb(handle);
+        lcevt = GEX_EVENT_INVALID;
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+2*elems, localpos+2*elems, sz, &lcevt, 0);
+        gex_Event_Wait(lcevt);
+        memset(localpos+2*elems, 0xCC, sz); /* clear */
+        gex_Event_Wait(event);
 
-        handle = gasnet_put_nb(partner, rsegpos+3*elems, segpos, sz);
-        memset(segpos, 0xCC, sz); /* clear */
-        gasnet_wait_syncnb(handle);
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
+        gex_Event_Wait(event);
+        memset(segpos+3*elems, 0xDD, sz); /* clear */
 
-        gasnet_wait_syncnb(gasnet_get_nb(localpos, partner, rsegpos, sz));
-        gasnet_wait_syncnb(gasnet_get_nb_bulk(localpos+elems, partner, rsegpos+elems, sz));
-        gasnet_wait_syncnb(gasnet_get_nb(segpos, partner, rsegpos+2*elems, sz));
-        gasnet_wait_syncnb(gasnet_get_nb_bulk(segpos+elems, partner, rsegpos+3*elems, sz));
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
+        memset(segpos+4*elems, 0xEE, sz); /* clear */
+        gex_Event_Wait(event);
 
-        for (j=0; j < elems*2; j++) {
-          int ok;
-          ok = localpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)localpos[j], (unsigned long long)val);
+        lcevt = GEX_EVENT_INVALID;
+        event = gex_RMA_PutNB(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, &lcevt, 0);
+        gex_Event_Wait(lcevt);
+        memset(segpos+5*elems, 0xFF, sz); /* clear */
+        gex_Event_Wait(event);
+
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
+
+          for (int j=0; j < elems; j++) {
+            int ok = (localpos[j] == val[chunk]);
+            if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            if (!ok) {
+              MSG("*** ERROR - FAILED %s-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
+                  (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
               success = 0;
-          }
-          ok = segpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)segpos[j], (unsigned long long)val);
-              success = 0;
+            }
           }
         }
       }
     }
-    test_free(localvals);
+    test_free(localpos);
     if (success) MSG("*** passed nb put/overwrite test!!");
   }
   { GASNET_BEGIN_FUNCTION();
-    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    uint64_t *localpos=(uint64_t *)test_malloc(SEGSZ);
     int success = 1;
     int i, sz;
     for (i = 0; i < MAX(1,iters/10); i++) {
-      uint64_t *localpos=localvals;
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
         int elems = sz/8;
-        int j;
-        uint64_t val = VAL(sz, i+91); /* setup known src value, different from NB test */
-        if (sz < 8) {
-          elems = 1;
-          memset(localpos, (val & 0xFF), sz);
-          memset(segpos, (val & 0xFF), sz);
-          memset(&val, (val & 0xFF), sz);
-        } else {
-          for (j=0; j < elems; j++) {
-            localpos[j] = val;
-            segpos[j] = val;
+        uint64_t val[NUMCHUNKS];
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          val[chunk] = VAL(sz, chunk, i+91); /* setup known src value, different from NB test */
+          if (sz < 8) {
+            elems = 1;
+            memset(localpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(segpos+chunk*elems, (val[chunk] & 0xFF), sz);
+            memset(&val[chunk], (val[chunk] & 0xFF), sz);
+          } else {
+            for (int j=0; j < elems; j++) {
+              (localpos+chunk*elems)[j] = val[chunk];
+              (segpos+chunk*elems)[j] = val[chunk];
+            }
           }
         }
-        gasnet_put_nbi_bulk(partner, rsegpos, localpos, sz);
-        gasnet_wait_syncnbi_puts();
+        gex_RMA_PutNBI(myteam, partner, rsegpos, localpos, sz, GEX_EVENT_DEFER, 0);
+        gex_NBI_Wait(GEX_EC_PUT,0);
+        memset(localpos, 0xAA, sz); /* clear */
 
-        gasnet_put_nbi(partner, rsegpos+elems, localpos, sz);
-        memset(localpos, 0xCC, sz); /* clear */
-        gasnet_wait_syncnbi_puts();
+        gex_RMA_PutNBI(myteam, partner, rsegpos+elems, localpos+elems, sz, GEX_EVENT_NOW, 0);
+        memset(localpos+elems, 0xBB, sz); /* clear */
 
-        gasnet_put_nbi_bulk(partner, rsegpos+2*elems, segpos, sz);
-        gasnet_wait_syncnbi_puts();
+        gex_RMA_PutNBI(myteam, partner, rsegpos+2*elems, localpos+2*elems, sz, GEX_EVENT_GROUP, 0);
+        gex_NBI_Wait(GEX_EC_LC, 0);
+        memset(localpos+2*elems, 0xCC, sz); /* clear */
 
-        gasnet_put_nbi(partner, rsegpos+3*elems, segpos, sz);
-        memset(segpos, 0xCC, sz); /* clear */
-        gasnet_wait_syncnbi_puts();
+        gex_RMA_PutNBI(myteam, partner, rsegpos+3*elems, segpos+3*elems, sz, GEX_EVENT_DEFER, 0);
+        gex_NBI_Wait(GEX_EC_PUT,0);
+        memset(segpos+3*elems, 0xDD, sz); /* clear */
 
-        gasnet_get_nbi(localpos, partner, rsegpos, sz);
-        gasnet_wait_syncnbi_gets();
-        gasnet_get_nbi_bulk(localpos+elems, partner, rsegpos+elems, sz);
-        gasnet_wait_syncnbi_gets();
-        gasnet_get_nbi(segpos, partner, rsegpos+2*elems, sz);
-        gasnet_wait_syncnbi_gets();
-        gasnet_get_nbi_bulk(segpos+elems, partner, rsegpos+3*elems, sz);
-        gasnet_wait_syncnbi_gets();
+        gex_RMA_PutNBI(myteam, partner, rsegpos+4*elems, segpos+4*elems, sz, GEX_EVENT_NOW, 0);
+        memset(segpos+4*elems, 0xEE, sz); /* clear */
 
-        for (j=0; j < elems*2; j++) {
-          int ok;
-          ok = localpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)localpos[j], (unsigned long long)val);
+        gex_RMA_PutNBI(myteam, partner, rsegpos+5*elems, segpos+5*elems, sz, GEX_EVENT_GROUP, 0);
+        gex_NBI_Wait(GEX_EC_LC, 0);
+        memset(segpos+5*elems, 0xFF, sz); /* clear */
+        gex_NBI_Wait(GEX_EC_PUT,0);
+
+        for (int chunk=0; chunk < NUMCHUNKS; chunk++) {
+          gex_RMA_GetBlocking(myteam, localpos, partner, rsegpos+chunk*elems, sz, 0);
+
+          for (int j=0; j < elems; j++) {
+            int ok = (localpos[j] == val[chunk]);
+            if (sz < 8) ok = !memcmp(&(localpos[j]), &val[chunk], sz);
+            if (!ok) {
+              MSG("*** ERROR - FAILED %s-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")",
+                  (chunk < INSEGCHUNKS ? "IN" : "OUT-OF"), sz, j, localpos[j], val[chunk]);
               success = 0;
-          }
-          ok = segpos[j] == val;
-          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
-          if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)segpos[j], (unsigned long long)val);
-              success = 0;
+            }
           }
         }
       }
     }
-    test_free(localvals);
+    test_free(localpos);
     if (success) MSG("*** passed nbi put/overwrite test!!");
   }
 
@@ -677,6 +954,7 @@ void doit5(int partner, int *partnerseg) {
   } while(0)
   {
     gasnett_atomic_sval_t stmp = gasnett_atomic_signed((gasnett_atomic_val_t)0);
+    gasnett_atomic_increment((gasnett_atomic_t*)&stmp,0);
     TEST_ATOMICS(gasnett_atomic_val_t, atomic);
     TEST_ATOMICS(gasnett_atomic_val_t, strongatomic);
     TEST_ATOMICS(uint32_t, atomic32);
@@ -702,13 +980,15 @@ void doit5(int partner, int *partnerseg) {
       (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
     }
     { double dbl = 1.0;
-      ptr64 = (gasnett_atomic64_t *)(void *)&dbl; /* (void*) suppresses g++ warning (bug 2158) */
+      uintptr_t tmp = (uintptr_t)&dbl;
+      ptr64 = (gasnett_atomic64_t *)tmp; /* conversion suppresses gcc-4 warning (bug 2158) */
       tmp64 = gasnett_atomic64_read(ptr64, 0);
       gasnett_atomic64_set(ptr64, tmp64, 0);
       (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
     }
     { struct { char c; double dbl; } s = {0, 1.0};
-      ptr64 = (gasnett_atomic64_t *)(void *)&s.dbl; /* (void*) suppresses g++ warning (bug 2158) */
+      uintptr_t tmp = (uintptr_t)&s.dbl;
+      ptr64 = (gasnett_atomic64_t *)tmp; /* conversion suppresses gcc-4 warning (bug 2158) */
       tmp64 = gasnett_atomic64_read(ptr64, 0);
       gasnett_atomic64_set(ptr64, tmp64, 0);
       (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);

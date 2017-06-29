@@ -4,14 +4,15 @@
  * Terms of use are as specified in license.txt
  */
 
-#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNET_H) && !defined(_IN_CONFIGURE)
-  #error This file is not meant to be included directly- clients should include gasnet.h or gasnet_tools.h
+#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNETEX_H) && !defined(_IN_CONFIGURE)
+  #error This file is not meant to be included directly- clients should include gasnetex.h or gasnet_tools.h
 #endif
 
 #ifndef _GASNET_ASM_H
 #define _GASNET_ASM_H
 
-#include "portable_platform.h"
+#undef _PORTABLE_PLATFORM_H
+#include "gasnet_portable_platform.h"
 
 /* Sort out the per-compiler support for asm and atomics */
 #if (GASNETI_COMPILER_IS_CC     && GASNETI_HAVE_CC_GCC_ASM)     || \
@@ -41,7 +42,23 @@
 #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
       PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
   #define GASNETI_HAVE_GCC_ASM 1
-#elif PLATFORM_COMPILER_PGI 
+#elif PLATFORM_COMPILER_PGI && PLATFORM_ARCH_POWERPC
+  #define GASNETI_HAVE_GCC_ASM 1
+  #if PLATFORM_COMPILER_VERSION_GE(16,0,0) // All known versions through at least 16.10
+    // PGI "tpr 23290"
+    // Does not grok the immediate modifier "%I" in an asm template
+    #define GASNETI_PGI_ASM_TPR23290 1
+  #endif
+  #if PLATFORM_COMPILER_PGI_CXX && \
+      PLATFORM_COMPILER_VERSION_GE(16,0,0) // All known versions through at least 16.10
+    // PGI "tpr 23291"
+    // C++ compiler does not grok "cr0", though C compiler does
+    #define GASNETI_PGI_ASM_TPR23291 1
+  #endif
+  /* For consistency w/ the x86 and x86-64: */
+  #define GASNETI_PGI_ASM_GNU 1
+  #define GASNETI_PGI_ASM_THREADSAFE 1
+#elif PLATFORM_COMPILER_PGI /* x86 and x86-64 */
   /* Some definitions:
    *
    * GASNETI_PGI_ASM_GNU 
@@ -81,7 +98,7 @@
    *   Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
    *   a 64-bit operand at -O1 (but is OK at -O0 and -O2).
    *
-   * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
+   * See GASNet bug 1621 (http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
    * See GASNet bugs 1751 and 1753 for discussion related to the difficulty with versioning
@@ -114,7 +131,11 @@
   #if PLATFORM_COMPILER_VERSION_GE(7,1,0) && PLATFORM_COMPILER_VERSION_LT(7,1,2)
     #define GASNETI_PGI_ASM_BUG2149 1
   #endif
-  #if PLATFORM_ARCH_32 && PLATFORM_COMPILER_VERSION_GE(7,1,5) /* XXX: No end of range yet */
+  #if PLATFORM_ARCH_32 && \
+      PLATFORM_COMPILER_VERSION_GE(7,1,5) && PLATFORM_COMPILER_VERSION_LT(13,4,0)
+    /* NOTE: PGI reports TPR 14969 was fixed in 8.0-1.
+     * However, we have not been able to test on anything prior to 13.4-0.
+     */
     #define GASNETI_PGI_ASM_BUG2294 1
   #endif
   #if PLATFORM_COMPILER_VERSION_GE(7,0,0) && PLATFORM_COMPILER_VERSION_LT(10,8,0)

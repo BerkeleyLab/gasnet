@@ -11,6 +11,11 @@
 #error This test can only be built for GASNet PAR configuration
 #endif
 
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
+
 int mynode = 0;
 int iters=0;
 void *myseg = NULL;
@@ -46,12 +51,13 @@ void* thread_fn4(void*);
 int main(int argc, char **argv) {
   
 
-  GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testlockcontend", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   test_init("testlockcontend",1,"(maxthreads) (iters) (accuracy) (test sections)");
 
   if (argc > 1) maxthreads = atoi(argv[1]);
-  if (maxthreads > TEST_MAXTHREADS || maxthreads < 1) {
+  maxthreads = test_thread_limit(maxthreads);
+  if (maxthreads < 1) {
     printf("Threads must be between 1 and %i\n", TEST_MAXTHREADS);
     gasnet_exit(-1);
   }
@@ -66,7 +72,7 @@ int main(int argc, char **argv) {
 
   if (argc > 5) test_usage();
 
-  mynode = gasnet_mynode();
+  mynode = gex_TM_QueryRank(myteam);
   myseg = TEST_MYSEG();
 
   if (mynode == 0) {
@@ -110,7 +116,7 @@ int main(int argc, char **argv) {
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 char _pad[GASNETT_CACHE_LINE_BYTES] = { 0 }; /* bug 2231 workaround */
-gasnet_hsl_t hsl = GASNET_HSL_INITIALIZER;
+gex_HSL_t hsl = GEX_HSL_INITIALIZER;
 
 /* ------------------------------------------------------------------------------------ */
 #define TIME_OPERATION_SOME(id, op)                             \
@@ -139,7 +145,7 @@ void * thread_fn1(void *arg) { GASNET_BEGIN_FUNCTION();
 
 void * thread_fn2(void *arg) { GASNET_BEGIN_FUNCTION();
   int id = (int)(uintptr_t)arg;
-  TIME_OPERATION_SOME(id, { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
+  TIME_OPERATION_SOME(id, { gex_HSL_Lock(&hsl); gex_HSL_Unlock(&hsl); });
   return NULL;
 }
 
@@ -168,7 +174,7 @@ void * thread_fn3(void *arg) { GASNET_BEGIN_FUNCTION();
 
 void * thread_fn4(void *arg) { GASNET_BEGIN_FUNCTION();
   int id = (int)(uintptr_t)arg;
-  TIME_OPERATION_ALL(id, { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
+  TIME_OPERATION_ALL(id, { gex_HSL_Lock(&hsl); gex_HSL_Unlock(&hsl); });
   return NULL;
 }
 /* ------------------------------------------------------------------------------------ */

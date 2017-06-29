@@ -7,9 +7,10 @@
 #ifndef _GASNET_VIS_H
 #define _GASNET_VIS_H
 
-#include <gasnet.h>
+#include <gasnetex.h>
 
 GASNETI_BEGIN_EXTERNC
+GASNETI_BEGIN_NOWARN
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_INLINE(gasnete_memveclist_totalsz)
@@ -390,21 +391,22 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
 }
 
 #if GASNET_NDEBUG
-  #define gasnete_boundscheck_memveclist(node, count, list)
+  #define gasnete_boundscheck_memveclist(tm, node, count, list)
   #define gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist)
-  #define gasnete_boundscheck_addrlist(node, count, list, len) 
+  #define gasnete_boundscheck_addrlist(tm, node, count, list, len) 
   #define gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen)
-  #define gasnete_boundscheck_strided(node, addr, strides, count, stridelevels)
+  #define gasnete_boundscheck_strided(tm, node, addr, strides, count, stridelevels)
   #define gasnete_check_strides(dststrides, srcstrides, count, stridelevels)
 #else
-  #define gasnete_boundscheck_memveclist(node, count, list) do {    \
-    gasnet_node_t __node = (node);                                  \
+  #define gasnete_boundscheck_memveclist(tm, rank, count, list) do {    \
+    gex_TM_t __tm = (tm);                                           \
+    gex_Rank_t __node = (rank); /* TODO-EX: tm support */    \
     size_t _count = (count);                                        \
     gasnet_memvec_t const * const _list = (list);                   \
     size_t _i;                                                      \
     for (_i=0; _i < _count; _i++) {                                 \
       if (_list[_i].len > 0)                                        \
-        gasneti_boundscheck(__node, _list[_i].addr, _list[_i].len); \
+        gasneti_boundscheck(__tm, __node, _list[_i].addr, _list[_i].len); \
     }                                                               \
   } while (0)
 
@@ -439,15 +441,16 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     }                                                                                          \
   } while (0)
 
-  #define gasnete_boundscheck_addrlist(node, count, list, len) do { \
-    gasnet_node_t __node = (node);                                  \
+  #define gasnete_boundscheck_addrlist(tm, rank, count, list, len) do { \
+    gex_TM_t __tm = (tm);                                           \
+    gex_Rank_t __node = (rank); /* TOOD-EX: tm support */    \
     size_t _count = (count);                                        \
     void * const * const _list = (list);                            \
     size_t _len = (len);                                            \
     size_t _i;                                                      \
     if_pt (_len > 0) {                                              \
       for (_i=0; _i < _count; _i++) {                               \
-        gasneti_boundscheck(__node, _list[_i], _len);               \
+        gasneti_boundscheck(__tm, __node, _list[_i], _len);         \
       }                                                             \
     }                                                               \
   } while (0)
@@ -489,10 +492,10 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     }                                                                                            \
   } while (0)
 
-  #define gasnete_boundscheck_strided(node, addr, strides, count, stridelevels) do { \
+  #define gasnete_boundscheck_strided(tm, node, addr, strides, count, stridelevels) do { \
     size_t _stridelevels = (stridelevels);                                           \
     if_pt (!gasnete_strided_empty((count), _stridelevels)) {                          \
-      gasneti_boundscheck((node), (addr),                                            \
+      gasneti_boundscheck((tm), (node), (addr),                                      \
         gasnete_strided_extent((strides),(count),_stridelevels));                    \
     }                                                                                \
   } while (0)
@@ -508,23 +511,23 @@ typedef enum _gasnete_synctype_t {
 /*---------------------------------------------------------------------------------*/
 /* Vector */
 #ifndef gasnete_putv
-  extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
-                                     gasnet_node_t dstnode,
+  extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
+                                     gex_Rank_t dstnode,
                                      size_t dstcount, gasnet_memvec_t const dstlist[], 
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG);
 #endif
 #ifndef gasnete_getv
-  extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
+  extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
                                      size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                     gasnet_node_t srcnode,
+                                     gex_Rank_t srcnode,
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gasnet_putv_bulk)
-void _gasnet_putv_bulk(gasnet_node_t dstnode,
+void _gasnet_putv_bulk(gex_Rank_t dstnode,
                        size_t dstcount, gasnet_memvec_t const dstlist[], 
                        size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_memveclist(dstnode, dstcount, dstlist);
+  gasnete_boundscheck_memveclist(NULL/*tm*/, dstnode, dstcount, dstlist);
   gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist);
   GASNETI_TRACE_PUTV(PUTV_BULK,dstnode,dstcount,dstlist,srccount,srclist);
   gasnete_putv(gasnete_synctype_b,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
@@ -534,9 +537,9 @@ void _gasnet_putv_bulk(gasnet_node_t dstnode,
 
 GASNETI_INLINE(_gasnet_getv_bulk)
 void _gasnet_getv_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
-                       gasnet_node_t srcnode,
+                       gex_Rank_t srcnode,
                        size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_memveclist(srcnode, srccount, srclist);
+  gasnete_boundscheck_memveclist(NULL/*tm*/, srcnode, srccount, srclist);
   gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist);
   GASNETI_TRACE_GETV(GETV_BULK,srcnode,dstcount,dstlist,srccount,srclist);
   gasnete_getv(gasnete_synctype_b,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
@@ -545,10 +548,10 @@ void _gasnet_getv_bulk(size_t dstcount, gasnet_memvec_t const dstlist[],
        _gasnet_getv_bulk(dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_putv_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_putv_nb_bulk(gasnet_node_t dstnode,
+gex_Event_t _gasnet_putv_nb_bulk(gex_Rank_t dstnode,
                                      size_t dstcount, gasnet_memvec_t const dstlist[], 
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_memveclist(dstnode, dstcount, dstlist);
+  gasnete_boundscheck_memveclist(NULL/*tm*/, dstnode, dstcount, dstlist);
   gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist);
   GASNETI_TRACE_PUTV(PUTV_NB_BULK,dstnode,dstcount,dstlist,srccount,srclist);
   return gasnete_putv(gasnete_synctype_nb,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
@@ -557,10 +560,10 @@ gasnet_handle_t _gasnet_putv_nb_bulk(gasnet_node_t dstnode,
        _gasnet_putv_nb_bulk(dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_getv_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_getv_nb_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                     gasnet_node_t srcnode,
+gex_Event_t _gasnet_getv_nb_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
+                                     gex_Rank_t srcnode,
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_memveclist(srcnode, srccount, srclist);
+  gasnete_boundscheck_memveclist(NULL/*tm*/, srcnode, srccount, srclist);
   gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist);
   GASNETI_TRACE_GETV(GETV_NB_BULK,srcnode,dstcount,dstlist,srccount,srclist);
   return gasnete_getv(gasnete_synctype_nb,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
@@ -569,10 +572,10 @@ gasnet_handle_t _gasnet_getv_nb_bulk(size_t dstcount, gasnet_memvec_t const dstl
        _gasnet_getv_nb_bulk(dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_putv_nbi_bulk)
-void _gasnet_putv_nbi_bulk(gasnet_node_t dstnode,
+void _gasnet_putv_nbi_bulk(gex_Rank_t dstnode,
                            size_t dstcount, gasnet_memvec_t const dstlist[], 
                            size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_memveclist(dstnode, dstcount, dstlist);
+  gasnete_boundscheck_memveclist(NULL/*tm*/, dstnode, dstcount, dstlist);
   gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist);
   GASNETI_TRACE_PUTV(PUTV_NBI_BULK,dstnode,dstcount,dstlist,srccount,srclist);
   gasnete_putv(gasnete_synctype_nbi,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
@@ -582,9 +585,9 @@ void _gasnet_putv_nbi_bulk(gasnet_node_t dstnode,
 
 GASNETI_INLINE(_gasnet_getv_nbi_bulk)
 void _gasnet_getv_nbi_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
-                           gasnet_node_t srcnode,
+                           gex_Rank_t srcnode,
                            size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_memveclist(srcnode, srccount, srclist);
+  gasnete_boundscheck_memveclist(NULL/*tm*/, srcnode, srccount, srclist);
   gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist);
   GASNETI_TRACE_GETV(GETV_NBI_BULK,srcnode,dstcount,dstlist,srccount,srclist);
   gasnete_getv(gasnete_synctype_nbi,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
@@ -595,23 +598,23 @@ void _gasnet_getv_nbi_bulk(size_t dstcount, gasnet_memvec_t const dstlist[],
 /*---------------------------------------------------------------------------------*/
 /* Indexed */
 #ifndef gasnete_puti
-  extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
-                                     gasnet_node_t dstnode, 
+  extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
+                                     gex_Rank_t dstnode,
                                      size_t dstcount, void * const dstlist[], size_t dstlen,
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG);
 #endif
 #ifndef gasnete_geti
-  extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
+  extern gex_Event_t gasnete_geti(gasnete_synctype_t synctype,
                                      size_t dstcount, void * const dstlist[], size_t dstlen,
-                                     gasnet_node_t srcnode,
+                                     gex_Rank_t srcnode,
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gasnet_puti_bulk)
-void _gasnet_puti_bulk(gasnet_node_t dstnode, 
+void _gasnet_puti_bulk(gex_Rank_t dstnode,
                        size_t dstcount, void * const dstlist[], size_t dstlen,
                        size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_addrlist(dstnode, dstcount, dstlist, dstlen);
+  gasnete_boundscheck_addrlist(NULL/*tm*/, dstnode, dstcount, dstlist, dstlen);
   gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen);
   GASNETI_TRACE_PUTI(PUTI_BULK,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   gasnete_puti(gasnete_synctype_b,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
@@ -621,9 +624,9 @@ void _gasnet_puti_bulk(gasnet_node_t dstnode,
 
 GASNETI_INLINE(_gasnet_geti_bulk)
 void _gasnet_geti_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
-                       gasnet_node_t srcnode,
+                       gex_Rank_t srcnode,
                        size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_addrlist(srcnode, srccount, srclist, srclen);
+  gasnete_boundscheck_addrlist(NULL/*tm*/, srcnode, srccount, srclist, srclen);
   gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen);
   GASNETI_TRACE_GETI(GETI_BULK,srcnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   gasnete_geti(gasnete_synctype_b,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
@@ -632,10 +635,10 @@ void _gasnet_geti_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
        _gasnet_geti_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_puti_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_puti_nb_bulk(gasnet_node_t dstnode, 
+gex_Event_t _gasnet_puti_nb_bulk(gex_Rank_t dstnode,
                                      size_t dstcount, void * const dstlist[], size_t dstlen,
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_addrlist(dstnode, dstcount, dstlist, dstlen);
+  gasnete_boundscheck_addrlist(NULL/*tm*/, dstnode, dstcount, dstlist, dstlen);
   gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen);
   GASNETI_TRACE_PUTI(PUTI_NB_BULK,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   return gasnete_puti(gasnete_synctype_nb,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
@@ -644,10 +647,10 @@ gasnet_handle_t _gasnet_puti_nb_bulk(gasnet_node_t dstnode,
        _gasnet_puti_nb_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_geti_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
-                                     gasnet_node_t srcnode,
+gex_Event_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
+                                     gex_Rank_t srcnode,
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_addrlist(srcnode, srccount, srclist, srclen);
+  gasnete_boundscheck_addrlist(NULL/*tm*/, srcnode, srccount, srclist, srclen);
   gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen);
   GASNETI_TRACE_GETI(GETI_NB_BULK,srcnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   return gasnete_geti(gasnete_synctype_nb,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
@@ -656,10 +659,10 @@ gasnet_handle_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], si
        _gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_puti_nbi_bulk)
-void _gasnet_puti_nbi_bulk(gasnet_node_t dstnode, 
+void _gasnet_puti_nbi_bulk(gex_Rank_t dstnode,
                            size_t dstcount, void * const dstlist[], size_t dstlen,
                            size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_addrlist(dstnode, dstcount, dstlist, dstlen);
+  gasnete_boundscheck_addrlist(NULL/*tm*/, dstnode, dstcount, dstlist, dstlen);
   gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen);
   GASNETI_TRACE_PUTI(PUTI_NBI_BULK,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   gasnete_puti(gasnete_synctype_nbi,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
@@ -669,9 +672,9 @@ void _gasnet_puti_nbi_bulk(gasnet_node_t dstnode,
 
 GASNETI_INLINE(_gasnet_geti_nbi_bulk)
 void _gasnet_geti_nbi_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
-                           gasnet_node_t srcnode,
+                           gex_Rank_t srcnode,
                            size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnete_boundscheck_addrlist(srcnode, srccount, srclist, srclen);
+  gasnete_boundscheck_addrlist(NULL/*tm*/, srcnode, srccount, srclist, srclen);
   gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen);
   GASNETI_TRACE_GETI(GETI_NBI_BULK,srcnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   gasnete_geti(gasnete_synctype_nbi,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
@@ -682,28 +685,28 @@ void _gasnet_geti_nbi_bulk(size_t dstcount, void * const dstlist[], size_t dstle
 /*---------------------------------------------------------------------------------*/
 /* Strided */
 #ifndef gasnete_puts
-  extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
-                                    gasnet_node_t dstnode,
+  extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
+                                    gex_Rank_t dstnode,
                                      void *dstaddr, const size_t dststrides[],
                                      void *srcaddr, const size_t srcstrides[],
                                      const size_t count[], size_t stridelevels GASNETE_THREAD_FARG);
 
 #endif
 #ifndef gasnete_gets
-  extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
+  extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
                                      void *dstaddr, const size_t dststrides[],
-                                     gasnet_node_t srcnode, 
+                                     gex_Rank_t srcnode,
                                      void *srcaddr, const size_t srcstrides[],
                                      const size_t count[], size_t stridelevels GASNETE_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gasnet_puts_bulk)
-void _gasnet_puts_bulk(gasnet_node_t dstnode,
+void _gasnet_puts_bulk(gex_Rank_t dstnode,
                        void *dstaddr, const size_t dststrides[],
                        void *srcaddr, const size_t srcstrides[],
                        const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_check_strides(dststrides, srcstrides, count, stridelevels);
-  gasnete_boundscheck_strided(dstnode, dstaddr, dststrides, count, stridelevels);
+  gasnete_boundscheck_strided(NULL/*tm*/, dstnode, dstaddr, dststrides, count, stridelevels);
   GASNETI_TRACE_PUTS(PUTS_BULK,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasnete_puts(gasnete_synctype_b,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
 }
@@ -712,11 +715,11 @@ void _gasnet_puts_bulk(gasnet_node_t dstnode,
 
 GASNETI_INLINE(_gasnet_gets_bulk)
 void _gasnet_gets_bulk(void *dstaddr, const size_t dststrides[],
-                       gasnet_node_t srcnode, 
+                       gex_Rank_t srcnode,
                        void *srcaddr, const size_t srcstrides[],
                        const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_check_strides(dststrides, srcstrides, count, stridelevels);
-  gasnete_boundscheck_strided(srcnode, srcaddr, srcstrides, count, stridelevels);
+  gasnete_boundscheck_strided(NULL/*tm*/, srcnode, srcaddr, srcstrides, count, stridelevels);
   GASNETI_TRACE_GETS(GETS_BULK,srcnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasnete_gets(gasnete_synctype_b,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
 }
@@ -724,12 +727,12 @@ void _gasnet_gets_bulk(void *dstaddr, const size_t dststrides[],
        _gasnet_gets_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_puts_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_puts_nb_bulk(gasnet_node_t dstnode,
+gex_Event_t _gasnet_puts_nb_bulk(gex_Rank_t dstnode,
                                      void *dstaddr, const size_t dststrides[],
                                      void *srcaddr, const size_t srcstrides[],
                                      const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_check_strides(dststrides, srcstrides, count, stridelevels);
-  gasnete_boundscheck_strided(dstnode, dstaddr, dststrides, count, stridelevels);
+  gasnete_boundscheck_strided(NULL/*tm*/, dstnode, dstaddr, dststrides, count, stridelevels);
   GASNETI_TRACE_PUTS(PUTS_NB_BULK,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   return gasnete_puts(gasnete_synctype_nb,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
 }
@@ -737,12 +740,12 @@ gasnet_handle_t _gasnet_puts_nb_bulk(gasnet_node_t dstnode,
        _gasnet_puts_nb_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_gets_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
-                                     gasnet_node_t srcnode, 
+gex_Event_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
+                                     gex_Rank_t srcnode,
                                      void *srcaddr, const size_t srcstrides[],
                                      const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_check_strides(dststrides, srcstrides, count, stridelevels);
-  gasnete_boundscheck_strided(srcnode, srcaddr, srcstrides, count, stridelevels);
+  gasnete_boundscheck_strided(NULL/*tm*/, srcnode, srcaddr, srcstrides, count, stridelevels);
   GASNETI_TRACE_GETS(GETS_NB_BULK,srcnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   return gasnete_gets(gasnete_synctype_nb,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
 }
@@ -750,12 +753,12 @@ gasnet_handle_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
        _gasnet_gets_nb_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_puts_nbi_bulk)
-void _gasnet_puts_nbi_bulk(gasnet_node_t dstnode,
+void _gasnet_puts_nbi_bulk(gex_Rank_t dstnode,
                            void *dstaddr, const size_t dststrides[],
                            void *srcaddr, const size_t srcstrides[],
                            const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_check_strides(dststrides, srcstrides, count, stridelevels);
-  gasnete_boundscheck_strided(dstnode, dstaddr, dststrides, count, stridelevels);
+  gasnete_boundscheck_strided(NULL/*tm*/, dstnode, dstaddr, dststrides, count, stridelevels);
   GASNETI_TRACE_PUTS(PUTS_NBI_BULK,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasnete_puts(gasnete_synctype_nbi,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
 }
@@ -764,11 +767,11 @@ void _gasnet_puts_nbi_bulk(gasnet_node_t dstnode,
 
 GASNETI_INLINE(_gasnet_gets_nbi_bulk)
 void _gasnet_gets_nbi_bulk(void *dstaddr, const size_t dststrides[],
-                           gasnet_node_t srcnode, 
+                           gex_Rank_t srcnode,
                            void *srcaddr, const size_t srcstrides[],
                            const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_check_strides(dststrides, srcstrides, count, stridelevels);
-  gasnete_boundscheck_strided(srcnode, srcaddr, srcstrides, count, stridelevels);
+  gasnete_boundscheck_strided(NULL/*tm*/, srcnode, srcaddr, srcstrides, count, stridelevels);
   GASNETI_TRACE_GETS(GETS_NBI_BULK,srcnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasnete_gets(gasnete_synctype_nbi,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
 }
@@ -777,6 +780,7 @@ void _gasnet_gets_nbi_bulk(void *dstaddr, const size_t dststrides[],
 
 /*---------------------------------------------------------------------------------*/
 
+GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
 #endif

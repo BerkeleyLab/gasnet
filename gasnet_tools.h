@@ -7,10 +7,14 @@
 #define _GASNET_TOOLS_H
 #define _IN_GASNET_TOOLS_H
 #define _INCLUDED_GASNET_TOOLS_H
-#if !defined(_INCLUDED_GASNET_H) && \
+#if !defined(_INCLUDED_GASNETEX_H) && \
     (defined(GASNET_SEQ) || defined(GASNET_PARSYNC) || defined(GASNET_PAR))
   #error Objects that use both GASNet and GASNet tools must   \
-         include gasnet.h before gasnet_tools.h 
+         include gasnetex.h before gasnet_tools.h 
+#endif
+
+#ifdef __cplusplus
+  extern "C" { // cannot use GASNETI_BEGIN_EXTERNC here due to a header dependency cycle
 #endif
 
 /* Recognized definitions:
@@ -24,7 +28,7 @@
   #define GASNETT_LITE_MODE 1
   #undef GASNETT_THREAD_SAFE
   #define GASNETT_THREAD_MODEL LITE
-  #ifdef _INCLUDED_GASNET_H
+  #ifdef _INCLUDED_GASNETEX_H
     #error GASNETT_LITE_MODE not supported for libgasnet clients
   #endif
 #elif defined(GASNETT_THREAD_SAFE) ||                             \
@@ -47,13 +51,16 @@
 #include <gasnet_config.h>
 
 /* public spec version numbers */
-#define GASNETT_SPEC_VERSION_MAJOR GASNETIT_SPEC_VERSION_MAJOR
-#define GASNETT_SPEC_VERSION_MINOR GASNETIT_SPEC_VERSION_MINOR
+#define GASNETT_SPEC_VERSION_MAJOR GASNETI_TOOLS_SPEC_VERSION_MAJOR
+#define GASNETT_SPEC_VERSION_MINOR GASNETI_TOOLS_SPEC_VERSION_MINOR
 #define GASNETT_RELEASE_VERSION_MAJOR GASNET_RELEASE_VERSION_MAJOR
 #define GASNETT_RELEASE_VERSION_MINOR GASNET_RELEASE_VERSION_MINOR
 #define GASNETT_RELEASE_VERSION_PATCH GASNET_RELEASE_VERSION_PATCH
 
 #include <gasnet_basic.h>
+
+GASNETI_BEGIN_NOWARN
+
 #include <gasnet_toolhelp.h>
 
 /* allow conduit-specific tool helpers (eg elan timers) */
@@ -70,8 +77,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
-GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* basic purely syntactic features */
@@ -108,6 +113,7 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_NEVER_INLINE            GASNETI_NEVER_INLINE
 #define GASNETT_RESTRICT                GASNETI_RESTRICT
 #define GASNETT_USED                    GASNETI_USED
+#define GASNETT_UNUSED                  GASNETI_UNUSED
 #define GASNETT_NORETURN                GASNETI_NORETURN
 #define GASNETT_NORETURNP               GASNETI_NORETURNP
 #define GASNETT_MALLOC                  GASNETI_MALLOC
@@ -128,7 +134,6 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_BEGIN_EXTERNC           GASNETI_BEGIN_EXTERNC
 #define GASNETT_END_EXTERNC             GASNETI_END_EXTERNC
 #define GASNETT_EXTERNC                 GASNETI_EXTERNC
-#define GASNETT_COMMON_EXTERN           GASNETI_COMMON_EXTERN
 #define GASNETT_TENTATIVE_EXTERN        GASNETI_TENTATIVE_EXTERN
 
 #define gasnett_constant_p              gasneti_constant_p
@@ -144,6 +149,11 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_weak_mb()            gasneti_sync_mem()
 #define gasnett_compiler_fence()     gasneti_compiler_fence()
 #define GASNETT_MEMBAR_CONFIG        GASNETI_MEMBAR_CONFIG
+
+/* ------------------------------------------------------------------------------------ */
+/* microsecond-resolution sleep */
+
+#define gasnett_nsleep(ns_delay)     gasneti_nsleep(ns_delay)
 
 /* ------------------------------------------------------------------------------------ */
 /* portable high-performance, low-overhead timers */
@@ -384,6 +394,20 @@ extern const char *gasnett_performance_warning_str(void);
 #define gasnett_mutex_assertlocked    gasneti_mutex_assertlocked
 #define gasnett_mutex_assertunlocked  gasneti_mutex_assertunlocked
 
+#define gasnett_rwlock_t              gasneti_rwlock_t
+#define gasnett_rwlock_init           gasneti_rwlock_init
+#define gasnett_rwlock_destroy        gasneti_rwlock_destroy
+#define gasnett_rwlock_rdlock         gasneti_rwlock_rdlock
+#define gasnett_rwlock_wrlock         gasneti_rwlock_wrlock
+#define gasnett_rwlock_tryrdlock      gasneti_rwlock_tryrdlock
+#define gasnett_rwlock_trywrlock      gasneti_rwlock_trywrlock
+#define gasnett_rwlock_unlock         gasneti_rwlock_unlock
+#define GASNETT_RWLOCK_INITIALIZER    GASNETI_RWLOCK_INITIALIZER
+#define gasnett_rwlock_assertlocked   gasneti_rwlock_assertlocked 
+#define gasnett_rwlock_assertrdlocked gasneti_rwlock_assertrdlocked
+#define gasnett_rwlock_assertwrlocked gasneti_rwlock_assertwrlocked
+#define gasnett_rwlock_assertunlocked gasneti_rwlock_assertunlocked
+
 #define gasnett_cond_t               gasneti_cond_t
 #define gasnett_cond_init            gasneti_cond_init
 #define gasnett_cond_destroy         gasneti_cond_destroy
@@ -412,7 +436,7 @@ extern gasnett_backtrace_type_t gasnett_backtrace_user;
 /* ------------------------------------------------------------------------------------ */
 /* GASNet tracing/stats support (automatically stubbed out when libgasnet absent) */
 
-#if defined(_INCLUDED_GASNET_H) && defined(GASNET_SRCLINES)
+#if defined(_INCLUDED_GASNETEX_H) && defined(GASNET_SRCLINES)
   #define GASNETT_TRACE_SETSOURCELINE      GASNETI_TRACE_SETSOURCELINE
   #define GASNETT_TRACE_GETSOURCELINE      GASNETI_TRACE_GETSOURCELINE
   #define GASNETT_TRACE_FREEZESOURCELINE   GASNETI_TRACE_FREEZESOURCELINE
@@ -451,7 +475,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
             (*(_gasnett_trace_printf_force?_gasnett_trace_printf_force:&_gasnett_trace_printf_noop))
   #endif
 
-  #ifdef _INCLUDED_GASNET_H
+  #ifdef _INCLUDED_GASNETEX_H
     #define GASNETT_TRACE_ENABLED       GASNETI_TRACE_ENABLED(H)
     #define GASNETT_TRACE_GETMASK()     GASNETI_TRACE_GETMASK()
     #define GASNETT_TRACE_SETMASK(mask) GASNETI_TRACE_SETMASK(mask)
@@ -475,7 +499,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define GASNETT_TRACE_SET_TRACELOCAL(newval)  ((void)0)
 #endif
 
-#if defined(_INCLUDED_GASNET_H) && defined(GASNET_STATS)
+#if defined(_INCLUDED_GASNETEX_H) && defined(GASNET_STATS)
   /* GASNETT_STATS_INIT can be called at any time to register a callback function, which 
      will be invoked at stats dumping time (provided H stats are enabled)
      and passed a printf-like function that can be used to write output into the stats
@@ -492,7 +516,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 
 /* ------------------------------------------------------------------------------------ */
 /* misc internal libgasnet-specific features we wish to expose when available */
-#if defined(_INCLUDED_GASNET_H) 
+#if defined(_INCLUDED_GASNETEX_H) 
   /* these tools ONLY available when linking a libgasnet.a */
   #ifdef HAVE_MMAP
     extern void *gasneti_mmap(uintptr_t segsize);
@@ -500,9 +524,11 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #else
     #define gasnett_mmap(sz) gasnett_fatalerror("gasnett_mmap not available")
   #endif
-  extern int gasneti_run_diagnostics(int iters, int threadcnt, 
-                                     const char *testsections, gasnet_seginfo_t const *seginfo);
-  extern void gasneti_diagnostic_gethandlers(gasnet_handlerentry_t **htable, int *htable_cnt);
+  extern int gasneti_run_diagnostics(int iters, int threadcnt,
+                                     const char *testsections,
+                                     gex_TM_t myteam,
+                                     gasnet_seginfo_t const *seginfo);
+  extern void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **htable, int *htable_cnt);
   #define gasnett_run_diagnostics gasneti_run_diagnostics
   #define gasnett_diagnostic_gethandlers gasneti_diagnostic_gethandlers
 
@@ -526,9 +552,6 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
     #define gasnett_heapstats_t           gasneti_heapstats_t
     #define gasnett_getheapstats(pstat)   gasneti_getheapstats(pstat)
   #endif
-
-  #define gasnett_malloc_aligned(align,sz) gasneti_malloc_aligned((align),(sz))
-  #define gasnett_free_aligned(ptr)        gasneti_free_aligned(ptr)
 
   /* VIS string formatting */
   #define gasnett_format_memveclist_bufsz gasneti_format_memveclist_bufsz 
@@ -585,6 +608,9 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 #endif
 
 #define GASNETT_LINKCONFIG_IDIOTCHECK(name) _CONCAT(gasnett_linkconfig_idiotcheck_,name)
+extern int GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR));
+extern int GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR));
+extern int GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH));
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_THREAD_MODEL);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_DEBUG_CONFIG);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_PTR_CONFIG);
@@ -596,12 +622,19 @@ extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC32_CONFIG);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC64_CONFIG);
 #endif
 static int *gasnett_linkconfig_idiotcheck(void);
-static void *_gasnett_linkconfig_idiotcheck = (void *)&gasnett_linkconfig_idiotcheck;
+#if !PLATFORM_COMPILER_TINY /* avoid a tinyc bug */
+  #define GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE 1
+  static int *(*_gasnett_linkconfig_idiotcheck)(void) = &gasnett_linkconfig_idiotcheck;
+#endif
 GASNETT_USED
 static int *gasnett_linkconfig_idiotcheck(void) 
 {
   static int val;
-  val +=  GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_THREAD_MODEL)
+  val +=  
+        + GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR))
+        + GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR))
+        + GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH))
+        + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_THREAD_MODEL)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_DEBUG_CONFIG)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_PTR_CONFIG)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_TIMER_CONFIG)
@@ -612,13 +645,16 @@ static int *gasnett_linkconfig_idiotcheck(void)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC64_CONFIG)
       #endif
         ;
-  if (_gasnett_linkconfig_idiotcheck != (void *)&gasnett_linkconfig_idiotcheck)
-    val += ((int(*)(void))_gasnett_linkconfig_idiotcheck)();
+  #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
+  if (_gasnett_linkconfig_idiotcheck == &gasnett_linkconfig_idiotcheck)
+    val += *(*_gasnett_linkconfig_idiotcheck)();
+  #endif
   return &val;
 }
 
 /* ------------------------------------------------------------------------------------ */
 
+GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
 #undef _IN_GASNET_TOOLS_H

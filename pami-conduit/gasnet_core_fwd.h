@@ -4,14 +4,12 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
-
-#include <pami.h>
 
 #define GASNET_CORE_VERSION      1.0
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
@@ -34,8 +32,9 @@
   #define GASNET_ALIGNED_SEGMENTS   1
 #endif
 
-#define _GASNET_NODE_T
-typedef pami_task_t gasnet_node_t;
+#if GASNETI_SIZEOF_PAMI_TASK_T != 4
+#error "Invalid GASNETI_SIZEOF_PAMI_TASK_T != 4"
+#endif
 
   /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
      addrs out of segment - not true when PSHM is used */
@@ -51,11 +50,11 @@ typedef pami_task_t gasnet_node_t;
 #define GASNETI_CONDUIT_THREADS 1
 #endif
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
    */
 #if 0
-#define GASNETC_USE_INTERRUPTS 1
+#define GASNETC_AMREGISTER 1
 #endif
 
   /* define these to 1 if your conduit supports PSHM, but cannot use the
@@ -72,8 +71,5 @@ typedef ### gasnetc_handler_t;
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
-
-#define _GASNET_HANDLER_T
-typedef uint8_t gasnet_handler_t;
 
 #endif

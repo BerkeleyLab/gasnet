@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_CORE_FWD_H
@@ -49,16 +49,19 @@
    */
 /* #define GASNETI_CONDUIT_THREADS 1 */
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
    */
-/* #define GASNETC_USE_INTERRUPTS 1 */
+#define GASNETC_AMREGISTER 1
 
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
 /* #define GASNETC_GET_HANDLER 1 */
 /* #define GASNETC_TOKEN_CREATE 1 */
+
+/* mpi-conduit supports top-level poll throttling */
+#define GASNETC_USING_SUSPEND_RESUME 1
 
   /* enable usage correctness checking on HSL's and no-interrupt sections */
 #ifndef GASNETC_HSL_ERRCHECK
@@ -88,7 +91,7 @@ extern void gasnetc_fatalsignal_callback(int sig);
 /* hook getSegmentInfo for NIS check */
 #define _GASNET_GETSEGMENTINFO
 struct gasneti_seginfo_s;
-GASNETI_EXTERNC int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
+extern int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
 #define gasnet_getSegmentInfo(seginfo_table, numentries) \
         gasnetc_getSegmentInfo(seginfo_table, numentries)
 

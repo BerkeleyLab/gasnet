@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_CORE_FWD_H
@@ -42,16 +42,9 @@
  #endif
 #endif
 
-#if GASNETI_THROTTLE_FEATURE_ENABLED
-/* polling is a no-op on smp-conduit, so never throttle it */ 
-#undef GASNETI_THROTTLE_FEATURE_ENABLED
-#endif
-
-#define GASNETI_GASNETC_AMPOLL
-#if GASNET_PSHM
-  GASNETI_EXTERNC int gasnetc_AMPoll(void);
-#else
-  #define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */
+#if !GASNET_PSHM
+  #define GASNETI_GASNETC_AMPOLL /* empty */
+  #define gasnetc_AMPoll GASNET_OK GASNETI_THREAD_SWALLOW
 #endif
 
   /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
@@ -66,10 +59,10 @@
    */
 /* #define GASNETI_CONDUIT_THREADS 1 */
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
    */
-/* #define GASNETC_USE_INTERRUPTS 1 */
+/* #define GASNETC_AMREGISTER 1 */
 
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)

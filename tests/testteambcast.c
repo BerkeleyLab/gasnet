@@ -7,23 +7,27 @@
    test, and team broadcast test.  Column teams and row teams of a process grid are created and
    team barriers are performed on these teams. */
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_coll.h>
-#include <gasnet_coll_team.h>
 
 #define MAX_SIZE 8192
 #define SCRATCH_SIZE (4*1024*1024)
 #define COLL_BUFF_SIZE (SIZEOF_INT * MAX_SIZE)
-#define TEST_SEGSZ_EXPR (SCRATCH_SIZE + 2*COLL_BUFF_SIZE)
+#define TEST_SEGSZ (SCRATCH_SIZE + 2*COLL_BUFF_SIZE)
 
 #include <test.h>
+
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int main(int argc, char **argv) 
 {
   int mynode, nodes, iters=0;
   int64_t start,total;
   int i = 0;
-  gasnet_node_t nrows, ncols, my_row, my_col;
+  gex_Rank_t nrows, ncols, my_row, my_col;
   void *clientdata = NULL;
   gasnet_team_handle_t my_row_team, my_col_team;
   static uint8_t *A, *B, *C;
@@ -33,13 +37,13 @@ int main(int argc, char **argv)
   
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteambcast", &argc, &argv, 0));
 #if !GASNET_SEQ
   MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
   gasnet_exit(0);
 #endif
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   
   A = TEST_MYSEG();
   B = A + SCRATCH_SIZE;
@@ -50,8 +54,8 @@ int main(int argc, char **argv)
 
   test_init("testteambcast", 1, "(nrows) (ncols) (iters)");
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
   
   teamA_scratch.addr = A;
   teamA_scratch.size = SCRATCH_SIZE/2;
@@ -166,7 +170,7 @@ int main(int argc, char **argv)
     total = TIME() - start;
     
     if(mynode == 0){
-      printf("%d> %ld byte broadcast team all time: %8.3f usec\n",mynode,(long)sz*sizeof(int),
+      printf("%d> %"PRIuPTR" byte broadcast team all time: %8.3f usec\n",mynode,(uintptr_t)sz*sizeof(int),
            ((float)total)/(iters));
       fflush(stdout);
     }
@@ -200,7 +204,7 @@ int main(int argc, char **argv)
     total = TIME() - start;
     
     if(my_col == 0){
-      printf("%d> %ld byte broadcast row team %u time: %8.3f usec\n",mynode,(long)sz*sizeof(int),
+      printf("%d> %"PRIuPTR" byte broadcast row team %u time: %8.3f usec\n",mynode,(uintptr_t)sz*sizeof(int),
            my_row,  ((float)total)/(iters));
       fflush(stdout);
     }
@@ -233,7 +237,7 @@ int main(int argc, char **argv)
     total = TIME() - start;
     
     if(my_row == 0){
-      printf("%d> %ld byte broadcast col team %u time: %8.3f usec\n",mynode,(long)sz*sizeof(int),
+      printf("%d> %"PRIuPTR" byte broadcast col team %u time: %8.3f usec\n",mynode,(uintptr_t)sz*sizeof(int),
            my_col,  ((float)total)/(iters));
       fflush(stdout);
     }

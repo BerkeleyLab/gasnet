@@ -9,21 +9,24 @@ AUTOMAKE_OPTIONS = foreign 1.4
 SUBDIRS = .
 
 EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
+	gasnet_handler.h \
 	gasnetrun_mic \
 	gasnet_ibrun \
  	cross-configure-bgq \
-	cross-configure-crayxt-linux \
-	cross-configure-crayxe-linux \
-	cross-configure-crayxc-linux \
+	cross-configure-cray-gemini-alps \
+	cross-configure-cray-gemini-slurm \
+	cross-configure-cray-aries-alps \
+	cross-configure-cray-aries-slurm \
 	cross-configure-intel-knc \
-	crayxt-nptl-pthread-patch
+	cross-configure-intel-knl
 # exclude these from distribution for now
 #	cross-configure-k42ppc64 \
 #	cross-configure-linux-arm \
 #	cross-configure-osxi686 \
+#	cross-configure-osxppc \
 #	cross-configure-osxppc64 \
 #	cross-configure-osxx86_64 \
-#	cross-configure-uclinux-microblaze
+#
 
 dotpldir = $(bindir)
 dotpl_DATA = gasnet_trace.pl
@@ -38,7 +41,7 @@ all-local: $(bin_SCRIPTS) $(dotpl_DATA)
 $(top_builddir)/other/perlstart: $(top_srcdir)/other/perlstart.in
 	@cd $(top_builddir)/other && $(MAKE) perlstart
 
-gasnet_trace: $(top_builddir)/other/perlstart gasnet_trace.pl
+gasnet_trace: $(top_builddir)/other/perlstart
 
 # Files to copy from srcdir to builddir if they differ
 if BUILD_IS_SRC

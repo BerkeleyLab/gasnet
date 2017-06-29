@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_CORE_FWD_H
@@ -15,7 +15,7 @@
   #error "VAPI-conduit is no longer supported"
 #endif
 
-#define GASNET_CORE_VERSION      1.17
+#define GASNET_CORE_VERSION      1.18
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         IBV
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -23,19 +23,22 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
+/* If you change GASNETC_BUFSZ then you probably want to also
+ * adjust GASNETC_PUTINMOVE_LIMIT_MAX in firehose_fwd.h
+ */
+#ifndef GASNETC_BUFSZ
+  #define GASNETC_BUFSZ 4096
+#endif
+
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
-/* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnet_node_t */
+/* 64K corresponds to 16 bits used in the AM Header and 16-bit gex_Rank_t */
 #define GASNET_MAXNODES	65535
 
-/* Explicitly set some types because we depend on their sizes when encoding them */
-#define _GASNET_NODE_T
-typedef uint16_t gasnet_node_t;
-#define _GASNET_HANDLER_T
-typedef uint8_t gasnet_handler_t;
-
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
-#if GASNETI_PSHM_ENABLED
+/* As described in bug 3373, ibv_reg_mem() on Solaris only works with SYSV */
+#if GASNETI_PSHM_ENABLED && !(PLATFORM_OS_SOLARIS && !GASNETI_PSHM_SYSV)
   #define GASNET_PSHM 1
+  #define GASNETC_MAX_MEDIUM_PSHM GASNETC_BUFSZ
 #endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
@@ -63,11 +66,11 @@ typedef uint8_t gasnet_handler_t;
   #define GASNETI_CONDUIT_THREADS 1
 #endif
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
    */
-/* #define GASNETC_USE_INTERRUPTS 1 */
-  
+/* #define GASNETC_AMREGISTER 1 */
+
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
@@ -132,9 +135,7 @@ typedef uint8_t gasnet_handler_t;
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
-GASNETI_BEGIN_EXTERNC
 extern void gasnetc_amrdma_balance(void);
-GASNETI_END_EXTERNC
 #define GASNETC_PROGRESSFNS_LIST(FN) \
   FN(gasnetc_pf_amrdma, COUNTED, gasnetc_amrdma_balance)
 

@@ -25,7 +25,7 @@ typedef struct gasneti_vis_op_S {
   gasneti_weakatomic_t packetcnt;
   size_t count;
   size_t len;
-  gasnet_handle_t handle;
+  gex_Event_t event;
 } gasneti_vis_op_t;
 
 /* per-thread state for VIS */
@@ -98,16 +98,16 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_RETURN_VOLATILE(eop, synctype) do {            \
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
-        gasnet_handle_t h = gasneti_eop_to_handle(eop);              \
-        gasnete_wait_syncnb(h);                                      \
-        return GASNET_INVALID_HANDLE;                                \
+        gex_Event_t h = gasneti_eop_to_event(eop);              \
+        gasnete_wait(h GASNETI_THREAD_PASS);                         \
+        return GEX_EVENT_INVALID;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
-        return gasneti_eop_to_handle(eop);                           \
+        return gasneti_eop_to_event(eop);                           \
       case gasnete_synctype_nbi:                                     \
-        return GASNET_INVALID_HANDLE;                                \
+        return GEX_EVENT_INVALID;                                \
       default: gasneti_fatalerror("bad synctype");                   \
-        return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
 
@@ -143,41 +143,41 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype, islocal) do {    \
   if (synctype != gasnete_synctype_nbi && !islocal)        \
-    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS); \
+    gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
-   block if required, and return the appropriate handle */
+   block if required, and return the appropriate event */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
-    if (islocal) return GASNET_INVALID_HANDLE;                                        \
+    if (islocal) return GEX_EVENT_INVALID;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);               \
+        return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE)); \
-        return GASNET_INVALID_HANDLE;                                                 \
+        gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS) GASNETE_THREAD_PASS); \
+        return GEX_EVENT_INVALID;                                                 \
       case gasnete_synctype_nbi:                                                      \
-        return GASNET_INVALID_HANDLE;                                                 \
+        return GEX_EVENT_INVALID;                                                 \
       default: gasneti_fatalerror("bad synctype");                                    \
-        return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */                  \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */                  \
     }                                                                                 \
   } while(0)
 
 #define GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(dstnode, dstaddr, nbytes);                  \
+    gasneti_boundscheck_allowoutseg(NULL/*team*/, dstnode, dstaddr, nbytes);    \
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
-    else gasnete_put_nbi_bulk((dstnode), (dstaddr), (srcaddr), (nbytes)         \
-                                GASNETE_THREAD_PASS);                           \
+    else gasnete_put_nbi(NULL, (dstnode), (dstaddr), (srcaddr), (nbytes),       \
+                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(srcnode, srcaddr, nbytes);                  \
+    gasneti_boundscheck_allowoutseg(NULL/*team*/, srcnode, srcaddr, nbytes);    \
     gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
-    else gasnete_get_nbi_bulk((dstaddr), (srcnode), (srcaddr), (nbytes)         \
-                                GASNETE_THREAD_PASS);                           \
+    else gasnete_get_nbi(NULL, (dstaddr), (srcnode), (srcaddr), (nbytes),       \
+                         0 GASNETE_THREAD_PASS);                                \
   } while (0)
 
 

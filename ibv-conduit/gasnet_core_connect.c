@@ -47,7 +47,7 @@ typedef struct {
 
 /* Info used for connection establishment */
 typedef struct {
-  gasnet_node_t     node;
+  gex_Rank_t     node;
   gasnetc_cep_t     *cep;        /* Vector of gasnet endpoints */
   uint32_t     *local_qpn;  /* Local qpns of connections */
   uint32_t     *remote_qpn; /* Remote qpns of connections */
@@ -121,7 +121,7 @@ sq_sema_alloc(int count)
     gasnetc_sema_t sema;
     void *link; /* Ensure anough space for the lifo links */
   } *p = (union dummy *)
-          gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * sizeof(union dummy));
+          gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * sizeof(union dummy));
   int i;
 
   gasneti_leak_aligned(p);
@@ -182,7 +182,7 @@ static uint32_t *gasnetc_xrc_rcv_qpn = NULL;
 
 /* Create one XRC rcv QP */
 static int
-gasnetc_xrc_create_qp(gasnetc_cep_t *cep, gasnet_node_t node, int qpi) {
+gasnetc_xrc_create_qp(gasnetc_cep_t *cep, gex_Rank_t node, int qpi) {
   gasnetc_hca_t *hca = cep->hca;
   gasnetc_xrcd_t *xrc_domain = hca->xrc_domain;
   const int cep_idx = node * gasnetc_alloc_qps + qpi;
@@ -371,7 +371,7 @@ gasnetc_xrc_init(void **shared_mem_p) {
 /* Distribute the qps to each peer round-robin over the ports.
    Returns NULL for cases that should not have any connection */
 static const gasnetc_port_info_t *
-gasnetc_select_port(gasnet_node_t node, int qpi) {
+gasnetc_select_port(gex_Rank_t node, int qpi) {
     if (gasnetc_non_ib(node)) {
       return NULL;
     }
@@ -509,7 +509,7 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
     const int                   max_recv_wr = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
     int                         max_send_wr = gasnetc_op_oust_pp;
   #if GASNETC_IBV_XRC
-    const gasnet_node_t         node = conn_info->node;
+    const gex_Rank_t         node = conn_info->node;
     gasnetc_xrc_snd_qp_t       *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
   #endif
 
@@ -615,7 +615,7 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
 static int
 gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
 {
-    const gasnet_node_t node = conn_info->node;
+    const gex_Rank_t node = conn_info->node;
     struct ibv_qp_attr qp_attr;
     enum ibv_qp_attr_mask qp_mask;
     gasnetc_cep_t *cep;
@@ -666,7 +666,7 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
 static int
 gasnetc_qp_init2rtr(gasnetc_conn_info_t *conn_info)
 {
-    const gasnet_node_t node = conn_info->node;
+    const gex_Rank_t node = conn_info->node;
     struct ibv_qp_attr qp_attr;
     enum ibv_qp_attr_mask qp_mask;
     gasnetc_cep_t *cep;
@@ -731,7 +731,7 @@ gasnetc_qp_rtr2rts(gasnetc_conn_info_t *conn_info)
     int rc;
 
   #if GASNETC_IBV_XRC
-    const gasnet_node_t node = conn_info->node;
+    const gex_Rank_t node = conn_info->node;
     gasnetc_xrc_snd_qp_t *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
   #endif
 
@@ -771,7 +771,7 @@ gasnetc_set_sq_sema(gasnetc_conn_info_t *conn_info)
     gasnetc_cep_t *cep;
     int qpi;
   #if GASNETC_IBV_XRC
-    const gasnet_node_t node = conn_info->node;
+    const gex_Rank_t node = conn_info->node;
     gasnetc_xrc_snd_qp_t *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
   #endif
 
@@ -867,7 +867,7 @@ static int conn_snd_poll(void);
  * Therefore reuse is possible w/ SMP/multi-core nodes.
  */
 static gasnetc_ah_t *
-gasnetc_create_ah(gasnet_node_t node)
+gasnetc_create_ah(gex_Rank_t node)
 {
   struct ibv_ah_attr ah_attr;
   gasnetc_ah_t *result;
@@ -915,7 +915,7 @@ gasnetc_rcv_post_ud(gasnetc_ud_rcv_desc_t *desc)
 
 /* Post a work request to the send queue of the UD QP */
 static void
-gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t node)
+gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gex_Rank_t node)
 {
   struct ibv_send_wr *wr = &desc->wr;
   int vstat;
@@ -1131,7 +1131,7 @@ conn_send_data(gasnetc_conn_t *conn, uint32_t flags)
 }
 
 static void
-conn_send_empty(gasnetc_ah_t *ah, gasnet_node_t node, uint32_t flags)
+conn_send_empty(gasnetc_ah_t *ah, gex_Rank_t node, uint32_t flags)
 {
   gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(flags);
 
@@ -1383,7 +1383,7 @@ static gasneti_mutex_t gasnetc_conn_tbl_lock = GASNETI_MUTEX_INITIALIZER;
 static gasnetc_conn_t *gasnetc_conn_tbl = NULL;
 
 static gasnetc_conn_t *
-gasnetc_get_conn(gasnet_node_t node)
+gasnetc_get_conn(gex_Rank_t node)
 {
   gasnetc_conn_t *conn = gasnetc_conn_tbl;
 
@@ -1413,7 +1413,7 @@ gasnetc_get_conn(gasnet_node_t node)
     conn->state = GASNETC_CONN_STATE_NONE;
     conn->info.node = node;
     conn->info.cep = (gasnetc_cep_t *)
-                       gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
+                       gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
                                               gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
     gasneti_leak_aligned(conn->info.cep);
     memset(conn->info.cep, 0, gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
@@ -1589,10 +1589,8 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
     m -= (sv >> 2);
     sv += m;
     rto = (sa >> 3) + (sv >> 1); /* or "+sv" for a+4v version */
-    GASNETI_TRACE_PRINTF(D, ("UD connection SRTT: m=%llu, ns avg=%llu ns, var=%llu ns",
-                             (long long)om,
-                             (unsigned long long)(sa >> 3),
-                             (unsigned long long)(sv >> 2)));
+    GASNETI_TRACE_PRINTF(D, ("UD connection SRTT: m=%"PRId64", ns avg=%"PRId64" ns, var=%"PRId64" ns",
+                             om, (sa >> 3), (sv >> 2)));
   } else {
     /* Don't use an ambiguous rtt value to update estimates.
      * Instead we carry over the current (possibly backed-off) RTO.
@@ -1656,7 +1654,7 @@ conn_send_rep(gasnetc_conn_t *conn, int flags)
 }
 
 static void
-conn_send_ack(gasnetc_conn_t *conn, gasnet_node_t node, int flags)
+conn_send_ack(gasnetc_conn_t *conn, gex_Rank_t node, int flags)
 {
   conn_send_empty(conn ? conn->ah : NULL, node, GASNETC_CONN_CMD_ACK | flags);
   GASNETC_STAT_EVENT(CONN_ACK);
@@ -1684,7 +1682,7 @@ void gasnetc_dynamic_done(gasnetc_conn_t *conn, int active)
 #endif
 
 extern gasnetc_cep_t *
-gasnetc_connect_to(gasnet_node_t node)
+gasnetc_connect_to(gex_Rank_t node)
 {
   gasnetc_cep_t *result = NULL;
 
@@ -1764,7 +1762,7 @@ gasnetc_connect_to(gasnet_node_t node)
 }
 
 extern void
-gasnetc_conn_implied_ack(gasnet_node_t node)
+gasnetc_conn_implied_ack(gex_Rank_t node)
 {
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   #if !GASNETI_THREADS
@@ -1804,7 +1802,7 @@ gasnetc_conn_rcv_wc(struct ibv_wc *comp)
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(1 ^ (uintptr_t)comp->wr_id);
   gasnetc_conn_cmd_t cmd = (gasnetc_conn_cmd_t)(comp->imm_data & GASNETC_CONN_CMD_MASK);
   uint32_t is_orig = comp->imm_data & GASNETC_CONN_IS_ORIG;
-  gasnet_node_t node = comp->imm_data >> 16;
+  gex_Rank_t node = (comp->imm_data >> 16) & 0xffff;
   gasneti_tick_t now = gasneti_ticks_now();
 
 #if GASNET_DEBUG /* Drop 1 in N to aid debugging */
@@ -1912,7 +1910,7 @@ gasnetc_conn_rcv_wc(struct ibv_wc *comp)
        */
       #define GASNETC_ACK_CACHE_SLOTS 8 /* Must be a power of 2 */
       static gasneti_tick_t prev_ack_time[GASNETC_ACK_CACHE_SLOTS] = {0};
-      static gasnet_node_t  prev_ack_node[GASNETC_ACK_CACHE_SLOTS] = {0};
+      static gex_Rank_t  prev_ack_node[GASNETC_ACK_CACHE_SLOTS] = {0};
       const unsigned int slot = ((unsigned int)node) & (GASNETC_ACK_CACHE_SLOTS - 1);
 
       if (state == GASNETC_CONN_STATE_REP_SENT) {
@@ -2007,7 +2005,7 @@ ltostr(char *buf, int buflen, long val, int base) {
 }
 
 static int
-gen_tag(char *tag, int taglen, gasnet_node_t val, int base) {
+gen_tag(char *tag, int taglen, gex_Rank_t val, int base) {
   int len = ltostr(tag, taglen-1, val, base);
   gasneti_assert(len != 0);
   gasneti_assert(len < taglen-1);
@@ -2025,11 +2023,11 @@ my_strtol(const char *ptr, char **endptr, int base) {
   return result;
 }
 
-static gasnet_node_t
+static gex_Rank_t
 get_next_conn(FILE *fp)
 {
-  static gasnet_node_t range_lo = GASNET_MAXNODES;
-  static gasnet_node_t range_hi = 0;
+  static gex_Rank_t range_lo = GASNET_MAXNODES;
+  static gex_Rank_t range_hi = 0;
 
   if (range_lo > range_hi) {
     static char *tok = NULL;
@@ -2052,7 +2050,7 @@ get_next_conn(FILE *fp)
         }
         if_pf (is_header) {
           if (!strncmp(buf, "size:", 5)) {
-            gasnet_node_t size = my_strtol(buf+5, &tok, 10);
+            gex_Rank_t size = my_strtol(buf+5, &tok, 10);
             if (size != gasneti_nodes) {
               gasneti_fatalerror("Connection table input file is for %d nodes rather than %d",
                                  (int)size, (int)gasneti_nodes);
@@ -2099,10 +2097,10 @@ gasnetc_connect_static(void)
   uint32_t             *xrc_remote_rcv_qpn = NULL;
   uint32_t              *xrc_remote_srq_num = NULL;
 #endif
-  gasnet_node_t         node;
-  gasnet_node_t         static_nodes = gasnetc_remote_nodes;
+  gex_Rank_t         node;
+  gex_Rank_t         static_nodes = gasnetc_remote_nodes;
 #if GASNETC_IBV_XRC
-  gasnet_node_t         static_supernodes = gasneti_nodemap_global_count - 1;
+  gex_Rank_t         static_supernodes = gasneti_nodemap_global_count - 1;
 #endif
   int                   i;
   gasnetc_cep_t         *cep; /* First cep of given node */
@@ -2169,7 +2167,7 @@ gasnetc_connect_static(void)
     static gasnetc_cep_t *cep_table;
     if (NULL == cep_table) {
       cep_table = (gasnetc_cep_t *)
-        gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
+        gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
                                static_nodes * gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
       gasneti_leak_aligned(cep_table);
     }
@@ -2291,7 +2289,7 @@ gasnetc_connect_init(void)
   { size_t size = gasneti_nodes*sizeof(gasnetc_cep_t *);
     if (NULL == gasnetc_node2cep) {
       gasnetc_node2cep = (gasnetc_cep_t **)
-        gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, size);
+        gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, size);
       gasneti_leak_aligned(gasnetc_node2cep);
     }
     memset(gasnetc_node2cep, 0, size);
@@ -2376,7 +2374,7 @@ gasnetc_connect_init(void)
 
   /* Create static connections unless disabled */
   if (do_static) {
-    gasnet_node_t static_nodes = gasnetc_connect_static();
+    gex_Rank_t static_nodes = gasnetc_connect_static();
     fully_connected = (static_nodes == gasnetc_remote_nodes);
     GASNETI_TRACE_PRINTF(I, ("%s connected at startup to %d of %d remote nodes",
                              fully_connected ? "Fully" : "Partially",
@@ -2405,8 +2403,8 @@ gasnetc_connect_init(void)
 /* Support code for gasneti_conn_fini */
 
 static char dump_conn_line[512] = "";
-static gasnet_node_t dump_conn_first = GASNET_MAXNODES;
-static gasnet_node_t dump_conn_prev;
+static gex_Rank_t dump_conn_first = GASNET_MAXNODES;
+static gex_Rank_t dump_conn_prev;
 
 static void
 dump_conn_write(int fd, const char *buf, size_t len)
@@ -2414,8 +2412,8 @@ dump_conn_write(int fd, const char *buf, size_t len)
   /* TODO: loop w/ retry on short writes? */
   ssize_t rc = write(fd, buf, len);
   if_pf (rc != len) {
-    gasneti_fatalerror("Write to connection file failed or truncated: rc=%ld errno=%s(%i)",
-                       (long int)rc, strerror(errno), errno);
+    gasneti_fatalerror("Write to connection file failed or truncated: rc=%"PRIdPTR" errno=%s(%i)",
+                       (intptr_t)rc, strerror(errno), errno);
   }
 }
 
@@ -2477,7 +2475,7 @@ dump_conn_out(int fd) {
 }
 
 static void
-dump_conn_next(int fd, gasnet_node_t n)
+dump_conn_next(int fd, gex_Rank_t n)
 {
   if (dump_conn_first == GASNET_MAXNODES) {
     dump_conn_first = dump_conn_prev = n;
@@ -2506,7 +2504,7 @@ dump_conn_done(int fd)
 extern int
 gasnetc_connect_fini(void)
 {
-  gasnet_node_t n, count = 0;
+  gex_Rank_t n, count = 0;
   int fd = -1;
 
   /* Open file replacing any '%' in filename with node number */
@@ -2586,7 +2584,7 @@ gasnetc_connect_shutdown(void) {
   #else
     /* conn_ud_hca->snd_cq, if any, has already been drained */
     gasneti_assert((NULL == conn_ud_sema_p) ||
-                   (0 == gasneti_semaphore_read(conn_ud_sema_p)));
+                   (0 == gasnetc_sema_read(conn_ud_sema_p)));
   #endif
 
   /* TODO: is this retry loop still necessary? */

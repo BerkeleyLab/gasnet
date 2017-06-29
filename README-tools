@@ -3,7 +3,7 @@ README file for GASNet tools
 ============================
 Originally by: Dan Bonachea <bonachea@cs.berkeley.edu>
 Currently maintained by: Paul H. Hargrove <PHHargrove@lbl.gov>
-GASNet tools specification version: 1.8
+GASNet tools specification version: 1.10
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -74,6 +74,9 @@ tools).
   generated Makefile fragments $prefix/include/gasnet_tools-{seq,par}.mak
   in their Makefile and using the provided make variables they provide.
   See the comments at the top of those files for exact usage documentation.
+  Alternatively, pkg-config files for the gasnet_tools-{seq,par} packages
+  are installed in $prefix/lib/pkgconfig and provide the same build information.
+  See README for pkg-config usage instructions.
 
 ===============================
 GASNet Tools User Documentation
@@ -88,7 +91,7 @@ General Usage
 
 * All clients of GASNet tools should #include <gasnet_tools.h> before any other header.
   The only exception is source files that use both a GASNet conduit and GASNet
-  tools, which must include gasnet.h before gasnet_tools.h.
+  tools, which must include gasnetex.h before gasnet_tools.h.
 
 * All of the supported public interfaces in GASNet tools are named using the
   'gasnett_' or 'GASNETT_' prefix. Clients of GASNet tools should *ONLY* invoke
@@ -106,7 +109,7 @@ General Usage
   GASNet README. They may work on others as well. Please contact us if you have
   a new platform you'd like to see supported.
 
-* For questions on using the GASNet tools, contact upc-devel@lbl.gov. 
+* For questions on using the GASNet tools, contact gasnet-users@lbl.gov. 
   It's especially recommended to contact us before bundling the tools in your
   software package.
 
@@ -133,6 +136,44 @@ system-specific support, where available.
   GASNETT_TICK_MIN - a value representing the minimum value storable in a gasnett_tick_t
 
   GASNETT_TICK_MAX - a value representing the maximum value storable in a gasnett_tick_t
+
+  Environment:
+    For Linux on x86, x86-64 or MIC processors, the default timer is the TSC
+    which requires choosing a mechanism for calibration.  This can be controlled
+    via environment variables:
+
+    * GASNET_TSC_RATE
+      GASNET_TSC_RATE=walltime
+        Measures the TSC tick rate against the OS-provided wallclock time.
+        This is the default.
+      GASNET_TSC_RATE=cpuinfo
+        Obtains the TSC tick rate from information in /proc/cpuinfo
+        This is known to be incorrect for certain recent CPU models.
+      GASNET_TSC_RATE=[Hz]
+        If given an integer in the range 1 Million to 100 Billon, this will be
+        taken as the TSC tick rate in Hz (cycles per second).  To avoid the
+        ambiguity between binary (M=2^20) and decimal (M=10^6), no suffixes are
+        accepted.
+
+    * GASNET_TSC_RATE_TOLERANCE
+      This is a floating-point value (read by gasnett_getenv_dbl_withdefault())
+      which indicates the relative error permitted in the calibration of the
+      TSC.  For instance the value 0.001 would permit a relative error as
+      large as 1 part in 1000, or 0.1%.  Exceeding this level of permitted
+      relative error will result in a warning message.
+
+    * GASNET_TSC_RATE_HARD_TOLERANCE
+      This environment variable functions like GASNET_TSC_RATE_TOLERANCE, except
+      that exceeeding this value results in a fatal error.
+
+-----
+Sleep
+-----
+
+  int gasnett_nsleep(uint64_t ns_delay) - nanosecond resolution sleep
+    Sleep for at least the indicated number of nanoseconds.  If interrupted by a
+    signal, may terminate the sleep early returnining non-zero with errno = EINTR.
+    If ns_delay is zero, this function returns without sleeping.
 
 ---------------
 Memory barriers
@@ -300,7 +341,7 @@ the section on strong atomics below.
   GASNETT_ATOMIC_SIGNED_MIN     The smallest (most negative) representable signed value.
   GASNETT_ATOMIC_SIGNED_MAX     The largest (most positive) representable signed value.
 
- The atomic type is guaranteed to wrap around at it's minimum and maximum values in
+ The atomic type is guaranteed to wrap around at its minimum and maximum values in
  the normal manner expected of two's-complement integers.  This includes the 'oldval'
  and 'newval' arguments to gasnett_atomic_compare_and_swap(), and the 'v' arguments
  to gasnett_atomic_init() and gasnett_atomic_set() which are wrapped (not clipped)
@@ -509,7 +550,7 @@ platform features, so that #if tests can be written concisely with expressions l
 
 #if PLATFORM_COMPILER_GNU && PLATFORM_OS_SOLARIS && PLATFORM_ARCH_X86
 
-See the comments in portable_platform.h for the details of the provided defines.
+See the comments in gasnet_portable_platform.h for the details of the provided defines.
 
 ----------------------------------
 Portable fixed-width integer types
@@ -652,7 +693,7 @@ if_pt(cond) S;
 gasnett_constant_p(expr)
 
   This expands to use of __builtin_constant_p() on compilers with the necessary
-  suport, or to the constant 0 otherwise.
+  support, or to the constant 0 otherwise.
 
 -----------------------------------------------------
 Error-checking System Mutexes and Condition Variables
@@ -670,7 +711,11 @@ appropriate no-ops, unless compiled with -DGASNETT_USE_TRUE_MUTEXES=1
 which will force gasnett_mutex_t to always use true locking (even 
 without -DGASNETT_THREAD_SAFE=1).
 
-* The following function identically to the pthread_mutex symbols of the same name:
+Unlike pthread_mutex_t, these locks may NEVER be obtained recursively, and
+in debug builds this is detected as a usage violation. Similarly, they are
+not safe to use for inter-process synchronization in shared memory segments.
+
+* Otherwise, the following function similarly to the pthread_mutex symbols of the same name:
 
 gasnett_mutex_t             
 GASNETT_MUTEX_INITIALIZER
@@ -737,6 +782,71 @@ void gasnett_cond_wait(gasnett_cond_t *pc, gasnett_mutex_t *pl)
     must check the outer condition *after* acquiring the same mutex and *before*
     calling wait (which atomically releases the lock and puts the thread to sleep).
 
+-------------------
+Reader/Writer locks
+-------------------
+
+As with the gasnett_mutex_t wrappers in the previous section, we also provide
+wrappers around POSIX reader/writer locks (pthread_rwlock_t). In a nutshell,
+these allow multiple threads to concurrently acquire a "read" lock (for
+concurrent read-only access to the protected data structures), but provide
+mutual exclusion when a thread obtains a "write" lock to update the shared data.
+
+CAUTION: The additional opportunities for concurrency provided by reader/writer
+locks come at a SIGNIFICANT cost in additional serial overhead, relative to
+simple mutexes.  The overhead for obtaining and releasing a read lock on an
+uncontended pthread_rwlock_t is commonly 50%-300% more expensive than the
+corresponding operation on simple mutex. Also, write locks still need to enforce
+mutual exclusion, thus frequent write locks can sharply degrade achieved concurrency.
+Consequently, rwlock's are only expected to provide a net performance win
+relative to mutexes when there is a high-degree of concurrency for long-running
+reader critical sections, and writers are VERY infrequent. In all other cases,
+one should probably be using a mutex instead.
+
+On systems lacking reader/writer locks (or when configured with --disable-rwlock), 
+these compile down to regular gasnett_mutex_t operations - with full
+serialization and no read concurrency. Some implementations also have a limit
+on the number of threads that can concurrently obtain a reader lock.  For these
+reasons, client code should be designed to remain deadlock-free when some or
+all read locks are serialized, even lacking writers.
+
+Unlike pthread_rwlock_t, these locks may NOT be obtained recursively, and
+in debug builds this is detected as a usage violation. Similarly, they are
+not safe to use for inter-process synchronization in shared memory segments.
+
+* Otherwise, the following function similarly to the pthread_rwlock symbols of the same name:
+
+gasnett_rwlock_t
+GASNETT_RWLOCK_INITIALIZER
+void gasnett_rwlock_init(gasnett_rwlock_t *)
+void gasnett_rwlock_destroy(gasnett_rwlock_t *)
+
+     rwlock creation and destruction, as with pthread_rwlock_t
+
+void gasnett_rwlock_rdlock(gasnett_rwlock_t *)
+void gasnett_rwlock_wrlock(gasnett_rwlock_t *)
+void gasnett_rwlock_unlock(gasnett_rwlock_t *)
+
+     blocking read lock, blocking write lock and unlock
+     POSIX errors due to reader concurrency limits are masked as blocking
+
+int gasnett_rwlock_tryrdlock(gasnett_rwlock_t *)
+int gasnett_rwlock_trywrlock(gasnett_rwlock_t *)
+
+     non-blocking trylock - returns EBUSY or EAGAIN on failure, 0 on success
+
+* Additional rwlock utilities:
+
+void gasnett_rwlock_assertrdlocked(gasnett_rwlock_t *)
+void gasnett_rwlock_assertwrlocked(gasnett_rwlock_t *)
+void gasnett_rwlock_assertlocked(gasnett_rwlock_t *)
+void gasnett_rwlock_assertunlocked(gasnett_rwlock_t *)
+
+  In debug builds, these functions respectively assert that the given rwlock is
+  currently locked (for read, write or either) or not locked by the calling
+  thread, generating a fatal error if the assertion is violated. Has no effect
+  in non-debug builds.
+
 --------------------
 Thread-specific data
 --------------------
@@ -750,8 +860,8 @@ Automatically handles the hassle of pthread key creation if required.
 
 A thread-specific data pointer (mykey) must be declared as:
 
-  GASNETI_THREADKEY_DEFINE(mykey); - must be defined in exactly one C file at global scope
-  GASNETI_THREADKEY_DECLARE(mykey); - optional, use in headers to reference externally-defined key
+  GASNETT_THREADKEY_DEFINE(mykey); - must be defined in exactly one C file at global scope
+  GASNETT_THREADKEY_DECLARE(mykey); - optional, use in headers to reference externally-defined key
 
 and then can be used as:
 
@@ -1114,7 +1224,7 @@ COMPILER.
   #pragma syntax as the compiler(s) it probed.
 
   The client may define any of the following preprocessor symbols, prior to inclusion of
-  gasnet.h or gasnet_tools.h, to inform GASNet's headers that the current compiler does
+  gasnetex.h or gasnet_tools.h, to inform GASNet's headers that the current compiler does
   (#define to 1) or does NOT (#define to 0) support the corresponding syntax:
 
     GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
@@ -1177,4 +1287,12 @@ COMPILER.
   appropriate no-ops, unless compiled with GASNETT_USE_TRUE_MUTEXES=1 which will force
   unconditional use of true locking (even without GASNETT_THREAD_SAFE=1).
   NOTE: For proper operation this must be defined BOTH when the GASNet(-tools) library
-  is built, and when compiling client code that includes gasnet.h or gasnet_tools.h.
+  is built, and when compiling client code that includes gasnetex.h or gasnet_tools.h.
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/master/README-tools
+
+  For more information, please email: gasnet-users@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------

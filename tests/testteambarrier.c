@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_coll.h>
 
 #include <test.h>
@@ -15,6 +15,11 @@ typedef struct {
   char _pad[GASNETT_CACHE_LINE_BYTES];
   
 } thread_data_t;
+
+static gex_Client_t      myclient;
+static gex_EP_t    myep;
+static gex_TM_t myteam;
+static gex_Segment_t     mysegment;
 
 int mynode, nodes, iters, threads_per_node=0;
 
@@ -87,13 +92,13 @@ int main(int argc, char **argv) {
 
   int i = 0;
   thread_data_t *td_arr; 
-  GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteambarrier", &argc, &argv, 0));
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
 
   
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
+  mynode = gex_TM_QueryRank(myteam);
+  nodes = gex_TM_QuerySize(myteam);
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;
@@ -132,6 +137,7 @@ int main(int argc, char **argv) {
     td_arr[i].mythread = mynode*threads_per_node+i;
   }
 #if GASNET_PAR
+  TEST_SET_WAITMODE(threads_per_node);
   test_createandjoin_pthreads(threads_per_node, &thread_main, td_arr, sizeof(thread_data_t));
 #else
   thread_main(&td_arr[0]);

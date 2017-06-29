@@ -31,8 +31,8 @@ int gasneti_VerboseErrors = 1;
 /* generic atomics support */
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
-    #define _gasneti_atomic_lock_initializer	GASNET_HSL_INITIALIZER
-    #define _gasneti_atomic_lock_init(x)	gasnet_hsl_init(x)
+    #define _gasneti_atomic_lock_initializer	GEX_HSL_INITIALIZER
+    #define _gasneti_atomic_lock_init(x)	gex_HSL_Init(x)
     #define _gasneti_atomic_lock_malloc		gasneti_malloc
     GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_hsl_atomic_, gasnet_hsl_)
     #undef _gasneti_atomic_lock_initializer
@@ -95,6 +95,9 @@ void (*gasnet_client_attach_hook)(void *, uintptr_t) = NULL;
 
 int gasneti_wait_mode = GASNET_WAIT_SPIN;
 
+int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR)) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR)) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG) = 1;
@@ -114,25 +117,17 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 
-extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
-                                       uintptr_t segsize, uintptr_t minheapoffset) {
-  gasneti_fatalerror("GASNet client code must NOT #include <gasnet_internal.h>\n"
-                     "gasnet_internal.h is not installed, and modifies the behavior "
-                     "of various internal operations, such as segment safety bounds-checking.");
-  return GASNET_ERR_NOT_INIT;
-}
-
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
 #ifdef _GASNET_MYNODE_DEFAULT
-  gasnet_node_t gasneti_mynode = (gasnet_node_t)-1;
+  gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
 #endif
 #ifdef _GASNET_NODES_DEFAULT
-  gasnet_node_t gasneti_nodes = 0;
+  gex_Rank_t gasneti_nodes = 0;
 #endif
 
-#if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT) && !GASNET_SEGMENT_EVERYTHING
+#if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT)
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
 #endif
@@ -151,9 +146,7 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 
 #ifdef _GASNETI_SEGINFO_DEFAULT
   gasnet_seginfo_t *gasneti_seginfo = NULL;
-  gasnet_seginfo_t *gasneti_seginfo_client = NULL;
-  void **gasneti_seginfo_ub = NULL; /* cached result of gasneti_seginfo[i].addr + gasneti_seginfo[i].size */
-  void **gasneti_seginfo_client_ub = NULL;
+  gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -192,9 +185,9 @@ extern void gasneti_check_config_preinit(void) {
   gasneti_assert_always(GASNET_PAGESIZE > 0);
   gasneti_assert_always(GASNETI_POWEROFTWO(GASNET_PAGESIZE));
 
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
+  gasneti_assert_always(SIZEOF_GEX_RMA_VALUE_T == sizeof(gex_RMA_Value_t));
+  gasneti_assert_always(SIZEOF_GEX_RMA_VALUE_T >= sizeof(int));
+  gasneti_assert_always(SIZEOF_GEX_RMA_VALUE_T >= sizeof(void *));
 
   #if    PLATFORM_ARCH_32 && !PLATFORM_ARCH_64
     gasneti_assert_always(sizeof(void*) == 4);
@@ -226,10 +219,11 @@ extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
 
   /*  verify sanity of the core interface */
-  gasneti_assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  gasneti_assert_always(gasnet_AMMaxMedium() >= 512);
-  gasneti_assert_always(gasnet_AMMaxLongRequest() >= 512);
-  gasneti_assert_always(gasnet_AMMaxLongReply() >= 512);  
+  gasneti_assert_always(gex_AM_MaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert_always(gex_AM_LUBRequestMedium() >= 512);
+  gasneti_assert_always(gex_AM_LUBReplyMedium() >= 512);
+  gasneti_assert_always(gex_AM_LUBRequestLong() >= 512);
+  gasneti_assert_always(gex_AM_LUBReplyLong() >= 512);
 
   gasneti_assert_always(gasnet_nodes() >= 1);
   gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
@@ -291,13 +285,946 @@ extern void gasneti_freezeForDebugger(void) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-extern void gasneti_defaultAMHandler(gasnet_token_t token) {
-  gasnet_node_t srcnode = (gasnet_node_t)-1;
-  gasnet_AMGetMsgSource(token, &srcnode);
+extern void gasneti_defaultAMHandler(gex_Token_t token) {
+  gex_Token_Info_t info;
+  info.gex_srcrank = GEX_RANK_INVALID; // to print -1 if query were to fail
+  gex_Token_Info(token, &info, GEX_TI_SRCRANK);
+  gex_Rank_t srcnode = info.gex_srcrank;
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
                      "with no associated AM handler function registered", 
                      (int)gasnet_mynode(), (int)gasnet_nodes(), (int)srcnode);
 }
+/* ------------------------------------------------------------------------------------ */
+
+// Validate a handler table prior to registration
+static void gasneti_am_validate(
+                        const gex_AM_Entry_t *table,
+                        int numentries)
+{
+  if (!numentries) return;
+
+  // Internally-constructed legacy table should be all-or-nothing.
+  if (table[0].gex_nargs == GASNETI_HANDLER_NARGS_UNK ||
+      table[0].gex_flags & GASNETI_FLAG_INIT_LEGACY) {
+    for (int i = 0; i < numentries; ++i) {
+       gasneti_assert_always(table[i].gex_nargs == GASNETI_HANDLER_NARGS_UNK);
+       gasneti_assert_always(table[i].gex_flags == (GASNETI_FLAG_AM_ANY | GASNETI_FLAG_INIT_LEGACY));
+    }
+    return;
+  }
+
+  // Normal tables have several rules to check:
+  for (int i = 0; i < numentries; ++i) {
+    int idx = table[i].gex_index;
+
+    if_pf (table[i].gex_nargs > gex_AM_MaxArgs()) {
+      gasneti_fatalerror("AM Handler table entry %d: invalid gex_nargs: %d (Max %d)",
+                         i, (int)table[i].gex_nargs, (int)gex_AM_MaxArgs());
+    }
+
+    if_pf (0 == (table[i].gex_flags & (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY))) {
+      gasneti_fatalerror("AM Handler table entry %d(idx=%d): invalid gex_flags: contains neither GEX_FLAG_AM_REQUEST nor GEX_FLAG_AM_REPLY", i, idx);
+    }
+
+    gex_Flags_t category = table[i].gex_flags & (GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG);
+    const char *cat_msg = NULL;
+    switch (category) {
+    case 0:
+      cat_msg = "none of GEX_FLAG_AM_SHORT, GEX_FLAG_AM_MEDIUM, or GEX_FLAG_AM_LONG";
+      break;
+    case GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG:
+      cat_msg = "invalid combination (GEX_FLAG_AM_SHORT | GEX_FLAG_AM_MEDIUM | GEX_FLAG_AM_LONG)";
+      break;
+    case GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM:
+      cat_msg = "invalid combination (GEX_FLAG_AM_SHORT | GEX_FLAG_AM_MEDIUM )";
+      break;
+    case GEX_FLAG_AM_SHORT|GEX_FLAG_AM_LONG:
+      cat_msg = "invalid combination (GEX_FLAG_AM_SHORT | GEX_FLAG_AM_LONG)";
+      break;
+    }
+    if_pf (cat_msg) {
+      gasneti_fatalerror("AM Handler table entry %d(idx=%d): invalid gex_flags: contains %s", i, idx, cat_msg);
+    }
+  }
+}
+
+#if GASNETC_AMREGISTER
+  /* Use a conduit-specific hook at registration */
+  extern int gasnetc_amregister(gex_AM_Index_t, gex_AM_Entry_t *);
+#endif
+
+// Register handlers in the range [lowlimit,highlimit)
+extern int gasneti_amregister( gex_AM_Entry_t *output,
+                               gex_AM_Entry_t *input, int numentries,
+                               int lowlimit, int highlimit,
+                               int dontcare, int *numregistered) {
+  int i;
+  *numregistered = 0;
+
+  gasneti_am_validate(input, numentries);
+
+  for (i = 0; i < numentries; i++) {
+    int newindex;
+
+    if ((input[i].gex_index == 0 && !dontcare) ||
+        (input[i].gex_index && dontcare)) continue;
+    else if (input[i].gex_index) newindex = input[i].gex_index;
+    else { /* deterministic assignment of dontcare indexes from top down */
+      for (newindex = highlimit-1; newindex >= lowlimit; newindex--) {
+        if (!output[newindex].gex_index) break; // 0 index marks free entry
+      }
+      if (newindex < lowlimit) {
+        char s[255];
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit);
+        GASNETI_RETURN_ERRR(BAD_ARG, s);
+      }
+    }
+
+    /*  ensure handlers fall into the proper range of pre-assigned values */
+    if (newindex < lowlimit || newindex >= highlimit) {
+      char s[255];
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i)", newindex, lowlimit, highlimit);
+      GASNETI_RETURN_ERRR(BAD_ARG, s);
+    }
+
+    /* discover duplicates */
+    if (output[newindex].gex_index) // entry is taken
+      GASNETI_RETURN_ERRR(BAD_ARG, "handler index not unique");
+
+    /* register a single handler with conduit-specifc hook, if any */
+  #if GASNETC_AMREGISTER
+    int rc = gasnetc_amregister((gex_AM_Index_t)newindex, &input[i]);
+    if (GASNET_OK != rc) return rc;
+  #endif
+
+    /* The check below for !input[i].index is redundant and present
+     * only to defeat the over-aggressive optimizer in pathcc 2.1
+     */
+    if (dontcare && !input[i].gex_index) input[i].gex_index = newindex;
+
+    /* Install the entire table entry */
+    gasneti_assert(! output[newindex].gex_index);
+    output[newindex] = input[i];
+
+    (*numregistered)++;
+  }
+  return GASNET_OK;
+}
+
+// Register client handlers
+extern int gasneti_amregister_client(
+                        gex_AM_Entry_t *output,
+                        gex_AM_Entry_t *input,
+                        int numentries)
+{
+  /*  first pass - assign all fixed-index handlers */
+  int numreg1 = 0;
+  if (gasneti_amregister(output, input, numentries,
+                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
+                         0, &numreg1) != GASNET_OK) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
+  }
+
+  /*  second pass - fill in dontcare-index handlers */
+  int numreg2 = 0;
+  if (gasneti_amregister(output, input, numentries,
+                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
+                         1, &numreg2) != GASNET_OK) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
+  }
+
+  gasneti_assert(numreg1 + numreg2 == numentries);
+
+  return GASNET_OK;
+}
+
+// Wrapper to provide continued support for GASNet-1 legacy handler tables,
+// such as through gasnet_attach().  Only supports the clients's index range.
+// TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
+extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
+                                      gasnet_handlerentry_t *table, int numentries) {
+  /* create temporary ex-compatible table */
+  gex_AM_Entry_t *extable = gasneti_calloc(numentries, sizeof(gex_AM_Entry_t));
+  for (int i = 0; i < numentries; ++i) {
+    extable[i].gex_index = table[i].index;
+    extable[i].gex_fnptr = table[i].fnptr;
+    extable[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
+    extable[i].gex_flags = GASNETI_FLAG_AM_ANY | GASNETI_FLAG_INIT_LEGACY;
+  }
+
+  /* register */
+  if (gasneti_amregister_client(output, extable, numentries) != GASNET_OK) {
+      gasneti_free(extable);
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering client handlers");
+  }
+
+  /* copy back from temporary ex-compatible table */
+  for (int i = 0; i < numentries; ++i) {
+    table[i].index = extable[i].gex_index;
+  }
+  gasneti_free(extable);
+
+  return GASNET_OK;
+}
+
+// Initialize a caller-allocated handler table
+extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
+  static const char *fnname = "gasneti_defaultAMHandler";
+  for (int i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) {
+    output[i].gex_index = 0; // marks an unused entry
+    output[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
+    output[i].gex_flags = GASNETI_FLAG_AM_ANY;
+    output[i].gex_fnptr = gasneti_defaultAMHandler;
+    output[i].gex_cdata = NULL;
+    output[i].gex_name  = fnname;
+  }
+  return GASNET_OK;
+}
+
+#if GASNET_DEBUG
+// Validate call to a handler
+extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
+                                gasneti_category_t category, int isReq) {
+  char buf[128] = {'\0'};
+  const char *msg = NULL;
+  if ((entry->gex_nargs != nargs) && (entry->gex_nargs != GASNETI_HANDLER_NARGS_UNK)) {
+    snprintf(buf, sizeof(buf), "registered with nargs=%d but called with %d", entry->gex_nargs, nargs);
+    msg = buf;
+  } else if (isReq && !(entry->gex_flags & GEX_FLAG_AM_REQUEST)) {
+    msg = "invoked as a Request handler, but not registered with GEX_FLAG_AM_REQUEST";
+  } else if (!isReq && !(entry->gex_flags & GEX_FLAG_AM_REPLY)) {
+    msg = "invoked as a Reply handler, but not registered with GEX_FLAG_AM_REPLY";
+  } else if (category == gasneti_Short && !(entry->gex_flags & GEX_FLAG_AM_SHORT)) {
+    msg = "invoked as a Short handler, but not registered with GEX_FLAG_AM_SHORT";
+  } else if (category == gasneti_Medium && !(entry->gex_flags & GEX_FLAG_AM_MEDIUM)) {
+    msg = "invoked as a Medium handler, but not registered with GEX_FLAG_AM_MEDIUM";
+  } else if (category == gasneti_Long && !(entry->gex_flags & GEX_FLAG_AM_LONG)) {
+    msg = "invoked as a Long handler, but not registered with GEX_FLAG_AM_LONG";
+  }
+  if (msg) {
+    char fnaddr[32];
+    const char *fnname = entry->gex_name;
+    if (!fnname) {
+      (void) snprintf(fnaddr, sizeof(fnaddr), "%p", (void*) entry->gex_fnptr);
+      fnname = fnaddr;
+    }
+    gasneti_fatalerror("AM handler %d (%s) %s", entry->gex_index, fnname, msg);
+  }
+}
+#endif
+/* ------------------------------------------------------------------------------------ */
+
+#ifndef _GEX_CLIENT_T
+gasneti_Client_t gasneti_alloc_client(
+                       const char *name,
+                       gex_Flags_t flags)
+{
+  gasneti_Client_t client = gasneti_malloc(sizeof(*client));
+  GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
+  client->_name = gasneti_strdup(name);
+  client->_cdata = NULL;
+  client->_flags = flags;
+#ifdef GASNETI_CLIENT_ALLOC_EXTRA
+  GASNETI_CLIENT_ALLOC_EXTRA(client);
+#endif
+  return client;
+}
+
+void gasneti_free_client(gasneti_Client_t client)
+{
+#ifdef GASNETI_CLIENT_FREE_EXTRA
+  GASNETI_CLIENT_FREE_EXTRA(client);
+#endif
+  gasneti_free((/*non-const*/char*)client->_name);
+  GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_BAD_MAGIC);
+  gasneti_free(client);
+}
+#endif // _GEX_CLIENT_T
+
+
+#ifndef _GEX_SEGMENT_T
+gasneti_Segment_t gasneti_alloc_segment(
+                       gasneti_Client_t client,
+                       void *addr,
+                       uintptr_t size,
+                       gex_Flags_t flags)
+{
+  gasneti_Segment_t segment = gasneti_malloc(sizeof(*segment));
+  GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
+  segment->_client = client;
+  segment->_cdata = NULL;
+  segment->_flags = flags;
+  segment->_addr = addr;
+  segment->_ub = (void*)((uintptr_t)addr + size);
+  segment->_size = size;
+#ifdef GASNETI_SEGMENT_ALLOC_EXTRA
+  GASNETI_SEGMENT_ALLOC_EXTRA(segment);
+#endif
+  return segment;
+}
+
+void gasneti_free_segment(gasneti_Segment_t segment)
+{
+#ifdef GASNETI_SEGMENT_FREE_EXTRA
+  GASNETI_SEGMENT_FREE_EXTRA(segment);
+#endif
+  GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_BAD_MAGIC);
+  gasneti_free(segment);
+}
+#endif // _GEX_SEGMENT_T
+
+
+#ifndef _GEX_EP_T
+extern gasneti_EP_t gasneti_alloc_ep(
+                       gasneti_Client_t client,
+                       gex_Flags_t flags)
+{
+  gasneti_EP_t endpoint = gasneti_malloc(sizeof(*endpoint));
+  GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
+  endpoint->_client = client;
+  endpoint->_cdata = NULL;
+  endpoint->_segment = NULL;
+  endpoint->_flags = flags;
+#ifdef GASNETI_EP_ALLOC_EXTRA
+  GASNETI_EP_ALLOC_EXTRA(endpoint);
+#endif
+  return endpoint;
+}
+
+void gasneti_free_ep(gasneti_EP_t endpoint)
+{
+#ifdef GASNETI_EP_FREE_EXTRA
+  GASNETI_EP_FREE_EXTRA(endpoint);
+#endif
+  GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_BAD_MAGIC);
+  gasneti_free(endpoint);
+}
+#endif // _GEX_EP_T
+
+
+#ifndef _GEX_TM_T
+extern gasneti_TM_t gasneti_alloc_tm(
+                       gasneti_EP_t ep,
+                       gex_Rank_t rank,
+                       gex_Rank_t size,
+                       gex_Flags_t flags)
+{
+  gasneti_assert(rank < size);
+  gasneti_assert(size > 0);
+  gasneti_TM_t tm = gasneti_malloc(sizeof(*tm));
+  GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
+  tm->_ep = ep;
+  tm->_cdata = NULL;
+  tm->_flags = flags;
+  tm->_rank = rank;
+  tm->_size = size;
+#ifdef GASNETI_TM_ALLOC_EXTRA
+  GASNETI_TM_ALLOC_EXTRA(tm);
+#endif
+  return tm;
+}
+
+void gasneti_free_tm(gasneti_TM_t tm)
+{
+#ifdef GASNETI_TM_FREE_EXTRA
+  GASNETI_TM_FREE_EXTRA(tm);
+#endif
+  GASNETI_INIT_MAGIC(tm, GASNETI_TM_BAD_MAGIC);
+  gasneti_free(tm);
+}
+#endif // _GEX_TM_T
+
+
+/* ------------------------------------------------------------------------------------ */
+// Default implementation of split-phase AMs in terms of single-phase
+// TODO-EX: this is not a "good" implementation for any conduit
+// TODO-EX: should really have single-phase in terms of the split-phase instead
+
+#ifndef _GEX_AM_SRCDESC_T
+GASNETI_INLINE(gasneti_alloc_srcdesc)
+gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(
+                       int            nargs
+                       GASNETI_THREAD_FARG)
+{
+  gasneti_AM_SrcDesc_t sd = gasneti_malloc(sizeof(*sd) + nargs * sizeof(gex_AM_Arg_t));
+  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+#if GASNET_DEBUG
+  sd->_thread = GASNETI_MYTHREAD;
+#endif
+  sd->_nargs     = nargs;
+  return sd;
+}
+
+extern gasneti_AM_SrcDesc_t gasneti_alloc_request_srcdesc(
+                       gex_TM_t       tm,
+                       gex_Rank_t     rank,
+                       int            nargs
+                       GASNETI_THREAD_FARG)
+{
+  gasneti_AM_SrcDesc_t sd = gasneti_alloc_srcdesc(nargs GASNETI_THREAD_PASS);
+  sd->_dest._request._tm   = tm;
+  sd->_dest._request._rank = rank;
+#if GASNET_DEBUG
+  sd->_isreq  = 1;
+#endif
+#ifdef GASNETI_SD_ALLOC_REQ_EXTRA
+  GASNETI_SD_ALLOC_REQ_EXTRA(sd);
+#endif
+  return sd;
+}
+
+extern gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
+                       gex_Token_t    token,
+                       int            nargs
+                       GASNETI_THREAD_FARG)
+{
+  gasneti_AM_SrcDesc_t sd = gasneti_alloc_srcdesc(nargs GASNETI_THREAD_PASS);
+  sd->_dest._reply._token = token;
+#if GASNET_DEBUG
+  sd->_isreq  = 0;
+#endif
+#ifdef GASNETI_SD_ALLOC_REP_EXTRA
+  GASNETI_SD_ALLOC_REP_EXTRA(sd);
+#endif
+  return sd;
+}
+
+void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
+{
+#ifdef GASNETI_SD_FREE_EXTRA
+  GASNETI_TM_FREE_EXTRA(sd);
+#endif
+  gasneti_free(sd->_tofree);
+  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+  gasneti_free(sd);
+}
+#endif // _GEX_AM_SRCDESC_T
+
+#ifndef GASNETI_SD_PARGS
+  // If sd was allocated w/ nargs!=0, then space reserved for args right after sd.
+  #define GASNETI_SD_PARGS(sd) ((gex_AM_Arg_t*)((sd)+1))
+#endif
+
+#if GASNET_DEBUG
+  // Verify that client did actually write to gasnet-allocated buffer
+  static uint64_t gasneti_memalloc_envint(const char *name, const char *deflt);
+  static void gasneti_memalloc_valset(void *p, size_t len, uint64_t val);
+  static const void *gasneti_memalloc_valcmp(const void *p, size_t len, uint64_t val);
+
+  static int gasneti_sd_init_enabled = 1;
+  static uint64_t gasneti_sd_init_val = 0; // Value used to initialize gasnet-allocated SrcDesc buffers
+  static size_t gasneti_sd_init_len = 128; // Max length to init at Prepare, and min to check at Commit
+
+  static void gasneti_init_sd_poison(void *addr, size_t len) {
+    if (!gasneti_sd_init_enabled) return;
+    static int isinit = 0;
+    if_pf (!isinit) {
+      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+      gasneti_mutex_lock(&lock);
+        if (!isinit) {
+          gasneti_sd_init_enabled = gasneti_getenv_yesno_withdefault("GASNET_SD_INIT",1);
+          gasneti_sd_init_val = gasneti_memalloc_envint("GASNET_SD_INITVAL","NAN");
+          gasneti_sd_init_len = MAX((int64_t)1,gasneti_getenv_int_withdefault("GASNET_SD_INITLEN",128,0));
+          isinit = 1;
+        }
+      gasneti_mutex_unlock(&lock);
+      if (!gasneti_sd_init_enabled) return;
+    } else gasneti_sync_reads();
+    if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
+  }
+
+  // Common argument checks
+  // TODO-EX: tracing should probably occur here as well
+  #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
+    do {                                                                                                 \
+      const char *_reqrep = is_req ? "Request" : "Reply";                                                \
+      if (cbuf == NULL) {                                                                                \
+        if (lc_opt != NULL)                                                                              \
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
+                             "only NULL is a valid lc_opt value when client_buf is NULL", _reqrep);      \
+      } else if (is_req) {                                                                               \
+        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))                \
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
+                             "only NULL, GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values",     \
+                             _reqrep);                                                                   \
+      } else {                                                                                           \
+        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW))                                               \
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
+                             "only NULL and GEX_EVENT_NOW are valid lc_opt values", _reqrep);            \
+      }                                                                                                  \
+      if (nargs > gex_AM_MaxArgs())                                                                      \
+        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
+                           "numargs larger than gex_AM_MaxArgs() (%u > %u)",                             \
+                           _reqrep, (unsigned int)nargs, (unsigned int)gex_AM_MaxArgs());                \
+      if (min_length > max_length)                                                                       \
+        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
+                           "min_length larger than max_length (%"PRIuPTR" > %"PRIuPTR")",                \
+                           _reqrep, (uintptr_t)min_length, (uintptr_t)max_length);                       \
+      if (min_length > limit)                                                                            \
+        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": min_length larger than gex_AM_Max%s"    \
+                           _STRINGIFY(cat) "() (%"PRIuPTR" > %"PRIuPTR")",                               \
+                           _reqrep, _reqrep, (uintptr_t)min_length, (uintptr_t)limit);                   \
+    } while(0)
+  #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min_len,max_len,limit,lc_opt,nargs,cat) \
+    do {                                                                                   \
+      if (dest >= gex_TM_QuerySize(tm))                                                    \
+        gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
+                           "destination rank out-of-range (%lu >= %lu)",                   \
+                           (unsigned long)dest, (unsigned long)gex_TM_QuerySize(tm));      \
+        _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,1,cat);             \
+    } while(0)
+  #define GASNETI_AMPREPREPLYCOMMON(cbuf,min_len,max_len,limit,lc_opt,nargs,cat) \
+             _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,0,cat)
+
+  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,is_req,cat) \
+    do {                                                                                                 \
+      const char *_reqrep = is_req ? "Request" : "Reply";                                                \
+      if (!sd)                                                                                           \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "passed invalid gex_AM_SrcDesc (GEX_AM_SRCDESC_NO_OP == 0)", _reqrep, nargs); \
+      if (sd->_thread != gasnete_mythread())                                                             \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "return from Prepare passed to Commit in a different thread", _reqrep, nargs);\
+      if (sd->_isreq != is_req)                                                                          \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "paired with incompatible Prepare (%s)",                                      \
+                           _reqrep, nargs, (sd->_isreq?"Request":"Reply"));                              \
+      if (sd->_category != (int)gasneti_##cat)                                                           \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "paired with incompatible Prepare (%s)",                                      \
+                           _reqrep, nargs, (sd->_category==(int)gasneti_Long?"Long":"Medium"));          \
+      if (sd->_nargs != nargs)                                                                           \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "paired with incompatible Prepare (nargs = %d)",                              \
+                           _reqrep, nargs, sd->_nargs);                                                  \
+      if (sd->_size < nbytes)                                                                            \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "nbytes larger than returned from Prepare (%"PRIuPTR" > %"PRIuPTR")",         \
+                           _reqrep, nargs, (uintptr_t)nbytes, (uintptr_t)sd->_size);                     \
+      if ((sd->_dest_addr != NULL) &&                                                                    \
+          !((dest_addr == sd->_dest_addr) || ((dest_addr == NULL) && (nbytes == 0))))                    \
+        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
+                           "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
+      if (sd->_tofree) {                                                                                 \
+        if (lc_opt != NULL)                                                                              \
+          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
+                             "lc_opt must be NULL when using a GASNet-provided buffer",                  \
+                             _reqrep, nargs);                                                            \
+        if (gasneti_sd_init_enabled && (sd->_size >= gasneti_sd_init_len) &&                             \
+            !gasneti_memalloc_valcmp(sd->_tofree, gasneti_sd_init_len, gasneti_sd_init_val))             \
+          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
+                             "client did not write to the GASNet-provided buffer",                       \
+                             _reqrep, nargs);                                                            \
+      } else if (sd->_lc_opt == NULL) {                                                                  \
+        if (!lc_opt || !gasneti_leaf_is_pointer(lc_opt))                                                 \
+          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
+                             "lc_opt is not a valid pointer", _reqrep, nargs);                           \
+      } else {                                                                                           \
+        if (sd->_lc_opt != lc_opt)                                                                       \
+          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
+                             "lc_opt does not match the value passed to Prepare", _reqrep, nargs);       \
+      }                                                                                                  \
+    } while(0)
+  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \
+                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,1,cat)
+  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \
+                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,0,cat)
+#else
+  #define gasneti_init_sd_poison(a,l) ((void)0)
+  #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min,max,lim,lc_opt,nargs,cat) ((void)0)
+  #define GASNETI_AMPREPREPLYCOMMON(cbuf,minlen,maxlen,lim,lc_opt,nargs,cat) ((void)0)
+  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
+  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
+#endif
+
+GASNETI_INLINE(gasneti_prepare_common)
+gex_AM_SrcDesc_t gasneti_prepare_common(
+                       gasneti_AM_SrcDesc_t sd,
+                       const void           *client_buf,
+                       size_t               length,
+                       gex_Event_t          *lc_opt,
+                       gex_Flags_t          flags)
+{
+    if (client_buf) {
+        sd->_tofree = NULL;
+        sd->_addr   = (/*non-const*/void *)client_buf;
+    } else {
+#if GASNET_DEBUG
+        // Allocate at least one byte because zero-byte allocation
+        // returns NULL which then leads to ambiguity in argument checking.
+        sd->_addr   = gasneti_malloc(MAX(1,length));
+#else
+        sd->_addr   = gasneti_malloc(length);
+#endif
+        sd->_tofree = sd->_addr;
+        gasneti_init_sd_poison(sd->_tofree, length);
+    }
+    sd->_size     = length;
+    sd->_lc_opt   = lc_opt;
+    sd->_flags    = flags;
+    return gasneti_export_srcdesc(sd);
+}
+
+GASNETI_INLINE(gasneti_prepare_medium_common)
+gex_AM_SrcDesc_t gasneti_prepare_medium_common(
+                       gasneti_AM_SrcDesc_t sd,
+                       const void           *client_buf,
+                       size_t               length,
+                       gex_Event_t          *lc_opt,
+                       gex_Flags_t          flags)
+{
+#if GASNET_DEBUG
+    sd->_category  = (int)gasneti_Medium;
+    sd->_dest_addr = NULL;
+#endif
+    return gasneti_prepare_common(sd, client_buf, length, lc_opt, flags);
+}
+
+GASNETI_INLINE(gasneti_prepare_long_common)
+gex_AM_SrcDesc_t gasneti_prepare_long_common(
+                       gasneti_AM_SrcDesc_t sd,
+                       const void           *client_buf,
+                       size_t               length,
+                       void                 *dest_addr,
+                       gex_Event_t          *lc_opt,
+                       gex_Flags_t          flags)
+{
+#if GASNET_DEBUG
+    sd->_category  = (int)gasneti_Long;
+#endif
+    sd->_dest_addr = dest_addr;
+    return gasneti_prepare_common(sd, client_buf, length, lc_opt, flags);
+}
+
+
+#ifndef gasnetc_AM_PrepareRequestMedium
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
+                       gex_TM_t           tm,
+                       gex_Rank_t         dest,
+                       const void        *client_buf,
+                       size_t             min_length,
+                       size_t             max_length,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    flags &= ~GEX_FLAG_IMMEDIATE;
+    size_t limit = gex_AM_MaxRequestMedium(tm,dest,lc_opt,flags,nargs);
+    GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
+
+    return gasneti_prepare_medium_common(
+               gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS),
+               client_buf, MIN(limit, max_length), lc_opt, flags);
+}
+#endif // gasnetc_AM_PrepareRequestMedium
+
+#ifndef gasnetc_AM_PrepareReplyMedium
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
+                       gex_Token_t        token,
+                       const void        *client_buf,
+                       size_t             min_length,
+                       size_t             max_length,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    flags &= ~GEX_FLAG_IMMEDIATE;
+    // TODO-EX: using limit=LUB here unless conduit has provided an alternative
+    // TODO-EX: expect to eventually use gex_Token_MaxReplyMedium()
+#if defined(gasnetc_Token_MaxReplyMedium)
+    size_t limit = gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs);
+#else
+    size_t limit = gex_AM_LUBReplyMedium();
+#endif
+    GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
+
+    return gasneti_prepare_medium_common(
+               gasneti_alloc_reply_srcdesc(token, nargs GASNETI_THREAD_PASS),
+               client_buf, MIN(limit, max_length), lc_opt, flags);
+}
+#endif // gasnetc_AM_PrepareReplyMedium
+
+#ifndef gasnetc_AM_PrepareRequestLong
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
+                       gex_TM_t           tm,
+                       gex_Rank_t         dest,
+                       const void        *client_buf,
+                       size_t             min_length,
+                       size_t             max_length,
+                       void              *dest_addr,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    flags &= ~GEX_FLAG_IMMEDIATE;
+    size_t limit = gex_AM_MaxRequestLong(tm,dest,lc_opt,flags,nargs);
+    GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
+
+    return gasneti_prepare_long_common(
+               gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS),
+               client_buf, MIN(limit, max_length), dest_addr, lc_opt, flags);
+}
+#endif // gasnetc_AM_PrepareRequestLong
+
+#ifndef gasnetc_AM_PrepareReplyLong
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
+                       gex_Token_t        token,
+                       const void        *client_buf,
+                       size_t             min_length,
+                       size_t             max_length,
+                       void              *dest_addr,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    flags &= ~GEX_FLAG_IMMEDIATE;
+    // TODO-EX: using limit=LUB here unless conduit has provided an alternative
+    // TODO-EX: expect to eventually use gex_Token_MaxReplyLong()
+#if defined(gasnetc_Token_MaxReplyLong)
+    size_t limit = gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs);
+#else
+    size_t limit = gex_AM_LUBReplyLong();
+#endif
+    GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
+
+    return gasneti_prepare_long_common(
+               gasneti_alloc_reply_srcdesc(token, nargs GASNETI_THREAD_PASS),
+               client_buf, MIN(limit, max_length), dest_addr, lc_opt, flags);
+}
+#endif // gasnetc_AM_PrepareReplyLong
+
+#ifndef gasnetc_AM_CommitRequestMediumM
+void gasnetc_AM_CommitRequestMediumM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       gex_Event_t             *lc_opt
+                       GASNETI_THREAD_FARG,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    const unsigned int nargs = sd->_nargs;
+
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
+    for (int i = 0; i < nargs; ++i) {
+      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
+    }
+    va_end(argptr);
+
+    gex_TM_t   tm          = sd->_dest._request._tm;
+    gex_Rank_t dest        = sd->_dest._request._rank;
+    void *src_addr         = sd->_addr;
+    gex_Flags_t flags      = sd->_flags;
+
+    gasneti_assert(gex_AM_MaxArgs() <= 16);
+    int rc;
+    GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
+    switch (nargs) {
+    case  0: rc = gex_AM_RequestMedium0 (tm, dest, handler, src_addr, nbytes, lc_opt, flags); break;
+    case  1: rc = gex_AM_RequestMedium1 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_RequestMedium2 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_RequestMedium3 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_RequestMedium4 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_RequestMedium5 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_RequestMedium6 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_RequestMedium7 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_RequestMedium8 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_RequestMedium9 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_RequestMedium10(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_RequestMedium11(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_RequestMedium12(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_RequestMedium13(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_RequestMedium14(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_RequestMedium15(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_RequestMedium16(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+    }
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+
+    gasneti_free_srcdesc(sd);
+}
+#endif // gasnetc_AM_CommitRequestMediumM
+
+#ifndef gasnetc_AM_CommitReplyMediumM
+void gasnetc_AM_CommitReplyMediumM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       gex_Event_t             *lc_opt,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    const unsigned int nargs = sd->_nargs;
+
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
+    for (int i = 0; i < nargs; ++i) {
+      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
+    }
+    va_end(argptr);
+
+    gex_Token_t token      = sd->_dest._reply._token;
+    void *src_addr         = sd->_addr;
+    gex_Flags_t flags      = sd->_flags;
+
+    gasneti_assert(gex_AM_MaxArgs() <= 16);
+    int rc;
+    switch (nargs) {
+    case  0: rc = gex_AM_ReplyMedium0 (token, handler, src_addr, nbytes, lc_opt, flags); break;
+    case  1: rc = gex_AM_ReplyMedium1 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_ReplyMedium2 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_ReplyMedium3 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_ReplyMedium4 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_ReplyMedium5 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_ReplyMedium6 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_ReplyMedium7 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_ReplyMedium8 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_ReplyMedium9 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_ReplyMedium10(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_ReplyMedium11(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_ReplyMedium12(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_ReplyMedium13(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_ReplyMedium14(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_ReplyMedium15(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_ReplyMedium16(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+    }
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+
+    gasneti_free_srcdesc(sd);
+}
+#endif // gasnetc_AM_CommitReplyMediumM
+
+#ifndef gasnetc_AM_CommitRequestLongM
+void gasnetc_AM_CommitRequestLongM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       void                    *dest_addr,
+                       gex_Event_t             *lc_opt
+                       GASNETI_THREAD_FARG,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    const unsigned int nargs = sd->_nargs;
+
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
+    for (int i = 0; i < nargs; ++i) {
+      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
+    }
+    va_end(argptr);
+
+    gex_TM_t   tm          = sd->_dest._request._tm;
+    gex_Rank_t dest        = sd->_dest._request._rank;
+    void *src_addr         = sd->_addr;
+    gex_Flags_t flags      = sd->_flags;
+
+    gasneti_assert(gex_AM_MaxArgs() <= 16);
+    int rc;
+    GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
+    switch (nargs) {
+    case  0: rc = gex_AM_RequestLong0 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags); break;
+    case  1: rc = gex_AM_RequestLong1 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_RequestLong2 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_RequestLong3 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_RequestLong4 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_RequestLong5 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_RequestLong6 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_RequestLong7 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_RequestLong8 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_RequestLong9 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_RequestLong10(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_RequestLong11(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_RequestLong12(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_RequestLong13(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_RequestLong14(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_RequestLong15(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_RequestLong16(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+    }
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+
+    gasneti_free_srcdesc(sd);
+}
+#endif // gasnetc_AM_CommitRequestLongM
+
+#ifndef gasnetc_AM_CommitReplyLongM
+void gasnetc_AM_CommitReplyLongM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       void                    *dest_addr,
+                       gex_Event_t             *lc_opt,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+    const unsigned int nargs = sd->_nargs;
+
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
+    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
+    for (int i = 0; i < nargs; ++i) {
+      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
+    }
+    va_end(argptr);
+
+    gex_Token_t token      = sd->_dest._reply._token;
+    void *src_addr         = sd->_addr;
+    gex_Flags_t flags      = sd->_flags;
+
+    gasneti_assert(gex_AM_MaxArgs() <= 16);
+    int rc;
+    switch (nargs) {
+    case  0: rc = gex_AM_ReplyLong0 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags); break;
+    case  1: rc = gex_AM_ReplyLong1 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_ReplyLong2 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_ReplyLong3 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_ReplyLong4 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_ReplyLong5 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_ReplyLong6 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_ReplyLong7 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_ReplyLong8 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_ReplyLong9 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_ReplyLong10(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_ReplyLong11(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_ReplyLong12(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_ReplyLong13(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_ReplyLong14(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_ReplyLong15(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_ReplyLong16(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+    }
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+
+    gasneti_free_srcdesc(sd);
+}
+#endif // gasnetc_AM_CommitReplyLongM
+
 /* ------------------------------------------------------------------------------------ */
 
 #ifndef GASNETC_FATALSIGNAL_CALLBACK
@@ -440,7 +1367,7 @@ typedef struct {
    exchangefn is required function for exchanging data 
    broadcastfn is optional (can be NULL) but highly recommended for scalability
  */
-extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t mynode,
+extern void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynode,
                                            gasneti_bootstrapExchangefn_t exchangefn,
                                            gasneti_bootstrapBroadcastfn_t broadcastfn) {
   uint8_t *myenv; 
@@ -536,7 +1463,7 @@ static const char *gasneti_decode_envval(const char *val) {
   static int decodeenv = 1;
   if (firsttime) {
     decodeenv = !gasneti_getenv("GASNET_DISABLE_ENVDECODE");
-    if (gasneti_init_done && gasneti_mynode != (gasnet_node_t)-1) {
+    if (gasneti_init_done && gasneti_mynode != (gex_Rank_t)-1) {
       gasneti_envstr_display("GASNET_DISABLE_ENVDECODE",(decodeenv?"NO":"YES"),decodeenv);
       gasneti_sync_writes();
       firsttime = 0;
@@ -582,7 +1509,7 @@ const char * (*gasnett_decode_envval_fn)(const char *) = &gasneti_decode_envval;
 extern int _gasneti_verboseenv_fn(void) {
   static int verboseenv = -1;
   if (verboseenv == -1) {
-    if (gasneti_init_done && gasneti_mynode != (gasnet_node_t)-1) {
+    if (gasneti_init_done && gasneti_mynode != (gex_Rank_t)-1) {
       #if GASNET_DEBUG_VERBOSE
         verboseenv = GASNETI_ENV_OUTPUT_NODE();
       #else
@@ -637,6 +1564,52 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
   }
 }
 
+/* Propagate requested env vars from GASNet global env to the local env */
+
+void (*gasneti_propagate_env_hook)(const char *, int) = NULL; // spawner- or conduit-specific hook
+
+extern void gasneti_propagate_env_helper(const char *environ, const char * keyname, int flags) {
+  const int is_prefix = flags & GASNETI_PROPAGATE_ENV_PREFIX;
+  const char *p = environ;
+
+  gasneti_assert(environ);
+  gasneti_assert(keyname && !strchr(keyname,'='));
+
+  int keylen = strlen(keyname);
+  while (*p) {
+    if (!strncmp(keyname, p, keylen) && (is_prefix || p[keylen] == '=')) {
+      gasneti_assert(NULL != strchr(p+keylen, '='));
+      char *var = gasneti_strdup(p);
+      char *val = strchr(var, '=');
+      *(val++) = '\0';
+      if (gasnett_decode_envval_fn) {
+        val = (char *)((*gasnett_decode_envval_fn)(val));
+      }
+      gasnett_setenv(var, val);
+      GASNETI_TRACE_PRINTF(I,("gasneti_propagate_env(%s) => '%s'", var, val));
+      gasneti_free(var);
+      if (!is_prefix) break;
+    }
+    p += strlen(p) + 1;
+  }
+}
+
+extern void gasneti_propagate_env(const char * keyname, int flags) {
+  gasneti_assert(keyname);
+  gasneti_assert(NULL == strchr(keyname, '='));
+
+  // First look for matches in gasneti_globalEnv (if any)
+  if (gasneti_globalEnv) {
+    gasneti_propagate_env_helper(gasneti_globalEnv, keyname, flags);
+  }
+
+  // Next allow conduit-specific getenv (if any) to overwrite
+  if (gasneti_propagate_env_hook) {
+    gasneti_propagate_env_hook(keyname, flags);
+  }
+}
+
+
 /* Process environment for exittimeout.
  * If (GASNET_EXITTIMEOUT is set), it is returned
  * else return = min(GASNET_EXITTIMEOUT_MAX,
@@ -664,6 +1637,57 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
   return result;
 }
 
+// Parse an environment variable as a memory size as follows:
+//  + If parses as double between 0. and 1., multiply by "fraction_of".
+//  + If parses as integer (w/ optional suffix) take as an absolute size.
+// In either case, align down to PAGESIZE and then die if below "minimum".
+extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt, uint64_t minimum, uint64_t fraction_of)
+{
+  const char *str = gasneti_getenv(key);
+  int using_default = (NULL == str);
+  if (using_default) str = dflt;
+
+  double dbl;
+  int64_t val;
+  int is_fraction = 0;
+  if (0 == gasneti_parse_dbl(str, &dbl)) {
+    if ((dbl > 0.) && (dbl < 1.)) {
+      is_fraction = 1;
+      val = dbl * fraction_of;
+    } else {
+      val = dbl;
+    }
+  } else {
+    // Note: default suffix is irrelevant since un-suffixed case was parsed as a double
+    val = gasneti_parse_int(str, 1);
+  }
+  gasneti_envint_display(key, val, using_default, 1);
+
+  // check sign before ALIGNDOWN
+  if (val < 0) {
+    gasneti_fatalerror("%s='%s' is negative.", key, str);
+  }
+
+  // ALIGNDOWN before checking against minimum
+  val = GASNETI_PAGE_ALIGNDOWN(val);
+  GASNETI_TRACE_PRINTF(I, ("%s='%s' yields %"PRId64,
+                           key, str, val));
+
+  if (val < minimum) {
+    const char *parsed_as = is_fraction ? "a fraction" : "an amount";
+    char min_display[16];
+    char val_display[16];
+    gasneti_format_number(minimum, min_display, sizeof(min_display), 1);
+    gasneti_format_number(val,     val_display, sizeof(val_display), 1);
+    gasneti_fatalerror(
+            "Parsing '%s' as %s of memory yields %s of %"PRId64" (%s), "
+            "which is less than the minimum supported value of %s.",
+            str, parsed_as, key, val, val_display, min_display);
+  }
+
+  return (uint64_t) val;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Bits for conduits which want/need to override pthread_create() */
 
@@ -675,7 +1699,11 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
   #endif
 
   int gasneti_pthread_create(gasneti_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
-    GASNETI_TRACE_PRINTF(I, ("gasneti_pthread_create(%p, %p, %p, %p, %p)", create_fn, thread, attr, start_routine, arg));
+    // There is no portable way to printf a pointer-to-function. This way avoids warnings with -pedantic
+    union { void *vp; gasneti_pthread_create_fn_t *cfp; void *(*sfp)(void *); } ucreate, ustart; 
+    ucreate.cfp = create_fn;
+    ustart.sfp = start_routine;
+    GASNETI_TRACE_PRINTF(I, ("gasneti_pthread_create(%p, %p, %p, %p, %p)", ucreate.vp, (void *)thread, (void *)attr, ustart.vp, arg));
     return GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg);
   }
 #endif
@@ -790,9 +1818,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 /* Nodemap handling
  */
 
-gasnet_node_t *gasneti_nodemap = NULL;
-gasneti_nodegrp_t gasneti_myhost = {NULL,0,(gasnet_node_t)(-1),0,(gasnet_node_t)(-1)};
-gasneti_nodegrp_t gasneti_mysupernode = {NULL,0,(gasnet_node_t)(-1),0,(gasnet_node_t)(-1)};
+gex_Rank_t *gasneti_nodemap = NULL;
+gasneti_nodegrp_t gasneti_myhost = {NULL,0,(gex_Rank_t)(-1),0,(gex_Rank_t)(-1)};
+gasneti_nodegrp_t gasneti_mysupernode = {NULL,0,(gex_Rank_t)(-1),0,(gex_Rank_t)(-1)};
 gasnet_nodeinfo_t *gasneti_nodeinfo = NULL;
 
 /* This code is "good" for all "sensible" process layouts, where "good"
@@ -808,7 +1836,7 @@ gasnet_nodeinfo_t *gasneti_nodeinfo = NULL;
  * identify some or all of the potential sharing in such a case.
  */
 static void gasneti_nodemap_helper_linear(const char *ids, size_t sz, size_t stride) {
-  gasnet_node_t i, prev, base;
+  gex_Rank_t i, prev, base;
   const char *p, *base_p, *prev_p;
 
   prev   = base   = gasneti_nodemap[0] = 0;
@@ -845,8 +1873,8 @@ static struct {
   size_t stride;
 } _gasneti_nodemap_sort_aux;
 static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
-  gasnet_node_t key1 = *(const gasnet_node_t *)a;
-  gasnet_node_t key2 = *(const gasnet_node_t *)b;
+  gex_Rank_t key1 = *(const gex_Rank_t *)a;
+  gex_Rank_t key2 = *(const gex_Rank_t *)b;
   const char *val1 = _gasneti_nodemap_sort_aux.ids + key1 * _gasneti_nodemap_sort_aux.stride;
   const char *val2 = _gasneti_nodemap_sort_aux.ids + key2 * _gasneti_nodemap_sort_aux.stride;
   int retval = memcmp(val1, val2, _gasneti_nodemap_sort_aux.sz);
@@ -857,15 +1885,15 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
   return retval;
 }
 static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stride) {
-  gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gex_Rank_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
   const char *prev_id;
-  int i, prev; /* If these are gasnet_node_t then bug 2634 can crash XLC */
+  int i, prev; /* If these are gex_Rank_t then bug 2634 can crash XLC */
 
   _gasneti_nodemap_sort_aux.ids    = ids;
   _gasneti_nodemap_sort_aux.sz     = sz;
   _gasneti_nodemap_sort_aux.stride = stride;
   for (i = 0; i < gasneti_nodes; ++i) work[i] = i;
-  qsort(work, gasneti_nodes, sizeof(gasnet_node_t), &_gasneti_nodemap_sort_fn);
+  qsort(work, gasneti_nodes, sizeof(gex_Rank_t), &_gasneti_nodemap_sort_fn);
 
   prev = work[0];
   gasneti_nodemap[prev] = prev;
@@ -905,7 +1933,7 @@ static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
  * or when no exchangefn is available to disseminate them.
  */
 void gasneti_nodemap_trivial(void) {
-  gasnet_node_t i;
+  gex_Rank_t i;
   for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
 }
 
@@ -1047,15 +2075,15 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  * TODO: keep widths around for conduits to use? (ibv and gemini both use)
  */
 extern void gasneti_nodemapParse(void) {
-  gasnet_node_t i,j,limit;
-  gasnet_node_t initial,final;
+  gex_Rank_t i,j,limit;
+  gex_Rank_t initial,final;
 
   struct { /* TODO: alloca? */
-    gasnet_node_t width;
-    gasnet_node_t h_lead;
-    gasnet_node_t sn_lead;
-    gasnet_node_t host;
-    gasnet_node_t supernode;
+    gex_Rank_t width;
+    gex_Rank_t h_lead;
+    gex_Rank_t sn_lead;
+    gex_Rank_t host;
+    gex_Rank_t supernode;
   } *s = gasneti_calloc(gasneti_nodes, sizeof(*s));
 
   gasneti_assert(gasneti_nodemap);
@@ -1105,9 +2133,9 @@ extern void gasneti_nodemapParse(void) {
    */
   initial = gasneti_nodemap[gasneti_mynode];
   for (i = 0; i < gasneti_nodes; ++i) {
-    const gasnet_node_t n = gasneti_nodemap[i];
-    const gasnet_node_t width = s[n].width++;
-    const gasnet_node_t lrank = width % limit;
+    const gex_Rank_t n = gasneti_nodemap[i];
+    const gex_Rank_t width = s[n].width++;
+    const gex_Rank_t lrank = width % limit;
     if (!width) { /* First node on host */
       s[n].host = gasneti_myhost.grp_count++;
     }
@@ -1132,7 +2160,7 @@ extern void gasneti_nodemapParse(void) {
 
   /* Second pass: Construct arrays of local nodes */
   gasneti_assert(gasneti_myhost.node_count >= gasneti_mysupernode.node_count);
-  gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gasnet_node_t));
+  gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gex_Rank_t));
   for (i = initial, j = 0; j < gasneti_myhost.node_count; ++i) {
     gasneti_assert(i < gasneti_nodes);
     if (s[i].h_lead == initial) {
@@ -1187,7 +2215,7 @@ extern void gasneti_nodemapParse(void) {
  */
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride) {
-  gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
 
   if (ids) {
     /* Case 1: conduit-provided vector of IDs */
@@ -1263,78 +2291,103 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
 #endif /* gasneti_getline */
 
 /* ------------------------------------------------------------------------------------ */
-/* Debug memory management
-   debug memory format:
-  | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |
-                                             ptr returned by malloc ^
- */
-#if GASNET_DEBUGMALLOC
-  /* READ BEFORE MODIFYING gasneti_memalloc_desc_t:
-   *
-   * malloc() is specified as returning memory "suitably aligned for any kind of variable".
-   * We don't know a priori what that alignment is, but we MUST preserve it in
-   * this debugging malloc implementation if we are to meet that same requirement.
-   * The current length of gasneti_memalloc_desc_t is:
-   *     ILP32: 32 bytes (4+4+4+4+8+8)
-   *   [I]LP64: 48 bytes (8+8+8+8+8+8)
-   * This means that any alignment up to 16-bytes will be preserved.  That is ideal
-   * since 16 is the strictest alignment requirement (long double on some platforms)
-   * that we have encountered in practice.
-   *
-   * If you change this structure, you MUST add padding to maintain the length
-   * at a multiple of 16-bytes AND please update the lengths above.
-   *
-   * NOTE: If the malloc() returns less than 16-byte alignment, then
-   * it is not our responsibility to create it where it did not exists.
-   * Any GASNet code needing larger alignment than 4- or 8-bytes should
-   * probably be using gasneti_{malloc,free}_aligned() (or gasnett_*).
-   */
-  typedef struct gasneti_memalloc_desc {  
-    struct gasneti_memalloc_desc * volatile prevdesc;
-    struct gasneti_memalloc_desc * volatile nextdesc;
-    const char *allocdesc_str; /* a file name, or file name:linenum */
-    uintptr_t   allocdesc_num; /* a line number, or zero for none */
-    uint64_t datasz;
-    uint64_t beginpost;
-  } gasneti_memalloc_desc_t;
-  static uint64_t gasneti_memalloc_allocatedbytes = 0;   /* num bytes ever allocated */
-  static uint64_t gasneti_memalloc_freedbytes = 0;       /* num bytes ever freed */
-  static uint64_t gasneti_memalloc_allocatedobjects = 0; /* num objects ever allocated */
-  static uint64_t gasneti_memalloc_freedobjects = 0;     /* num objects ever freed */
-  static uint64_t gasneti_memalloc_ringobjects = 0;      /* num objects in the ring */
-  static uint64_t gasneti_memalloc_ringbytes = 0;        /* num bytes in the ring */
-  static size_t   gasneti_memalloc_maxobjectsize = 0;    /* max object size ever allocated */
-  static uintptr_t gasneti_memalloc_maxobjectloc = 0;    /* max address ever allocated */
-  static uint64_t gasneti_memalloc_maxlivebytes = 0;     /* max num bytes live at any given time */
-  static uint64_t gasneti_memalloc_maxliveobjects = 0;   /* max num bytes live at any given time */
-  static int gasneti_memalloc_extracheck = 0;
-  static int gasneti_memalloc_init = -1;
-  static uint64_t gasneti_memalloc_initval = 0;
-  static int gasneti_memalloc_clobber = -1;
-  static uint64_t gasneti_memalloc_clobberval = 0;
-  static int gasneti_memalloc_leakall = -1;
-  static int gasneti_memalloc_scanfreed = -1;
-  static int gasneti_memalloc_envisinit = 0;
-  static gasneti_mutex_t gasneti_memalloc_lock = GASNETI_MUTEX_INITIALIZER;
-  static gasneti_memalloc_desc_t *gasneti_memalloc_pos = NULL;
-  #define GASNETI_MEM_BEGINPOST   ((uint64_t)0xDEADBABEDEADBABEllu)
-  #define GASNETI_MEM_LEAKMARK    ((uint64_t)0xBABEDEADCAFEBEEFllu)
-  #define GASNETI_MEM_ENDPOST     ((uint64_t)0xCAFEDEEDCAFEDEEDllu)
-  #define GASNETI_MEM_FREEMARK    ((uint64_t)0xBEEFEFADBEEFEFADllu)
-  #define GASNETI_MEM_HEADERSZ    (sizeof(gasneti_memalloc_desc_t))
-  #define GASNETI_MEM_TAILSZ      8     
-  #define GASNETI_MEM_EXTRASZ     (GASNETI_MEM_HEADERSZ+GASNETI_MEM_TAILSZ)     
-  #define GASNETI_MEM_MALLOCALIGN 4
-  #define gasneti_looksaligned(p) (!(((uintptr_t)(p)) & (GASNETI_MEM_MALLOCALIGN-1)))
+// Internal conduit interface to spawner
 
+#if HAVE_SSH_SPAWNER
+  extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_ssh(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode);
+#endif
+#if HAVE_MPI_SPAWNER
+  extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode);
+#endif
+#if HAVE_PMI_SPAWNER
+  extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_pmi(int *argc, char ***argv, gex_Rank_t *nodes, gex_Rank_t *mynode);
+#endif
+
+extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,
+                                  const char *force_spawner,
+                                  gex_Rank_t *nodes_p, gex_Rank_t *mynode_p) {
+  gasneti_spawnerfn_t const *res = NULL;
+  const char *not_set = "(not set)";
+  const char *spawner;
+  char *tmp = NULL;
+  if (force_spawner) spawner = force_spawner;
+  else { 
+    // Purposely hide this variable from verbose output, since it's only for use as an internal hand-off
+    // from gasnetrun scripts. End users should set GASNET_<conduit>_SPAWNER
+    spawner = gasneti_getenv("GASNET_SPAWN_CONTROL");
+    if (!spawner) spawner = not_set;
+  }
+
+  if (spawner != not_set) { // upper-case
+    tmp = gasneti_strdup(spawner);
+    for (char *p = tmp; *p; p++) *p = toupper(*p);
+    spawner = tmp;
+  }
+
+#if HAVE_MPI_SPAWNER
+  /* bug 3406: Try MPI-based spawn first, EVEN if the var is not set.
+   * This is a requirement for spawning using bare mpirun
+   */
+  if (!res && (spawner == not_set || !strcmp(spawner, "MPI"))) {
+    res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
+  }
+#endif
+
+#if HAVE_SSH_SPAWNER
+  /* GASNET_SPAWN_CONTROL=ssh is set by gasnetrun for the ssh spawn master,
+   * and by the ssh command line for other processes (ie all normal uses).
+   * We no longer claim to support ssh-based launch without gasnetrun.
+   * TODO: should we remove the "spawner == not_set" case?
+   */
+  if (!res && (spawner == not_set || !strcmp(spawner, "SSH"))) {
+    res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p);
+  }
+#endif
+
+#if HAVE_PMI_SPAWNER
+  /* GASNET_SPAWN_CONTROL=pmi is set by gasnetrun for the pmi spawn case.
+   * We no longer claim to support direct launch with srun, yod, etc.
+   * TODO: should we remove the "spawner == not_set" case?
+   */
+  if (!res && (spawner == not_set || !strcmp(spawner, "PMI"))) {
+    res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p);
+  }
+#endif
+
+  if (!res) {
+    gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
+  }
+
+  gasneti_free(tmp);
+
+  return res;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* G2EX (legacy GASNet-1 compatibility) support: */
+// TODO-EX: relocate to a distinct gasnet_legacy.c?
+
+#undef gasneti_thunk_client
+gex_Client_t      gasneti_thunk_client   = NULL;
+#undef gasneti_thunk_endpoint
+gex_EP_t          gasneti_thunk_endpoint = NULL;
+#undef gasneti_thunk_tm
+gex_TM_t          gasneti_thunk_tm       = NULL;
+#undef gasneti_thunk_segment
+gex_Segment_t     gasneti_thunk_segment  = NULL;
+
+/* ------------------------------------------------------------------------------------ */
+/* Buffer management
+ */
+#if GASNET_DEBUGMALLOC || GASNET_DEBUG
   static uint64_t gasneti_memalloc_envint(const char *name, const char *deflt) {
     /* Signaling NaN: any bit pattern between 0x7ff0000000000001 and 0x7ff7ffffffffffff  
                    or any bit pattern between 0xfff0000000000001 and 0xfff7ffffffffffff
        Quiet NaN: any bit pattern between 0x7ff8000000000000 and 0x7fffffffffffffff 
                or any bit pattern between 0xfff8000000000000 and 0xffffffffffffffff
     */
-    uint64_t sNAN = 0x7ff7ffffffffffffllu; 
-    uint64_t qNAN = 0x7fffffffffffffffllu;
+    uint64_t sNAN = ((uint64_t)0x7ff7ffffffffffffULL); 
+    uint64_t qNAN = ((uint64_t)0x7fffffffffffffffULL);
     uint64_t val = 0;
     const char *envval = gasneti_getenv_withdefault(name, deflt);
     const char *p = envval;
@@ -1392,6 +2445,71 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     }
     return NULL;
   }
+#endif
+#if GASNET_DEBUGMALLOC
+/* ------------------------------------------------------------------------------------ */
+/* Debug memory management
+   debug memory format:
+  | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |
+                                             ptr returned by malloc ^
+ */
+  /* READ BEFORE MODIFYING gasneti_memalloc_desc_t:
+   *
+   * malloc() is specified as returning memory "suitably aligned for any kind of variable".
+   * We don't know a priori what that alignment is, but we MUST preserve it in
+   * this debugging malloc implementation if we are to meet that same requirement.
+   * The current length of gasneti_memalloc_desc_t is:
+   *     ILP32: 32 bytes (4+4+4+4+8+8)
+   *   [I]LP64: 48 bytes (8+8+8+8+8+8)
+   * This means that any alignment up to 16-bytes will be preserved.  That is ideal
+   * since 16 is the strictest alignment requirement (long double on some platforms)
+   * that we have encountered in practice.
+   *
+   * If you change this structure, you MUST add padding to maintain the length
+   * at a multiple of 16-bytes AND please update the lengths above.
+   *
+   * NOTE: If the malloc() returns less than 16-byte alignment, then
+   * it is not our responsibility to create it where it did not exists.
+   * Any GASNet code needing larger alignment than 4- or 8-bytes should
+   * probably be using gasneti_{malloc,free}_aligned() (or gasnett_*).
+   */
+  typedef struct gasneti_memalloc_desc {  
+    struct gasneti_memalloc_desc * volatile prevdesc;
+    struct gasneti_memalloc_desc * volatile nextdesc;
+    const char *allocdesc_str; /* a file name, or file name:linenum */
+    uintptr_t   allocdesc_num; /* a line number, or zero for none */
+    uint64_t datasz;
+    uint64_t beginpost;
+  } gasneti_memalloc_desc_t;
+  static uint64_t gasneti_memalloc_allocatedbytes = 0;   /* num bytes ever allocated */
+  static uint64_t gasneti_memalloc_freedbytes = 0;       /* num bytes ever freed */
+  static uint64_t gasneti_memalloc_allocatedobjects = 0; /* num objects ever allocated */
+  static uint64_t gasneti_memalloc_freedobjects = 0;     /* num objects ever freed */
+  static uint64_t gasneti_memalloc_ringobjects = 0;      /* num objects in the ring */
+  static uint64_t gasneti_memalloc_ringbytes = 0;        /* num bytes in the ring */
+  static size_t   gasneti_memalloc_maxobjectsize = 0;    /* max object size ever allocated */
+  static uintptr_t gasneti_memalloc_maxobjectloc = 0;    /* max address ever allocated */
+  static uint64_t gasneti_memalloc_maxlivebytes = 0;     /* max num bytes live at any given time */
+  static uint64_t gasneti_memalloc_maxliveobjects = 0;   /* max num bytes live at any given time */
+  static int gasneti_memalloc_extracheck = 0;
+  static int gasneti_memalloc_init = -1;
+  static uint64_t gasneti_memalloc_initval = 0;
+  static int gasneti_memalloc_clobber = -1;
+  static uint64_t gasneti_memalloc_clobberval = 0;
+  static int gasneti_memalloc_leakall = -1;
+  static int gasneti_memalloc_scanfreed = -1;
+  static int gasneti_memalloc_envisinit = 0;
+  static gasneti_mutex_t gasneti_memalloc_lock = GASNETI_MUTEX_INITIALIZER;
+  static gasneti_memalloc_desc_t *gasneti_memalloc_pos = NULL;
+  #define GASNETI_MEM_BEGINPOST   ((uint64_t)0xDEADBABEDEADBABEULL)
+  #define GASNETI_MEM_LEAKMARK    ((uint64_t)0xBABEDEADCAFEBEEFULL)
+  #define GASNETI_MEM_ENDPOST     ((uint64_t)0xCAFEDEEDCAFEDEEDULL)
+  #define GASNETI_MEM_FREEMARK    ((uint64_t)0xBEEFEFADBEEFEFADULL)
+  #define GASNETI_MEM_HEADERSZ    (sizeof(gasneti_memalloc_desc_t))
+  #define GASNETI_MEM_TAILSZ      8     
+  #define GASNETI_MEM_EXTRASZ     (GASNETI_MEM_HEADERSZ+GASNETI_MEM_TAILSZ)     
+  #define GASNETI_MEM_MALLOCALIGN 4
+  #define gasneti_looksaligned(p) (!(((uintptr_t)(p)) & (GASNETI_MEM_MALLOCALIGN-1)))
 
   GASNETI_INLINE(gasneti_memalloc_envinit)
   void gasneti_memalloc_envinit(void) {
@@ -1449,18 +2567,15 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
   extern void _gasneti_memcheck_one(const char *curloc) {
     if (gasneti_memalloc_extracheck) _gasneti_memcheck_all(curloc);
     else {
-      if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
       gasneti_mutex_lock(&gasneti_memalloc_lock);
         if (gasneti_memalloc_pos) {
           _gasneti_memcheck(gasneti_memalloc_pos+1, curloc, 2);
           gasneti_memalloc_pos = gasneti_memalloc_pos->nextdesc;
         } else gasneti_assert_always(gasneti_memalloc_ringobjects == 0 && gasneti_memalloc_ringbytes == 0);
       gasneti_mutex_unlock(&gasneti_memalloc_lock);
-      if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     }
   }
   extern void _gasneti_memcheck_all(const char *curloc) {
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     gasneti_mutex_lock(&gasneti_memalloc_lock);
       if (gasneti_memalloc_pos) {
         gasneti_memalloc_desc_t *begin = gasneti_memalloc_pos;
@@ -1479,7 +2594,6 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
         }
       } else gasneti_assert_always(gasneti_memalloc_ringobjects == 0 && gasneti_memalloc_ringbytes == 0);
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
   /* assert the integrity of given memory block and return size of the user object 
@@ -1533,7 +2647,7 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_attach_done && gasneti_in_fullsegment(gasneti_mynode,ptr,1))
+        if (gasneti_attach_done && gasneti_in_segment(NULL/*tm*/,gasneti_mynode,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif
@@ -1596,9 +2710,7 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     gasneti_memalloc_envinit();
     _gasneti_memcheck_one(curloc);
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     if_pf (nbytes == 0) {
-      if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
       return NULL;
     }
     ret = malloc(nbytes+GASNETI_MEM_EXTRASZ);
@@ -1606,15 +2718,14 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     if_pf (ret == NULL) {
       char curlocstr[GASNETI_MAX_LOCSZ];
       if (allowfail) {
-        if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
-        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%lu): %s",
-                                (unsigned long)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
+        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%"PRIuPTR"): %s",
+                                (uintptr_t)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
         return NULL;
       }
-      gasneti_fatalerror("Debug malloc(%lu) failed (%lu bytes in use, in %lu objects): %s", 
-                     (unsigned long)nbytes, 
-                     (unsigned long)(gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
-                     (unsigned long)(gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
+      gasneti_fatalerror("Debug malloc(%"PRIuPTR") failed (%"PRIu64" bytes in use, in %"PRIu64" objects): %s", 
+                     (uintptr_t)nbytes, 
+                     (gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
+                     (gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
                      _gasneti_format_curloc(curlocstr,curloc));
     } else {
       uint64_t gasneti_endpost_ref = GASNETI_MEM_ENDPOST;
@@ -1660,7 +2771,6 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
       ret = desc+1;
       if (gasneti_memalloc_init > 0) gasneti_memalloc_valset(ret, nbytes, gasneti_memalloc_initval);
     }
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     _gasneti_memcheck(ret,curloc,0);
     return ret;
   }
@@ -1677,7 +2787,6 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     gasneti_memalloc_envinit();
     _gasneti_memcheck_one(curloc);
     if_pf (ptr == NULL) return;
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     nbytes = _gasneti_memcheck(ptr, curloc, 1);
     GASNETI_STAT_EVENT_VAL(I, GASNET_FREE, nbytes);
     desc = ((gasneti_memalloc_desc_t *)ptr) - 1;
@@ -1702,7 +2811,6 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
 
     if (gasneti_memalloc_leakall <= 0) free(desc);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
   extern void *_gasneti_calloc(size_t N, size_t S, const char *curloc) {
@@ -1729,13 +2837,11 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
   extern void _gasneti_leak(void *ptr, const char *curloc) {
     gasneti_memalloc_desc_t *desc;
     if_pf (ptr == NULL) return;
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     _gasneti_memcheck(ptr, curloc, 0);
     desc = ((gasneti_memalloc_desc_t *)ptr) - 1;
     gasneti_mutex_lock(&gasneti_memalloc_lock);
       desc->beginpost = GASNETI_MEM_LEAKMARK;
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
   extern int gasneti_getheapstats(gasneti_heapstats_t *pstat) {
@@ -1753,7 +2859,6 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
   }
 
   extern void gasneti_malloc_dump_liveobjects(FILE *fp) {
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     gasneti_mutex_lock(&gasneti_memalloc_lock);
       if (gasneti_memalloc_pos) {
         gasneti_memalloc_desc_t *pos = gasneti_memalloc_pos;
@@ -1778,7 +2883,6 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
         } 
       } 
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
 #endif
@@ -1806,15 +2910,31 @@ extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG)
 }
 
 #if GASNET_DEBUGMALLOC
-  extern void *(*gasnett_debug_malloc_fn)(size_t sz GASNETI_CURLOCFARG);
-  extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S GASNETI_CURLOCFARG);
-  extern void (*gasnett_debug_free_fn)(void *ptr GASNETI_CURLOCFARG);
-  void *(*gasnett_debug_malloc_fn)(size_t sz GASNETI_CURLOCFARG) =
+  extern void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc);
+  extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
+  extern void *(*gasnett_debug_realloc_fn)(void *ptr, size_t sz, const char *curloc);
+  extern void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
+  void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc) =
          &_gasneti_extern_malloc;
-  void *(*gasnett_debug_calloc_fn)(size_t N, size_t S GASNETI_CURLOCFARG) =
+  void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc) =
          &_gasneti_extern_calloc;
-  void (*gasnett_debug_free_fn)(void *ptr GASNETI_CURLOCFARG) =
+  void *(*gasnett_debug_realloc_fn)(void *ptr, size_t sz, const char *curloc) =
+        &_gasneti_extern_realloc;
+  void (*gasnett_debug_free_fn)(void *ptr, const char *curloc) =
          &_gasneti_extern_free;
+  /* these only exist with debug malloc */
+  extern void (*gasnett_debug_memcheck_fn)(void *ptr, const char *curloc);
+  extern void (*gasnett_debug_memcheck_one_fn)(const char *curloc);
+  extern void (*gasnett_debug_memcheck_all_fn)(const char *curloc);
+  extern void _gasneti_extern_memcheck(void *ptr, const char *curloc) {
+    _gasneti_memcheck(ptr, curloc, 0);
+  }
+  void (*gasnett_debug_memcheck_fn)(void *ptr, const char *curloc) = 
+        &_gasneti_extern_memcheck;
+  void (*gasnett_debug_memcheck_one_fn)(const char *curloc) = 
+        &_gasneti_memcheck_one;
+  void (*gasnett_debug_memcheck_all_fn)(const char *curloc) =
+        &_gasneti_memcheck_all;
 #endif
 
 /* don't put anything here - malloc stuff must come last */

@@ -4,14 +4,12 @@
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNET_H
-  #error This file is not meant to be included directly- clients should include gasnet.h
+#ifndef _IN_GASNETEX_H
+  #error This file is not meant to be included directly- clients should include gasnetex.h
 #endif
 
 #ifndef _GASNET_VIS_FWD_H
 #define _GASNET_VIS_FWD_H
-
-GASNETI_BEGIN_EXTERNC
 
 extern void gasnete_vis_init(void);
 
@@ -70,7 +68,5 @@ extern void gasneti_vis_progressfn(void);
         CNT(C, GETS_REF_INDEXED, cnt)        \
 
 #endif
-
-GASNETI_END_EXTERNC
 
 #endif
