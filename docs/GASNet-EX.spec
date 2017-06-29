@@ -73,7 +73,7 @@
 // Events are a generalization of GASNet-1 handles, in that 
 // a single non-blocking operation may expose several events
 // associated with its progress (eg local and remote completion).
-// Initiation of a handle-based non-blocking operation will
+// Initiation of a event-based (NB-suffix) non-blocking operation will
 // usually generate one root event (representing the completion
 // of the entire operation), and zero or more leaf events 
 // (representing completion of intermediate steps).
@@ -230,7 +230,7 @@ typedef ... gex_Segment_t;
 // gex_TM_t is an opaque scalar handle to a Team Member,
 // a collective communication context used for remote endpoint naming.
 // A gex_TM_t specifies both an ordered set of Endpoints (local or remote),
-// and a local gex_Endpoint_t, a local representative of that team.
+// and a local gex_EP_t, a local representative of that team.
 typedef ... gex_TM_t;
 
 //
@@ -304,7 +304,7 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 // Collective allocation and creation of Segments
 // Analogous to gasnet_attach
 // Must be called collectively over tm.
-// In the current release allows up to one call per process.
+// The current release allows up to one call per process.
 // * length is the size of the local segment to allocate and bind to the
 //   local Endpoint represented by tm. length is permitted to differ 
 //   across team members, and must be in [0 .. gasnet_getMaxLocalSegmentSize()].
@@ -341,7 +341,7 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 // Query owning client
 gex_Client_t  gex_EP_QueryClient(gex_EP_t ep);
 
-// Query flag passed when ep was created
+// Query flags passed when ep was created
 gex_Flags_t   gex_EP_QueryFlags(gex_EP_t ep);
 
 // Query the bound segment
@@ -355,11 +355,12 @@ extern int gex_EP_Create(
                 gex_Flags_t             flags);
 
 // Minimum permitted fixed index for AM handler registration.
-// Guaranteed to be 128 or less.
+// Applies to both gasnet_attach() and gex_EP_RegisterHandlers().
+// An integer constant, guaranteed to be 128 or less.
 #define GEX_AM_INDEX_BASE ???
 
 // Client-facing type for describing one AM handler
-// This type replaces (is *not* interchangeable with) gasnet_handlerentry_t
+// This type an alternative to (is *not* interchangeable with) gasnet_handlerentry_t
 //
 // gex_index may either be in the range [GEX_AM_INDEX_BASE .. 255] to register
 // at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
@@ -368,7 +369,7 @@ typedef struct {
     gex_AM_Index_t          gex_index;     // 0 or in [GEX_AM_INDEX_BASE .. 255]
     gex_AM_Fn_t             gex_fnptr      // Pointer to the handler on this process
     gex_Flags_t             gex_flags;     // Incl. required S/M/L and REQ/REP, see below
-    unsigned int            gex_nargs;     // Required
+    unsigned int            gex_nargs;     // Required in [0 .. gex_AM_MaxArgs()]
 
     // Optional fields (both are "shallow copy")
     const void             *gex_cdata;     // Available to handler
@@ -378,7 +379,7 @@ typedef struct {
 // Required flags for gex_flags field when registering AM handlers.
 //
 // When registering AM handlers, the gex_flags field of each
-// gex_AM_Entry_t must indicate how the handler will be called.
+// gex_AM_Entry_t must indicate how the handler may be called.
 // This requires ORing one constant from each of the following
 // two groups.
 
@@ -553,7 +554,7 @@ extern gex_TI_t gex_Token_Info(
 // NOTE 0: Prototypes in this section are "patterns"
 //
 //   These API instantiate the "[M]" at the end of each prototype with
-//   the integers 0 through gex_AM_MaxArgs().
+//   the integers 0 through gex_AM_MaxArgs(), inclusive.
 //   The '[,arg0, ... ,argM-1]' then represent the arguments
 //   (each of type gex_AM_Arg_t).
 // 
@@ -595,7 +596,7 @@ extern gex_TI_t gex_Token_Info(
 //   [TBD: we *could* allow handlers to make bounded calls to "test", which
 //   does not Poll, if we wanted to.]
 //
-// Other arguments are as in the analogous GASNet-1 functions.
+// Other arguments behave as in the analogous GASNet-1 functions.
 
 // Long
 int gex_AM_RequestLong[M](
@@ -851,7 +852,7 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
 //
 // NOTE: Prototypes in this section are "patterns"
 //   These API instantiate the "[M]" at the end of each prototype with
-//   the integers 0 through gex_AM_MaxArgs().
+//   the integers 0 through gex_AM_MaxArgs(), inclusive.
 //   The '[,arg0, ... ,argM-1]' then represent the arguments
 //   (each of type gex_AM_Arg_t).
 //
@@ -916,8 +917,8 @@ extern void gex_AM_CommitReplyLong[M](
 //   An Extended API initiation call is a "no op" IF AND ONLY IF the value
 //   GEX_FLAG_IMMEDIATE is included in the 'flags' argument AND the
 //   conduit could determine that it would need to block temporarily to
-//   obtain the necessary resources.  The blocking and nbi calls return a
-//   non-zero value *only* in the "no op" case, while the nb calls return
+//   obtain the necessary resources.  The blocking and NBI calls return a
+//   non-zero value *only* in the "no op" case, while the NB calls return
 //   GEX_EVENT_NO_OP.
 //
 //   In the "no op" case no communication has been performed and the
@@ -933,7 +934,7 @@ extern void gex_AM_CommitReplyLong[M](
 //   return until the operation is locally complete.  The DEFER constant
 //   permits the call to return without delaying for local completion,
 //   which may occur as late as in the call which syncs (retires) the
-//   operation (could be an explicit-event call if using an nbi access
+//   operation (could be an explicit-event call if using an NBI access
 //   region).  The GROUP constant allows the call to return without
 //   delaying for local completion and adds the operation to the set for
 //   which gex_NBI_{Test,Wait}() call may check local completion when
@@ -1053,6 +1054,8 @@ void gex_Event_Wait (gex_Event_t event);
 // Success is defined as one or more events have been completed, OR
 // the input array contains only GEX_EVENT_INVALID (which are otherwise ignored).
 // Completed events, if any, are overwritten with GEX_EVENT_INVALID.
+// These are the same semantics as gasnet_{try,wait}_syncnb_some(),
+// except that "Test" does not AMPoll as "try" does.
 // flags are reserved for future use and must currently be zero.
 int  gex_Event_TestSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 void gex_Event_WaitSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
@@ -1061,6 +1064,8 @@ void gex_Event_WaitSome (gex_Event_t *pevent, size_t numevents, gex_Flags_t flag
 // Success is defined as all passed events have been completed, OR
 // the input array contains only GEX_EVENT_INVALID (which are otherwise ignored).
 // Completed events, if any, are overwritten with GEX_EVENT_INVALID.
+// These are the same semantics as gasnet_{try,wait}_syncnb_all(),
+// except that "Test" does not AMPoll as "try" does.
 // flags are reserved for future use and must currently be zero.
 int  gex_Event_TestAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
 void gex_Event_WaitAll (gex_Event_t *pevent, size_t numevents, gex_Flags_t flags);
