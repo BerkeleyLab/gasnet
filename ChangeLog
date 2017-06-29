@@ -5,8 +5,8 @@ GASNet-EX ChangeLog
 
 * Initial BETA release of the GASNet-EX system.
   This archive represents a lightly-tested snapshot of a work-in-progress.
-  Many planned features remain to be specified and/or implemented.
-  All interfaces and implementations are subject to change without notice.
+  Many additional new features are coming soon, and are not yet reflected in this
+  archive. All new interfaces are subject to change without notice.
 
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov

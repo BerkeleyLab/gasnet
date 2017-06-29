@@ -3,8 +3,8 @@
 
               *** GASNet-EX Software Preview ***
 
-GASNet-EX is the next-generation replacement for the GASNet-1 communication
-system. The GASNet interfaces are being redesigned to accommodate the emerging
+GASNet-EX is the next generation of the GASNet-1 communication system. 
+The GASNet interfaces are being redesigned to accommodate the emerging
 needs of Exascale supercomputing, providing communication services to a
 variety of PGAS programming models on current and future HPC architectures.
 This upgrade is being done over the next several years as part of the DOE
