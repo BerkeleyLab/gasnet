@@ -360,7 +360,7 @@ extern int gex_EP_Create(
 #define GEX_AM_INDEX_BASE ???
 
 // Client-facing type for describing one AM handler
-// This type an alternative to (is *not* interchangeable with) gasnet_handlerentry_t
+// This type is an alternative to (*not* interchangeable with) gasnet_handlerentry_t
 //
 // gex_index may either be in the range [GEX_AM_INDEX_BASE .. 255] to register
 // at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
