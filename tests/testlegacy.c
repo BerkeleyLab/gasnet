@@ -330,6 +330,22 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBRequestLong() == gasnet_AMMaxLongRequest());
   assert_always(gex_AM_LUBReplyLong() == gasnet_AMMaxLongReply());
 
+  // GEX objects
+  { gex_Client_t  client;
+    gex_EP_t      endpoint;
+    gex_TM_t      tm;
+    gex_Segment_t segment;
+    gasnet_QueryGexObjects(&client, &endpoint, &tm, &segment);
+    assert_always(gex_EP_QueryClient(endpoint) == client);
+    assert_always(gex_TM_QueryClient(tm) == client);
+    assert_always(gex_TM_QueryEP(tm) == endpoint);
+  #if !GASNET_SEGMENT_EVERYTHING
+    assert_always(gex_Segment_QueryClient(segment) == client);
+    assert_always(gex_Segment_QueryAddr(segment) == TEST_MYSEG());
+    assert_always(gex_Segment_QuerySize(segment) >= TEST_SEGSZ_REQUEST);
+  #endif
+  }
+
   MSG("*** passed object test!!");
 
 #ifndef TESTGASNET_NO_SPLIT
