@@ -1600,31 +1600,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   }
   #endif
 
-  /* early registration of core API handlers */
-  gasneti_amtbl_init(gasnetc_handler);
-  {
-    gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(ctable);
-    while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    gasneti_assert(numreg == len);
-  }
-  #if !GASNETC_PIN_SEGMENT
-  {
-    gex_AM_Entry_t *ftable = firehose_get_handlertable();
-    int len = 0;
-    int numreg = 0;
-    gasneti_assert(ftable);
-    while (ftable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, ftable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 1, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
-    gasneti_assert(numreg == len);
-  }
-  #endif
-
   /* transpose remote lids into port_tbl */
 #if GASNET_PSHM
   {
@@ -1651,6 +1626,18 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   }
 #endif
   gasneti_free(remote_lid);
+
+  /*  PRE-register two AM handlers we need for bootstrap collectives */
+  { gex_AM_Entry_t early_handlers[] = {
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,REQUEST,SHORT,0),
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,REQUEST,MEDIUM,0),
+    };
+    int len = sizeof(early_handlers) / sizeof(gex_AM_Entry_t);
+    int numreg = 0;
+    if (gasneti_amregister(gasnetc_handler, early_handlers, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+      gasneti_fatalerror("Error registering bootstrap AM handlers");
+    gasneti_assert(numreg == len);
+  }
 
 #if GASNETC_IBV_XRC
   /* allocate/initialize XRC resources, if any */
@@ -2237,8 +2224,8 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   *ep_p = gasneti_export_ep(ep);
 
   // Operate on global data until we have a real implementation of endpoints
-#if 0 /* Was done early in gasnetc_init() */
-  gasneti_aminittbl(gasnetc_handler);
+
+  gasneti_amtbl_init(gasnetc_handler);
 
   { /*  core API handlers */
     gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
@@ -2250,7 +2237,19 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
-#endif
+
+  #if !GASNETC_PIN_SEGMENT
+  { /*  firehose handlers */
+    gex_AM_Entry_t *ftable = firehose_get_handlertable();
+    int len = 0;
+    int numreg = 0;
+    gasneti_assert(ftable);
+    while (ftable[len].gex_fnptr) len++; /* calc len */
+    if (gasneti_amregister(gasnetc_handler, ftable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 1, &numreg) != GASNET_OK)
+      GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
+    gasneti_assert(numreg == len);
+  }
+  #endif
 
   { /*  extended API handlers */
     gex_AM_Entry_t *etable = (gex_AM_Entry_t *)gasnete_get_handlertable();
