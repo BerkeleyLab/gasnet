@@ -515,6 +515,7 @@ extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
 /* ------------------------------------------------------------------------------------ */
 
 #ifndef _GEX_CLIENT_T
+// TODO-EX: either ensure name is unique OR perform "auto-increment" according to flags
 gasneti_Client_t gasneti_alloc_client(
                        const char *name,
                        gex_Flags_t flags)
@@ -543,6 +544,7 @@ void gasneti_free_client(gasneti_Client_t client)
 
 
 #ifndef _GEX_SEGMENT_T
+// TODO-EX: probably need to add to a per-client container of some sort
 gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
@@ -575,6 +577,7 @@ void gasneti_free_segment(gasneti_Segment_t segment)
 
 
 #ifndef _GEX_EP_T
+// TODO-EX: probably need to add to a per-client container of some sort
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
                        gex_Flags_t flags)
@@ -603,6 +606,7 @@ void gasneti_free_ep(gasneti_EP_t endpoint)
 
 
 #ifndef _GEX_TM_T
+// TODO-EX: probably need to add to a per-client container of some sort
 extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
