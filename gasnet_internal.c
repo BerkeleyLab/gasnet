@@ -415,8 +415,14 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
 extern int gasneti_amregister_client(
                         gex_AM_Entry_t *output,
                         gex_AM_Entry_t *input,
-                        int numentries)
+                        size_t numentries)
 {
+  if_pf (numentries == 0) return GASNET_OK;
+  if_pf (numentries > GASNETC_MAX_NUMHANDLERS - GEX_AM_INDEX_BASE) 
+      GASNETI_RETURN_ERRR(BAD_ARG,"Tried to register too many handlers");
+  if_pf (input == NULL)
+      GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table");
+
   /*  first pass - assign all fixed-index handlers */
   int numreg1 = 0;
   if (gasneti_amregister(output, input, numentries,
@@ -443,6 +449,15 @@ extern int gasneti_amregister_client(
 // TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
 extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
                                       gasnet_handlerentry_t *table, int numentries) {
+
+  if_pf (numentries == 0) return GASNET_OK;
+  if_pf (numentries > GASNETC_MAX_NUMHANDLERS - GEX_AM_INDEX_BASE) 
+      GASNETI_RETURN_ERRR(BAD_ARG,"Tried to register too many handlers");
+  if_pf (numentries < 0) 
+      GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table size");
+  if_pf (table == NULL)
+      GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table");
+
   /* create temporary ex-compatible table */
   gex_AM_Entry_t *extable = gasneti_calloc(numentries, sizeof(gex_AM_Entry_t));
   for (int i = 0; i < numentries; ++i) {
