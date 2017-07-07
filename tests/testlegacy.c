@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
                               TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 #endif
 
-  test_init("testgasnet",0,"");
+  test_init("testlegacy",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
   /* Legacy expansion of TEST_PRINT_CONDUITINFO(): */
