@@ -454,7 +454,7 @@ typedef union {
   #if GASNET_CONDUIT_SMP
     #define GASNETI_SUPERNODE_LOCAL(node)    (1)
   #else 
-    #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasnet_mynode()) 
+    #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasneti_mynode) 
   #endif
 #endif
 
