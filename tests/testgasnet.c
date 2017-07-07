@@ -25,6 +25,8 @@ void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
 void doit4(int partner, int32_t *partnerseg);
 void doit5(int partner, int *partnerseg);
+void doit6(int partner, int *partnerseg);
+void doit7(int partner, int *partnerseg);
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_SEGMENT_EVERYTHING
@@ -623,6 +625,12 @@ void doit5(int partner, int *partnerseg) {
     if (success) MSG("*** passed nbi put/overwrite test!!");
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit6(partner, (int *)partnerseg);
+}
+void doit6(int partner, int *partnerseg) {
+#endif
+
   BARRIER();
 
   { /* all ams test */
@@ -637,6 +645,12 @@ void doit5(int partner, int *partnerseg) {
 
     MSG("*** passed AM test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit7(partner, (int *)partnerseg);
+}
+void doit7(int partner, int *partnerseg) {
+#endif
 
   BARRIER();
 
