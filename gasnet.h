@@ -95,12 +95,8 @@ void gasnet_QueryGexObjects( gex_Client_t      *_client_p,
   if (_segment_p)  *_segment_p  = gasneti_thunk_segment;
 }
 
-// TODO-EX: undef's to be removed
-#undef gasnet_mynode
-#undef gasnet_nodes
-
-#define gasnet_mynode() (GASNETI_CHECKINIT(), gex_TM_QueryRank(gasneti_thunk_tm))
-#define gasnet_nodes() (GASNETI_CHECKINIT(), gex_TM_QuerySize(gasneti_thunk_tm))
+#define gasnet_mynode() (GASNETI_CHECKINIT(), gex_System_QueryJobRank())
+#define gasnet_nodes()  (GASNETI_CHECKINIT(), gex_System_QueryJobSize())
 
 /* ------------------------------------------------------------------------------------ */
 /*

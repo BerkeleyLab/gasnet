@@ -407,8 +407,8 @@ void doit(int partner, int *partnerseg) {
   assert_unsigned(gex_Rank_t);
   assert(myrank == gex_TM_QueryRank(myteam));
   assert(numranks == gex_TM_QuerySize(myteam));
-  assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
-  assert_always(numranks == (gex_Rank_t)gasnet_nodes()); // TODO-EX: remove
+  assert_always(myrank == gex_System_QueryJobRank());
+  assert_always(numranks == gex_System_QueryJobSize());
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
 
