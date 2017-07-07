@@ -422,10 +422,12 @@ typedef struct {
 //
 // If any sequence of calls attempts register a total of more than (256 -
 // GEX_AM_INDEX_BASE) handlers to a single gex_EP_t, the result is undefined
+//
+// Returns: GASNET_OK == 0 on success
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
         gex_AM_Entry_t          *table,
-        int                     numentries);
+        size_t                  numentries);
 
 //
 // Active Message (AM) limit queries

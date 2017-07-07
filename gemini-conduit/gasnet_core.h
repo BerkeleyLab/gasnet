@@ -52,7 +52,7 @@ extern int gasnetc_EP_Create(
 extern int gasnetc_EP_RegisterHandlers(
                 gex_EP_t                ep,
                 gex_AM_Entry_t          *table,
-                int                     numentries);
+                size_t                  numentries);
 #define gex_EP_RegisterHandlers gasnetc_EP_RegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*

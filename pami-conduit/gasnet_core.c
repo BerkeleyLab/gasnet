@@ -509,7 +509,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
 
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
-                                       int                     numentries) {
+                                       size_t                  numentries) {
   return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
