@@ -321,6 +321,41 @@ gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 void *       gex_Segment_QueryAddr(gex_Segment_t seg);
 uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 
+// Query addresses and length of a (possibly remote) bound segment
+//
+// This query takes a gex_TM_t and gex_Rank_t, which together name an endpoint.
+// The remaining arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// If the endpoint named by (rm, rank) does not have a bound segment, this call
+// returns non-zero, and the output locations are unmodified.  Otherwise, this
+// call returns 0 and writes the corresponding segment properties to each of
+// the non-NULL output locations as follows:
+//
+//   owneraddr_p: receives the address of the segment in the address space
+//                of the process which owns the segment.
+//   localaddr_p: receives the address of the segment in the address space
+//                of the calling process, if mapped, and NULL otherwise.
+//   size_p:      receives the length of the segment.
+//
+// In this release the gex_Segment_Attach call (below) is the only mechanism to
+// create segments, and unconditionally binds them to an endpoint.  Thus all
+// segments are "bound" in the current release.  However, not all endpoints may
+// have a segment bound to them.
+//
+// rank == GEX_RANK_INVALID is *not* permitted.
+// rank == gex_TM_QueryRank(tm) *is* permitted.
+//
+// For rank != gex_TM_QueryRank(tm), this query MAY communicate.
+// This call is not legal in contexts which prohibit communication, including
+// (but is limited to) AM Handler context or when holding an HSL.
+int gex_Segment_QueryBound(
+                gex_TM_t    tm,
+                gex_Rank_t  rank,
+                void        **owneraddr_p,
+                void        **localaddr_p,
+                uintptr_t   *size_p);
+
 // Collective allocation and creation of Segments
 // Analogous to gasnet_attach
 // Must be called collectively over tm.
