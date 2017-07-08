@@ -263,6 +263,36 @@ extern void gasneti_freezeForDebugger(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Apply a reversible xform to obfuscate pointers exposed to clients in DEBUG builds
+ *
+ * NDEBUG:
+ *   EXPORT: cast to the public type
+ *   IMPORT: cast to the internal type
+ * DEBUG:
+ *   EXPORT: apply obfuscation to an internal pointer and cast
+ *   IMPORT: remove obfuscation to reproduce the internal pointer and cast
+ */
+#if defined(GASNETI_EXPORT_POINTER) && defined(GASNETI_IMPORT_POINTER)
+  /* Preserve existing definitions */
+  /* When overriding:
+   * Keep in mind that code is permitted call these macros in a GASNET_NDEBUG build.
+   */
+#elif !defined(GASNETI_EXPORT_POINTER) && !defined(GASNETI_IMPORT_POINTER)
+  #if GASNET_DEBUG
+    /* Default xform is to invert all bits, except that NULL is preserved */
+    GASNETI_INLINE(_gasneti_swizzle_pointer)
+    uintptr_t _gasneti_swizzle_pointer(uintptr_t _p) { return _p ? ~_p : _p; }
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
+  #else
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)(ptr))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)(ptr))
+  #endif
+#elif defined(GASNETI_EXPORT_POINTER) || defined(GASNETI_IMPORT_POINTER)
+  #error Must define both or neither of GASNETI_EXPORT_POINTER and GASNETI_IMPORT_POINTER
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 // Common handing of the basic object types
 
 extern gasneti_Client_t gasneti_alloc_client(
