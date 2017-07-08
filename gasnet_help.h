@@ -754,17 +754,17 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #endif
 
 #ifndef _GASNET_MYNODE
-#define _GASNET_MYNODE
-#define _GASNET_MYNODE_DEFAULT
   extern gasnet_node_t gasneti_mynode;
   #define gasnet_mynode() (GASNETI_CHECKINIT(), (gasnet_node_t)gasneti_mynode)
+#else
+  #error "Unsupported define of _GASNET_MYNODE"
 #endif
 
 #ifndef _GASNET_NODES
-#define _GASNET_NODES
-#define _GASNET_NODES_DEFAULT
   extern gasnet_node_t gasneti_nodes;
   #define gasnet_nodes() (GASNETI_CHECKINIT(), (gasnet_node_t)gasneti_nodes)
+#else
+  #error "Unsupported define of _GASNET_NODES"  
 #endif
 
 #ifndef _GASNET_GETMAXSEGMENTSIZE

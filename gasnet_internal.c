@@ -125,16 +125,14 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
   return GASNET_ERR_NOT_INIT;
 }
 
+/* global definitions of GASNet-wide internal variables
+   not subject to override */
+gasnet_node_t gasneti_mynode = (gasnet_node_t)-1;
+gasnet_node_t gasneti_nodes = 0;
+
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
-#ifdef _GASNET_MYNODE_DEFAULT
-  gasnet_node_t gasneti_mynode = (gasnet_node_t)-1;
-#endif
-#ifdef _GASNET_NODES_DEFAULT
-  gasnet_node_t gasneti_nodes = 0;
-#endif
-
 #if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT) && !GASNET_SEGMENT_EVERYTHING
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
