@@ -117,16 +117,14 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 
+/* global definitions of GASNet-wide internal variables
+   not subject to override */
+gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
+gex_Rank_t gasneti_nodes = 0;
+
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
-#ifdef _GASNET_MYNODE_DEFAULT
-  gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
-#endif
-#ifdef _GASNET_NODES_DEFAULT
-  gex_Rank_t gasneti_nodes = 0;
-#endif
-
 #if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT)
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
