@@ -332,6 +332,10 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_AM_LUBRequestLong() == gasnet_AMMaxLongRequest());
   assert_always(gex_AM_LUBReplyLong() == gasnet_AMMaxLongReply());
 
+  // Rank-vs-node
+  assert_always(gex_System_QueryJobRank() == gasnet_mynode());
+  assert_always(gex_System_QueryJobSize() == gasnet_nodes());
+
   // GEX objects
   { gex_Client_t  client;
     gex_EP_t      endpoint;

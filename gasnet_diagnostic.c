@@ -110,17 +110,17 @@ static gex_TM_t myteam;
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
                                    gex_TM_t myteam_arg, gasnet_seginfo_t const *seginfo) {
   int i;
-  int partner = (gasnet_mynode() ^ 1);
-  if (partner == gasnet_nodes()) partner = gasnet_mynode();
   test_errs = 0;
   iters = iter_cnt;
   iters2 = (iters <= INT_MAX/100) ? iters*100 : iters;
   iters0 = MAX(1,iters/100);
-  peer = gasnet_mynode()^1;
-  if (peer == gasnet_nodes()) peer = gasnet_mynode();
+  gex_Rank_t mynode = gex_TM_QueryRank(myteam_arg);
+  gex_Rank_t nnodes = gex_TM_QuerySize(myteam_arg);
+  peer = (mynode ^ 1);
+  if (peer == nnodes) peer = mynode;
   assert_always(seginfo);
   _test_seginfo = (gasnet_seginfo_t *)seginfo;
-  for (i=0; i < (int)gasnet_nodes(); i++) {
+  for (i=0; i < (int)nnodes; i++) {
     assert_always(_test_seginfo[i].size >= TEST_SEGSZ);
     assert_always((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
   }

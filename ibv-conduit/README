@@ -551,9 +551,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     - GASNET_USE_SRQ unset or explicitly set to -1:
         SRQ is used ONLY if GASNET_RBUF_COUNT is less than the number
         of receive buffers required for the non-SRQ case.
-    - GASNET_USE_SRQ <= gasnet_nodes()  [includes GASNET_USE_SRQ == 1]
+    - GASNET_USE_SRQ <= job size  [includes GASNET_USE_SRQ == 1]
         SRQ is used and GASNET_RBUF_COUNT is enforced as a maximum
-    - GASNET_USE_SRQ > gasnet_nodes()
+    - GASNET_USE_SRQ > job size
         SRQ is NOT used and GASNET_RBUF_COUNT is ignored
     Note that the interpretation of the values 0 and 1 allow one to use
     this setting as a simple boolean if desired.

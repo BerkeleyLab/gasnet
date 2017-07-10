@@ -393,7 +393,7 @@ extern void gasneti_propagate_env(const char *keyname, int flags);
     currently, all nodes MUST return the same value (may be relaxed in the future)
    * second callback is "ok, here's what you got"
     it happens after attach and before gasnete_init, with auxseg_info
-    set to the array (gasnet_nodes() elements) of auxseg components on each node
+    set to the array (gasneti_nodes elements) of auxseg components on each node
     indicating the space assigned to this auxseg consumer.
     callee must copy the array of metadata if it wants to keep it 
     (the seg space it references is permanent)

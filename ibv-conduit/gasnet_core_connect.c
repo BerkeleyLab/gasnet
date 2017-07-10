@@ -157,7 +157,7 @@ gasnetc_parse_filename(const char *filename)
       size_t len = strlen(tmpname) + 16;
       char *buf = gasneti_malloc(len);
       *p = '\0';
-      snprintf(buf,len,"%s%i%s",tmpname,(int)gasnet_mynode(),p+1);
+      snprintf(buf,len,"%s%i%s",tmpname,(int)gasneti_mynode,p+1);
       gasneti_free(tmpname);
       tmpname = buf;
     } while (NULL != (p = strchr(tmpname,'%')));

@@ -664,7 +664,7 @@ extern void gasnetc_trace_finish(void) {
       /* TODO: want a bootstrap barrier here for global stats to ensure network is 
          quiescent, but no way to do this unless we know things are collective */
 
-      if (gasnet_mynode() != 0) {
+      if (gasneti_mynode != 0) {
           GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
         /* TODO: send stats to zero */
       } else {
@@ -676,7 +676,7 @@ extern void gasnetc_trace_finish(void) {
         GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
     }
 
-    if ((gasnet_mynode() == 0 || !isglobal) && !retval) {
+    if ((gasneti_mynode == 0 || !isglobal) && !retval) {
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
       GASNETI_STATS_PRINTF(C,("AMUDP Statistics:"));
       if (!isglobal)

@@ -66,6 +66,37 @@
 // Basic types:
 //
 
+// Rank
+
+// A "rank" is a position within a team
+// Guaranteed to be an unsigned integer type
+// This type is interoperable with gasnet_node_t
+typedef [some unsigned integer type] gex_Rank_t;
+
+// Pre-defined constant used to indicate "not a rank".
+// Use may have different semantics in various contexts.
+// Guaranteed to be larger than any valid rank.
+// However, a specific value is NOT defined by specification.
+// In particular, might NOT be equal to GASNET_MAXNODES
+#define GEX_RANK_INVALID ((gex_Rank_t)???)
+
+// "Job rank":
+// In a non-resilient build this will be the same as the rank in the team
+// constructed by gex_Client_Init() and will be identical across clients.
+// This is semantically equivalent to gasnet_mynode().
+//
+// Semantics in a resilient build will be defined in a later release.
+gex_Rank_t gex_System_QueryJobRank(void);
+
+// "Job size":
+// In a non-resilient build this will be the same as the size in the team
+// constructed by gex_Client_Init() and will be identical across clients.
+// This is semantically equivalent to gasnet_nodes().
+//
+// Semantics in a resilient build will be defined in a later release.
+gex_Rank_t gex_System_QueryJobSize(void);
+
+
 // Events
 
 // An "Event" is an opaque scalar type, representing a handle
@@ -116,17 +147,6 @@ typedef ... gex_Event_t;
 #define GEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)???)
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
-// A "rank" is a position within a team
-// Guaranteed to be an unsigned integer type
-// This type is interoperable with gasnet_node_t
-typedef [some unsigned integer type] gex_Rank_t;
-
-// Pre-defined constant used to indicate "not a rank".
-// Use may have different semantics in various contexts.
-// Guaranteed to be larger than any valid rank.
-// However, a specific value is NOT defined by specification.
-// In particular, might NOT be equal to GASNET_MAXNODES
-#define GEX_RANK_INVALID ((gex_Rank_t)???)
 
 // Integer flag type used to pass hints/assertions/modifiers to various functions
 // Flag value bits to a given API are guaranteed to be disjoint, although
@@ -501,10 +521,8 @@ size_t gex_AM_LUBReplyMedium(void);
 // Struct type for gex_Token_Info queries contains *at least* the following
 // fields, in some *unspecified* order
 typedef struct {
-    // "System rank" of the sending process.
-    // In a non-resilient build this will be the same as the rank in the team
-    // constructed by gex_Client_Init() and will be identical across clients.
-    // Semantics in a resilient build will be defined in a later release.
+    // "Job rank" of the sending process, as defined with the description
+    //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
     // Entry for the currently-running handler corresponding to this token

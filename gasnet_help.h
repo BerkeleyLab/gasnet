@@ -822,14 +822,15 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 
 #ifndef _GASNET_MYNODE
   extern gex_Rank_t gasneti_mynode;
-  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
+  #define gex_System_QueryJobRank() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
 #else
   #error "Unsupported define of _GASNET_MYNODE"
 #endif
 
+// TODO-EX: rename (or remove?) the override
 #ifndef _GASNET_NODES
   extern gex_Rank_t gasneti_nodes;
-  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
+  #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 #else
   #error "Unsupported define of _GASNET_NODES"  
 #endif

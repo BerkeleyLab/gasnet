@@ -1456,7 +1456,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   /* bootstrapInit may set gasneti_nodes==0 if would overflow 16-bit field */
   if (!gasneti_nodes || (gasneti_nodes > GASNET_MAXNODES)) {
-    GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds ibv-conduit capabilities");
+    GASNETI_RETURN_ERRR(RESOURCE, "job size exceeds ibv-conduit capabilities");
   }
 
   /* Process the environment for configuration/settings */

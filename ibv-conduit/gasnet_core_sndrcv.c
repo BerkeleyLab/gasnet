@@ -674,7 +674,7 @@ void gasnetc_amrdma_balance_one(gasnetc_hca_t *hca) {
     int i;
 
     /* Pass 1: Collect all peers w/ counts >= floor, while also "decaying" the counters.
-     * This is the only part that should be O(gasnet_nodes) on average.
+     * This is the only part that should be O(gasneti_nodes) on average.
      */
     for (i = 0; i < hca->num_qps; ++i) {
       gasnetc_atomic_val_t x, y;
@@ -3479,7 +3479,7 @@ extern int gasnetc_sndrcv_limits(void) {
     const unsigned int max_qp_wr = hca->hca_cap.max_qp_wr;
 
     if_pf (hca->max_qps > max_qp) {
-      GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds HCA capabilities");
+      GASNETI_RETURN_ERRR(RESOURCE, "job size exceeds HCA capabilities");
     }
     if_pf (gasnetc_am_oust_pp * 2 > max_qp_wr) {
       GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_PP exceeds HCA capabilities");

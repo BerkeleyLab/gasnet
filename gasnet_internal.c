@@ -223,8 +223,8 @@ extern void gasneti_check_config_postattach(void) {
   gasneti_assert_always(gex_AM_LUBRequestLong() >= 512);
   gasneti_assert_always(gex_AM_LUBReplyLong() >= 512);
 
-  gasneti_assert_always(gasnet_nodes() >= 1);
-  gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
+  gasneti_assert_always(gasneti_nodes >= 1);
+  gasneti_assert_always(gasneti_mynode < gasneti_nodes);
   { static int firstcall = 1;
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
@@ -290,7 +290,7 @@ extern void gasneti_defaultAMHandler(gex_Token_t token) {
   gex_Rank_t srcnode = info.gex_srcrank;
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
                      "with no associated AM handler function registered", 
-                     (int)gasnet_mynode(), (int)gasnet_nodes(), (int)srcnode);
+                     (int)gasneti_mynode, (int)gasneti_nodes, (int)srcnode);
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -1278,7 +1278,7 @@ void gasneti_defaultSignalHandler(int sig) {
 
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
       fprintf(stderr,"*** Caught a fatal signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
+        signame, sig, (int)gasneti_mynode, (int)gasneti_nodes); 
       fflush(stderr);
 
       gasnett_freezeForDebuggerErr(); /* allow freeze */
@@ -1301,7 +1301,7 @@ void gasneti_defaultSignalHandler(int sig) {
 
       oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
       fprintf(stderr,"*** Caught a signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
+        signame, sig, (int)gasneti_mynode, (int)gasneti_nodes); 
       fflush(stderr);
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
@@ -1821,7 +1821,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
                         natives);
       }
     }
-    if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasnet_mynode() == 0) {
+    if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasneti_mynode == 0) {
       fprintf(stderr,"WARNING: Using GASNet's %s-conduit, which exists for portability convenience.\n"
                      "%s\n"
                      "WARNING: You should *really* use the high-performance native GASNet conduit\n"
