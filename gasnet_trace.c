@@ -1068,8 +1068,8 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_tracestats_printf("GASNet configure buildid: " GASNETI_BUILD_ID);
   gasneti_tracestats_printf("GASNet system tuple:      " GASNETI_SYSTEM_TUPLE);
   gasneti_tracestats_printf("GASNet configure system:  " GASNETI_SYSTEM_NAME);
-  gasneti_tracestats_printf("gex_System_JobRank(): %i", (int)gex_System_JobRank());
-  gasneti_tracestats_printf("gex_System_JobSize(): %i", (int)gex_System_JobSize());
+  gasneti_tracestats_printf("gex_System_QueryJobRank(): %i", (int)gex_System_QueryJobRank());
+  gasneti_tracestats_printf("gex_System_QueryJobSize(): %i", (int)gex_System_QueryJobSize());
   gasneti_tracestats_printf("gasneti_cpu_count(): %i", (int)gasneti_cpu_count());
   #if GASNET_STATS
     gasneti_stats_printf("GASNET_STATSMASK: %s", GASNETI_STATS_GETMASK());
