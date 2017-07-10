@@ -438,8 +438,12 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #endif
 
 #else
-  #define GASNET_POST_THREADINFO(info)   \
-    static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
+  #if GASNET_DEBUG
+    #define GASNET_POST_THREADINFO(info)   \
+      static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* diagnose duplicate POST in a scope */
+  #else
+    #define GASNET_POST_THREADINFO(info) ((void)0)
+  #endif
   #define GASNET_GET_THREADINFO() (NULL)
   #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
 #endif
