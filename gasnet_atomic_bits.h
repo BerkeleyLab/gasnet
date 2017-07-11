@@ -2141,6 +2141,9 @@
       GASNETI_INLINE(_gasneti_atomic32_addfetch)
       uint32_t _gasneti_atomic32_addfetch(gasneti_atomic32_t *v, uint32_t op) {
         GASNETI_ASM_REGISTER_KEYWORD uint32_t result;
+      #if GASNETI_PGI_ASM_TPR24514 // Work-around bug 3570
+        gasneti_atomic32_t * volatile w = v; v = w;
+      #endif
       #if GASNETI_PGI_ASM_TPR23290
         __asm__ __volatile__ (
           "0:\t"
@@ -2242,6 +2245,9 @@
         GASNETI_INLINE(_gasneti_atomic64_addfetch)
         uint64_t _gasneti_atomic64_addfetch(gasneti_atomic64_t *p, uint64_t op) {
           GASNETI_ASM_REGISTER_KEYWORD uint64_t result;
+        #if GASNETI_PGI_ASM_TPR24514 // Work-around bug 3570
+          gasneti_atomic64_t * volatile q = p; p = q;
+        #endif
         #if GASNETI_PGI_ASM_TPR23290
           __asm__ __volatile__ (
                 "0:\t"
