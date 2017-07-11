@@ -617,6 +617,9 @@ extern gex_TI_t gex_Token_Info(
 //   does not Poll, if we wanted to.]
 //
 // Other arguments behave as in the analogous GASNet-1 functions.
+// Misc semantic strengthening:
+// * dest_addr for Long is guaranteed to be delivered to the handler as provided
+//   by the initiator, even for the degenerate case when nbytes==0
 
 // Long
 int gex_AM_RequestLong[M](
