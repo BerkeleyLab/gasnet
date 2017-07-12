@@ -751,7 +751,6 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
 #endif
 
 static pami_send_hint_t gasnetc_null_send_hint;
-static gex_Rank_t *gasnetc_loopback_token = &gasneti_mynode;
 static size_t      gasnetc_ampoll_max;
 
 static void noop_dispatch(pami_context_t context, void *cookie,
@@ -782,11 +781,15 @@ void gasnetc_put_request_credit(void) {
 /* AM "run" functions inlined into event and dispatch functions invoked by PAMI */
 
 /* The received header (and debugging metadata) contitute our "token" */
-typedef union {
+typedef struct {
+  union { // Portion sent/rcvd
     gasnetc_genmsg_t      generic;
     gasnetc_shortmsg_t    shortmsg;
     gasnetc_medmsg_t      medmsg;
     gasnetc_longmsg_t     longmsg;
+  } u;
+  // Portion constructed in memory
+  const gex_AM_Entry_t *entry;
 } gasnetc_token_t;
 
 
@@ -809,7 +812,7 @@ void gasnetc_put_token(gasnetc_token_t *token) {
 
 /* callback to free a token and release request credit, if any */
 extern void gasnetc_cb_token(pami_context_t context, void *cookie, pami_result_t status) {
-  const int is_req = ((gasnetc_token_t *)cookie)->generic.is_req;
+  const int is_req = ((gasnetc_token_t *)cookie)->u.generic.is_req;
   gasnetc_put_token(cookie);
   if (is_req) gasnetc_put_request_credit();
 }
@@ -838,34 +841,34 @@ void gasnetc_put_big_token(gasnetc_token_t *token) {
 
 /* callback to free a big_token and release request credit, if any */
 extern void gasnetc_cb_big_token(pami_context_t context, void *cookie, pami_result_t status) {
-  const int is_req = ((gasnetc_token_t *)cookie)->generic.is_req;
+  const int is_req = ((gasnetc_token_t *)cookie)->u.generic.is_req;
   gasnetc_put_big_token(cookie);
   if (is_req) gasnetc_put_request_credit();
 }
 
 GASNETI_ALWAYS_INLINE(run_short)
-void run_short(gasnetc_token_t *token) {
-  gasnetc_shortmsg_t            *header = &token->shortmsg;
+void run_short(gasnetc_shortmsg_t *header) {
   const int                      is_req = header->is_req;
   const gex_AM_Index_t   handler_id = header->handler;
   const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gex_AM_Arg_t     *args = header->args;
   const int                     numargs = header->numargs;
-  gex_Token_t         client_token = (gex_Token_t)token;
 
+  /* copy generic portion to allow writes, but don't need to copy args */
+  gasnetc_token_t rw_token;
+  gex_Token_t client_token = (gex_Token_t)(&rw_token);
+  rw_token.u.generic = *(gasnetc_genmsg_t*)header;
 #if GASNET_DEBUG
-  /* We copy generic portion to allow writes to rep_sent */
-  gasnetc_genmsg_t local_token = token->generic;
-  local_token.rep_sent = 0;
-  client_token = (gex_Token_t)(&local_token);
+  rw_token.u.generic.rep_sent = 0;
 #endif
-  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs, gasneti_Short, is_req);
+  rw_token.entry = &gasnetc_handler[handler_id];
+  gasneti_amtbl_check(rw_token.entry, numargs, gasneti_Short, is_req);
   GASNETI_RUN_HANDLER_SHORT(is_req,handler_id,handler_fn,client_token,args,numargs);
 }
 
 GASNETI_ALWAYS_INLINE(run_medium)
 void run_medium(gasnetc_token_t *token) {
-  gasnetc_medmsg_t              *header = &token->medmsg;
+  gasnetc_medmsg_t              *header = &token->u.medmsg;
   const int                      is_req = header->is_req;
   const gex_AM_Index_t     handler_id = header->handler;
   const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
@@ -878,13 +881,14 @@ void run_medium(gasnetc_token_t *token) {
 #if GASNET_DEBUG
   header->rep_sent = 0;
 #endif
-  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs, gasneti_Medium, is_req);
+  token->entry = &gasnetc_handler[handler_id];
+  gasneti_amtbl_check(token->entry, numargs, gasneti_Medium, is_req);
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler_id,handler_fn,client_token,args,numargs,data,nbytes);
 }
 
 GASNETI_ALWAYS_INLINE(run_long)
 void run_long(gasnetc_token_t *token) {
-  gasnetc_longmsg_t             *header = &token->longmsg;
+  gasnetc_longmsg_t             *header = &token->u.longmsg;
   const int                      is_req = header->is_req;
   const gex_AM_Index_t     handler_id = header->handler;
   const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
@@ -897,7 +901,8 @@ void run_long(gasnetc_token_t *token) {
 #if GASNET_DEBUG
   header->rep_sent = 0;
 #endif
-  gasneti_amtbl_check(&gasnetc_handler[handler_id], numargs, gasneti_Long, is_req);
+  token->entry = &gasnetc_handler[handler_id];
+  gasneti_amtbl_check(token->entry, numargs, gasneti_Long, is_req);
   GASNETI_RUN_HANDLER_LONG(is_req,handler_id,handler_fn,client_token,args,numargs,data,nbytes);
 }
 
@@ -934,7 +939,7 @@ static void am_Short_dispatch(
   gasneti_assert(head_size == GASNETC_ARGSEND(short, shortmsg->numargs));
   gasneti_assert(!recv); /* Never use payload */
 
-  run_short((gasnetc_token_t *)head_addr);
+  run_short(shortmsg);
 }
 
 static void am_Med_dispatch(
@@ -949,7 +954,7 @@ static void am_Med_dispatch(
 
   gasneti_assert(head_size == GASNETC_ARGSEND(med, medmsg->numargs));
 
-  memcpy(token, head_addr, head_size);
+  memcpy(&token->u, head_addr, head_size);
 
   if (!recv) {
     /* Entire message has arrived - copy to aligned memory and run now */
@@ -986,7 +991,7 @@ static void am_Long_dispatch(
   if_pf (!recv) { /* PAMI or Clang bug: we've disabled this explicitly! */
     /* Entire message has arrived - copy data and run now */
     gasnetc_token_t *token = gasnetc_get_token();
-    memcpy(token, head_addr, head_size);
+    memcpy(&token->u, head_addr, head_size);
     gasneti_assert(pipe_size == longmsg->nbytes);
     memcpy((void*)longmsg->addr, pipe_addr, pipe_size);
     run_long(token);
@@ -999,7 +1004,7 @@ static void am_Long_dispatch(
 
   { /* Only our header has arrived - setup copy data and async run */
     gasnetc_token_t *token = gasnetc_get_token();
-    memcpy(token, head_addr, head_size);
+    memcpy(&token->u, head_addr, head_size);
     /* instruct PAMI how to deliver payload */
     recv->cookie = token;
     recv->local_fn = &am_Long_event;
@@ -1027,7 +1032,9 @@ static int gasnetc_am_init(void) {
   gasnetc_null_send_hint.use_shmem = PAMI_HINT_DISABLE;
 #endif
 
-  gasneti_assert_always(GASNETC_MAX_MED_RESRV >= sizeof(gasnetc_token_t));
+  { gasnetc_token_t t;
+    gasneti_assert_always(GASNETC_MAX_MED_RESRV >= sizeof(t.u));
+  }
 
   conf[0].name = PAMI_CONTEXT_DISPATCH_ID_MAX;
   rc = PAMI_Context_query(gasnetc_context, conf, 1);
@@ -1141,17 +1148,15 @@ extern gex_TI_t gasnetc_Token_Info(
   }
 #endif
 
+  gasnetc_token_t *real_token = (gasnetc_token_t *)(token);
   if (mask & GEX_TI_SRCRANK) {
     info->gex_srcrank = gasnetc_msgsource(token);
     result |= GEX_TI_SRCRANK;
   }
-#if 0 // TODO-EX: need to implement this
   if (mask & GEX_TI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
+    info->gex_entry = real_token->entry;
     result |= GEX_TI_ENTRY;
   }
-#endif
 
   return result;
 }
@@ -1192,9 +1197,9 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
 #if GASNET_DEBUG
   #define GASNETC_AM_VALIDATE_TOKEN(_cat,_token) do {            \
       gasnetc_token_t *real_token = (gasnetc_token_t *)(_token); \
-      gasneti_assert(real_token->_cat##msg.is_req);              \
-      gasneti_assert(!real_token->_cat##msg.rep_sent);           \
-      real_token->_cat##msg.rep_sent = 1;                        \
+      gasneti_assert(real_token->u._cat##msg.is_req);          \
+      gasneti_assert(!real_token->u._cat##msg.rep_sent);       \
+      real_token->u._cat##msg.rep_sent = 1;                    \
     } while (0)
 #else
   #define GASNETC_AM_VALIDATE_TOKEN(_cat,_token) do { } while (0)
@@ -1209,6 +1214,125 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
     GASNETC_AM_COPY_ARGS((_msg).args, _numargs, _argptr);        \
   } while (0)
 
+#if GASNET_PSHM // loopback handling w/ PSHM
+#define gasnetc_loopback_request(rank) gasneti_pshm_in_supernode(rank)
+#define gasnetc_loopback_reply(token) gasnetc_token_is_pshm(token)
+
+GASNETI_INLINE(gasnetc_loopback_short)
+int gasnetc_loopback_short(int is_req, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                           gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (is_req) {
+    return gasneti_AMPSHM_RequestGeneric(gasneti_Short, rank, handler,
+                                         0, 0, 0, flags, numargs, argptr);
+  } else {
+    return gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
+                                       0, 0, 0, flags, numargs, argptr);
+  }
+}
+
+GASNETI_INLINE(gasnetc_loopback_medium)
+int gasnetc_loopback_medium(int is_req, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (is_req) {
+    return gasneti_AMPSHM_RequestGeneric(gasneti_Medium, rank, handler,
+                                         source_addr, nbytes, 0, flags, numargs, argptr);
+  } else {
+    return gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
+                                       source_addr, nbytes, 0, flags, numargs, argptr);
+  }
+}
+
+GASNETI_INLINE(gasnetc_loopback_long)
+int gasnetc_loopback_long(int is_req, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                          void *source_addr, size_t nbytes, void *dest_addr,
+                          gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (is_req) {
+    return gasneti_AMPSHM_RequestGeneric(gasneti_Long, rank, handler,
+                                         source_addr, nbytes, dest_addr, flags, numargs, argptr);
+  } else {
+    return gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
+                                       source_addr, nbytes, dest_addr, flags, numargs, argptr);
+  }
+}
+#else // loopback handling w/o PSHM
+#define gasnetc_loopback_request(rank) ((rank) == gasneti_mynode)
+#define gasnetc_loopback_reply(token)  (gasnetc_msgsource(token) == gasneti_mynode)
+
+#if GASNET_DEBUG
+  #define GASNETC_AM_LOOPBACK_TOKEN_CHECKS(_is_req, _cat, _token_arg, _loopback_token) \
+    do {                                                    \
+      _loopback_token.u.generic.is_req = _is_req;           \
+      if (_is_req) {                                        \
+        _loopback_token.u.generic.rep_sent = 0;             \
+      } else {                                              \
+        GASNETC_AM_VALIDATE_TOKEN(_cat, _token_arg);        \
+      }                                                     \
+    } while (0)
+#else
+  #define GASNETC_AM_LOOPBACK_TOKEN_CHECKS(_is_req, _cat, _token_arg, _loopback_token) ((void)0)
+#endif
+GASNETI_INLINE(gasnetc_loopback_short)
+int gasnetc_loopback_short(int is_req, gex_Token_t token_arg, gex_Rank_t rank, gex_AM_Index_t handler,
+                           gex_Flags_t flags, int numargs, va_list argptr)
+{
+  const gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Short, is_req);
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
+  GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+  gasnetc_token_t loopback_token;
+  loopback_token.u.generic.srcnode = gasneti_mynode;
+  loopback_token.entry = handler_entry;
+  GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, short, token_arg, loopback_token);
+  gex_Token_t token = (gex_Token_t)&loopback_token;
+  GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_entry->gex_fnptr,token,args,numargs);
+  return GASNET_OK;
+}
+
+GASNETI_INLINE(gasnetc_loopback_medium)
+int gasnetc_loopback_medium(int is_req, gex_Token_t token_arg, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Flags_t flags, int numargs, va_list argptr)
+{
+  const gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Medium, is_req);
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
+  void *dest_addr = alloca(nbytes);
+  gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
+  GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+  memcpy(dest_addr, source_addr, nbytes);
+  gasnetc_token_t loopback_token;
+  loopback_token.u.generic.srcnode = gasneti_mynode;
+  loopback_token.entry = handler_entry;
+  GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, med, token_arg, loopback_token);
+  gex_Token_t token = (gex_Token_t)&loopback_token;
+  GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
+  return GASNET_OK;
+}
+
+GASNETI_INLINE(gasnetc_loopback_long)
+int gasnetc_loopback_long(int is_req, gex_Token_t token_arg, gex_Rank_t rank, gex_AM_Index_t handler,
+                          void *source_addr, size_t nbytes, void *dest_addr,
+                          gex_Flags_t flags, int numargs, va_list argptr)
+{
+  const gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Long, is_req);
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
+  GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+  memcpy(dest_addr, source_addr, nbytes);
+  gasnetc_token_t loopback_token;
+  loopback_token.u.generic.srcnode = gasneti_mynode;
+  loopback_token.entry = handler_entry;
+  GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, long, token_arg, loopback_token);
+  gex_Token_t token = (gex_Token_t)&loopback_token;
+  GASNETI_RUN_HANDLER_LONG(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
+  return GASNET_OK;
+}
+#endif
+
 extern int gasnetc_AMRequestShortM(
                 gex_TM_t tm,
                 gex_Rank_t rank,
@@ -1222,23 +1346,9 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
   gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the rank first. */
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Short, rank, handler,
-                                           0, 0, 0,
-                                           flags, numargs, argptr);
-  } else
-#else
-  if (rank == gasneti_mynode) {
-    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
-    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    gex_Token_t token = (gex_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
-    GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,token,args,numargs);
-  } else
-#endif
-  {
+  if_pt (gasnetc_loopback_request(rank)) {
+    retval = gasnetc_loopback_short(1,NULL,rank,handler,flags,numargs,argptr);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -1288,26 +1398,9 @@ extern int gasnetc_AMRequestMediumM(
   gasneti_AMPoll();
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the rank first. */
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Medium, rank, handler,
-                                           source_addr, nbytes, 0,
-                                           flags, numargs, argptr);
-  } else
-#else
-  if (rank == gasneti_mynode) {
-    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
-    void *dest_addr = alloca(nbytes); 
-    gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
-    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    memcpy(dest_addr, source_addr, nbytes);
-    gex_Token_t token = (gex_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
-    GASNETI_RUN_HANDLER_MEDIUM(1,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
-  } else
-#endif
-  {
+  if_pt (gasnetc_loopback_request(rank)) {
+    retval = gasnetc_loopback_medium(1,NULL,rank,handler,source_addr,nbytes,flags,numargs,argptr);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -1324,7 +1417,7 @@ extern int gasnetc_AMRequestMediumM(
         msg_p = &msg;
         payload = source_addr;
     } else {
-        msg_p = &(gasnetc_get_big_token()->medmsg);
+        msg_p = &(gasnetc_get_big_token()->u.medmsg);
         payload = GASNETC_TOKEN_PAYLOAD(msg_p);
         memcpy(payload, source_addr, nbytes);
         cmd.events.cookie = (void*)msg_p;
@@ -1382,24 +1475,9 @@ extern int gasnetc_AMRequestLongM(
   gasneti_AMPoll();
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the rank first. */
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, rank, handler,
-                                           source_addr, nbytes, dest_addr,
-                                           flags, numargs, argptr);
-  } else
-#else
-  if (rank == gasneti_mynode) {
-    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
-    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    memcpy(dest_addr, source_addr, nbytes);
-    gex_Token_t token = (gex_Token_t)gasnetc_loopback_token; // RUN_HANDLER needs lvalue
-    GASNETI_RUN_HANDLER_LONG(1,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
-  } else
-#endif
-  {
+  if_pt (gasnetc_loopback_request(rank)) {
+    retval = gasnetc_loopback_long(1,NULL,rank,handler,source_addr,nbytes,dest_addr,flags,numargs,argptr);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -1461,22 +1539,9 @@ extern int gasnetc_AMReplyShortM(
   va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the token first. */
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
-                                         0, 0, 0,
-                                         flags, numargs, argptr);
-  } else
-#else
-  if (token == (gex_Token_t)gasnetc_loopback_token) {
-    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
-    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    GASNETI_RUN_HANDLER_SHORT(0,handler,handler_fn,token,args,numargs);
-  } else
-#endif
-  { 
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_short(0,token,0,handler,flags,numargs,argptr);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -1519,25 +1584,9 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the token first. */
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
-                                         source_addr, nbytes, 0,
-                                         flags, numargs, argptr);
-  } else
-#else
-  if (token == (gex_Token_t)gasnetc_loopback_token) {
-    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
-    void *dest_addr = alloca(nbytes); 
-    gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
-    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    memcpy(dest_addr, source_addr, nbytes);
-    GASNETI_RUN_HANDLER_MEDIUM(0,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
-  } else
-#endif
-  {
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_medium(0,token,0,handler,source_addr,nbytes,flags,numargs,argptr);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -1554,7 +1603,7 @@ extern int gasnetc_AMReplyMediumM(
         msg_p = &msg;
         payload = source_addr;
     } else {
-        msg_p = &(gasnetc_get_big_token()->medmsg);
+        msg_p = &(gasnetc_get_big_token()->u.medmsg);
         payload = GASNETC_TOKEN_PAYLOAD(msg_p);
         memcpy(payload, source_addr, nbytes);
         cmd.events.cookie = (void*)msg_p;
@@ -1605,23 +1654,9 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the token first. */
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
-                                         source_addr, nbytes, dest_addr,
-                                         flags, numargs, argptr);
-  } else
-#else
-  if (token == (gex_Token_t)gasnetc_loopback_token) {
-    const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
-    gex_AM_Arg_t args[GASNETC_MAX_ARGS];
-    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-    memcpy(dest_addr, source_addr, nbytes);
-    GASNETI_RUN_HANDLER_LONG(0,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
-  } else
-#endif
-  {
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_long(0,token,0,handler,source_addr,nbytes,dest_addr,flags,numargs,argptr);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -1638,7 +1673,7 @@ extern int gasnetc_AMReplyLongM(
         msg_p = &msg;
         payload = source_addr;
     } else {
-        msg_p = &(gasnetc_get_big_token()->longmsg);
+        msg_p = &(gasnetc_get_big_token()->u.longmsg);
         payload = GASNETC_TOKEN_PAYLOAD(msg_p);
         memcpy(payload, source_addr, nbytes);
         cmd.events.cookie = (void*)msg_p;
