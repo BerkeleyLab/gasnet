@@ -1262,6 +1262,19 @@ int gasnetc_loopback_long(int is_req, gex_Token_t token, gex_Rank_t rank, gex_AM
 #define gasnetc_loopback_request(rank) ((rank) == gasneti_mynode)
 #define gasnetc_loopback_reply(token)  (gasnetc_msgsource(token) == gasneti_mynode)
 
+#if GASNET_DEBUG
+  #define GASNETC_AM_LOOPBACK_TOKEN_CHECKS(_is_req, _cat, _token_arg, _loopback_token) \
+    do {                                                    \
+      _loopback_token.u.generic.is_req = _is_req;           \
+      if (_is_req) {                                        \
+        _loopback_token.u.generic.rep_sent = 0;             \
+      } else {                                              \
+        GASNETC_AM_VALIDATE_TOKEN(_cat, _token_arg);        \
+      }                                                     \
+    } while (0)
+#else
+  #define GASNETC_AM_LOOPBACK_TOKEN_CHECKS(_is_req, _cat, _token_arg, _loopback_token) ((void)0)
+#endif
 GASNETI_INLINE(gasnetc_loopback_short)
 int gasnetc_loopback_short(int is_req, gex_Token_t token_arg, gex_Rank_t rank, gex_AM_Index_t handler,
                            gex_Flags_t flags, int numargs, va_list argptr)
@@ -1273,6 +1286,7 @@ int gasnetc_loopback_short(int is_req, gex_Token_t token_arg, gex_Rank_t rank, g
   gasnetc_token_t loopback_token;
   loopback_token.u.generic.srcnode = gasneti_mynode;
   loopback_token.entry = handler_entry;
+  GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, short, token_arg, loopback_token);
   gex_Token_t token = (gex_Token_t)&loopback_token;
   GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_entry->gex_fnptr,token,args,numargs);
   return GASNET_OK;
@@ -1293,6 +1307,7 @@ int gasnetc_loopback_medium(int is_req, gex_Token_t token_arg, gex_Rank_t rank, 
   gasnetc_token_t loopback_token;
   loopback_token.u.generic.srcnode = gasneti_mynode;
   loopback_token.entry = handler_entry;
+  GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, med, token_arg, loopback_token);
   gex_Token_t token = (gex_Token_t)&loopback_token;
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
   return GASNET_OK;
@@ -1311,6 +1326,7 @@ int gasnetc_loopback_long(int is_req, gex_Token_t token_arg, gex_Rank_t rank, ge
   gasnetc_token_t loopback_token;
   loopback_token.u.generic.srcnode = gasneti_mynode;
   loopback_token.entry = handler_entry;
+  GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, long, token_arg, loopback_token);
   gex_Token_t token = (gex_Token_t)&loopback_token;
   GASNETI_RUN_HANDLER_LONG(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
   return GASNET_OK;
