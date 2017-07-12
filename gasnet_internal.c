@@ -836,14 +836,14 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
           gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
                              "only NULL is a valid lc_opt value when client_buf is NULL", _reqrep);      \
       } else if (is_req) {                                                                               \
-        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))                \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL, GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values",     \
+        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))\
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
+                             "GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values",                \
                              _reqrep);                                                                   \
       } else {                                                                                           \
-        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW))                                               \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL and GEX_EVENT_NOW are valid lc_opt values", _reqrep);            \
+        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW))                               \
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
+                             "and GEX_EVENT_NOW are valid lc_opt values", _reqrep);                      \
       }                                                                                                  \
       if (nargs > gex_AM_MaxArgs())                                                                      \
         gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
@@ -898,24 +898,15 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
           !((dest_addr == sd->_dest_addr) || ((dest_addr == NULL) && (nbytes == 0))))                    \
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
-      if (sd->_tofree) {                                                                                 \
-        if (lc_opt != NULL)                                                                              \
+      if (sd->_lc_opt != lc_opt)                                                                         \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt must be NULL when using a GASNet-provided buffer",                  \
-                             _reqrep, nargs);                                                            \
+                             "lc_opt does not match the value passed to Prepare", _reqrep, nargs);       \
+      if (sd->_tofree) {                                                                                 \
         if (gasneti_sd_init_enabled && (sd->_size >= gasneti_sd_init_len) &&                             \
             !gasneti_memalloc_valcmp(sd->_tofree, gasneti_sd_init_len, gasneti_sd_init_val))             \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \
-      } else if (sd->_lc_opt == NULL) {                                                                  \
-        if (!lc_opt || !gasneti_leaf_is_pointer(lc_opt))                                                 \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt is not a valid pointer", _reqrep, nargs);                           \
-      } else {                                                                                           \
-        if (sd->_lc_opt != lc_opt)                                                                       \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt does not match the value passed to Prepare", _reqrep, nargs);       \
       }                                                                                                  \
     } while(0)
   #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \

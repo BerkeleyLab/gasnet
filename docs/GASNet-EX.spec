@@ -732,16 +732,13 @@ int gex_AM_ReplyShort[M](
 // passes an optional source buffer address, the minimum and maximum lengths
 // it is willing to send, and many (but not all) of the other parameters
 // normally passed when injecting an Active Message.  In this phase, GASNet
-// determines how much of the payload can be sent and whether it is preferable
-// to accept the client-provided source buffer or provide a replacement
-// buffer.
+// determines how much of the payload can be sent.
 //
 // The return from the Prepare call provides the client with an address and a
 // length.  The length is in the range defined by the minimum and maximum
-// lengths.  The address may either be the same as the client_buf argument or
+// lengths.  The address will be either the the client_buf (if non_NULL) or
 // it may be a GASNet-owned buffer of the indicated length, suitably aligned
-// to hold any data type.  These two cases are known, respectively as
-// "accepting" or "rejecting" the client_buf.
+// to hold any data type.
 //
 // It is important to note that passing NULL for the client_buf argument to
 // a Prepare call requires GASNet to allocate buffer space of size no
@@ -750,8 +747,7 @@ int gex_AM_ReplyShort[M](
 //
 // Between the Prepare and the Commit calls the client is responsible for
 // assembling its payload (or the prefix of the given length) at the selected
-// address.  This may be a no-op if GASNet has accepted a client-provided
-// source buffer.  The client may also choose to send a length shorter than
+// address (potentially a no-op).  The client may send a length shorter than
 // the value returned from the Prepare, for instance rounding down to some
 // natural boundary.  The client may also defer until the Prepare-Commit
 // interval its selection of the AM handler and arguments, which might depend
@@ -842,16 +838,10 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //   + May be NULL to request conservative behavior
 //   + In all cases the actual dest_addr is supplied at Commit.
 //  gex_Event_t *lc_opt
-//   + This argument acts as a stand-in for the lc_opt that will
-//     be passed to the Commit call, but is not identical in all
-//     cases.
 //   + If client_buf is NULL, this argument must also be NULL.
-//   + If client_buf is non-NULL, the lc_opt value required by
-//     Prepare depends on the value of lc_opt the client will
-//     pass to Commit, assuming client_buf is accepted:
-//      - GEX_EVENT_NOW: GEX_EVENT_NOW
-//      - GEX_EVENT_GROUP: GEX_EVENT_GROUP [REQUEST ONLY]
-//      - The address of a gex_Event_t: NULL
+//   + If client_buf is non-NULL, the lc_opt value must be identical
+//     to that of the subsequent to the Commit call.
+//     [TODO: when is lc_opt=&event written to?]
 //  gex_Flags_t flags
 //   + Bitwise OR of flags valid for the corresponding
 //     fixed-payload AM injection
@@ -931,12 +921,7 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
 //   + If non-NULL dest_addr was passed to Prepare, this must
 //     be the same value
 //  gex_Event_t *lc_opt
-//   + If Prepare accepted a non-NULL client_buf argument, this
-//     argument acts exactly as in the fixed-payload AM injection
-//     APIs, with the additional constraint that the lc_opt
-//     argument to the preceding Prepare must correspond.
-//   + If Prepare did not accept its client_buf argument, or that
-//     argument was NULL, then this argument must be NULL
+//   + Must be identical to the lc_opt parameter passed to Prepare
 //
 extern void gex_AM_CommitRequestMedium[M](
                 gex_AM_SrcDesc_t sd,

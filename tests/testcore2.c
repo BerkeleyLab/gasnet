@@ -113,19 +113,12 @@ void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes,
       break;
 
     case 1: // Negotiated-payload with client-provided buffer
-    {
-      gex_Event_t *lc_opt = GEX_EVENT_NOW;
-      sd = gex_AM_PrepareReplyMedium(token, buf, nbytes, nbytes, lc_opt, 0, 2);
+      sd = gex_AM_PrepareReplyMedium(token, buf, nbytes, nbytes, GEX_EVENT_NOW, 0, 2);
       assert(sd != GEX_AM_SRCDESC_NO_OP);
       assert(gex_AM_SrcDescSize(sd) == nbytes);
-      uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
-      if (pbuf != buf) {
-        memcpy(pbuf, buf, nbytes);
-        lc_opt = NULL;
-      }
-      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, lc_opt, iter, chunkidx);
+      assert(gex_AM_SrcDescAddr(sd) == buf);
+      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, GEX_EVENT_NOW, iter, chunkidx);
       break;
-    }
 
     case 2: // Negotiated-payload without client-provided buffer
       sd = gex_AM_PrepareReplyMedium(token, NULL, nbytes, nbytes, NULL, 0, 2);
@@ -158,17 +151,13 @@ void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
       break;
 
     case 1: // Negotiated-payload with client-provided buffer
-    {
-      gex_Event_t *lc_opt = GEX_EVENT_NOW;
-      sd = gex_AM_PrepareReplyLong(token, srcbuf, nbytes, nbytes, dstbuf, lc_opt, 0, 2);
+      sd = gex_AM_PrepareReplyLong(token, srcbuf, nbytes, nbytes, dstbuf, GEX_EVENT_NOW, 0, 2);
       assert(sd != GEX_AM_SRCDESC_NO_OP);
       assert(gex_AM_SrcDescSize(sd) == nbytes);
-      uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
-      if (pbuf != buf) memcpy(pbuf, buf, nbytes);
-      if (pbuf != srcbuf) lc_opt = NULL;
-      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, lc_opt, iter, chunkidx);
+      assert(gex_AM_SrcDescAddr(sd) == srcbuf);
+      if (srcbuf != buf) memcpy(srcbuf, buf, nbytes); // according to INSEG - not due to Prepare
+      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, GEX_EVENT_NOW, iter, chunkidx);
       break;
-    }
 
     case 2: // Negotiated-payload without client-provided buffer
       sd = gex_AM_PrepareReplyLong(token, NULL, nbytes, nbytes, dstbuf, NULL, 0, 2);
@@ -368,19 +357,16 @@ void *doit(void *id) {
                 break;
 
               case 1: // Negotiated-payload with client-provided buffer
-                sd = gex_AM_PrepareRequestMedium(myteam, peerproc, srcbuf, sz, sz, NULL, 0, 2);
+              {
+                gex_Event_t lc = GEX_EVENT_NO_OP;
+                sd = gex_AM_PrepareRequestMedium(myteam, peerproc, srcbuf, sz, sz, &lc, 0, 2);
                 assert(sd != GEX_AM_SRCDESC_NO_OP);
                 assert(gex_AM_SrcDescSize(sd) == sz);
-                uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
-                gex_Event_t lc = GEX_EVENT_INVALID;
-                gex_Event_t *lc_opt = &lc;
-                if (pbuf != srcbuf) {
-                  memcpy(pbuf, srcbuf, sz);
-                  lc_opt = NULL;
-                }
-                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, lc_opt, iter, chunkidx);
+                assert(gex_AM_SrcDescAddr(sd) == srcbuf);
+                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, &lc, iter, chunkidx);
                 gex_Event_Wait(lc);
                 break;
+              }
 
               case 2: // Negotiated-payload without client-provided buffer
                 sd = gex_AM_PrepareRequestMedium(myteam, peerproc, NULL, sz, sz, NULL, 0, 2);
@@ -409,19 +395,16 @@ void *doit(void *id) {
                 break;
 
               case 1: // Negotiated-payload with client-provided buffer
-                sd = gex_AM_PrepareRequestLong(myteam, peerproc, srcbuf, sz, sz, dstbuf, NULL, 0, 2);
+              {
+                gex_Event_t lc = GEX_EVENT_NO_OP;
+                sd = gex_AM_PrepareRequestLong(myteam, peerproc, srcbuf, sz, sz, dstbuf, &lc, 0, 2);
                 assert(sd != GEX_AM_SRCDESC_NO_OP);
                 assert(gex_AM_SrcDescSize(sd) == sz);
-                uint8_t *pbuf = gex_AM_SrcDescAddr(sd);
-                gex_Event_t lc = GEX_EVENT_INVALID;
-                gex_Event_t *lc_opt = &lc;
-                if (pbuf != srcbuf) {
-                  memcpy(pbuf, srcbuf, sz);
-                  lc_opt = NULL;
-                }
-                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, lc_opt, iter, chunkidx);
+                assert(gex_AM_SrcDescAddr(sd) == srcbuf);
+                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, &lc, iter, chunkidx);
                 gex_Event_Wait(lc);
                 break;
+              }
 
               case 2: // Negotiated-payload without client-provided buffer
                 sd = gex_AM_PrepareRequestLong(myteam, peerproc, NULL, sz, sz, dstbuf, NULL, 0, 2);
