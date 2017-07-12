@@ -1598,7 +1598,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #else
   if (reply_node(token) == gasneti_mynode) {
-    retval = gasnetc_local_long_common(1, handler, source_addr, nbytes, dest_addr, numargs, argptr);
+    retval = gasnetc_local_long_common(0, handler, source_addr, nbytes, dest_addr, numargs, argptr);
   } else
 #endif
   {
