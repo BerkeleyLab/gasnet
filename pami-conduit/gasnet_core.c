@@ -1261,11 +1261,12 @@ GASNETI_INLINE(gasnetc_loopback_short)
 int gasnetc_loopback_short(int is_req, gex_Token_t token_arg, gex_Rank_t rank, gex_AM_Index_t handler,
                            gex_Flags_t flags, int numargs, va_list argptr)
 {
-  const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  const gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Short, is_req);
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   GASNETC_AM_COPY_ARGS(args, numargs, argptr);
   gex_Token_t token = is_req ? (gex_Token_t)gasnetc_loopback_token : token_arg;
-  GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_fn,token,args,numargs);
+  GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_entry->gex_fnptr,token,args,numargs);
   return GASNET_OK;
 }
 
@@ -1274,14 +1275,15 @@ int gasnetc_loopback_medium(int is_req, gex_Token_t token_arg, gex_Rank_t rank, 
                             void *source_addr, size_t nbytes,
                             gex_Flags_t flags, int numargs, va_list argptr)
 {
-  const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  const gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Medium, is_req);
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   void *dest_addr = alloca(nbytes);
   gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
   GASNETC_AM_COPY_ARGS(args, numargs, argptr);
   memcpy(dest_addr, source_addr, nbytes);
   gex_Token_t token = is_req ? (gex_Token_t)gasnetc_loopback_token : token_arg;
-  GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
+  GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
   return GASNET_OK;
 }
 
@@ -1290,12 +1292,13 @@ int gasnetc_loopback_long(int is_req, gex_Token_t token_arg, gex_Rank_t rank, ge
                           void *source_addr, size_t nbytes, void *dest_addr,
                           gex_Flags_t flags, int numargs, va_list argptr)
 {
-  const gex_AM_Fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  const gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Long, is_req);
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   GASNETC_AM_COPY_ARGS(args, numargs, argptr);
   memcpy(dest_addr, source_addr, nbytes);
   gex_Token_t token = is_req ? (gex_Token_t)gasnetc_loopback_token : token_arg;
-  GASNETI_RUN_HANDLER_LONG(is_req,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
+  GASNETI_RUN_HANDLER_LONG(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
   return GASNET_OK;
 }
 #endif
