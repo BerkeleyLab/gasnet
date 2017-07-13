@@ -108,9 +108,13 @@ GASNet Revision Control Practices
 
 * If you wish to share intermediate or untested versions of your code for review
   or testing by other developers, you can push your feature branch to BitBucket.
-  Once there, a Pull Request can be used to provide a forum for review if this
-  is desired.  However, we are not currently imposing any formal requirement for
-  use of Pull Requests.
+  Please use a developer fork of the main repository for this purpose - do NOT
+  push topic branches to the main repository (which should only contain long-lived
+  branches of potential interest to end users). BitBucket pull requests provide
+  a forum for review, and are the preferred means for incorporating major changes -
+  see sections on "Forking Development" and "Pull Requests".
+  Code contributions from external collaborators should be generally be submitted
+  via Pull Request, where they will be reviewed by project staff members.
 
 * Whenever you "git add" any new (previously untracked) files to the
   repository, make sure they also get added to the Makefile.am file (if any)
@@ -671,6 +675,12 @@ Without git-flow the equivalent steps are:
     $ git branch -d feature/pull-example
     $ git push origin develop
 
+Either way, please ensure before pushing that your merge of the PR branch generated
+a real merge commit (hence the git merge --no-ff flag), as this clearly demarcates
+the boundaries of the pull request in git history.  Also, the subject line of
+the merge commit should be manually edited to include the pull request number, 
+creating an archival backreference that can be used to find the PR and associated
+comments during history audits in the future.
 
 Releases
 --------
