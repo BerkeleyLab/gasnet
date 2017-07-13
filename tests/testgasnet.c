@@ -229,6 +229,21 @@ int main(int argc, char **argv) {
     assert_always(global_segsz > 0);
   #endif
 
+  { void *owneraddr = (void*)&main;
+    void *localaddr = (void*)&main;
+    uintptr_t size = (uintptr_t)-5;
+
+    // No segments have been created/bound yet.
+    // Local and remote bound-segment queries must return non-zero and preserve output locations.
+    gex_Rank_t peer = (myrank == numranks-1) ? myrank : (myrank ^ 1);
+    if (!gex_Segment_QueryBound(myteam, myrank, &owneraddr, &localaddr, &size) ||
+        !gex_Segment_QueryBound(myteam, peer,   &owneraddr, &localaddr, &size) ||
+        owneraddr != (void*)&main || localaddr != (void*)&main || size != (uintptr_t)-5) {
+      MSG("*** ERROR - FAILED NO BOUND SEGMENT TEST!!!!!");
+    }
+    BARRIER();
+  }
+
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gex_AM_Entry_t)));
 
@@ -386,6 +401,30 @@ void doit(int partner, int *partnerseg) {
     MSG("*** ERROR - FAILED EP SEGMENT TEST!!!!!");
   }
   TEST_CDATA(Segment,mysegment);
+
+  { void *owneraddr, *localaddr;
+    uintptr_t size;
+
+    // Local bound-segment query must return 0 and give same data as direct queries
+    if (gex_Segment_QueryBound(myteam, myrank, &owneraddr, &localaddr, &size) ||
+        size      != gex_Segment_QuerySize(mysegment) ||
+        owneraddr != gex_Segment_QueryAddr(mysegment) ||
+        owneraddr != localaddr) {
+      MSG("*** ERROR - FAILED LOCAL BOUND SEGMENT TEST!!!!!");
+    }
+
+    gex_Rank_t peer = myrank ^ 1;
+    if (peer != numranks) {
+      size = 0;
+      owneraddr = NULL;
+      localaddr = (void*)&main;
+      // Remote bound-segment query must return 0 and set all outputs to "plausible" values
+      if (gex_Segment_QueryBound(myteam, peer, &owneraddr, &localaddr, &size) ||
+          !size || !owneraddr || localaddr == (void*)&main) {
+        MSG("*** ERROR - FAILED REMOTE BOUND SEGMENT TEST!!!!!");
+      }
+    }
+  }
 
   // To be removed:
   assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());

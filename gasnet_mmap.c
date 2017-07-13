@@ -1814,6 +1814,47 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   memcpy(seginfo_table, gasneti_seginfo, numentries*sizeof(gasnet_seginfo_t));
   return GASNET_OK;
 }
+
+int gasneti_Segment_QueryBound(
+                        gex_TM_t tm_arg,
+                        gex_Rank_t rank,
+                        void **owneraddr_p,
+                        void **localaddr_p,
+                        uintptr_t *size_p)
+{
+  gasneti_TM_t tm = gasneti_import_tm(tm_arg);
+  gasneti_assert(rank < tm->_size);
+
+  // Trivial implementation using legacy data structures and assumptions.
+
+  // TODO-EX: cannot yet tell no segment from zero-length segment
+  gasneti_assert(gasneti_seginfo);
+  if (!gasneti_seginfo[rank].addr) return 1; // No (bound) segment
+
+  if (owneraddr_p) {
+    *owneraddr_p = gasneti_seginfo[rank].addr;
+  }
+
+  if (size_p){
+    *size_p = gasneti_seginfo[rank].size;
+  }
+
+  if (localaddr_p) {
+    if (GASNETI_SUPERNODE_LOCAL(rank)) {
+    #if GASNET_PSHM
+      gasneti_assert(gasneti_nodeinfo);
+      *localaddr_p = gasneti_seginfo[rank].addr + gasneti_nodeinfo[rank].offset;
+    #else
+      *localaddr_p = gasneti_seginfo[rank].addr;
+    #endif
+    } else {
+      *localaddr_p = NULL;
+    }
+  }
+
+  return 0;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Aux-seg support */
 

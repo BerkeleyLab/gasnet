@@ -873,6 +873,17 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
   extern gasnet_seginfo_t *gasneti_seginfo_aux;
 #endif
 
+// TODO-EX: override?
+#if 1
+  extern int gasneti_Segment_QueryBound( gex_TM_t tm,
+                                         gex_Rank_t rank,
+                                         void **owneraddr_p,
+                                         void **localaddr_p,
+                                         uintptr_t *size_p);
+  #define gex_Segment_QueryBound(tm,rank,o_p,l_p,s_p) \
+          gasneti_Segment_QueryBound(tm,rank,o_p,l_p,s_p)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* Bits for conduits which want/need to override pthread_create() */
 #if defined(PTHREAD_MUTEX_INITIALIZER) /* only if pthread.h available */ && !GASNET_SEQ
