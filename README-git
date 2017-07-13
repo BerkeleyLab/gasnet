@@ -678,9 +678,13 @@ Without git-flow the equivalent steps are:
 Either way, please ensure before pushing that your merge of the PR branch generated
 a real merge commit (hence the git merge --no-ff flag), as this clearly demarcates
 the boundaries of the pull request in git history.  Also, the subject line of
-the merge commit should be manually edited to include the pull request number, 
-creating an archival backreference that can be used to find the PR and associated
-comments during history audits in the future.
+the merge commit should be manually edited to follow this pattern:
+ Merge pull request #NNN into BRANCHNAME
+Where NNN is the PR number and BRANCHNAME is the target branch (usually `develop`).
+This creates an archival backreference that can be used to easily find the PR and
+associated comments during history audits in the future. The BitBucket UI
+recognizes the "pull request #NNN" substring and converts it into a hyperlink
+in commit listings displayed through the web interface.
 
 Releases
 --------
