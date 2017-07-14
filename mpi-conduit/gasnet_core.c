@@ -686,7 +686,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -694,19 +693,18 @@ extern gex_TI_t gasnetc_Token_Info(
   }
 #endif
 
-  if (mask & GEX_TI_SRCRANK) {
-    info->gex_srcrank = gasnetc_msgsource(token);
-    result |= GEX_TI_SRCRANK;
-  }
+  gex_TI_t result = 0;
+
+  info->gex_srcrank = gasnetc_msgsource(token);
+  result |= GEX_TI_SRCRANK;
+
 #if 0 // TODO-EX: need to implement this
-  if (mask & GEX_TI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
-    result |= GEX_TI_ENTRY;
-  }
+  /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
+  info->gex_entry = ###;
+  result |= GEX_TI_ENTRY;
 #endif
 
-  return result;
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {

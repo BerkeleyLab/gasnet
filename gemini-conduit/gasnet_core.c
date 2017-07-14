@@ -1128,7 +1128,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -1137,21 +1136,20 @@ extern gex_TI_t gasnetc_Token_Info(
 #endif
 
   gasnetc_token_t *real_token = (gasnetc_token_t *)token;
-  if (mask & GEX_TI_SRCRANK) {
-    info->gex_srcrank = real_token->source;
-    gasneti_assert(info->gex_srcrank < gasneti_nodes);
-    result |= GEX_TI_SRCRANK;
-  }
-  if (mask & GEX_TI_ENTRY) {
-    info->gex_entry = real_token->entry;
-    result |= GEX_TI_ENTRY;
-  }
+  gex_TI_t result = 0;
+
+  info->gex_srcrank = real_token->source;
+  gasneti_assert(info->gex_srcrank < gasneti_nodes);
+  result |= GEX_TI_SRCRANK;
+
+  info->gex_entry = real_token->entry;
+  result |= GEX_TI_ENTRY;
 
   // TODO: real_token can (w/ fixes for identifier scope) answer the following:
   //   isShort = (gasnetc_am_command(real_token->notify) == GC_CMD_AM_SHORT)
   //   isRequest = (notify_get_type(real_token->notify) == notify_request)
 
-  return result;
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE)

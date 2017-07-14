@@ -293,17 +293,14 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       gasneti_assert(info);
       gex_TI_t result = 0;
 
-      if (mask & GEX_TI_SRCRANK) {
-        info->gex_srcrank = my_token->srcNode;
-        gasneti_assert(gasneti_pshm_in_supernode(info->gex_srcrank));
-        result |= GEX_TI_SRCRANK;
-      }
-      if (mask & GEX_TI_ENTRY) {
-        info->gex_entry = my_token->entry;
-        result |= GEX_TI_ENTRY;
-      }
+      info->gex_srcrank = my_token->srcNode;
+      gasneti_assert(gasneti_pshm_in_supernode(info->gex_srcrank));
+      result |= GEX_TI_SRCRANK;
 
-      return result;
+      info->gex_entry = my_token->entry;
+      result |= GEX_TI_ENTRY;
+
+      return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
     }
 #endif
 

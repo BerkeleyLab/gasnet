@@ -784,6 +784,19 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
        GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY )
 
 /* ------------------------------------------------------------------------------------ */
+/* common logic for gex_Token_Info() */
+
+// OR of all the required bits
+#define GASNETI_TI_REQUIRED GEX_TI_SRCRANK
+
+#if GASNET_DEBUG
+  extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t * info, gex_TI_t mask);
+  #define GASNETI_TOKEN_INFO_RETURN gasneti_token_info_return
+#else
+  #define GASNETI_TOKEN_INFO_RETURN(result, info, mask) (result)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
 extern uint32_t gasneti_gethostid(void);

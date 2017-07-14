@@ -991,7 +991,8 @@ extern gex_TI_t gasnetc_Token_Info(
   return gasnetc_AMPSHM_TokenInfo(token, info, mask);
 #else
   *info = ((gasnetc_token_t *)token)->ti;
-  return GEX_TI_SRCRANK | GEX_TI_ENTRY;
+  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_ENTRY;
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 #endif
 }
 
