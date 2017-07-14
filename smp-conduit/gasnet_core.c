@@ -985,27 +985,14 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
-  if (gasnetc_token_is_pshm(token)) {
-    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
-  }
+  gasneti_assert(gasnetc_token_is_pshm(token));
+  return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+#else
+  *info = ((gasnetc_token_t *)token)->ti;
+  return GEX_TI_SRCRANK | GEX_TI_ENTRY;
 #endif
-
-  if (mask & GEX_TI_SRCRANK) {
-    info->gex_srcrank = 0;
-    result |= GEX_TI_SRCRANK;
-  }
-#if 0 // TODO-EX: need to implement this
-  if (mask & GEX_TI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
-    result |= GEX_TI_ENTRY;
-  }
-#endif
-
-  return result;
 }
 
 #if GASNET_PSHM 
@@ -1037,16 +1024,16 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
   gex_AM_Arg_t pargs[GASNETC_MAX_ARGS];
   gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
+
+  gasnetc_token_t real_token;
   #if GASNET_DEBUG  
-    gasnetc_bufdesc_t _descbuf; 
-    gasnetc_bufdesc_t *desc = &_descbuf;
-    const gex_Token_t token = (gex_Token_t)desc;
-    desc->isReq = isReq;
-    desc->handlerRunning = 1;
-    desc->replyIssued = 0;
-  #else
-    const gex_Token_t token = NULL;
+    real_token.isReq = isReq;
+    real_token.handlerRunning = 1;
+    real_token.replyIssued = 0;
   #endif
+  real_token.ti.gex_srcrank = gasneti_mynode;
+  real_token.ti.gex_entry = handler_entry;
+  const gex_Token_t token = (gex_Token_t)&real_token;
 
   gasneti_assert(dest == gasneti_mynode);
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
@@ -1091,7 +1078,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
     default: gasneti_fatalerror("bad AM category");
   }
   #if GASNET_DEBUG  
-    desc->handlerRunning = 0;
+    real_token.handlerRunning = 0;
   #endif
   return GASNET_OK;
 }
@@ -1123,12 +1110,12 @@ static int gasnetc_ReplyGeneric(gasneti_category_t category,
   int retval;
   gex_Rank_t sourceid = 0;
   #if GASNET_DEBUG  
-    gasnetc_bufdesc_t *reqdesc = (gasnetc_bufdesc_t *)token;
+    gasnetc_token_t *real_token = (gasnetc_token_t *)token;
 
-    gasneti_assert(reqdesc->handlerRunning);
-    gasneti_assert(!reqdesc->replyIssued);
-    gasneti_assert(reqdesc->isReq);
-    reqdesc->replyIssued = 1;
+    gasneti_assert(real_token->handlerRunning);
+    gasneti_assert(!real_token->replyIssued);
+    gasneti_assert(real_token->isReq);
+    real_token->replyIssued = 1;
   #endif
   
   retval = gasnetc_ReqRepGeneric(category, 0, sourceid, handler, 

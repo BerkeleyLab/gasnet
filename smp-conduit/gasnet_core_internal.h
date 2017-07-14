@@ -9,13 +9,14 @@
 
 #include <gasnet_internal.h>
 
-#if GASNET_DEBUG
 typedef struct {
+  gex_Token_Info_t ti;
+#if GASNET_DEBUG
   int8_t   isReq; 
   int8_t   handlerRunning; 
   int8_t   replyIssued;    
-} gasnetc_bufdesc_t;
 #endif
+} gasnetc_token_t;
 
 typedef struct {
   uint8_t  requestBuf[GASNETC_MAX_MEDIUM];
