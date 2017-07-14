@@ -1843,7 +1843,7 @@ int gasneti_Segment_QueryBound(
     if (GASNETI_SUPERNODE_LOCAL(rank)) {
     #if GASNET_PSHM
       gasneti_assert(gasneti_nodeinfo);
-      *localaddr_p = gasneti_seginfo[rank].addr + gasneti_nodeinfo[rank].offset;
+      *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[rank].addr + gasneti_nodeinfo[rank].offset);
     #else
       *localaddr_p = gasneti_seginfo[rank].addr;
     #endif
