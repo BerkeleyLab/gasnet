@@ -117,7 +117,7 @@ void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes,
       assert(sd != GEX_AM_SRCDESC_NO_OP);
       assert(gex_AM_SrcDescSize(sd) == nbytes);
       assert(gex_AM_SrcDescAddr(sd) == buf);
-      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, GEX_EVENT_NOW, iter, chunkidx);
+      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, iter, chunkidx);
       break;
 
     case 2: // Negotiated-payload without client-provided buffer
@@ -125,7 +125,7 @@ void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes,
       assert(sd != GEX_AM_SRCDESC_NO_OP);
       assert(gex_AM_SrcDescSize(sd) == nbytes);
       memcpy(gex_AM_SrcDescAddr(sd), buf, nbytes);
-      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, NULL, iter, chunkidx);
+      gex_AM_CommitReplyMedium2(sd, hidx_pong_medhandler, nbytes, iter, chunkidx);
       break;
   }
   validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, chunkidx);
@@ -156,7 +156,7 @@ void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
       assert(gex_AM_SrcDescSize(sd) == nbytes);
       assert(gex_AM_SrcDescAddr(sd) == srcbuf);
       if (srcbuf != buf) memcpy(srcbuf, buf, nbytes); // according to INSEG - not due to Prepare
-      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, GEX_EVENT_NOW, iter, chunkidx);
+      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, iter, chunkidx);
       break;
 
     case 2: // Negotiated-payload without client-provided buffer
@@ -164,7 +164,7 @@ void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes,
       assert(sd != GEX_AM_SRCDESC_NO_OP);
       assert(gex_AM_SrcDescSize(sd) == nbytes);
       memcpy(gex_AM_SrcDescAddr(sd), buf, nbytes);
-      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, NULL, iter, chunkidx);
+      gex_AM_CommitReplyLong2(sd, hidx_pong_longhandler, nbytes, dstbuf, iter, chunkidx);
       break;
   }
 }
@@ -363,7 +363,7 @@ void *doit(void *id) {
                 assert(sd != GEX_AM_SRCDESC_NO_OP);
                 assert(gex_AM_SrcDescSize(sd) == sz);
                 assert(gex_AM_SrcDescAddr(sd) == srcbuf);
-                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, &lc, iter, chunkidx);
+                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, iter, chunkidx);
                 gex_Event_Wait(lc);
                 break;
               }
@@ -373,7 +373,7 @@ void *doit(void *id) {
                 assert(sd != GEX_AM_SRCDESC_NO_OP);
                 assert(gex_AM_SrcDescSize(sd) == sz);
                 memcpy(gex_AM_SrcDescAddr(sd), srcbuf, sz);
-                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, NULL, iter, chunkidx);
+                gex_AM_CommitRequestMedium2(sd, hidx_ping_medhandler, sz, iter, chunkidx);
                 break;
             }
           }
@@ -401,7 +401,7 @@ void *doit(void *id) {
                 assert(sd != GEX_AM_SRCDESC_NO_OP);
                 assert(gex_AM_SrcDescSize(sd) == sz);
                 assert(gex_AM_SrcDescAddr(sd) == srcbuf);
-                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, &lc, iter, chunkidx);
+                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, iter, chunkidx);
                 gex_Event_Wait(lc);
                 break;
               }
@@ -411,7 +411,7 @@ void *doit(void *id) {
                 assert(sd != GEX_AM_SRCDESC_NO_OP);
                 assert(gex_AM_SrcDescSize(sd) == sz);
                 memcpy(gex_AM_SrcDescAddr(sd), srcbuf, sz);
-                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, NULL, iter, chunkidx);
+                gex_AM_CommitRequestLong2(sd, hidx_ping_longhandler, sz, dstbuf, iter, chunkidx);
                 break;
             }
           }

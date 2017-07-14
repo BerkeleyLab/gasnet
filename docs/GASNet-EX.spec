@@ -839,9 +839,12 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //   + In all cases the actual dest_addr is supplied at Commit.
 //  gex_Event_t *lc_opt
 //   + If client_buf is NULL, this argument must also be NULL.
-//   + If client_buf is non-NULL, the lc_opt value must be identical
-//     to that of the subsequent to the Commit call.
-//     [TODO: when is lc_opt=&event written to?]
+//   + If client_buf is non-NULL, this argument operates in the same
+//     manner as the 'lc_opt' argument to the fixed-payload AM calls.
+//     Between Prepare and Commit, the contents of the gex_Event_t
+//     referenced by lc_opt, if any, is indeterminate.  Only after
+//     return from the Commit call may such a value be used by the
+//     caller.
 //  gex_Flags_t flags
 //   + Bitwise OR of flags valid for the corresponding
 //     fixed-payload AM injection
@@ -920,34 +923,28 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
 //   + The destination address for transfer of Long payloads
 //   + If non-NULL dest_addr was passed to Prepare, this must
 //     be the same value
-//  gex_Event_t *lc_opt
-//   + Must be identical to the lc_opt parameter passed to Prepare
 //
 extern void gex_AM_CommitRequestMedium[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
-                size_t           nbytes,
-                gex_Event_t      *lc_opt
+                size_t           nbytes
                 [,arg0, ... ,argM-1]);
 extern void gex_AM_CommitReplyMedium[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
-                size_t           nbytes,
-                gex_Event_t      *lc_opt
+                size_t           nbytes
                 [,arg0, ... ,argM-1]);
 extern void gex_AM_CommitRequestLong[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
                 size_t           nbytes,
-                void             *dest_addr,
-                gex_Event_t      *lc_opt
+                void             *dest_addr
                 [,arg0, ... ,argM-1]);
 extern void gex_AM_CommitReplyLong[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
                 size_t           nbytes,
-                void             *dest_addr,
-                gex_Event_t      *lc_opt
+                void             *dest_addr
                 [,arg0, ... ,argM-1]);
 
 
