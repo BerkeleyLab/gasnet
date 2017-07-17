@@ -549,6 +549,7 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
   }
   if (result & GEX_TI_ENTRY) {
     gasneti_assert(info->gex_entry);
+    gasneti_am_validate(info->gex_entry, 1);
   } else {
     info->gex_entry = NULL;
   }
