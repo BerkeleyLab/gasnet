@@ -826,7 +826,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
     if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
   }
 
-  // Common argument checks
+  // Common argument processing
   // TODO-EX: tracing should probably occur here as well
   #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
     do {                                                                                                 \
@@ -848,6 +848,9 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
           gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
                              "and GEX_EVENT_NOW are valid lc_opt values "                                \
                              "when client_buf is non-NULL", _reqrep);                                    \
+      }                                                                                                  \
+      if (lc_opt && gasneti_leaf_is_pointer(lc_opt)) {                                                   \
+        *lc_opt = GEX_EVENT_NO_OP;                                                                       \
       }                                                                                                  \
       if (nargs > gex_AM_MaxArgs())                                                                      \
         gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
