@@ -560,7 +560,10 @@ typedef struct {
     //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
-    // Entry for the currently-running handler corresponding to this token
+    // Entry for the currently-running handler corresponding to this token.
+    // If handler was registered using the legacy gasnet_attach() call, this
+    // value may be set to a valid pointer to a gex_AM_Entry_t, with undefined
+    // contents.
     const gex_AM_Entry_t      *gex_entry;
 } gex_Token_Info_t;
 
@@ -586,7 +589,8 @@ typedef [some integer type] gex_TI_t;
 // The return value is of the same form as the mask.
 // The implementation is permitted to set fields not requested by the
 // caller to valid or *invalid* values.  The returned mask will indicate
-// which fields contain valid results
+// which fields contain valid results, and may include bits not present
+// in the mask.
 //
 // Each GEX_TI_* corresponds to either a Required or Optional query.
 // When a client requests a Required query, a conforming implementation
