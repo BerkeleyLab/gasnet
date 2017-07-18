@@ -826,7 +826,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
     if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
   }
 
-  // Common argument checks
+  // Common argument processing
   // TODO-EX: tracing should probably occur here as well
   #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
     do {                                                                                                 \
@@ -835,15 +835,22 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
         if (lc_opt != NULL)                                                                              \
           gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
                              "only NULL is a valid lc_opt value when client_buf is NULL", _reqrep);      \
+      } else if (lc_opt == NULL) {                                                                       \
+        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": lc_opt must be non-NULL "               \
+                           "when client_buf is non-NULL", _reqrep);                                      \
       } else if (is_req) {                                                                               \
-        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))                \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL, GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values",     \
-                             _reqrep);                                                                   \
+        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))\
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
+                             "GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values "                \
+                             "when client_buf is non-NULL", _reqrep);                                    \
       } else {                                                                                           \
-        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW))                                               \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL and GEX_EVENT_NOW are valid lc_opt values", _reqrep);            \
+        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW))                               \
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
+                             "and GEX_EVENT_NOW are valid lc_opt values "                                \
+                             "when client_buf is non-NULL", _reqrep);                                    \
+      }                                                                                                  \
+      if (lc_opt && gasneti_leaf_is_pointer(lc_opt)) {                                                   \
+        *lc_opt = GEX_EVENT_NO_OP;                                                                       \
       }                                                                                                  \
       if (nargs > gex_AM_MaxArgs())                                                                      \
         gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
@@ -869,7 +876,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
   #define GASNETI_AMPREPREPLYCOMMON(cbuf,min_len,max_len,limit,lc_opt,nargs,cat) \
              _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,0,cat)
 
-  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,is_req,cat) \
+  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,is_req,cat) \
     do {                                                                                                 \
       const char *_reqrep = is_req ? "Request" : "Reply";                                                \
       if (!sd)                                                                                           \
@@ -899,35 +906,23 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
       if (sd->_tofree) {                                                                                 \
-        if (lc_opt != NULL)                                                                              \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt must be NULL when using a GASNet-provided buffer",                  \
-                             _reqrep, nargs);                                                            \
         if (gasneti_sd_init_enabled && (sd->_size >= gasneti_sd_init_len) &&                             \
             !gasneti_memalloc_valcmp(sd->_tofree, gasneti_sd_init_len, gasneti_sd_init_val))             \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \
-      } else if (sd->_lc_opt == NULL) {                                                                  \
-        if (!lc_opt || !gasneti_leaf_is_pointer(lc_opt))                                                 \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt is not a valid pointer", _reqrep, nargs);                           \
-      } else {                                                                                           \
-        if (sd->_lc_opt != lc_opt)                                                                       \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt does not match the value passed to Prepare", _reqrep, nargs);       \
       }                                                                                                  \
     } while(0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,1,cat)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,0,cat)
+  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
+                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat)
+  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
+                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
 #else
   #define gasneti_init_sd_poison(a,l) ((void)0)
   #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min,max,lim,lc_opt,nargs,cat) ((void)0)
   #define GASNETI_AMPREPREPLYCOMMON(cbuf,minlen,maxlen,lim,lc_opt,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
+  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
+  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
 #endif
 
 GASNETI_INLINE(gasneti_prepare_common)
@@ -1093,8 +1088,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
 #ifndef gasnetc_AM_CommitRequestMediumM
 void gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
-                       size_t                  nbytes,
-                       gex_Event_t             *lc_opt
+                       size_t                  nbytes
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -1104,8 +1098,7 @@ void gasnetc_AM_CommitRequestMediumM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1118,6 +1111,7 @@ void gasnetc_AM_CommitRequestMediumM(
     gex_TM_t   tm          = sd->_dest._request._tm;
     gex_Rank_t dest        = sd->_dest._request._rank;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1152,7 +1146,6 @@ void gasnetc_AM_CommitRequestMediumM(
 void gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
-                       gex_Event_t             *lc_opt,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -1161,8 +1154,7 @@ void gasnetc_AM_CommitReplyMediumM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
     
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1174,6 +1166,7 @@ void gasnetc_AM_CommitReplyMediumM(
 
     gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1207,8 +1200,7 @@ void gasnetc_AM_CommitReplyMediumM(
 void gasnetc_AM_CommitRequestLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
-                       void                    *dest_addr,
-                       gex_Event_t             *lc_opt
+                       void                    *dest_addr
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -1218,8 +1210,7 @@ void gasnetc_AM_CommitRequestLongM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1232,6 +1223,7 @@ void gasnetc_AM_CommitRequestLongM(
     gex_TM_t   tm          = sd->_dest._request._tm;
     gex_Rank_t dest        = sd->_dest._request._rank;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1267,7 +1259,6 @@ void gasnetc_AM_CommitReplyLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
                        void                    *dest_addr,
-                       gex_Event_t             *lc_opt,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -1276,8 +1267,7 @@ void gasnetc_AM_CommitReplyLongM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
     
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1289,6 +1279,7 @@ void gasnetc_AM_CommitReplyLongM(
 
     gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
