@@ -899,11 +899,11 @@ static int gasnetc_snd_reap(int limit) {
 
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
-    gasnetc_hca_t *hca;
-    static volatile int index = 0;
-    int tmp = index;
-    index = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
-    hca = &gasnetc_hca[tmp];
+    /* Note use of casts to volatile are require to work around bug 1586 */
+    static int index = 0;
+    int tmp = *(volatile int *)(&index);
+    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
   #endif
@@ -1538,11 +1538,11 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   if (poll_rcv) {
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
-    gasnetc_hca_t *hca;
-    static volatile int index = 0;
-    int tmp = index;
-    index = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
-    hca = &gasnetc_hca[tmp];
+    /* Note use of casts to volatile are require to work around bug 1586 */
+    static int index = 0;
+    int tmp = *(volatile int *)(&index);
+    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
   #endif
