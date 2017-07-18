@@ -23,7 +23,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
-gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
+gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutdown.
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1633,16 +1633,18 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasneti_free(remote_lid);
 
   //  Create first Client and EP *here*, for use in subsequent bootstrap collectives
+  gasneti_Client_t client;
+  gasneti_EP_t ep;
   {
     //  allocate the client object
-    gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
+    client = gasneti_alloc_client(clientName, flags, 0);
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
     if (gasnetc_EP_Create(ep_p, *client_p, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
-    gasneti_EP_t ep = gasneti_import_ep(*ep_p);
-    gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
+    ep = gasneti_import_ep(*ep_p);
+    gasnetc_ep0 = (gasnetc_EP_t)ep; // TODO-EX: this global variable to be removed
   }
 
 #if GASNETC_IBV_XRC
@@ -1656,7 +1658,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 #endif
 
   /* allocate/initialize transport resources */
-  i = gasnetc_sndrcv_init();
+  i = gasnetc_sndrcv_init(gasnetc_ep0);
   if (i != GASNET_OK) {
     return i;
   }
@@ -2433,7 +2435,7 @@ void gasnetc_post_checkpoint(int is_restart) {
 #endif
 
   /* allocate/initialize transport resources */
-  rc = gasnetc_sndrcv_init();
+  rc = gasnetc_sndrcv_init(gasnetc_ep0);
   if (rc != GASNET_OK) {
     gasneti_fatalerror("Failed post-checkpoint call to gasnetc_sndrcv_init");
   }
@@ -2682,7 +2684,7 @@ static void gasnetc_disable_AMs(void) {
   int i;
 
   for (i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
-    gasnetc_handler[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
+    gasnetc_ep0->_amtbl[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
   }
 }
 

@@ -101,8 +101,10 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
-/* handler table (temporary global impl) */
-extern gex_AM_Entry_t *gasnetc_handler;
+/* handler table access for PSHM (temporary global impl until PSHM can pass actual ep) */
+#define GASNETC_GET_HANDLER
+#define gasnetc_get_hentry(_ep,_index) (&gasnetc_ep0->_amtbl[(_index)])
+#define gasnetc_get_handler(_ep,_index,_field) (gasnetc_get_hentry((_ep),(_index))->gex_##_field)
 
 /* ------------------------------------------------------------------------------------ */
 /* Configure gasnet_event_internal.h and gasnet_event.c */
@@ -623,6 +625,14 @@ typedef struct {
   uint16_t             *remote_lids;
 } gasnetc_port_info_t;
 
+// Conduit-specific EP type
+typedef struct gasnetc_EP_t_ {
+  GASNETI_EP_COMMON // conduit-indep part as prefix
+
+  // Per-EP resources will move here from gasnetc_hca_t
+} *gasnetc_EP_t;
+extern gasnetc_EP_t gasnetc_ep0;
+
 /* Routines in gasnet_core_connect.c */
 #if GASNETC_IBV_XRC
 extern int gasnetc_xrc_init(void **shared_mem_p);
@@ -660,7 +670,7 @@ extern int gasnetc_create_cq(struct ibv_context *, int,
                              struct ibv_cq * *, int *,
                              gasnetc_progress_thread_t *);
 extern int gasnetc_sndrcv_limits(void);
-extern int gasnetc_sndrcv_init(void);
+extern int gasnetc_sndrcv_init(gasnetc_EP_t);
 extern void gasnetc_sys_flush_reph(gex_Token_t, gex_AM_Arg_t);
 extern void gasnetc_sys_close_reqh(gex_Token_t);
 extern void gasnetc_sndrcv_quiesce(void);
