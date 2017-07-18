@@ -468,7 +468,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let the PSHM code
@@ -478,18 +477,21 @@ extern gex_TI_t gasnetc_Token_Info(
   }
 #endif
 
-  if (mask & GEX_TI_SRCRANK) {
-    /* (###) add code here to write the source into info->gex_srcrank */
-    info->gex_srcrank = ###;
-    result |= GEX_TI_SRCRANK;
-  }
-  if (mask & GEX_TI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
-    result |= GEX_TI_ENTRY;
-  }
+  /* (###) Recommended implementation is to set all supported fields without
+   * testing bits in 'mask'.  The exception to this would be for fields that
+   * the conduit considers "costly" to populate.
+   */
+  gex_TI_t result = 0;
 
-  return result;
+  /* (###) add code here to write the source into info->gex_srcrank */
+  info->gex_srcrank = ###;
+  result |= GEX_TI_SRCRANK;
+
+  /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
+  info->gex_entry = ###;
+  result |= GEX_TI_ENTRY;
+
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(void) {

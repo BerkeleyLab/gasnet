@@ -1140,7 +1140,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -1149,16 +1148,15 @@ extern gex_TI_t gasnetc_Token_Info(
 #endif
 
   gasnetc_token_t *real_token = (gasnetc_token_t *)(token);
-  if (mask & GEX_TI_SRCRANK) {
-    info->gex_srcrank = gasnetc_msgsource(token);
-    result |= GEX_TI_SRCRANK;
-  }
-  if (mask & GEX_TI_ENTRY) {
-    info->gex_entry = real_token->entry;
-    result |= GEX_TI_ENTRY;
-  }
+  gex_TI_t result = 0;
 
-  return result;
+  info->gex_srcrank = gasnetc_msgsource(token);
+  result |= GEX_TI_SRCRANK;
+
+  info->gex_entry = real_token->entry;
+  result |= GEX_TI_ENTRY;
+
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {

@@ -525,6 +525,38 @@ extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
   }
 }
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+#if GASNET_DEBUG
+// Post processing of gex_Token_Info() results
+extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *info, gex_TI_t mask) {
+  // Validate client's requested mask
+  if (mask & ~GEX_TI_ALL) {
+    gasneti_fatalerror("Mask argument to gex_Token_Info() includes unknown bits");
+  }
+
+  // Validate conduit's returned mask (any requested+required fields missing?);
+  gasneti_assert(! (~result & (mask & GASNETI_TI_REQUIRED)));
+
+  // From here forward, consider only the requested subset of the conduit-provided result
+  result &= mask;
+
+  // For each known field: validate it if requested, or INvalidate it if not.
+  if (result & GEX_TI_SRCRANK) {
+    gasneti_assert(info->gex_srcrank < gasneti_nodes);
+  } else {
+    info->gex_srcrank = GEX_RANK_INVALID;
+  }
+  if (result & GEX_TI_ENTRY) {
+    gasneti_assert(info->gex_entry);
+    gasneti_am_validate(info->gex_entry, 1);
+  } else {
+    info->gex_entry = NULL;
+  }
+
+  return result;
+}
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 #ifndef _GEX_CLIENT_T

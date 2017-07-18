@@ -5076,7 +5076,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -5085,22 +5084,22 @@ extern gex_TI_t gasnetc_Token_Info(
 #endif
 
   const gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
-  if (mask & GEX_TI_SRCRANK) {
-    uint32_t flags = rbuf->rbuf_flags;
-    if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
-    info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
-    result |= GEX_TI_SRCRANK;
-  }
-  if (mask & GEX_TI_ENTRY) {
-    info->gex_entry = rbuf->rbuf_entry;
-    result |= GEX_TI_ENTRY;
-  }
+  uint32_t flags = rbuf->rbuf_flags;
+  gex_TI_t result = 0;
+
+  if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
+
+  info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
+  result |= GEX_TI_SRCRANK;
+
+  info->gex_entry = rbuf->rbuf_entry;
+  result |= GEX_TI_ENTRY;
 
   // TODO: rbuf can answer the following queries:
   //   isShort = (GASNETC_MSG_CATEGORY(rbuf->flags) == gasneti_Short)
   //   isReq = GASNETC_MSG_ISREQUEST(rbuf->flags)
 
-  return result;
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
