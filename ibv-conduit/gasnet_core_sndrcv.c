@@ -5095,9 +5095,11 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_entry = rbuf->rbuf_entry;
   result |= GEX_TI_ENTRY;
 
-  // TODO: rbuf can answer the following queries:
-  //   isShort = (GASNETC_MSG_CATEGORY(rbuf->flags) == gasneti_Short)
-  //   isReq = GASNETC_MSG_ISREQUEST(rbuf->flags)
+  info->gex_is_req = GASNETC_MSG_ISREQUEST(flags);
+  result |= GEX_TI_IS_REQ;
+
+  info->gex_is_long = (gasneti_Long == GASNETC_MSG_CATEGORY(flags));
+  result |= GEX_TI_IS_LONG;
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }

@@ -565,6 +565,12 @@ typedef struct {
     // value may be set to a valid pointer to a gex_AM_Entry_t, with undefined
     // contents.
     const gex_AM_Entry_t      *gex_entry;
+
+    // 1 if the current handler is a Request, 0 otherwise.
+    [some integral type]       gex_is_req;
+
+    // 1 if the current handler is a Long, 0 otherwise.
+    [some integral type]       gex_is_long;
 } gex_Token_Info_t;
 
 // Bitmask constants to request specific info from gex_Token_Info():
@@ -578,6 +584,8 @@ typedef [some integer type] gex_TI_t;
 
 // OPTIONAL: Some implementations might not support these queries:
 #define GEX_TI_ENTRY         ((gex_TI_t)???)
+#define GEX_TI_IS_REQ        ((gex_TI_t)???)
+#define GEX_TI_IS_LONG       ((gex_TI_t)???)
 
 // Convenience: all defined queries (Required and Optional)
 #define GEX_TI_ALL           ((gex_TI_t)???)
