@@ -508,6 +508,7 @@ typedef struct {
     gasnetc_atomic_val_t max_peers;
     gasnetc_atomic_t	count;
     gasnetc_cep_t	**cep;
+    volatile int        prev;
   }	  amrdma_rcv;
   struct {
     gasnetc_atomic_t		count;

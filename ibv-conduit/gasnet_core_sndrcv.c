@@ -1509,11 +1509,9 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
 
   /* Poll round-robin over the AMRDMA landing zones and the CQ */
   while (limit && limit2--) {
-    /* NOTE: bug 1586 work-around requires the volatile casts */
-    static int prev = 0;
-    int index = *(volatile int *)(&prev); /* The associated data race is harmless */
+    int index = hca->amrdma_rcv.prev; /* The associated data race is harmless */
     index = (index == 0) ? count : (index - 1);
-    *(volatile int *)(&prev) = index;
+    hca->amrdma_rcv.prev = index;
 
     gasneti_assert(limit > 0);
     gasneti_assert(limit2 >= 0);
@@ -3386,6 +3384,7 @@ extern int gasnetc_sndrcv_init(void) {
         gasneti_leak(hca->cep);
       }
       gasnetc_atomic_set(&hca->amrdma_rcv.count, 0, 0);
+      hca->amrdma_rcv.prev = 0;
       if (gasnetc_amrdma_max_peers && hca->max_qps) {
 	const int max_peers = hca->amrdma_rcv.max_peers = MIN(gasnetc_amrdma_max_peers, hca->max_qps);
 	size_t alloc_size = GASNETI_PAGE_ALIGNUP(max_peers * (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2) + GASNETC_AMRDMA_PAD);
