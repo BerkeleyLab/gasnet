@@ -141,6 +141,7 @@ int		gasnetc_bbuf_limit;
 
 /* Maximum pinning capabilities of the HCA */
 typedef struct gasnetc_pin_info_t_ {
+    uint64_t    physmemsz;
     uintptr_t	memory;		/* How much pinnable (per proc) */
     uint32_t	regions;
     int		num_local;	/* How many procs */
@@ -699,11 +700,121 @@ static void gasnetc_physmem_check(const char *reason, uintptr_t limit) {
   }
 }
 
+static void gasnetc_physmem_report(double elapsed, gasnetc_pin_info_t *all_info)
+{
+  fprintf(stderr, "WARNING: Probe of max pinnable memory completed in %gs.\n", elapsed);
+  char valstr1[80], valstr2[80], valstr3[80];
+  double sum_frac, min_frac, max_frac;
+  uintptr_t min_mem, max_mem;
+  uint64_t sum_mem, sum_pin, min_pin, max_pin;
+  sum_pin = min_pin = max_pin = all_info[0].memory;
+  sum_mem = min_mem = max_mem = all_info[0].physmemsz;
+  sum_frac = min_frac = max_frac = sum_pin / (double)sum_mem;
+  for (gex_Rank_t i = 1; i < gasneti_nodes; ++i) {
+    uintptr_t pin = all_info[i].memory;
+    if (pin == ~((uintptr_t)0)) continue;  // Not probed
+    sum_pin += pin;
+    min_pin = MIN(min_pin, pin);
+    max_pin = MAX(max_pin, pin);
+
+    uintptr_t mem = all_info[i].physmemsz;
+    sum_mem += mem;
+    min_mem = MIN(min_mem, mem);
+    max_mem = MAX(max_mem, mem);
+
+    double frac = pin / (double)mem;
+    sum_frac += frac;
+    min_frac = MIN(min_frac, frac);
+    max_frac = MAX(max_frac, frac);
+  }
+  int single_valued = 0;
+  if ((max_pin - min_pin) < ((uintptr_t)1 << 30)) {
+    // less than 1G difference in ABSOLUTE size
+    gasneti_format_number(min_pin, valstr1, sizeof(valstr1), 1);
+    single_valued = 1;
+  } else if ((max_frac - min_frac) < 0.05) {
+    // less than 5 percentage points difference in RELATIVE size
+    snprintf(valstr1, sizeof(valstr1), "%.3g", min_frac);
+    single_valued = 1;
+  }
+  if (single_valued) {
+    fprintf(stderr, "WARNING:   Probe of max pinnable memory has yielded '%s'.\n", valstr1);
+    fprintf(stderr, "WARNING:   If you have the same memory configuration on all nodes, then\n");
+    fprintf(stderr, "WARNING:   to avoid this probe in the future either reconfigure using\n");
+    fprintf(stderr, "WARNING:      --with-ibv-physmem-max='%s'\n", valstr1);
+    fprintf(stderr, "WARNING:   or run with environment variable\n");
+    fprintf(stderr, "WARNING:      GASNET_PHYSMEM_MAX='%s'.\n", valstr1);
+  } else {
+    fprintf(stderr, "WARNING:   Probe of max pinnable memory found varying results\n");
+    gasneti_format_number(sum_mem/gasneti_nodemap_global_count, valstr1, sizeof(valstr1), 1);
+    gasneti_format_number(min_mem, valstr2, sizeof(valstr2), 1);
+    gasneti_format_number(max_mem, valstr3, sizeof(valstr3), 1);
+    fprintf(stderr, "WARNING:   Physical memory   MEAN/MIN/MAX = %s / %s / %s\n",
+                    valstr1, valstr2, valstr3);
+    gasneti_format_number(sum_pin/gasneti_nodemap_global_count, valstr1, sizeof(valstr1), 1);
+    gasneti_format_number(min_pin, valstr2, sizeof(valstr2), 1);
+    gasneti_format_number(max_pin, valstr3, sizeof(valstr3), 1);
+    fprintf(stderr, "WARNING:   Pinnable memory   MEAN/MIN/MAX = %s / %s / %s\n",
+                    valstr1, valstr2, valstr3);
+    snprintf(valstr1, sizeof(valstr1), "%.3g", sum_frac/gasneti_nodemap_global_count);
+    snprintf(valstr2, sizeof(valstr2), "%.3g", min_frac);
+    snprintf(valstr3, sizeof(valstr3), "%.3g", max_frac);
+    fprintf(stderr, "WARNING:   Pinnable fraction MEAN/MIN/MAX = %s / %s / %s\n",
+                    valstr1, valstr2, valstr3);
+
+    // Report memory "lost" at min absolute size
+    uintptr_t try_abs = min_pin;
+    uintptr_t lost = all_info[0].memory - try_abs;
+    sum_mem = max_mem = lost;
+    sum_frac = max_frac = lost / (double)all_info[0].memory;
+    for (gex_Rank_t i = 1; i < gasneti_nodes; ++i) {
+      uintptr_t pin = all_info[i].memory;
+      if (pin == ~((uintptr_t)0)) continue;  // Not probed
+      lost = pin - try_abs;
+      sum_mem += lost;
+      max_mem = MAX(max_mem, lost);
+
+      double frac = lost / (double)pin;
+      sum_frac += frac;
+      max_frac = MAX(max_frac, frac);
+    }
+    gasneti_format_number(try_abs, valstr1, sizeof(valstr1), 1);
+    fprintf(stderr, "WARNING:   Unusable pinned memory with an absolute max of '%s':\n", valstr1);
+    gasneti_format_number(sum_mem, valstr1, sizeof(valstr1), 1);
+    gasneti_format_number(sum_mem/gasneti_nodemap_global_count, valstr2, sizeof(valstr2), 1);
+    gasneti_format_number(max_mem, valstr3, sizeof(valstr3), 1);
+    fprintf(stderr, "WARNING:     SUM/MEAN/MAX = %s / %s / %s\n", valstr1, valstr2, valstr3);
+
+    // Report memory "lost" at min relative size
+    double try_rel = min_frac;
+    lost = all_info[0].memory - (try_rel * all_info[0].physmemsz);
+    sum_mem = max_mem = lost;
+    sum_frac = max_frac = lost / (double)all_info[0].memory;
+    for (gex_Rank_t i = 1; i < gasneti_nodes; ++i) {
+      uintptr_t pin = all_info[i].memory;
+      if (pin == ~((uintptr_t)0)) continue;  // Not probed
+      lost = pin - (try_rel * all_info[i].physmemsz);
+      sum_mem += lost;
+      max_mem = MAX(max_mem, lost);
+
+      double frac = lost / (double)pin;
+      sum_frac += frac;
+      max_frac = MAX(max_frac, frac);
+    }
+    fprintf(stderr, "WARNING:   Unusable pinned memory with a relative max of '%.3g':\n", try_rel);
+    gasneti_format_number(sum_mem, valstr1, sizeof(valstr1), 1);
+    gasneti_format_number(sum_mem/gasneti_nodemap_global_count, valstr2, sizeof(valstr2), 1);
+    gasneti_format_number(max_mem, valstr3, sizeof(valstr3), 1);
+    fprintf(stderr, "WARNING:     SUM/MEAN/MAX = %s / %s / %s\n", valstr1, valstr2, valstr3);
+  }
+  fprintf(stderr, "WARNING: For more information see \"Slow PHYSMEM probe at start-up\"\n");
+  fprintf(stderr, "WARNING: in ibv-conduit's README.\n");
+}
+
 /* Search for the total amount of memory we can pin per process.
  */
 static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info_t *all_info = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_pin_info_t));
-  const int do_probe = ! gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0);
   int i;
 
   /* 
@@ -713,15 +824,28 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
    *   if FIREHOSE_M and FIREHOSE_MAXVICTIM_M are both set:
    *     (SEGMENT_FAST ? MMAP_LIMIT : 0 ) + (FIREHOSE_M + FIREHOSE_MAXVICTIM_M + eplison)
    *
-   * Unless env(GASNET_PHYSMEM_NOPROBE) is set to a "true" value, we will verify the value.
+   * Unless env(GASNET_PHYSMEM_PROBE) is set to a "true" value, we will NOT verify any value
+   * set by configure or the GASNET_PHYSMEM_MAX environment variable.
    */
 
-  #ifndef GASNETC_DEFAULT_PHYSMEM_MAX
-  #define GASNETC_DEFAULT_PHYSMEM_MAX "2/3"
+  #ifdef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
+    #define GASNETC_DEFAULT_PHYSMEM_MAX GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
+    int do_probe_default = 0;
+  #else
+    #define GASNETC_DEFAULT_PHYSMEM_MAX "2/3"
+    int do_probe_default = ! gasneti_getenv("GASNET_PHYSMEM_MAX");
   #endif
+  #ifdef GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE
+    do_probe_default = GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE;
+  #else
+    // Will probe on request or if neither configure nor environment has provided a value
+  #endif
+  const int do_probe = gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_PROBE", do_probe_default);
+
+  uint64_t physmemsz = gasneti_getPhysMemSz(1);
   uint64_t limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                           GASNETC_PHYSMEM_MIN, gasneti_getPhysMemSz(1));
+                           GASNETC_PHYSMEM_MIN, physmemsz);
 #if PLATFORM_ARCH_32
    limit = MIN(limit, 0xFFFFFFFF);
 #endif
@@ -752,6 +876,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PHYSMEM_MAX=%"PRIu64, limit));
 
+  gasnetc_pin_info.physmemsz = physmemsz;
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
   gasnetc_pin_info.regions = gasnetc_fh_maxregions;
@@ -760,6 +885,26 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   }
 
   if (do_probe) {
+    int quiet = !gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_WARN", 1);
+    int did_warn = 0;
+    gasneti_tick_t start_time = gasneti_ticks_now();
+    // Warn if any node has more than 2G (unless QUIET)
+    if (! quiet) {
+      uint64_t *all_limits = gasneti_malloc(gasneti_nodes * sizeof(uint64_t));
+      gasnetc_bootstrapExchange_ib(&limit, sizeof(uint64_t), all_limits);
+      if (!gasneti_mynode) {
+        uint64_t max_limit = all_limits[0];
+        for (gex_Rank_t i = 1; i < gasneti_nodes; ++i) {
+          max_limit = MAX(max_limit, all_limits[i]);
+        }
+        if (max_limit > ((uint64_t)2 << 30)) {
+          fprintf(stderr, "WARNING: Beginning a potentially slow probe of max pinnable memory...\n");
+          fflush(stderr);
+          did_warn = 1;
+        }
+      }
+      gasneti_free(all_limits);
+    }
     /* Now search for largest pinnable memory, on one process per machine */
     uintptr_t step = ~(uintptr_t)0;
     GASNETC_FOR_ALL_HCA_INDEX(i) {
@@ -779,6 +924,16 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       gasnetc_pin_info.memory = size;
     }
     gasnetc_bootstrapExchange_ib(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
+    if (! quiet && ! gasneti_mynode) {
+      // If warned above, or too slow, print the results and what to do with them.
+      // We define "too slow" as 10s + log2(nodes) * 5s.
+      double elapsed = 1.e-9 * gasneti_ticks_to_ns(gasneti_ticks_now() - start_time);
+      double too_slow = 10.;
+      for (gex_Rank_t i = gasneti_nodes/2; i; i >>= 1) too_slow += 5.;
+      if (did_warn || (elapsed > too_slow)) {
+        gasnetc_physmem_report(elapsed, all_info);
+      }
+    }
 #if GASNET_ALIGNED_SEGMENTS  /* Just a waste of time otherwise */
     if (gasneti_mynode != first_local) {
       /* Extra mmap traffic to ensure compatible VM spaces */

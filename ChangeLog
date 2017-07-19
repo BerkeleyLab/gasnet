@@ -70,7 +70,11 @@ GASNet ChangeLog
   - Improve robustness of exit code
 
 * InfiniBand Verbs (ibv-conduit)
-  - Improve the handling of GASNET_PHYSMEM_* env vars to be more user-friendly
+  - Improve the handling of GASNET_PHYSMEM_* env vars
+     + Make variable names and interpretations more user-friendly
+     + Allow configure-time setting of default values
+     + Warn user if a slow probe is for required for GASNET_PHYSMEM_MAX
+     + Improve the coresponding documentation
 
 * Libfabric (ofi-conduit)
   - Fix bug 3426: Unbounded recursion within gasnetc_ofi_poll()

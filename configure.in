@@ -3525,12 +3525,30 @@ if test "$enabled_ibv" = yes; then
        [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
           gasnetc_ibv_max_hcas="$withval"
         else
-          AC_MSG_ERROR([--with-ibv-max-hcas requires a postive integer argument])
+          AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])
         fi],
-       [AC_MSG_ERROR([--with-ibv-max-hcas requires a postive integer argument])],
+       [AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])],
        [:])
     if test "$enabled_ibv_multirail" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibv_max_hcas)
+    fi
+
+    GASNET_WITH(ibv-physmem-max,
+       [maximum physical memory IBV may pin: less than 1.0 is fraction of apparent physical memory, larger than 1 is absolute size with optional M, G and T suffix (default is 2/3)],
+       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
+          : # TODO: stronger validation?
+          AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_MAX_CONFIGURE, "$withval")
+        else
+          AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])
+        fi],
+       [AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])],
+       [:])
+
+    GASNET_IF_ENABLED_WITH_AUTO(ibv-physmem-probe,
+       [force default enable/disable of GASNET_PHYSMEM_PROBE in ibv-conduit],
+       force_ibv_physmem_probe=1, force_ibv_physmem_probe=0, force_ibv_physmem_probe='')
+    if test -n "$force_ibv_physmem_probe"; then
+      AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE, $force_ibv_physmem_probe)
     fi
 
     GASNET_IF_DISABLED([ibv-srq],
