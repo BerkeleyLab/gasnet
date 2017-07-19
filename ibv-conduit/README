@@ -880,6 +880,21 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   In our testing this resulted in about a 2% reduction in peak bandwidth,
   but eliminated all instances of "aborting on reap of failed send".
 
++ Lack of XRC support
+  XRC is a optional feature in the Open Fabrics Verbs API, for which
+  GASNet's configure script will probe support.  However, that probe is
+  limited to determining if the XRC-related function calls will compile
+  and link, and cannot distinguish platforms on which the calls are
+  present but always fail.  On such systems, the failure will be reported
+  at runtime above a certain number of processes (86 with the defaults
+  for all environment variables) with the following message:
+
+  *** FATAL ERROR: Unable to create an XRC domain.  Please see "Lack of XRC support" under Known Problems in GASNet's README-ibv.
+
+  If you experience this error it is recommended that you reconfigure
+  your build of GASNet with --disable-ibv-xrc.  If that is not possible
+  one can also set GASNET_USE_XRC=0 in your environment.
+
 + Bug 3428
   In this release the code used to checksum AMRDMA traffic is known to be
   incorrect under agressive compiler optimization.  However, an alternative
