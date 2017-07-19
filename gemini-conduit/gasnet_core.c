@@ -597,7 +597,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   //  Create first Client and EP *here*, for use in subsequent bootstrap collectives
   {
     //  allocate the client object
-    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
@@ -723,7 +723,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   gasnetc_assert_aligned(segsize, GASNET_PAGESIZE);
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags);
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
   *segment_p = gasneti_export_segment(ep->_segment);
 
   /* After local segment is attached, call optional client-provided hook
@@ -830,7 +830,7 @@ extern int gasnetc_Client_Init(
   #endif
   } else { // NOT first client
     //  allocate the client object
-    gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+    gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
     *client_p = gasneti_export_client(client);
 
     //  create the initial endpoint with internal handlers
@@ -840,7 +840,7 @@ extern int gasnetc_Client_Init(
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -878,7 +878,7 @@ extern int gasnetc_Segment_Attach(
   uintptr_t segsize = gasneti_seginfo[gasneti_mynode].size;
   const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags);
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
   *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
@@ -898,7 +898,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
 #endif
 
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, 0);
   *ep_p = gasneti_export_ep(ep);
 
   { /*  core API handlers */

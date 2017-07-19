@@ -578,9 +578,11 @@ gex_Client_t gasneti_export_client(gasneti_Client_t _real_client) {
 // TODO-EX: either ensure name is unique OR perform "auto-increment" according to flags
 gasneti_Client_t gasneti_alloc_client(
                        const char *name,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
-  gasneti_Client_t client = gasneti_malloc(sizeof(*client));
+  gasneti_Client_t client = gasneti_malloc(alloc_size ? alloc_size : sizeof(*client));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*client));
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
   client->_name = gasneti_strdup(name);
   client->_cdata = NULL;
@@ -624,9 +626,11 @@ gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t size,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
-  gasneti_Segment_t segment = gasneti_malloc(sizeof(*segment));
+  gasneti_Segment_t segment = gasneti_malloc(alloc_size ? alloc_size : sizeof(*segment));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*segment));
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
   segment->_client = client;
   segment->_cdata = NULL;
@@ -670,9 +674,11 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 // TODO-EX: probably need to add to a per-client container of some sort
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
-  gasneti_EP_t endpoint = gasneti_malloc(sizeof(*endpoint));
+  gasneti_EP_t endpoint = gasneti_malloc(alloc_size ? alloc_size : sizeof(*endpoint));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*endpoint));
   GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
   endpoint->_client = client;
   endpoint->_cdata = NULL;
@@ -717,11 +723,13 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
   gasneti_assert(rank < size);
   gasneti_assert(size > 0);
-  gasneti_TM_t tm = gasneti_malloc(sizeof(*tm));
+  gasneti_TM_t tm = gasneti_malloc(alloc_size ? alloc_size : sizeof(*tm));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*tm));
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
   tm->_ep = ep;
   tm->_cdata = NULL;

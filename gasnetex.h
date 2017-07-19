@@ -324,22 +324,22 @@ typedef struct {
     const char             *gex_name;    // Used in debug messages
 } gex_AM_Entry_t;
 
-#ifndef _GEX_CLIENT_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_CLIENT_MAGIC       GASNETI_MAKE_MAGIC('C','L','I','t')
-    #define GASNETI_CLIENT_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('C','L','I','t')
-    gasneti_magic_t    _magic;
-  #endif
-    const char *       _name;
-    const void *       _cdata;
+#if GASNET_DEBUG
+  #define GASNETI_OBJECT_HEADER_DEBUG gasneti_magic_t _magic;
+#else
+  #define GASNETI_OBJECT_HEADER_DEBUG
+#endif
+
+#define GASNETI_OBJECT_HEADER          \
+    GASNETI_OBJECT_HEADER_DEBUG        \
+    const void *       _cdata;         \
     gex_Flags_t        _flags;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_CLIENT_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_CLIENT_EXTRA
-  #endif
-  } *gasneti_Client_t;
+
+#ifndef _GEX_CLIENT_T
+  #define GASNETI_CLIENT_COMMON        \
+    GASNETI_OBJECT_HEADER              \
+    const char *       _name;
+  typedef struct { GASNETI_CLIENT_COMMON } *gasneti_Client_t;
   #if GASNET_DEBUG
     extern gasneti_Client_t gasneti_import_client(gex_Client_t _client);
     extern gex_Client_t gasneti_export_client(gasneti_Client_t _real_client);
@@ -354,24 +354,13 @@ typedef struct {
 #endif
 
 #ifndef _GEX_SEGMENT_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
-    #define GASNETI_SEGMENT_BAD_MAGIC  GASNETI_MAKE_BAD_MAGIC('S','E','G','t')
-    gasneti_magic_t    _magic;
-  #endif
-    gasneti_Client_t   _client;
-    const void *       _cdata;
-    void *             _addr;
-    void *             _ub;
+  #define GASNETI_SEGMENT_COMMON       \
+    GASNETI_OBJECT_HEADER              \
+    gasneti_Client_t   _client;        \
+    void *             _addr;          \
+    void *             _ub;            \
     uintptr_t          _size;
-    gex_Flags_t        _flags;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_SEGMENT_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_SEGMENT_EXTRA
-  #endif
-  } *gasneti_Segment_t;
+  typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG
     extern gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment);
     extern gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment);
@@ -388,23 +377,12 @@ typedef struct {
 #endif
 
 #ifndef _GEX_EP_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
-    #define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
-    gasneti_magic_t    _magic;
-  #endif
-    gasneti_Client_t   _client;
-    const void *       _cdata;
-    gasneti_Segment_t  _segment;
-    gex_Flags_t        _flags;
+  #define GASNETI_EP_COMMON            \
+    GASNETI_OBJECT_HEADER              \
+    gasneti_Client_t   _client;        \
+    gasneti_Segment_t  _segment;       \
     gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS];
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_EP_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_EP_EXTRA
-  #endif
-  } *gasneti_EP_t;
+  typedef struct { GASNETI_EP_COMMON } *gasneti_EP_t;
   #if GASNET_DEBUG
     extern gasneti_EP_t gasneti_import_ep(gex_EP_t _ep);
     extern gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep);
@@ -420,23 +398,12 @@ typedef struct {
 #endif
 
 #ifndef _GEX_TM_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
-    #define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
-    gasneti_magic_t    _magic;
-  #endif
-    gasneti_EP_t       _ep;
-    const void *       _cdata;
-    gex_Flags_t        _flags;
-    gex_Rank_t         _rank;
+  #define GASNETI_TM_COMMON            \
+    GASNETI_OBJECT_HEADER              \
+    gasneti_EP_t       _ep;            \
+    gex_Rank_t         _rank;          \
     gex_Rank_t         _size;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_TM_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_TM_EXTRA
-  #endif
-  } *gasneti_TM_t;
+  typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
     extern gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm);
