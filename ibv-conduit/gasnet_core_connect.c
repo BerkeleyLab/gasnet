@@ -345,6 +345,10 @@ gasnetc_xrc_init(void **shared_mem_p) {
   #elif GASNETC_IBV_XRC_MLNX
     hca->xrc_domain = ibv_open_xrc_domain(hca->handle, fd, O_CREAT);
   #endif
+    if (!hca->xrc_domain && errno == ENOSYS) {
+      gasneti_fatalerror("Unable to create an XRC domain.  "
+                         "Please see \"Lack of XRC support\" under Known Problems in GASNet's README-ibv.");
+    }
     GASNETC_IBV_CHECK_PTR(hca->xrc_domain, "from ibv_open_xrc_domain()");
     (void) close(fd);
   }
