@@ -295,28 +295,44 @@ extern void gasneti_freezeForDebugger(void);
 /* ------------------------------------------------------------------------------------ */
 // Common handing of the basic object types
 
+#define GASNETI_CLIENT_MAGIC       GASNETI_MAKE_MAGIC('C','L','I','t')
+#define GASNETI_CLIENT_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('C','L','I','t')
+
 extern gasneti_Client_t gasneti_alloc_client(
                        const char *name, 
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_client(gasneti_Client_t client);
+
+#define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
+#define GASNETI_SEGMENT_BAD_MAGIC  GASNETI_MAKE_BAD_MAGIC('S','E','G','t')
 
 extern gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t len,
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_segment(gasneti_Segment_t segment);
+
+#define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
+#define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
 
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_ep(gasneti_EP_t endpoint);
+
+#define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
+#define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
 
 extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_tm(gasneti_TM_t tm);
 
 /* ------------------------------------------------------------------------------------ */
