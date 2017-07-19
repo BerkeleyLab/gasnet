@@ -80,7 +80,7 @@ typedef [some unsigned integer type] gex_Rank_t;
 // In particular, might NOT be equal to GASNET_MAXNODES
 #define GEX_RANK_INVALID ((gex_Rank_t)???)
 
-// "Job rank":
+// "Job rank": [EXPERIMENTAL]
 // In a non-resilient build this will be the same as the rank in the team
 // constructed by gex_Client_Init() and will be identical across clients.
 // This is semantically equivalent to gasnet_mynode().
@@ -88,7 +88,7 @@ typedef [some unsigned integer type] gex_Rank_t;
 // Semantics in a resilient build will be defined in a later release.
 gex_Rank_t gex_System_QueryJobRank(void);
 
-// "Job size":
+// "Job size": [EXPERIMENTAL]
 // In a non-resilient build this will be the same as the size in the team
 // constructed by gex_Client_Init() and will be identical across clients.
 // This is semantically equivalent to gasnet_nodes().
@@ -321,7 +321,7 @@ gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 void *       gex_Segment_QueryAddr(gex_Segment_t seg);
 uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 
-// Query addresses and length of a (possibly remote) bound segment
+// Query addresses and length of a (possibly remote) bound segment [EXPERIMENTAL]
 //
 // This query takes a gex_TM_t and gex_Rank_t, which together name an endpoint.
 // The remaining arguments are pointers to locations for outputs, each of which
@@ -713,6 +713,7 @@ int gex_AM_ReplyShort[M](
 
 //
 // Negotiated-payload AM APIs
+// [CHANGED SINCE JUNE 2017 BETA]
 //
 
 // The fixed-payload APIs for Active Message Mediums and Longs (brought
