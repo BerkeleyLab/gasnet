@@ -25,7 +25,6 @@ int main(int argc, char **argv)
 {
   gex_Rank_t rank, size;
   size_t segsz = GASNET_PAGESIZE;
-  size_t heapsz = GASNET_PAGESIZE;
   int argi;
 
   gex_Client_t      myclient;
