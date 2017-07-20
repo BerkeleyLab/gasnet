@@ -538,20 +538,13 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
   // Validate conduit's returned mask (any requested+required fields missing?);
   gasneti_assert(! (~result & (mask & GASNETI_TI_REQUIRED)));
 
-  // From here forward, consider only the requested subset of the conduit-provided result
-  result &= mask;
-
-  // For each known field: validate it if requested, or INvalidate it if not.
+  // For each field set: validate
   if (result & GEX_TI_SRCRANK) {
     gasneti_assert(info->gex_srcrank < gasneti_nodes);
-  } else {
-    info->gex_srcrank = GEX_RANK_INVALID;
   }
   if (result & GEX_TI_ENTRY) {
     gasneti_assert(info->gex_entry);
     gasneti_am_validate(info->gex_entry, 1);
-  } else {
-    info->gex_entry = NULL;
   }
   if (result & GEX_TI_IS_REQ) {
     gasneti_assert(info->gex_is_req == !!info->gex_is_req); // Is 0 or 1
@@ -559,8 +552,6 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
       gasneti_assert(info->gex_entry->gex_flags &
                      (info->gex_is_req ? GEX_FLAG_AM_REQUEST : GEX_FLAG_AM_REPLY));
     }
-  } else {
-    info->gex_is_req = 2; // true invalidation not possible for a boolean
   }
   if (result & GEX_TI_IS_LONG) {
     gasneti_assert(info->gex_is_long == !!info->gex_is_long); // Is 0 or 1
@@ -568,7 +559,22 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
       gasneti_assert(info->gex_entry->gex_flags &
                      (info->gex_is_long ? GEX_FLAG_AM_LONG : GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM));
     }
-  } else {
+  }
+
+  // From here forward, consider only the requested subset of the conduit-provided result
+  result &= mask;
+
+  // For each field not requested or requested but not set: INvalidate
+  if (!(result & GEX_TI_SRCRANK)) {
+    info->gex_srcrank = GEX_RANK_INVALID;
+  }
+  if (!(result & GEX_TI_ENTRY)) {
+    info->gex_entry = NULL;
+  }
+  if (!(result & GEX_TI_IS_REQ)) {
+    info->gex_is_req = 2; // true invalidation not possible for a boolean
+  }
+  if (!(result & GEX_TI_IS_LONG)) {
     info->gex_is_long = 2; // true invalidation not possible for a boolean
   }
 
