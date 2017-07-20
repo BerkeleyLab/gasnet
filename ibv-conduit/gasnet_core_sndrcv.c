@@ -3831,15 +3831,6 @@ gasnetc_sndrcv_quiesce(void) {
   GASNETI_THREAD_LOOKUP // OK - not a critical-path
   gasnetc_hca_t *hca;
 
-#if GASNET_DEBUG
-  { /* Artificial traffic for testing */
-    int peer = 1^gasneti_mynode;
-    if ((peer < gasneti_nodes) && !gasnetc_non_ib(peer)) {
-      gasnetc_RequestSysShort(peer, NULL, 0, 0);
-    }
-  }
-#endif
-
   /* suspend credit coallescing (if any) and return any banked credits */
   if (! gasnetc_use_srq) {
     gex_Rank_t i;
@@ -3864,13 +3855,16 @@ gasnetc_sndrcv_quiesce(void) {
         /* Since the banked credits count remote recv buffers we can send a "Phantom Reply".
          * This avoids soliciting a potentially unnecessary Reply.
          */
+        int fake_hidx = gasneti_handleridx(gasnetc_sys_close_reqh);
         rbuf.cep = cep;
         rbuf.rbuf_needReply = 1;
       #if GASNET_DEBUG
         rbuf.rbuf_handlerRunning = 1;
-        rbuf.rbuf_entry = NULL;
       #endif
-        rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, 0, node);
+      #if GASNET_TRACE
+        rbuf.rbuf_entry = &gasnetc_handler[fake_hidx];
+      #endif
+        rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, fake_hidx, node);
         gasnetc_ReplySysShort((gex_Token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
       }
     }
@@ -5095,9 +5089,11 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_entry = rbuf->rbuf_entry;
   result |= GEX_TI_ENTRY;
 
-  // TODO: rbuf can answer the following queries:
-  //   isShort = (GASNETC_MSG_CATEGORY(rbuf->flags) == gasneti_Short)
-  //   isReq = GASNETC_MSG_ISREQUEST(rbuf->flags)
+  info->gex_is_req = GASNETC_MSG_ISREQUEST(flags);
+  result |= GEX_TI_IS_REQ;
+
+  info->gex_is_long = (gasneti_Long == GASNETC_MSG_CATEGORY(flags));
+  result |= GEX_TI_IS_LONG;
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }

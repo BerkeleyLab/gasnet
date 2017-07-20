@@ -216,27 +216,12 @@ static gasneti_lifo_head_t bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
 
 gasnetc_gni_lock_t gasnetc_am_buffer_lock;
 
-/* NOTE: notify_type is "pre shifted" by 24 bits */
-enum notify_type {
-  notify_request = 0x01000000,
-  notify_reply   = 0x02000000,
-  notify_credit  = 0x03000000,
-  notify_ctrl    = 0x04000000
-}; 
-
-#define build_notify(_type, _initiator, _target)\
-  ((uint64_t)(_type) |  ((uint64_t)(_initiator) << 8) |  ((uint64_t)(_target)))
-
-#define notify_get_type(n) ((n) & 0xff000000)
-#define notify_get_target_slot(n) ((uint8_t)((n) & 255)) /* actual range 0..63 */
-#define notify_get_initiator_slot(n) ((uint16_t)(((n) >> 8) & 65535))
-
 /* Op and Arg for a control msg are also 8 and 16 bits, respectively.
    However we could use at total of 56 bits (keeping 8 for type) if ever needed.
 */
-#define build_ctrl_notify(_op, _arg) build_notify(notify_ctrl, _arg, _op)
-#define notify_ctrl_op(n) notify_get_target_slot(n)
-#define notify_ctrl_arg(n) notify_get_initiator_slot(n)
+#define build_ctrl_notify(_op, _arg) gc_build_notify(gc_notify_ctrl, _arg, _op)
+#define notify_ctrl_op(n) gc_notify_get_target_slot(n)
+#define notify_ctrl_arg(n) gc_notify_get_initiator_slot(n)
 
 /*------ Convience functions for printing error messages ------*/
 
@@ -1499,7 +1484,7 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 
   GASNETI_TRACE_PRINTF(D, ("msg to %d type %s/%s\n", peer->pe,
                            gasnetc_type_string(gasnetc_am_command(n)),
-                           (notify_get_type(n) == notify_request) ? "REQ" : "REP"));
+                           (gc_notify_get_type(n) == gc_notify_request) ? "REQ" : "REP"));
 
   GASNETC_LOCK_GNI();
   
@@ -1539,8 +1524,8 @@ GASNETI_INLINE(gasnetc_send_credit)
 int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
 {
   GASNETI_TRACE_PRINTF(D, ("msg to %d type AM_CREDIT\n", peer->pe));
-  gasneti_assert(notify_get_type(notify) == notify_request);
-  notify += build_notify((notify_credit - notify_request),0,0); /* just modify the notify type */
+  gasneti_assert(gc_notify_get_type(notify) == gc_notify_request);
+  notify += gc_build_notify((gc_notify_credit - gc_notify_request),0,0); /* just modify the notify type */
   return(gasnetc_send_notify(peer, notify, NULL));
 }
 
@@ -1601,7 +1586,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
   } else {
     /* Try to reuse the Request buffer for the Reply */
     const int numargs = gasnetc_am_numargs(notify);
-    uint32_t target_slot = notify_get_target_slot(notify);
+    uint32_t target_slot = gc_notify_get_target_slot(notify);
     unsigned int req_len = 0;
     packet = (gasnetc_packet_t *) (peer->local_request_base + (target_slot << am_slot_bits));
 
@@ -1638,11 +1623,11 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
 
   /* modify the notify type and clear its AM header bits */
   gni_post_descriptor_t *pd = &gpd->pd;
-  gasneti_assert(notify_get_type(notify) == notify_request);
-  pd->sync_flag_value = (notify & 0xffffffffUL) + build_notify((notify_reply - notify_request),0,0);
+  gasneti_assert(gc_notify_get_type(notify) == gc_notify_request);
+  pd->sync_flag_value = (notify & 0xffffffffUL) + gc_build_notify((gc_notify_reply - gc_notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base +
-                                GASNETC_MSG_MAXSIZE * notify_get_initiator_slot(notify));
+                                GASNETC_MSG_MAXSIZE * gc_notify_get_initiator_slot(notify));
   gasnetc_format_am_gpd(gpd, packet, peer, length, gpd_flags);
   gasneti_assert(token->need_reply);
   token->need_reply = 0;
@@ -1777,7 +1762,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest
 
   gni_post_descriptor_t *pd = &gpd->pd;
   pd->remote_addr = (uint64_t) peer->remote_request_base + (remote_slot << am_slot_bits);
-  pd->sync_flag_value = build_notify(notify_request, r - reply_pool, remote_slot);
+  pd->sync_flag_value = gc_build_notify(gc_notify_request, r - reply_pool, remote_slot);
 
   r->u.request_bits = mask;
   
@@ -1806,7 +1791,7 @@ out_immediate_1:
 /* Choice to inline or not is left to the compiler */
 void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet, gasnetc_notify_t notify)
 {
-  int is_req = (notify_get_type(notify) == notify_request);
+  int is_req = (gc_notify_get_type(notify) == gc_notify_request);
   const int numargs = gasnetc_am_numargs(notify);
   const int handlerindex = gasnetc_am_handler(notify);
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handlerindex];
@@ -1938,9 +1923,9 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
   const gasnetc_notify_t n = *notify;
 
   if (n) { 
-    uint32_t target_slot = notify_get_target_slot(n);
-    uint32_t initiator_slot = notify_get_initiator_slot(n);
-    uint32_t type = notify_get_type(n);
+    uint32_t target_slot = gc_notify_get_target_slot(n);
+    uint32_t initiator_slot = gc_notify_get_initiator_slot(n);
+    uint32_t type = gc_notify_get_type(n);
 
     *notify = 0;
     advance_notify_pointer(peer->local_notify_read);
@@ -1948,18 +1933,18 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
 
     gasneti_compiler_fence(); /* prevent compiler from prefetching over dependency on n!=0 */
     
-    if (type == notify_request) {
+    if (type == gc_notify_request) {
       gasnetc_packet_t *packet = (gasnetc_packet_t *) (peer->local_request_base + (target_slot << am_slot_bits));
       gasnetc_recv_am(peer, packet, n);
-    } else if_pf (type == notify_ctrl) {
+    } else if_pf (type == gc_notify_ctrl) {
       dispatch_ctrl(peer, n);
     } else {
       reply_pool_t *reply = reply_pool + initiator_slot;
 
-      if (type == notify_reply) {
+      if (type == gc_notify_reply) {
         gasnetc_recv_am(peer, reply->packet, n);
       } else {
-        gasneti_assert(type == notify_credit);
+        gasneti_assert(type == gc_notify_credit);
         GASNETI_TRACE_PRINTF(D, ("msg from %d type AM_CREDIT\n", peer->pe));
       }
 

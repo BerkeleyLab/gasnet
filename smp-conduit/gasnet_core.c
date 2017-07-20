@@ -991,7 +991,7 @@ extern gex_TI_t gasnetc_Token_Info(
   return gasnetc_AMPSHM_TokenInfo(token, info, mask);
 #else
   *info = ((gasnetc_token_t *)token)->ti;
-  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_ENTRY;
+  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 #endif
 }
@@ -1034,6 +1034,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
   #endif
   real_token.ti.gex_srcrank = gasneti_mynode;
   real_token.ti.gex_entry = handler_entry;
+  real_token.ti.gex_is_req = isReq;
   const gex_Token_t token = (gex_Token_t)&real_token;
 
   gasneti_assert(dest == gasneti_mynode);
@@ -1049,6 +1050,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
   switch (category) {
     case gasneti_Short:
       { 
+        real_token.ti.gex_is_long = 0;
         GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,pargs,numargs);
       }
     break;
@@ -1066,6 +1068,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
 
         memcpy(buf, source_addr, nbytes);
 
+        real_token.ti.gex_is_long = 0;
         GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
       }
     break;
@@ -1073,6 +1076,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
       { 
         if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
 
+        real_token.ti.gex_is_long = 1;
         GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,dest_ptr,nbytes);
       }
     break;

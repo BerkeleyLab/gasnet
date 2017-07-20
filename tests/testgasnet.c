@@ -612,7 +612,9 @@ void doit(int partner, int *partnerseg) {
 
   assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
-  static gex_TI_t const ti_arr[] = { GEX_TI_SRCRANK, GEX_TI_ENTRY }; // all flags but _ALL
+  static gex_TI_t const ti_arr[] = { // all flags but _ALL
+          GEX_TI_SRCRANK, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
+      };
   size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
@@ -680,6 +682,8 @@ void doit(int partner, int *partnerseg) {
 
   assert_field_int(gex_Token_Info_t,     gex_Rank_t,             gex_srcrank, typeisunsigned);
   assert_field_pointer(gex_Token_Info_t, const gex_AM_Entry_t *, gex_entry);
+  assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
+  assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
   if (success) MSG("*** passed object test!!");
 

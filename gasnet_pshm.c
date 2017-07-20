@@ -242,33 +242,37 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
    * (token != NULL) assertion.
    */
     typedef struct {
-      gex_Rank_t srcNode; // gasneti_AMPSHM_msgsource() requires this is first
-      const gex_AM_Entry_t *entry;
-      gasneti_category_t category;
-      int isReq;
+      gex_Token_Info_t ti;
     #if GASNET_DEBUG
       int replySent;
     #endif
     } gasneti_ampshm_token_t;
 
+    // Set all fields except is_long
     GASNETI_INLINE(gasnetc_token_init)
     gex_Token_t gasnetc_token_init(
                                gasneti_ampshm_token_t *my_token,
                                gex_Rank_t src,
                                gex_AM_Entry_t *entry,
-                               gasneti_category_t category,
                                int isReq)
     {
       gasneti_assert(!((uintptr_t)my_token & 1));
       gasneti_assert(gasneti_pshm_in_supernode(src));
-      my_token->srcNode = src;
-      my_token->entry = entry;
-      my_token->category = category;
-      my_token->isReq = isReq;
+      gasneti_assert(!offsetof(gasneti_ampshm_token_t,ti.gex_srcrank)); // gasneti_AMPSHM_msgsource() requires srcrank first
+      my_token->ti.gex_srcrank = src;
+      my_token->ti.gex_entry = entry;
+      my_token->ti.gex_is_req = isReq;
     #if GASNET_DEBUG
       my_token->replySent = 0;
     #endif
       return (gex_Token_t)(1|(uintptr_t)my_token);
+    }
+
+    // Sets only is_long.  Distinct from gasnetc_token_init to minimize compares/arithmetic.
+    GASNETI_INLINE(gasnetc_token_set_is_long)
+    void gasnetc_token_set_is_long(gasneti_ampshm_token_t *my_token, int value)
+    {
+      my_token->ti.gex_is_long = value;
     }
 
   #if GASNET_DEBUG
@@ -276,7 +280,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
       gasneti_assert(gasnetc_token_is_pshm(token));
       gasneti_assert(my_token);
-      gasneti_assert(my_token->isReq);
+      gasneti_assert(my_token->ti.gex_is_req);
       gasneti_assert(!my_token->replySent);
       my_token->replySent = 1;
     }
@@ -288,18 +292,10 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
                 gex_TI_t            mask)
     {
       gasneti_assert(gasnetc_token_is_pshm(token));
-      gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
-
       gasneti_assert(info);
-      gex_TI_t result = 0;
 
-      info->gex_srcrank = my_token->srcNode;
-      gasneti_assert(gasneti_pshm_in_supernode(info->gex_srcrank));
-      result |= GEX_TI_SRCRANK;
-
-      info->gex_entry = my_token->entry;
-      result |= GEX_TI_ENTRY;
-
+      *info = ((gasneti_ampshm_token_t *)(1^(uintptr_t)token))->ti;
+      gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
       return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
     }
 #endif
@@ -1223,7 +1219,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gex_EP_t ep = NULL; // TODO-EX: get true value
   gex_AM_Entry_t *entry = gasnetc_get_hentry(ep,handler_id);
   gasneti_ampshm_token_t my_token;
-  token = gasnetc_token_init(&my_token, GASNETI_AMPSHM_MSG_SOURCE(msg), entry, category, isReq);
+  token = gasnetc_token_init(&my_token, GASNETI_AMPSHM_MSG_SOURCE(msg), entry, isReq);
 
   handler_fn = entry->gex_fnptr;
   numargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
@@ -1235,6 +1231,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
     case gasneti_Short:
       { 
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler_id,token,NULL,0,numargs,args);
+        gasnetc_token_set_is_long(&my_token, 0);
         GASNETI_RUN_HANDLER_SHORT(isReq,handler_id,handler_fn,token,args,numargs);
       }
       break;
@@ -1243,6 +1240,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
         void * data = GASNETI_AMPSHM_MSG_MED_DATA(msg);
         size_t nbytes = GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg);
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler_id,token,data,nbytes,numargs,args);
+        gasnetc_token_set_is_long(&my_token, 0);
         GASNETI_RUN_HANDLER_MEDIUM(
           isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
       }
@@ -1252,6 +1250,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
         void * data = GASNETI_AMPSHM_MSG_LONG_DATA(msg);
         size_t nbytes = GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg);
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler_id,token,data,nbytes,numargs,args);
+        gasnetc_token_set_is_long(&my_token, 1);
         GASNETI_RUN_HANDLER_LONG(
             isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
       }
@@ -1403,25 +1402,28 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
     gasneti_ampshm_token_t my_token;
     gex_EP_t ep = NULL; // TODO-EX: get true value
     gex_AM_Entry_t *entry = gasnetc_get_hentry(ep,handler);
-    gex_Token_t token = gasnetc_token_init(&my_token,gasneti_mynode,entry,category,isReq);
+    gex_Token_t token = gasnetc_token_init(&my_token,gasneti_mynode,entry,isReq);
     gex_AM_Fn_t handler_fn = entry->gex_fnptr;
     gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     gasneti_AMPSHM_amtbl_check(ep, handler, numargs, category, isReq);
     switch (category) {
       case gasneti_Short:
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler,token,NULL,0,numargs,args);
+        gasnetc_token_set_is_long(&my_token, 0);
         GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,args,numargs);
 
         break;
       case gasneti_Medium:
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler,token,
                                       GASNETI_AMPSHM_MSG_MED_DATA(msg),nbytes,numargs,args);
+        gasnetc_token_set_is_long(&my_token, 0);
         GASNETI_RUN_HANDLER_MEDIUM(isReq, handler, handler_fn, token, args, numargs,
                                    GASNETI_AMPSHM_MSG_MED_DATA(msg), nbytes);
         break;
       case gasneti_Long:
         gasneti_local_wmb(); /* sync memcpy, above */
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler,token,dest_addr,nbytes,numargs,args);
+        gasnetc_token_set_is_long(&my_token, 1);
         GASNETI_RUN_HANDLER_LONG(isReq, handler, handler_fn, token, args, numargs,
                                  dest_addr, nbytes);
         break;

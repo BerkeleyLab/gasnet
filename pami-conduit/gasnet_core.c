@@ -790,6 +790,7 @@ typedef struct {
   } u;
   // Portion constructed in memory
   const gex_AM_Entry_t *entry;
+  int is_long;
 } gasnetc_token_t;
 
 
@@ -862,6 +863,7 @@ void run_short(gasnetc_shortmsg_t *header) {
   rw_token.u.generic.rep_sent = 0;
 #endif
   rw_token.entry = &gasnetc_handler[handler_id];
+  rw_token.is_long = 0;
   gasneti_amtbl_check(rw_token.entry, numargs, gasneti_Short, is_req);
   GASNETI_RUN_HANDLER_SHORT(is_req,handler_id,handler_fn,client_token,args,numargs);
 }
@@ -882,6 +884,7 @@ void run_medium(gasnetc_token_t *token) {
   header->rep_sent = 0;
 #endif
   token->entry = &gasnetc_handler[handler_id];
+  token->is_long = 0;
   gasneti_amtbl_check(token->entry, numargs, gasneti_Medium, is_req);
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler_id,handler_fn,client_token,args,numargs,data,nbytes);
 }
@@ -902,6 +905,7 @@ void run_long(gasnetc_token_t *token) {
   header->rep_sent = 0;
 #endif
   token->entry = &gasnetc_handler[handler_id];
+  token->is_long = 1;
   gasneti_amtbl_check(token->entry, numargs, gasneti_Long, is_req);
   GASNETI_RUN_HANDLER_LONG(is_req,handler_id,handler_fn,client_token,args,numargs,data,nbytes);
 }
@@ -1156,6 +1160,12 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_entry = real_token->entry;
   result |= GEX_TI_ENTRY;
 
+  info->gex_is_req = real_token->u.generic.is_req;
+  result |= GEX_TI_IS_REQ;
+
+  info->gex_is_long = real_token->is_long;
+  result |= GEX_TI_IS_LONG;
+
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
@@ -1284,6 +1294,7 @@ int gasnetc_loopback_short(int is_req, gex_Token_t token_arg, gex_Rank_t rank, g
   gasnetc_token_t loopback_token;
   loopback_token.u.generic.srcnode = gasneti_mynode;
   loopback_token.entry = handler_entry;
+  loopback_token.is_long = 0;
   GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, short, token_arg, loopback_token);
   gex_Token_t token = (gex_Token_t)&loopback_token;
   GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_entry->gex_fnptr,token,args,numargs);
@@ -1305,6 +1316,7 @@ int gasnetc_loopback_medium(int is_req, gex_Token_t token_arg, gex_Rank_t rank, 
   gasnetc_token_t loopback_token;
   loopback_token.u.generic.srcnode = gasneti_mynode;
   loopback_token.entry = handler_entry;
+  loopback_token.is_long = 0;
   GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, med, token_arg, loopback_token);
   gex_Token_t token = (gex_Token_t)&loopback_token;
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
@@ -1324,6 +1336,7 @@ int gasnetc_loopback_long(int is_req, gex_Token_t token_arg, gex_Rank_t rank, ge
   gasnetc_token_t loopback_token;
   loopback_token.u.generic.srcnode = gasneti_mynode;
   loopback_token.entry = handler_entry;
+  loopback_token.is_long = 1;
   GASNETC_AM_LOOPBACK_TOKEN_CHECKS(is_req, long, token_arg, loopback_token);
   gex_Token_t token = (gex_Token_t)&loopback_token;
   GASNETI_RUN_HANDLER_LONG(is_req,handler,handler_entry->gex_fnptr,token,args,numargs,dest_addr,nbytes);
