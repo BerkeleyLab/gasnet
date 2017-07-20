@@ -673,20 +673,6 @@ extern void gasnetc_sndrcv_stop_thread(int block);
 extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *addr);
 extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca);
 extern void gasnetc_sndrcv_poll(int handler_context);
-extern int gasnetc_RequestGeneric(gasneti_category_t category,
-				  gasnetc_epid_t dest, gex_AM_Index_t handler,
-				  void *src_addr, int nbytes, void *dst_addr,
-				  gex_Flags_t flags, int numargs,
-				  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
-				  gasnetc_counter_t *counter, va_list argptr
-                                  GASNETI_THREAD_FARG);
-extern int gasnetc_ReplyGeneric(gasneti_category_t category,
-				gex_Token_t token, gex_AM_Index_t handler,
-				void *src_addr, int nbytes, void *dst_addr,
-				gex_Flags_t flags, int numargs,
-				gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
-				gasnetc_counter_t *counter, va_list argptr
-                                GASNETI_THREAD_FARG);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
