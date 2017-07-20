@@ -431,16 +431,37 @@ void doit(int partner, int *partnerseg) {
   assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
 #endif
 
+  #define assert_inttype(type) do {              \
+    volatile char a[(type)1.1f];                 \
+    volatile type v = (signed char)1; /* warnings here mean non-compliance */ \
+    assert_always((double)(type)1.1f < 1.1f);    \
+  } while (0)
   #define assert_signed(type)  do {              \
     volatile type v = 0; /* prevent warnings */  \
+    assert_inttype(type);                        \
     assert_always((type)(v-1) < v);              \
     test_static_assert((type)(-1) < (type)0);    \
   } while (0)
   #define assert_unsigned(type)  do {            \
     volatile type v = 0; /* prevent warnings */  \
+    assert_inttype(type);                        \
     assert_always((type)(v-1) > v);              \
     test_static_assert((type)(-1) > (type)0);    \
   } while (0)
+
+  /* sanity check macros and system types */
+  assert_signed(int8_t);
+  assert_signed(int16_t);
+  assert_signed(int32_t);
+  assert_signed(int64_t);
+  assert_signed(intptr_t);
+  assert_signed(ssize_t);
+  assert_unsigned(uint8_t);
+  assert_unsigned(uint16_t);
+  assert_unsigned(uint32_t);
+  assert_unsigned(uint64_t);
+  assert_unsigned(uintptr_t);
+  assert_unsigned(size_t);
 
   /* team/rank tests */
   assert_unsigned(gex_Rank_t);
@@ -554,6 +575,7 @@ void doit(int partner, int *partnerseg) {
   }
 
   /* misc type tests */
+  assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
     GEX_FLAG_IMMEDIATE,
     GEX_FLAG_SRC_IN_SEGMENT,
@@ -575,6 +597,7 @@ void doit(int partner, int *partnerseg) {
     assert_always(flags_arr[i] != 0);
   }
 
+  assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
   static gex_EC_t const ec_arr[] = { // all the flags but _ALL
      GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC 
@@ -587,6 +610,7 @@ void doit(int partner, int *partnerseg) {
   }
   assert_always((ec_some & ~ec_all) == 0); // verify ALL includes them all
 
+  assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
   static gex_TI_t const ti_arr[] = { GEX_TI_SRCRANK, GEX_TI_ENTRY }; // all flags but _ALL
   size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
@@ -626,8 +650,17 @@ void doit(int partner, int *partnerseg) {
   #define typeisunsigned >
   #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \
     static volatile structtype S;                                            \
+    assert_inttype(fieldtype);                                               \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
     assert_always((fieldtype)(S.fieldname-1) signedop (fieldtype)0);         \
+  } while (0)
+
+  #define assert_field_int_unspec(structtype, fieldname)  do { \
+    static volatile structtype S;                                            \
+    S.fieldname = (signed char)2;   /* warnings here mean non-compliance */  \
+    assert_always(S.fieldname > 1); /* warnings here mean non-compliance */  \
+    S.fieldname += 3.14f;                                                    \
+    assert_always(S.fieldname == 5);/* warnings here mean non-compliance */  \
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
