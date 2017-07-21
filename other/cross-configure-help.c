@@ -32,7 +32,11 @@
 #define CHECK_PAGESIZE 1     /* test for system page size */
 #endif
 #ifndef CHECK_MMAP
-#define CHECK_MMAP 1         /* test for working mmap() */
+  #ifdef __CYGWIN__
+    #define CHECK_MMAP 0     /* bug 3370: mmap() is known to be broken in subtle ways on cygwin */
+  #else
+    #define CHECK_MMAP 1     /* test for working mmap() */
+  #endif
 #endif
 #ifndef CHECK_ARM_CMPXCHG
 #define CHECK_ARM_CMPXCHG 1  /* test for ARM cmpxchg support (ignored on other arch) */
