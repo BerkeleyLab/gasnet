@@ -2090,7 +2090,7 @@ extern int gasneti_cpu_count(void) {
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
   if (retval) return retval;
-  #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX
+  #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX || PLATFORM_OS_WSL
     #define _BUFSZ        120
     { FILE *fp;
       char line[_BUFSZ+1];
