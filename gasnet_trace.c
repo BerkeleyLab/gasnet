@@ -1071,6 +1071,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_tracestats_printf("gex_System_QueryJobRank(): %i", (int)gex_System_QueryJobRank());
   gasneti_tracestats_printf("gex_System_QueryJobSize(): %i", (int)gex_System_QueryJobSize());
   gasneti_tracestats_printf("gasneti_cpu_count(): %i", (int)gasneti_cpu_count());
+  gasneti_tracestats_printf("gasneti_getPhysMemSz(): %"PRIu64, gasneti_getPhysMemSz(0));
   #if GASNET_STATS
     gasneti_stats_printf("GASNET_STATSMASK: %s", GASNETI_STATS_GETMASK());
   #endif
