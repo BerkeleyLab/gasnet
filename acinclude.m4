@@ -792,10 +792,34 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   GASNET_FUN_END([$0($@)])
 ])
 
+AC_DEFUN([GASNET_DISPLAY_VERSION],[
+  GASNET_FUN_BEGIN([$0($@)])
+  AC_MSG_CHECKING(for package version)
+  display_version_info=""
+  ifdef([AC_PACKAGE_NAME],[ 
+    display_version_info="$display_version_info AC_PACKAGE_NAME"
+  ])
+  ifdef([AC_PACKAGE_VERSION],[ 
+    display_version_info="$display_version_info AC_PACKAGE_VERSION"
+  ])
+  if test -d "$srcdir/.git" ; then 
+     git_describe=`${GIT=git} --git-dir="$srcdir/.git" describe 2> /dev/null`
+     if test -n "$git_describe"; then
+       display_version_info="$display_version_info ($git_describe)"
+     fi
+  fi
+  ifdef([AC_PACKAGE_URL],[ 
+    display_version_info="$display_version_info AC_PACKAGE_URL"
+  ])
+  AC_MSG_RESULT([$display_version_info])
+  GASNET_FUN_END([$0($@)])
+])
+
 dnl $1 = optional env variables to restore
 dnl $2 = autoconf env vars to populate (including from command-line)
 AC_DEFUN([GASNET_START_CONFIGURE],[
   GASNET_FUN_BEGIN([$0($1,$2)])
+  AC_REQUIRE([GASNET_DISPLAY_VERSION])
   AC_REQUIRE([GASNET_CONFIGURE_ARGS])
   AC_REQUIRE([GASNET_SET_CROSS_COMPILE]) dnl run early to handle implicit AC_PROG_CC
   AC_REQUIRE([GASNET_ENV_DEFAULT_HELPER])
