@@ -1779,10 +1779,8 @@ AC_SUBST(GASNET_PSHM_LDFLAGS)
 AC_SUBST(GASNET_PSHM_LIBS)
 
 # Note that --enable-pshm disables aligned segments ONLY for conduits that USE it
-GASNET_IF_DISABLED([aligned-segments],
-                   [Disable requirement to achieve aligned VM segments, for heterogeneous clusters and platforms with address randomization],
-		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
-		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
+GASNET_IF_ENABLED([aligned-segments],
+                   [Force alignment for GASNet-allocated segment base address. Incompatible with PSHM, heterogeneous clusters and OS address randomization],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
 		    if test -n "$GASNETI_ARCH_BGQ"; then
                       : # Cross-compiled and NOT applicable
@@ -1791,10 +1789,16 @@ GASNET_IF_DISABLED([aligned-segments],
 		    elif test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
-nodes, you need to re-run configure with --disable-aligned-segments"
+nodes, you need to re-run configure without --enable-aligned-segments"
 		      GASNET_MSG_WARN([$WMSG])
 		    fi
-		   ])
+                    if test "$with_pshm" != no; then
+		      AC_MSG_ERROR([--enable-aligned-segments is incompatible with PSHM support. To force aligned segments, add --disable-pshm])
+                    fi
+		   ],[
+		    GASNETI_DISABLE_ALIGNED_SEGMENTS=1
+		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)
+                   ])
 dnl GASNET_TOOLSONLY_FALSE_END
 
 AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
