@@ -670,8 +670,8 @@ gasnet_fn_env_argnorm()
     case "$ac_norm" in
       :*) : ;; # discard irrelevant arguments
       *=*) # opts with argument
-        ac_norm=`expr "$ac_norm" : '^\([[^=]]*\)='`
-        ac_optarg=`expr "$ac_opt" : '^[[^=]]*=\(.*\)$'`
+        ac_norm=`expr "$ac_norm" : '\([[^=]]*\)='`
+        ac_optarg=`expr "$ac_opt" : '[[^=]]*=\(.*\)$'`
         cv_prefix[]configure_args_norm="$cv_prefix[]configure_args_norm '$ac_norm=$ac_optarg'"
       ;;
       *) # bare opts, no argument
