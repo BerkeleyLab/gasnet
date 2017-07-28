@@ -292,6 +292,12 @@ static void ofi_setup_address_vector() {
 
   ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd->fid, 0);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to am reply epfd failed: %d\n", ret);
+}
+
+static void ofi_exchange_addresses() {
+  size_t reqnamelen = 0, repnamelen = 0, rdmanamelen = 0;
+  char* on_node_addresses;
+  int ret = FI_SUCCESS;
 
   /* Query each endpoint for its address length. While in most cases, these
    * lengths will be equal, there are some cases where they might not be. For
@@ -317,8 +323,10 @@ static void ofi_setup_address_vector() {
   if (FI_SUCCESS != ret) gasneti_fatalerror(getname_error_msg, "RDMA", ret);
 
   gasneti_bootstrapExchange(on_node_addresses, total_len, alladdrs);
+  /* NOTE: If AV_MAP is ever to be supported, the NULL in the below call needs to be
+   * changed to point to the AV structure. */
   ret = fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*NUM_OFI_ENDPOINTS, 
-          (fi_addr_t*)mapped_table,0ULL, NULL);
+          NULL ,0ULL, NULL);
   if (gasneti_nodes*NUM_OFI_ENDPOINTS != ret) 
       gasneti_fatalerror("fi_av_insert failed. Expected: %d Actual: %d\n", gasneti_nodes*NUM_OFI_ENDPOINTS, ret);
 
@@ -375,17 +383,13 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   if (!hints) gasneti_fatalerror("fi_allocinfo for hints failed\n");
 
   /* caps: fabric interface capabilities */
-  hints->caps			= FI_RMA;		/* RMA read/write operations */
-  hints->caps         |= FI_MSG;       /* send/recv messages */
-  hints->caps         |= FI_MULTI_RECV; /* support posting multi-recv
-												buffer */
+  hints->caps			= FI_RMA | FI_MSG | FI_MULTI_RECV;
   /* mode: convey requirements for application to use fabric interfaces */
   hints->mode			= FI_CONTEXT;	/* fi_context is used for per
-											   operation context parameter */
+						   operation context parameter */
   /* addr_format: expected address format for AV/CM calls */
   hints->addr_format		= FI_FORMAT_UNSPEC;
-  hints->tx_attr->op_flags	= FI_DELIVERY_COMPLETE|FI_COMPLETION;
-  hints->rx_attr->op_flags	= FI_MULTI_RECV|FI_COMPLETION;
+  hints->tx_attr->op_flags	= FI_DELIVERY_COMPLETE;
   hints->ep_attr->type		= FI_EP_RDM; /* Reliable datagram */
   /* Threading mode is set by the configure script to FI_THREAD_DOMAIN if
    * using the psm or psm2 provider and FI_THREAD_SAFE otherwise*/
@@ -463,17 +467,29 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   ret = fi_domain(gasnetc_ofi_fabricfd, info, &gasnetc_ofi_domainfd, NULL);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_domain failed: %d\n", ret);
 
+  /* The intention here is to ensure that subsequent calls to fi_getinfo()
+   * won't ever give us a different provider. This is likely unnecessary,
+   * but it is good to be paranoid. */
+  hints->domain_attr->name = gasneti_strdup(info->domain_attr->name);
+
   /* Allocate a new active endpoint for RDMA operations */
-  info->caps      = FI_RMA;       /* RMA read/write operations */
-  info->rx_attr->op_flags = 0;
+  hints->caps = FI_RMA;
+
+  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  gasneti_assert(FI_SUCCESS == ret);
+
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_rdma_epfd, NULL);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_endpoint for rdma failed: %d\n", ret);
 
-  /* Allocate a new active endpoint for AM operations */
-  info->caps          = FI_MSG;       /* send/recv messages */
-  info->caps          |= FI_MULTI_RECV; /* support posting multi-recv
-												buffer */
-  info->rx_attr->op_flags = FI_MULTI_RECV|FI_COMPLETION;
+  /* Allocate a new active endpoint for AM operations buffer */
+  hints->caps     = FI_MSG | FI_MULTI_RECV;
+
+  ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
+  gasneti_assert(FI_SUCCESS == ret);
+
+  gasneti_free(hints->domain_attr->name);
+  hints->domain_attr->name = NULL;
+
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_request_epfd, NULL);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_endpoint for am request endpoint failed: %d\n", ret);
 
@@ -527,6 +543,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   /* Cutoff to use fi_inject */
   max_buffered_send = info->tx_attr->inject_size;
 
+  ofi_setup_address_vector();
 
   /* Enable endpoints */
   ret = fi_enable(gasnetc_ofi_rdma_epfd);
@@ -538,8 +555,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 
   gasneti_nodemapInit(gasneti_bootstrapExchange, NULL, 0, 0);
 
-  ofi_setup_address_vector();
-  
+  ofi_exchange_addresses();
+
   fi_freeinfo(hints);
 
   if (!GASNETC_OFI_HAS_MR_SCALABLE) {
