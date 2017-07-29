@@ -57,6 +57,9 @@ int gasneti_VerboseErrors = 1;
   GASNETI_THREADKEY_DEFINE(gasneti_throttledebug_key);
 #endif
 
+#define GEX_VERSION_STR  _STRINGIFY(GEX_SPEC_VERSION_MAJOR) "."  _STRINGIFY(GEX_SPEC_VERSION_MINOR)
+GASNETI_IDENT(gasneti_IdentString_EXAPIVersion, "$GASNetEXAPIVersion: " GEX_VERSION_STR " $");
+
 #define GASNET_VERSION_STR  _STRINGIFY(GASNETI_SPEC_VERSION_MAJOR)
 GASNETI_IDENT(gasneti_IdentString_APIVersion, "$GASNetAPIVersion: " GASNET_VERSION_STR " $");
 
