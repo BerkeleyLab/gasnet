@@ -760,17 +760,18 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 
   [$1]="$cv_prefix[]envvar_$1"
   pushdef([alignarg],[m4_substr([                 ],len([$1]))])
+  pushdef([aligncac],[m4_substr([             ],len([$1]))]) dnl reduce space for (cached) appended by AC_CACHE_VAL
   if test "$[$1]" = "UNSET" ; then
      unset  $1
      if test "$envval_src_$1" = "cached"; then
-       AC_MSG_RESULT([(not set)])
+       AC_MSG_RESULT([aligncac (not set)])
      else
        AC_MSG_RESULT([alignarg (not set)])
      fi
   else
     case "$envval_src_$1" in
       'cached')
-	  AC_MSG_RESULT([alignarg   \"$[$1]\"]) ;; dnl (cached) appended by AC_CACHE_VAL
+	  AC_MSG_RESULT([aligncac \"$[$1]\"]) ;;
       'default')
 	  AC_MSG_RESULT([alignarg (default)  \"$[$1]\"]) ;;
       'disabled')
@@ -784,6 +785,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
       *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
     esac
   fi
+  popdef([aligncac])
   popdef([alignarg])
 
   popdef([UNSET])
