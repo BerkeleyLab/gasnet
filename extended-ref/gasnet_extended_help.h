@@ -47,15 +47,21 @@
   #ifndef SIZEOF_GASNETE_THREADIDX_T
     #error "Must define both _GASNETE_THREADIDX_T and SIZEOF_GASNETE_THREADIDX_T, or neither"
   #endif
-#elif GASNETI_MAX_THREADS <= 65536
+  #ifndef GASNETE_INVALID_THREADIDX
+    #error "Must define both _GASNETE_THREADIDX_T and GASNETE_INVALID_THREADIDX, or neither"
+  #endif
+#elif GASNETI_MAX_THREADS < 65536
   typedef uint16_t gasnete_threadidx_t;
   #define SIZEOF_GASNETE_THREADIDX_T 2
-#elif GASNETI_MAX_THREADS <= 4294967296
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#elif GASNETI_MAX_THREADS < 4294967296
   typedef uint32_t gasnete_threadidx_t;
   #define SIZEOF_GASNETE_THREADIDX_T 4
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
 #else
   typedef uint64_t gasnete_threadidx_t;
   #define SIZEOF_GASNETE_THREADIDX_T 8
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);

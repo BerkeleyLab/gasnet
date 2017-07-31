@@ -71,6 +71,11 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem) {
 #define GASNETE_INIT_THREADDATA(thread) gasnete_init_threaddata(thread)
 static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
 
+  // TODO-EX: need an override?
+  gasneti_mutex_init(&(threaddata->foreign_lock));
+  threaddata->foreign_eops = NULL;
+  threaddata->foreign_iops = NULL;
+
   #ifndef GASNETE_NEW_THREADDATA_EOP_INIT
   #define GASNETE_NEW_THREADDATA_EOP_INIT(threaddata) \
           (threaddata)->eop_free = NULL
@@ -101,38 +106,73 @@ static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
 #ifndef GASNETE_FREE_THREADDATA
 #define GASNETE_FREE_THREADDATA(thread) gasnete_free_threaddata(thread)
 
-static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
+// Return zero on success
+static int gasnete_free_threaddata(gasnete_threaddata_t *thread) {
+  int leak = 0;
 
   #ifndef GASNETE_IOP_ISDONE
   #define GASNETE_IOP_ISDONE(iop) gasnete_iop_isdone(iop)
   #endif
 
   #ifndef GASNETE_FREE_IOPS
+  // TODO-EX: checks related to foreign iops?
   #define GASNETE_FREE_IOPS(thread) {                                           \
+    int missing = thread->iop_num;                                              \
+                                                                                \
     /* active iop */                                                            \
     gasnete_iop_t *iop = thread->current_iop;                                   \
     gasneti_assert(iop->next == NULL); /* not inside an NBI access region */    \
     gasneti_assert(GASNETE_IOP_ISDONE(iop)); /* no outstanding NBI ops */       \
     gasneti_free(iop);                                                          \
+    missing--;                                                                  \
                                                                                 \
-    /* iop free list */                                                         \
-    iop = thread->iop_free;                                                     \
-    while (iop) {                                                               \
-      gasnete_iop_t *next = iop->next;                                          \
-      gasneti_assert(GASNETE_IOP_ISDONE(iop)); /* active in free list == bad */ \
-      gasneti_free(iop);                                                        \
-      iop = next;                                                               \
+    /* iop free lists */                                                        \
+    for (int i = 0; i < 2; ++i) {                                               \
+      if (i) {                                                                  \
+        gasneti_mutex_lock(&thread->foreign_lock);                              \
+        iop = thread->foreign_iops;                                             \
+        thread->foreign_iops = NULL;                                            \
+        gasneti_mutex_unlock(&thread->foreign_lock);                            \
+      } else {                                                                  \
+        iop = thread->iop_free;                                                 \
+      }                                                                         \
+      while (iop) {                                                             \
+        gasnete_iop_t *next = iop->next;                                        \
+        gasneti_assert(GASNETE_IOP_ISDONE(iop)); /* active in free list == bad */ \
+        gasneti_free(iop);                                                      \
+        missing--;                                                              \
+        iop = next;                                                             \
+      }                                                                         \
+    }                                                                           \
+    if (missing) {                                                              \
+      /* TODO: handle this better? */                                           \
+      GASNETI_TRACE_PRINTF(I, ("%d iops leaked", missing));                     \
+      leak = 1;                                                                 \
     }                                                                           \
   }
   #endif
   GASNETE_FREE_IOPS(thread);
 
   #ifndef GASNETE_FREE_EOPS
+  // TODO-EX: checks related to foreign eops?
   #define GASNETE_FREE_EOPS(thread) {            \
-    /* TODO: check for in-flight eops */         \
-    int i;                                       \
-    for (i = 0; i < thread->eop_num_bufs; i++) { \
-       gasneti_free(thread->eop_bufs[i]);        \
+    int missing = thread->eop_num_bufs * 256;    \
+    gasnete_eop_t *eop;                          \
+    eop = thread->eop_free;                      \
+    while (eop) { --missing; eop = eop->next; }  \
+    gasneti_mutex_lock(&thread->foreign_lock);   \
+    eop = thread->foreign_eops;                  \
+    while (eop) { --missing; eop = eop->next; }  \
+    gasneti_mutex_unlock(&thread->foreign_lock); \
+    if (missing) {                               \
+      /* TODO: handle this better? */            \
+      GASNETI_TRACE_PRINTF(I, ("%d eops leaked", missing)); \
+      leak = 1;                                  \
+    } else {                                     \
+      for (int i = 0; i < thread->eop_num_bufs; i++) { \
+        /* TODO: check for in-flight eops */     \
+         gasneti_free(thread->eop_bufs[i]);      \
+      }                                          \
     }                                            \
   }
   #endif
@@ -140,8 +180,12 @@ static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
 
   /* conduits needing additional cleanups should use gasnete_register_threadcleanup */
 
+  /* Must leak the threaddata if any iops or eops are unaccounted for */
+  if (leak) return 1;
+
   /* threaddata itself */
   gasneti_free(thread);
+  return 0;
 }
 #endif
 
@@ -257,12 +301,12 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
     }
   }
 
-  GASNETE_FREE_THREADDATA(thread);
-
-  gasneti_mutex_lock(&threadtable_lock);
-    gasnete_threadtable[idx] = NULL;
-    gasnete_numthreads--;
-  gasneti_mutex_unlock(&threadtable_lock);
+  if (! GASNETE_FREE_THREADDATA(thread)) {
+    gasneti_mutex_lock(&threadtable_lock);
+      gasnete_threadtable[idx] = NULL;
+      gasnete_numthreads--;
+    gasneti_mutex_unlock(&threadtable_lock);
+  }
 }
 
 GASNETI_NEVER_INLINE(gasnete_new_threaddata,
