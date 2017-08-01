@@ -5,49 +5,63 @@
 # The GASNet specification in distributed in 3 primary formats (text, html and postscript)
 # note that older version of makeinfo and TeX may have trouble correctly generating gasnet.ps
 
-all: gasnet.txt gasnet.html gasnet.ps gasnet.pdf
+OUTPUTS = gasnet.pdf gasnet.txt gasnet.html
+all: $(OUTPUTS)
+	md5sum $(OUTPUTS) || exit 0
+
+SOURCES = gasnet.texi texinfo.tex Makefile
+
+PERL = perl
 
 # ------------------------------------------------------------------------------------
 # TeX Postscript
-gasnet.dvi: gasnet.texi texinfo.tex
-	texi2dvi -c -q gasnet.texi
+gasnet.dvi: $(SOURCES)
+	texi2dvi -c -q $<
 
 gasnet.ps: gasnet.dvi
-	rm -f gasnet.ps
-	dvips -f -t letter gasnet.dvi > gasnet.ps
+	rm -f $@
+	dvips -f -t letter $< > $@
 
 # ------------------------------------------------------------------------------------
 # Adobe PDF
-gasnet.pdf: gasnet.texi texinfo.tex
-	rm -f gasnet.pdf
-	texi2dvi -c -p -o gasnet.pdf gasnet.texi
+gasnet.pdf: $(SOURCES)
+	texi2dvi -c -p -o $@ $<
+	touch $@
 
 gasnet2.pdf: gasnet.dvi
-	rm -f gasnet2.pdf
-	dvipdf gasnet.dvi 
+	dvipdf $<
 
 # ------------------------------------------------------------------------------------
 # Text
-gasnet.txt: gasnet.texi texinfo.tex
-	makeinfo --no-headers --no-validate gasnet.texi > gasnet.txt
+# Perl removes function category cruft that isn't properly elided in Plaintext fmt
+gasnet.txt: $(SOURCES)
+	rm -f $@
+	makeinfo --no-headers --no-validate $< > $@
+	$(PERL) -i.bak -pe 's/^ -- :/ /' $@
+	rm -f $@.bak
+
 # ------------------------------------------------------------------------------------
 # Monolithic HTML
-gasnet.html: gasnet.texi texinfo.tex
-	makeinfo --html --no-split --no-headers --no-validate gasnet.texi > gasnet.html
+# Perl removes function category cruft that isn't properly elided in HTML fmt
+# Also remove useless HTML jump table in Function index
+INDEX_NAME=Function-Macro-and-Type-Index_fn_letter-G
+gasnet.html: $(SOURCES)
+	rm -f $@
+	makeinfo --html --no-split --no-headers --no-validate $< > $@
+	$(PERL) -i.bak -pe 's@^(<dt><a name="[^"]+"></a>): <em>@\1 <em>@' $@
+	$(PERL) -0777 -i.bak -pe 's@<table><tr><t[^>]*>Jump to:[^<]*</t.><td><a [^>]*href="#$(INDEX_NAME)">.*?</table>@@msg ; s@<tr><t.><a name="$(INDEX_NAME)">.*?</tr>@@g' $@
+	rm -f $@.bak
 # ------------------------------------------------------------------------------------
 # Segmented HTML (not really supported)
-gasnet: gasnet.texi texinfo.tex
-	makeinfo --html --no-validate gasnet.texi
+gasnet: $(SOURCES)
+	makeinfo --html --no-validate $<
 # ------------------------------------------------------------------------------------
 # info file (not really supported)
-gasnet.info: gasnet.texi texinfo.tex
-	makeinfo gasnet.texi
+gasnet.info: $(SOURCES)
+	makeinfo $<
 
 info: gasnet.info
 	info -f gasnet.info
-# ------------------------------------------------------------------------------------
-unix:
-	txt2unix gasnet.texi
 # ------------------------------------------------------------------------------------
 temp-clean:
 	rm -f gasnet.dvi gasnet.ky gasnet.pg gasnet.toc gasnet.tmp gasnet.tp gasnet.vr gasnet.pg gasnet.log gasnet.cp gasnet.aux gasnet.fn gasnet.fns gasnet.cps
@@ -57,7 +71,7 @@ clean: temp-clean
 	rm -Rf gasnet
 
 dist-hook: all temp-clean
-	rm -f texinfo.tex gasnet.texi Makefile pshm-design.txt
+	rm -f $(SOURCES) Makefile pshm-design.txt
 	@: # Use "blessed" GASNet docs if specified
 	@if test -n "$(GASNET_DOCS)"; then \
 	   list=`cd $(GASNET_DOCS) && echo gasnet.*`; for f in $$list; do \

@@ -101,8 +101,7 @@ INSTALL_DOCS =			\
 	docs/autotuner.txt	\
 	docs/gasnet.txt		\
 	docs/gasnet.html	\
-	docs/gasnet.pdf		\
-	docs/gasnet.ps	
+	docs/gasnet.pdf
 
 force:
 
