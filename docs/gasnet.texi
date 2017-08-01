@@ -427,6 +427,7 @@ threads from polling simultaneously
 }
 
 @c ------------------------------------------------------------------------------------
+@page
 @section Errors
 @cindex Errors
 
@@ -895,6 +896,7 @@ GASNet job
 returns the number of nodes in the current GASNet job
 @end deftypefn
 
+@page
 @FNS gasnet_getSegmentInfo
 @cindex segment
 @cindex gasnet_seginfo_t
@@ -1074,6 +1076,7 @@ not affect correctness.
 }
 
 @c ------------------------------------------------------------------------------------
+@page
 @node Active Message Size Limits
 @subsection Active Message Size Limits
 @cindex Message size
@@ -1230,6 +1233,7 @@ temporarily if the network is unable to immediately accept the new request.
 }
 
 @c ------------------------------------------------------------------------------------
+@page
 @node Active Message Reply Functions
 @subsection Active Message Reply Functions
 @cindex Replies
@@ -1313,6 +1317,7 @@ Returns @code{GASNET_OK} on success.
 @end deftypefn
 
 @c ------------------------------------------------------------------------------------
+@page
 @node Misc. Active Message Functions
 @subsection Misc. Active Message Functions
 @cindex Poll
@@ -1399,6 +1404,7 @@ Returns @code{GASNET_OK} on success.
 @end deftypefn
 
 @c ------------------------------------------------------------------------------------
+@page
 @node Atomicity Control
 @section Atomicity Control
 @cindex Atomicity
@@ -1582,6 +1588,7 @@ mutex).
 HSL's operate analogously to POSIX mutexes, in that they are always 
 manipulated using a pointer.
 
+@page
 @FNHSS gasnet_hsl_init@comma{} gasnet_hsl_destroy
 @FNI gasnet_hsl_init
 @FNI gasnet_hsl_destroy
@@ -1805,6 +1812,7 @@ registered for remote access by the @var{dest} node (see @code{gasnet_attach}).
 @end deftypefn
 
 @c ------------------------------------------------------------------------------------
+@page
 @node Non-blocking memory-to-memory transfers
 @section Non-blocking memory-to-memory transfers
 @cindex gets
@@ -2283,6 +2291,7 @@ or implicit synchronization functions defined above, as appropriate
 @end deftypefn
 
 @c ------------------------------------------------------------------------------------
+@page
 @node Blocking Value Get
 @subsection Blocking Value Get
 
@@ -2482,6 +2491,7 @@ metadata associated with a particular client thread.
 * GASNET_BEGIN_FUNCTION::
 @end menu
 
+@page
 @FNSS GASNET_GET_THREADINFO
 @code{#define GASNET_GET_THREADINFO() ???}
 
