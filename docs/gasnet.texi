@@ -69,8 +69,8 @@
 @c ------------------------------------------------------------------------------------
 @c Macros:
 
-@set VERSION 1.8
-@set RELEASEDATE November 2nd, 2006
+@set VERSION 1.8.1
+@set RELEASEDATE November 2nd, 2006 (corrections: Sept 1, 2017)
 
 @ifnottex
 @ifhtml
@@ -184,7 +184,7 @@ $2^{16}-1$
 @c ------------------------------------------------------------------------------------
 
 @macro COPYRIGHTTEXT
-Copyright @copyright{} 2002-2004, Dan Bonachea.@*
+Copyright @copyright{} 2002-2017, Dan Bonachea.@*
 Selected portions adapted from:
 @itemize @bullet
 @item @cite{A. Mainwaring and D. Culler, "Active Message Applications Programming Interface and Communication Subsystem Organization", U.C. Berkeley Computer Science Technical Report, 1996.}
@@ -197,7 +197,7 @@ creating GASNet clients or implementations. The authoritative version of the GAS
 is maintained by Dan Bonachea and any proposed changes should be submitted for review.
 @end quotation
 
-Published by LBNL FTG and U.C. Berkeley
+Published by LBNL and U.C. Berkeley
 @end macro
 
 @c ------------------------------------------------------------------------------------
@@ -205,10 +205,8 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2008/10/11 04:34:38 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.45 $ 
-@author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
+@author Editor: Dan Bonachea @email{gasnet-devel@@lbl.gov}
 @uref{http://gasnet.lbl.gov}
 
 @c  The following two commands
@@ -236,10 +234,9 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2008/10/11 04:34:38 $
-@*$Revision: 1.44 $ 
+@*Printed @today{}
 @ifnothtml
-@*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
+@*Editor: Dan Bonachea @email{gasnet-devel@@lbl.gov}
 @end ifnothtml
 @ifhtml
 @html
@@ -250,11 +247,10 @@ var result = "m"+"a"+"i"+"l"+"t"+"o"+":" + login + "@@" + domain;
 window.location.assign(result);
 @}
 </script>
-<br>Editor: <a href="javascript:emailto('bonachea','cs.berkeley.edu')">Dan Bonachea</a>
+<br>Editor: <a href="javascript:emailto('gasnet-devel','lbl.gov')">Dan Bonachea</a>
 @end html
 @end ifhtml
 @*@uref{http://gasnet.lbl.gov}
-@*@uref{http://upc.lbl.gov/}
 @HR
 @COPYRIGHTTEXT
 @HR
@@ -1050,7 +1046,7 @@ void handler(gasnet_token_t token,
 @cindex Long Active Message
 @item Long Active Message
 In addition to integer arguments, these messages can carry an opaque 
-data payload (up to @code{gasnet_AMMaxLong()} bytes in length) which is destined 
+data payload (up to @code{gasnet_AMMaxLong@{Request,Reply@}()} bytes in length) which is destined 
 for a particular predetermined address in the segment of the remote node 
 (often implemented using RDMA hardware assistance)
 @*handler prototype: 
@@ -1451,9 +1447,6 @@ interrupt-based mechanisms, and a locking mechanism to allow atomic updates
 from handlers to data structures shared with the client threads and other 
 handlers.
 
-(see @uref{http://www.cs.berkeley.edu/~bonachea/upc/} for a more 
-detailed discussion on handler atomicity)
-
 @c ------------------------------------------------------------------------------------
 @node No-Interrupt Sections
 @subsection No-Interrupt Sections - Ensuring signal-safety for handlers 
@@ -1715,7 +1708,7 @@ No-Interrupt Section.
 @chapter Extended API
 @cindex Extended API
 Errors in calls to the extended API are considered fatal and abort the job 
-(by sending a @code{SIGABORT} signal) after printing an appropriate error message.
+(by sending a @code{SIGABRT} signal) after printing an appropriate error message.
 
 @menu
 * Memory-to-memory Data Transfer Functions::
