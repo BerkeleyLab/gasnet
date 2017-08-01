@@ -1753,8 +1753,8 @@ attempt to optimize it by avoiding network traffic for such purely local
 operations.
 
 @item 
-If the source memory and destination memory regions overlap (but do not 
-exactly coincide) the resulting value is undefined
+If the source memory and destination memory regions overlap
+the resulting value is undefined
 @end itemize
 
 @c ------------------------------------------------------------------------------------
