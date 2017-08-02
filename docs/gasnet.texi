@@ -58,6 +58,14 @@
 \ifpdf
 \pdfpagewidth=8.5in
 \pdfpageheight=11in
+
+\pdfinfo{
+   /Author (Dan Bonachea)
+   /Title  (GASNet Specification, Version 1.8.1)
+   /CreationDate (D:20170901000000)
+   /Subject (GASNet)
+   /Keywords (GASNet, PGAS, HPC, Networking, Supercomputing)
+}
 \fi
 
 \globaldefs = 0
@@ -71,6 +79,7 @@
 
 @set VERSION 1.8.1
 @set RELEASEDATE November 2nd, 2006 (corrections: Sept 1, 2017)
+@c Need to manually update version/date in PDF metadata above
 
 @ifnottex
 @ifhtml
