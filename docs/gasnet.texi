@@ -82,12 +82,10 @@
 @c Need to manually update version/date in PDF metadata above
 
 @ifnottex
-@ifhtml
 @set HTMLORTEXT
-@end ifhtml
-@ifplaintext
-@set HTMLORTEXT
-@end ifplaintext
+@ifnothtml
+@set PLAINTEXT
+@end ifnothtml
 @end ifnottex
 
 @c -DNO_NOTES turns off implementor's notes
@@ -172,29 +170,34 @@ $2^{16}-1$
 <hr>
 @end html
 @end ifhtml
-@ifplaintext
-------------------------------------------------------------------------------------
-@end ifplaintext
+@ifset PLAINTEXT
+@flushleft
+----------------------------------------------------------------------------------------------------------------@*
+@end flushleft
+@end ifset
 @end ifnottex
 @end macro
+
 
 @c ------------------------------------------------------------------------------------
 @c keywords for install-info:
 @ifnottex
-@ifnotplaintext
+@ifclear PLAINTEXT
 @ifinfo
 @dircategory GASNet Specification
 @direntry
 * GASNet specification, version @value{VERSION}: (gasnet).   The GASNet communication spec
 @end direntry
 @end ifinfo
-@end ifnotplaintext
+@end ifclear
 @end ifnottex
 @c ------------------------------------------------------------------------------------
 
 @macro COPYRIGHTTEXT
-Copyright @copyright{} 2002-2017, Dan Bonachea.@*
+Copyright @copyright{} 2002-2017, Dan Bonachea.
+
 Selected portions adapted from:
+
 @itemize @bullet
 @item @cite{A. Mainwaring and D. Culler, "Active Message Applications Programming Interface and Communication Subsystem Organization", U.C. Berkeley Computer Science Technical Report, 1996.}
 @item @cite{D. Culler et al., "Generic Active Message Interface Specification v1.1", U.C. Berkeley Computer Science Technical Report, Feb, 1995.}
@@ -228,11 +231,6 @@ This the GASNet specification, version @value{VERSION}.
 @COPYRIGHTTEXT
 @end titlepage
 @c ------------------------------------------------------------------------------------
-@c So the toc is printed in the right place.
-@ifclear HTMLORTEXT
-@contents
-@c @shortcontents
-@end ifclear
 
 @ifnottex
 @node Top
@@ -249,7 +247,7 @@ Version @value{VERSION}
 @end ifnothtml
 @ifhtml
 @html
-<script>
+<script type="text/javascript">
 function emailto(login,domain) @{
 var result = "m"+"a"+"i"+"l"+"t"+"o"+":" + login + "@@" + domain;
 //window.confirm(result);
@@ -260,10 +258,23 @@ window.location.assign(result);
 @end html
 @end ifhtml
 @*@uref{http://gasnet.lbl.gov}
+
 @HR
 @COPYRIGHTTEXT
+
 @HR
 @end ifset
+
+@c Output table of contents
+@ifset PLAINTEXT
+@center Table of Contents@*
+@*
+@contents
+@HR
+@end ifset
+@ifclear PLAINTEXT
+@contents
+@end ifclear
 
 @ifnottex
 @menu
@@ -2802,10 +2813,5 @@ Handler prototypes remain the same as under GASNet:
 @unnumbered Function, Macro and Type Index
 
 @printindex fn
-
-@ifhtml
-@c make html generator happy
-@contents
-@end ifhtml
 
 @bye
