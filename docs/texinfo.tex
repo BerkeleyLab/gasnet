@@ -1530,14 +1530,20 @@ output) for that.)}
       % subentries, which we calculated on our first read of the .toc above.
       %
       % We use the node names as the destinations.
+      % DOB: tweaked to prepend section number in bookmark text
       \def\numchapentry##1##2##3##4{%
-        \dopdfoutline{##1}{count-\expnumber{chap##2}}{##3}{##4}}%
+        \ifnum "##2 > 65535% unnumbered chapter: dirty hex hack to ignore appendix A-F
+          \dopdfoutline{##1}{count-\expnumber{chap##2}}{##3}{##4}%
+        \else%
+          \dopdfoutline{##2\ ##1}{count-\expnumber{chap##2}}{##3}{##4}%
+        \fi%
+      }%
       \def\numsecentry##1##2##3##4{%
-        \dopdfoutline{##1}{count-\expnumber{sec##2}}{##3}{##4}}%
+        \dopdfoutline{##2\ ##1}{count-\expnumber{sec##2}}{##3}{##4}}%
       \def\numsubsecentry##1##2##3##4{%
-        \dopdfoutline{##1}{count-\expnumber{subsec##2}}{##3}{##4}}%
+        \dopdfoutline{##2\ ##1}{count-\expnumber{subsec##2}}{##3}{##4}}%
       \def\numsubsubsecentry##1##2##3##4{% count is always zero
-        \dopdfoutline{##1}{}{##3}{##4}}%
+        \dopdfoutline{##2\ ##1}{}{##3}{##4}}%
       %
       % PDF outlines are displayed using system fonts, instead of
       % document fonts.  Therefore we cannot use special characters,

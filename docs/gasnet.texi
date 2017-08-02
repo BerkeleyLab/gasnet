@@ -455,7 +455,7 @@ error, GASNet should make every attempt to ensure that the remaining nodes
 of the job are terminated in a timely manner to prevent creation of orphaned 
 processes. 
 
-@FNHS gasnet_ErrorName@comma{} gasnet_ErrorDesc
+@FNHS gasnet_ErrorName, gasnet_ErrorDesc
 @FNI gasnet_ErrorName
 @FNI gasnet_ErrorDesc
 @deftypefn {} {char *} gasnet_ErrorName (int @var{errval})
@@ -1476,7 +1476,7 @@ shared by functions also called from handlers MUST be called within a GASNet
 * gasnet_hold_interrupts, gasnet_resume_interrupts::
 @end menu
 
-@FNHSS gasnet_hold_interrupts@comma{} gasnet_resume_interrupts
+@FNHSS gasnet_hold_interrupts, gasnet_resume_interrupts
 @FNI gasnet_hold_interrupts
 @FNI gasnet_resume_interrupts
 @deftypefn {} {void} gasnet_hold_interrupts ()
@@ -1589,7 +1589,7 @@ HSL's operate analogously to POSIX mutexes, in that they are always
 manipulated using a pointer.
 
 @page
-@FNHSS gasnet_hsl_init@comma{} gasnet_hsl_destroy
+@FNHSS gasnet_hsl_init, gasnet_hsl_destroy
 @FNI gasnet_hsl_init
 @FNI gasnet_hsl_destroy
 @findex GASNET_HSL_INITIALIZER
@@ -1608,7 +1608,7 @@ is erroneous to destroy an HSL which is currently locked. Any errors
 detected in HSL initialization/destruction are fatal.
 @end deftypefn
 
-@FNHSS gasnet_hsl_lock@comma{} gasnet_hsl_unlock
+@FNHSS gasnet_hsl_lock, gasnet_hsl_unlock
 @FNI gasnet_hsl_lock
 @FNI gasnet_hsl_unlock
 @deftypefn {} {void} gasnet_hsl_lock   (gasnet_hsl_t *@var{hsl})
@@ -1769,7 +1769,7 @@ the resulting value is undefined
 * gasnet_memset::
 @end menu
 
-@FNHS gasnet_get@comma{} gasnet_put
+@FNHS gasnet_get, gasnet_put
 @FNI gasnet_get
 @FNI gasnet_put
 @deftypefn {} {void}   gasnet_get (void *@var{dest}, gasnet_node_t @var{node}, void *@var{src}, size_t @var{nbytes}) 
@@ -1789,7 +1789,7 @@ remote) must be properly aligned for accessing objects of size @var{nbytes}.
 optimize for small powers of 2.
 @end deftypefn
 
-@FNHS gasnet_get_bulk@comma{} gasnet_put_bulk
+@FNHS gasnet_get_bulk, gasnet_put_bulk
 @FNI gasnet_get_bulk
 @FNI gasnet_put_bulk
 @deftypefn {} {void}   gasnet_get_bulk (void *@var{dest}, gasnet_node_t @var{node}, void *@var{src}, size_t @var{nbytes})
@@ -1930,7 +1930,7 @@ synchronize on its completion.
 * gasnet_memset_nb::
 @end menu
 
-@FNHSS gasnet_get_nb@comma{} gasnet_put_nb
+@FNHSS gasnet_get_nb, gasnet_put_nb
 @FNI gasnet_get_nb
 @FNI gasnet_put_nb
 @deftypefn {} {gasnet_handle_t} gasnet_get_nb (void *@var{dest}, gasnet_node_t @var{node}, void *@var{src}, size_t @var{nbytes}) 
@@ -1946,7 +1946,7 @@ successfully for the non-blocking operation. For the put version, the source
 memory may be safely overwritten once the initiation function returns.
 @end deftypefn
 
-@FNHSS gasnet_get_nb_bulk@comma{} gasnet_put_nb_bulk
+@FNHSS gasnet_get_nb_bulk, gasnet_put_nb_bulk
 @FNI gasnet_get_nb_bulk
 @FNI gasnet_put_nb_bulk
 @deftypefn {} {gasnet_handle_t} gasnet_get_nb_bulk (void *@var{dest}, gasnet_node_t @var{node}, void *@var{src}, @w{size_t @var{nbytes}})
@@ -1991,7 +1991,7 @@ block until it completes.
 * gasnet_wait_syncnb_some, gasnet_try_syncnb_some::
 @end menu
 
-@FNHSS gasnet_wait_syncnb@comma{} gasnet_try_syncnb
+@FNHSS gasnet_wait_syncnb, gasnet_try_syncnb
 @FNI gasnet_wait_syncnb
 @FNI gasnet_try_syncnb
 @deftypefn {} {void} gasnet_wait_syncnb (gasnet_handle_t @var{handle})
@@ -2018,7 +2018,7 @@ already been successfully synchronized using one of the explicit-handle
 synchronization functions.
 @end deftypefn
 
-@FNHSS gasnet_wait_syncnb_all@comma{} gasnet_try_syncnb_all
+@FNHSS gasnet_wait_syncnb_all, gasnet_try_syncnb_all
 @FNI gasnet_wait_syncnb_all
 @FNI gasnet_try_syncnb_all
 @deftypefn {} {void} gasnet_wait_syncnb_all (gasnet_handle_t *@var{handles}, size_t @var{numhandles})
@@ -2046,7 +2046,7 @@ behavior. For example, if all entries in the array are @code{GASNET_INVALID_HAND
 (or @var{numhandles}==0), then @code{gasnet_try_sync_all_list()} will return @code{GASNET_OK}.
 @end deftypefn
 
-@FNHSS gasnet_wait_syncnb_some@comma{} gasnet_try_syncnb_some
+@FNHSS gasnet_wait_syncnb_some, gasnet_try_syncnb_some
 @FNI gasnet_wait_syncnb_some
 @FNI gasnet_try_syncnb_some
 @deftypefn {} {void} gasnet_wait_syncnb_some (gasnet_handle_t *@var{handles}, size_t @var{numhandles})
@@ -2081,7 +2081,7 @@ immediately and @code{gasnet_try_sync_some_list} will return @code{GASNET_OK}.
 * gasnet_get_nbi, gasnet_put_nbi, gasnet_get_nbi_bulk, gasnet_put_nbi_bulk, gasnet_memset_nbi::
 @end menu
 
-@FNHSS gasnet_get_nbi@comma{} gasnet_put_nbi@comma{} gasnet_get_nbi_bulk@comma{} gasnet_put_nbi_bulk@comma{} gasnet_memset_nbi
+@FNHSS gasnet_get_nbi, gasnet_put_nbi, gasnet_get_nbi_bulk, gasnet_put_nbi_bulk, gasnet_memset_nbi
 @FNI gasnet_get_nbi
 @FNI gasnet_put_nbi
 @FNI gasnet_get_nbi_bulk
@@ -2128,7 +2128,7 @@ cannot affect the correctness of correctly synchronized code).
 * gasnet_wait_syncnbi_gets, gasnet_wait_syncnbi_puts, gasnet_wait_syncnbi_all, gasnet_try_syncnbi_gets, gasnet_try_syncnbi_puts, gasnet_try_syncnbi_all::
 @end menu
 
-@FNHSS gasnet_wait_syncnbi_gets@comma{} gasnet_wait_syncnbi_puts@comma{} gasnet_wait_syncnbi_all@comma{} gasnet_try_syncnbi_gets@comma{} gasnet_try_syncnbi_puts@comma{} gasnet_try_syncnbi_all
+@FNHSS gasnet_wait_syncnbi_gets, gasnet_wait_syncnbi_puts, gasnet_wait_syncnbi_all, gasnet_try_syncnbi_gets, gasnet_try_syncnbi_puts, gasnet_try_syncnbi_all
 @FNI gasnet_wait_syncnbi_gets
 @FNI gasnet_wait_syncnbi_puts
 @FNI gasnet_wait_syncnbi_all
@@ -2192,7 +2192,7 @@ described below.
 * gasnet_begin_nbi_accessregion, gasnet_end_nbi_accessregion::
 @end menu
 
-@FNHSS gasnet_begin_nbi_accessregion@comma{} gasnet_end_nbi_accessregion
+@FNHSS gasnet_begin_nbi_accessregion, gasnet_end_nbi_accessregion
 @FNI gasnet_begin_nbi_accessregion
 @FNI gasnet_end_nbi_accessregion
 @deftypefn {} {void}            gasnet_begin_nbi_accessregion ();
@@ -2270,7 +2270,7 @@ registers or recieve remote gets directly into registers.
 * gasnet_put_val, gasnet_put_nb_val, gasnet_put_nbi_val::
 @end menu
 
-@FNHSS gasnet_put_val@comma{} gasnet_put_nb_val@comma{} gasnet_put_nbi_val
+@FNHSS gasnet_put_val, gasnet_put_nb_val, gasnet_put_nbi_val
 @FNI gasnet_put_val
 @FNI gasnet_put_nb_val
 @FNI gasnet_put_nbi_val
@@ -2329,7 +2329,7 @@ operations in GASNet.
 * gasnet_get_nb_val, gasnet_wait_syncnb_valget::
 @end menu
 
-@FNHSS gasnet_get_nb_val@comma{} gasnet_wait_syncnb_valget
+@FNHSS gasnet_get_nb_val, gasnet_wait_syncnb_valget
 @FNI gasnet_get_nb_val
 @FNI gasnet_wait_syncnb_valget
 @deftypefn {} {gasnet_valget_handle_t} gasnet_get_nb_val (gasnet_node_t @var{node}, void *@var{src}, size_t @var{nbytes});
