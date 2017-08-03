@@ -7,7 +7,12 @@
 @c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 @c Terms of use are as specified in license.txt
 @setfilename gasnet.info
-@settitle GASNet Specification
+
+@set VERSION 1.8.1
+@set RELEASEDATE November 2nd, 2006 (corrections: Sept 1, 2017)
+@c Need to manually update version/date in PDF metadata below
+
+@settitle GASNet Specification, Version @value{VERSION}
 @syncodeindex tp fn
 
 @c define @comma if texinfi < 5.0
@@ -76,10 +81,6 @@
 @c %**end of header
 @c ------------------------------------------------------------------------------------
 @c Macros:
-
-@set VERSION 1.8.1
-@set RELEASEDATE November 2nd, 2006 (corrections: Sept 1, 2017)
-@c Need to manually update version/date in PDF metadata above
 
 @ifnottex
 @set HTMLORTEXT
