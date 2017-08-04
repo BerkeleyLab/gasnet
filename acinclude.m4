@@ -670,8 +670,8 @@ gasnet_fn_env_argnorm()
     case "$ac_norm" in
       :*) : ;; # discard irrelevant arguments
       *=*) # opts with argument
-        ac_norm=`expr "$ac_norm" : '^\([[^=]]*\)='`
-        ac_optarg=`expr "$ac_opt" : '^[[^=]]*=\(.*\)$'`
+        ac_norm=`expr "X$ac_norm" : 'X\([[^=]]*\)='`
+        ac_optarg=`expr "X$ac_opt" : '[[^=]]*=\(.*\)$'`
         cv_prefix[]configure_args_norm="$cv_prefix[]configure_args_norm '$ac_norm=$ac_optarg'"
       ;;
       *) # bare opts, no argument
@@ -760,17 +760,18 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 
   [$1]="$cv_prefix[]envvar_$1"
   pushdef([alignarg],[m4_substr([                 ],len([$1]))])
+  pushdef([aligncac],[m4_substr([             ],len([$1]))]) dnl reduce space for (cached) appended by AC_CACHE_VAL
   if test "$[$1]" = "UNSET" ; then
      unset  $1
      if test "$envval_src_$1" = "cached"; then
-       AC_MSG_RESULT([(not set)])
+       AC_MSG_RESULT([aligncac (not set)])
      else
        AC_MSG_RESULT([alignarg (not set)])
      fi
   else
     case "$envval_src_$1" in
       'cached')
-	  AC_MSG_RESULT([alignarg   \"$[$1]\"]) ;; dnl (cached) appended by AC_CACHE_VAL
+	  AC_MSG_RESULT([aligncac \"$[$1]\"]) ;;
       'default')
 	  AC_MSG_RESULT([alignarg (default)  \"$[$1]\"]) ;;
       'disabled')
@@ -784,6 +785,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
       *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
     esac
   fi
+  popdef([aligncac])
   popdef([alignarg])
 
   popdef([UNSET])
@@ -792,10 +794,34 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   GASNET_FUN_END([$0($@)])
 ])
 
+AC_DEFUN([GASNET_DISPLAY_VERSION],[
+  GASNET_FUN_BEGIN([$0($@)])
+  AC_MSG_CHECKING(for package version)
+  display_version_info=""
+  ifdef([AC_PACKAGE_NAME],[ 
+    display_version_info="$display_version_info AC_PACKAGE_NAME"
+  ])
+  ifdef([AC_PACKAGE_VERSION],[ 
+    display_version_info="$display_version_info AC_PACKAGE_VERSION"
+  ])
+  if test -d "$srcdir/.git" ; then 
+     git_describe=`${GIT=git} --git-dir="$srcdir/.git" describe 2> /dev/null`
+     if test -n "$git_describe"; then
+       display_version_info="$display_version_info ($git_describe)"
+     fi
+  fi
+  ifdef([AC_PACKAGE_URL],[ 
+    display_version_info="$display_version_info AC_PACKAGE_URL"
+  ])
+  AC_MSG_RESULT([$display_version_info])
+  GASNET_FUN_END([$0($@)])
+])
+
 dnl $1 = optional env variables to restore
 dnl $2 = autoconf env vars to populate (including from command-line)
 AC_DEFUN([GASNET_START_CONFIGURE],[
   GASNET_FUN_BEGIN([$0($1,$2)])
+  AC_REQUIRE([GASNET_DISPLAY_VERSION])
   AC_REQUIRE([GASNET_CONFIGURE_ARGS])
   AC_REQUIRE([GASNET_SET_CROSS_COMPILE]) dnl run early to handle implicit AC_PROG_CC
   AC_REQUIRE([GASNET_ENV_DEFAULT_HELPER])

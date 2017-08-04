@@ -431,10 +431,31 @@ void doit(int partner, int *partnerseg) {
   assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
 #endif
 
+  /* width-independent computation of an integer variable with unknown unsigned type */
+  #if PLATFORM_ARCH_LITTLE_ENDIAN
+    #define compute_uint_val(lval_u64,var) do {          \
+      lval_u64 = 0;                                      \
+      for (size_t i=0; i < sizeof(var); i++) {           \
+        lval_u64 <<= 8;                                  \
+        lval_u64 |= *(((uint8_t*)(&(var)+1)) - 1 - i);   \
+      }                                                  \
+    } while (0)
+  #else
+    #define compute_uint_val(lval_u64,var) do {          \
+      lval_u64 = 0;                                      \
+      for (size_t i=0; i < sizeof(var); i++) {           \
+        lval_u64 <<= 8;                                  \
+        lval_u64 |= *(((uint8_t*)&(var)) + i);           \
+      }                                                  \
+    } while (0)
+  #endif
+    
   #define assert_inttype(type) do {              \
     volatile char a[(type)1.1f];                 \
-    volatile type v = (signed char)1; /* warnings here mean non-compliance */ \
+    volatile type v = (signed char)0x55; /* warnings here mean non-compliance */ \
     assert_always((double)(type)1.1f < 1.1f);    \
+    uint64_t val; compute_uint_val(val,v);       \
+    assert_always(val == 0x55);                  \
   } while (0)
   #define assert_signed(type)  do {              \
     volatile type v = 0; /* prevent warnings */  \
@@ -659,10 +680,10 @@ void doit(int partner, int *partnerseg) {
 
   #define assert_field_int_unspec(structtype, fieldname)  do { \
     static volatile structtype S;                                            \
-    S.fieldname = (signed char)2;   /* warnings here mean non-compliance */  \
+    S.fieldname = (signed char)0x55;/* warnings here mean non-compliance */  \
     assert_always(S.fieldname > 1); /* warnings here mean non-compliance */  \
-    S.fieldname += 3.14f;                                                    \
-    assert_always(S.fieldname == 5);/* warnings here mean non-compliance */  \
+    uint64_t val; compute_uint_val(val,S.fieldname);                         \
+    assert_always(val == 0x55);                                              \
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
