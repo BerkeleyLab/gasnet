@@ -263,8 +263,6 @@ static void gasnetc_ofi_read_env_vars() {
  * this function and the relevant get-address macros.
  */
 static void ofi_setup_address_vector() {
-  size_t reqnamelen = 0, repnamelen = 0, rdmanamelen = 0;
-  char* on_node_addresses;
   int ret = FI_SUCCESS;
   conn_entry_t *mapped_table;
   struct fi_av_attr   	av_attr 	= {0};
@@ -476,7 +474,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   hints->caps = FI_RMA;
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
-  gasneti_assert(FI_SUCCESS == ret);
+  if(FI_SUCCESS != ret)
+      gasneti_fatalerror("fi_getinfo() failed querying for RMA endpoint: %d\n", ret);
 
   ret = fi_endpoint(gasnetc_ofi_domainfd, info, &gasnetc_ofi_rdma_epfd, NULL);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_endpoint for rdma failed: %d\n", ret);
@@ -485,7 +484,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   hints->caps     = FI_MSG | FI_MULTI_RECV;
 
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
-  gasneti_assert(FI_SUCCESS == ret);
+  if(FI_SUCCESS != ret)
+      gasneti_fatalerror("fi_getinfo() failed querying for MSG endpoints: %d\n", ret);
 
   gasneti_free(hints->domain_attr->name);
   hints->domain_attr->name = NULL;
