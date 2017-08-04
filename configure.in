@@ -4582,6 +4582,17 @@ if test "$use_dbx" != no; then
   fi
 fi
 
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-lldb, support backtrace via lldb (auto-detected),
+                 [use_lldb="yes"], [use_lldb="no"], [use_lldb="$use_backtrace"])
+if test "$use_lldb" != no; then
+  AC_PATH_PROGS(LLDB_PATH, $LLDB lldb, , /usr/bin:${PATH})
+  if test -n "$LLDB_PATH"; then
+    AC_DEFINE_UNQUOTED(LLDB_PATH,"$LLDB_PATH")
+  elif test "$use_lldb" = yes; then
+    AC_MSG_ERROR(User requested --enable-backtrace-lldb but lldb was not found.  Perhaps you need to set \$LLDB?)
+  fi
+fi
+
 GASNET_IF_ENABLED_WITH_AUTO(backtrace-printstack, support backtrace via printstack (auto-detected),
                  [use_printstack="yes"], [use_printstack="no"], [use_printstack="$use_backtrace"])
 if test "$use_printstack" != no; then
