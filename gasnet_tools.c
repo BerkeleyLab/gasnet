@@ -1250,6 +1250,9 @@ out:
 
 /* table of known/detected backtrace mechanisms */
 static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
+  /*
+   * Debuggers capable of backtracing all threads:
+   */
   #ifdef GASNETI_BT_LADEBUG
   { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
   #endif
@@ -1262,15 +1265,6 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_GDB
   { "GDB", GASNETI_BT_GDB, 1 },
   #endif
-  #ifdef GASNETI_BT_DBX
-  { "DBX", GASNETI_BT_DBX, 0 },
-  #endif
-  #ifdef GASNETI_BT_EXECINFO
-  { "EXECINFO", GASNETI_BT_EXECINFO, 1 },
-  #endif
-  #ifdef GASNETI_BT_PRINTSTACK
-  { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
-  #endif
   #ifdef GASNETI_BT_IDB
   { "IDB", GASNETI_BT_IDB, 1 },
   #endif
@@ -1280,7 +1274,25 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_LLDB
   { "LLDB", GASNETI_BT_LLDB, 1 },
   #endif
-  { NULL, NULL, 0 } /* Space for registration of optional user mechanism */
+  /*
+   * Debuggers NOT capable of backtracing all threads:
+   */
+  #ifdef GASNETI_BT_DBX
+  { "DBX", GASNETI_BT_DBX, 0 },
+  #endif
+  /*
+   * Library calls capable of backtracing only the calling thread:
+   */
+  #ifdef GASNETI_BT_EXECINFO
+  { "EXECINFO", GASNETI_BT_EXECINFO, 1 },
+  #endif
+  #ifdef GASNETI_BT_PRINTSTACK
+  { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
+  #endif
+  /*
+   * Space for registration of optional user mechanism
+   */
+  { NULL, NULL, 0 }
 };
 static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
    (sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0])) - 1;
