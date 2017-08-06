@@ -248,6 +248,7 @@
 #undef IDB_PATH
 #undef LADEBUG_PATH
 #undef DBX_PATH
+#undef LLDB_PATH
 
 /* have pthread_setconcurrency */
 #undef HAVE_PTHREAD_SETCONCURRENCY

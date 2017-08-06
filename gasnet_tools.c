@@ -887,6 +887,9 @@ extern void gasneti_qualify_path(char *path_out, const char *path_in) {
 #if defined(IDB_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_IDB	&gasneti_bt_idb
 #endif
+#if defined(LLDB_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_LLDB	&gasneti_bt_lldb
+#endif
 #if defined(PGDBG_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_PGDBG	&gasneti_bt_pgdbg
 #endif
@@ -1094,6 +1097,17 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
   }
 #endif
 
+#ifdef GASNETI_BT_LLDB
+  static int gasneti_bt_lldb(int fd) {
+    const char fmt[] = "%s -p %d -o 'bt all' -o quit";
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
+    const char *lldb = (access(LLDB_PATH, X_OK) ? "lldb" : LLDB_PATH);
+    int rc = snprintf(cmd, sizeof(cmd), fmt, lldb, (int)getpid());
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    return gasneti_system_redirected_coprocess(cmd, fd);
+  }
+#endif
+
 #ifdef GASNETI_BT_GSTACK
   static int gasneti_bt_gstack(int fd) {
     static char cmd[12 + GASNETI_BT_PATHSZ];
@@ -1236,6 +1250,9 @@ out:
 
 /* table of known/detected backtrace mechanisms */
 static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
+  /*
+   * Debuggers capable of backtracing all threads:
+   */
   #ifdef GASNETI_BT_LADEBUG
   { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
   #endif
@@ -1248,22 +1265,34 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_GDB
   { "GDB", GASNETI_BT_GDB, 1 },
   #endif
-  #ifdef GASNETI_BT_DBX
-  { "DBX", GASNETI_BT_DBX, 0 },
-  #endif
-  #ifdef GASNETI_BT_EXECINFO
-  { "EXECINFO", GASNETI_BT_EXECINFO, 1 },
-  #endif
-  #ifdef GASNETI_BT_PRINTSTACK
-  { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
-  #endif
   #ifdef GASNETI_BT_IDB
   { "IDB", GASNETI_BT_IDB, 1 },
   #endif
   #ifdef GASNETI_BT_PGDBG
   { "PGDBG", GASNETI_BT_PGDBG, 1 },
   #endif
-  { NULL, NULL, 0 } /* Space for registration of optional user mechanism */
+  #ifdef GASNETI_BT_LLDB
+  { "LLDB", GASNETI_BT_LLDB, 1 },
+  #endif
+  /*
+   * Debuggers NOT capable of backtracing all threads:
+   */
+  #ifdef GASNETI_BT_DBX
+  { "DBX", GASNETI_BT_DBX, 0 },
+  #endif
+  /*
+   * Library calls capable of backtracing only the calling thread:
+   */
+  #ifdef GASNETI_BT_EXECINFO
+  { "EXECINFO", GASNETI_BT_EXECINFO, 1 },
+  #endif
+  #ifdef GASNETI_BT_PRINTSTACK
+  { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
+  #endif
+  /*
+   * Space for registration of optional user mechanism
+   */
+  { NULL, NULL, 0 }
 };
 static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
    (sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0])) - 1;
