@@ -255,6 +255,12 @@ GASNETI_MALLOCP(_gasneti_strndup)
 
 extern void gasneti_freezeForDebugger(void);
 
+#if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
+  // dynamic check for Linux flavor, to detect binary porting
+  // return non-zero iff this Linux system is actually Microsoft Windows Subsystem for Linux
+  extern int gasneti_platform_isWSL(void);
+#endif
+
 /* GASNET_DEBUG_VERBOSE is set by configure to request job startup and general 
    status messages on stderr 
 */
