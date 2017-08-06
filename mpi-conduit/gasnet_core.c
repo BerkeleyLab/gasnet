@@ -488,6 +488,10 @@ extern void gasnetc_exit(int exitcode) {
    }
   }
 
+  #if GASNET_PSHM
+    gasneti_pshm_fini();
+  #endif
+
   AMMPI_SPMDExit(exitcode);
   gasneti_fatalerror("AMMPI_SPMDExit failed");
 }

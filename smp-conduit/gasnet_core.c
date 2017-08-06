@@ -843,6 +843,8 @@ extern void gasnetc_exit(int exitcode) {
     gasnetc_join_children();
   }
   exitcode = gasnetc_get_exitcode();
+
+  gasneti_pshm_fini();
 #endif
 
   gasneti_killmyprocess(exitcode);
