@@ -70,15 +70,22 @@ clean: temp-clean
 	rm -f gasnet.info gasnet.html gasnet.ps gasnet.txt gasnet.pdf gasnet2.pdf
 	rm -Rf gasnet
 
-dist-hook: all temp-clean
+dist-hook: temp-clean
 	rm -f $(SOURCES) Makefile pshm-design.txt
 	@: # Use "blessed" GASNet docs if specified
 	@if test -n "$(GASNET_DOCS)"; then \
-	   list=`cd $(GASNET_DOCS) && echo gasnet.*`; for f in $$list; do \
-	     if test -f $$f; then rm -f $$f; fi; \
+	   for f in $(OUTPUTS); do \
+	     if test -f $(GASNET_DOCS)/$$f; then rm -f $$f; fi; \
 	     cmd="cp -p $(GASNET_DOCS)/$$f . && chmod a=r $$f"; \
 	     echo $$cmd; eval $$cmd || exit $$?; \
 	   done; \
 	 fi
+	@for f in $(OUTPUTS); do \
+	   if test -f $$f ; then \
+	      md5sum $$f ; \
+	   else \
+	     echo "WARNING: $$f not found in source directory or GASNET_DOCS='$(GASNET_DOCS)' : spec document omitted" ; \
+	   fi ; \
+	 done
 
 .PHONY: unix info gasnet clean
