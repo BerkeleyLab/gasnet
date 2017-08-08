@@ -2194,6 +2194,24 @@ static int gasneti_set_affinity_cpus(void) {
     }
     return cpus;
 }
+#if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
+// return non-zero iff this Linux system is actually Microsoft Windows Subsystem for Linux
+extern int gasneti_platform_isWSL(void) {
+    // Ideally we would use uname(2) here, but direct experimentation on the 4/16/17 version
+    // of WSL reveals that uname does not return any identifying marks to distinguish Microsoft's
+    // emulated Ubuntu kernel. 
+    // Microsoft devs suggest grepping /proc/version or /proc/sys/kernel/osrelease for "Microsoft"
+    int fd = open("/proc/sys/kernel/osrelease", O_RDONLY);
+    if (fd < 0) return 0;
+
+    static char line[255];
+    line[0] = 0;
+    ssize_t rc = read(fd, line, sizeof(line));
+    close(fd);
+    if (rc > 0 && strstr(line, "Microsoft")) return 1;
+    else return 0;
+}
+#endif
 void gasneti_set_affinity_default(int rank) {
   #if HAVE_PLPA
   {
@@ -2214,20 +2232,10 @@ void gasneti_set_affinity_default(int rank) {
 
     // Dynamically handle binaries built on native Ubuntu and ported to Microsoft's WSL kernel
     // emulator, which currently fail inside plpa_sched_setaffinity with EINVAL.
-    // Ideally we would use uname(2) here, but direct experimentation on the 4/16/17 version
-    // of WSL reveals that uname does not return any identifying marks to distinguish Microsoft's
-    // emulated Ubuntu kernel. 
-    // Microsoft devs suggest grepping /proc/version or /proc/sys/kernel/osrelease for "Microsoft"
-    FILE *fp = fopen("/proc/sys/kernel/osrelease", "r");
-    if (fp) {
-      char line[255];
-      char *rc = fgets(line, sizeof(line), fp);
-      fclose(fp);
-      if (rc && strstr(line, "Microsoft")) {
+    if (gasneti_platform_isWSL()) {
         /* NO-OP on WSL */
         no_op = 1;
         return;
-      }
     }
     
     /* Try a GET first to check for support */

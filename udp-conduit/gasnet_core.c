@@ -510,6 +510,10 @@ static void gasnetc_traceoutput(int exitcode) {
   if (!gasnetc_exitcalled) {
     gasneti_flush_streams();
     gasneti_trace_finish();
+
+  #if GASNET_PSHM
+    gasneti_pshm_fini();
+  #endif
   }
 }
 extern void gasnetc_trace_finish(void) {
@@ -588,6 +592,10 @@ extern void gasnetc_exit(int exitcode) {
      can't use a blocking lock here, because may be in a signal context
   */
   AMLOCK_CAUTIOUS();
+
+  #if GASNET_PSHM
+    gasneti_pshm_fini();
+  #endif
 
   AMUDP_SPMDExit(exitcode);
   gasneti_fatalerror("AMUDP_SPMDExit failed!");

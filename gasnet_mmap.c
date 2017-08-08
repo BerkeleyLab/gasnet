@@ -817,6 +817,9 @@ extern void *gasneti_mmap_shared(uintptr_t segsize) {
   return gasneti_mmap_shared_internal(gasneti_pshm_mynode, NULL, segsize, 1);
 }
 
+static void* gasneti_vnet_addr;
+static uintptr_t gasneti_vnet_size;
+
 extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapBroadcastfn_t snodebcastfn) {
   void *ptr = MAP_FAILED;
   int save_errno = 0;
@@ -920,6 +923,9 @@ extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapBroadcastfn_t sn
 
   /* restore the pertinent errno, if any */
   errno = save_errno;
+
+  gasneti_vnet_addr = ptr;
+  gasneti_vnet_size = size;
 
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
@@ -1826,6 +1832,34 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   memcpy(seginfo_table, gasneti_seginfo_client, numentries*sizeof(gasnet_seginfo_t));
   return GASNET_OK;
 }
+/* ------------------------------------------------------------------------------------ */
+// Unmap vnet and cross-mapped segments.
+#if GASNET_PSHM
+extern void gasneti_pshm_fini(void) {
+  #if PLATFORM_OS_WSL || PLATFORM_OS_LINUX
+    if (!gasneti_platform_isWSL()) return;
+
+    // WSL cleanup code
+    if (gasneti_attach_done) {
+      int lrank = 0;
+      for (gasnet_node_t n = 0; n < gasneti_nodes; ++n) {
+        if (!gasneti_pshm_in_supernode(n)) continue;
+        void *segbase = (void*)((uintptr_t)gasneti_seginfo[n].addr + gasneti_nodeinfo[n].offset);
+        // NOTE: assumes OK to "remote" unmap local segment - may not be appropriate for XPMEM
+        gasneti_munmap_remote(lrank, segbase, gasneti_seginfo[n].size);
+        lrank += 1;
+      }
+    } else {
+      gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+    }
+    if (gasneti_vnet_addr) {
+      gasneti_munmap(gasneti_vnet_addr, gasneti_vnet_size);
+    }
+  #else
+    // Not currently supported (or thought to be necessary) on platforms other than WSL
+  #endif
+}
+#endif // PSHM
 /* ------------------------------------------------------------------------------------ */
 /* Aux-seg support */
 
