@@ -2232,11 +2232,13 @@ void gasneti_set_affinity_default(int rank) {
 
     // Dynamically handle binaries built on native Ubuntu and ported to Microsoft's WSL kernel
     // emulator, which currently fail inside plpa_sched_setaffinity with EINVAL.
+  #if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
     if (gasneti_platform_isWSL()) {
         /* NO-OP on WSL */
         no_op = 1;
         return;
     }
+  #endif
     
     /* Try a GET first to check for support */
     if_pf (ENOSYS == gasneti_plpa_sched_getaffinity(0, sizeof(mask), &mask)) {
