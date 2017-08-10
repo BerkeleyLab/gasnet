@@ -2868,12 +2868,13 @@ gex_Segment_t     gasneti_thunk_segment  = NULL;
     gasneti_assert_always((((uintptr_t)ret) & 0x3) == 0); /* should have at least 4-byte alignment */
     if_pf (ret == NULL) {
       char curlocstr[GASNETI_MAX_LOCSZ];
+      strcpy(curlocstr, "\n   at: %s");
       if (allowfail) {
-        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%"PRIuPTR"): %s",
+        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%"PRIuPTR")%s",
                                 (uintptr_t)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
         return NULL;
       }
-      gasneti_fatalerror("Debug malloc(%"PRIuPTR") failed (%"PRIu64" bytes in use, in %"PRIu64" objects): %s", 
+      gasneti_fatalerror("Debug malloc(%"PRIuPTR") failed (%"PRIu64" bytes in use, in %"PRIu64" objects)%s", 
                      (uintptr_t)nbytes, 
                      (gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
                      (gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
