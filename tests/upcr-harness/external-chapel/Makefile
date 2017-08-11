@@ -2,10 +2,15 @@ CHAPEL_GIT_REPO   ?= chapel-lang/chapel
 CHAPEL_GIT_COMMIT ?= master
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
-CHAPEL_BUILD_ENV  ?= #empty
-CHAPEL_CHECK_ENV  ?= #empty
 CHAPEL_FLAGS      ?= #empty
 WGET              ?= wget -nv
+
+# Must not inherit these from harness environment:
+LD =
+CC =
+CFLAGS =
+CXX =
+CXXFLAGS =
 
 chapel: force
 	env
@@ -26,7 +31,14 @@ chapel: force
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
 
-example-%: chapel-built
+check: chapel-built
+	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
+	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_CHECK_ENV) \
+	    $(MAKE) -C $(CHAPEL_BLDDIR) LAUNCHER=echo check; \
+            test $$rc -eq 10
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
+example%: chapel-built
 	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
 	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_CHECK_ENV) \
 	    chpl $(CHAPEL_FLAGS) -o $@ $$CHPL_HOME/examples/$(@:example-%=%).chpl 2>&1
