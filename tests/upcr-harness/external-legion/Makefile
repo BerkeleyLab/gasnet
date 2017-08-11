@@ -32,7 +32,6 @@ legion: force
 	else \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_BLDDIR)/gasnet"; \
 	fi
-	ln -s "$(LEGION_BLDDIR)/gasnet/bin" .
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	$(MAKE) launcher
 	@touch legion-built
@@ -47,14 +46,27 @@ $(TESTS_PY): legion-built
 	    ./test.py --use gasnet --test $@ 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-# Examples:
-EXAMPLES = circuit dynamic_registration ghost ghost_pull realm_saxpy spmd_cgsolver virtual_map 
-$(EXAMPLES): legion-built
+
+# Build a single test
+one_test: legion-built
 	env USE_GASNET=1 GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(NETWORK) \
 	    LG_RT_DIR="$(LEGION_BLDDIR)/runtime" $(LEGION_TEST_ENV) \
-	    $(MAKE) -C $(LEGION_BLDDIR)/examples/$@
-	mv $(LEGION_BLDDIR)/examples/$@/$@ .
+	    $(MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)
+	mv $(LEGION_BLDDIR)/$(TEST_DIR)/$(TEST_EXE) .
+
+# examples/:
+EXAMPLES = circuit dynamic_registration ghost ghost_pull realm_saxpy spmd_cgsolver virtual_map 
+$(EXAMPLES): ; $(MAKE) one_test TEST_DIR=examples/$@ TEST_EXE=$@
+
+# tutorial/:
+TUTORIALS = hello_world tasks_and_futures index_tasks global_vars logical_regions \
+            physical_regions privileges partitioning multiple_partitions custom_mapper 
+$(TUTORIALS): ; $(MAKE) one_test TEST_DIR=tutorial/??_$@ TEST_EXE=$@
+
+# test/:
+TESTS = attach_file_mini
+$(TESTS): ; $(MAKE) one_test TEST_DIR=test/$@ TEST_EXE=$@
 
 force:
 
-.PHONY: force $(TESTS_PY)
+.PHONY: force one_test $(TESTS_PY)
