@@ -7,6 +7,16 @@ LEGION_GASNET     ?= # Path to an existing installation, if any
 HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
 
+LOGFILE = $(HARNESS_LOGDIR)/legion.log
+TO_LOG = >> $(LOGFILE) 2>&1
+
+RUNTIME_TARGETS = librealm.a liblegion.a
+SEED_DIR = $(LEGION_BLDDIR)/examples/circuit # NOTE: must not be an OMP or CUDA test
+COMMON_ENV = \
+	LG_RT_DIR="$(LEGION_BLDDIR)/runtime" USE_GASNET=1 \
+	GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(NETWORK)
+DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE)
+
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
@@ -19,7 +29,7 @@ launcher:
 	esac
 	
 legion: force
-	rm -Rf legion-built launcher $(LEGION_TMPDIR) $(LEGION_BLDDIR)
+	rm -Rf legion-built launcher $(LEGION_TMPDIR) $(LEGION_BLDDIR) $(LOGFILE)
 	mkdir $(LEGION_TMPDIR) && cd $(LEGION_TMPDIR) && \
 	  $(WGET) https://github.com/$(LEGION_GIT_REPO)/archive/$(LEGION_GIT_COMMIT).zip 2>&1 && \
 	  unzip -z $(LEGION_GIT_COMMIT).zip && \
@@ -29,10 +39,15 @@ legion: force
 	rm -Rf $(LEGION_TMPDIR)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
 	if test -f "$(LEGION_GASNET)/include/gasnet.h"; then \
+	  echo ======== GASNet symlinked ========; \
 	  ln -s `cd "$(LEGION_GASNET)" && pwd` $(LEGION_BLDDIR)/gasnet; \
 	else \
+	  echo ======== GASNet install ========; \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_BLDDIR)/gasnet"; \
-	fi > $(HARNESS_LOGDIR)/legion.log 2>&1
+	fi $(TO_LOG)
+	( echo ======== Prebuild Legion RT libs in $(SEED_DIR) ========; \
+	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
+	) $(TO_LOG)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	$(MAKE) launcher
 	@touch legion-built
@@ -41,18 +56,17 @@ legion: force
 TESTS_PY = legion_cxx regent fuzzer realm external private perf
 $(TESTS_PY): legion-built
 	cd $(LEGION_BLDDIR) && \
-	env USE_GASNET=1 GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(NETWORK) \
-	    LAUNCHER="echo Would run: " \
-	    LG_RT_DIR="$(LEGION_BLDDIR)/runtime" $(LEGION_TEST_ENV) \
+	env $(COMMON_ENV) LAUNCHER="echo Would run: " $(LEGION_TEST_ENV) \
 	    ./test.py --use gasnet --test $@ 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 
 # Build a single test
 one_test: legion-built
-	env USE_GASNET=1 GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(NETWORK) \
-	    LG_RT_DIR="$(LEGION_BLDDIR)/runtime" $(LEGION_TEST_ENV) \
-	    $(MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)  >> $(HARNESS_LOGDIR)/legion.log 2>&1
+	( echo ======== Rebuild Legion RT libs in $(TEST_DIR) ========; \
+	  $(DO_MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR) $(RUNTIME_TARGETS) \
+	) $(TO_LOG)
+	$(DO_MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)
 	mv $(LEGION_BLDDIR)/$(TEST_DIR)/$(TEST_EXE) .
 
 # examples/:
