@@ -3510,7 +3510,7 @@ if test "$enabled_ibv" = yes; then
 
     GASNET_WITH(ibv-physmem-max,
        [maximum physical memory IBV may pin: less than 1.0 is fraction of apparent physical memory, larger than 1 is absolute size with optional M, G and T suffix (default is 2/3)],
-       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
+       [if expr "${withval}" : "[[0-9]]" >/dev/null; then
           : # TODO: stronger validation?
           AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_MAX_CONFIGURE, "$withval")
         else
