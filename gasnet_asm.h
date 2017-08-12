@@ -56,7 +56,7 @@
     #define GASNETI_PGI_ASM_TPR23291 1
   #endif
   #if PLATFORM_COMPILER_PGI_CXX && GASNET_NDEBUG && \
-      PLATFORM_COMPILER_VERSION_GE(16,0,0) // All known versions through at least 16.10
+      PLATFORM_COMPILER_VERSION_GE(16,0,0) && PLATFORM_COMPILER_VERSION_LT(17,7,0)
     // PGI "tpr 24514"
     // C++ compiler fails with certain asm constructs at -O2
     #define GASNETI_PGI_ASM_TPR24514 1
