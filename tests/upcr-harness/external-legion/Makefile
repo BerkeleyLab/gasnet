@@ -3,6 +3,8 @@ LEGION_GIT_COMMIT ?= stable
 LEGION_BLDDIR     ?= $(TOP_BUILDDIR)/legion
 LEGION_TMPDIR     ?= $(TOP_BUILDDIR)/legion-tmp
 LEGION_GASNET     ?= # Path to an existing installation, if any
+
+HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
 
 # Symlink or simple script that corresponds to
@@ -31,7 +33,7 @@ legion: force
 	  ln -s `cd "$(LEGION_GASNET)" && pwd` $(LEGION_BLDDIR)/gasnet; \
 	else \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_BLDDIR)/gasnet"; \
-	fi
+	fi > $(HARNESS_LOGDIR)/legion.log 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	$(MAKE) launcher
 	@touch legion-built

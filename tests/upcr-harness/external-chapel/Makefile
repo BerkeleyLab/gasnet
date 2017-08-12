@@ -1,12 +1,16 @@
 CHAPEL_GIT_REPO   ?= chapel-lang/chapel
 CHAPEL_GIT_COMMIT ?= master
+CHAPEL_MAKE_ARGS  ?= -j4
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
 CHAPEL_FLAGS      ?= #empty
+
+HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
 
 # Must not inherit these from harness environment:
 LD =
+LDFLAGS =
 CC =
 CFLAGS =
 CXX =
@@ -27,15 +31,15 @@ chapel: force
 	cd $(CHAPEL_BLDDIR) && \
 	source util/setchplenv.bash && \
 	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_BUILD_ENV) \
-	    $(MAKE) all 2>&1
+	    $(MAKE) $(CHAPEL_MAKE_ARGS) all > $(HARNESS_LOGDIR)/chapel.log 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
 
+# Not reliable other than on UDP, and wants to *run* the test
 check: chapel-built
 	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
 	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_CHECK_ENV) \
-	    $(MAKE) -C $(CHAPEL_BLDDIR) LAUNCHER=echo check; \
-            test $$rc -eq 10
+	    $(MAKE) -C $(CHAPEL_BLDDIR) check
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 example%: chapel-built
