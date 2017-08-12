@@ -19,7 +19,6 @@ launcher:
 	esac
 	
 legion: force
-	env
 	rm -Rf legion-built launcher $(LEGION_TMPDIR) $(LEGION_BLDDIR)
 	mkdir $(LEGION_TMPDIR) && cd $(LEGION_TMPDIR) && \
 	  $(WGET) https://github.com/$(LEGION_GIT_REPO)/archive/$(LEGION_GIT_COMMIT).zip 2>&1 && \
@@ -53,7 +52,7 @@ $(TESTS_PY): legion-built
 one_test: legion-built
 	env USE_GASNET=1 GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(NETWORK) \
 	    LG_RT_DIR="$(LEGION_BLDDIR)/runtime" $(LEGION_TEST_ENV) \
-	    $(MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)
+	    $(MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)  >> $(HARNESS_LOGDIR)/legion.log 2>&1
 	mv $(LEGION_BLDDIR)/$(TEST_DIR)/$(TEST_EXE) .
 
 # examples/:

@@ -17,7 +17,6 @@ CXX =
 CXXFLAGS =
 
 chapel: force
-	env
 	rm -Rf chapel-built $(CHAPEL_TMPDIR) $(CHAPEL_BLDDIR)
 	mkdir $(CHAPEL_TMPDIR) && cd $(CHAPEL_TMPDIR) && \
 	  $(WGET) https://github.com/$(CHAPEL_GIT_REPO)/archive/$(CHAPEL_GIT_COMMIT).zip 2>&1 && \
