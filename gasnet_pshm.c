@@ -258,7 +258,10 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     {
       gasneti_assert(!((uintptr_t)my_token & 1));
       gasneti_assert(gasneti_pshm_in_supernode(src));
-      gasneti_assert(!offsetof(gasneti_ampshm_token_t,ti.gex_srcrank)); // gasneti_AMPSHM_msgsource() requires srcrank first
+    #if !PLATFORM_COMPILER_PGI // Bug 3587
+      // gasneti_AMPSHM_msgsource() requires srcrank first
+      gasneti_assert(!offsetof(gasneti_ampshm_token_t,ti.gex_srcrank));
+    #endif
       my_token->ti.gex_srcrank = src;
       my_token->ti.gex_entry = entry;
       my_token->ti.gex_is_req = isReq;
