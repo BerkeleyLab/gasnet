@@ -1,6 +1,26 @@
 GASNet-EX ChangeLog
 -------------------
 ----------------------------------------------------------------------
+09-30-2017: GASNet-EX 2017.9.0 Beta release
+
+* GASNet-EX Spec v0.2:
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+* Other Known Limitations:
+  - This release does not support Microsoft Windows Subsystem for Linux, due
+    to an OS bug. Details: https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3588
+
+----------------------------------------------------------------------
 06-30-2017: GASNet-EX 2017.6.0 Beta release
 
 * Initial BETA release of the GASNet-EX system.
