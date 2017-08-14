@@ -9,12 +9,12 @@ HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
 
 # Must not inherit these from harness environment:
-LD =
-LDFLAGS =
-CC =
-CFLAGS =
-CXX =
-CXXFLAGS =
+unexport LD LDFLAGS LIBS
+unexport CC CFLAGS
+unexport CXX CXXFLAGS
+unexport AR RANLIB
+
+COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK)
 
 chapel: force
 	rm -Rf chapel-built $(CHAPEL_TMPDIR) $(CHAPEL_BLDDIR)
@@ -29,7 +29,7 @@ chapel: force
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
 	cd $(CHAPEL_BLDDIR) && \
 	source util/setchplenv.bash && \
-	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_BUILD_ENV) \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
 	    $(MAKE) $(CHAPEL_MAKE_ARGS) all > $(HARNESS_LOGDIR)/chapel.log 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
@@ -37,13 +37,13 @@ chapel: force
 # Not reliable other than on UDP, and wants to *run* the test
 check: chapel-built
 	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
-	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_CHECK_ENV) \
+	  env $(COMMON_ENV) $(CHAPEL_CHECK_ENV) \
 	    $(MAKE) -C $(CHAPEL_BLDDIR) check
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 example%: chapel-built
 	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
-	  env CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK) $(CHAPEL_CHECK_ENV) \
+	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
 	    chpl $(CHAPEL_FLAGS) -o $@ $$CHPL_HOME/examples/$(@:example-%=%).chpl 2>&1
 
 force:
