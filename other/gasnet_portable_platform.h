@@ -510,9 +510,12 @@
   #else
     #define PLATFORM_COMPILER_CLANG_C  1
   #endif
-  #define PLATFORM_COMPILER_VERSION \
-          PLATFORM_COMPILER_VERSION_INT(__clang_major__,__clang_minor__,__clang_patchlevel__)
-  #define PLATFORM_COMPILER_VERSION_STR __clang_version__
+  #ifdef __clang_version__
+    /* clang 2.7 (gcc 4.2.1 compliant) and earlier lacked specific version identification */
+    #define PLATFORM_COMPILER_VERSION \
+            PLATFORM_COMPILER_VERSION_INT(__clang_major__,__clang_minor__,__clang_patchlevel__)
+    #define PLATFORM_COMPILER_VERSION_STR __clang_version__
+  #endif
 
 #else /* unknown compiler */
   #define PLATFORM_COMPILER_UNKNOWN  1
