@@ -34,8 +34,8 @@ legion: force
 	rm -Rf legion-built launcher $(LEGION_TMPDIR) $(LEGION_BLDDIR) $(LOGFILE)
 	mkdir $(LEGION_TMPDIR) && cd $(LEGION_TMPDIR) && \
 	  $(WGET) https://github.com/$(LEGION_GIT_REPO)/archive/$(LEGION_GIT_COMMIT).zip 2>&1 && \
-	  $(UNZIP_COMMENT) $(LEGION_GIT_COMMIT).zip && \
-	  $(UNZIP_EXTRACT) $(LEGION_GIT_COMMIT).zip && \
+	  $(ZIP_COMMENT) $(LEGION_GIT_COMMIT).zip && \
+	  $(ZIP_EXTRACT) $(LEGION_GIT_COMMIT).zip && \
 	  rm $(LEGION_GIT_COMMIT).zip && \
 	  mv * $(LEGION_BLDDIR) # archive's root dir will vary
 	rm -Rf $(LEGION_TMPDIR)
