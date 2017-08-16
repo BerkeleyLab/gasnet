@@ -1127,6 +1127,57 @@ static void op_test(int id) {
       }
     }
     PTHREAD_BARRIER(num_threads);
+    { // Test free of other threads' ops and subsequent reuse.
+      #define RAND_EVENT(output) do {                                 \
+          gasneti_eop_t *_eop;                                        \
+          gasneti_iop_t *_iop;                                        \
+          int _r = TEST_RAND_ONEIN(10);                               \
+          switch (_r) {                                               \
+            case 0: case 1: /* IOP put or get */                      \
+              gex_NBI_BeginAccessRegion(0);                           \
+              _iop = gasneti_iop_register(1, _r GASNETI_THREAD_GET);  \
+              (output) = gex_NBI_EndAccessRegion(0);                  \
+              gasneti_iop_markdone(_iop, 1, _r);                      \
+              break;                                                  \
+            default: /* EOP */                                        \
+              _eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);    \
+              (output) = gasneti_eop_to_event(_eop);                  \
+              gasneti_eop_markdone(_eop);                             \
+              break;                                                  \
+          }                                                           \
+        } while(0)
+      const int opcount = 252; // must be divisible by 3 and 4
+      assert_always(! (opcount%4));
+      assert_always(! (opcount%3));
+      // Arrays of events (interleaved from 4 threads)
+      // populated by passing around the ring of threads.
+      gex_Event_t *events = test_malloc(opcount * 2 * sizeof(gex_Event_t));
+      for (int j = 0; j < 4; ++j) {
+        for (int i = j; i < opcount; i += 4) { RAND_EVENT(events[i]); }
+        share[id] = events;
+        PTHREAD_BARRIER(num_threads);
+        events = (gex_Event_t *)share[peerid];
+        PTHREAD_BARRIER(num_threads);
+      }
+      // The events are reaped in groups of 3 events to
+      // get varying mixes of local and foreign events.
+      for (int i = 0; i < opcount; i += 3) {
+        if (TEST_RAND_ONEIN(2)) {
+          assert_always(gex_Event_Test(events[i+0]) == GASNET_OK);
+          assert_always(gex_Event_Test(events[i+1]) == GASNET_OK);
+          assert_always(gex_Event_Test(events[i+2]) == GASNET_OK);
+        } else {
+          assert_always(gex_Event_TestAll(events+i,3,0) == GASNET_OK);
+        }
+      }
+      PTHREAD_BARRIER(num_threads);
+      // Issue twice the original number of ops to encourage reuse of foreign-freed ops
+      for (int i = 0; i < 2*opcount; ++i) { RAND_EVENT(events[i]); }
+      assert_always(gex_Event_TestAll(events,2*opcount,0) == GASNET_OK);
+      test_free(events);
+      #undef RAND_EVENT
+    }
+    PTHREAD_BARRIER(num_threads);
     if (!id) { test_free(share); share = NULL; }
     PTHREAD_BARRIER(num_threads);
   }

@@ -72,6 +72,7 @@ GASNETI_NEVER_INLINE(gasnete_iop_alloc,
 static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     gasnete_iop_t *iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
     gasneti_leak(iop);
+    thread->iop_num++;
     #if GASNET_DEBUG
       memset(iop, 0, sizeof(gasnete_iop_t)); /* set event[] and pad to known value */
     #else
@@ -94,10 +95,24 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     return iop;
 }
 
+GASNETI_INLINE(_gasnete_iop_new)
+gasnete_iop_t *_gasnete_iop_new(gasnete_threaddata_t * const thread) {
+  gasnete_iop_t *iop = thread->iop_free;
+  if_pf (!iop) {
+    gasneti_mutex_lock(&thread->foreign_lock);
+    { // no branch needed - an empty list remains empty
+      iop = thread->foreign_iops;
+      thread->foreign_iops = NULL;
+    }
+    gasneti_mutex_unlock(&thread->foreign_lock);
+  }
+  return iop;
+}
+
 /*  get a new iop */
 extern
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
-  gasnete_iop_t *iop = thread->iop_free;
+  gasnete_iop_t *iop = _gasnete_iop_new(thread);
   if_pt (iop) {
     thread->iop_free = iop->next;
     gasneti_memcheck(iop);
@@ -149,9 +164,7 @@ void gasnete_iop_prep_free(gasnete_iop_t *iop) {
 
 /*  free an iop */
 static
-void gasnete_iop_free(gasnete_iop_t *iop) {
-  gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
-  gasneti_assert(thread == gasnete_mythread()); // TODO-EX: to be removed
+void gasnete_iop_free(gasnete_iop_t *iop GASNETI_THREAD_FARG) {
   gasnete_iop_prep_free(iop);
 #ifdef GASNETE_IOP_FREE_EXTRA
   // Hook for conduit-specific cleanups
@@ -164,8 +177,16 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasneti_assert(iop->event[0] == gasnete_event_type_pendingfree_iop);
   iop->event[0] = gasnete_event_type_free_iop;
 #endif
-  iop->next = thread->iop_free;
-  thread->iop_free = iop;
+  gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
+  if (thread == GASNETI_MYTHREAD) {
+    iop->next = thread->iop_free;
+    thread->iop_free = iop;
+  } else {
+    gasneti_mutex_lock(&thread->foreign_lock);
+    iop->next = thread->foreign_iops;
+    thread->foreign_iops = iop;
+    gasneti_mutex_unlock(&thread->foreign_lock);
+  }
 }
 
 #endif // GASNETI_DISABLE_REFERENCE_EOP
@@ -237,9 +258,9 @@ int gasnete_op_try_free(gex_Event_t event GASNETI_THREAD_FARG) {
 
     // TODO-EX: the mask operation in OPTYPE() unnecessary?
     if_pt (OPTYPE((gasnete_op_t*)event) == OPTYPE_EXPLICIT) {
-      gasnete_eop_free((gasnete_eop_t*)event);
+      gasnete_eop_free((gasnete_eop_t*)event GASNETI_THREAD_PASS);
     } else {
-      gasnete_iop_free((gasnete_iop_t*)event);
+      gasnete_iop_free((gasnete_iop_t*)event GASNETI_THREAD_PASS);
     }
   } else { // It's a leaf event
     gasneti_assert(EVENT_DONE(gasneti_event_op(event), idx)); // confirm the EVENT_LIVE_MASK result
@@ -257,13 +278,61 @@ extern int  gasnete_test(gex_Event_t event GASNETI_THREAD_FARG) {
 
 #if !defined(gasnete_test_all) || \
     !defined(gasnete_test_some)
+GASNETI_INLINE(gasnete_bulk_free_eops)
+void gasnete_bulk_free_eops(gasnete_eop_t *head, gasnete_eop_t **tail_p,
+                       gasnete_threaddata_t * const thread GASNETI_THREAD_FARG) {
+  gasneti_assert(head->threadidx == thread->threadidx); // TODO: validate entire list?
+#if GASNETI_MAX_THREADS > 1
+  if_pf (thread != GASNETI_MYTHREAD) {
+    gasneti_mutex_lock(&thread->foreign_lock);
+    *tail_p = thread->foreign_eops;
+    thread->foreign_eops = head;
+    gasneti_mutex_unlock(&thread->foreign_lock);
+  } else
+#endif
+  {
+    *tail_p = thread->eop_free;
+    thread->eop_free = head;
+  }
+}
+GASNETI_INLINE(gasnete_bulk_free_iops)
+void gasnete_bulk_free_iops(gasnete_iop_t *head, gasnete_iop_t **tail_p,
+                       gasnete_threaddata_t * const thread GASNETI_THREAD_FARG) {
+  gasneti_assert(head->threadidx == thread->threadidx); // TODO: validate entire list?
+#if GASNETI_MAX_THREADS > 1
+  if_pf (thread != GASNETI_MYTHREAD) {
+    gasneti_mutex_lock(&thread->foreign_lock);
+    *tail_p = thread->foreign_iops;
+    thread->foreign_iops = head;
+    gasneti_mutex_unlock(&thread->foreign_lock);
+  } else
+#endif
+  {
+    *tail_p = thread->iop_free;
+    thread->iop_free = head;
+  }
+}
 GASNETI_INLINE(gasnete_test_array)
 int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  gasnete_eop_t *eop_head = NULL, **eop_tail_p = &eop_head;
-  gasnete_iop_t *iop_head = NULL, **iop_tail_p = &iop_head;
+#if GASNETI_MAX_THREADS > 1
+  gasnete_threadidx_t eop_threadidx = GASNETE_INVALID_THREADIDX;
+  gasnete_threadidx_t iop_threadidx = GASNETE_INVALID_THREADIDX;
+  gasnete_eop_t *eop_head[2] = {NULL, NULL};
+  gasnete_eop_t **eop_tail_p[2] = {&eop_head[0], &eop_head[1]};
+  gasnete_iop_t *iop_head[2] = {NULL, NULL};
+  gasnete_iop_t **iop_tail_p[2] = {&iop_head[0], &iop_head[1]};
+#else
+  const gasnete_threadidx_t eop_threadidx = 0;
+  const gasnete_threadidx_t iop_threadidx = 0;
+  gasnete_eop_t *eop_head[1] = {NULL};
+  gasnete_eop_t **eop_tail_p[1] = {&eop_head[0]};
+  gasnete_iop_t *iop_head[1] = {NULL};
+  gasnete_iop_t **iop_tail_p[1] = {&iop_head[0]};
+#endif
   int all_synced = 1;
   int some_synced = 0;
+  int roots_synced = 0;
   int empty = 1;
   size_t to_retest = 0;
 
@@ -276,8 +345,8 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
   // root and failed to sync at least one leaf, a second pass is made to retest
   // all of the remaining leaves.
   //
-  // Between the two passes, the roots synced in the first pass are kept on a
-  // temporary linked-list to avoid them being recycled from the free list
+  // Between the two passes, the roots synced in the first pass are kept on
+  // temporary linked-lists to avoid them being recycled from the free list
   // while their leaves are still being tested.  Even in the absence of a
   // second pass, this will yield an efficient "bulk free".
 
@@ -306,22 +375,43 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
         // Of course, if any Gets were syned we still need at least one RMB before return.
         gasneti_sync_reads();
 
-        // TODO-EX: track if all are from same thread so bulk free can act accordingly
         gasnete_op_t *op = (gasnete_op_t*)event;
-        gasneti_assert(op->threadidx == mythread->threadidx); // TODO-EX: until we event "foreign" ops
+      #if GASNETI_MAX_THREADS > 1
+        int other;
+      #else
+        const int other = 0;
+      #endif
         if (OPTYPE(op) == OPTYPE_EXPLICIT) { // TODO-EX: the mask operation in OPTYPE() unnecessary?
+        #if GASNETI_MAX_THREADS > 1
+          if (eop_threadidx == GASNETE_INVALID_THREADIDX) {
+            eop_threadidx = op->threadidx;
+            other = 0;
+          } else {
+            other = (eop_threadidx != op->threadidx);
+          }
+        #endif
           gasnete_eop_t *eop = (gasnete_eop_t*)op;
           gasnete_eop_prep_free(eop);
-          *eop_tail_p = eop;
-          eop_tail_p = &eop->next;
+          *eop_tail_p[other] = eop;
+          eop_tail_p[other] = &eop->next;
           eop->next = NULL;
         } else {
+        #if GASNETI_MAX_THREADS > 1
+          if (iop_threadidx == GASNETE_INVALID_THREADIDX) {
+            iop_threadidx = op->threadidx;
+            other = 0;
+          } else {
+            other = (iop_threadidx != op->threadidx);
+          }
+        #endif
           gasnete_iop_t *iop = (gasnete_iop_t*)op;
           gasnete_iop_prep_free(iop);
-          *iop_tail_p = iop;
-          iop_tail_p = &iop->next;
+          *iop_tail_p[other] = iop;
+          iop_tail_p[other] = &iop->next;
           iop->next = NULL;
         }
+
+        roots_synced = 1;
       }
 
       pevent[i] = GEX_EVENT_INVALID;
@@ -332,7 +422,7 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
   // Pass 2: retest all still-live leaf events (if any)
   gasneti_assert(! gasneti_event_idx(GEX_EVENT_INVALID));
   if (to_retest) {
-    if (eop_head || iop_head) {
+    if (roots_synced) {
       size_t to_test = to_retest;
       for (size_t i = 0; to_test; i++) {
         gasneti_assert(i < numevents);
@@ -352,11 +442,10 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
     }
   }
 
-  // Bulk free
-  // TODO-EX: deal with foreign (other theads) ops
-  if (eop_head) {
+  // Bulk free "main" (first seen) thread's eops and iops
+  if (eop_head[0]) {
   #if defined(GASNET_DEBUG) || defined(GASNETE_EOP_FREE_EXTRA)
-    gasnete_eop_t *eop = eop_head;
+    gasnete_eop_t *eop = eop_head[0];
     do {
     #ifdef GASNETE_EOP_FREE_EXTRA
       GASNETE_EOP_FREE_EXTRA(eop);
@@ -367,13 +456,11 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
       eop = eop->next;
     } while(eop);
   #endif
-    gasnete_threaddata_t * const thread = gasnete_threadtable[eop_head->threadidx];
-    *eop_tail_p = thread->eop_free;
-    thread->eop_free = eop_head;
+    gasnete_bulk_free_eops(eop_head[0], eop_tail_p[0], gasnete_threadtable[eop_threadidx] GASNETI_THREAD_PASS);
   }
-  if (iop_head) {
+  if (iop_head[0]) {
   #if defined(GASNET_DEBUG) || defined(GASNETE_IOP_FREE_EXTRA)
-    gasnete_iop_t *iop = iop_head;
+    gasnete_iop_t *iop = iop_head[0];
     do {
     #ifdef GASNETE_IOP_FREE_EXTRA
       GASNETE_EOP_FREE_EXTRA(iop);
@@ -384,10 +471,40 @@ int gasnete_test_array(const int is_all, gex_Event_t *pevent, size_t numevents G
       iop = iop->next;
     } while(iop);
   #endif
-    gasnete_threaddata_t * const thread = gasnete_threadtable[iop_head->threadidx];
-    *iop_tail_p = thread->iop_free;
-    thread->iop_free = iop_head;
+    gasnete_bulk_free_iops(iop_head[0], iop_tail_p[0], gasnete_threadtable[iop_threadidx] GASNETI_THREAD_PASS);
   }
+
+#if GASNETI_MAX_THREADS > 1
+  // Individually (non-bulk) free remaining eops and iops (not beloning to "main" thread)
+  // TODO-EX: sort/bin to amortize lock accesses?
+  {
+    gasnete_eop_t *eop = eop_head[1];
+    while (eop) {
+    #ifdef GASNETE_EOP_FREE_EXTRA
+      GASNETE_EOP_FREE_EXTRA(eop);
+    #endif
+    #if GASNET_DEBUG
+      eop->event[0] = gasnete_event_type_free_eop;
+    #endif
+      gasnete_eop_t * const next = eop->next;
+      gasnete_bulk_free_eops(eop, &eop->next, gasnete_threadtable[eop->threadidx] GASNETI_THREAD_PASS);
+      eop = next;
+    }
+
+    gasnete_iop_t *iop = iop_head[1];
+    while (iop) {
+    #ifdef GASNETE_IOP_FREE_EXTRA
+      GASNETE_EOP_FREE_EXTRA(iop);
+    #endif
+    #if GASNET_DEBUG
+      iop->event[0] = gasnete_event_type_free_iop;
+    #endif
+      gasnete_iop_t * const next = iop->next;
+      gasnete_bulk_free_iops(iop, &iop->next, gasnete_threadtable[iop->threadidx] GASNETI_THREAD_PASS);
+      iop = next;
+    }
+  }
+#endif
 
   return is_all ? all_synced : (some_synced || empty);
 }

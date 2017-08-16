@@ -4757,7 +4757,7 @@ extern int gasnetc_AMRequestMediumM(
       // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
       *lc_opt = GEX_EVENT_INVALID;
-      gasnete_eop_free(eop);
+      gasnete_eop_free(eop GASNETI_THREAD_PASS);
     } else if (lc_opt == GEX_EVENT_NOW) {
 #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
       /* block for local completion of payload transfer */
@@ -4852,7 +4852,7 @@ extern int gasnetc_AMRequestLongM(
       GASNETE_EOP_LC_FINISH(eop);
       *lc_opt = GEX_EVENT_INVALID;
       if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-        gasnete_eop_free(eop);
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
       }
     }
   }
@@ -4937,7 +4937,7 @@ extern int gasnetc_AMReplyMediumM(
       // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
       *lc_opt = GEX_EVENT_INVALID;
-      gasnete_eop_free(eop);
+      gasnete_eop_free(eop GASNETI_THREAD_PASS);
     } else if (lc_opt == GEX_EVENT_NOW) {
     #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
       /* block for local completion of payload transfer */
@@ -5024,7 +5024,7 @@ extern int gasnetc_AMReplyLongM(
       GASNETE_EOP_LC_FINISH(eop);
       *lc_opt = GEX_EVENT_INVALID;
       if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-        gasnete_eop_free(eop);
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
       }
     }
   #else
