@@ -4,6 +4,7 @@ CHAPEL_MAKE_ARGS  ?= -j4
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
 CHAPEL_FLAGS      ?= #empty
+CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 
 HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
@@ -17,9 +18,9 @@ unexport CXX CXXFLAGS
 unexport AR RANLIB
 
 # Save time by building for a single conduit
-CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(NETWORK)
+CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(CHAPEL_CONDUIT)
 
-COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK)
+COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT)
 
 # TODO: currently applying Paul's suggested fix for Chapel issue #7010
 # Note: \044 is octal for '$'
