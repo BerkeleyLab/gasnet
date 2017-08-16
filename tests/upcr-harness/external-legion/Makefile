@@ -3,6 +3,7 @@ LEGION_GIT_COMMIT ?= stable
 LEGION_BLDDIR     ?= $(TOP_BUILDDIR)/legion
 LEGION_TMPDIR     ?= $(TOP_BUILDDIR)/legion-tmp
 LEGION_GASNET     ?= # Path to an existing installation, if any
+LEGION_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 
 HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
@@ -16,18 +17,18 @@ RUNTIME_TARGETS = librealm.a liblegion.a
 SEED_DIR = $(LEGION_BLDDIR)/examples/circuit # NOTE: must not be an OMP or CUDA test
 COMMON_ENV = \
 	LG_RT_DIR="$(LEGION_BLDDIR)/runtime" USE_GASNET=1 \
-	GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(NETWORK)
+	GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(LEGION_CONDUIT)
 DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE)
 
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
-	case $(NETWORK) in \
+	case $(LEGION_CONDUIT) in \
 	smp) echo '#!/bin/sh' > $@ ; \
 	     echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
 	     chmod +x $@;; \
 	udp) ln -s "$(LEGION_BLDDIR)/gasnet/bin/amudprun" $@;; \
-	  *) ln -s "$(LEGION_BLDDIR)/gasnet/bin/gasnetrun_$(NETWORK)" $@;; \
+	  *) ln -s "$(LEGION_BLDDIR)/gasnet/bin/gasnetrun_$(LEGION_CONDUIT)" $@;; \
 	esac
 	
 legion: force
