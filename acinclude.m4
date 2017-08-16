@@ -1768,6 +1768,10 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
     # we only care that it doesn't generate new warnings, ie silently ignored is fine for our purposes
     GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
           _Pragma("GCC diagnostic push")
+	  #ifndef __cplusplus
+	  _Pragma("GCC diagnostic ignored \"-Wstrict-prototypes\"")
+	  _Pragma("GCC diagnostic ignored \"-Wmissing-prototypes\"")
+	  #endif
 	  _Pragma("GCC diagnostic ignored \"-Wunused-function\"")
 	  _Pragma("GCC diagnostic ignored \"-Wunused-variable\"")
 	  _Pragma("GCC diagnostic ignored \"-Wunused-value\"")
