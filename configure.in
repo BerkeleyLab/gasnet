@@ -3967,7 +3967,7 @@ if test "$enabled_ofi" = yes; then
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     # List of supported providers in order of preference.
-    supported_providers="psm2 psm gni sockets"
+    supported_providers="psm2 gni sockets"
     
     GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
         ofi_provider="$withval", )
@@ -3987,7 +3987,7 @@ if test "$enabled_ofi" = yes; then
         GASNET_POPVAR(PATH)
     fi
     case "$ofi_provider" in
-        psm|psm2)
+        psm2)
             ofi_define_mr_scalable=1
             ofi_use_thread_domain=1
         ;;
