@@ -7,12 +7,17 @@ CHAPEL_FLAGS      ?= #empty
 
 HARNESS_LOGDIR    ?= .
 WGET              ?= wget -nv
+ZIP_COMMENT       ?= unzip -z
+ZIP_EXTRACT       ?= unzip -q
 
 # Must not inherit these from harness environment:
 unexport LD LDFLAGS LIBS
 unexport CC CFLAGS
 unexport CXX CXXFLAGS
 unexport AR RANLIB
+
+# Save time by building for a single conduit
+CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(NETWORK)
 
 COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(NETWORK)
 
@@ -27,8 +32,8 @@ chapel: force
 	rm -Rf chapel-built $(CHAPEL_TMPDIR) $(CHAPEL_BLDDIR)
 	mkdir $(CHAPEL_TMPDIR) && cd $(CHAPEL_TMPDIR) && \
 	  $(WGET) https://github.com/$(CHAPEL_GIT_REPO)/archive/$(CHAPEL_GIT_COMMIT).zip 2>&1 && \
-	  unzip -z $(CHAPEL_GIT_COMMIT).zip && \
-	  unzip -q $(CHAPEL_GIT_COMMIT).zip && \
+	  $(ZIP_COMMENT) $(CHAPEL_GIT_COMMIT).zip && \
+	  $(ZIP_EXTRACT) $(CHAPEL_GIT_COMMIT).zip && \
 	  rm $(CHAPEL_GIT_COMMIT).zip && \
 	  mv * $(CHAPEL_BLDDIR) # archive's root dir will vary
 	rm -Rf $(CHAPEL_TMPDIR)
@@ -55,7 +60,7 @@ one_test: chapel-built
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
 	    chpl $(CHAPEL_FLAGS) -o $(TEST_EXE) $(addprefix $$CHPL_HOME/,$(TEST_SRC)) 2>&1
 
-example%: ; $(MAKE) one_test TEST_EXE=$@ TEST_SRC=examples/$(@:example-%=%).chpl
+example%: force; $(MAKE) one_test TEST_EXE=$@ TEST_SRC=examples/$(@:example-%=%).chpl
 
 force:
 
