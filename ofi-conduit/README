@@ -276,10 +276,10 @@ Known problems:
         * This bug was also present in libfabric v1.4.0
         * This has been fixed in upstream libfabric. The patch that corrects
           this behaviour can be found in the link below.
-        * LBNL Bugzilla link: https://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3597
+        * LBNL Bugzilla link: https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3597
         * libfabric GitHub issue link: https://github.com/ofiwg/libfabric/issues/3217
         * Patch that fixes the bug: https://github.com/ofiwg/libfabric/pull/3223
-    - gni provider segfault
+  - gni provider segfault
         * When using FI_MULTI_RECV (as the ofi-conduit does), the gni provider may segfault.
         * This bug has been fixed in upstream libfabric.
         * Patch that fixes the bug: https://github.com/ofiwg/libfabric/pull/3208
