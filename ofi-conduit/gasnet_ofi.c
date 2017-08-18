@@ -390,7 +390,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   hints->tx_attr->op_flags	= FI_DELIVERY_COMPLETE;
   hints->ep_attr->type		= FI_EP_RDM; /* Reliable datagram */
   /* Threading mode is set by the configure script to FI_THREAD_DOMAIN if
-   * using the psm or psm2 provider and FI_THREAD_SAFE otherwise*/
+   * using the psm2 provider and FI_THREAD_SAFE otherwise*/
 #if GASNETC_OFI_USE_THREAD_DOMAIN || !GASNET_PAR
   hints->domain_attr->threading			= FI_THREAD_DOMAIN;
 #else
@@ -413,8 +413,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   /* FIXME: walk list of providers and implement some
    * selection logic */
 
-  if (!strcmp(info->fabric_attr->prov_name, "psm") ||
-		  !strcmp(info->fabric_attr->prov_name, "psm2")){
+  if (!strcmp(info->fabric_attr->prov_name, "psm2")){
 	  high_perf_prov = 1;
       using_psm_provider = 1;
   }
