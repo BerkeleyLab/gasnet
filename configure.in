@@ -3328,6 +3328,10 @@ elif test "$enabled_psm" = yes; then
       GASNET_POPVAR(LIBS)
     fi
 
+    if test "$have_psm" = yes; then
+      GASNET_MSG_WARN([psm-conduit has been deprecated.  Please see the psm-conduit README for more information.])
+    fi
+
   CONDUIT_SPAWNER
 fi
 AC_SUBST(PSM_CFLAGS)

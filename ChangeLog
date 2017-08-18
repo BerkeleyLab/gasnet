@@ -100,6 +100,17 @@ GASNet ChangeLog
   - Fix bug 3426: Unbounded recursion within gasnetc_ofi_poll()
   - Significant improvements to AM buffer management and wire header overheads
   - Finer-grained control over AM buffering, see ofi-conduit/README
+  - Initialization cleanups for stricter compliance with the OFI specification
+  - Support for the Intel(R) True Scale Fabric provider, psm, has been removed.
+    The Intel(R) Omni-Path Fabric is still supported through the psm2 provider.
+  - We now recommend ofi-conduit for the Intel Omni-Path fabric.
+  - The conduit has been validated on libfabric version 1.5.0. 
+    See ofi-conduit README for known issues regarding specific providers.
+
+* Intel Omni-Path PSM2 (psm-conduit)
+  - This conduit is now DEPRECATED.
+  - Use of ofi-conduit with libfabric's psm2 provider is recommended for users
+    of the Intel Omni-Path fabric.
 
 * IBM PAMI (pami-conduit)
   - Improve latency for AM Medium/Long under 128 bytes, via PAMI_Send_immediate()
