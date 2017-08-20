@@ -96,6 +96,33 @@ a library of communication-independent portability tools called the "GASNet tool
 which are used in the conduit implementations and also made available to clients
 (see README-tools for details).
 
+System Requirements
+===================
+GASNet is extremely portable, and runs on most systems that are relevant to HPC
+production or development (and many that are not).
+
+The minimum system requirements are:
+
+ * A POSIX-like environment, e.g. Linux or another version of Unix.
+   For Windows systems, the free 'Cygwin' toolkit (http://www.cygwin.com/).
+   For Mac systems, the free 'XCode command-line tools' from the Apple Store.
+ * Make (we recommend GNU make version 3.79 or newer).
+ * Perl (version 5.005 or newer).
+ * The following standard Unix tools: 'awk', 'sed', 'env', 'basename', 'dirname',
+   and a Bourne-compatible shell (e.g. bash).
+ * A C compiler with at least minimal C99 support.
+
+We explicitly support most OS's, architectures and compilers in widespread use today.
+See the 'Supported Platforms' section for details on systems we've recently validated.
+
+Most distributed-memory GASNet conduits have additional requirements, based on their
+interactions with network hardware and other implementation details. For example:
+
+ * mpi-conduit requires an MPI-1.1 or newer compliant MPI implementation.
+ * udp-conduit requires POSIX socket libraries and a C++98 or newer compiler.
+
+See each conduit README for additional details on system requirements.
+
 Building and Installing GASNet
 ==============================
 Here are the steps to build GASNet:
