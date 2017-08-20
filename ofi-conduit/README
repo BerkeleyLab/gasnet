@@ -24,10 +24,8 @@ however has not had enough time to thoroughly validate it. As such, the gni
 provider should be considered experimental. The fi_info command installed with
 libfabric can be used to query the available OFI providers.
 
-The OFI conduit can be considered as a tech-preview for next-generation fabrics. We are
-in the process of tuning its performance on Intel(R) Omni-Path Fabric. If you are looking to
-obtain the best performance on Intel(R) Omni-Path Fabric, please continue to use psm-conduit
-until we complete our performance optimizations. 
+While OFI conduit can be considered as a tech-preview for next-generation fabrics,
+it is the recommended conduit for use on the Intel Omni-Path fabric.
 
 Users with InfiniBand hardware should use the GASNet ibv-conduit, as the verbs OFI provider
 does not yet implement all the capabilities needed by ofi-conduit.
@@ -286,6 +284,19 @@ Known problems:
 
 * See the GASNet Bugzilla server for details on additional known bugs:
   http://gasnet-bugs.lbl.gov/
+
+* Limits to MPI interoperability
+  Depending on the libfabric provider in use, it may not be possible to have both
+  MPI and GASNet using the native network API in the same application.  In
+  particular, the psm2 provider has the property that each process may only open
+  the network adapter once.  If you wish to use MPI and GASNet in the same
+  application on the Intel Omni-Path fabric, then there are two options:
+    1. GASNet may be configured to use an alternative transport.
+       Options include mpi- and udp-conduits.
+    2. MPI may be configured to use an alternative transport (most likely TCP).
+  The relative performance implications of these options depends strongly on the
+  properties of each application.
+
 
 Future work:
 ------------
