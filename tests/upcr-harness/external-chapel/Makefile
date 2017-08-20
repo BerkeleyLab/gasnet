@@ -22,12 +22,6 @@ CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(CHAPEL_CONDU
 
 COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT)
 
-# TODO: currently applying Paul's suggested fix for Chapel issue #7010
-# Note: \044 is octal for '$'
-issue7010: force
-	$(PERL) -pi -e 's/GASNET_CC/notdir \044(GASNET_CC)/' -- \
-		$(CHAPEL_BLDDIR)/third-party/gasnet/Makefile.setup
-
 # Build Chapel runtime
 chapel: force
 	rm -Rf chapel-built $(CHAPEL_TMPDIR) $(CHAPEL_BLDDIR)
@@ -40,7 +34,6 @@ chapel: force
 	rm -Rf $(CHAPEL_TMPDIR)
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
-	@$(MAKE) issue7010
 	cd $(CHAPEL_BLDDIR) && \
 	source util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
