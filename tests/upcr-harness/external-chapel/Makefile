@@ -3,7 +3,6 @@ CHAPEL_GIT_COMMIT ?= master
 CHAPEL_MAKE_ARGS  ?= -j4
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
-CHAPEL_FLAGS      ?= #empty
 CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 
 HARNESS_LOGDIR    ?= .
@@ -75,14 +74,54 @@ check: chapel-built
 	    $(MAKE) -C $(CHAPEL_BLDDIR) check
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
+#
 # Build one test
-one_test: chapel-built
+#
+test_common: chapel-built
+	rm -f $(TEST_EXE){,_real}
 	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
-	    chpl $(CHAPEL_FLAGS) -o $(TEST_EXE) $(addprefix $$CHPL_HOME/,$(TEST_SRC)) 2>&1
+	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) 2>&1
+	$(CP_MV) $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
+	if test -e $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real; then \
+	  $(CP_MV) $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real $(TEST_EXE)_real; \
+	fi
+one_test: force  # Using the tests natural name
+	$(MAKE) test_common REAL_EXE=$(TEST_EXE) CP_MV=mv
+alt_test: force  # Using an alternate test name
+	$(MAKE) test_common CP_MV=cp
+.PHONY: test_common one_test alt_test
 
-example%: force; $(MAKE) one_test TEST_EXE=$@ TEST_SRC=examples/$(@:example-%=%).chpl
+
+# top-level examples
+EXAMPLES = hello hello2-module hello3-datapar hello4-datapar-dist hello5-taskpar hello6-taskpar-dist
+$(EXAMPLES): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples
+
+# directory examples/benchmarks
+BENCHMARKS = isx lulesh miniMD ssca2
+$(BENCHMARKS): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/benchmarks/$@
+
+# directory examples/benchmarks/hpcc
+HPCC = stream stream-ep ra ra-atomics fft ptrans hpl
+$(HPCC): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/benchmarks/hpcc
+
+# directory examples/benchmarks/isx
+ISX = isx-strong isx-weak isx-weakISO
+$(ISX): force; $(MAKE) alt_test TEST_EXE=$@ REAL_EXE=isx TEST_DIR=examples/benchmarks/isx
+
+# directory examples/primers
+PRIMERS = \
+        arrays arrayVectorOps associative atomics chpldoc.doc classes         \
+        distributions domains fileIO genericClasses iterators locales         \
+        modules opaque parIters procedures randomNumbers ranges reductions    \
+        slices sparse syncsingle taskParallel timers varargs variables        \
+        voidVariables
+$(PRIMERS): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/primers/$@
+
+# directory examples/programs
+PROGRAMS = beer genericStack jacobi linkedList norm prodCons quicksort tree
+$(PROGRAMS): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/programs/$@
 
 force:
 
-.PHONY: force one_test
+.PHONY: force
