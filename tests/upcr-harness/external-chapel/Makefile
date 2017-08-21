@@ -8,6 +8,7 @@ CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harne
 HARNESS_LOGDIR    ?= .
 
 # Paths and options for standard tools
+PERL              ?= perl
 WGET              ?= wget -nv
 GZCAT             ?= gzip -cd
 TAR               ?= tar
@@ -52,12 +53,35 @@ chapel_dl_suffix = $(chapel_dl_suffix_$(strip $(CHAPEL_DOWNLOAD)))
 # Save time by building for a single conduit
 CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(CHAPEL_CONDUIT)
 
-COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT)
+# Define CHPL_LAUNCHER for some conduits without defaults.
+# Note that these have not necessarily all been tested.
+chapel_launcher_opt = $(chapel_launcher_$(strip $(CHAPEL_CONDUIT)))
+chapel_launcher_ofi = CHPL_LAUNCHER=gasnetrun_ofi
+chapel_launcher_psm = CHPL_LAUNCHER=gasnetrun_psm
+chapel_launcher_pami = CHPL_LAUNCHER=gasnetrun_pami
+
+# Kludge some launchers that can be constructed as a simple delta from another:
+chapel-launcher: force
+	case $(CHAPEL_CONDUIT) in \
+	ofi) $(MAKE) clone-launcher SRC_CONDUIT=ibv DST_CONDUIT=$(CHAPEL_CONDUIT) ;; \
+	pami) $(MAKE) clone-launcher SRC_CONDUIT=mpi DST_CONDUIT=$(CHAPEL_CONDUIT) ;; \
+	esac
+clone-launcher: force
+	cd $(CHAPEL_BLDDIR)/runtime/src/launch && \
+	cp -Rp gasnetrun_$(SRC_CONDUIT) gasnetrun_$(DST_CONDUIT) && \
+	cd gasnetrun_$(DST_CONDUIT) && \
+	mv launch-gasnetrun_$(SRC_CONDUIT).c launch-gasnetrun_$(DST_CONDUIT).c && \
+	$(PERL) -pi -e 's/_$(SRC_CONDUIT)/_$(DST_CONDUIT)/g' -- *
+.PHONY: chapel-launcher clone-launcher
+
+
+COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_launcher_opt)
 
 # Build Chapel runtime
 chapel: force
 	rm -f chapel-built
 	$(MAKE) chapel-download
+	$(MAKE) chapel-launcher
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
 	cd $(CHAPEL_BLDDIR) && \
