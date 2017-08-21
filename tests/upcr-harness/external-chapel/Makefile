@@ -105,15 +105,15 @@ test_common: chapel-built
 	rm -f $(TEST_EXE){,_real}
 	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
-	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) 2>&1
-	$(CP_MV) $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
+	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
+	mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
 	if test -e $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real; then \
-	  $(CP_MV) $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real $(TEST_EXE)_real; \
+	  mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real $(TEST_EXE)_real; \
 	fi
 one_test: force  # Using the tests natural name
-	$(MAKE) test_common REAL_EXE=$(TEST_EXE) CP_MV=mv
+	$(MAKE) test_common REAL_EXE=$(TEST_EXE)
 alt_test: force  # Using an alternate test name
-	$(MAKE) test_common CP_MV=cp
+	$(MAKE) test_common
 .PHONY: test_common one_test alt_test
 
 
@@ -122,16 +122,31 @@ EXAMPLES = hello hello2-module hello3-datapar hello4-datapar-dist hello5-taskpar
 $(EXAMPLES): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples
 
 # directory examples/benchmarks
-BENCHMARKS = isx lulesh miniMD ssca2
+BENCHMARKS = lcals lulesh miniMD
 $(BENCHMARKS): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/benchmarks/$@
 
 # directory examples/benchmarks/hpcc
 HPCC = stream stream-ep ra ra-atomics fft ptrans hpl
 $(HPCC): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/benchmarks/hpcc
+chpl_flags_fft = --ieee-float
+chpl_flags_ra = -O -s useOn=true
+chpl_flags_ra-atomics = -O
+unexport $(addprefix chpl_flags_,$(HPCC))
 
 # directory examples/benchmarks/isx
 ISX = isx-strong isx-weak isx-weakISO
 $(ISX): force; $(MAKE) alt_test TEST_EXE=$@ REAL_EXE=isx TEST_DIR=examples/benchmarks/isx
+
+# directory examples/benchmarks/ssca2
+SSCA2 = ssca2_rmat ssca2_1d ssca2_2d ssca2_3d ssca2_4d
+$(SSCA2): force; $(MAKE) alt_test TEST_EXE=$@ REAL_EXE=SSCA2_main TEST_DIR=examples/benchmarks/ssca2
+chpl_flags_ssca2_common = -M SSCA2_Modules SSCA2_Modules/SSCA2_kernels.chpl SSCA2_Modules/analyze_torus_graphs_stencil_rep_v1.chpl -sREPRODUCIBLE_PROBLEMS=true -sPRINT_TIMING_STATISTICS=true -sVALIDATE_BC=true
+chpl_flags_ssca2_rmat = $(chpl_flags_ssca2_common) -sDEBUG_NEIGHBOR_HISTOGRAM -sBUILD_RMAT_VERSION=true -sBUILD_1D_TORUS_VERSION=false -sBUILD_2D_TORUS_VERSION=false -sBUILD_3D_TORUS_VERSION=false -sBUILD_4D_TORUS_VERSION=false
+chpl_flags_ssca2_1d   = $(chpl_flags_ssca2_common) -sBUILD_RMAT_VERSION=false -sBUILD_1D_TORUS_VERSION=true -sBUILD_2D_TORUS_VERSION=false -sBUILD_3D_TORUS_VERSION=false -sBUILD_4D_TORUS_VERSION=false
+chpl_flags_ssca2_2d   = $(chpl_flags_ssca2_common) -sBUILD_RMAT_VERSION=false -sBUILD_1D_TORUS_VERSION=false -sBUILD_2D_TORUS_VERSION=true -sBUILD_3D_TORUS_VERSION=false -sBUILD_4D_TORUS_VERSION=false
+chpl_flags_ssca2_3d   = $(chpl_flags_ssca2_common) -sBUILD_RMAT_VERSION=false -sBUILD_1D_TORUS_VERSION=false -sBUILD_2D_TORUS_VERSION=false -sBUILD_3D_TORUS_VERSION=true -sBUILD_4D_TORUS_VERSION=false
+chpl_flags_ssca2_4d   = $(chpl_flags_ssca2_common) -sBUILD_RMAT_VERSION=false -sBUILD_1D_TORUS_VERSION=false -sBUILD_2D_TORUS_VERSION=false -sBUILD_3D_TORUS_VERSION=false -sBUILD_4D_TORUS_VERSION=true
+unexport $(addprefix chpl_flags_,$(SSCA2) ssca2_common)
 
 # directory examples/primers
 PRIMERS = \
