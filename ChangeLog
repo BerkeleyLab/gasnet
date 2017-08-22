@@ -1,7 +1,7 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-PENDING:
+08-31-2017 : Release 1.30.0
 
 * Cray uGNI (gemini- and aries-conduits)
   - Work-around bug 3480.  For more details see gemini-conduit/README (source),
