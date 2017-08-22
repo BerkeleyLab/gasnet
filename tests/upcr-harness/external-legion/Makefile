@@ -59,8 +59,8 @@ launcher:
 	smp) echo '#!/bin/sh' > $@ ; \
 	     echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
 	     chmod +x $@;; \
-	udp) ln -s "$(LEGION_BLDDIR)/gasnet/bin/amudprun" $@;; \
-	  *) ln -s "$(LEGION_BLDDIR)/gasnet/bin/gasnetrun_$(LEGION_CONDUIT)" $@;; \
+	udp) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/amudprun $@;; \
+	  *) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/gasnetrun_$(LEGION_CONDUIT) $@;; \
 	esac
 	
 legion: force
