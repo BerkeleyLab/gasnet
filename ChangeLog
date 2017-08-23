@@ -8,6 +8,9 @@ GASNet ChangeLog
     or share/doc/gasnet/README-{aries,gemini} (installed).
   - Improve the handling of GASNET_PHYSMEM_* env vars to be more user-friendly
   - Improve robustness of exit code
+  - NOTE to users of PrgEnv-cray: there is a known bug in CCE-8.6 that leads to
+    errors when linking libgasnet.  See bug 3589 at http://gasnet-bugs.lbl.gov
+    for the most complete and up-to-date details.
 
 * InfiniBand Verbs (ibv-conduit)
   - Improve the handling of GASNET_PHYSMEM_* env vars
