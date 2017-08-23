@@ -16,14 +16,8 @@ else
   BUILDCONFIG_DEFINES = -DAMMPI_NDEBUG=1
 endif
 
-if USE_STRICT_PROTOTYPES
-  strict_proto_flags = -DGASNET_USE_STRICT_PROTOTYPES
-else
-  strict_proto_flags = 
-endif
-
 CC = @MPI_CC@
-CFLAGS = @MPI_CFLAGS@ $(MANUAL_MPICFLAGS) $(apputils_flags) $(strict_proto_flags)
+CFLAGS = @MPI_CFLAGS@ $(MANUAL_MPICFLAGS) $(apputils_flags)
 LDFLAGS = @LDFLAGS@ $(MANUAL_LDFLAGS)
 
 PERL = @PERL@

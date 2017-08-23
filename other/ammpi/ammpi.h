@@ -72,11 +72,7 @@ typedef struct ammpi_ep *ep_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* AMMPI extension types */
-#ifdef GASNET_USE_STRICT_PROTOTYPES
-typedef void *ammpi_handler_fn_t;
-#else
 typedef void (*ammpi_handler_fn_t)();  /* prototype for handler function */
-#endif
 
 typedef enum {
   ammpi_Short=0, 

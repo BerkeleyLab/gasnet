@@ -787,13 +787,8 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     if (numentries) memcpy(mytab, table, numentries*sizeof(gasnet_handlerentry_t));
     mytab[numentries].index = 0; /* "dont care" index */
     mytab[numentries+1].index = 0; /* "dont care" index */
-#if GASNET_USE_STRICT_PROTOTYPES
-    mytab[numentries].fnptr = (void *)_test_seggather;
-    mytab[numentries+1].fnptr = (void *)_test_segbcast;
-#else
     mytab[numentries].fnptr = (void (*)())_test_seggather;
     mytab[numentries+1].fnptr = (void (*)())_test_segbcast;
-#endif
     /* do regular attach, then setup seg_everything segment */
     GASNET_Safe(result = gasnet_attach(mytab, numentries+2, segsize, minheapoffset));
     _test_seggather_idx = mytab[numentries].index;

@@ -9,11 +9,7 @@
   typedef gasnet_handlerarg_t handlerarg_t;
  #define EXTERNC GASNETT_EXTERNC
  GASNETT_BEGIN_EXTERNC
- #ifdef GASNET_USE_STRICT_PROTOTYPES
-  typedef void *handler_fn_t;
- #else
   typedef void (*handler_fn_t)();
- #endif
  GASNETT_END_EXTERNC
   typedef gasnet_token_t token_t;
   typedef size_t bufsize_t;
