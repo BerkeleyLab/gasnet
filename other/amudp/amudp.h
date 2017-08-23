@@ -80,11 +80,7 @@ typedef struct {
   uint64_t TotalBytesSent; /* total user level packet sizes for all req/rep */
 } amudp_stats_t;
 
-#ifdef GASNET_USE_STRICT_PROTOTYPES
-typedef void *amudp_handler_fn_t;
-#else
 typedef void (*amudp_handler_fn_t)();  /* prototype for handler function */
-#endif
 
 /* Endpoint bundle object */
 struct amudp_eb;

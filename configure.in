@@ -5031,39 +5031,6 @@ AC_SUBST(NOASLR_LDFLAGS)
 
 ########################################################################
 
-# Add any compiler flags too dangerous to use for configure probes
-
-GASNET_IF_ENABLED(strict-prototypes, [Use strict prototypes in GASNet headers, at the expense of deviation from the specification (DEPRECATED)], [
-  AC_DEFINE(GASNET_USE_STRICT_PROTOTYPES)
-  case "$CC_FAMILY" in
-  GNU|Pathscale|Open64)
-        dnl Consistent w/ other GNU warning flags:
-        dnl    CFLAGS and MPI_CFLAGS get the flag only for a debug build
-        dnl    MISC_CXXFLAGS gets the flag for any build
-        if test "$enabled_debug" = yes; then
-          GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [MISC_CFLAGS="$MISC_CFLAGS -Wstrict-prototypes"])
-        fi
-        if test "$enabled_debug$have_mpi" = yesyes; then
-          dnl Ick: will show "checking for C compiler flag -Wstrict-prototypes" twice in a row
-          GASNET_PUSHVAR(CC,"$MPI_CC")   
-          GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
-          GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [MPI_CFLAGS="$MPI_CFLAGS -Wstrict-prototypes"])
-          GASNET_POPVAR(CFLAGS)
-          GASNET_POPVAR(CC)
-        fi
-        if test "$have_cxx" = yes; then
-          GASNET_TRY_CXXFLAG([-Wstrict-prototypes],
-                             [MISC_CXXFLAGS="$MISC_CXXFLAGS -Wstrict-prototypes"])
-        fi
-        ;;
-  esac
-])
-AM_CONDITIONAL(USE_STRICT_PROTOTYPES, test "x$enable_strict_prototypes" = xyes)
-
-########################################################################
-
 # Figure out how to install config files
 GASNET_SET_INSTALL_CMD
 
