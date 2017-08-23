@@ -212,13 +212,10 @@ All GASNet conduit code is required to meet the following coding standards:
       wrapper macros defined in gasnet_basic.h using configure detection)
    - Do not use other GNU or vendor extensions (unless properly #ifdef protected w/ fallback)
 
-* GASNet code should use full prototypes whenever possible:
+* GASNet code should use full prototype declarations whenever possible:
     NO:  extern void foo();
     YES: extern void foo(void);
-    NO:  int bar() { return xyz; }
-    YES: int bar(void) { return xyz; }
-  Configuring with --enable-strict-prototypes and compiling with the GNU or
-  PathScale compilers will give you warnings for violations of this rule.
+  Compiling with GCC and -Wstrict-prototypes will give you warnings for violations of this rule.
 
 * All code in public header files should be C++98/C++14-compliant to support C++
   GASNet clients.  This means ensuring any macros or inline function code
