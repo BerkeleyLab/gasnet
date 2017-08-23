@@ -52,6 +52,11 @@ PENDING:
   - Most --with-*-includes options are renamed --with-*-cflags
   - --with-{blcr,fca}=/path are renamed to --with-{blcr,fca}-home=/path
   - BLCR support now disabled by default, use --enable-blcr to activate
+  - {strict,missing}-prototype warnings are now automatically suppressed
+    in GASNet public headers for clang and gcc 4.6+.
+  - --enable-strict-prototypes is now deprecated, see bug 3608.
+  - --disable-aligned-segments is now the default behavior, and GASNet will
+    no longer default to adding -nopie linker flags on Darwin/OpenBSD.
   - Retire several obsolete or subsumed configure options
   - Numerous cosmetic improvements to configure --{help,version} output
   - GASNET_{LIBS,LDFLAGS} exported from .mak fragments more robustly contain
@@ -60,11 +65,19 @@ PENDING:
   - Fix a few non-portable constructs in shell commands
 
 * General and Misc.
+  - GASNet spec v1.8.1 is a new edition of the 1.8 spec document:
+     * bug 3575: clarify that loopback contiguous RMA operations with
+       overlapping source and destination regions give indeterminate results.
+     * Significant cosmetic formatting improvements
+     * Updated contact information and URLs
+     * Correct minor spelling errors
   - Remove 'register' keyword from public headers for strict C++11/14 compliance 
   - Fix some cosmetic overflows in trace/debug output of large numbers on ILP32
+  - Fix bug 3600: SEGV on long command line w/ STATS/TRACE/DEBUG 
 
 * Platform support/portability
   - Add beta support for Microsoft Windows 10 Subsystem for Linux (WSL)
+  - Add lldb backtrace support for Mac OSX
 
 ----------------------------------------------------------------------
 03-17-2017 : Release 1.28.2
