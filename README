@@ -161,10 +161,6 @@ or similarly, if you want libgasnet to contain debugging symbols:
     --enable-debug-malloc - use GASNet debugging malloc (see usage info below)
     --enable-segment-{fast,large,everything} - select a GASNet segment 
       configuration (see the GASNet spec for more info)
-    --enable-strict-prototypes - Use strict prototypes in GASNet headers
-      At the expense of slight deviation from the GASNet specification, this
-      option will ensure GASNet's public headers use prototypes that are
-      compatible with the -Wstrict-prototypes flag to gcc and work-alikes.
     --{enable,disable}-smp-safe - Build GASNet for an SMP or uni-processor.
       These options are not normally necessary, since by default configure
       will probe the machine to determine if it is an SMP.  However:

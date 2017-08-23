@@ -5033,7 +5033,7 @@ AC_SUBST(NOASLR_LDFLAGS)
 
 # Add any compiler flags too dangerous to use for configure probes
 
-GASNET_IF_ENABLED(strict-prototypes, [Use strict prototypes in GASNet headers (at the expense of slight deviation from the specification)], [
+GASNET_IF_ENABLED(strict-prototypes, [Use strict prototypes in GASNet headers, at the expense of deviation from the specification (DEPRECATED)], [
   AC_DEFINE(GASNET_USE_STRICT_PROTOTYPES)
   case "$CC_FAMILY" in
   GNU|Pathscale|Open64)
