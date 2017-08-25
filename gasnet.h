@@ -297,11 +297,7 @@ extern const char *gasnet_ErrorDesc(int);
   /*  struct type used to negotiate handler registration in gasnet_init() */
   typedef struct gasneti_handlerentry_s {
     gasnet_handler_t index; /*  == 0 for don't care  */
-   #ifdef GASNET_USE_STRICT_PROTOTYPES
-    void *fnptr;    
-   #else
     void (*fnptr)();    
-   #endif
   } gasnet_handlerentry_t;
 #endif
 
