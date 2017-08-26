@@ -3,7 +3,7 @@ UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_GASNET     ?= # Path to an existing installation, if any
-UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
+UPCXX_CONDUIT    ?= $(NETWORK)# Default to same conduit as the enclosing harness run
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
@@ -19,15 +19,23 @@ TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
 
+# nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
+# intentionally ignore the environment here because it is set by harness
+# use UPCXX_TEST_ENV to override if necessary.
+GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(UPCXX_CONDUIT)-conduit/$(UPCXX_CONDUIT)-par.mak
+include $(GASNET_BLD_FRAGMENT)
+CC                = $(GASNET_CC)
+CXX               = $(GASNET_CXX)
+
 RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
-        CC=$(CC) CXX=$(CXX) \
+        CC='$(CC)' CXX='$(CXX)' \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(UPCXX_BLDDIR)/gasnet/include" GASNET_CONDUIT=$(UPCXX_CONDUIT)
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && export $(COMMON_ENV) $(UPCXX_TEST_ENV) && nobs
 
 # XXX: Hard-coded download of fixed tarball for now
-UPCXX_URL      ?= https://mantis.lbl.gov/nightly/unlisted/berkeleylab-upcxx-$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
+UPCXX_URL      ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
 
 # Parametrized support for download/unpack
 UPCXX_URL      ?= https://bitbucket.org/$(UPCXX_GIT_REPO)/get/$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
@@ -85,6 +93,7 @@ upcxx: force
 	  for f in $(RUNTIME_TARGETS); do \
              echo '$(DO_NOBS) exe '$$f ; \
                    $(DO_NOBS) exe $$f || exit 1; \
+             echo ; \
           done; \
 	) $(TO_LOG)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
