@@ -6,6 +6,7 @@ CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
 CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 
 HARNESS_LOGDIR    ?= .
+LOGFILE           ?= $(HARNESS_LOGDIR)/chapel.log
 
 # Paths and options for standard tools
 PERL              ?= perl
@@ -80,14 +81,14 @@ COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_lau
 # Build Chapel runtime
 chapel: force
 	rm -f chapel-built
-	$(MAKE) chapel-download
+	$(MAKE) chapel-download 2>&1 | tee $(LOGFILE)
 	$(MAKE) chapel-launcher
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
 	cd $(CHAPEL_BLDDIR) && \
 	source util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
-	    $(MAKE) $(CHAPEL_MAKE_ARGS) all > $(HARNESS_LOGDIR)/chapel.log 2>&1
+	    $(MAKE) $(CHAPEL_MAKE_ARGS) all >> $(LOGFILE) 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
 
