@@ -3,7 +3,7 @@ UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_GASNET     ?= # Path to an existing installation, if any
-UPCXX_CONDUIT    ?= $(NETWORK)# Default to same conduit as the enclosing harness run
+UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
@@ -22,7 +22,7 @@ P7ZIP             ?= 7za
 # nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
 # intentionally ignore the environment here because it is set by harness
 # use UPCXX_TEST_ENV to override if necessary.
-GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(UPCXX_CONDUIT)-conduit/$(UPCXX_CONDUIT)-par.mak
+GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/$(strip $(UPCXX_CONDUIT))-par.mak
 include $(GASNET_BLD_FRAGMENT)
 CC                = $(GASNET_CC)
 CXX               = $(GASNET_CXX)
