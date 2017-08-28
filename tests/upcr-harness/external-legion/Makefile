@@ -65,7 +65,7 @@ launcher:
 	
 legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
-	$(MAKE) legion-download
+	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
 	if test -f "$(LEGION_GASNET)/include/gasnet.h"; then \
 	  echo ======== GASNet symlinked ========; \
