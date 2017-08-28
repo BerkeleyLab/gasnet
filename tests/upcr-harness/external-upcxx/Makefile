@@ -31,7 +31,7 @@ RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
         CC='$(CC)' CXX='$(CXX)' \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
-	GASNET="$(UPCXX_BLDDIR)/gasnet/include" GASNET_CONDUIT=$(UPCXX_CONDUIT)
+	GASNET="$(UPCXX_BLDDIR)/gasnet" GASNET_CONDUIT=$(UPCXX_CONDUIT)
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && export $(COMMON_ENV) $(UPCXX_TEST_ENV) && nobs
 
 # XXX: Hard-coded download of fixed tarball for now
@@ -80,7 +80,7 @@ launcher:
 
 upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
-	$(MAKE) upcxx-download
+	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE)
 	@if test -f "$(UPCXX_GASNET)/include/gasnet.h"; then \
 	  echo ======== GASNet symlinked ========; set -x; \
 	  ln -s `cd "$(UPCXX_GASNET)" && pwd` $(UPCXX_BLDDIR)/gasnet; \
