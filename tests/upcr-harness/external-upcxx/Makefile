@@ -22,8 +22,10 @@ P7ZIP             ?= 7za
 # nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
 # intentionally ignore the environment here because it is set by harness
 # use UPCXX_TEST_ENV to override if necessary.
-GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/$(strip $(UPCXX_CONDUIT))-par.mak
-include $(GASNET_BLD_FRAGMENT)
+GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/$(strip $(UPCXX_CONDUIT))
+# use either fragment in case one is configured out
+-include $(GASNET_BLD_FRAGMENT)-seq.mak
+-include $(GASNET_BLD_FRAGMENT)-par.mak
 CC                = $(GASNET_CC)
 CXX               = $(GASNET_CXX)
 
