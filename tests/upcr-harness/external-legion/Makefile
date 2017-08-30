@@ -16,11 +16,23 @@ TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
 
+# Logic to extract GASNet's compiler variables.
+# We use a sub-shell to avoid pulling in the entire makefile fragment.
+# TODO: may want to handle LDFLAGS here as well?
+GASNET_VARS = $(shell $(MAKE) echovars FRAGMENT=$(strip $(LEGION_CONDUIT)))
+FRAGMENT=#empty by default
+ifneq ($(FRAGMENT),)
+include $(LEGION_BLDDIR)/gasnet/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
+echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
+.PHONY: echovars
+endif
+
 RUNTIME_TARGETS = librealm.a liblegion.a
 SEED_DIR = $(LEGION_BLDDIR)/examples/circuit # NOTE: must not be an OMP or CUDA test
 COMMON_ENV = \
 	LG_RT_DIR="$(LEGION_BLDDIR)/runtime" USE_GASNET=1 \
-	GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(LEGION_CONDUIT)
+	GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(LEGION_CONDUIT) \
+	$(GASNET_VARS)
 DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE)
 
 # Parametrized support for download/unpack
