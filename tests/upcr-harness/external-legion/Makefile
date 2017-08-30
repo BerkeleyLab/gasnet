@@ -19,7 +19,7 @@ P7ZIP             ?= 7za
 # Logic to extract GASNet's compiler variables.
 # We use a sub-shell to avoid pulling in the entire makefile fragment.
 # TODO: may want to handle LDFLAGS here as well?
-GASNET_VARS = $(shell $(MAKE) echovars FRAGMENT=$(strip $(LEGION_CONDUIT)))
+GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(LEGION_CONDUIT)))
 FRAGMENT=#empty by default
 ifneq ($(FRAGMENT),)
 include $(LEGION_BLDDIR)/gasnet/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
