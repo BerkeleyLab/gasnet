@@ -34,7 +34,8 @@ COMMON_ENV = \
         CC='$(CC)' CXX='$(CXX)' \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(UPCXX_BLDDIR)/gasnet" GASNET_CONDUIT=$(UPCXX_CONDUIT)
-DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && export $(COMMON_ENV) $(UPCXX_TEST_ENV) && nobs
+DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV)
+DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
 
 # XXX: Hard-coded download of fixed tarball for now
 UPCXX_URL      ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
@@ -91,6 +92,8 @@ upcxx: force
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(UPCXX_BLDDIR)/gasnet"; \
 	fi $(TO_LOG)
 	$(MAKE) launcher $(TO_LOG)
+	@-( set -x; $(DO_ENV) ; which $$CC  ; $$CC  --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
+	@-( set -x; $(DO_ENV) ; which $$CXX ; $$CXX --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
 	@( echo ======== Prebuild UPCXX RT libs ========; \
 	  for f in $(RUNTIME_TARGETS); do \
              echo '$(DO_NOBS) exe '$$f ; \
