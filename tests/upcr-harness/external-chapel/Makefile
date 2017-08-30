@@ -4,6 +4,8 @@ CHAPEL_MAKE_ARGS  ?= -j4
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
 CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
+CHAPEL_PATH_PRE   ?=# empty - if set must end with :
+CHAPEL_PATH_POST  ?=# empty - if set must start with :
 
 HARNESS_LOGDIR    ?= .
 LOGFILE           ?= $(HARNESS_LOGDIR)/chapel.log
@@ -76,7 +78,8 @@ clone-launcher: force
 .PHONY: chapel-launcher clone-launcher
 
 
-COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_launcher_opt)
+COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_launcher_opt) \
+	PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST)
 
 # Build Chapel runtime
 chapel: force
