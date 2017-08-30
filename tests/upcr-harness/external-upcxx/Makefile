@@ -31,7 +31,7 @@ CXX               = $(GASNET_CXX)
 
 RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
-        CC='$(CC)' CXX='$(CXX)' \
+        CC="$(CC)" CXX="$(CXX)" \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(UPCXX_BLDDIR)/gasnet" GASNET_CONDUIT=$(UPCXX_CONDUIT)
 DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV)
@@ -92,8 +92,9 @@ upcxx: force
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(UPCXX_BLDDIR)/gasnet"; \
 	fi $(TO_LOG)
 	$(MAKE) launcher $(TO_LOG)
-	@-( set -x; $(DO_ENV) ; which $$CC  ; $$CC  --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
-	@-( set -x; $(DO_ENV) ; which $$CXX ; $$CXX --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
+	-echo PATH="$$PATH" $(TO_LOG)
+	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
+	@-( set -x; $(DO_ENV) ; $$CXX --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
 	@( echo ======== Prebuild UPCXX RT libs ========; \
 	  for f in $(RUNTIME_TARGETS); do \
              echo '$(DO_NOBS) exe '$$f ; \
