@@ -71,9 +71,11 @@ GASNet ChangeLog
   - GASNet spec v1.8.1 is a new edition of the 1.8 spec document:
     + bug 3575: clarify that loopback contiguous RMA operations with
       overlapping source and destination regions give indeterminate results.
+    + Clarify the AMLong source/dest overlap prohibition
+    + Correct the specified return type of gasnet_Error{Name,Desc}
     + Significant cosmetic formatting improvements
     + Updated contact information and URLs
-    + Correct minor spelling errors
+    + Correct minor spelling errors and phrasing issues
   - Remove 'register' keyword from public headers for strict C++11/14 compliance 
   - Fix some cosmetic overflows in trace/debug output of large numbers on ILP32
   - Fix bug 3600: SEGV on long command line w/ STATS/TRACE/DEBUG 
