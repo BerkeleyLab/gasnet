@@ -32,7 +32,11 @@
 #define CHECK_PAGESIZE 1     /* test for system page size */
 #endif
 #ifndef CHECK_MMAP
-#define CHECK_MMAP 1         /* test for working mmap() */
+  #ifdef __CYGWIN__
+    #define CHECK_MMAP 0     /* bug 3370: mmap() is known to be broken in subtle ways on cygwin */
+  #else
+    #define CHECK_MMAP 1     /* test for working mmap() */
+  #endif
 #endif
 #ifndef CHECK_ARM_CMPXCHG
 #define CHECK_ARM_CMPXCHG 1  /* test for ARM cmpxchg support (ignored on other arch) */
@@ -241,31 +245,24 @@ int main(void) {
 "  echo \"ERROR: The $0 script should be placed in the same directory as the configure script before execution\"\n"
 "  exit 1\n"
 "fi\n"
-"# Detect the build host machine type\n"
-"HOST_ARG=`echo \"$@\" | grep -e --host`\n"
+"# Detect the build+host machine type\n"
 "HOST_APPEND=\n"
-"if test \"$HOST_ARG\" = \"\"; then\n"
-"  oldCC_FOR_BUILD=\"$CC_FOR_BUILD\"\n"
-"  oldHOST_CC=\"$HOST_CC\"\n"
-"  oldCC=\"$CC\"\n"
-"  CC_FOR_BUILD=\n"
-"  HOST_CC=\n"
-"  CC=\n"
-"  if test \"$HOST_ID\" = \"\"; then\n"
-"    HOST_ID=`$SRCDIR/config-aux/config.guess`\n"
-"  fi\n"                                          
-"  if test \"$HOST_ID\" = \"\"; then\n"
-"    echo 'ERROR: failed to auto-detect build host. Please run with --host=machineid to identify the host machine running this script'\n"
-"    exit 1\n"
-"  else\n"
-"    HOST_APPEND=\"--host=$HOST_ID\"\n"
+"for sys in host build; do\n"
+"  SYS_ARG=`echo \"$@\" | grep -i -e --$sys`\n"
+"  if test -z \"$SYS_ARG\"; then\n"
+"    if test -z \"$HOST_ID\"; then\n"
+"      HOST_ID=`env CC= HOST_CC= CC_FOR_BUILD= $SRCDIR/config-aux/config.guess`\n"
+"      if test -z \"$HOST_ID\"; then\n"
+"        echo 'ERROR: failed to auto-detect build host. Please run with --host=machineid --build=machineid to identify the host machine running this script'\n"
+"        exit 1\n"
+"      fi\n"
+"    fi\n"
+"    HOST_APPEND=\"$HOST_APPEND --$sys=$HOST_ID\"\n"
 "  fi\n"
-"  CC_FOR_BUILD=\"$oldCC_FOR_BUILD\"\n"
-"  HOST_CC=\"$oldHOST_CC\"\n"
-"  CC=\"$oldCC\"\n"
-"fi\n"
+"done\n"
 "# Now that everything is setup, run the actual configure script\n"
-"$SRCDIR/configure --enable-cross-compile $HOST_APPEND --build=$TARGET_ID --target=$TARGET_ID --program-prefix='' $EXTRA_CONFIGURE_ARGS \"$@\"\n");
+"$SRCDIR/configure --enable-cross-compile$HOST_APPEND --target=$TARGET_ID $EXTRA_CONFIGURE_ARGS \"$@\"\n"
+);
 
   fflush(stdout);
   return 0;

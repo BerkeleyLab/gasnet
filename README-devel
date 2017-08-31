@@ -195,36 +195,42 @@ All GASNet conduit code is required to meet the following coding standards:
    2. Mid-block declarations (mixing declarations and code)
    3. Conditional expression declarations, only in for loop headers, 
       ie: for (int i=...) { ..i.. }
+   4. 64-bit integer literals with explicit (U)LL suffix
   All GASNet code should otherwise adhere to C89 restrictions.
   Most notably, we PROHIBIT: (incomplete list)
    - Do not use variable-length array declarations
    - Do not use zero-length structure fields (aka flexible array member)
    - Do not use compound literals or named struct field initializers
-   - Do not use printf format specifiers added in C99, such as: ll,j,z,t,L
+   - Do not use printf format specifiers added in C99, such as: ll,j,z,t,L,lf
+     (Use portable_inttypes.h to get (u)int{64,ptr}_t and PRI[ud]{64,PTR})
+   - Do not use long long types explicitly, or assume that LL suffix constants
+     are exactly 64-bit.  If a particular type width is required then use an intW_t 
+     fixed-width type declaration and/or cast.
    - Do not include any header files introduced by C99 or any features they introduce
    - Do not use restrict, __func__ or _Pragma/#pragma directly
      (use GASNETI_RESTRICT, GASNETI_CURRENT_FUNCTION, and the various attribute
       wrapper macros defined in gasnet_basic.h using configure detection)
    - Do not use other GNU or vendor extensions (unless properly #ifdef protected w/ fallback)
 
-* GASNet code should use full prototypes whenever possible:
+* GASNet code should use full prototype declarations whenever possible:
     NO:  extern void foo();
     YES: extern void foo(void);
-    NO:  int bar() { return xyz; }
-    YES: int bar(void) { return xyz; }
-  Configuring with --enable-strict-prototypes and compiling with the GNU or
-  PathScale compilers will give you warnings for violations of this rule.
+  Compiling with GCC and -Wstrict-prototypes will give you warnings for violations of this rule.
 
-* All code in public header files should be C++98-compliant to support C++
-  GASNet clients. Most notably this means using GASNETI_{BEGIN,END}_EXTERNC
-  around all extern function prototypes, and ensuring any inline function code
-  or macro code passes the C++ type checker.  It is especially important for
-  code in public headers to avoid the few dozen C constructs which are not
-  present in the C subset of the C++98 standard. Most notably: (incomplete list)
+* All code in public header files should be C++98/C++14-compliant to support C++
+  GASNet clients.  This means ensuring any macros or inline function code
+  passes the C++98 and C++14 type checker. Note the top-level public headers already
+  enforce extern "C" scope around the entire GASNet public headers.
+  It is especially important for code in public headers to avoid the few dozen
+  C constructs which are not present in the C subset of the C++98/C++14 standards.
+  Most notably: (incomplete list)
    - Do not use C++ keywords in identifiers
-   - Do not use long long types or printf specifiers
+   - Do not use long long types or printf specifiers (use PRI[ud]{64,PTR})
    - Do not use tentative definitions
    - Do not use empty preprocessor function macro arguments FOO(,,,)
+   - Do not use 'register' storage class
+   - String literals need a trailing space before another identifier
+     (ie "foo" BAR not "foo"BAR)
   See bug 3296 for a complete list.
   Run a "make testcxx" to verify compliance.
 
