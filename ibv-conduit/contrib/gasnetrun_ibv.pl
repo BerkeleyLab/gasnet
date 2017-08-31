@@ -208,6 +208,11 @@ sub fullpath($)
     die "gasnetrun: missing execute permissions for '$exepath'\n" unless -x $exepath;
     $ARGV[0] = $exepath;
 
+# Bug 3578:
+if (($conduit eq 'IBV') && !exists($ENV{'OMPI_MCA_mpi_warn_on_fork'})) {
+  $ENV{'OMPI_MCA_mpi_warn_on_fork'} = 0;
+}
+
 # Find the GASNet executable and verify its capabilities
     my $pattern = "^GASNet" . $spawn_control . "Spawner: 1 \\\$";
     my $found = undef;

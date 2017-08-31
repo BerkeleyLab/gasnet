@@ -2,62 +2,34 @@
 # Description: Makefile for GASNet documentation
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 
-# The GASNet specification in distributed in 3 primary formats (text, html and postscript)
-# note that older version of makeinfo and TeX may have trouble correctly generating gasnet.ps
+# The GASNet-1 specification sources no longer live in this repo.
+#
+# The current version of the GASNet-1 specification is located at:
+#
+#  PDF:   http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+#  HTML:  http://gasnet.lbl.gov/dist/docs/gasnet.html
+#  Text:  http://gasnet.lbl.gov/dist/docs/gasnet.txt
 
-all: # gasnet.txt gasnet.html gasnet.ps gasnet.pdf
+#OUTPUTS = gasnet.pdf gasnet.txt gasnet.html
 
-# ------------------------------------------------------------------------------------
-# TeX Postscript
-gasnet.dvi: gasnet.texi texinfo.tex
-	texi2dvi -c -q gasnet.texi
+clean:
 
-gasnet.ps: gasnet.dvi
-	rm -f gasnet.ps
-	dvips -f -t letter gasnet.dvi > gasnet.ps
-
-# ------------------------------------------------------------------------------------
-# Adobe PDF
-gasnet.pdf: gasnet.texi texinfo.tex
-	rm -f gasnet.pdf
-	texi2dvi -c -p -o gasnet.pdf gasnet.texi
-
-gasnet2.pdf: gasnet.dvi
-	rm -f gasnet2.pdf
-	dvipdf gasnet.dvi 
-
-# ------------------------------------------------------------------------------------
-# Text
-gasnet.txt: gasnet.texi texinfo.tex
-	makeinfo --no-headers --no-validate gasnet.texi > gasnet.txt
-# ------------------------------------------------------------------------------------
-# Monolithic HTML
-gasnet.html: gasnet.texi texinfo.tex
-	makeinfo --html --no-split --no-headers --no-validate gasnet.texi > gasnet.html
-# ------------------------------------------------------------------------------------
-# Segmented HTML (not really supported)
-gasnet: gasnet.texi texinfo.tex
-	makeinfo --html --no-validate gasnet.texi
-# ------------------------------------------------------------------------------------
-# info file (not really supported)
-gasnet.info: gasnet.texi texinfo.tex
-	makeinfo gasnet.texi
-
-info: gasnet.info
-	info -f gasnet.info
-# ------------------------------------------------------------------------------------
-unix:
-	txt2unix gasnet.texi
-# ------------------------------------------------------------------------------------
-temp-clean:
-	rm -f gasnet.dvi gasnet.ky gasnet.pg gasnet.toc gasnet.tmp gasnet.tp gasnet.vr gasnet.pg gasnet.log gasnet.cp gasnet.aux gasnet.fn gasnet.fns gasnet.cps
-
-clean: temp-clean
-	rm -f gasnet.info gasnet.html gasnet.ps gasnet.txt gasnet.pdf gasnet2.pdf
-	rm -Rf gasnet
-
-# Do not distribute the GASNet-1 spec:
 dist-hook: clean
-	rm -f gasnet.texi texinfo.tex
+	rm -f Makefile pshm-design.txt
+	@: # Use "blessed" GASNet docs if specified
+	@if test -n "$(GASNET_DOCS)"; then \
+	   for f in $(OUTPUTS); do \
+	     if test -f $(GASNET_DOCS)/$$f; then rm -f $$f; fi; \
+	     cmd="cp -p $(GASNET_DOCS)/$$f . && chmod a=r $$f"; \
+	     echo $$cmd; eval $$cmd || exit $$?; \
+	   done; \
+	 fi
+	@for f in $(OUTPUTS); do \
+	   if test -f $$f ; then \
+	      md5sum $$f ; \
+	   else \
+	     echo "WARNING: $$f not found in source directory or GASNET_DOCS='$(GASNET_DOCS)' : spec document omitted" ; \
+	   fi ; \
+	 done
 
-.PHONY: unix info gasnet clean
+.PHONY: clean

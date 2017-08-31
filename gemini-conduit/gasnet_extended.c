@@ -80,9 +80,10 @@ extern void gasnete_init(void) {
   #endif
   #if !GASNETI_DISABLE_REFERENCE_EOP
     /* cause the first pool of eops to be allocated (optimization) */
+    GASNET_POST_THREADINFO(threaddata);
     gasnete_eop_t *eop = gasnete_eop_new(threaddata);
     GASNETE_EOP_MARKDONE(eop);
-    gasnete_eop_free(eop);
+    gasnete_eop_free(eop GASNETI_THREAD_GET);
   #endif
   }
 
@@ -144,7 +145,7 @@ void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
   eop->initiated_cnt -= 1;
   gasneti_assert(GASNETC_EOP_CNTDONE(eop));
   SET_EVENT_DONE(eop, 0);
-  gasnete_eop_free(eop);
+  gasnete_eop_free(eop GASNETI_THREAD_PASS);
 }
 
 #define GASNETE_EOP_CNTRS(_eop) \

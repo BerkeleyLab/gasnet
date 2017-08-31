@@ -306,11 +306,7 @@ struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 #define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
 
-#ifdef GASNET_USE_STRICT_PROTOTYPES
-  typedef void *gex_AM_Fn_t;
-#else
-  typedef void (*gex_AM_Fn_t)();
-#endif
+typedef void (*gex_AM_Fn_t)();
 
 /*  struct type used to perform handler registration */
 typedef struct {
@@ -474,11 +470,7 @@ extern gex_TI_t gex_Token_Info(
 #if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {
     gex_AM_Index_t index; /*  == 0 for don't care  */
-   #ifdef GASNET_USE_STRICT_PROTOTYPES
-    void *fnptr;    
-   #else
     void (*fnptr)();    
-   #endif
   } gasnet_handlerentry_t;
 #endif
 

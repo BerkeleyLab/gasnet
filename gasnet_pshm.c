@@ -258,7 +258,10 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     {
       gasneti_assert(!((uintptr_t)my_token & 1));
       gasneti_assert(gasneti_pshm_in_supernode(src));
-      gasneti_assert(!offsetof(gasneti_ampshm_token_t,ti.gex_srcrank)); // gasneti_AMPSHM_msgsource() requires srcrank first
+    #if !PLATFORM_COMPILER_PGI // Bug 3587
+      // gasneti_AMPSHM_msgsource() requires srcrank first
+      gasneti_assert(!offsetof(gasneti_ampshm_token_t,ti.gex_srcrank));
+    #endif
       my_token->ti.gex_srcrank = src;
       my_token->ti.gex_entry = entry;
       my_token->ti.gex_is_req = isReq;
@@ -1317,6 +1320,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
     if_pf (msg == NULL) {
       /* Grow the free pool with buffers sized and aligned for the largest Medium */
       void *tmp = gasneti_malloc(sizeof(gasneti_AMPSHM_medmsg_t)+7);
+      gasneti_leak(tmp);
       uintptr_t offset = (uintptr_t)GASNETI_AMPSHM_MSG_MED_DATA(tmp) & 7;
       /* Align the (macro-adjusted) Medium payload field, not the msg itself */
       msg = (void*)((uintptr_t)tmp + (offset ? (8-offset) : 0));

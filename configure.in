@@ -3058,7 +3058,10 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       else
         GASNET_TRY_CACHE_RUN_EXPR([MPI_CC for value of MPI_VERSION], MPI_VERSION, mpi_header, [val = MPI_VERSION;], GASNETI_MPI_VERSION)
       fi
-      AC_DEFINE(GASNETI_MPI_VERSION)
+      if test -z "$GASNETI_MPI_VERSION" || test 0 = "$GASNETI_MPI_VERSION" ; then # probe failed, assume worst-case MPI-1
+        GASNETI_MPI_VERSION=1
+      fi
+      AC_DEFINE_UNQUOTED([GASNETI_MPI_VERSION],[$GASNETI_MPI_VERSION])
 
       # check MPI_CC for a working C99 environment (enough to parse gasnet.h) -- in case MPI_CFLAGS broke C99 compliance
       GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
@@ -3328,6 +3331,10 @@ elif test "$enabled_psm" = yes; then
       GASNET_POPVAR(LIBS)
     fi
 
+    if test "$have_psm" = yes; then
+      GASNET_MSG_WARN([psm-conduit has been deprecated.  Please see the psm-conduit README for more information.])
+    fi
+
   CONDUIT_SPAWNER
 fi
 AC_SUBST(PSM_CFLAGS)
@@ -3525,12 +3532,30 @@ if test "$enabled_ibv" = yes; then
        [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
           gasnetc_ibv_max_hcas="$withval"
         else
-          AC_MSG_ERROR([--with-ibv-max-hcas requires a postive integer argument])
+          AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])
         fi],
-       [AC_MSG_ERROR([--with-ibv-max-hcas requires a postive integer argument])],
+       [AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])],
        [:])
     if test "$enabled_ibv_multirail" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibv_max_hcas)
+    fi
+
+    GASNET_WITH(ibv-physmem-max,
+       [maximum physical memory IBV may pin: less than 1.0 is fraction of apparent physical memory, larger than 1 is absolute size with optional M, G and T suffix (default is 2/3)],
+       [if expr "${withval}" : "[[0-9]]" >/dev/null; then
+          : # TODO: stronger validation?
+          AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_MAX_CONFIGURE, "$withval")
+        else
+          AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])
+        fi],
+       [AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])],
+       [:])
+
+    GASNET_IF_ENABLED_WITH_AUTO(ibv-physmem-probe,
+       [force default enable/disable of GASNET_PHYSMEM_PROBE in ibv-conduit],
+       force_ibv_physmem_probe=1, force_ibv_physmem_probe=0, force_ibv_physmem_probe='')
+    if test -n "$force_ibv_physmem_probe"; then
+      AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE, $force_ibv_physmem_probe)
     fi
 
     GASNET_IF_DISABLED([ibv-srq],
@@ -3949,7 +3974,7 @@ if test "$enabled_ofi" = yes; then
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     # List of supported providers in order of preference.
-    supported_providers="psm2 psm gni sockets"
+    supported_providers="psm2 gni sockets"
     
     GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
         ofi_provider="$withval", )
@@ -3969,7 +3994,7 @@ if test "$enabled_ofi" = yes; then
         GASNET_POPVAR(PATH)
     fi
     case "$ofi_provider" in
-        psm|psm2)
+        psm2)
             ofi_define_mr_scalable=1
             ofi_use_thread_domain=1
         ;;
@@ -4564,6 +4589,17 @@ if test "$use_dbx" != no; then
   fi
 fi
 
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-lldb, support backtrace via lldb (auto-detected),
+                 [use_lldb="yes"], [use_lldb="no"], [use_lldb="$use_backtrace"])
+if test "$use_lldb" != no; then
+  AC_PATH_PROGS(LLDB_PATH, $LLDB lldb, , /usr/bin:${PATH})
+  if test -n "$LLDB_PATH"; then
+    AC_DEFINE_UNQUOTED(LLDB_PATH,"$LLDB_PATH")
+  elif test "$use_lldb" = yes; then
+    AC_MSG_ERROR(User requested --enable-backtrace-lldb but lldb was not found.  Perhaps you need to set \$LLDB?)
+  fi
+fi
+
 GASNET_IF_ENABLED_WITH_AUTO(backtrace-printstack, support backtrace via printstack (auto-detected),
                  [use_printstack="yes"], [use_printstack="no"], [use_printstack="$use_backtrace"])
 if test "$use_printstack" != no; then
@@ -4995,39 +5031,6 @@ if test "$GASNETI_DISABLE_ALIGNED_SEGMENTS" != 1 ; then
   LDFLAGS="$LDFLAGS $NOASLR_LDFLAGS"
 fi
 AC_SUBST(NOASLR_LDFLAGS)
-
-########################################################################
-
-# Add any compiler flags too dangerous to use for configure probes
-
-GASNET_IF_ENABLED(strict-prototypes, [Use strict prototypes in GASNet headers (at the expense of slight deviation from the specification)], [
-  AC_DEFINE(GASNET_USE_STRICT_PROTOTYPES)
-  case "$CC_FAMILY" in
-  GNU|Pathscale|Open64)
-        dnl Consistent w/ other GNU warning flags:
-        dnl    CFLAGS and MPI_CFLAGS get the flag only for a debug build
-        dnl    MISC_CXXFLAGS gets the flag for any build
-        if test "$enabled_debug" = yes; then
-          GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [MISC_CFLAGS="$MISC_CFLAGS -Wstrict-prototypes"])
-        fi
-        if test "$enabled_debug$have_mpi" = yesyes; then
-          dnl Ick: will show "checking for C compiler flag -Wstrict-prototypes" twice in a row
-          GASNET_PUSHVAR(CC,"$MPI_CC")   
-          GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
-          GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [MPI_CFLAGS="$MPI_CFLAGS -Wstrict-prototypes"])
-          GASNET_POPVAR(CFLAGS)
-          GASNET_POPVAR(CC)
-        fi
-        if test "$have_cxx" = yes; then
-          GASNET_TRY_CXXFLAG([-Wstrict-prototypes],
-                             [MISC_CXXFLAGS="$MISC_CXXFLAGS -Wstrict-prototypes"])
-        fi
-        ;;
-  esac
-])
-AM_CONDITIONAL(USE_STRICT_PROTOTYPES, test "x$enable_strict_prototypes" = xyes)
 
 ########################################################################
 

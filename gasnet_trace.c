@@ -1046,20 +1046,28 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
       gasneti_exename, (int)getpid(), gasnett_gethostname(), temp);
    }
-   if (pargv && pargv) {
-    char temp[1024];
-    char *p = temp;
-    int i;
-    for (i=0; i < *pargc; i++) { 
-      char *q = (*pargv)[i];
-      int hasspace = 0;
-      for (;*q;q++) if (isspace((int)*q)) hasspace = 1;
-      if (hasspace) sprintf(p, "'%s'", (*pargv)[i]);
-      else sprintf(p, "%s", (*pargv)[i]);
+   if (pargc && pargv && (gasneti_tracefile || gasneti_statsfile)) {
+    size_t sz = 80;
+    for (int i=0; i < *pargc; i++) { 
+      const char *arg = (*pargv)[i];
+      sz += (arg?strlen(arg):0) + 8;
+    }
+    char *temp = gasneti_malloc(sz);
+    char *p = temp; *p = 0;
+    for (int i=0; i < *pargc; i++) { 
+      const char *arg = (*pargv)[i];
+      if (!arg) strcpy(p,"<null>");
+      else {
+        int hasspace = 0;
+        for (const char *q = arg; *q && !hasspace; q++) if (isspace((int)*q)) hasspace = 1;
+        if (hasspace) sprintf(p, "'%s'", arg);
+        else sprintf(p, "%s", arg);
+      } 
       if (i < *pargc-1) strcat(p, " ");
       p += strlen(p);
     }
     gasneti_tracestats_printf("Command-line: %s", temp);
+    gasneti_free(temp);
   }
 
   gasneti_tracestats_printf("GASNET_CONFIG_STRING: %s", GASNET_CONFIG_STRING);
@@ -1071,6 +1079,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_tracestats_printf("gex_System_QueryJobRank(): %i", (int)gex_System_QueryJobRank());
   gasneti_tracestats_printf("gex_System_QueryJobSize(): %i", (int)gex_System_QueryJobSize());
   gasneti_tracestats_printf("gasneti_cpu_count(): %i", (int)gasneti_cpu_count());
+  gasneti_tracestats_printf("gasneti_getPhysMemSz(): %"PRIu64, gasneti_getPhysMemSz(0));
   #if GASNET_STATS
     gasneti_stats_printf("GASNET_STATSMASK: %s", GASNETI_STATS_GETMASK());
   #endif
