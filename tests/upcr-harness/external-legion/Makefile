@@ -74,6 +74,13 @@ launcher:
 	udp) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/amudprun $@;; \
 	  *) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/gasnetrun_$(LEGION_CONDUIT) $@;; \
 	esac
+
+# Pre-build the runtime libs to separate the output from that of first test build
+rtlibs: force
+	( echo ======== Prebuild Legion RT libs in $(SEED_DIR) ========; \
+	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
+	) $(TO_LOG)
+.PHONY: rtlibs
 	
 legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
@@ -86,11 +93,8 @@ legion: force
 	  echo ======== GASNet install ========; \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_BLDDIR)/gasnet"; \
 	fi $(TO_LOG)
-	( echo ======== Prebuild Legion RT libs in $(SEED_DIR) ========; \
-	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
-	) $(TO_LOG)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
-	$(MAKE) launcher
+	$(MAKE) launcher rtlibs
 	@touch legion-built
 
 # Runs of test.py:
