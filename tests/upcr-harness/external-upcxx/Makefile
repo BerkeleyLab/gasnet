@@ -76,13 +76,22 @@ upcxx_dl_suffix = $(upcxx_dl_suffix_$(strip $(UPCXX_DOWNLOAD)))
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
-	@set -x; case $(UPCXX_CONDUIT) in \
-	smp) echo '#!/bin/sh' > $@ ; \
-	     echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
-	     chmod +x $@;; \
-	udp) ln -s "$(UPCXX_BLDDIR)"/gasnet/bin/amudprun $@;; \
-	  *) ln -s "$(UPCXX_BLDDIR)"/gasnet/bin/gasnetrun_$(UPCXX_CONDUIT) $@;; \
-	esac
+	@set -x; \
+	if test $(UPCXX_CONDUIT) = smp; then \
+	  echo '#!/bin/sh' > $@ ; \
+	  echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
+	  chmod +x $@; \
+	elif test -d "$(UPCXX_BLDDIR)"/gasnet/bin; then \
+	  case $(UPCXX_CONDUIT) in \
+	  udp) ln -s "$(UPCXX_BLDDIR)"/gasnet/bin/amudprun $@;; \
+	    *) ln -s "$(UPCXX_BLDDIR)"/gasnet/bin/gasnetrun_$(UPCXX_CONDUIT) $@;; \
+	  esac; \
+	else \
+	  case $(UPCXX_CONDUIT) in \
+	  udp) ln -s "$(UPCXX_BLDDIR)"/other/amudp/amudprun $@;; \
+	    *) ln -s "$(UPCXX_BLDDIR)"/$(strip $(UPCXX_CONDUIT))-conduit/contrib/gasnetrun_$(UPCXX_CONDUIT) $@;; \
+	  esac; \
+	fi
 
 upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
