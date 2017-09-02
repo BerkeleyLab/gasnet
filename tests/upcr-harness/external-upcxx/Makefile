@@ -87,12 +87,15 @@ launcher:
 upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
 	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE)
-	@if test -f "$(UPCXX_GASNET)/include/gasnet.h"; then \
-	  echo ======== GASNet symlinked ========; set -x; \
+	@if test -f "$(UPCXX_GASNET)/include/gasnet.h" || test -f "$(UPCXX_GASNET)/gasnet.h" ; then \
+	  echo ======== UPCXX_GASNET symlinked ========; set -x; \
 	  ln -s `cd "$(UPCXX_GASNET)" && pwd` $(UPCXX_BLDDIR)/gasnet; \
-	else \
+	elif test -n "$(UPCXX_INSTALL_GASNET)" ; then \
 	  echo ======== GASNet install ========; set -x; \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(UPCXX_BLDDIR)/gasnet"; \
+	else \
+	  echo ======== TOP_BUILDDIR GASNet ========; set -x; \
+	  ln -s $(TOP_BUILDDIR)/gasnet $(UPCXX_BLDDIR)/gasnet; \
 	fi $(TO_LOG)
 	$(MAKE) launcher $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
