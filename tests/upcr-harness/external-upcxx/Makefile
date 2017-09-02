@@ -29,9 +29,12 @@ GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/$(s
 CC                = $(GASNET_CC)
 CXX               = $(GASNET_CXX)
 
+# for exclusive use by this Makefile
+EXTRA_DEFS=
+
 RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
-        CC="$(CC)" CXX="$(CXX)" \
+        CC="$(CC) $(EXTRA_DEFS)" CXX="$(CXX) $(EXTRA_DEFS)" \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(UPCXX_BLDDIR)/gasnet" GASNET_CONDUIT=$(UPCXX_CONDUIT)
 DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV)
@@ -113,6 +116,10 @@ one_test: upcxx-built
 # Pattern rule builds any named test with a corresponding cpp in test directory
 % :: $(UPCXX_BLDDIR)/test/%.cpp force
 	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@
+
+# Pattern rule builds example/prog-guide tests
+% :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
+	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ EXTRA_DEFS='-DUPCXX_BACKEND=gasnet1_seq'
 
 force:
 
