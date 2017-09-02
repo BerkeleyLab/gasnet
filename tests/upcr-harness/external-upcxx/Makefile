@@ -88,8 +88,8 @@ launcher:
 	  esac; \
 	else \
 	  case $(UPCXX_CONDUIT) in \
-	  udp) ln -s "$(UPCXX_BLDDIR)"/other/amudp/amudprun $@;; \
-	    *) ln -s "$(UPCXX_BLDDIR)"/$(strip $(UPCXX_CONDUIT))-conduit/contrib/gasnetrun_$(UPCXX_CONDUIT) $@;; \
+	  udp) ln -s "$(UPCXX_BLDDIR)"/gasnet/other/amudp/amudprun $@;; \
+	    *) ln -s "$(UPCXX_BLDDIR)"/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/contrib/gasnetrun_$(UPCXX_CONDUIT) $@;; \
 	  esac; \
 	fi
 
