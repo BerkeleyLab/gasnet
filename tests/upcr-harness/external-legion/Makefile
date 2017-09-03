@@ -60,7 +60,7 @@ legion_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 legion-unpack-tgz:   force
-	-$(GZCAT) $(LEGION_ARCHIVE) | $(GIT) get-tar-commit-id
+	-$(GZCAT) $(LEGION_ARCHIVE) | $(GIT) get-tar-commit-id; exit 0
 	$(GZCAT) $(LEGION_ARCHIVE) | $(TAR) xf -
 legion_dl_suffix_tgz   = .tar.gz
 ####

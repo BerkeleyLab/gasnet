@@ -49,7 +49,7 @@ chapel_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 chapel-unpack-tgz:   force
-	-$(GZCAT) $(CHAPEL_ARCHIVE) | $(GIT) get-tar-commit-id
+	-$(GZCAT) $(CHAPEL_ARCHIVE) | $(GIT) get-tar-commit-id; exit 0
 	$(GZCAT) $(CHAPEL_ARCHIVE) | $(TAR) xf -
 chapel_dl_suffix_tgz   = .tar.gz
 ####
