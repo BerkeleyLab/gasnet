@@ -18,6 +18,7 @@ GZCAT             ?= gzip -cd
 TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
+GIT               ?= git
 
 # nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
 # intentionally ignore the environment here because it is set by harness
@@ -66,8 +67,10 @@ upcxx_dl_suffix_unzip = .zip
 upcxx-unpack-p7zip: force; $(P7ZIP) x -bd $(UPCXX_ARCHIVE)
 upcxx_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
-#   This is the most portable, but it sacrifices having the git hash in the log file.
-upcxx-unpack-tgz:   force; $(GZCAT) $(UPCXX_ARCHIVE) | $(TAR) xf -
+#   This is the most portable, but cannot extract the hash unless git is available
+upcxx-unpack-tgz:   force
+	-$(GZCAT) $(UPCXX_ARCHIVE) | $(GIT) get-tar-commit-id
+	$(GZCAT) $(UPCXX_ARCHIVE) | $(TAR) xf -
 upcxx_dl_suffix_tgz   = .tar.gz
 ####
 upcxx_dl_suffix = $(upcxx_dl_suffix_$(strip $(UPCXX_DOWNLOAD)))
