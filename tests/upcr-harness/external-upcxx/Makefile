@@ -53,7 +53,7 @@ upcxx-download: force
 	cd $(UPCXX_TMPDIR) && $(WGET) $(UPCXX_URL) 2>&1
 	@cd $(UPCXX_TMPDIR) && echo Fetched $(UPCXX_ARCHIVE)
 	$(MAKE) -C $(UPCXX_TMPDIR) -f `pwd`/Makefile upcxx-unpack-$(UPCXX_DOWNLOAD)
-	rm $(UPCXX_TMPDIR)/$(UPCXX_ARCHIVE)
+	rm -f $(UPCXX_TMPDIR)/$(UPCXX_ARCHIVE) $(UPCXX_TMPDIR)/wget-log
 	mv $(UPCXX_TMPDIR)/* $(UPCXX_BLDDIR) # archive's root dir will vary
 	rmdir $(UPCXX_TMPDIR)
 # Three ways to unpack the archive:
