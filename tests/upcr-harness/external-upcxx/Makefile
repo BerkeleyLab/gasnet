@@ -2,8 +2,27 @@ UPCXX_GIT_REPO   ?= berkeleylab/upcxx
 UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
-UPCXX_GASNET     ?= # Path to an existing installation, if any
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
+
+# Options for providing GASNET to nobs:
+# 1. set UPCXX_GASNET to an existing build or install path to use
+# The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
+# 2. set UPCXX_INSTALL_GASNET=1 to perform a GASNet install and use it
+# 3. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
+#    this one notably implies nobs will configure and build GASNet
+# 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build
+ifneq ($(strip $(UPCXX_GASNET)),)
+UPCXX_EXTERNAL_GASNET:=1
+else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
+UPCXX_GASNET:=$(UPCXX_BLDDIR)/gasnet
+UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
+UPCXX_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
+UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+else # default to using builddir
+UPCXX_GASNET:=$(TOP_BUILDDIR)/gasnet
+endif
+UPCXX_FRAGMENTS ?= $(UPCXX_GASNET)
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
@@ -20,24 +39,32 @@ UNZIP             ?= unzip
 P7ZIP             ?= 7za
 GIT               ?= git
 
-# nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
-# intentionally ignore the environment here because it is set by harness
-# use UPCXX_TEST_ENV to override if necessary.
-GASNET_BLD_FRAGMENT=$(TOP_BUILDDIR)/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/$(strip $(UPCXX_CONDUIT))
-# use either fragment in case one is configured out
--include $(GASNET_BLD_FRAGMENT)-seq.mak
--include $(GASNET_BLD_FRAGMENT)-par.mak
-CC                = $(GASNET_CC)
-CXX               = $(GASNET_CXX)
-
 # for exclusive use by this Makefile
 EXTRA_DEFS=
 
+# Logic to extract GASNet's compiler variables.
+# nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
+# intentionally ignore the environment here because it is set by harness
+# use UPCXX_TEST_ENV to override if necessary.
+# We use a sub-shell to avoid pulling in the entire makefile fragment.
+# TODO: may want to handle LDFLAGS here as well?
+GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(UPCXX_CONDUIT)) EXTRA_DEFS=$(EXTRA_DEFS))
+FRAGMENT=#empty by default
+ifneq ($(FRAGMENT),) # handle build or install dir, use any fragment we can find
+-include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
+-include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
+-include $(UPCXX_FRAGMENTS)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
+-include $(UPCXX_FRAGMENTS)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
+echovars: force; @echo "CC='$(GASNET_CC) $(EXTRA_DEFS)' CXX='$(GASNET_CXX) $(EXTRA_DEFS)'"
+.PHONY: echovars
+endif
+
 RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
-        CC="$(CC) $(EXTRA_DEFS)" CXX="$(CXX) $(EXTRA_DEFS)" \
+        $(GASNET_VARS) \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
-	GASNET="$(UPCXX_BLDDIR)/gasnet" GASNET_CONDUIT=$(UPCXX_CONDUIT)
+	GASNET="$(UPCXX_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
+	TERM=dumb 
 DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV)
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
 
@@ -69,7 +96,7 @@ upcxx_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 upcxx-unpack-tgz:   force
-	-$(GZCAT) $(UPCXX_ARCHIVE) | $(GIT) get-tar-commit-id
+	-$(GZCAT) $(UPCXX_ARCHIVE) | $(GIT) get-tar-commit-id ; exit 0
 	$(GZCAT) $(UPCXX_ARCHIVE) | $(TAR) xf -
 upcxx_dl_suffix_tgz   = .tar.gz
 ####
@@ -99,15 +126,18 @@ launcher:
 upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
 	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE)
-	@if test -f "$(UPCXX_GASNET)/include/gasnet.h" || test -f "$(UPCXX_GASNET)/gasnet.h" ; then \
-	  echo ======== UPCXX_GASNET symlinked ========; set -x; \
-	  ln -s `cd "$(UPCXX_GASNET)" && pwd` $(UPCXX_BLDDIR)/gasnet; \
+	@echo UPCXX_GASNET=$(UPCXX_GASNET) $(TO_LOG)
+	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
+	  echo ======== UPCXX_GASNET:external ========; set -x; \
 	elif test -n "$(UPCXX_INSTALL_GASNET)" ; then \
-	  echo ======== GASNet install ========; set -x; \
+	  echo ======== UPCXX_GASNET:install ========; set -x; \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(UPCXX_BLDDIR)/gasnet"; \
+	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
+	  echo ======== UPCXX_GASNET:tarball ========; set -x; \
+	  $(MAKE) dist -C $(TOP_BUILDDIR)/gasnet && \
+          ln -sf $(TOP_BUILDDIR)/gasnet/GASNet-*.tar.gz $(UPCXX_BLDDIR)/gasnet.tar.gz ; \
 	else \
-	  echo ======== TOP_BUILDDIR GASNet ========; set -x; \
-	  ln -s $(TOP_BUILDDIR)/gasnet $(UPCXX_BLDDIR)/gasnet; \
+	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
 	$(MAKE) launcher $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
