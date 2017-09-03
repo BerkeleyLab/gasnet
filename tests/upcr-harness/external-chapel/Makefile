@@ -17,6 +17,7 @@ GZCAT             ?= gzip -cd
 TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
+GIT               ?= git
 
 # Must not inherit these from harness environment:
 unexport LD LDFLAGS LIBS
@@ -32,7 +33,7 @@ chapel-download: force
 	rm -Rf $(CHAPEL_BLDDIR) $(CHAPEL_TMPDIR) && mkdir $(CHAPEL_TMPDIR)
 	cd $(CHAPEL_TMPDIR) && $(WGET) $(CHAPEL_URL) 2>&1
 	$(MAKE) -C $(CHAPEL_TMPDIR) -f `pwd`/Makefile chapel-unpack-$(CHAPEL_DOWNLOAD)
-	rm $(CHAPEL_TMPDIR)/$(CHAPEL_ARCHIVE)
+	rm -f $(CHAPEL_TMPDIR)/$(CHAPEL_ARCHIVE) $(CHAPEL_TMPDIR)/wget-log
 	mv $(CHAPEL_TMPDIR)/* $(CHAPEL_BLDDIR) # archive's root dir will vary
 	rmdir $(CHAPEL_TMPDIR)
 # Three ways to unpack the archive:
@@ -46,8 +47,10 @@ chapel_dl_suffix_unzip = .zip
 chapel-unpack-p7zip: force; $(P7ZIP) x -bd $(CHAPEL_ARCHIVE)
 chapel_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
-#   This is the most portable, but it sacrifices having the git hash in the log file.
-chapel-unpack-tgz:   force; $(GZCAT) $(CHAPEL_ARCHIVE) | $(TAR) xf -
+#   This is the most portable, but cannot extract the hash unless git is available
+chapel-unpack-tgz:   force
+	-$(GZCAT) $(CHAPEL_ARCHIVE) | $(GIT) get-tar-commit-id
+	$(GZCAT) $(CHAPEL_ARCHIVE) | $(TAR) xf -
 chapel_dl_suffix_tgz   = .tar.gz
 ####
 chapel_dl_suffix = $(chapel_dl_suffix_$(strip $(CHAPEL_DOWNLOAD)))
