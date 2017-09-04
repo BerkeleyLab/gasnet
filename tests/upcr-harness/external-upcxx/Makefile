@@ -15,6 +15,7 @@ ifneq ($(strip $(UPCXX_GASNET)),)
 UPCXX_EXTERNAL_GASNET:=1
 else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
 UPCXX_GASNET:=$(UPCXX_BLDDIR)/gasnet
+UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
 UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
 else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
 UPCXX_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
@@ -23,6 +24,7 @@ else # default to using builddir
 UPCXX_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
 UPCXX_FRAGMENTS ?= $(UPCXX_GASNET)
+UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
@@ -111,15 +113,15 @@ launcher:
 	  echo '#!/bin/sh' > $@ ; \
 	  echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
 	  chmod +x $@; \
-	elif test -d "$(UPCXX_BLDDIR)"/gasnet/bin; then \
+	elif test -d "$(UPCXX_LAUNCHERS)"/bin; then \
 	  case $(UPCXX_CONDUIT) in \
-	  udp) ln -s "$(UPCXX_BLDDIR)"/gasnet/bin/amudprun $@;; \
-	    *) ln -s "$(UPCXX_BLDDIR)"/gasnet/bin/gasnetrun_$(UPCXX_CONDUIT) $@;; \
+	  udp) ln -s "$(UPCXX_LAUNCHERS)"/bin/amudprun $@;; \
+	    *) ln -s "$(UPCXX_LAUNCHERS)"/bin/gasnetrun_$(UPCXX_CONDUIT) $@;; \
 	  esac; \
 	else \
 	  case $(UPCXX_CONDUIT) in \
-	  udp) ln -s "$(UPCXX_BLDDIR)"/gasnet/other/amudp/amudprun $@;; \
-	    *) ln -s "$(UPCXX_BLDDIR)"/gasnet/$(strip $(UPCXX_CONDUIT))-conduit/contrib/gasnetrun_$(UPCXX_CONDUIT) $@;; \
+	  udp) ln -s "$(UPCXX_LAUNCHERS)"/other/amudp/amudprun $@;; \
+	    *) ln -s "$(UPCXX_LAUNCHERS)"/$(strip $(UPCXX_CONDUIT))-conduit/contrib/gasnetrun_$(UPCXX_CONDUIT) $@;; \
 	  esac; \
 	fi
 
