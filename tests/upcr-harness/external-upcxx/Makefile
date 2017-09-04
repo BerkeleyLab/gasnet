@@ -136,7 +136,7 @@ upcxx: force
 	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:tarball ========; set -x; \
 	  $(MAKE) dist -C $(TOP_BUILDDIR)/gasnet && \
-          ln -sf $(TOP_BUILDDIR)/gasnet/GASNet-*.tar.gz $(UPCXX_BLDDIR)/gasnet.tar.gz ; \
+          cp -f $(TOP_BUILDDIR)/gasnet/GASNet-*.tar.gz $(UPCXX_BLDDIR)/gasnet.tar.gz ; \
 	else \
 	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
