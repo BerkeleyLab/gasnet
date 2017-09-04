@@ -3,6 +3,7 @@ UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
+UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
 
 # Options for providing GASNET to nobs:
 # 1. set UPCXX_GASNET to an existing build or install path to use
@@ -41,8 +42,6 @@ UNZIP             ?= unzip
 P7ZIP             ?= 7za
 GIT               ?= git
 
-# for exclusive use by this Makefile
-EXTRA_DEFS=
 
 # Logic to extract GASNet's compiler variables.
 # nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
@@ -50,14 +49,14 @@ EXTRA_DEFS=
 # use UPCXX_TEST_ENV to override if necessary.
 # We use a sub-shell to avoid pulling in the entire makefile fragment.
 # TODO: may want to handle LDFLAGS here as well?
-GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(UPCXX_CONDUIT)) EXTRA_DEFS=$(EXTRA_DEFS))
+GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(UPCXX_CONDUIT)))
 FRAGMENT=#empty by default
 ifneq ($(FRAGMENT),) # handle build or install dir, use any fragment we can find
 -include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
 -include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
 -include $(UPCXX_FRAGMENTS)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
 -include $(UPCXX_FRAGMENTS)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
-echovars: force; @echo "CC='$(GASNET_CC) $(EXTRA_DEFS)' CXX='$(GASNET_CXX) $(EXTRA_DEFS)'"
+echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
 .PHONY: echovars
 endif
 
@@ -67,7 +66,7 @@ COMMON_ENV = \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(UPCXX_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb 
-DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV)
+DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
 
 # XXX: Hard-coded download of fixed tarball for now
@@ -166,7 +165,7 @@ one_test: upcxx-built
 
 # Pattern rule builds example/prog-guide tests
 % :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
-	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ EXTRA_DEFS='-DUPCXX_BACKEND=gasnet1_seq'
+	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=gasnet1_seq'
 
 force:
 
