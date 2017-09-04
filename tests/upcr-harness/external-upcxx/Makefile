@@ -65,7 +65,7 @@ COMMON_ENV = \
         $(GASNET_VARS) \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(UPCXX_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
-	TERM=dumb 
+	TERM=dumb PAGER=cat 
 DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
 
