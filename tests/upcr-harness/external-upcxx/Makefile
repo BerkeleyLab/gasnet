@@ -1,6 +1,7 @@
 UPCXX_GIT_REPO   ?= berkeleylab/upcxx
 UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
+UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
@@ -151,21 +152,38 @@ upcxx: force
              echo ; \
           done; \
 	) $(TO_LOG)
-	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch upcxx-built
+	$(MAKE) upcxx-install $(TO_LOG)
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-# Build a single test
+upcxx-install: upcxx-built # NO force
+	rm -Rf $(UPCXX_INSTDIR) upcxx-install 
+	@echo ======== UPCXX install ========; set -x; \
+	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install $(UPCXX_INSTDIR) && \
+	 /bin/ls -alR $(UPCXX_INSTDIR)
+	@touch upcxx-install
+
+# Build a single test from the nobs build directory
 one_test: upcxx-built
 	$(DO_NOBS) exe $(TEST_PATH)
 	OUTPUT=`$(DO_NOBS) exe $(TEST_PATH)` && cp $$OUTPUT $(TEST_EXE)
+
+# Build a single test from the installed UPCXX directory
+inst_test: upcxx-install
+	@set -x ; $(DO_ENV) && \
+	PPFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta PPFLAGS` && \
+	LDFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LDFLAGS` && \
+	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
+	$$CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $$LIBFLAGS
 
 # Pattern rule builds any named test with a corresponding cpp in test directory
 % :: $(UPCXX_BLDDIR)/test/%.cpp force
 	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@
 
 # Pattern rule builds example/prog-guide tests
-% :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
+% :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp upcxx-install force
 	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=gasnet1_seq'
+	#$(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ 
 
 force:
 
