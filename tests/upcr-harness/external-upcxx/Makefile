@@ -15,17 +15,18 @@ UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
 # 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build
 ifneq ($(strip $(UPCXX_GASNET)),)
 UPCXX_EXTERNAL_GASNET:=1
+NOBS_GASNET:=$(UPCXX_GASNET)
 else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
-UPCXX_GASNET:=$(UPCXX_BLDDIR)/gasnet
+NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet
 UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
 UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
 else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
-UPCXX_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
+NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
 UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
 else # default to using builddir
-UPCXX_GASNET:=$(TOP_BUILDDIR)/gasnet
+NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
-UPCXX_FRAGMENTS ?= $(UPCXX_GASNET)
+UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
 
 HARNESS_LOGDIR    ?= .
@@ -65,7 +66,7 @@ RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
         $(GASNET_VARS) \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
-	GASNET="$(UPCXX_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
+	GASNET="$(NOBS_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb PAGER=cat 
 DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
@@ -128,7 +129,7 @@ launcher:
 upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
 	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE)
-	@echo UPCXX_GASNET=$(UPCXX_GASNET) $(TO_LOG)
+	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
 	elif test -n "$(UPCXX_INSTALL_GASNET)" ; then \
@@ -157,6 +158,7 @@ upcxx: force
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 upcxx-install: upcxx-built # NO force
+	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS)
 	rm -Rf $(UPCXX_INSTDIR) upcxx-install 
 	@echo ======== UPCXX install ========; set -x; \
 	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install $(UPCXX_INSTDIR) && \
