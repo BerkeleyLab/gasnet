@@ -14,17 +14,21 @@ UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
 #    this one notably implies nobs will configure and build GASNet
 # 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build
 ifneq ($(strip $(UPCXX_GASNET)),)
-UPCXX_EXTERNAL_GASNET:=1
-NOBS_GASNET:=$(UPCXX_GASNET)
+  UPCXX_EXTERNAL_GASNET:=1
+  NOBS_GASNET:=$(UPCXX_GASNET)
 else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
-NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet
-UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
-UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+  NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet
+  UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
+  UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
 else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
-NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
-UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+  NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
+  UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+  # Don't pollute nobs configure with harness flags
+  UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
+  # use meta to prevent a spurious second configure
+  UPCXX_USE_META = 1
 else # default to using builddir
-NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
+  NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
 UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
@@ -68,7 +72,7 @@ COMMON_ENV = \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(NOBS_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb PAGER=cat 
-DO_ENV = export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
+DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
 
 # XXX: Hard-coded download of fixed tarball for now
@@ -184,8 +188,11 @@ inst_test: upcxx-install
 
 # Pattern rule builds example/prog-guide tests
 % :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp upcxx-install force
-	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=gasnet1_seq'
-	#$(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ 
+	@if test -n "$(UPCXX_USE_META)"; then set -x ; \
+	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
+	else set -x ; \
+	  $(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=gasnet1_seq' ; \
+	fi
 
 force:
 
