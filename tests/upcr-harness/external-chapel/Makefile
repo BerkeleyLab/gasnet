@@ -85,7 +85,7 @@ COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_lau
 	PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST)
 
 # Build Chapel runtime
-chapel: force
+_chapel: force
 	rm -f chapel-built
 	$(MAKE) chapel-download 2>&1 | tee $(LOGFILE)
 	$(MAKE) chapel-launcher

@@ -85,7 +85,7 @@ rtlibs: force
 	) $(TO_LOG)
 .PHONY: rtlibs
 	
-legion: force
+_legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
 	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
