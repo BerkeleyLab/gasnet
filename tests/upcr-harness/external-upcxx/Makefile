@@ -126,7 +126,7 @@ launcher:
 	  esac; \
 	fi
 
-upcxx: force
+_upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
 	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE)
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
