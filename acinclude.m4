@@ -1762,6 +1762,19 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   fi
   popdef([cachevar])
 
+
+  # bug 3613: try to enable any warning settings that might be relevant to -Wunknown-pragmas
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS")
+  _gasnet_CPPFLAGS_back="$CPPFLAGS"
+  for flag in '-Wall' '-Wextra' '-Wunknown-pragmas' ; do 
+    AC_MSG_CHECKING(for compiler flag $flag)
+    CPPFLAGS="$CPPFLAGS $flag"
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [], [], 
+      [ AC_MSG_RESULT(yes) ; _gasnet_CPPFLAGS_back="$CPPFLAGS" ], 
+      [ AC_MSG_RESULT(no) ; CPPFLAGS="$_gasnet_CPPFLAGS_back" ], 
+      [ AC_MSG_RESULT(no) ; CPPFLAGS="$_gasnet_CPPFLAGS_back" ])
+  done
+
   pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_pragma_gcc_diagnostic)
   AC_CACHE_CHECK($2 for pragma GCC diagnostic push/pop/ignored, cachevar,
     # Note we're not checking whether the pragma actually *does* anything,
@@ -1789,6 +1802,7 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
       AC_DEFINE([$1]_PRAGMA_GCC_DIAGNOSTIC, 0)
   fi
   popdef([cachevar])
+  GASNET_POPVAR(CPPFLAGS)
 ])
 
 dnl  Check to see if __thread attribute exists and works
