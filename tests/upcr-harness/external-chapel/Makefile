@@ -92,7 +92,7 @@ _chapel: force
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
 	cd $(CHAPEL_BLDDIR) && \
-	source util/setchplenv.bash && \
+	. util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
 	    $(MAKE) $(CHAPEL_MAKE_ARGS) all >> $(LOGFILE) 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
@@ -100,7 +100,7 @@ _chapel: force
 
 # Not reliable other than on UDP, and wants to *run* the test
 check: chapel-built
-	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
+	. $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_CHECK_ENV) \
 	    $(MAKE) -C $(CHAPEL_BLDDIR) check
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
@@ -109,8 +109,8 @@ check: chapel-built
 # Build one test
 #
 test_common: chapel-built
-	rm -f $(TEST_EXE){,_real}
-	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
+	rm -f $(TEST_EXE) $(TEST_EXE)_real
+	. $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
 	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
 	mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
