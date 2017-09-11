@@ -321,8 +321,9 @@
 #undef COMPLETE_STDINT_H
 #undef COMPLETE_SYS_TYPES_H
 
-/* Linux PR_SET_PDEATHSIG support */
+/* Linux prctl() support */
 #undef HAVE_PR_SET_PDEATHSIG
+#undef HAVE_PR_SET_PTRACER
 
 /* forcing use of "non-native" implementations: */
 #undef GASNETI_FORCE_GENERIC_ATOMICOPS
