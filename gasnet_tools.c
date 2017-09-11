@@ -42,6 +42,15 @@
 #include <sys/resource.h>
 #endif
 
+#if HAVE_PR_SET_PTRACER
+  #include <sys/prctl.h>
+  #ifndef PR_SET_PTRACER
+    #define PR_SET_PTRACER 0x59616d61 /* 'Yama' */
+  #endif
+  #ifndef PR_SET_PTRACER_ANY
+    #define PR_SET_PTRACER_ANY ((unsigned long)(-1))
+  #endif
+#endif
 
 #if PLATFORM_COMPILER_SUN_C
   /* disable warnings triggerred by some macro idioms we use */
@@ -1308,6 +1317,11 @@ const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtra
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
 extern void gasneti_backtrace_init(const char *exename) {
   static int user_is_init = 0;
+
+#if HAVE_PR_SET_PTRACER
+  // May be necessary to allow ptrace_attach():
+  (void) prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+#endif
 
   gasneti_qualify_path(gasneti_exename_bt, exename);
 
