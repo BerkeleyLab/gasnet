@@ -152,6 +152,9 @@ gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t
 void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler);
 const char *gasnett_signame_fromval(int sigval);
 
+extern int gasneti_blocksig(int sig);
+extern int gasneti_unblocksig(int sig);
+
 /* return a fast but simple/insecure 64-bit checksum of arbitrary data */
 extern uint64_t gasneti_checksum(const void *p, int numbytes);
 
