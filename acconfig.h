@@ -261,6 +261,9 @@
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
 
+/* have pthread_setconcurrency */
+#undef HAVE_PTHREAD_SIGMASK
+
 /* has pthread rwlock support */
 #undef GASNETI_HAVE_PTHREAD_RWLOCK
 
