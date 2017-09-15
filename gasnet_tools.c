@@ -1278,6 +1278,9 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   /*
    * Debuggers capable of backtracing all threads:
    */
+  #if defined(GASNETI_BT_LLDB) && PLATFORM_OS_DARWIN // bug3626: vendor-signed debugger has priority
+  { "LLDB", GASNETI_BT_LLDB, 1 },
+  #endif
   #ifdef GASNETI_BT_GSTACK
   { "GSTACK", GASNETI_BT_GSTACK, 1 },
   #endif
@@ -1293,7 +1296,7 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_PGDBG
   { "PGDBG", GASNETI_BT_PGDBG, 1 },
   #endif
-  #ifdef GASNETI_BT_LLDB
+  #if defined(GASNETI_BT_LLDB) && !PLATFORM_OS_DARWIN
   { "LLDB", GASNETI_BT_LLDB, 1 },
   #endif
   /*
