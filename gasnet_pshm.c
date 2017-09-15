@@ -772,6 +772,11 @@ static void do_pshmnet_barrier(int do_poll)
   }
 
   generation = target;
+
+  if (do_poll) {
+    // Ensuring all AMPoll() calls cease before resuming non-AM traffic
+    do_pshmnet_barrier(0);
+  }
 }
 void gasneti_pshmnet_bootstrapBarrier(void)     { do_pshmnet_barrier(0); }
 void gasneti_pshmnet_bootstrapBarrierPoll(void) { do_pshmnet_barrier(1); }

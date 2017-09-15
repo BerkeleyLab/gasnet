@@ -1445,6 +1445,7 @@ else
   AC_SEARCH_LIBS(pthread_setconcurrency, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_SETCONCURRENCY))
   AC_SEARCH_LIBS(pthread_kill, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_KILL))
   AC_SEARCH_LIBS(pthread_kill_other_threads_np, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))
+  AC_SEARCH_LIBS(pthread_sigmask, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_SIGMASK))
 
   GASNET_IF_ENABLED_WITH_AUTO(rwlock, Enable/disable use of pthread_rwlock_t (auto-detected),
     enabled_rwlock=yes, enabled_rwlock=no, enabled_rwlock=probe)
@@ -2120,6 +2121,7 @@ GASNET_TRY_CACHE_LINK(for __builtin_ctz, cc_has_builtin_ctz,
 
 #---------------------------------------------------------------------------------------------------------------
 # Linux's PR_SET_PDEATHSIG of interest to both smp-conduit and ssh-spawer
+# Linux's PR_SET_PTRACER of interest for backtracing
 if expr "$target_os" : "linux" >/dev/null; then
   GASNET_IF_DISABLED(pdeathsig,
     [Support use of Linux-specific prctl(PR_SET_PDEATHSIG) (default is to probe)],
@@ -2136,6 +2138,19 @@ if expr "$target_os" : "linux" >/dev/null; then
         AC_DEFINE(HAVE_PR_SET_PDEATHSIG)
       ])
     ])
+  GASNET_TRY_CACHE_LINK([for PR_SET_PTRACER], pr_set_ptracer, [
+    #include <sys/prctl.h>
+    #ifndef PR_SET_PTRACER
+      #define PR_SET_PTRACER 0x59616d61 /* 'Yama' */
+    #endif
+    #ifndef PR_SET_PTRACER_ANY
+      #define PR_SET_PTRACER_ANY ((unsigned long)(-1))
+    #endif
+  ],[
+    int rc = prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+  ],[
+    AC_DEFINE(HAVE_PR_SET_PTRACER)
+  ])
 fi
 
 #---------------------------------------------------------------------------------------------------------------

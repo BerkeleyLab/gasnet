@@ -15,6 +15,7 @@ GZCAT             ?= gzip -cd
 TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
+GIT               ?= git
 
 # Logic to extract GASNet's compiler variables.
 # We use a sub-shell to avoid pulling in the entire makefile fragment.
@@ -43,7 +44,7 @@ legion-download: force
 	rm -Rf $(LEGION_BLDDIR) $(LEGION_TMPDIR) && mkdir $(LEGION_TMPDIR)
 	cd $(LEGION_TMPDIR) && $(WGET) $(LEGION_URL) 2>&1
 	$(MAKE) -C $(LEGION_TMPDIR) -f `pwd`/Makefile legion-unpack-$(LEGION_DOWNLOAD)
-	rm $(LEGION_TMPDIR)/$(LEGION_ARCHIVE)
+	rm -f $(LEGION_TMPDIR)/$(LEGION_ARCHIVE) $(LEGION_TMPDIR)/wget-log
 	mv $(LEGION_TMPDIR)/* $(LEGION_BLDDIR) # archive's root dir will vary
 	rmdir $(LEGION_TMPDIR)
 # Three ways to unpack the archive:
@@ -57,8 +58,10 @@ legion_dl_suffix_unzip = .zip
 legion-unpack-p7zip: force; $(P7ZIP) x -bd $(LEGION_ARCHIVE)
 legion_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
-#   This is the most portable, but it sacrifices having the git hash in the log file.
-legion-unpack-tgz:   force; $(GZCAT) $(LEGION_ARCHIVE) | $(TAR) xf -
+#   This is the most portable, but cannot extract the hash unless git is available
+legion-unpack-tgz:   force
+	-$(GZCAT) $(LEGION_ARCHIVE) | $(GIT) get-tar-commit-id; exit 0
+	$(GZCAT) $(LEGION_ARCHIVE) | $(TAR) xf -
 legion_dl_suffix_tgz   = .tar.gz
 ####
 legion_dl_suffix = $(legion_dl_suffix_$(strip $(LEGION_DOWNLOAD)))
@@ -74,8 +77,15 @@ launcher:
 	udp) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/amudprun $@;; \
 	  *) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/gasnetrun_$(LEGION_CONDUIT) $@;; \
 	esac
+
+# Pre-build the runtime libs to separate the output from that of first test build
+rtlibs: force
+	( echo ======== Prebuild Legion RT libs in $(SEED_DIR) ========; \
+	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
+	) $(TO_LOG)
+.PHONY: rtlibs
 	
-legion: force
+_legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
 	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
@@ -86,11 +96,8 @@ legion: force
 	  echo ======== GASNet install ========; \
 	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_BLDDIR)/gasnet"; \
 	fi $(TO_LOG)
-	( echo ======== Prebuild Legion RT libs in $(SEED_DIR) ========; \
-	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
-	) $(TO_LOG)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
-	$(MAKE) launcher
+	$(MAKE) launcher rtlibs
 	@touch legion-built
 
 # Runs of test.py:

@@ -6,6 +6,7 @@ CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
 CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 CHAPEL_PATH_PRE   ?=# empty - if set must end with :
 CHAPEL_PATH_POST  ?=# empty - if set must start with :
+CHAPEL_SHELL      ?= $(shell test -n "$${ZSH_VERSION+set}$${BASH_VERSION+set}" && echo bash || echo sh)
 
 HARNESS_LOGDIR    ?= .
 LOGFILE           ?= $(HARNESS_LOGDIR)/chapel.log
@@ -17,6 +18,7 @@ GZCAT             ?= gzip -cd
 TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
+GIT               ?= git
 
 # Must not inherit these from harness environment:
 unexport LD LDFLAGS LIBS
@@ -32,7 +34,7 @@ chapel-download: force
 	rm -Rf $(CHAPEL_BLDDIR) $(CHAPEL_TMPDIR) && mkdir $(CHAPEL_TMPDIR)
 	cd $(CHAPEL_TMPDIR) && $(WGET) $(CHAPEL_URL) 2>&1
 	$(MAKE) -C $(CHAPEL_TMPDIR) -f `pwd`/Makefile chapel-unpack-$(CHAPEL_DOWNLOAD)
-	rm $(CHAPEL_TMPDIR)/$(CHAPEL_ARCHIVE)
+	rm -f $(CHAPEL_TMPDIR)/$(CHAPEL_ARCHIVE) $(CHAPEL_TMPDIR)/wget-log
 	mv $(CHAPEL_TMPDIR)/* $(CHAPEL_BLDDIR) # archive's root dir will vary
 	rmdir $(CHAPEL_TMPDIR)
 # Three ways to unpack the archive:
@@ -46,8 +48,10 @@ chapel_dl_suffix_unzip = .zip
 chapel-unpack-p7zip: force; $(P7ZIP) x -bd $(CHAPEL_ARCHIVE)
 chapel_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
-#   This is the most portable, but it sacrifices having the git hash in the log file.
-chapel-unpack-tgz:   force; $(GZCAT) $(CHAPEL_ARCHIVE) | $(TAR) xf -
+#   This is the most portable, but cannot extract the hash unless git is available
+chapel-unpack-tgz:   force
+	-$(GZCAT) $(CHAPEL_ARCHIVE) | $(GIT) get-tar-commit-id; exit 0
+	$(GZCAT) $(CHAPEL_ARCHIVE) | $(TAR) xf -
 chapel_dl_suffix_tgz   = .tar.gz
 ####
 chapel_dl_suffix = $(chapel_dl_suffix_$(strip $(CHAPEL_DOWNLOAD)))
@@ -82,14 +86,13 @@ COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_lau
 	PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST)
 
 # Build Chapel runtime
-chapel: force
+_chapel: force
 	rm -f chapel-built
 	$(MAKE) chapel-download 2>&1 | tee $(LOGFILE)
 	$(MAKE) chapel-launcher
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
-	cd $(CHAPEL_BLDDIR) && \
-	source util/setchplenv.bash && \
+	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
 	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
 	    $(MAKE) $(CHAPEL_MAKE_ARGS) all >> $(LOGFILE) 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
@@ -97,19 +100,19 @@ chapel: force
 
 # Not reliable other than on UDP, and wants to *run* the test
 check: chapel-built
-	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
+	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
 	  env $(COMMON_ENV) $(CHAPEL_CHECK_ENV) \
-	    $(MAKE) -C $(CHAPEL_BLDDIR) check
+	    $(MAKE) check
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 #
 # Build one test
 #
 test_common: chapel-built
-	rm -f $(TEST_EXE){,_real}
-	source $(CHAPEL_BLDDIR)/util/setchplenv.bash && \
+	rm -f $(TEST_EXE) $(TEST_EXE)_real
+	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
-	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
+	    $(MAKE) -C $(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
 	mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
 	if test -e $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real; then \
 	  mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real $(TEST_EXE)_real; \

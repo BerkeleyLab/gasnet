@@ -42,6 +42,15 @@
 #include <sys/resource.h>
 #endif
 
+#if HAVE_PR_SET_PTRACER
+  #include <sys/prctl.h>
+  #ifndef PR_SET_PTRACER
+    #define PR_SET_PTRACER 0x59616d61 /* 'Yama' */
+  #endif
+  #ifndef PR_SET_PTRACER_ANY
+    #define PR_SET_PTRACER_ANY ((unsigned long)(-1))
+  #endif
+#endif
 
 #if PLATFORM_COMPILER_SUN_C
   /* disable warnings triggerred by some macro idioms we use */
@@ -750,6 +759,37 @@ gasnett_siginfo_t *gasnett_siginfo_fromstr(const char *str) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
+/* Functions to (un)block a single signal:
+ *      int gasneti_unblocksig(int sig);
+ *      int gasneti_blocksig(int sig);
+ * On error (including systems w/o support) both return -1.
+ * Otherwise they return the prior state: positive for blocked, zero for not blocked.
+ */
+#if HAVE_SIGPROCMASK || (HAVE_PTHREAD_SIGMASK && GASNETI_THREADS)
+  static int _gasneti_sigmask(int sig, int op) {
+    sigset_t sig_set, old_set;
+    sigemptyset(&sig_set);
+    sigaddset(&sig_set, sig);
+  #if HAVE_PTHREAD_SIGMASK && GASNETI_THREADS
+    if (! pthread_sigmask(op, &sig_set, &old_set)) {
+      return sigismember(&old_set, sig);
+    }
+  #endif
+  #if HAVE_SIGPROCMASK
+    if (! sigprocmask(op, &sig_set, &old_set)) {
+      return sigismember(&old_set, sig);
+    }
+  #endif
+    return -1;
+  }
+  extern int gasneti_blocksig(int sig)   { return _gasneti_sigmask(sig, SIG_BLOCK);   }
+  extern int gasneti_unblocksig(int sig) { return _gasneti_sigmask(sig, SIG_UNBLOCK); }
+#else
+  /* TODO: implement for systems w/o POSIX signals */
+  extern int gasneti_blocksig(int sig)   { return -1; }
+  extern int gasneti_unblocksig(int sig) { return -1; }
+#endif
+/* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_UNFREEZE_SIGNAL
 /* signal to use for unfreezing, could also use SIGUSR1/2 or several others */
 #define GASNETI_UNFREEZE_SIGNAL SIGCONT
@@ -766,11 +806,12 @@ static void _freezeForDebugger(int depth) {
   else {
     volatile int i=0;
     gasneti_sighandlerfn_t old = gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, gasneti_unfreezeHandler);
+    const int was_blocked = (gasneti_unblocksig(GASNETI_UNFREEZE_SIGNAL) > 0);
     while (*_gasneti_freeze_flag) {
       i++;
       sleep(1);
     }
-    gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old);
+    if (was_blocked) gasneti_blocksig(GASNETI_UNFREEZE_SIGNAL);
   }
 }
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname) {
@@ -962,6 +1003,8 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 
   { /* setup the parent to sleep */
     gasneti_sighandlerfn_t old_sigh = gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, gasneti_bt_complete_handler);
+    const int was_blocked = (gasneti_unblocksig(GASNETI_UNFREEZE_SIGNAL) > 0);
+
     volatile int i=0;
     if (!fork()) { /* the child - debugger co-process launcher */
       int retval = gasneti_system_redirected(cmd, tmpfd);
@@ -983,6 +1026,7 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
       }
       /* awakened */
       gasneti_bt_complete_flag = 0;
+      if (was_blocked) gasneti_blocksig(GASNETI_UNFREEZE_SIGNAL);
       gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old_sigh);
       if (fstat(tmpfd, &tmpstat)) rc = -1; /* never happens? */
       else if (tmpstat.st_size == 0) rc = -1; /* child process spawn failed */
@@ -1308,6 +1352,11 @@ const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtra
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
 extern void gasneti_backtrace_init(const char *exename) {
   static int user_is_init = 0;
+
+#if HAVE_PR_SET_PTRACER
+  // May be necessary to allow ptrace_attach():
+  (void) prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+#endif
 
   gasneti_qualify_path(gasneti_exename_bt, exename);
 

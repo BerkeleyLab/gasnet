@@ -29,14 +29,17 @@ compatibility issues with any release of the XC series system software.
 Optional configure-time settings:
 ------------------------------
 
---with-gni-max-medium=[value]
+NOTE: In the descriptions which follow, the token [CONDUIT] should be replaced
+by "aries" or "gemini" (without the quotes), as approptiate.
+
+--with-[CONDUIT]-max-medium=[value]
    By default gasnet_AMMaxMedium() is 4032: a 4096 byte buffer minus
    64 bytes reserved for up to 16 handler arguments.  This configure
    option allows control over the value of gasnet_AMMaxMedium().
    The value must be a multiple of 64, and cannot be less than 512.
    The default value is 4032.
 
---enable-gni-multi-domain
+--enable-[CONDUIT]-multi-domain
    This configure option enables EXPERIMENTAL support for improved
    performance of RDMA operations in a PAR (multi-threaded) build of
    Gemini or Aries conduit by allocating multiple GNI Communication
@@ -257,7 +260,7 @@ GASNET_PHYSMEM_MAX
   The default is "0.8" (80% of estimated physical memory).
 
 GASNET_USE_UDREG
-  AVAILABLE UNLESS CONFIGURED WITH --disable-gni-udreg.
+  AVAILABLE UNLESS CONFIGURED WITH --disable-[CONDUIT]-udreg.
   This gives a boolean: "0" to disable or "1" to enable the use of the
   UDREG library for caching of local memory registrations, and is
   intended primarily for debugging purposes.
@@ -266,7 +269,7 @@ GASNET_USE_UDREG
 GASNET_DOMAIN_COUNT
 GASNET_GNI_PTHREADS_PER_DOMAIN
 GASNET_AM_DOMAIN_POLL_MASK
-  AVAILABLE ONLY IF CONFIGURED WITH --enable-gni-multi-domain.
+  AVAILABLE ONLY IF CONFIGURED WITH --enable-[CONDUIT]-multi-domain.
   For their use, please see the multi-domain documentation under the
   "Optional configure-time settings" section, above.
 

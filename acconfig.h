@@ -261,6 +261,9 @@
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
 
+/* have pthread_setconcurrency */
+#undef HAVE_PTHREAD_SIGMASK
+
 /* has pthread rwlock support */
 #undef GASNETI_HAVE_PTHREAD_RWLOCK
 
@@ -321,8 +324,9 @@
 #undef COMPLETE_STDINT_H
 #undef COMPLETE_SYS_TYPES_H
 
-/* Linux PR_SET_PDEATHSIG support */
+/* Linux prctl() support */
 #undef HAVE_PR_SET_PDEATHSIG
+#undef HAVE_PR_SET_PTRACER
 
 /* forcing use of "non-native" implementations: */
 #undef GASNETI_FORCE_GENERIC_ATOMICOPS

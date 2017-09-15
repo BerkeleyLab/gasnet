@@ -81,7 +81,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-06-30-2017: pending 1.30.0 work @79eaf07e
+PENDING:
 
 * Configure and Build
   - --enable-strict-prototypes has been removed, see bug 3608.
@@ -94,13 +94,21 @@ GASNet ChangeLog
     or share/doc/gasnet/README-{aries,gemini} (installed).
   - Improve the handling of GASNET_PHYSMEM_* env vars to be more user-friendly
   - Improve robustness of exit code
+  - The following configure options have been renamed, replacing "gni" by
+    "aries" or "gemini" as appropriate:
+          --with-gni-max-medium=
+          --{en,dis}able-gni-multi-domain
+          --{en,dis}able-gni-udreg
+  - NOTE to users of PrgEnv-cray: there is a known bug in CCE-8.6 that leads to
+    errors when linking libgasnet.  See bug 3589 at http://gasnet-bugs.lbl.gov
+    for the most complete and up-to-date details.
 
 * InfiniBand Verbs (ibv-conduit)
   - Improve the handling of GASNET_PHYSMEM_* env vars
-     + Make variable names and interpretations more user-friendly
-     + Allow configure-time setting of default values
-     + Warn user if a slow probe is for required for GASNET_PHYSMEM_MAX
-     + Improve the coresponding documentation
+    + Make variable names and interpretations more user-friendly
+    + Allow configure-time setting of default values
+    + Warn user if a slow probe is required for GASNET_PHYSMEM_MAX
+    + Improve the corresponding documentation
 
 * Libfabric (ofi-conduit)
   - Fix bug 3426: Unbounded recursion within gasnetc_ofi_poll()
@@ -152,18 +160,20 @@ GASNet ChangeLog
 
 * General and Misc.
   - GASNet spec v1.8.1 is a new edition of the 1.8 spec document:
-     * bug 3575: clarify that loopback contiguous RMA operations with
-       overlapping source and destination regions give indeterminate results.
-     * Significant cosmetic formatting improvements
-     * Updated contact information and URLs
-     * Correct minor spelling errors
+    + bug 3575: clarify that loopback contiguous RMA operations with
+      overlapping source and destination regions give indeterminate results.
+    + Clarify the AMLong source/dest overlap prohibition
+    + Correct the specified return type of gasnet_Error{Name,Desc}
+    + Significant cosmetic formatting improvements
+    + Updated contact information and URLs
+    + Correct minor spelling errors and phrasing issues
   - Remove 'register' keyword from public headers for strict C++11/14 compliance 
   - Fix some cosmetic overflows in trace/debug output of large numbers on ILP32
   - Fix bug 3600: SEGV on long command line w/ STATS/TRACE/DEBUG 
 
 * Platform support/portability
-  - Add beta support for Microsoft Windows 10 Subsystem for Linux (WSL)
-  - Add lldb backtrace support for Mac OSX
+  - Add beta support for Microsoft Windows Subsystem for Linux (WSL)
+  - Add lldb backtrace support for Mac OS X
 
 ----------------------------------------------------------------------
 03-17-2017 : Release 1.28.2
