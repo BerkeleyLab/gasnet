@@ -919,9 +919,6 @@ extern void gasneti_qualify_path(char *path_out, const char *path_in) {
 #if defined(GDB_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_GDB	&gasneti_bt_gdb
 #endif
-#if defined(LADEBUG_PATH) && !GASNETI_NO_FORK
-  #define GASNETI_BT_LADEBUG	&gasneti_bt_ladebug
-#endif
 #if defined(DBX_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_DBX	&gasneti_bt_dbx
 #endif
@@ -1082,22 +1079,6 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
   gasneti_assert(strlen(filename) < limit);
   return mkstemp(filename);
 }
-
-#ifdef GASNETI_BT_LADEBUG
-  static int gasneti_bt_ladebug(int fd) {
-    #if GASNETI_THREADS
-      const char fmt[] = "echo 'set $stoponattach; attach %d; show thread *; where thread *; quit' | %s '%s'"; 
-    #else
-      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s '%s'"; 
-    #endif
-    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
-    /* Try to be smart if not in same place as at configure time */
-    const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
-    int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), ladebug, gasneti_exename_bt);
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
-    return gasneti_system_redirected(cmd, fd);
-  }
-#endif
 
 #ifdef GASNETI_BT_DBX
   static int gasneti_bt_dbx(int fd) {
@@ -1297,9 +1278,6 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   /*
    * Debuggers capable of backtracing all threads:
    */
-  #ifdef GASNETI_BT_LADEBUG
-  { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
-  #endif
   #ifdef GASNETI_BT_GSTACK
   { "GSTACK", GASNETI_BT_GSTACK, 1 },
   #endif
