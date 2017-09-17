@@ -82,8 +82,8 @@
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
 #if GASNET_PSHM
-  #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
-  extern void gasnetc_fatalsignal_callback(int sig);
+  #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig) gasnetc_fatalsignal_cleanup_callback(sig)
+  extern void gasnetc_fatalsignal_cleanup_callback(int sig);
 #endif
 
 #endif
