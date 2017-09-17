@@ -1212,17 +1212,21 @@ out:
     int entries;
     char **fnnames = NULL;
     int i;
-    int have_addr2line = 0;
+    const char *addr2line_path = NULL;
     entries = backtrace(btaddrs, MAXBT);
     #if HAVE_BACKTRACE_SYMBOLS
       fnnames = backtrace_symbols(btaddrs, entries);
     #endif
     #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
-      { FILE *fp = fopen(ADDR2LINE_PATH,"r"); /* make sure the executable is actually there */
-        if (fp) { have_addr2line = 1; fclose(fp); }
-        else {
+      { char cmd[sizeof(ADDR2LINE_PATH)+64];
+        addr2line_path = (access(ADDR2LINE_PATH, X_OK) ? "addr2line" : ADDR2LINE_PATH);
+        strcpy(cmd,addr2line_path);
+        strcat(cmd," --version");
+        FILE *fp = popen(cmd,"r");
+        if (!fp || pclose(fp)) {
           const char *msg = "*** Warning: "ADDR2LINE_PATH" is unavailable to translate symbols\n";
           gasneti_bt_rc_unused = write(fd, msg, strlen(msg));
+          addr2line_path = NULL;
         }
       }
     #endif
@@ -1232,13 +1236,13 @@ out:
       snprintf(linebuf, sizeof(linebuf), "%i: ", i);
       gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
 
-      if (fnnames) {
+      if (fnnames) { // note this usually only gets hex addresses, unless linked w/-rdynamic
         gasneti_bt_rc_unused = write(fd, fnnames[i], strlen(fnnames[i]));
         gasneti_bt_rc_unused = write(fd, " ", 1);
       }
 
       #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
-        if (have_addr2line)
+        if (addr2line_path)
         /* use addr2line when available to retrieve symbolic info */
         #define XLBUF 64 /* even as short as 2 bytes is still safe */
         { const char fmt[] = "%s -f -e '%s' %p";
@@ -1247,7 +1251,7 @@ out:
           FILE *xlate;
           int rc;
           xlstr[0] = '\0';
-          rc = snprintf(cmd, sizeof(cmd), fmt, ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+          rc = snprintf(cmd, sizeof(cmd), fmt, addr2line_path, gasneti_exename_bt, btaddrs[i]);
           if ((rc < 0) || (rc >= sizeof(cmd))) {
             return -10;
           }
