@@ -1281,12 +1281,6 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #if defined(GASNETI_BT_LLDB) && PLATFORM_OS_DARWIN // bug3626: vendor-signed debugger has priority
   { "LLDB", GASNETI_BT_LLDB, 1 },
   #endif
-  #ifdef GASNETI_BT_GSTACK
-  { "GSTACK", GASNETI_BT_GSTACK, 1 },
-  #endif
-  #ifdef GASNETI_BT_PSTACK
-  { "PSTACK", GASNETI_BT_PSTACK, 1 },
-  #endif
   #ifdef GASNETI_BT_GDB
   { "GDB", GASNETI_BT_GDB, 1 },
   #endif
@@ -1298,6 +1292,17 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #endif
   #if defined(GASNETI_BT_LLDB) && !PLATFORM_OS_DARWIN
   { "LLDB", GASNETI_BT_LLDB, 1 },
+  #endif
+  // On Linux, [gp]stack are shell scripts that invoke gdb. 
+  // Place them below gdb to eliminate the script from the process group,
+  // since it could interfere with orphan control signalling.
+  // On Solaris, pstack is a real utility that generates higher-quality
+  // backtraces than dbx.
+  #ifdef GASNETI_BT_GSTACK
+  { "GSTACK", GASNETI_BT_GSTACK, 1 },
+  #endif
+  #ifdef GASNETI_BT_PSTACK
+  { "PSTACK", GASNETI_BT_PSTACK, 1 },
   #endif
   /*
    * Debuggers NOT capable of backtracing all threads:
