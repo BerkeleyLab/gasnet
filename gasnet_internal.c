@@ -1381,6 +1381,9 @@ void gasnetc_AM_CommitReplyLongM(
 #ifndef GASNETC_FATALSIGNAL_CALLBACK
 #define GASNETC_FATALSIGNAL_CALLBACK(sig)
 #endif
+#ifndef GASNETC_FATALSIGNAL_CLEANUP_CALLBACK
+#define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig)
+#endif
 
 static void do_raise(int sig) {
 #if defined(PTHREAD_MUTEX_INITIALIZER) && !GASNET_SEQ && HAVE_PTHREAD_KILL && 0 
@@ -1419,6 +1422,8 @@ void gasneti_defaultSignalHandler(int sig) {
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
 
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
+
+      GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig); /* conduit hook to kill the job */
 
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
       do_raise(sig);
