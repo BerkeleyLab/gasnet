@@ -187,8 +187,14 @@ static void gasnetc_signal_job(int sig) {
   }
 }
 
-extern void gasnetc_fatalsignal_callback(int sig) {
+extern void gasnetc_fatalsignal_cleanup_callback(int sig) {
   gasnetc_exit_barrier_notify(128 + sig);
+  { // bug3624: pause to reduce the chance that concurrent crashes
+    // across nodes might kill each other while backtraces are printing
+    struct timeval tv; // use signal-safe sleep
+    tv.tv_sec = 1; tv.tv_usec = 0;
+    select(0, NULL, NULL, NULL, &tv);
+  }
   gasnetc_signal_job(GASNETC_REMOTEEXIT_SIGNAL);
 }
 

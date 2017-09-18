@@ -4566,18 +4566,6 @@ if test "$use_idb" != no; then
   fi
 fi
 
-
-GASNET_IF_ENABLED_WITH_AUTO(backtrace-ladebug, support backtrace via ladebug (auto-detected),
-                 [use_ladebug="yes"], [use_ladebug="no"], [use_ladebug="$use_backtrace"])
-if test "$use_ladebug" != no; then
-  AC_PATH_PROGS(LADEBUG_PATH, $LADEBUG ladebug, , /usr/bin:${PATH})
-  if test -n "$LADEBUG_PATH"; then
-    AC_DEFINE_UNQUOTED(LADEBUG_PATH,"$LADEBUG_PATH")
-  elif test "$use_ladebg" = yes; then
-    AC_MSG_ERROR(User requested --enable-backtrace-ladebug but ladebug was not found.  Perhaps you need to set \$LADEBUG?)
-  fi
-fi
-
 GASNET_IF_ENABLED_WITH_AUTO(backtrace-dbx, support backtrace via dbx (auto-detected),
                  [use_dbx="yes"], [use_dbx="no"], [use_dbx="$use_backtrace"])
 if test "$use_dbx" != no; then
