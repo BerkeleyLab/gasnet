@@ -1437,8 +1437,9 @@ extern int gasneti_print_backtrace(int fd) {
       static char linebuf[1024];
       char *linep = linebuf;
       int linelen = sizeof(linebuf);
-      if (gasneti_backtraceid_fn) {
-        strcpy(linebuf, (*gasneti_backtraceid_fn)());
+      const char *btid;
+      if (gasneti_backtraceid_fn && (btid = (*gasneti_backtraceid_fn)())) {
+        strncpy(linebuf, btid, 80);
         linelen -= strlen(linebuf);
         linep += strlen(linebuf);
       } else *linep = '\0';
