@@ -1212,17 +1212,21 @@ out:
     int entries;
     char **fnnames = NULL;
     int i;
-    const char *addr2line_path = NULL;
     entries = backtrace(btaddrs, MAXBT);
     #if HAVE_BACKTRACE_SYMBOLS
       fnnames = backtrace_symbols(btaddrs, entries);
     #endif
     #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
-      { char cmd[sizeof(ADDR2LINE_PATH)+64];
-        addr2line_path = (access(ADDR2LINE_PATH, X_OK) ? "addr2line" : ADDR2LINE_PATH);
-        strcpy(cmd,addr2line_path);
-        strcat(cmd," --version");
+      // volatile below to avoid an optimizer bug observed on icc 17.0.2
+      const char * volatile addr2line_path = (access(ADDR2LINE_PATH, X_OK) ? "addr2line" : ADDR2LINE_PATH);
+      const char fmt[] = "%s -f -e '%s' %p";
+      static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ + 10];
+      #define XLBUF 64 /* even as short as 2 bytes is still safe */
+      static char xlstr[XLBUF];
+      { strcpy(cmd,addr2line_path);
+        strcat(cmd," --version"); // use --version to check if addr2line looks functional
         FILE *fp = popen(cmd,"r");
+        while (fp && fgets(xlstr, sizeof(xlstr), fp)) ; // slurp
         if (!fp || pclose(fp)) {
           const char *msg = "*** Warning: "ADDR2LINE_PATH" is unavailable to translate symbols\n";
           gasneti_bt_rc_unused = write(fd, msg, strlen(msg));
@@ -1244,10 +1248,7 @@ out:
       #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
         if (addr2line_path)
         /* use addr2line when available to retrieve symbolic info */
-        #define XLBUF 64 /* even as short as 2 bytes is still safe */
-        { const char fmt[] = "%s -f -e '%s' %p";
-          static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ + 10];
-          static char xlstr[XLBUF];
+        {
           FILE *xlate;
           int rc;
           xlstr[0] = '\0';
