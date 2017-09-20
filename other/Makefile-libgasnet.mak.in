@@ -129,18 +129,18 @@ set_dirs = top_srcdir=`cd $(top_srcdir); @PWD_PROG@`         \
            srcdir=`cd $(srcdir); @PWD_PROG@`                 \
            builddir=`@PWD_PROG@`                             
 
-do-libgasnet-seq: $(libgasnet_dependencies) $(CONDUIT_NAME)-seq.mak gasnet-$(CONDUIT_NAME)-seq.pc $(CONDUIT_SEQ_HOOK)
+do-libgasnet-seq: $(libgasnet_dependencies) $(CONDUIT_SEQ_HOOK)
 	@$(MAKE) THREAD_MODEL=SEQ                            \
 	  LIBGASNET_THREAD_DEFINES=                          \
           $(set_dirs) do-libgasnet
 
-do-libgasnet-par: $(libgasnet_dependencies) $(CONDUIT_NAME)-par.mak gasnet-$(CONDUIT_NAME)-par.pc $(CONDUIT_PAR_HOOK)
+do-libgasnet-par: $(libgasnet_dependencies) $(CONDUIT_PAR_HOOK)
 	@$(PTHREADS_ERROR_CHECK)
 	@$(MAKE) THREAD_MODEL=PAR                            \
           LIBGASNET_THREAD_DEFINES="$(thread_defines)"       \
           $(set_dirs) do-libgasnet
 
-do-libgasnet-parsync: $(libgasnet_dependencies) $(CONDUIT_NAME)-parsync.mak gasnet-$(CONDUIT_NAME)-parsync.pc $(CONDUIT_PARSYNC_HOOK)
+do-libgasnet-parsync: $(libgasnet_dependencies) $(CONDUIT_PARSYNC_HOOK)
 	@$(PTHREADS_ERROR_CHECK)
 	@$(MAKE) THREAD_MODEL=PARSYNC                        \
           LIBGASNET_THREAD_DEFINES="$(thread_defines)"       \

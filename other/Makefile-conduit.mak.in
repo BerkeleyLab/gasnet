@@ -45,7 +45,7 @@ EXTRA_DIST = $(CONDUIT_FILELIST) README
 
 # convenience aliases
 seq par parsync: force
-	@$(MAKE) $(CONDUIT_NAME)-$@.mak gasnet-$(CONDUIT_NAME)-$@.pc libgasnet-$(CONDUIT_NAME)-$@.a
+	@$(MAKE) gasnet-$(CONDUIT_NAME)-$@.pc libgasnet-$(CONDUIT_NAME)-$@.a
 	@for dir in $(SUBDIRS) ; do 		\
 	  if test "$$dir" != "." ; then 	\
 	    ( cd $$dir && $(MAKE) all ) || exit 1 ; 	\
@@ -263,7 +263,7 @@ $(top_builddir)/other/fragment-head.mak: $(top_srcdir)/other/fragment-head.mak.i
 $(top_builddir)/tests/Makefile: $(top_srcdir)/tests/Makefile.in
 	cd $(top_builddir)/tests && $(MAKE) Makefile
 
-Makefile: $(srcdir)/Makefile.am 			\
+Makefile: $(srcdir)/Makefile.in 			\
           $(top_builddir)/other/Makefile-conduit.mak 	\
           $(top_builddir)/other/Makefile-libgasnet.mak 	\
           $(top_builddir)/tests/Makefile
