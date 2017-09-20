@@ -919,9 +919,6 @@ extern void gasneti_qualify_path(char *path_out, const char *path_in) {
 #if defined(GDB_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_GDB	&gasneti_bt_gdb
 #endif
-#if defined(LADEBUG_PATH) && !GASNETI_NO_FORK
-  #define GASNETI_BT_LADEBUG	&gasneti_bt_ladebug
-#endif
 #if defined(DBX_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_DBX	&gasneti_bt_dbx
 #endif
@@ -971,8 +968,8 @@ static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
   rc = system(cmd);
 
   endpos = lseek(stdout_fd, 0, SEEK_CUR); /* fetch current position */
-  if (beginpos > 0 && endpos > 0 && (beginpos == endpos)) {
-    rc = -1; /* command failed to generate output - consider it a failure */
+  if (!rc && beginpos > 0 && endpos > 0 && (beginpos == endpos)) {
+    rc = -2; /* command failed to generate output - consider it a failure */
   }
 
   /* Restore I/O */
@@ -998,7 +995,7 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 
   /* Create a tmpfile to communicate with the child */
   file = tmpfile();
-  if (!file) return -1;
+  if (!file) return -3;
   tmpfd = fileno(file);
 
   { /* setup the parent to sleep */
@@ -1028,9 +1025,9 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
       gasneti_bt_complete_flag = 0;
       if (was_blocked) gasneti_blocksig(GASNETI_UNFREEZE_SIGNAL);
       gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old_sigh);
-      if (fstat(tmpfd, &tmpstat)) rc = -1; /* never happens? */
-      else if (tmpstat.st_size == 0) rc = -1; /* child process spawn failed */
-      else if (lseek(tmpfd, 0, SEEK_SET)) rc = -1;
+      if (fstat(tmpfd, &tmpstat)) rc = -4; /* never happens? */
+      else if (tmpstat.st_size == 0) rc = -5; /* child process spawn failed */
+      else if (lseek(tmpfd, 0, SEEK_SET)) rc = -6;
       else {
         static char tmpbuf[255];
         ssize_t bytes = tmpstat.st_size;
@@ -1042,11 +1039,11 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
               retval = write(stdout_fd, tmpbuf, bytes);
               if (retval == -1) {
                 if (errno == EINTR) goto tryagain;
-                else { rc = -1; break; } /* write error */
+                else { rc = -7; break; } /* write error */
               }
           }
         }
-        if (bytes == -1) rc = -1; /* read error occurred */
+        if (bytes == -1) rc = -8; /* read error occurred */
       }
     }
   }
@@ -1083,22 +1080,6 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
   return mkstemp(filename);
 }
 
-#ifdef GASNETI_BT_LADEBUG
-  static int gasneti_bt_ladebug(int fd) {
-    #if GASNETI_THREADS
-      const char fmt[] = "echo 'set $stoponattach; attach %d; show thread *; where thread *; quit' | %s '%s'"; 
-    #else
-      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s '%s'"; 
-    #endif
-    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
-    /* Try to be smart if not in same place as at configure time */
-    const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
-    int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), ladebug, gasneti_exename_bt);
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
-    return gasneti_system_redirected(cmd, fd);
-  }
-#endif
-
 #ifdef GASNETI_BT_DBX
   static int gasneti_bt_dbx(int fd) {
     /* dbx's thread support is poor and not easily scriptable */
@@ -1106,7 +1087,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), dbx, gasneti_exename_bt);
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
     return gasneti_system_redirected(cmd, fd);
   }
 #endif
@@ -1121,7 +1102,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), idb, gasneti_exename_bt);
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -1136,7 +1117,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *pgdbg = (access(PGDBG_PATH, X_OK) ? "pgdbg" : PGDBG_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -1147,7 +1128,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *lldb = (access(LLDB_PATH, X_OK) ? "lldb" : LLDB_PATH);
     int rc = snprintf(cmd, sizeof(cmd), fmt, lldb, (int)getpid());
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -1157,7 +1138,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[12 + GASNETI_BT_PATHSZ];
     const char *gstack = (access(GSTACK_PATH, X_OK) ? "gstack" : GSTACK_PATH);
     int rc = snprintf(cmd, sizeof(cmd), "%s %i", gstack, (int)getpid());
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -1167,7 +1148,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[12 + GASNETI_BT_PATHSZ];
     const char *pstack = (access(PSTACK_PATH, X_OK) ? "pstack" : PSTACK_PATH);
     int rc = snprintf(cmd, sizeof(cmd), "%s %i", pstack, (int)getpid());
-    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -10;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -1195,25 +1176,23 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
       int tmpfd, len;
 
       tmpfd = gasneti_bt_mkstemp(filename,sizeof(filename));
-      if (tmpfd < 0) return -1;
-
-      rc = -1;
+      if (tmpfd < 0) return -11;
 
       len = sizeof(shell_rm) - 1;
-      if (len != write(tmpfd, shell_rm, len)) goto out;
+      if (len != write(tmpfd, shell_rm, len)) { rc = -12; goto out; }
 
       len = strlen(filename);
-      if (len != write(tmpfd, filename, len)) goto out;
+      if (len != write(tmpfd, filename, len)) { rc = -13; goto out; }
 
       len = sizeof(commands) - 1;
-      if (len != write(tmpfd, commands, len)) goto out;
+      if (len != write(tmpfd, commands, len)) { rc = -14; goto out; }
 
-      if (0 != close(tmpfd)) goto out;
+      if (0 != close(tmpfd)) { rc = -15; goto out; }
     }
 
     rc = snprintf(cmd, sizeof(cmd), fmt, gdb, filename, gasneti_exename_bt, (int)getpid());
     if ((rc < 0) || (rc >= sizeof(cmd))) {
-      rc = -1;
+      rc = -10;
       goto out;
     }
 
@@ -1233,17 +1212,25 @@ out:
     int entries;
     char **fnnames = NULL;
     int i;
-    int have_addr2line = 0;
     entries = backtrace(btaddrs, MAXBT);
     #if HAVE_BACKTRACE_SYMBOLS
       fnnames = backtrace_symbols(btaddrs, entries);
     #endif
     #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
-      { FILE *fp = fopen(ADDR2LINE_PATH,"r"); /* make sure the executable is actually there */
-        if (fp) { have_addr2line = 1; fclose(fp); }
-        else {
+      // volatile below to avoid an optimizer bug observed on icc 17.0.2
+      const char * volatile addr2line_path = (access(ADDR2LINE_PATH, X_OK) ? "addr2line" : ADDR2LINE_PATH);
+      const char fmt[] = "%s -f -e '%s' %p";
+      static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ + 10];
+      #define XLBUF 64 /* even as short as 2 bytes is still safe */
+      static char xlstr[XLBUF];
+      { strcpy(cmd,addr2line_path);
+        strcat(cmd," --version"); // use --version to check if addr2line looks functional
+        FILE *fp = popen(cmd,"r");
+        while (fp && fgets(xlstr, sizeof(xlstr), fp)) ; // slurp
+        if (!fp || pclose(fp)) {
           const char *msg = "*** Warning: "ADDR2LINE_PATH" is unavailable to translate symbols\n";
           gasneti_bt_rc_unused = write(fd, msg, strlen(msg));
+          addr2line_path = NULL;
         }
       }
     #endif
@@ -1253,24 +1240,21 @@ out:
       snprintf(linebuf, sizeof(linebuf), "%i: ", i);
       gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
 
-      if (fnnames) {
+      if (fnnames) { // note this usually only gets hex addresses, unless linked w/-rdynamic
         gasneti_bt_rc_unused = write(fd, fnnames[i], strlen(fnnames[i]));
         gasneti_bt_rc_unused = write(fd, " ", 1);
       }
 
       #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
-        if (have_addr2line)
+        if (addr2line_path)
         /* use addr2line when available to retrieve symbolic info */
-        #define XLBUF 64 /* even as short as 2 bytes is still safe */
-        { const char fmt[] = "%s -f -e '%s' %p";
-          static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ + 10];
-          static char xlstr[XLBUF];
+        {
           FILE *xlate;
           int rc;
           xlstr[0] = '\0';
-          rc = snprintf(cmd, sizeof(cmd), fmt, ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+          rc = snprintf(cmd, sizeof(cmd), fmt, addr2line_path, gasneti_exename_bt, btaddrs[i]);
           if ((rc < 0) || (rc >= sizeof(cmd))) {
-            return -1;
+            return -10;
           }
           xlate = popen(cmd, "r");
           if (xlate) {
@@ -1297,14 +1281,8 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   /*
    * Debuggers capable of backtracing all threads:
    */
-  #ifdef GASNETI_BT_LADEBUG
-  { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
-  #endif
-  #ifdef GASNETI_BT_GSTACK
-  { "GSTACK", GASNETI_BT_GSTACK, 1 },
-  #endif
-  #ifdef GASNETI_BT_PSTACK
-  { "PSTACK", GASNETI_BT_PSTACK, 1 },
+  #if defined(GASNETI_BT_LLDB) && PLATFORM_OS_DARWIN // bug3626: vendor-signed debugger has priority
+  { "LLDB", GASNETI_BT_LLDB, 1 },
   #endif
   #ifdef GASNETI_BT_GDB
   { "GDB", GASNETI_BT_GDB, 1 },
@@ -1315,8 +1293,19 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_PGDBG
   { "PGDBG", GASNETI_BT_PGDBG, 1 },
   #endif
-  #ifdef GASNETI_BT_LLDB
+  #if defined(GASNETI_BT_LLDB) && !PLATFORM_OS_DARWIN
   { "LLDB", GASNETI_BT_LLDB, 1 },
+  #endif
+  // On Linux, [gp]stack are shell scripts that invoke gdb. 
+  // Place them below gdb to eliminate the script from the process group,
+  // since it could interfere with orphan control signalling.
+  // On Solaris, pstack is a real utility that generates higher-quality
+  // backtraces than dbx.
+  #ifdef GASNETI_BT_GSTACK
+  { "GSTACK", GASNETI_BT_GSTACK, 1 },
+  #endif
+  #ifdef GASNETI_BT_PSTACK
+  { "PSTACK", GASNETI_BT_PSTACK, 1 },
   #endif
   /*
    * Debuggers NOT capable of backtracing all threads:
@@ -1445,6 +1434,18 @@ extern int gasneti_print_backtrace(int fd) {
     if (file) {
       int tmpfd = fileno(file);
       const char *plist = gasneti_backtrace_list;
+
+      static char linebuf[1024];
+      char *linep = linebuf;
+      int linelen = sizeof(linebuf);
+      const char *btid;
+      if (gasneti_backtraceid_fn && (btid = (*gasneti_backtraceid_fn)())) {
+        strncpy(linebuf, btid, 80);
+        linebuf[80] = '\0';
+        linelen -= strlen(linebuf);
+        linep += strlen(linebuf);
+      } else *linep = '\0';
+
       while (*plist) { /* Loop over selections until success or end */
         int i;
         static char btsel[255]; /* parse selection */
@@ -1461,6 +1462,8 @@ extern int gasneti_print_backtrace(int fd) {
 
         for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
           if (!strcmp(gasneti_backtrace_mechanisms[i].name,btsel)) {
+            snprintf(linep, linelen, "Invoking %s for backtrace...\n", btsel);
+            gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
             retval = (*gasneti_backtrace_mechanisms[i].fnp)(tmpfd);
             break;
           }
@@ -1469,27 +1472,20 @@ extern int gasneti_print_backtrace(int fd) {
           fprintf(stderr, "WARNING: GASNET_BACKTRACE_TYPE=%s unrecognized or unsupported - ignoring..\n", btsel);
           fflush(stderr);
         } else if (retval == 0) {
-	  static char linebuf[1024];
-	  char *p = linebuf;
-	  int len = sizeof(linebuf);
-          if (gasneti_backtraceid_fn) {
-            strcpy(p, (*gasneti_backtraceid_fn)());
-            len -= strlen(p);
-            p += strlen(p);
-          } else *p = '\0';
-
 	  /* Send to requested destination (and tracefile if any) */
 	  GASNETT_TRACE_PRINTF_FORCE("========== BEGIN BACKTRACE ==========");
 	  rewind(file);
-	  while (fgets(p, len, file)) {
+	  while (fgets(linep, linelen, file)) {
             /* XXX: what if this write() fails? */
             gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf)); /* w/ node prefix */
-            GASNETT_TRACE_PRINTF_FORCE("%s",p);/* w/o node prefix */
+            GASNETT_TRACE_PRINTF_FORCE("%s",linep);/* w/o node prefix */
 	  }
 	  GASNETT_TRACE_PRINTF_FORCE("========== END BACKTRACE ==========");
           gasneti_flush_streams();
           break;
         } else { /* backtrace attempt failed - retry with next mechanism */
+          snprintf(linep, linelen, "%s backtrace failed! (0x%08x:%d)\n", btsel, retval, retval);
+          gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
 	  rewind(file);
         }
       }

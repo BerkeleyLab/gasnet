@@ -158,7 +158,7 @@ _upcxx: force
           done; \
 	) $(TO_LOG)
 	@touch upcxx-built
-	$(MAKE) upcxx-install $(TO_LOG)
+	$(MAKE) upcxx-install 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 upcxx-install: upcxx-built # NO force

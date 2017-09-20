@@ -248,7 +248,6 @@
 #undef PSTACK_PATH
 #undef PGDBG_PATH
 #undef IDB_PATH
-#undef LADEBUG_PATH
 #undef DBX_PATH
 #undef LLDB_PATH
 

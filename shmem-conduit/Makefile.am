@@ -91,7 +91,7 @@ libgasnet-shmem-seq.a: $(libgasnet_dependencies)
 if USE_SHMEM_CONDUIT  
 lib_LIBRARIES = $(libraries) 
 # only make the seq fragment:
-all: $(lib_LIBRARIES) shmem-seq.mak
+all: $(lib_LIBRARIES) shmem-seq.pc
 clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local
