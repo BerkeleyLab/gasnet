@@ -4856,9 +4856,13 @@ case "$target" in
 *-openbsd*)
    debugmalloc_support=yes
    DEBUGMALLOC_VAR=MALLOC_OPTIONS
-   DEBUGMALLOC_VAL=AFJ # (A)bort (F)reeguard (J)unk-fill
-   if test `expr \`uname -r\` : '\([[1-9]]*\).'` -ge 5; then
-     DEBUGMALLOC_VAL="${DEBUGMALLOC_VAL}S" # (S)ecurity auditing
+   DEBUGMALLOC_VAL=FJ # (F)reeguard (J)unk-fill
+   openbsd_major=`expr \`uname -r\` : '\([[1-9]]*\).'`
+   if test $openbsd_major -ge 5; then
+     DEBUGMALLOC_VAL="${DEBUGMALLOC_VAL}S" # (S)ecurity auditing - added in 5.0
+   fi
+   if test $openbsd_major -lt 6; then
+     DEBUGMALLOC_VAL="${DEBUGMALLOC_VAL}A" # (A)bort - removed in 6.0
    fi
    ;;
 *-freebsd* | *-netbsd*)
