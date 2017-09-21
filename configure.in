@@ -4500,6 +4500,7 @@ GASNET_IF_ENABLED_WITH_AUTO(backtrace-execinfo, support backtrace via execinfo.h
 if test "$use_execinfo" != no; then
   AC_CHECK_HEADERS(execinfo.h)
   if test "$ac_cv_header_execinfo_h" = "yes" ; then
+    AC_SEARCH_LIBS(backtrace, execinfo) # bug3637: BSD requires -lexecinfo
     AC_CHECK_FUNCS(backtrace backtrace_symbols)
   fi
   if test "$use_execinfo$ac_cv_func_backtrace" = 'yesno'; then
