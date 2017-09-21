@@ -5,6 +5,7 @@ UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
+UPCXX_BACKEND    ?= gasnet1_seq
 
 # Options for providing GASNET to nobs:
 # 1. set UPCXX_GASNET to an existing build or install path to use
@@ -182,8 +183,10 @@ inst_test: upcxx-install
 	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
 	$$CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $$LIBFLAGS
 
+VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
+
 # Pattern rule builds any named test with a corresponding cpp in test directory
-% :: $(UPCXX_BLDDIR)/test/%.cpp force
+% :: %.cpp force
 	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@
 
 # Pattern rule builds example/prog-guide tests
@@ -191,7 +194,7 @@ inst_test: upcxx-install
 	@if test -n "$(UPCXX_USE_META)"; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	else set -x ; \
-	  $(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=gasnet1_seq' ; \
+	  $(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=$(UPCXX_BACKEND)' ; \
 	fi
 
 force:
