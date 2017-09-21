@@ -968,7 +968,7 @@ static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
   rc = open("/dev/null", O_RDONLY); dup2(rc, STDIN_FILENO); close(rc);
 
   /* Run the command */
-  rc = system(cmd);
+  rc = system(cmd); // will return -1 on failure to spawn child process
 
   endpos = lseek(stdout_fd, 0, SEEK_CUR); /* fetch current position */
   if (!rc && beginpos > 0 && endpos > 0 && (beginpos == endpos)) {
@@ -1167,7 +1167,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     #else
       const char commands[] = "\nbacktrace 50\ndetach\nquit\n";
     #endif
-    const char shell_rm[]  = "shell rm ";
+    const char shell_rm[]  = "shell /bin/rm -f ";
     const char fmt[] = "%s -nx -batch -x %s '%s' %d";
     static char cmd[sizeof(fmt) + 3*GASNETI_BT_PATHSZ];
     char filename[GASNETI_BT_PATHSZ];
