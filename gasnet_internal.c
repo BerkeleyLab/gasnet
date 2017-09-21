@@ -2053,6 +2053,8 @@ extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG)
   extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
   extern void *(*gasnett_debug_realloc_fn)(void *ptr, size_t sz, const char *curloc);
   extern void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
+  extern char *(*gasnett_debug_strdup_fn)(const char *ptr, const char *curloc);
+  extern char *(*gasnett_debug_strndup_fn)(const char *ptr, size_t n, const char *curloc);
   void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc) =
          &_gasneti_extern_malloc;
   void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc) =
@@ -2061,6 +2063,10 @@ extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG)
         &_gasneti_extern_realloc;
   void (*gasnett_debug_free_fn)(void *ptr, const char *curloc) =
          &_gasneti_extern_free;
+  char *(*gasnett_debug_strdup_fn)(const char *s, const char *curloc) =
+         &_gasneti_extern_strdup;
+  char *(*gasnett_debug_strndup_fn)(const char *s, size_t sz, const char *curloc) =
+         &_gasneti_extern_strndup;
   /* these only exist with debug malloc */
   extern void (*gasnett_debug_memcheck_fn)(void *ptr, const char *curloc);
   extern void (*gasnett_debug_memcheck_one_fn)(const char *curloc);

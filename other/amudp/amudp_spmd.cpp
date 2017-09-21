@@ -946,7 +946,8 @@ pollentry:
     }
 
     // parse special env var with our arguments
-    char * slave_args = strdup(env_var);
+    char * _slave_args = AMUDP_strdup(env_var);
+    char * slave_args = _slave_args;
     SockAddr masterAddr;
     { // Strip required "flag," off beginning
       char *endptr;
@@ -1043,6 +1044,7 @@ pollentry:
       }
       if (!AMUDP_SilentMode) AMUDP_Info("slave using IP %s", myinterface.IPStr());
       AMUDP_SetUDPInterface(myinterface.IP());
+      AMUDP_free(_slave_args);
         
       /* create endpoint and get name */
       temp = AM_AllocateBundle(AM_SEQ, &AMUDP_SPMDBundle);

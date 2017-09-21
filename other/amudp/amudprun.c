@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
         }
       }
       /* BLCR-TODO: need an absolute path (or should we *require* one?) */
-      AMUDP_SPMDRunRestart(strdup(argvzero), argv[1], nproc);
+      AMUDP_SPMDRunRestart(AMUDP_strdup(argvzero), argv[1], nproc);
       /* should never return */
       fprintf(stderr, "ERROR: AMUDP_SPMDRunRestart failed\n");
       return 1;

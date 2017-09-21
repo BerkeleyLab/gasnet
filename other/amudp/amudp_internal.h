@@ -459,6 +459,16 @@ static void *_AMUDP_realloc(void *ptr, size_t S, const char *curloc) {
 static void _AMUDP_free(void *ptr, const char *curloc) {
   free(ptr);
 }
+static char *_AMUDP_strdup(const char *s, const char *curloc) {
+  char *ret = strdup(s);
+  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuPTR ") at %s", (uintptr_t)s, curloc);
+  return ret;
+}
+static char *_AMUDP_strndup(const char *s, size_t sz, const char *curloc) {
+  char *ret = strndup(s,sz);
+  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuPTR ",%" PRIuPTR  ") at %s", (uintptr_t)s, (uintptr_t)sz, curloc);
+  return ret;
+}
 #define AMUDP_curloc __FILE__ ":" _STRINGIFY(__LINE__)
 #if AMUDP_DEBUG
   /* use the gasnet debug malloc functions if a debug libgasnet is linked */
@@ -466,6 +476,8 @@ static void _AMUDP_free(void *ptr, const char *curloc) {
   extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
   extern void *(*gasnett_debug_realloc_fn)(void *ptr, size_t sz, const char *curloc);
   extern void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
+  extern char *(*gasnett_debug_strdup_fn)(const char *s, const char *curloc);
+  extern char *(*gasnett_debug_strndup_fn)(const char *s, size_t sz, const char *curloc);
   extern void (*gasnett_debug_memcheck_fn)(void *ptr, const char *curloc);
   extern void (*gasnett_debug_memcheck_one_fn)(const char *curloc);
   extern void (*gasnett_debug_memcheck_all_fn)(const char *curloc);
@@ -485,6 +497,14 @@ static void _AMUDP_free(void *ptr, const char *curloc) {
     ( (PREDICT_FALSE(gasnett_debug_free_fn==NULL) ?          \
         gasnett_debug_free_fn = &_AMUDP_free : 0),           \
       (*gasnett_debug_free_fn)(ptr, AMUDP_curloc))
+  #define AMUDP_strdup(s)                                    \
+    ( (PREDICT_FALSE(gasnett_debug_strdup_fn==NULL) ?        \
+        gasnett_debug_strdup_fn = &_AMUDP_strdup : 0),       \
+      (*gasnett_debug_strdup_fn)(s, AMUDP_curloc))
+  #define AMUDP_strndup(s,sz)                                \
+    ( (PREDICT_FALSE(gasnett_debug_strndup_fn==NULL) ?       \
+        gasnett_debug_strndup_fn = &_AMUDP_strndup : 0),     \
+      (*gasnett_debug_strndup_fn)(s, sz, AMUDP_curloc))
   #define AMUDP_memcheck(ptr) do {                          \
     AMUDP_assert(ptr);                                      \
     if (gasnett_debug_memcheck_fn)                          \
@@ -507,11 +527,17 @@ static void _AMUDP_free(void *ptr, const char *curloc) {
   #define realloc(n,s) ERROR_use_AMUDP_realloc
   #undef free
   #define free(x)     ERROR_use_AMUDP_free
+  #undef strdup
+  #define strdup(x)     ERROR_use_AMUDP_strdup
+  #undef strndup
+  #define strndup(x)     ERROR_use_AMUDP_strndup
 #else
   #define AMUDP_malloc(sz)     _AMUDP_malloc((sz),AMUDP_curloc)
   #define AMUDP_calloc(N,S)    _AMUDP_calloc((N),(S),AMUDP_curloc)
   #define AMUDP_realloc(ptr,S) _AMUDP_realloc((ptr),(S),AMUDP_curloc)
   #define AMUDP_free(ptr)      _AMUDP_free(ptr,AMUDP_curloc)
+  #define AMUDP_strdup(s)      _AMUDP_strdup(s,AMUDP_curloc)
+  #define AMUDP_strndup(s,sz)  _AMUDP_strndup(s,sz,AMUDP_curloc)
   #define AMUDP_memcheck(ptr)   ((void)0)
   #define AMUDP_memcheck_one()  ((void)0)
   #define AMUDP_memcheck_all()  ((void)0)
