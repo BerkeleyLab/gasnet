@@ -941,6 +941,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   for (i = 0; i < gasneti_nodes; ++i) {
     DOMAIN_SPECIFIC_VAL(peer_data[i]).aux_handle = gasnetc_cdom_data[0].peer_data[i].aux_handle;
     DOMAIN_SPECIFIC_VAL(peer_data[i]).mem_handle = gasnetc_cdom_data[0].peer_data[i].mem_handle;
+    DOMAIN_SPECIFIC_VAL(peer_data[i]).pe = i;
   }
 
   gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
