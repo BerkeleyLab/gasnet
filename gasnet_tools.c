@@ -1490,6 +1490,7 @@ extern int gasneti_print_backtrace(int fd) {
           snprintf(linep, linelen, "%s backtrace failed! (0x%08x:%d)\n", btsel, retval, retval);
           gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
 	  rewind(file);
+          gasneti_bt_rc_unused = ftruncate(tmpfd, 0); // in case failed backtrace wrote any output
         }
       }
 
