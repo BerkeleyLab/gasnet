@@ -178,10 +178,11 @@ one_test: upcxx-built
 # Build a single test from the installed UPCXX directory
 inst_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
+	META_CXX=`$(UPCXX_INSTDIR)/bin/upcxx-meta CXX` && \
 	PPFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta PPFLAGS` && \
 	LDFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LDFLAGS` && \
 	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
-	$$CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $$LIBFLAGS
+	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $$LIBFLAGS
 
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
 
