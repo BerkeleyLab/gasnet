@@ -166,7 +166,7 @@ upcxx-install: upcxx-built # NO force
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS)
 	rm -Rf $(UPCXX_INSTDIR) upcxx-install 
 	@echo ======== UPCXX install ========; set -x; \
-	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install $(UPCXX_INSTDIR) && \
+	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install --single $(UPCXX_INSTDIR) && \
 	 /bin/ls -alR $(UPCXX_INSTDIR)
 	@touch upcxx-install
 
