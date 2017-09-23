@@ -118,6 +118,7 @@ PENDING:
     + Bug 3626: prioritize lldb on Mac OS X
     + Bug 3627: unblock the unfreeze signal prior to backtrace
     + Bug 3637: Fix EXECINFO backtrace for *BSD
+    + Enable GDB backtrace on Cray systems, when available
 
 * General and Misc.
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
