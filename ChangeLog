@@ -41,8 +41,9 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 * Other Known Limitations:
-  - This release does not support Microsoft Windows Subsystem for Linux, due
-    to an OS bug. Details: https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3588
+  - This release supports Microsoft Windows Subsystem for Linux, but is
+    affected by an OS bug which was fixed starting in build 16278. 
+    Details: http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3588
 
 ----------------------------------------------------------------------
 06-30-2017: GASNet-EX 2017.6.0 Beta release
