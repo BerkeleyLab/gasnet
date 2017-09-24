@@ -27,6 +27,7 @@ GASNet-EX ChangeLog
 * Notable bugs fixed in this release:
   - ibv: assertion failures at shutdown
   - pshm: assertion failure in gasneti_AMPSHM_service_incoming_msg()
+  - pshm: SEGV an initialization when using System V shared memory
   - pshm: work-around an assertion failure due to a PGI compiler bug
   - aries/gemini: SEGV at startup with multi-domain enabled
 
