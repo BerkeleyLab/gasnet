@@ -149,8 +149,8 @@ _upcxx: force
 	fi $(TO_LOG)
 	$(MAKE) launcher $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
-	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
-	@-( set -x; $(DO_ENV) ; $$CXX --version ) 2>&1 | grep -i -v -e error -e warning $(TO_LOG)
+	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( set -x; $(DO_ENV) ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
 	@( echo ======== Prebuild UPCXX RT libs ========; \
 	  for f in $(RUNTIME_TARGETS); do \
              echo '$(DO_NOBS) exe '$$f ; \
