@@ -6,6 +6,7 @@ UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
 UPCXX_BACKEND    ?= gasnet1_seq
+export UPCXX_BACKEND
 
 # Options for providing GASNET to nobs:
 # 1. set UPCXX_GASNET to an existing build or install path to use
