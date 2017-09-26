@@ -683,8 +683,10 @@ static void gasneti_cleanup_shm(void) {
     for (int i=0; i<gasneti_pshm_nodes+1; ++i) {
       gasneti_pshm_unlink(i);
     }
+  #if 0 // TODO-EX: can't create multiple segments with these, but don't yet mark as leaked
     gasneti_free(gasneti_pshm_sysvkeys);
     gasneti_pshm_sysvkeys = NULL;
+  #endif
   }
 #elif defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_POSIX)
   if (gasneti_pshmname) {

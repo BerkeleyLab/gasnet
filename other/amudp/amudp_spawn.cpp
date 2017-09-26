@@ -550,7 +550,7 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv, char **extra_env) {
         si.hStdOutput = GetStdHandle(STD_ERROR_HANDLE); 
         si.dwFlags |= STARTF_USESTDHANDLES;
 
-        if (   TRUE != CreateProcess(0, strdup(cmd), 0, 0, TRUE, 0, 0, 0, &si, &pi)
+        if (   TRUE != CreateProcess(0, AMUDP_strdup(cmd), 0, 0, TRUE, 0, 0, 0, &si, &pi)
             || WAIT_FAILED == WaitForSingleObject(pi.hProcess, INFINITE)
             || 0 == GetExitCodeProcess(pi.hProcess, &code)
             || 0 != code)
