@@ -107,7 +107,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-PENDING:
+09-29-2017: pending 1.30.2 work @9dbccb00
 
 * Cray uGNI (gemini- and aries-conduits)
   - Fix bug 3632: aries-conduit SEGV at startup with multi-domain
