@@ -98,7 +98,6 @@ typedef struct {
     #endif
       int                   	needReply;
       uint32_t              	flags;
-      const gex_AM_Entry_t      *entry;
     }				am;
   } u;
 
@@ -109,13 +108,13 @@ typedef struct {
   int				rr_is_rdma;	/* is AM-over-RMDA? */
   struct ibv_recv_wr        	rr_desc;        /* recv request descriptor */
   struct ibv_sge			rr_sg;          /* single-entry scatter list */
+  gasnetc_EP_t                  rr_ep;
 } gasnetc_rbuf_t;
 #if GASNET_DEBUG
 #define rbuf_handlerRunning	u.am.handlerRunning
 #endif
 #define rbuf_needReply		u.am.needReply
 #define rbuf_flags		u.am.flags
-#define rbuf_entry		u.am.entry
 
 typedef enum {
 	GASNETC_OP_FREE,
@@ -674,7 +673,7 @@ void gasnetc_amrdma_balance_one(gasnetc_hca_t *hca) {
     int i;
 
     /* Pass 1: Collect all peers w/ counts >= floor, while also "decaying" the counters.
-     * This is the only part that should be O(gasnet_nodes) on average.
+     * This is the only part that should be O(gasneti_nodes) on average.
      */
     for (i = 0; i < hca->num_qps; ++i) {
       gasnetc_atomic_val_t x, y;
@@ -771,9 +770,11 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 
 /* GASNETI_INLINE(gasnetc_processPacket) */
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags GASNETI_THREAD_FARG) {
+  gasnetc_EP_t ep = rbuf->rr_ep;
+  gasneti_assert(ep == gasnetc_ep0);
   gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   const gex_AM_Index_t handler_id = GASNETC_MSG_HANDLERID(flags);
-  const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler_id];
+  const gex_AM_Entry_t * const handler_entry = &ep->_amtbl[handler_id];
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
   const gasneti_category_t category = GASNETC_MSG_CATEGORY(flags);
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
@@ -782,17 +783,14 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   const gex_Token_t token = (gex_Token_t)rbuf;
   gex_AM_Arg_t *args;
 
-  #if GASNET_PSHM
-    gasneti_assert(!gasneti_pshm_in_supernode(GASNETC_MSG_SRCIDX(flags)));
-    gasneti_assert(cep != NULL);
-  #endif
+  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(GASNETC_MSG_SRCIDX(flags)));
+  gasneti_assert(cep != NULL);
 
   rbuf->rbuf_needReply = isreq;
 #if GASNET_DEBUG
   rbuf->rbuf_handlerRunning = 1;
 #endif
   rbuf->rbuf_flags = flags;
-  rbuf->rbuf_entry = handler_entry;
 
   /* Locate arguments */
   switch (category) {
@@ -812,7 +810,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     gasneti_fatalerror("invalid AM category on recv");
   }
 
-  if_pt (GASNET_PSHM || (cep != NULL)) { /* Process any flow control info, unless loopback */
+  { /* Process any flow control info */
     int credits = 0;
 
     if (full_numargs == GASNETC_MAX_ARGS) {
@@ -842,13 +840,12 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     if (credits) {
       gasnetc_sema_up_n(&cep->am_rem, credits);
     }
-  } else {
-    gasneti_assert(full_numargs < GASNETC_MAX_ARGS); /* NOT equal */
   }
-  gasneti_amtbl_check(handler_entry, user_numargs, category, isreq);
   
   /* Ack? */
   if (!handler_id) return;
+
+  gasneti_amtbl_check(handler_entry, user_numargs, category, isreq);
 
   /* Run the handler */
   switch (category) {
@@ -1013,11 +1010,11 @@ static int gasnetc_snd_reap(int limit) {
 
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
-    gasnetc_hca_t *hca;
-    static volatile int index = 0;
-    int tmp = index;
-    index = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
-    hca = &gasnetc_hca[tmp];
+    /* Note use of casts to volatile are require to work around bug 1586 */
+    static int index = 0;
+    int tmp = *(volatile int *)(&index);
+    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
   #endif
@@ -1363,6 +1360,7 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
       memcpy(buf, (void *)(uintptr_t)rbuf->rr_sg.addr, sizeof(gasnetc_buffer_t));
       emergency_spare.rr_sg.addr = (uintptr_t)buf;
       emergency_spare.rr_is_rdma = 0;
+      emergency_spare.rr_ep = rbuf->rr_ep;
       emergency_spare.cep = rbuf->cep;
       gasneti_assert(rbuf->rr_is_rdma == 0);
   
@@ -1444,7 +1442,7 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, const int limit, gasnetc_rbuf_t 
 }
 
 GASNETI_INLINE(gasnetc_rcv_amrdma)
-int gasnetc_rcv_amrdma(gasnetc_cep_t *cep GASNETI_THREAD_FARG) {
+int gasnetc_rcv_amrdma(gasnetc_EP_t ep, gasnetc_cep_t *cep GASNETI_THREAD_FARG) {
   gasnetc_amrdma_recv_t *recv_state = cep->amrdma_recv;
   const int recv_head = gasnetc_atomic_read(&recv_state->head, 0);
   const int recv_slot = recv_head & gasnetc_amrdma_slot_mask;
@@ -1535,6 +1533,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep GASNETI_THREAD_FARG) {
   /* Process the packet, includes running handler and processing credits/acks */
   rbuf.cep = cep;
   rbuf.rr_is_rdma = 1;
+  rbuf.rr_ep = ep;
   gasnetc_processPacket(cep, &rbuf, flags GASNETI_THREAD_PASS);
 
   /* Mark slot free locally prior to enabling the ack */
@@ -1595,7 +1594,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep GASNETI_THREAD_FARG) {
 }
 
 GASNETI_INLINE(gasnetc_poll_rcv_hca)
-void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG) {
+void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG) {
   int count = gasnetc_atomic_read(&hca->amrdma_rcv.count, 0);
   int limit2 = count + 1;
 
@@ -1603,11 +1602,9 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG) {
 
   /* Poll round-robin over the AMRDMA landing zones and the CQ */
   while (limit && limit2--) {
-    /* NOTE: bug 1586 work-around requires the volatile casts */
-    static int prev = 0;
-    int index = *(volatile int *)(&prev); /* The associated data race is harmless */
+    int index = hca->amrdma_rcv.prev; /* The associated data race is harmless */
     index = (index == 0) ? count : (index - 1);
-    *(volatile int *)(&prev) = index;
+    hca->amrdma_rcv.prev = index;
 
     gasneti_assert(limit > 0);
     gasneti_assert(limit2 >= 0);
@@ -1617,7 +1614,7 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG) {
       gasnetc_cep_t * cep;
       /* cep = (gasnetc_cep_t *)gasneti_atomic_ptr_read(&hca->amrdma_rcv.cep[index]); */
       cep = hca->amrdma_rcv.cep[index];
-      if (cep && gasnetc_rcv_amrdma(cep GASNETI_THREAD_PASS)) --limit;
+      if (cep && gasnetc_rcv_amrdma(ep, cep GASNETI_THREAD_PASS)) --limit;
     } else {
       /* Poll for AM in recv CQ */
       gasnetc_rbuf_t *spare = NULL;
@@ -1631,18 +1628,19 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG) {
 
 GASNETI_INLINE(gasnetc_do_poll)
 void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
+  const gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: replace this via args
   if (poll_rcv) {
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
-    gasnetc_hca_t *hca;
-    static volatile int index = 0;
-    int tmp = index;
-    index = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
-    hca = &gasnetc_hca[tmp];
+    /* Note use of casts to volatile are require to work around bug 1586 */
+    static int index = 0;
+    int tmp = *(volatile int *)(&index);
+    *(volatile int *)(&index) = ((tmp == 0) ? gasnetc_num_hcas : tmp) - 1;
+    gasnetc_hca_t *hca = &gasnetc_hca[tmp];
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
   #endif
-    gasnetc_poll_rcv_hca(hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+    gasnetc_poll_rcv_hca(ep, hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
   #if GASNET_PSHM
     gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
   #endif
@@ -2009,7 +2007,8 @@ GASNETI_INLINE(gasnetc_seg_one_reg) int gasnetc_seg_one_reg(uintptr_t addr, size
 #endif
 
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
-int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
+int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
+                          gasneti_category_t category, gasnetc_rbuf_t * const token,
 			  gasnetc_epid_t dest, gex_AM_Index_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
 			  gex_Flags_t flags, int numargs,
@@ -2017,80 +2016,16 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
                           gasnetc_cb_t local_cb,
 			  gasnetc_counter_t *counter, va_list argptr
                           GASNETI_THREAD_FARG) {
-#if GASNETC_IBV_SHUTDOWN
-  /* Currently only the shutdown code uses dest to specify a "bound" value */
-  const gex_Rank_t node = gasnetc_epid2node(dest);
-  const gasnetc_epid_t dest_qpi = gasnetc_epid2qpi(dest);
-#else
-  const gex_Rank_t node = dest;
-  gasneti_assert(gasnetc_epid2qpi(dest) == 0);
-#endif
-#if GASNET_PSHM /* PSHM code handles all "local" AMs including the loopback case */
-  gasneti_assert(!gasneti_pshm_in_supernode(node));
-#else
-  if_pt (node == gasneti_mynode) {
-    /* Local Case */
-    gex_AM_Arg_t *args;
-    int i;
-    #if GASNETC_LOOPBACK_AMS_ON_STACK
-      char tmp_buf[GASNETC_BUFSZ+8];
-      gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
-    #else
-      static gasnetc_lifo_head_t buf_freelist = GASNETC_LIFO_INITIALIZER;
-      gasnetc_buffer_t *buf = gasnetc_lifo_pop(&buf_freelist);
-      if_pf (buf == NULL) {
-	buf = gasneti_malloc(GASNETC_BUFSZ);
-      }
-    #endif
+  #if GASNETC_IBV_SHUTDOWN
+    /* Currently only the shutdown code uses dest to specify a "bound" value */
+    const gex_Rank_t node = gasnetc_epid2node(dest);
+    const gasnetc_epid_t dest_qpi = gasnetc_epid2qpi(dest);
+  #else
+    const gex_Rank_t node = dest;
+    gasneti_assert(gasnetc_epid2qpi(dest) == 0);
+  #endif
+    gasneti_assert(!GASNETI_SUPERNODE_LOCAL(node));
 
-    switch (category) {
-    case gasneti_Short:
-      args = buf->shortmsg.args;
-      break;
-
-    case gasneti_Medium:
-      memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
-      buf->medmsg.nBytes = nbytes;
-      args = buf->medmsg.args;
-      break;
-
-    case gasneti_Long:
-      memcpy(dst_addr, src_addr, nbytes);
-      buf->longmsg.destLoc = (uintptr_t)dst_addr;
-      buf->longmsg.nBytes  = nbytes;
-      args = buf->longmsg.args;
-      break;
-
-    default:
-      gasneti_fatalerror("invalid AM category on send");
-      /* NOT REACHED */
-    }
-
-    /* copy args */
-    for (i=0; i < numargs; ++i) {
-      args[i] = va_arg(argptr, gex_AM_Arg_t);
-    }
-  
-    /* process the loopback AM */
-    {
-      uint32_t flags = GASNETC_MSG_GENFLAGS(!token, category, numargs, handler, gasneti_mynode);
-      gasnetc_rbuf_t rbuf;
-      rbuf.rr_sg.addr = (uintptr_t)buf;
-      #if GASNET_DEBUG
-        rbuf.cep = NULL;	/* ensure field is not used */
-      #endif
-
-      gasnetc_processPacket(NULL, &rbuf, flags GASNETI_THREAD_PASS);
-    }
-
-    #if !GASNETC_LOOPBACK_AMS_ON_STACK
-      gasnetc_lifo_push(&buf_freelist, buf);
-    #endif
-
-    gasnetc_counter_inc_if_pf(counter);
-  } else
-#endif /* !GASNET_PSHM */
-  {
     /* Remote Case */
     gasnetc_buffer_t *buf, *buf_alloc = NULL;
     gex_AM_Arg_t *args;
@@ -2111,6 +2046,10 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
      * For a Request, we bind to a qp now to be sure everything goes on one qp.
      */
     if (token) {
+      gasneti_assert(token->rbuf_handlerRunning);
+      gasneti_assert(GASNETC_MSG_ISREQUEST(token->rbuf_flags));
+      gasneti_assert(token->rbuf_needReply);
+
       cep = token->cep;
       epid = cep->epid;
 #if GASNETC_IBV_SHUTDOWN /* Currently only the shutdown code uses dest to specify a "bound" value */
@@ -2267,7 +2206,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
           if (immediate) {
           #if GASNETC_IMMEDIATE_AMPOLLS
             // A *full* Poll, but only once
-            gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+            gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
             if (!gasnetc_sema_trydown(sema)) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
               goto out_no_credit;
@@ -2278,7 +2217,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
           } else {
             do {
 	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
+              gasnetc_poll_rcv_hca(ep, cep->hca, 1 GASNETI_THREAD_PASS);
             } while (!gasnetc_sema_trydown(sema));
             GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
           }
@@ -2294,7 +2233,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
           if (immediate) {
           #if GASNETC_IMMEDIATE_AMPOLLS
             // A *full* Poll, but only once
-            gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+            gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
             if (!gasnetc_sema_trydown(sema)) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
               goto out_no_rbuf;
@@ -2305,7 +2244,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
           } else {
             do {
 	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
+              gasnetc_poll_rcv_hca(ep, cep->hca, 1 GASNETI_THREAD_PASS);
             } while (!gasnetc_sema_trydown(sema));
           }
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
@@ -2322,7 +2261,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
           if (immediate) {
           #if GASNETC_IMMEDIATE_AMPOLLS
             // A *full* Poll, but only once
-            gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+            gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
 	    if (!gasnetc_sema_trydown(&cep->am_loc) &&
 	        !(rbuf = gasnetc_lifo_pop(cep->rbuf_freelist))) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
@@ -2334,7 +2273,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
           } else {
             do {
 	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
+              gasnetc_poll_rcv_hca(ep, cep->hca, 1 GASNETI_THREAD_PASS);
 	      if (gasnetc_sema_trydown(&cep->am_loc)) {
 	        break;
 	      }
@@ -2475,6 +2414,8 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
       gasnetc_snd_post_common(sreq, sr_desc, (msg_len <= gasnetc_inline_limit) GASNETI_THREAD_PASS);
     }
 
+    if (token) token->rbuf_needReply = 0;
+
     GASNETI_RETURN(GASNET_OK); // Normal return
 
     // ---- Begin exception paths for remote case ---
@@ -2500,10 +2441,9 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, gasnetc_rbuf_t *token,
 
   out_no_put:
 
-    return fail_type; // TODO-EX: the will distinguish IMMEDIATE vs (resilient) failure
-  } 
+    gasneti_assert(!token || token->rbuf_needReply);
 
-  GASNETI_RETURN(GASNET_OK);
+    return fail_type; // TODO-EX: the will distinguish IMMEDIATE vs (resilient) failure
 }
 
 #if GASNETC_PIN_SEGMENT
@@ -3478,7 +3418,7 @@ extern int gasnetc_sndrcv_limits(void) {
     const unsigned int max_qp_wr = hca->hca_cap.max_qp_wr;
 
     if_pf (hca->max_qps > max_qp) {
-      GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds HCA capabilities");
+      GASNETI_RETURN_ERRR(RESOURCE, "job size exceeds HCA capabilities");
     }
     if_pf (gasnetc_am_oust_pp * 2 > max_qp_wr) {
       GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_PP exceeds HCA capabilities");
@@ -3528,7 +3468,7 @@ static struct ibv_srq * gasnetc_create_srq(gasnetc_hca_t *hca, const int max_wr)
 }
 #endif
 
-extern int gasnetc_sndrcv_init(void) {
+extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
   gasnetc_hca_t		*hca;
   int	act_size;
   int			vstat;
@@ -3627,6 +3567,7 @@ extern int gasnetc_sndrcv_init(void) {
         rbuf->rr_desc.next       = NULL;
         rbuf->rr_sg.length       = GASNETC_BUFSZ;
         rbuf->rr_sg.addr         = (uintptr_t)&buf[i];
+        rbuf->rr_ep              = ep;
         gasnetc_lifo_push(&hca->rbuf_freelist, rbuf);
   
         rbuf = (gasnetc_rbuf_t *)((uintptr_t)rbuf + padded_size);
@@ -3644,6 +3585,7 @@ extern int gasnetc_sndrcv_init(void) {
         gasneti_leak(hca->cep);
       }
       gasnetc_atomic_set(&hca->amrdma_rcv.count, 0, 0);
+      hca->amrdma_rcv.prev = 0;
       if (gasnetc_amrdma_max_peers && hca->max_qps) {
 	const int max_peers = hca->amrdma_rcv.max_peers = MIN(gasnetc_amrdma_max_peers, hca->max_qps);
 	size_t alloc_size = GASNETI_PAGE_ALIGNUP(max_peers * (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2) + GASNETC_AMRDMA_PAD);
@@ -3894,15 +3836,6 @@ gasnetc_sndrcv_quiesce(void) {
   GASNETI_THREAD_LOOKUP // OK - not a critical-path
   gasnetc_hca_t *hca;
 
-#if GASNET_DEBUG
-  { /* Artificial traffic for testing */
-    int peer = 1^gasneti_mynode;
-    if ((peer < gasneti_nodes) && !gasnetc_non_ib(peer)) {
-      gasnetc_RequestSysShort(peer, NULL, 0, 0);
-    }
-  }
-#endif
-
   /* suspend credit coallescing (if any) and return any banked credits */
   if (! gasnetc_use_srq) {
     gex_Rank_t i;
@@ -3927,13 +3860,14 @@ gasnetc_sndrcv_quiesce(void) {
         /* Since the banked credits count remote recv buffers we can send a "Phantom Reply".
          * This avoids soliciting a potentially unnecessary Reply.
          */
+        int fake_hidx = gasneti_handleridx(gasnetc_sys_close_reqh);
         rbuf.cep = cep;
         rbuf.rbuf_needReply = 1;
       #if GASNET_DEBUG
         rbuf.rbuf_handlerRunning = 1;
-        rbuf.rbuf_entry = NULL;
       #endif
-        rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, 0, node);
+        rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasneti_Short, 0, fake_hidx, node);
+        rbuf.rr_ep = gasnetc_ep0;
         gasnetc_ReplySysShort((gex_Token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
       }
     }
@@ -4452,93 +4386,203 @@ extern int gasnetc_rdma_get(
 }
 #endif
 
-extern int gasnetc_RequestGeneric(gasneti_category_t category,
-				  gasnetc_epid_t dest, gex_AM_Index_t handler,
-				  void *src_addr, int nbytes, void *dst_addr,
-				  gex_Flags_t flags, int numargs,
-				  gasnetc_atomic_val_t *local_cnt,
-				  gasnetc_cb_t local_cb,
-				  gasnetc_counter_t *counter, va_list argptr
-                                  GASNETI_THREAD_FARG) {
+/* ------------------------------------------------------------------------------------ */
+/*
+  Active Message Request Functions
+  ================================
+*/
+
+// Loopback handling
 #if GASNET_PSHM
-  const gex_Rank_t node = gasnetc_epid2node(dest);
-#endif
+#define gasnetc_loopback_request(rank) gasneti_pshm_in_supernode(rank)
+#define gasnetc_loopback_reply(token) gasnetc_token_is_pshm(token)
 
-  /* ensure progress */
-  gasnetc_poll_rcv();
-  if (! counter) {
-    /* "blocking" System Requests will choose to run PFs or not */
-    GASNETI_PROGRESSFNS_RUN();
+GASNETI_INLINE(gasnetc_loopback_short)
+int gasnetc_loopback_short(int isreq, gasnetc_EP_t ep, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                           gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (!isreq) {
+    return gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
+                                       NULL, 0, NULL, flags, numargs, argptr);
+  } else {
+    return gasneti_AMPSHM_RequestGeneric(gasneti_Short, rank, handler,
+                                         NULL, 0, NULL, flags, numargs, argptr);
   }
-
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    int retval;
-    retval = gasneti_AMPSHM_RequestGeneric(category, node, handler,
-                                         src_addr, nbytes, dst_addr,
-                                         flags, numargs, argptr);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
-    return retval;
-  }
-#endif
-
-  return gasnetc_ReqRepGeneric(category, NULL, dest, handler,
-                               src_addr, nbytes, dst_addr,
-                               flags, numargs, local_cnt, local_cb, counter,
-                               argptr GASNETI_THREAD_PASS);
 }
 
-extern int gasnetc_ReplyGeneric(gasneti_category_t category,
-				gex_Token_t token, gex_AM_Index_t handler,
-				void *src_addr, int nbytes, void *dst_addr,
-				gex_Flags_t flags, int numargs,
-				gasnetc_atomic_val_t *local_cnt,
-				gasnetc_cb_t local_cb,
-				gasnetc_counter_t *counter, va_list argptr
-                                GASNETI_THREAD_FARG) {
-  gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
-  int retval;
-
-#if GASNET_PSHM
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(category, token, handler,
-                                         src_addr, nbytes, dst_addr,
-                                         flags, numargs, argptr);
-    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
-    return retval;
+GASNETI_INLINE(gasnetc_loopback_medium)
+int gasnetc_loopback_medium(int isreq, gasnetc_EP_t ep, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (!isreq) {
+    return gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
+                                       source_addr, nbytes, NULL, flags, numargs, argptr);
+  } else {
+    return gasneti_AMPSHM_RequestGeneric(gasneti_Medium, rank, handler,
+                                         source_addr, nbytes, NULL, flags, numargs, argptr);
   }
-#endif
-
-  gasneti_assert(rbuf);
-  gasneti_assert(rbuf->rbuf_handlerRunning);
-  gasneti_assert(GASNETC_MSG_ISREQUEST(rbuf->rbuf_flags));
-  gasneti_assert(rbuf->rbuf_needReply);
-
-  retval = gasnetc_ReqRepGeneric(category, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
-				 src_addr, nbytes, dst_addr,
-				 flags, numargs, local_cnt, local_cb, counter,
-                                 argptr GASNETI_THREAD_PASS);
-
-  rbuf->rbuf_needReply = (retval != GASNET_OK);
-  gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
-
-  return retval;
 }
+
+GASNETI_INLINE(gasnetc_loopback_long)
+int gasnetc_loopback_long(int isreq, gasnetc_EP_t ep, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                          void *source_addr, size_t nbytes,
+                          void *dest_addr, 
+                          gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (!isreq) {
+    return gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
+                                       source_addr, nbytes, dest_addr, flags, numargs, argptr);
+  } else {
+    return gasneti_AMPSHM_RequestGeneric(gasneti_Long, rank, handler,
+                                         source_addr, nbytes, dest_addr, flags, numargs, argptr);
+  }
+}
+
+#else // Loopback handling, non-PSHM:
+
+#define gasnetc_loopback_request(rank) (gasneti_mynode == (rank))
+#define gasnetc_loopback_reply(token) \
+        (gasneti_mynode == GASNETC_MSG_SRCIDX(((gasnetc_rbuf_t *)(token))->rbuf_flags))
+
+GASNETI_INLINE(gasnetc_loopback_short)
+int gasnetc_loopback_short(int isreq, gasnetc_EP_t ep, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                           gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (!isreq) ep = ((gasnetc_rbuf_t *)token)->rr_ep;
+  gasneti_assert(ep == gasnetc_ep0);
+
+  const gex_AM_Entry_t * const handler_entry = &ep->_amtbl[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Short, isreq);
+
+  gasnetc_rbuf_t rbuf;
+  #if GASNET_DEBUG
+    rbuf.cep = NULL;	/* ensure field is not used */
+    rbuf.rbuf_handlerRunning = 1;
+  #endif
+  rbuf.rbuf_needReply = isreq;
+  rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(isreq, gasneti_Short, numargs, handler, gasneti_mynode);
+  rbuf.rr_ep = ep;
+
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
+  for (int i = 0; i < numargs; i++) {
+    args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
+  }
+
+  const gex_Token_t the_token = (gex_Token_t)&rbuf; /* RUN macros need an lvalue */
+  GASNETI_RUN_HANDLER_SHORT(isreq,handler,handler_entry->gex_fnptr,the_token,args,numargs);
+  return(GASNET_OK);
+}
+
+GASNETI_INLINE(gasnetc_loopback_medium)
+int gasnetc_loopback_medium(int isreq, gasnetc_EP_t ep, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (!isreq) ep = ((gasnetc_rbuf_t *)token)->rr_ep;
+  gasneti_assert(ep == gasnetc_ep0);
+
+  const gex_AM_Entry_t * const handler_entry = &ep->_amtbl[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Medium, isreq);
+
+  gasnetc_rbuf_t rbuf;
+  #if GASNET_DEBUG
+    rbuf.cep = NULL;	/* ensure field is not used */
+    rbuf.rbuf_handlerRunning = 1;
+  #endif
+  rbuf.rbuf_needReply = isreq;
+  rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(isreq, gasneti_Medium, numargs, handler, gasneti_mynode);
+  rbuf.rr_ep = ep;
+
+  #if GASNETC_LOOPBACK_AMS_ON_STACK
+    char tmp_buf[GASNETC_BUFSZ+8];
+    gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
+    memcpy(buf, source_addr, nbytes);
+  #else
+    gasnetc_buffer_t *buf = NULL;
+    if (nbytes) {
+      static gasnetc_lifo_head_t buf_freelist = GASNETC_LIFO_INITIALIZER;
+      gasnetc_buffer_t *buf = gasnetc_lifo_pop(&buf_freelist);
+      if_pf (buf == NULL) {
+        buf = gasneti_malloc(GASNETC_BUFSZ);
+      }
+      memcpy(buf, source_addr, nbytes);
+    }
+  #endif
+
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
+  for (int i = 0; i < numargs; i++) {
+    args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
+  }
+
+  const gex_Token_t the_token = (gex_Token_t)&rbuf; /* RUN macros need an lvalue */
+  GASNETI_RUN_HANDLER_MEDIUM(isreq,handler,handler_entry->gex_fnptr,the_token,args,numargs,buf,nbytes);
+  #if !GASNETC_LOOPBACK_AMS_ON_STACK
+    if (buf) gasnetc_lifo_push(&buf_freelist, buf);
+  #endif
+  return(GASNET_OK);
+}
+
+GASNETI_INLINE(gasnetc_loopback_long)
+int gasnetc_loopback_long(int isreq, gasnetc_EP_t ep, gex_Token_t token, gex_Rank_t rank, gex_AM_Index_t handler,
+                          void *source_addr, size_t nbytes,
+                          void *dest_addr, 
+                          gex_Flags_t flags, int numargs, va_list argptr)
+{
+  if (!isreq) ep = ((gasnetc_rbuf_t *)token)->rr_ep;
+  gasneti_assert(ep == gasnetc_ep0);
+
+  const gex_AM_Entry_t * const handler_entry = &ep->_amtbl[handler];
+  gasneti_amtbl_check(handler_entry, numargs, gasneti_Long, isreq);
+
+  gasnetc_rbuf_t rbuf;
+  #if GASNET_DEBUG
+    rbuf.cep = NULL;	/* ensure field is not used */
+    rbuf.rbuf_handlerRunning = 1;
+  #endif
+  rbuf.rbuf_needReply = isreq;
+  rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(isreq, gasneti_Long, numargs, handler, gasneti_mynode);
+  rbuf.rr_ep = ep;
+  
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS];
+  for (int i = 0; i < numargs; i++) {
+    args[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
+  }
+
+  memcpy(dest_addr, source_addr, nbytes);
+  gasneti_sync_writes(); /* sync memcpy */
+
+  const gex_Token_t the_token = (gex_Token_t)&rbuf; /* RUN macros need an lvalue */
+  GASNETI_RUN_HANDLER_LONG(isreq,handler,handler_entry->gex_fnptr,the_token,args,numargs,dest_addr,nbytes);
+  return(GASNET_OK);
+}
+#endif // PSHM
 
 extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
                                  gasnetc_counter_t *counter,
                                  gex_AM_Index_t handler,
                                  int numargs, ...) {
+  GASNETI_THREAD_LOOKUP;
   int retval;
   va_list argptr;
 
-  GASNETI_TRACE_AMREQUESTSHORT(NULL,dest,handler,numargs);
+  const gex_Rank_t rank = gasnetc_epid2node(dest);
+  GASNETI_TRACE_AMREQUESTSHORT(NULL,rank,handler,numargs);
 
+  /* ensure AM progress, but NOT progress functions */
+  gasnetc_poll_rcv();
+
+  gasnetc_EP_t ep = gasnetc_ep0;
   va_start(argptr, numargs);
-  retval = gasnetc_RequestGeneric(gasneti_Short, dest, handler,
-                                  NULL, 0, NULL, 0, numargs,
-                                  &counter->initiated, gasnetc_cb_counter, counter,
-                                  argptr GASNETI_THREAD_GET);
+  if_pt (gasnetc_loopback_request(rank)) {
+    retval = gasnetc_loopback_short(1, ep, NULL, rank, handler, 0, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+  } else {
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, NULL, dest, handler,
+                                   NULL, 0, NULL, 0, numargs,
+                                   &counter->initiated, gasnetc_cb_counter, counter,
+                                   argptr GASNETI_THREAD_GET);
+  }
   va_end(argptr);
   return retval;
 }
@@ -4548,16 +4592,27 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
                                     gex_AM_Index_t handler,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...) {
+  GASNETI_THREAD_LOOKUP;
   int retval;
   va_list argptr;
 
-  GASNETI_TRACE_AMREQUESTMEDIUM(NULL,dest,handler,source_addr,nbytes,numargs);
+  const gex_Rank_t rank = gasnetc_epid2node(dest);
+  GASNETI_TRACE_AMREQUESTMEDIUM(NULL,rank,handler,source_addr,nbytes,numargs);
 
+  /* ensure AM progress, but NOT progress functions */
+  gasnetc_poll_rcv();
+
+  gasnetc_EP_t ep = gasnetc_ep0;
   va_start(argptr, numargs);
-  retval = gasnetc_RequestGeneric(gasneti_Medium, dest, handler,
-                                  source_addr, nbytes, NULL, 0, numargs,
-                                  &counter->initiated, gasnetc_cb_counter, counter,
-                                  argptr GASNETI_THREAD_GET);
+  if_pt (gasnetc_loopback_request(rank)) {
+    retval = gasnetc_loopback_medium(1, ep, NULL, rank, handler, source_addr, nbytes, 0, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+  } else {
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, NULL, dest, handler,
+                                   source_addr, nbytes, NULL, 0, numargs,
+                                   &counter->initiated, gasnetc_cb_counter, counter,
+                                   argptr GASNETI_THREAD_GET);
+  }
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -4569,14 +4624,21 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
   GASNETI_THREAD_LOOKUP // TODO-EX: from token
   int retval;
   va_list argptr;
-
-  GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs); 
-
+  gasneti_assert(token);
+  GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs);
-  retval = gasnetc_ReplyGeneric(gasneti_Short, token, handler,
-                                NULL, 0, NULL, 0, numargs,
-                                &counter->initiated, gasnetc_cb_counter, counter,
-                                argptr GASNETI_THREAD_PASS);
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_short(0, NULL, token, 0, handler, 0, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+  } else {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+    gasnetc_EP_t ep = rbuf->rr_ep;
+    gasneti_assert(ep == gasnetc_ep0);
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
+                                   NULL, 0, NULL, 0, numargs,
+                                   &counter->initiated, gasnetc_cb_counter, counter,
+                                   argptr GASNETI_THREAD_GET);
+  }
   va_end(argptr);
   return retval;
 }
@@ -4589,16 +4651,394 @@ extern int gasnetc_ReplySysMedium(gex_Token_t token,
   GASNETI_THREAD_LOOKUP // TODO-EX: from token
   int retval;
   va_list argptr;
-
+  gasneti_assert(token);
   GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs); 
-
   va_start(argptr, numargs);
-  retval = gasnetc_ReplyGeneric(gasneti_Medium, token, handler,
-                                source_addr, nbytes, NULL, 0, numargs,
-                                &counter->initiated, gasnetc_cb_counter, counter,
-                                argptr GASNETI_THREAD_PASS);
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_medium(0, NULL, token, 0, handler, source_addr, nbytes, 0, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+  } else {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+    gasnetc_EP_t ep = rbuf->rr_ep;
+    gasneti_assert(ep == gasnetc_ep0);
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
+                                   source_addr, nbytes, NULL, 0, numargs,
+                                   &counter->initiated, gasnetc_cb_counter, counter,
+                                   argptr GASNETI_THREAD_GET);
+  }
   va_end(argptr);
   return retval;
+}
+
+extern int gasnetc_AMRequestShortM( 
+                            gex_TM_t tm,/* local context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            gex_Flags_t flags
+                            GASNETI_THREAD_FARG,
+                            int numargs, ...) {
+  int retval;
+  va_list argptr;
+  GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
+
+  /* ensure progress */
+  gasnetc_poll_rcv();
+  GASNETI_PROGRESSFNS_RUN();
+
+  gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
+  gasneti_assert(ep == gasnetc_ep0);
+  va_start(argptr, numargs); /*  pass in last argument */
+  if_pt (gasnetc_loopback_request(rank)) {
+    retval = gasnetc_loopback_short(1, ep, NULL, rank, handler, flags, numargs, argptr);
+  } else {
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, NULL, rank, handler,
+                                   NULL, 0, NULL,
+                                   flags, numargs, NULL, NULL, NULL,
+                                   argptr GASNETI_THREAD_PASS);
+  }
+  va_end(argptr);
+  return (retval == GASNETC_FAIL_IMM);
+}
+
+extern int gasnetc_AMRequestMediumM( 
+                            gex_TM_t tm,/* local context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
+                            gex_Flags_t flags
+                            GASNETI_THREAD_FARG,
+                            int numargs, ...) {
+  int retval;
+  va_list argptr;
+  GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
+
+  /* ensure progress */
+  gasnetc_poll_rcv();
+  GASNETI_PROGRESSFNS_RUN();
+
+  gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
+  gasneti_assert(ep == gasnetc_ep0);
+  va_start(argptr, numargs); /*  pass in last argument */
+  if_pt (gasnetc_loopback_request(rank)) {
+    gasneti_leaf_finish(lc_opt); // Always synchronous local completion
+    retval = gasnetc_loopback_medium(1, ep, NULL, rank, handler, source_addr, nbytes, flags, numargs, argptr);
+  } else {
+    gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *local_cnt, start_cnt;
+    gasnetc_cb_t         local_cb;
+    gasnete_eop_t        *eop = NULL;
+
+    if (gasneti_leaf_is_pointer(lc_opt)) {
+      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      *lc_opt = (gex_Event_t)eop;
+      GASNETE_EOP_LC_START(eop);
+      start_cnt = eop->initiated_alc;
+      local_cnt = &eop->initiated_alc;
+      local_cb = gasnetc_cb_eop_alc;
+    } else if (lc_opt == GEX_EVENT_NOW) {
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
+    } else if (lc_opt == GEX_EVENT_GROUP) {
+      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+      gasnete_iop_t *op = mythread->current_iop;
+      local_cnt = &op->initiated_alc_cnt;
+      local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to RequestMedium");
+    }
+
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, NULL, rank, handler,
+                                   source_addr, nbytes, NULL,
+                                   flags, numargs, local_cnt, local_cb, NULL,
+                                   argptr GASNETI_THREAD_PASS);
+
+    if (eop && (start_cnt == eop->initiated_alc)) {
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+      GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GEX_EVENT_INVALID;
+      gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    } else if (lc_opt == GEX_EVENT_NOW) {
+#if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
+      /* block for local completion of payload transfer */
+      gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+#else
+      gasneti_assert(counter.initiated == 0);
+      gasneti_assert(gasnetc_atomic_read(&counter.completed,0) == 0);
+#endif
+    }
+  }
+  va_end(argptr);
+  return (retval == GASNETC_FAIL_IMM);
+}
+
+extern int gasnetc_AMRequestLongM(
+                            gex_TM_t tm,/* local context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            void *dest_addr,                    /* data destination on destination node */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
+                            gex_Flags_t flags
+                            GASNETI_THREAD_FARG,
+                            int numargs, ...) {
+  int retval;
+  va_list argptr;
+  GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+
+  /* ensure progress */
+  gasnetc_poll_rcv();
+  GASNETI_PROGRESSFNS_RUN();
+
+  gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
+  gasneti_assert(ep == gasnetc_ep0);
+  va_start(argptr, numargs); /*  pass in last argument */
+  if_pt (gasnetc_loopback_request(rank)) {
+    gasneti_leaf_finish(lc_opt); // Always synchronous local completion
+    retval = gasnetc_loopback_long(1, ep, NULL, rank, handler, source_addr, nbytes, dest_addr, flags, numargs, argptr);
+  } else {
+    gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *local_cnt, start_cnt;
+    gasnetc_cb_t         local_cb;
+    gasnete_eop_t        *eop = NULL;
+
+    if (gasneti_leaf_is_pointer(lc_opt)) {
+      if (flags & GASNETI_FLAG_LC_OPT_IN) {
+        gasnete_op_t *op = gasneti_event_op(*lc_opt);
+        if (OPTYPE(op) == OPTYPE_IMPLICIT) {
+          gasnete_iop_t *iop = (gasnete_iop_t*)op;
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_iop_event_alc);
+          gasneti_assert(iop->next); // Within an NBI access region
+          local_cnt = &iop->initiated_alc_cnt;
+          local_cb = gasnetc_cb_nar_alc;
+        } else {
+          eop = (gasnete_eop_t*)op;
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_eop_event_alc);
+          GASNETE_EOP_LC_START(eop);
+          start_cnt = eop->initiated_alc;
+          local_cnt = &eop->initiated_alc;
+          local_cb = gasnetc_cb_eop_alc;
+        }
+      } else {
+        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        *lc_opt = (gex_Event_t)eop;
+        GASNETE_EOP_LC_START(eop);
+        start_cnt = eop->initiated_alc;
+        local_cnt = &eop->initiated_alc;
+        local_cb = gasnetc_cb_eop_alc;
+      }
+    } else if (lc_opt == GEX_EVENT_NOW) {
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
+    } else if (lc_opt == GEX_EVENT_GROUP) {
+      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+      gasnete_iop_t *op = mythread->current_iop;
+      local_cnt = &op->initiated_alc_cnt;
+      local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to RequestLong");
+    }
+
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Long, NULL, rank, handler,
+                                   source_addr, nbytes, dest_addr,
+                                   flags, numargs, local_cnt, local_cb, NULL,
+                                   argptr GASNETI_THREAD_PASS);
+
+    if (lc_opt == GEX_EVENT_NOW) {
+      /* block for local completion of RDMA transfer */
+      gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+    } else if (eop && (start_cnt == eop->initiated_alc)) {
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+      GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GEX_EVENT_INVALID;
+      if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+      }
+    }
+  }
+  va_end(argptr);
+  return (retval == GASNETC_FAIL_IMM);
+}
+
+extern int gasnetc_AMReplyShortM( 
+                            gex_Token_t token,     /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            gex_Flags_t flags,
+                            int numargs, ...) {
+  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
+  int retval;
+  va_list argptr;
+  gasneti_assert(token);
+  GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
+  va_start(argptr, numargs); /*  pass in last argument */
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_short(0, NULL, token, 0, handler, flags, numargs, argptr);
+  } else {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+    gasnetc_EP_t ep = rbuf->rr_ep;
+    gasneti_assert(ep == gasnetc_ep0);
+
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
+                                   NULL, 0, NULL, 
+                                   flags, numargs, NULL, NULL,
+                                   NULL, argptr GASNETI_THREAD_PASS);
+    gasneti_assert(!rbuf->rbuf_needReply);
+  }
+  va_end(argptr);
+  return (retval == GASNETC_FAIL_IMM);
+}
+
+extern int gasnetc_AMReplyMediumM( 
+                            gex_Token_t token,     /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
+                            gex_Flags_t flags,
+                            int numargs, ...) {
+  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
+  int retval;
+  va_list argptr;
+  gasneti_assert(token);
+  GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  va_start(argptr, numargs); /*  pass in last argument */
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_medium(0, NULL, token, 0, handler, source_addr, nbytes, flags, numargs, argptr);
+  } else {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+    gasnetc_EP_t ep = rbuf->rr_ep;
+    gasneti_assert(ep == gasnetc_ep0);
+
+    gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *local_cnt, start_cnt;
+    gasnetc_cb_t         local_cb;
+    gasnete_eop_t        *eop = NULL;
+
+    if (gasneti_leaf_is_pointer(lc_opt)) {
+      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      *lc_opt = (gex_Event_t)eop;
+      GASNETE_EOP_LC_START(eop);
+      start_cnt = eop->initiated_alc;
+      local_cnt = &eop->initiated_alc;
+      local_cb = gasnetc_cb_eop_alc;
+    } else if (lc_opt == GEX_EVENT_NOW) {
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to ReplyMedium");
+    }
+  
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
+                                   source_addr, nbytes, NULL,
+                                   flags, numargs, local_cnt, local_cb, NULL,
+                                   argptr GASNETI_THREAD_PASS);
+    gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
+
+    if (eop && (start_cnt == eop->initiated_alc)) {
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+      GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GEX_EVENT_INVALID;
+      gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    } else if (lc_opt == GEX_EVENT_NOW) {
+    #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
+      /* block for local completion of payload transfer */
+      gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
+    #else
+      gasneti_assert(counter.initiated == 0);
+      gasneti_assert(gasnetc_atomic_read(&counter.completed,0) == 0);
+    #endif
+    }
+  }
+  va_end(argptr);
+  return (retval == GASNETC_FAIL_IMM);
+}
+
+extern int gasnetc_AMReplyLongM( 
+                            gex_Token_t token,     /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            void *dest_addr,                    /* data destination on destination node */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
+                            gex_Flags_t flags,
+                            int numargs, ...) {
+  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
+  int retval;
+  va_list argptr;
+  gasneti_assert(token);
+  GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  va_start(argptr, numargs); /*  pass in last argument */
+  if_pt (gasnetc_loopback_reply(token)) {
+    retval = gasnetc_loopback_long(0, NULL, token, 0, handler, source_addr, nbytes, dest_addr, flags, numargs, argptr);
+  } else {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+    gasnetc_EP_t ep = rbuf->rr_ep;
+    gasneti_assert(ep == gasnetc_ep0);
+
+  #if GASNETC_PIN_SEGMENT
+    gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *local_cnt, start_cnt;
+    gasnetc_cb_t         local_cb;
+    gasnete_eop_t        *eop = NULL;
+
+    if (gasneti_leaf_is_pointer(lc_opt)) {
+      if (flags & GASNETI_FLAG_LC_OPT_IN) {
+        gasnete_op_t *op = gasneti_event_op(*lc_opt);
+        if (OPTYPE(op) == OPTYPE_IMPLICIT) {
+          gasnete_iop_t *iop = (gasnete_iop_t*)op;
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_iop_event_alc);
+          gasneti_assert(iop->next); // Within an NBI access region
+          local_cnt = &iop->initiated_alc_cnt;
+          local_cb = gasnetc_cb_nar_alc;
+        } else {
+          eop = (gasnete_eop_t*)op;
+          gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_eop_event_alc);
+          GASNETE_EOP_LC_START(eop);
+          start_cnt = eop->initiated_alc;
+          local_cnt = &eop->initiated_alc;
+          local_cb = gasnetc_cb_eop_alc;
+        }
+      } else {
+        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        *lc_opt = (gex_Event_t)eop;
+        GASNETE_EOP_LC_START(eop);
+        start_cnt = eop->initiated_alc;
+        local_cnt = &eop->initiated_alc;
+        local_cb = gasnetc_cb_eop_alc;
+      }
+    } else if (lc_opt == GEX_EVENT_NOW) {
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");
+    }
+
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Long, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
+                                   source_addr, nbytes, dest_addr,
+                                   flags, numargs, local_cnt, local_cb, NULL,
+                                   argptr GASNETI_THREAD_PASS);
+
+    if (lc_opt == GEX_EVENT_NOW) {
+      /* block for local completion of RDMA transfer */
+      gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
+    } else if (eop && (start_cnt == eop->initiated_alc)) {
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+      GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GEX_EVENT_INVALID;
+      if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+      }
+    }
+  #else
+    gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Long, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
+                                   source_addr, nbytes, dest_addr,
+                                   flags, numargs, NULL, NULL, NULL,
+                                   argptr GASNETI_THREAD_PASS);
+  #endif
+
+    gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
+  }
+  va_end(argptr);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -4663,7 +5103,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -4672,22 +5111,24 @@ extern gex_TI_t gasnetc_Token_Info(
 #endif
 
   const gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
-  if (mask & GEX_TI_SRCRANK) {
-    uint32_t flags = rbuf->rbuf_flags;
-    if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
-    info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
-    result |= GEX_TI_SRCRANK;
-  }
-  if (mask & GEX_TI_ENTRY) {
-    info->gex_entry = rbuf->rbuf_entry;
-    result |= GEX_TI_ENTRY;
-  }
+  uint32_t flags = rbuf->rbuf_flags;
+  gex_TI_t result = 0;
 
-  // TODO: rbuf can answer the following queries:
-  //   isShort = (GASNETC_MSG_CATEGORY(rbuf->flags) == gasneti_Short)
-  //   isReq = GASNETC_MSG_ISREQUEST(rbuf->flags)
+  if (GASNETC_MSG_HANDLERID(flags) >= GASNETE_HANDLER_BASE) GASNETI_CHECKATTACH();
 
-  return result;
+  info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
+  result |= GEX_TI_SRCRANK;
+
+  info->gex_entry = &rbuf->rr_ep->_amtbl[GASNETC_MSG_HANDLERID(flags)];
+  result |= GEX_TI_ENTRY;
+
+  info->gex_is_req = GASNETC_MSG_ISREQUEST(flags);
+  result |= GEX_TI_IS_REQ;
+
+  info->gex_is_long = (gasneti_Long == GASNETC_MSG_CATEGORY(flags));
+  result |= GEX_TI_IS_LONG;
+
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {

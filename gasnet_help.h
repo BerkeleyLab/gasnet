@@ -464,8 +464,12 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
   #endif
 
 #else
-  #define GASNET_POST_THREADINFO(info)   \
-    static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
+  #if GASNET_DEBUG
+    #define GASNET_POST_THREADINFO(info)   \
+      static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* diagnose duplicate POST in a scope */
+  #else
+    #define GASNET_POST_THREADINFO(info) ((void)0)
+  #endif
   #define GASNET_GET_THREADINFO() (NULL)
   #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
 #endif
@@ -817,17 +821,18 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #endif
 
 #ifndef _GASNET_MYNODE
-#define _GASNET_MYNODE
-#define _GASNET_MYNODE_DEFAULT
   extern gex_Rank_t gasneti_mynode;
-  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
+  #define gex_System_QueryJobRank() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
+#else
+  #error "Unsupported define of _GASNET_MYNODE"
 #endif
 
+// TODO-EX: rename (or remove?) the override
 #ifndef _GASNET_NODES
-#define _GASNET_NODES
-#define _GASNET_NODES_DEFAULT
   extern gex_Rank_t gasneti_nodes;
-  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
+  #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
+#else
+  #error "Unsupported define of _GASNET_NODES"  
 #endif
 
 #ifndef _GASNET_GETMAXSEGMENTSIZE
@@ -866,6 +871,17 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #define _GASNETI_SEGINFO_DEFAULT
   extern gasnet_seginfo_t *gasneti_seginfo;
   extern gasnet_seginfo_t *gasneti_seginfo_aux;
+#endif
+
+// TODO-EX: override?
+#if 1
+  extern int gasneti_Segment_QueryBound( gex_TM_t tm,
+                                         gex_Rank_t rank,
+                                         void **owneraddr_p,
+                                         void **localaddr_p,
+                                         uintptr_t *size_p);
+  #define gex_Segment_QueryBound(tm,rank,o_p,l_p,s_p) \
+          gasneti_Segment_QueryBound(tm,rank,o_p,l_p,s_p)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

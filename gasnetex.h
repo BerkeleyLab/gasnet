@@ -306,33 +306,43 @@ struct gasneti_segment_s;
 typedef struct gasneti_segment_s *gex_Segment_t;
 #define GEX_SEGMENT_INVALID ((gex_Segment_t)(uintptr_t)0)
 
-#ifndef _GEX_CLIENT_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_CLIENT_MAGIC       GASNETI_MAKE_MAGIC('C','L','I','t')
-    #define GASNETI_CLIENT_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('C','L','I','t')
-    gasneti_magic_t    _magic;
-  #endif
-    const char *       _name;
-    const void *       _cdata;
+typedef void (*gex_AM_Fn_t)();
+
+/*  struct type used to perform handler registration */
+typedef struct {
+    gex_AM_Index_t          gex_index;   // 0 on input == don't care
+    gex_AM_Fn_t             gex_fnptr;
+    gex_Flags_t             gex_flags;
+    unsigned int            gex_nargs;
+
+    // Optional fields (both are "shallow copy")
+    const void             *gex_cdata;   // Available to handler
+    const char             *gex_name;    // Used in debug messages
+} gex_AM_Entry_t;
+
+#if GASNET_DEBUG
+  #define GASNETI_OBJECT_HEADER_DEBUG gasneti_magic_t _magic;
+#else
+  #define GASNETI_OBJECT_HEADER_DEBUG
+#endif
+
+#define GASNETI_OBJECT_HEADER          \
+    GASNETI_OBJECT_HEADER_DEBUG        \
+    const void *       _cdata;         \
     gex_Flags_t        _flags;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_CLIENT_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_CLIENT_EXTRA
+
+#ifndef _GEX_CLIENT_T
+  #define GASNETI_CLIENT_COMMON        \
+    GASNETI_OBJECT_HEADER              \
+    const char *       _name;
+  typedef struct { GASNETI_CLIENT_COMMON } *gasneti_Client_t;
+  #if GASNET_DEBUG
+    extern gasneti_Client_t gasneti_import_client(gex_Client_t _client);
+    extern gex_Client_t gasneti_export_client(gasneti_Client_t _real_client);
+  #else
+    #define gasneti_import_client(x) ((gasneti_Client_t)(x))
+    #define gasneti_export_client(x) ((gex_Client_t)(x))
   #endif
-  } *gasneti_Client_t;
-  GASNETI_INLINE(gasneti_import_client)
-  gasneti_Client_t gasneti_import_client(gex_Client_t _client) {
-    const gasneti_Client_t _real_client = GASNETI_IMPORT_POINTER(gasneti_Client_t,_client);
-    GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
-    return _real_client;
-  }
-  GASNETI_INLINE(gasneti_export_client)
-  gex_Client_t gasneti_export_client(gasneti_Client_t _real_client) {
-    GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
-    return GASNETI_EXPORT_POINTER(gex_Client_t, _real_client);
-  }
   #define gex_Client_SetCData(client,val)      ((void)(gasneti_import_client(client)->_cdata = (val)))
   #define gex_Client_QueryCData(client)        ((void*)gasneti_import_client(client)->_cdata)
   #define gex_Client_QueryFlags(client)        ((gex_Flags_t)gasneti_import_client(client)->_flags)
@@ -340,35 +350,20 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 #endif
 
 #ifndef _GEX_SEGMENT_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
-    #define GASNETI_SEGMENT_BAD_MAGIC  GASNETI_MAKE_BAD_MAGIC('S','E','G','t')
-    gasneti_magic_t    _magic;
-  #endif
-    gasneti_Client_t   _client;
-    const void *       _cdata;
-    void *             _addr;
-    void *             _ub;
+  #define GASNETI_SEGMENT_COMMON       \
+    GASNETI_OBJECT_HEADER              \
+    gasneti_Client_t   _client;        \
+    void *             _addr;          \
+    void *             _ub;            \
     uintptr_t          _size;
-    gex_Flags_t        _flags;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_SEGMENT_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_SEGMENT_EXTRA
+  typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
+  #if GASNET_DEBUG
+    extern gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment);
+    extern gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment);
+  #else
+    #define gasneti_import_segment(x) ((gasneti_Segment_t)(x))
+    #define gasneti_export_segment(x) ((gex_Segment_t)(x))
   #endif
-  } *gasneti_Segment_t;
-  GASNETI_INLINE(gasneti_import_segment)
-  gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment) {
-    const gasneti_Segment_t _real_segment = GASNETI_IMPORT_POINTER(gasneti_Segment_t,_segment);
-    GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
-    return _real_segment;
-  }
-  GASNETI_INLINE(gasneti_export_segment)
-  gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment) {
-    GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
-    return GASNETI_EXPORT_POINTER(gex_Segment_t, _real_segment);
-  }
   #define gex_Segment_SetCData(seg,val)         ((void)(gasneti_import_segment(seg)->_cdata = (val)))
   #define gex_Segment_QueryCData(seg)           ((void*)gasneti_import_segment(seg)->_cdata)
   #define gex_Segment_QueryClient(seg)          gasneti_export_client(gasneti_import_segment(seg)->_client)
@@ -378,33 +373,19 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 #endif
 
 #ifndef _GEX_EP_T
-  typedef struct {
+  #define GASNETI_EP_COMMON            \
+    GASNETI_OBJECT_HEADER              \
+    gasneti_Client_t   _client;        \
+    gasneti_Segment_t  _segment;       \
+    gex_AM_Entry_t     _amtbl[GASNETC_MAX_NUMHANDLERS];
+  typedef struct { GASNETI_EP_COMMON } *gasneti_EP_t;
   #if GASNET_DEBUG
-    #define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
-    #define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
-    gasneti_magic_t    _magic;
+    extern gasneti_EP_t gasneti_import_ep(gex_EP_t _ep);
+    extern gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep);
+  #else
+    #define gasneti_import_ep(x) ((gasneti_EP_t)(x))
+    #define gasneti_export_ep(x) ((gex_EP_t)(x))
   #endif
-    gasneti_Client_t   _client;
-    const void *       _cdata;
-    gasneti_Segment_t  _segment;
-    gex_Flags_t        _flags;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_EP_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_EP_EXTRA
-  #endif
-  } *gasneti_EP_t;
-  GASNETI_INLINE(gasneti_import_ep)
-  gasneti_EP_t gasneti_import_ep(gex_EP_t _ep) {
-    const gasneti_EP_t _real_ep = GASNETI_IMPORT_POINTER(gasneti_EP_t,_ep);
-    GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
-    return _real_ep;
-  }
-  GASNETI_INLINE(gasneti_export_ep)
-  gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
-    GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
-    return GASNETI_EXPORT_POINTER(gex_EP_t, _real_ep);
-  }
   #define gex_EP_SetCData(ep,val)              ((void)(gasneti_import_ep(ep)->_cdata = (val)))
   #define gex_EP_QueryCData(ep)                ((void*)gasneti_import_ep(ep)->_cdata)
   #define gex_EP_QueryClient(ep)               gasneti_export_client(gasneti_import_ep(ep)->_client)
@@ -413,34 +394,19 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 #endif
 
 #ifndef _GEX_TM_T
-  typedef struct {
-  #if GASNET_DEBUG
-    #define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
-    #define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
-    gasneti_magic_t    _magic;
-  #endif
-    gasneti_EP_t       _ep;
-    const void *       _cdata;
-    gex_Flags_t        _flags;
-    gex_Rank_t         _rank;
+  #define GASNETI_TM_COMMON            \
+    GASNETI_OBJECT_HEADER              \
+    gasneti_EP_t       _ep;            \
+    gex_Rank_t         _rank;          \
     gex_Rank_t         _size;
-    // TODO-EX: more fields to come
-  #ifdef GASNETI_TM_EXTRA
-    // conduit-specific fields w/o full override
-    GASNETI_TM_EXTRA
+  typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
+  #if GASNET_DEBUG
+    extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
+    extern gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm);
+  #else
+    #define gasneti_import_tm(x) ((gasneti_TM_t)(x))
+    #define gasneti_export_tm(x) ((gex_TM_t)(x))
   #endif
-  } *gasneti_TM_t;
-  GASNETI_INLINE(gasneti_import_tm)
-  gasneti_TM_t gasneti_import_tm(gex_TM_t _tm) {
-    const gasneti_TM_t _real_tm = GASNETI_IMPORT_POINTER(gasneti_TM_t,_tm);
-    GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
-    return _real_tm;
-  }
-  GASNETI_INLINE(gasneti_export_tm)
-  gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm) {
-    GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
-    return GASNETI_EXPORT_POINTER(gex_TM_t, _real_tm);
-  }
   #define gex_TM_SetCData(tm,val)              ((void)(gasneti_import_tm(tm)->_cdata = (val)))
   #define gex_TM_QueryCData(tm)                ((void*)gasneti_import_tm(tm)->_cdata)
   #define gex_TM_QueryClient(tm)               gasneti_export_client(gasneti_import_tm(tm)->_ep->_client)
@@ -473,36 +439,22 @@ typedef struct gasneti_segment_s *gex_Segment_t;
 #error "out-of-date #define of _GASNET_HANDLERENTRY_T"
 #endif
 
-#ifdef GASNET_USE_STRICT_PROTOTYPES
-  typedef void *gex_AM_Fn_t;
-#else
-  typedef void (*gex_AM_Fn_t)();
-#endif
-
-/*  struct type used to perform handler registration */
-typedef struct {
-    gex_AM_Index_t      gex_index;   // 0 on input == don't care
-    gex_AM_Fn_t             gex_fnptr;
-    gex_Flags_t             gex_flags;
-    unsigned int            gex_nargs;
-
-    // Optional fields (both are "shallow copy")
-    const void             *gex_cdata;   // Available to handler
-    const char             *gex_name;    // Used in debug messages
-} gex_AM_Entry_t;
-
 
 /*  struct type used to return info from gex_Token_Info() */
 typedef struct {
     gex_Rank_t                 gex_srcrank;
     const gex_AM_Entry_t      *gex_entry;
+    int                        gex_is_req;
+    int                        gex_is_long;
 } gex_Token_Info_t;
 
 /*  constants to request specific info from gex_Token_Info() */
 typedef unsigned int gex_TI_t;
 #define GEX_TI_SRCRANK       ((gex_TI_t)1<<0)
 #define GEX_TI_ENTRY         ((gex_TI_t)1<<1)
-#define GEX_TI_ALL          (((gex_TI_t)1<<2) - 1)
+#define GEX_TI_IS_REQ        ((gex_TI_t)1<<2)
+#define GEX_TI_IS_LONG       ((gex_TI_t)1<<3)
+#define GEX_TI_ALL          (((gex_TI_t)1<<4) - 1)
 
 // Default implementation
 #ifndef gex_Token_Info
@@ -518,11 +470,7 @@ extern gex_TI_t gex_Token_Info(
 #if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct {
     gex_AM_Index_t index; /*  == 0 for don't care  */
-   #ifdef GASNET_USE_STRICT_PROTOTYPES
-    void *fnptr;    
-   #else
     void (*fnptr)();    
-   #endif
   } gasnet_handlerentry_t;
 #endif
 
@@ -620,17 +568,13 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     GASNETI_AM_SRCDESC_EXTRA
   #endif
   } *gasneti_AM_SrcDesc_t;
-  GASNETI_INLINE(gasneti_import_srcdesc)
-  gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
-    const gasneti_AM_SrcDesc_t _real_srcdesc = GASNETI_IMPORT_POINTER(gasneti_AM_SrcDesc_t,_srcdesc);
-    GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
-    return _real_srcdesc;
-  }
-  GASNETI_INLINE(gasneti_export_srcdesc)
-  gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
-    GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
-    return GASNETI_EXPORT_POINTER(gex_AM_SrcDesc_t, _real_srcdesc);
-  }
+  #if GASNET_DEBUG
+    extern gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc);
+    extern gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc);
+  #else
+    #define gasneti_import_srcdesc(x) ((gasneti_AM_SrcDesc_t)(x))
+    #define gasneti_export_srcdesc(x) ((gex_AM_SrcDesc_t)(x))
+  #endif
   #define gex_AM_SrcDescAddr(sd)               ((void*)gasneti_import_srcdesc(sd)->_addr)
   #define gex_AM_SrcDescSize(sd)               ((size_t)gasneti_import_srcdesc(sd)->_size)
 #endif

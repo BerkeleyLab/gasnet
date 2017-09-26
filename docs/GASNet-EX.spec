@@ -17,14 +17,14 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2017
-#define GASNET_RELEASE_VERSION_MINOR 6
+#define GASNET_RELEASE_VERSION_MINOR 9
 #define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 1
+#define GEX_SPEC_VERSION_MINOR 2
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -38,7 +38,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 9
+#define GASNETT_SPEC_VERSION_MINOR 10
 
 //
 // Relationship to GASNet-1 APIs:
@@ -65,6 +65,37 @@
 //
 // Basic types:
 //
+
+// Rank
+
+// A "rank" is a position within a team
+// Guaranteed to be an unsigned integer type
+// This type is interoperable with gasnet_node_t
+typedef [some unsigned integer type] gex_Rank_t;
+
+// Pre-defined constant used to indicate "not a rank".
+// Use may have different semantics in various contexts.
+// Guaranteed to be larger than any valid rank.
+// However, a specific value is NOT defined by specification.
+// In particular, might NOT be equal to GASNET_MAXNODES
+#define GEX_RANK_INVALID ((gex_Rank_t)???)
+
+// "Job rank": [EXPERIMENTAL]
+// In a non-resilient build this will be the same as the rank in the team
+// constructed by gex_Client_Init() and will be identical across clients.
+// This is semantically equivalent to gasnet_mynode().
+//
+// Semantics in a resilient build will be defined in a later release.
+gex_Rank_t gex_System_QueryJobRank(void);
+
+// "Job size": [EXPERIMENTAL]
+// In a non-resilient build this will be the same as the size in the team
+// constructed by gex_Client_Init() and will be identical across clients.
+// This is semantically equivalent to gasnet_nodes().
+//
+// Semantics in a resilient build will be defined in a later release.
+gex_Rank_t gex_System_QueryJobSize(void);
+
 
 // Events
 
@@ -116,17 +147,6 @@ typedef ... gex_Event_t;
 #define GEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)???)
 #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)???)
 
-// A "rank" is a position within a team
-// Guaranteed to be an unsigned integer type
-// This type is interoperable with gasnet_node_t
-typedef [some unsigned integer type] gex_Rank_t;
-
-// Pre-defined constant used to indicate "not a rank".
-// Use may have different semantics in various contexts.
-// Guaranteed to be larger than any valid rank.
-// However, a specific value is NOT defined by specification.
-// In particular, might NOT be equal to GASNET_MAXNODES
-#define GEX_RANK_INVALID ((gex_Rank_t)???)
 
 // Integer flag type used to pass hints/assertions/modifiers to various functions
 // Flag value bits to a given API are guaranteed to be disjoint, although
@@ -301,6 +321,41 @@ gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 void *       gex_Segment_QueryAddr(gex_Segment_t seg);
 uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 
+// Query addresses and length of a (possibly remote) bound segment [EXPERIMENTAL]
+//
+// This query takes a gex_TM_t and gex_Rank_t, which together name an endpoint.
+// The remaining arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// If the endpoint named by (rm, rank) does not have a bound segment, this call
+// returns non-zero, and the output locations are unmodified.  Otherwise, this
+// call returns 0 and writes the corresponding segment properties to each of
+// the non-NULL output locations as follows:
+//
+//   owneraddr_p: receives the address of the segment in the address space
+//                of the process which owns the segment.
+//   localaddr_p: receives the address of the segment in the address space
+//                of the calling process, if mapped, and NULL otherwise.
+//   size_p:      receives the length of the segment.
+//
+// In this release the gex_Segment_Attach call (below) is the only mechanism to
+// create segments, and unconditionally binds them to an endpoint.  Thus all
+// segments are "bound" in the current release.  However, not all endpoints may
+// have a segment bound to them.
+//
+// rank == GEX_RANK_INVALID is *not* permitted.
+// rank == gex_TM_QueryRank(tm) *is* permitted.
+//
+// For rank != gex_TM_QueryRank(tm), this query MAY communicate.
+// This call is not legal in contexts which prohibit communication, including
+// (but is limited to) AM Handler context or when holding an HSL.
+int gex_Segment_QueryBound(
+                gex_TM_t    tm,
+                gex_Rank_t  rank,
+                void        **owneraddr_p,
+                void        **localaddr_p,
+                uintptr_t   *size_p);
+
 // Collective allocation and creation of Segments
 // Analogous to gasnet_attach
 // Must be called collectively over tm.
@@ -422,10 +477,12 @@ typedef struct {
 //
 // If any sequence of calls attempts register a total of more than (256 -
 // GEX_AM_INDEX_BASE) handlers to a single gex_EP_t, the result is undefined
+//
+// Returns: GASNET_OK == 0 on success
 int gex_EP_RegisterHandlers(
         gex_EP_t                ep,
         gex_AM_Entry_t          *table,
-        int                     numentries);
+        size_t                  numentries);
 
 //
 // Active Message (AM) limit queries
@@ -499,14 +556,21 @@ size_t gex_AM_LUBReplyMedium(void);
 // Struct type for gex_Token_Info queries contains *at least* the following
 // fields, in some *unspecified* order
 typedef struct {
-    // "System rank" of the sending process.
-    // In a non-resilient build this will be the same as the rank in the team
-    // constructed by gex_Client_Init() and will be identical across clients.
-    // Semantics in a resilient build will be defined in a later release.
+    // "Job rank" of the sending process, as defined with the description
+    //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
-    // Entry for the currently-running handler corresponding to this token
+    // Entry for the currently-running handler corresponding to this token.
+    // If handler was registered using the legacy gasnet_attach() call, this
+    // value may be set to a valid pointer to a gex_AM_Entry_t, with undefined
+    // contents.
     const gex_AM_Entry_t      *gex_entry;
+
+    // 1 if the current handler is a Request, 0 otherwise.
+    [some integral type]       gex_is_req;
+
+    // 1 if the current handler is a Long, 0 otherwise.
+    [some integral type]       gex_is_long;
 } gex_Token_Info_t;
 
 // Bitmask constants to request specific info from gex_Token_Info():
@@ -520,6 +584,8 @@ typedef [some integer type] gex_TI_t;
 
 // OPTIONAL: Some implementations might not support these queries:
 #define GEX_TI_ENTRY         ((gex_TI_t)???)
+#define GEX_TI_IS_REQ        ((gex_TI_t)???)
+#define GEX_TI_IS_LONG       ((gex_TI_t)???)
 
 // Convenience: all defined queries (Required and Optional)
 #define GEX_TI_ALL           ((gex_TI_t)???)
@@ -531,7 +597,8 @@ typedef [some integer type] gex_TI_t;
 // The return value is of the same form as the mask.
 // The implementation is permitted to set fields not requested by the
 // caller to valid or *invalid* values.  The returned mask will indicate
-// which fields contain valid results
+// which fields contain valid results, and may include bits not present
+// in the mask.
 //
 // Each GEX_TI_* corresponds to either a Required or Optional query.
 // When a client requests a Required query, a conforming implementation
@@ -597,6 +664,9 @@ extern gex_TI_t gex_Token_Info(
 //   does not Poll, if we wanted to.]
 //
 // Other arguments behave as in the analogous GASNet-1 functions.
+// Misc semantic strengthening:
+// * dest_addr for Long is guaranteed to be delivered to the handler as provided
+//   by the initiator, even for the degenerate case when nbytes==0
 
 // Long
 int gex_AM_RequestLong[M](
@@ -651,6 +721,7 @@ int gex_AM_ReplyShort[M](
 
 //
 // Negotiated-payload AM APIs
+// [CHANGED SINCE JUNE 2017 BETA]
 //
 
 // The fixed-payload APIs for Active Message Mediums and Longs (brought
@@ -674,16 +745,13 @@ int gex_AM_ReplyShort[M](
 // passes an optional source buffer address, the minimum and maximum lengths
 // it is willing to send, and many (but not all) of the other parameters
 // normally passed when injecting an Active Message.  In this phase, GASNet
-// determines how much of the payload can be sent and whether it is preferable
-// to accept the client-provided source buffer or provide a replacement
-// buffer.
+// determines how much of the payload can be sent.
 //
 // The return from the Prepare call provides the client with an address and a
 // length.  The length is in the range defined by the minimum and maximum
-// lengths.  The address may either be the same as the client_buf argument or
+// lengths.  The address will be either the the client_buf (if non_NULL) or
 // it may be a GASNet-owned buffer of the indicated length, suitably aligned
-// to hold any data type.  These two cases are known, respectively as
-// "accepting" or "rejecting" the client_buf.
+// to hold any data type.
 //
 // It is important to note that passing NULL for the client_buf argument to
 // a Prepare call requires GASNet to allocate buffer space of size no
@@ -692,8 +760,7 @@ int gex_AM_ReplyShort[M](
 //
 // Between the Prepare and the Commit calls the client is responsible for
 // assembling its payload (or the prefix of the given length) at the selected
-// address.  This may be a no-op if GASNet has accepted a client-provided
-// source buffer.  The client may also choose to send a length shorter than
+// address (potentially a no-op).  The client may send a length shorter than
 // the value returned from the Prepare, for instance rounding down to some
 // natural boundary.  The client may also defer until the Prepare-Commit
 // interval its selection of the AM handler and arguments, which might depend
@@ -784,16 +851,13 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //   + May be NULL to request conservative behavior
 //   + In all cases the actual dest_addr is supplied at Commit.
 //  gex_Event_t *lc_opt
-//   + This argument acts as a stand-in for the lc_opt that will
-//     be passed to the Commit call, but is not identical in all
-//     cases.
 //   + If client_buf is NULL, this argument must also be NULL.
-//   + If client_buf is non-NULL, the lc_opt value required by
-//     Prepare depends on the value of lc_opt the client will
-//     pass to Commit, assuming client_buf is accepted:
-//      - GEX_EVENT_NOW: GEX_EVENT_NOW
-//      - GEX_EVENT_GROUP: GEX_EVENT_GROUP [REQUEST ONLY]
-//      - The address of a gex_Event_t: NULL
+//   + If client_buf is non-NULL, this argument operates in the same
+//     manner as the 'lc_opt' argument to the fixed-payload AM calls.
+//     Between Prepare and Commit, the contents of the gex_Event_t
+//     referenced by lc_opt, if any, is indeterminate.  Only after
+//     return from the Commit call may such a value be used by the
+//     caller.
 //  gex_Flags_t flags
 //   + Bitwise OR of flags valid for the corresponding
 //     fixed-payload AM injection
@@ -872,39 +936,28 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
 //   + The destination address for transfer of Long payloads
 //   + If non-NULL dest_addr was passed to Prepare, this must
 //     be the same value
-//  gex_Event_t *lc_opt
-//   + If Prepare accepted a non-NULL client_buf argument, this
-//     argument acts exactly as in the fixed-payload AM injection
-//     APIs, with the additional constraint that the lc_opt
-//     argument to the preceding Prepare must correspond.
-//   + If Prepare did not accept its client_buf argument, or that
-//     argument was NULL, then this argument must be NULL
 //
 extern void gex_AM_CommitRequestMedium[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
-                size_t           nbytes,
-                gex_Event_t      *lc_opt
+                size_t           nbytes
                 [,arg0, ... ,argM-1]);
 extern void gex_AM_CommitReplyMedium[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
-                size_t           nbytes,
-                gex_Event_t      *lc_opt
+                size_t           nbytes
                 [,arg0, ... ,argM-1]);
 extern void gex_AM_CommitRequestLong[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
                 size_t           nbytes,
-                void             *dest_addr,
-                gex_Event_t      *lc_opt
+                void             *dest_addr
                 [,arg0, ... ,argM-1]);
 extern void gex_AM_CommitReplyLong[M](
                 gex_AM_SrcDesc_t sd,
                 gex_AM_Index_t   handler,
                 size_t           nbytes,
-                void             *dest_addr,
-                gex_Event_t      *lc_opt
+                void             *dest_addr
                 [,arg0, ... ,argM-1]);
 
 

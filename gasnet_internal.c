@@ -57,7 +57,10 @@ int gasneti_VerboseErrors = 1;
   GASNETI_THREADKEY_DEFINE(gasneti_throttledebug_key);
 #endif
 
-#define GASNET_VERSION_STR  _STRINGIFY(GASNET_VERSION)
+#define GEX_VERSION_STR  _STRINGIFY(GEX_SPEC_VERSION_MAJOR) "."  _STRINGIFY(GEX_SPEC_VERSION_MINOR)
+GASNETI_IDENT(gasneti_IdentString_EXAPIVersion, "$GASNetEXAPIVersion: " GEX_VERSION_STR " $");
+
+#define GASNET_VERSION_STR  _STRINGIFY(GASNETI_SPEC_VERSION_MAJOR)
 GASNETI_IDENT(gasneti_IdentString_APIVersion, "$GASNetAPIVersion: " GASNET_VERSION_STR " $");
 
 #define GASNETI_THREAD_MODEL_STR _STRINGIFY(GASNETI_THREAD_MODEL)
@@ -117,16 +120,14 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 
+/* global definitions of GASNet-wide internal variables
+   not subject to override */
+gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
+gex_Rank_t gasneti_nodes = 0;
+
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
-#ifdef _GASNET_MYNODE_DEFAULT
-  gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
-#endif
-#ifdef _GASNET_NODES_DEFAULT
-  gex_Rank_t gasneti_nodes = 0;
-#endif
-
 #if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT)
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
@@ -225,8 +226,8 @@ extern void gasneti_check_config_postattach(void) {
   gasneti_assert_always(gex_AM_LUBRequestLong() >= 512);
   gasneti_assert_always(gex_AM_LUBReplyLong() >= 512);
 
-  gasneti_assert_always(gasnet_nodes() >= 1);
-  gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
+  gasneti_assert_always(gasneti_nodes >= 1);
+  gasneti_assert_always(gasneti_mynode < gasneti_nodes);
   { static int firstcall = 1;
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
@@ -292,7 +293,7 @@ extern void gasneti_defaultAMHandler(gex_Token_t token) {
   gex_Rank_t srcnode = info.gex_srcrank;
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
                      "with no associated AM handler function registered", 
-                     (int)gasnet_mynode(), (int)gasnet_nodes(), (int)srcnode);
+                     (int)gasneti_mynode, (int)gasneti_nodes, (int)srcnode);
 }
 /* ------------------------------------------------------------------------------------ */
 
@@ -415,8 +416,14 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
 extern int gasneti_amregister_client(
                         gex_AM_Entry_t *output,
                         gex_AM_Entry_t *input,
-                        int numentries)
+                        size_t numentries)
 {
+  if_pf (numentries == 0) return GASNET_OK;
+  if_pf (numentries > GASNETC_MAX_NUMHANDLERS - GEX_AM_INDEX_BASE) 
+      GASNETI_RETURN_ERRR(BAD_ARG,"Tried to register too many handlers");
+  if_pf (input == NULL)
+      GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table");
+
   /*  first pass - assign all fixed-index handlers */
   int numreg1 = 0;
   if (gasneti_amregister(output, input, numentries,
@@ -443,6 +450,15 @@ extern int gasneti_amregister_client(
 // TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
 extern int gasneti_amregister_legacy( gex_AM_Entry_t *output,
                                       gasnet_handlerentry_t *table, int numentries) {
+
+  if_pf (numentries == 0) return GASNET_OK;
+  if_pf (numentries > GASNETC_MAX_NUMHANDLERS - GEX_AM_INDEX_BASE) 
+      GASNETI_RETURN_ERRR(BAD_ARG,"Tried to register too many handlers");
+  if_pf (numentries < 0) 
+      GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table size");
+  if_pf (table == NULL)
+      GASNETI_RETURN_ERRR(BAD_ARG,"Invalid AM handler table");
+
   /* create temporary ex-compatible table */
   gex_AM_Entry_t *extable = gasneti_calloc(numentries, sizeof(gex_AM_Entry_t));
   for (int i = 0; i < numentries; ++i) {
@@ -512,14 +528,88 @@ extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
   }
 }
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+#if GASNET_DEBUG
+// Post processing of gex_Token_Info() results
+extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *info, gex_TI_t mask) {
+  // Validate client's requested mask
+  if (mask & ~GEX_TI_ALL) {
+    gasneti_fatalerror("Mask argument to gex_Token_Info() includes unknown bits");
+  }
+
+  // Validate conduit's returned mask (any requested+required fields missing?);
+  gasneti_assert(! (~result & (mask & GASNETI_TI_REQUIRED)));
+
+  // For each field set: validate
+  if (result & GEX_TI_SRCRANK) {
+    gasneti_assert(info->gex_srcrank < gasneti_nodes);
+  }
+  if (result & GEX_TI_ENTRY) {
+    gasneti_assert(info->gex_entry);
+    gasneti_am_validate(info->gex_entry, 1);
+  }
+  if (result & GEX_TI_IS_REQ) {
+    gasneti_assert(info->gex_is_req == !!info->gex_is_req); // Is 0 or 1
+    if (result & GEX_TI_ENTRY) {
+      gasneti_assert(info->gex_entry->gex_flags &
+                     (info->gex_is_req ? GEX_FLAG_AM_REQUEST : GEX_FLAG_AM_REPLY));
+    }
+  }
+  if (result & GEX_TI_IS_LONG) {
+    gasneti_assert(info->gex_is_long == !!info->gex_is_long); // Is 0 or 1
+    if (result & GEX_TI_ENTRY) {
+      gasneti_assert(info->gex_entry->gex_flags &
+                     (info->gex_is_long ? GEX_FLAG_AM_LONG : GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM));
+    }
+  }
+
+  // From here forward, consider only the requested subset of the conduit-provided result
+  result &= mask;
+
+  // For each field not requested or requested but not set: INvalidate
+  if (!(result & GEX_TI_SRCRANK)) {
+    info->gex_srcrank = GEX_RANK_INVALID;
+  }
+  if (!(result & GEX_TI_ENTRY)) {
+    info->gex_entry = NULL;
+  }
+  if (!(result & GEX_TI_IS_REQ)) {
+    info->gex_is_req = 2; // true invalidation not possible for a boolean
+  }
+  if (!(result & GEX_TI_IS_LONG)) {
+    info->gex_is_long = 2; // true invalidation not possible for a boolean
+  }
+
+  return result;
+}
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 #ifndef _GEX_CLIENT_T
+#ifndef gasneti_import_client
+gasneti_Client_t gasneti_import_client(gex_Client_t _client) {
+  const gasneti_Client_t _real_client = GASNETI_IMPORT_POINTER(gasneti_Client_t,_client);
+  GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
+  return _real_client;
+}
+#endif
+
+#ifndef gasneti_export_client
+gex_Client_t gasneti_export_client(gasneti_Client_t _real_client) {
+  GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
+  return GASNETI_EXPORT_POINTER(gex_Client_t, _real_client);
+}
+#endif
+
+// TODO-EX: either ensure name is unique OR perform "auto-increment" according to flags
 gasneti_Client_t gasneti_alloc_client(
                        const char *name,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
-  gasneti_Client_t client = gasneti_malloc(sizeof(*client));
+  gasneti_Client_t client = gasneti_malloc(alloc_size ? alloc_size : sizeof(*client));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*client));
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
   client->_name = gasneti_strdup(name);
   client->_cdata = NULL;
@@ -543,13 +633,31 @@ void gasneti_free_client(gasneti_Client_t client)
 
 
 #ifndef _GEX_SEGMENT_T
+#ifndef gasneti_import_segment
+gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment) {
+  const gasneti_Segment_t _real_segment = GASNETI_IMPORT_POINTER(gasneti_Segment_t,_segment);
+  GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
+  return _real_segment;
+}
+#endif
+
+#ifndef gasneti_export_segment
+gex_Segment_t gasneti_export_segment(gasneti_Segment_t _real_segment) {
+  GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
+  return GASNETI_EXPORT_POINTER(gex_Segment_t, _real_segment);
+}
+#endif
+
+// TODO-EX: probably need to add to a per-client container of some sort
 gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t size,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
-  gasneti_Segment_t segment = gasneti_malloc(sizeof(*segment));
+  gasneti_Segment_t segment = gasneti_malloc(alloc_size ? alloc_size : sizeof(*segment));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*segment));
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
   segment->_client = client;
   segment->_cdata = NULL;
@@ -575,16 +683,35 @@ void gasneti_free_segment(gasneti_Segment_t segment)
 
 
 #ifndef _GEX_EP_T
+#ifndef gasneti_import_ep
+gasneti_EP_t gasneti_import_ep(gex_EP_t _ep) {
+  const gasneti_EP_t _real_ep = GASNETI_IMPORT_POINTER(gasneti_EP_t,_ep);
+  GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
+  return _real_ep;
+}
+#endif
+
+#ifndef gasneti_export_ep
+gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
+  GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
+  return GASNETI_EXPORT_POINTER(gex_EP_t, _real_ep);
+}
+#endif
+
+// TODO-EX: probably need to add to a per-client container of some sort
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
-  gasneti_EP_t endpoint = gasneti_malloc(sizeof(*endpoint));
+  gasneti_EP_t endpoint = gasneti_malloc(alloc_size ? alloc_size : sizeof(*endpoint));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*endpoint));
   GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
   endpoint->_client = client;
   endpoint->_cdata = NULL;
   endpoint->_segment = NULL;
   endpoint->_flags = flags;
+  gasneti_amtbl_init(endpoint->_amtbl);
 #ifdef GASNETI_EP_ALLOC_EXTRA
   GASNETI_EP_ALLOC_EXTRA(endpoint);
 #endif
@@ -603,15 +730,33 @@ void gasneti_free_ep(gasneti_EP_t endpoint)
 
 
 #ifndef _GEX_TM_T
+#ifndef gasneti_import_tm
+gasneti_TM_t gasneti_import_tm(gex_TM_t _tm) {
+  const gasneti_TM_t _real_tm = GASNETI_IMPORT_POINTER(gasneti_TM_t,_tm);
+  GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
+  return _real_tm;
+}
+#endif
+
+#ifndef gasneti_export_tm
+gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm) {
+  GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
+  return GASNETI_EXPORT_POINTER(gex_TM_t, _real_tm);
+}
+#endif
+
+// TODO-EX: probably need to add to a per-client container of some sort
 extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags)
+                       gex_Flags_t flags,
+                       size_t alloc_size)
 {
   gasneti_assert(rank < size);
   gasneti_assert(size > 0);
-  gasneti_TM_t tm = gasneti_malloc(sizeof(*tm));
+  gasneti_TM_t tm = gasneti_malloc(alloc_size ? alloc_size : sizeof(*tm));
+  gasneti_assert(!alloc_size || alloc_size >= sizeof(*tm));
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
   tm->_ep = ep;
   tm->_cdata = NULL;
@@ -641,6 +786,21 @@ void gasneti_free_tm(gasneti_TM_t tm)
 // TODO-EX: should really have single-phase in terms of the split-phase instead
 
 #ifndef _GEX_AM_SRCDESC_T
+#ifndef gasneti_import_srcdesc
+gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
+  const gasneti_AM_SrcDesc_t _real_srcdesc = GASNETI_IMPORT_POINTER(gasneti_AM_SrcDesc_t,_srcdesc);
+  GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
+  return _real_srcdesc;
+}
+#endif
+
+#ifndef gasneti_export_srcdesc
+gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
+  GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
+  return GASNETI_EXPORT_POINTER(gex_AM_SrcDesc_t, _real_srcdesc);
+}
+#endif
+
 GASNETI_INLINE(gasneti_alloc_srcdesc)
 gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(
                        int            nargs
@@ -733,7 +893,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
     if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
   }
 
-  // Common argument checks
+  // Common argument processing
   // TODO-EX: tracing should probably occur here as well
   #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
     do {                                                                                                 \
@@ -742,15 +902,22 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
         if (lc_opt != NULL)                                                                              \
           gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
                              "only NULL is a valid lc_opt value when client_buf is NULL", _reqrep);      \
+      } else if (lc_opt == NULL) {                                                                       \
+        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": lc_opt must be non-NULL "               \
+                           "when client_buf is non-NULL", _reqrep);                                      \
       } else if (is_req) {                                                                               \
-        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))                \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL, GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values",     \
-                             _reqrep);                                                                   \
+        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))\
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
+                             "GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values "                \
+                             "when client_buf is non-NULL", _reqrep);                                    \
       } else {                                                                                           \
-        if ((lc_opt != NULL) && (lc_opt != GEX_EVENT_NOW))                                               \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL and GEX_EVENT_NOW are valid lc_opt values", _reqrep);            \
+        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW))                               \
+          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
+                             "and GEX_EVENT_NOW are valid lc_opt values "                                \
+                             "when client_buf is non-NULL", _reqrep);                                    \
+      }                                                                                                  \
+      if (lc_opt && gasneti_leaf_is_pointer(lc_opt)) {                                                   \
+        *lc_opt = GEX_EVENT_NO_OP;                                                                       \
       }                                                                                                  \
       if (nargs > gex_AM_MaxArgs())                                                                      \
         gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
@@ -776,7 +943,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
   #define GASNETI_AMPREPREPLYCOMMON(cbuf,min_len,max_len,limit,lc_opt,nargs,cat) \
              _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,0,cat)
 
-  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,is_req,cat) \
+  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,is_req,cat) \
     do {                                                                                                 \
       const char *_reqrep = is_req ? "Request" : "Reply";                                                \
       if (!sd)                                                                                           \
@@ -806,35 +973,23 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
       if (sd->_tofree) {                                                                                 \
-        if (lc_opt != NULL)                                                                              \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt must be NULL when using a GASNet-provided buffer",                  \
-                             _reqrep, nargs);                                                            \
         if (gasneti_sd_init_enabled && (sd->_size >= gasneti_sd_init_len) &&                             \
             !gasneti_memalloc_valcmp(sd->_tofree, gasneti_sd_init_len, gasneti_sd_init_val))             \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \
-      } else if (sd->_lc_opt == NULL) {                                                                  \
-        if (!lc_opt || !gasneti_leaf_is_pointer(lc_opt))                                                 \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt is not a valid pointer", _reqrep, nargs);                           \
-      } else {                                                                                           \
-        if (sd->_lc_opt != lc_opt)                                                                       \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "lc_opt does not match the value passed to Prepare", _reqrep, nargs);       \
       }                                                                                                  \
     } while(0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,1,cat)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,lc_opt,nargs,0,cat)
+  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
+                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat)
+  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
+                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
 #else
   #define gasneti_init_sd_poison(a,l) ((void)0)
   #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min,max,lim,lc_opt,nargs,cat) ((void)0)
   #define GASNETI_AMPREPREPLYCOMMON(cbuf,minlen,maxlen,lim,lc_opt,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs,cat) ((void)0)
+  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
+  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
 #endif
 
 GASNETI_INLINE(gasneti_prepare_common)
@@ -1000,8 +1155,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
 #ifndef gasnetc_AM_CommitRequestMediumM
 void gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
-                       size_t                  nbytes,
-                       gex_Event_t             *lc_opt
+                       size_t                  nbytes
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -1011,8 +1165,7 @@ void gasnetc_AM_CommitRequestMediumM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1025,6 +1178,7 @@ void gasnetc_AM_CommitRequestMediumM(
     gex_TM_t   tm          = sd->_dest._request._tm;
     gex_Rank_t dest        = sd->_dest._request._rank;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1059,7 +1213,6 @@ void gasnetc_AM_CommitRequestMediumM(
 void gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
-                       gex_Event_t             *lc_opt,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -1068,8 +1221,7 @@ void gasnetc_AM_CommitReplyMediumM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,lc_opt,nargs_arg,Medium);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
     
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1081,6 +1233,7 @@ void gasnetc_AM_CommitReplyMediumM(
 
     gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1114,8 +1267,7 @@ void gasnetc_AM_CommitReplyMediumM(
 void gasnetc_AM_CommitRequestLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
-                       void                    *dest_addr,
-                       gex_Event_t             *lc_opt
+                       void                    *dest_addr
                        GASNETI_THREAD_FARG,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
@@ -1125,8 +1277,7 @@ void gasnetc_AM_CommitRequestLongM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1139,6 +1290,7 @@ void gasnetc_AM_CommitRequestLongM(
     gex_TM_t   tm          = sd->_dest._request._tm;
     gex_Rank_t dest        = sd->_dest._request._rank;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1174,7 +1326,6 @@ void gasnetc_AM_CommitReplyLongM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
                        void                    *dest_addr,
-                       gex_Event_t             *lc_opt,
                      #if GASNET_DEBUG
                        unsigned int            nargs_arg,
                      #endif
@@ -1183,8 +1334,7 @@ void gasnetc_AM_CommitReplyLongM(
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
     const unsigned int nargs = sd->_nargs;
 
-    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,lc_opt,nargs_arg,Long);
-    if (!lc_opt) lc_opt = GEX_EVENT_NOW;  // GASNet-owned buffer
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
     
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -1196,6 +1346,7 @@ void gasnetc_AM_CommitReplyLongM(
 
     gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
+    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
     gasneti_assert(gex_AM_MaxArgs() <= 16);
@@ -1230,6 +1381,9 @@ void gasnetc_AM_CommitReplyLongM(
 #ifndef GASNETC_FATALSIGNAL_CALLBACK
 #define GASNETC_FATALSIGNAL_CALLBACK(sig)
 #endif
+#ifndef GASNETC_FATALSIGNAL_CLEANUP_CALLBACK
+#define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig)
+#endif
 
 static void do_raise(int sig) {
 #if defined(PTHREAD_MUTEX_INITIALIZER) && !GASNET_SEQ && HAVE_PTHREAD_KILL && 0 
@@ -1260,7 +1414,7 @@ void gasneti_defaultSignalHandler(int sig) {
 
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
       fprintf(stderr,"*** Caught a fatal signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
+        signame, sig, (int)gasneti_mynode, (int)gasneti_nodes); 
       fflush(stderr);
 
       gasnett_freezeForDebuggerErr(); /* allow freeze */
@@ -1268,6 +1422,8 @@ void gasneti_defaultSignalHandler(int sig) {
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
 
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
+
+      GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig); /* conduit hook to kill the job */
 
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
       do_raise(sig);
@@ -1283,7 +1439,7 @@ void gasneti_defaultSignalHandler(int sig) {
 
       oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
       fprintf(stderr,"*** Caught a signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
+        signame, sig, (int)gasneti_mynode, (int)gasneti_nodes); 
       fflush(stderr);
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
@@ -1803,7 +1959,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
                         natives);
       }
     }
-    if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasnet_mynode() == 0) {
+    if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasneti_mynode == 0) {
       fprintf(stderr,"WARNING: Using GASNet's %s-conduit, which exists for portability convenience.\n"
                      "%s\n"
                      "WARNING: You should *really* use the high-performance native GASNet conduit\n"
@@ -2717,12 +2873,13 @@ gex_Segment_t     gasneti_thunk_segment  = NULL;
     gasneti_assert_always((((uintptr_t)ret) & 0x3) == 0); /* should have at least 4-byte alignment */
     if_pf (ret == NULL) {
       char curlocstr[GASNETI_MAX_LOCSZ];
+      strcpy(curlocstr, "\n   at: %s");
       if (allowfail) {
-        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%"PRIuPTR"): %s",
+        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%"PRIuPTR")%s",
                                 (uintptr_t)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
         return NULL;
       }
-      gasneti_fatalerror("Debug malloc(%"PRIuPTR") failed (%"PRIu64" bytes in use, in %"PRIu64" objects): %s", 
+      gasneti_fatalerror("Debug malloc(%"PRIuPTR") failed (%"PRIu64" bytes in use, in %"PRIu64" objects)%s", 
                      (uintptr_t)nbytes, 
                      (gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
                      (gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
@@ -2914,6 +3071,8 @@ extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG)
   extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
   extern void *(*gasnett_debug_realloc_fn)(void *ptr, size_t sz, const char *curloc);
   extern void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
+  extern char *(*gasnett_debug_strdup_fn)(const char *ptr, const char *curloc);
+  extern char *(*gasnett_debug_strndup_fn)(const char *ptr, size_t n, const char *curloc);
   void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc) =
          &_gasneti_extern_malloc;
   void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc) =
@@ -2922,6 +3081,10 @@ extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG)
         &_gasneti_extern_realloc;
   void (*gasnett_debug_free_fn)(void *ptr, const char *curloc) =
          &_gasneti_extern_free;
+  char *(*gasnett_debug_strdup_fn)(const char *s, const char *curloc) =
+         &_gasneti_extern_strdup;
+  char *(*gasnett_debug_strndup_fn)(const char *s, size_t sz, const char *curloc) =
+         &_gasneti_extern_strndup;
   /* these only exist with debug malloc */
   extern void (*gasnett_debug_memcheck_fn)(void *ptr, const char *curloc);
   extern void (*gasnett_debug_memcheck_one_fn)(const char *curloc);

@@ -319,8 +319,14 @@ typedef struct _gasnete_threaddata_t {
 
   /*  stack of iops - head is active iop servicing new implicit ops */
   gasnete_iop_t *current_iop;  
-
+  int iop_num;                  /*  number of allocated iops */
   gasnete_iop_t *iop_free;      /*  free list of iops */
+
+  /*  lists of eops and iops freed by other threads */
+  // TODO-EX: lock-free queues
+  gasneti_mutex_t foreign_lock;
+  gasnete_eop_t *foreign_eops;
+  gasnete_iop_t *foreign_iops;
 
   #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
   GASNETE_CONDUIT_THREADDATA_FIELDS
@@ -339,13 +345,21 @@ GASNETI_INLINE(_gasnete_eop_new)
 gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
   gasnete_eop_t *eop = thread->eop_free;
   if_pf (!eop) {
-    gasnete_eop_alloc(thread);
-    eop = thread->eop_free;
+    gasneti_mutex_lock(&thread->foreign_lock);
+    { // no branch needed - an empty list remains empty
+      eop = thread->foreign_eops;
+      thread->foreign_eops = NULL;
+    }
+    gasneti_mutex_unlock(&thread->foreign_lock);
+    if (!eop) {
+      gasnete_eop_alloc(thread);
+      eop = thread->eop_free;
+    }
   }
   {
     thread->eop_free = eop->next;
   #if GASNET_DEBUG
-    gasneti_assert(eop->threadidx == thread->threadidx); // TODO-EX: to be removed
+    gasneti_assert(eop->threadidx == thread->threadidx);
     gasneti_assert(eop->event[0] == gasnete_event_type_free_eop);
     eop->event[0] = gasnete_event_type_eop;
   #endif
@@ -375,7 +389,6 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
 /*  query an eop for completeness */
 static
 int gasnete_eop_isdone(gasnete_eop_t *eop) {
-  gasneti_assert(eop->threadidx == gasnete_mythread()->threadidx);
   gasnete_eop_check(eop);
   return EVENT_ALL_DONE(eop);
 }
@@ -385,7 +398,6 @@ int gasnete_eop_isdone(gasnete_eop_t *eop) {
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
   int result;
-  gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
   gasnete_iop_check(iop);
   if (iop->next) {
     result = EVENT_ALL_DONE(iop);
@@ -431,9 +443,7 @@ void gasnete_eop_prep_free(gasnete_eop_t *eop) {
 
 /*  free an eop */
 static
-void gasnete_eop_free(gasnete_eop_t *eop) {
-  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
-  gasneti_assert(thread == gasnete_mythread()); // TODO-EX: to be removed
+void gasnete_eop_free(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
   gasnete_eop_prep_free(eop);
 #ifdef GASNETE_EOP_FREE_EXTRA
   // Hook for conduit-specific cleanups
@@ -446,8 +456,16 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasneti_assert(eop->event[0] == gasnete_event_type_pendingfree_eop);
   eop->event[0] = gasnete_event_type_free_eop;
 #endif
-  eop->next = thread->eop_free;
-  thread->eop_free = eop;
+  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
+  if_pt (thread == GASNETI_MYTHREAD) {
+    eop->next = thread->eop_free;
+    thread->eop_free = eop;
+  } else {
+    gasneti_mutex_lock(&thread->foreign_lock);
+    eop->next = thread->foreign_eops;
+    thread->foreign_eops = eop;
+    gasneti_mutex_unlock(&thread->foreign_lock);
+  }
 }
 
 #endif // GASNETI_DISABLE_EOP_INTERFACE

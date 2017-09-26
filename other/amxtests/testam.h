@@ -9,11 +9,7 @@
   typedef gasnet_handlerarg_t handlerarg_t;
  #define EXTERNC GASNETT_EXTERNC
  GASNETT_BEGIN_EXTERNC
- #ifdef GASNET_USE_STRICT_PROTOTYPES
-  typedef void *handler_fn_t;
- #else
   typedef void (*handler_fn_t)();
- #endif
  GASNETT_END_EXTERNC
   typedef gasnet_token_t token_t;
   typedef size_t bufsize_t;
@@ -101,8 +97,8 @@
   #define ReplyMedium(num,args)                 AMSend(0,ReplyMedium,num,args)
   #define ReplyLong(num,AMargs,GASNETargs)      AMSend(0,ReplyLong,num,GASNETargs)
   #define NUMHANDLERS_PER_TYPE     (gex_AM_MaxArgs()+1)
-  #define MYPROC                   (gasnet_mynode())
-  #define NUMPROCS                 (gasnet_nodes())
+  #define MYPROC                   (gex_System_QueryJobRank())
+  #define NUMPROCS                 (gex_System_QueryJobSize())
   #define MYSEG                    (TEST_MYSEG())
   #define GETPARTNER(token) gex_Rank_t partner; \
                             do { gex_Token_Info_t info; \

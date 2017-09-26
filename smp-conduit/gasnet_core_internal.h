@@ -9,13 +9,14 @@
 
 #include <gasnet_internal.h>
 
-#if GASNET_DEBUG
 typedef struct {
+  gex_Token_Info_t ti;
+#if GASNET_DEBUG
   int8_t   isReq; 
   int8_t   handlerRunning; 
   int8_t   replyIssued;    
-} gasnetc_bufdesc_t;
 #endif
+} gasnetc_token_t;
 
 typedef struct {
   uint8_t  requestBuf[GASNETC_MAX_MEDIUM];
@@ -30,8 +31,8 @@ typedef struct {
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
-/* handler table (recommended impl) */
-extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+/* handler table (temporary global impl) */
+extern gex_AM_Entry_t *gasnetc_handler;
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNETI_CLIENT_THREADS

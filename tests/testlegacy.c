@@ -26,6 +26,8 @@ void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
 void doit4(int partner, int32_t *partnerseg);
 void doit5(int partner, int *partnerseg);
+void doit6(int partner, int *partnerseg);
+void doit7(int partner, int *partnerseg);
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_SEGMENT_EVERYTHING
@@ -217,7 +219,7 @@ int main(int argc, char **argv) {
                               TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 #endif
 
-  test_init("testgasnet",0,"");
+  test_init("testlegacy",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
   /* Legacy expansion of TEST_PRINT_CONDUITINFO(): */
@@ -329,6 +331,26 @@ void doit(int partner, int *partnerseg) {
   assert_always(MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium()) == gasnet_AMMaxMedium());
   assert_always(gex_AM_LUBRequestLong() == gasnet_AMMaxLongRequest());
   assert_always(gex_AM_LUBReplyLong() == gasnet_AMMaxLongReply());
+
+  // Rank-vs-node
+  assert_always(gex_System_QueryJobRank() == gasnet_mynode());
+  assert_always(gex_System_QueryJobSize() == gasnet_nodes());
+
+  // GEX objects
+  { gex_Client_t  client;
+    gex_EP_t      endpoint;
+    gex_TM_t      tm;
+    gex_Segment_t segment;
+    gasnet_QueryGexObjects(&client, &endpoint, &tm, &segment);
+    assert_always(gex_EP_QueryClient(endpoint) == client);
+    assert_always(gex_TM_QueryClient(tm) == client);
+    assert_always(gex_TM_QueryEP(tm) == endpoint);
+  #if !GASNET_SEGMENT_EVERYTHING
+    assert_always(gex_Segment_QueryClient(segment) == client);
+    assert_always(gex_Segment_QueryAddr(segment) == TEST_MYSEG());
+    assert_always(gex_Segment_QuerySize(segment) >= TEST_SEGSZ_REQUEST);
+  #endif
+  }
 
   MSG("*** passed object test!!");
 
@@ -696,6 +718,12 @@ void doit5(int partner, int *partnerseg) {
     if (success) MSG("*** passed nbi put/overwrite test!!");
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit6(partner, (int *)partnerseg);
+}
+void doit6(int partner, int *partnerseg) {
+#endif
+
   BARRIER();
 
   { /* all ams test */
@@ -710,6 +738,12 @@ void doit5(int partner, int *partnerseg) {
 
     MSG("*** passed AM test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit7(partner, (int *)partnerseg);
+}
+void doit7(int partner, int *partnerseg) {
+#endif
 
   BARRIER();
 

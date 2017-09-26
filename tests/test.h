@@ -116,8 +116,8 @@ GASNETT_BEGIN_EXTERNC
   #define TEST_MYPROC gasnet_mynode()
   #define TEST_PROCS  gasnet_nodes()
 #else
-  #define TEST_MYPROC gasnet_mynode() // TODO-EX: gex_System_QueryRank()
-  #define TEST_PROCS  gasnet_nodes()  // TODO-EX: gex_System_QuerySize()
+  #define TEST_MYPROC gex_System_QueryJobRank()
+  #define TEST_PROCS  gex_System_QueryJobSize()
 #endif
 
 /* define several useful messaging macros */

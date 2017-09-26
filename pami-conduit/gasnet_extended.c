@@ -141,9 +141,10 @@ extern void gasnete_init(void) {
     #endif
     #if !GASNETI_DISABLE_REFERENCE_EOP
       /* cause the first pool of eops to be allocated (optimization) */
+      GASNET_POST_THREADINFO(threaddata);
       gasnete_eop_t *eop = gasnete_eop_new(threaddata);
       GASNETE_EOP_MARKDONE(eop);
-      gasnete_eop_free(eop);
+      gasnete_eop_free(eop GASNETI_THREAD_GET);
     #endif
   }
 

@@ -22,8 +22,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
-// TODO-EX: will be replaced with per-EP tables
-gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 // TODO-EX: This is a hack to support multiple segments w/ a single AM EP
 #ifndef GASNETC_MOCK_EVERYTHING
@@ -384,7 +383,11 @@ done: /*  error return while locked */
   GASNETI_RETURN(retval);
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gex_Flags_t flags) {
+static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
+                                  gex_TM_t                      tm,
+                                  uintptr_t                     segsize,
+                                  gasneti_bootstrapExchangefn_t exchangefn,
+                                  gex_Flags_t                   flags) {
     int retval = GASNET_OK;
 
     // TODO-EX: crude detection of multiple calls until we support them
@@ -400,6 +403,10 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
 
     gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
     gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+
+    gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
+    ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
+    *segment_p = gasneti_export_segment(ep->_segment);
   
     /* After local segment is attached, call optional client-provided hook
        (###) should call BEFORE any conduit-specific pinning/registration of the segment
@@ -434,7 +441,7 @@ done:
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gasnetc_attach( gex_Client_t           *client_p,
-                           gex_EP_t               *endpoint_p,
+                           gex_EP_t               *ep_p,
                            gex_TM_t               *tm_p,
                            gex_Segment_t          *segment_p,
                            gasnet_handlerentry_t  *table,
@@ -445,6 +452,7 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
+  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -467,14 +475,13 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
-    // TODO-EX: clearly segment_p should be initialized here
-    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
+    if (GASNET_OK != gasnetc_attach_segment(segment_p, *tm_p, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
   AMLOCK();
     /*  register client handlers */
-    if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
+    if (table && gasneti_amregister_legacy(ep->_amtbl, table, numentries) != GASNET_OK)
       INITERR(RESOURCE,"Error registering handlers");
   AMUNLOCK();
 
@@ -507,28 +514,29 @@ extern int gasnetc_Client_Init(
   gasneti_assert(argv);
 #endif
 
-  // TODO-EX: check name of client is unique
+  //  main init
+  // TODO-EX: must split off per-client and per-endpoint portions
+  if (!gasneti_init_done) {
+    int retval = gasnetc_init(argc, argv, flags);
+    if (retval != GASNET_OK) GASNETI_RETURN(retval);
+  #if 0
+    /* called within gasnetc_init to allow init tracing */
+    gasneti_trace_init(argc, argv);
+  #endif
+  }
 
-  /*  main init  */
-  // TODO-EX: must split per-client vs. exactly once portions
-  int retval = gasnetc_init(argc, argv, flags);
-  if (retval != GASNET_OK) GASNETI_RETURN(retval);
-#if 0
-  /* called within gasnet_init to allow init tracing */
-  gasneti_trace_init(argc, argv);
-#endif
-
-  // TODO-EX: create client
-  gasneti_Client_t client = gasneti_alloc_client(clientName, flags);
+  //  allocate the client object
+  gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
   *client_p = gasneti_export_client(client);
 
-  /*  create the initial endpoint with internal handlers */
+  //  create the initial endpoint with internal handlers
   if (gasnetc_EP_Create(ep_p, *client_p, flags))
     GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+  gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -559,14 +567,14 @@ extern int gasnetc_Segment_Attach(
   // TODO-EX: this implementation only works *once*
   // TODO-EX: should be using the team's exchange function if possible
   // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
-  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, 0))
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   uintptr_t segsize = gasneti_seginfo[gasneti_mynode].size;
   const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags);
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
   *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
@@ -586,12 +594,8 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
 #endif
 
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags);
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, 0);
   *ep_p = gasneti_export_ep(ep);
-
-  // Operate on global data until we have a real implementation of endpoints
-
-  gasneti_amtbl_init(gasnetc_handler);
 
   { /*  core API handlers */
     gex_AM_Entry_t *ctable = (gex_AM_Entry_t *)gasnetc_get_handlertable();
@@ -599,7 +603,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
@@ -610,7 +614,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
   }
@@ -620,8 +624,8 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
 
 extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
                                        gex_AM_Entry_t          *table,
-                                       int                     numentries) {
-  return gasneti_amregister_client(gasnetc_handler, table, numentries);
+                                       size_t                  numentries) {
+  return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
 #if HAVE_ON_EXIT
@@ -660,7 +664,7 @@ extern void gasnetc_trace_finish(void) {
       /* TODO: want a bootstrap barrier here for global stats to ensure network is 
          quiescent, but no way to do this unless we know things are collective */
 
-      if (gasnet_mynode() != 0) {
+      if (gasneti_mynode != 0) {
           GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
         /* TODO: send stats to zero */
       } else {
@@ -672,7 +676,7 @@ extern void gasnetc_trace_finish(void) {
         GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
     }
 
-    if ((gasnet_mynode() == 0 || !isglobal) && !retval) {
+    if ((gasneti_mynode == 0 || !isglobal) && !retval) {
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
       GASNETI_STATS_PRINTF(C,("AMUDP Statistics:"));
       if (!isglobal)
@@ -771,7 +775,6 @@ extern gex_TI_t gasnetc_Token_Info(
 {
   gasneti_assert(token);
   gasneti_assert(info);
-  gex_TI_t result = 0;
 
 #if GASNET_PSHM
   if (gasnetc_token_is_pshm(token)) {
@@ -779,19 +782,18 @@ extern gex_TI_t gasnetc_Token_Info(
   }
 #endif
 
-  if (mask & GEX_TI_SRCRANK) {
-    info->gex_srcrank = gasnetc_msgsource(token);
-    result |= GEX_TI_SRCRANK;
-  }
+  gex_TI_t result = 0;
+
+  info->gex_srcrank = gasnetc_msgsource(token);
+  result |= GEX_TI_SRCRANK;
+
 #if 0 // TODO-EX: need to implement this
-  if (mask & GEX_TI_ENTRY) {
-    /* (###) add code here to write the address of the handle entry into info->gex_entry */
-    info->gex_entry = ###;
-    result |= GEX_TI_ENTRY;
-  }
+  /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
+  info->gex_entry = ###;
+  result |= GEX_TI_ENTRY;
 #endif
 
-  return result;
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {

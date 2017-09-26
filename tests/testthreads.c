@@ -207,13 +207,17 @@ main(int argc, char **argv)
         #endif
         #if GASNET_PAR
           #define TEST_THREAD_USAGE " [<threads_per_node>]\n\n" \
-	    "<threads_per_node> must be between 1 and "_STRINGIFY(TEST_MAXTHREADS)"       \n"
+	    "<threads_per_node> must be between 1 and %u       \n"
+          #define TEST_THREAD_USAGE_ARGS (unsigned int)TEST_MAXTHREADS,
         #else
           #define TEST_THREAD_USAGE  "\n\n"
+          #define TEST_THREAD_USAGE_ARGS
         #endif
-	test_init("testthreads",0, "[ -pgSMLalvtd ] [ -i <iters> ]"
+        static char usage[2048];
+        snprintf(usage, sizeof(usage),
+            "[ -pgSMLalvtd ] [ -i <iters> ]"
             TEST_THREAD_USAGE
-	    "no options means run all tests with "_STRINGIFY(DEFAULT_ITERS)" iterations\n"
+	    "no options means run all tests with %i iterations\n"
 	    "options:                                      \n"
 	    "  -p  use puts                                   \n"
 	    "  -g  use gets                                   \n"
@@ -226,7 +230,9 @@ main(int argc, char **argv)
 	    "  -v  output information about actions taken     \n"
 	    "  -t  include AM handler actions with -v         \n"
 	    "  -d  dynamic thread creation stress test        \n"
-	    "  -i <iters> use <iters> iterations per thread   \n");
+	    "  -i <iters> use <iters> iterations per thread   \n",
+            TEST_THREAD_USAGE_ARGS DEFAULT_ITERS);
+	test_init("testthreads",0, usage);
 
 	while ((i = getopt (argc, argv, getopt_str)) != EOF) {
           switch (i) {
@@ -276,7 +282,7 @@ main(int argc, char **argv)
 	  threads_num = test_thread_limit(threads_num);
         #endif
 	if (threads_num < 1) {
-		printf("ERROR: Threads must be between 1 and %i\n",TEST_MAXTHREADS);
+		printf("ERROR: Threads must be between 1 and %u\n",(unsigned int)TEST_MAXTHREADS);
 		exit(EXIT_FAILURE);
 	}
 

@@ -30,6 +30,8 @@ void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
 /*void doit4(int partner, int *partnerseg); -- removed along with the memset*() calls */
 void doit5(int partner, int *partnerseg);
+void doit6(int partner, int *partnerseg);
+void doit7(int partner, int *partnerseg);
 
 static gex_Client_t      myclient;
 static gex_EP_t    myep;
@@ -227,6 +229,21 @@ int main(int argc, char **argv) {
     assert_always(global_segsz > 0);
   #endif
 
+  { uintptr_t size = (uintptr_t)-5;
+    void *owneraddr = (void*)&size;
+    void *localaddr = (void*)&size;
+
+    // No segments have been created/bound yet.
+    // Local and remote bound-segment queries must return non-zero and preserve output locations.
+    gex_Rank_t peer = (myrank == numranks-1) ? myrank : (myrank ^ 1);
+    if (!gex_Segment_QueryBound(myteam, myrank, &owneraddr, &localaddr, &size) ||
+        !gex_Segment_QueryBound(myteam, peer,   &owneraddr, &localaddr, &size) ||
+        owneraddr != (void*)&size || localaddr != (void*)&size || size != (uintptr_t)-5) {
+      MSG("*** ERROR - FAILED NO BOUND SEGMENT TEST!!!!!");
+    }
+    BARRIER();
+  }
+
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, handlers, sizeof(handlers)/sizeof(gex_AM_Entry_t)));
 
@@ -385,28 +402,94 @@ void doit(int partner, int *partnerseg) {
   }
   TEST_CDATA(Segment,mysegment);
 
+  { void *owneraddr, *localaddr;
+    uintptr_t size;
+
+    // Local bound-segment query must return 0 and give same data as direct queries
+    if (gex_Segment_QueryBound(myteam, myrank, &owneraddr, &localaddr, &size) ||
+        size      != gex_Segment_QuerySize(mysegment) ||
+        owneraddr != gex_Segment_QueryAddr(mysegment) ||
+        owneraddr != localaddr) {
+      MSG("*** ERROR - FAILED LOCAL BOUND SEGMENT TEST!!!!!");
+    }
+
+    gex_Rank_t peer = myrank ^ 1;
+    if (peer != numranks) {
+      size = 0;
+      owneraddr = NULL;
+      localaddr = (void*)&size;
+      // Remote bound-segment query must return 0 and set all outputs to "plausible" values
+      if (gex_Segment_QueryBound(myteam, peer, &owneraddr, &localaddr, &size) ||
+          !size || !owneraddr || localaddr == (void*)&size) {
+        MSG("*** ERROR - FAILED REMOTE BOUND SEGMENT TEST!!!!!");
+      }
+    }
+  }
+
   // To be removed:
   assert(gex_Segment_QueryAddr(mysegment) == TEST_MYSEG());
   assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
 #endif
 
+  /* width-independent computation of an integer variable with unknown unsigned type */
+  #if PLATFORM_ARCH_LITTLE_ENDIAN
+    #define compute_uint_val(lval_u64,var) do {          \
+      lval_u64 = 0;                                      \
+      for (size_t i=0; i < sizeof(var); i++) {           \
+        lval_u64 <<= 8;                                  \
+        lval_u64 |= *(((uint8_t*)(&(var)+1)) - 1 - i);   \
+      }                                                  \
+    } while (0)
+  #else
+    #define compute_uint_val(lval_u64,var) do {          \
+      lval_u64 = 0;                                      \
+      for (size_t i=0; i < sizeof(var); i++) {           \
+        lval_u64 <<= 8;                                  \
+        lval_u64 |= *(((uint8_t*)&(var)) + i);           \
+      }                                                  \
+    } while (0)
+  #endif
+    
+  #define assert_inttype(type) do {              \
+    volatile char a[(type)1.1f];                 \
+    volatile type v = (signed char)0x55; /* warnings here mean non-compliance */ \
+    assert_always((double)(type)1.1f < 1.1f);    \
+    uint64_t val; compute_uint_val(val,v);       \
+    assert_always(val == 0x55);                  \
+  } while (0)
   #define assert_signed(type)  do {              \
     volatile type v = 0; /* prevent warnings */  \
+    assert_inttype(type);                        \
     assert_always((type)(v-1) < v);              \
     test_static_assert((type)(-1) < (type)0);    \
   } while (0)
   #define assert_unsigned(type)  do {            \
     volatile type v = 0; /* prevent warnings */  \
+    assert_inttype(type);                        \
     assert_always((type)(v-1) > v);              \
     test_static_assert((type)(-1) > (type)0);    \
   } while (0)
+
+  /* sanity check macros and system types */
+  assert_signed(int8_t);
+  assert_signed(int16_t);
+  assert_signed(int32_t);
+  assert_signed(int64_t);
+  assert_signed(intptr_t);
+  assert_signed(ssize_t);
+  assert_unsigned(uint8_t);
+  assert_unsigned(uint16_t);
+  assert_unsigned(uint32_t);
+  assert_unsigned(uint64_t);
+  assert_unsigned(uintptr_t);
+  assert_unsigned(size_t);
 
   /* team/rank tests */
   assert_unsigned(gex_Rank_t);
   assert(myrank == gex_TM_QueryRank(myteam));
   assert(numranks == gex_TM_QuerySize(myteam));
-  assert_always(myrank == (gex_Rank_t)gasnet_mynode());  // TODO-EX: remove
-  assert_always(numranks == (gex_Rank_t)gasnet_nodes()); // TODO-EX: remove
+  assert_always(myrank == gex_System_QueryJobRank());
+  assert_always(numranks == gex_System_QueryJobSize());
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
 
@@ -513,6 +596,7 @@ void doit(int partner, int *partnerseg) {
   }
 
   /* misc type tests */
+  assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
     GEX_FLAG_IMMEDIATE,
     GEX_FLAG_SRC_IN_SEGMENT,
@@ -534,6 +618,7 @@ void doit(int partner, int *partnerseg) {
     assert_always(flags_arr[i] != 0);
   }
 
+  assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
   static gex_EC_t const ec_arr[] = { // all the flags but _ALL
      GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC 
@@ -546,8 +631,11 @@ void doit(int partner, int *partnerseg) {
   }
   assert_always((ec_some & ~ec_all) == 0); // verify ALL includes them all
 
+  assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
-  static gex_TI_t const ti_arr[] = { GEX_TI_SRCRANK, GEX_TI_ENTRY }; // all flags but _ALL
+  static gex_TI_t const ti_arr[] = { // all flags but _ALL
+          GEX_TI_SRCRANK, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
+      };
   size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
@@ -585,8 +673,17 @@ void doit(int partner, int *partnerseg) {
   #define typeisunsigned >
   #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \
     static volatile structtype S;                                            \
+    assert_inttype(fieldtype);                                               \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
     assert_always((fieldtype)(S.fieldname-1) signedop (fieldtype)0);         \
+  } while (0)
+
+  #define assert_field_int_unspec(structtype, fieldname)  do { \
+    static volatile structtype S;                                            \
+    S.fieldname = (signed char)0x55;/* warnings here mean non-compliance */  \
+    assert_always(S.fieldname > 1); /* warnings here mean non-compliance */  \
+    uint64_t val; compute_uint_val(val,S.fieldname);                         \
+    assert_always(val == 0x55);                                              \
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
@@ -606,6 +703,8 @@ void doit(int partner, int *partnerseg) {
 
   assert_field_int(gex_Token_Info_t,     gex_Rank_t,             gex_srcrank, typeisunsigned);
   assert_field_pointer(gex_Token_Info_t, const gex_AM_Entry_t *, gex_entry);
+  assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
+  assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
   if (success) MSG("*** passed object test!!");
 
@@ -902,6 +1001,12 @@ void doit5(int partner, int *partnerseg) {
     if (success) MSG("*** passed nbi put/overwrite test!!");
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit6(partner, partnerseg);
+}
+void doit6(int partner, int *partnerseg) {
+#endif
+
   BARRIER();
 
   { /* all ams test */
@@ -916,6 +1021,12 @@ void doit5(int partner, int *partnerseg) {
 
     MSG("*** passed AM test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit7(partner, partnerseg);
+}
+void doit7(int partner, int *partnerseg) {
+#endif
 
   BARRIER();
 

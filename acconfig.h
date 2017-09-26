@@ -248,8 +248,8 @@
 #undef PSTACK_PATH
 #undef PGDBG_PATH
 #undef IDB_PATH
-#undef LADEBUG_PATH
 #undef DBX_PATH
+#undef LLDB_PATH
 
 /* have pthread_setconcurrency */
 #undef HAVE_PTHREAD_SETCONCURRENCY
@@ -259,6 +259,9 @@
 
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
+
+/* have pthread_setconcurrency */
+#undef HAVE_PTHREAD_SIGMASK
 
 /* has pthread rwlock support */
 #undef GASNETI_HAVE_PTHREAD_RWLOCK
@@ -320,8 +323,9 @@
 #undef COMPLETE_STDINT_H
 #undef COMPLETE_SYS_TYPES_H
 
-/* Linux PR_SET_PDEATHSIG support */
+/* Linux prctl() support */
 #undef HAVE_PR_SET_PDEATHSIG
+#undef HAVE_PR_SET_PTRACER
 
 /* forcing use of "non-native" implementations: */
 #undef GASNETI_FORCE_GENERIC_ATOMICOPS
@@ -393,7 +397,6 @@
 #undef GASNET_DEBUGMALLOC
 #undef GASNET_SRCLINES
 #undef GASNET_DEBUG_VERBOSE
-#undef GASNET_USE_STRICT_PROTOTYPES
 
 /* GASNet segment definition */
 #undef GASNET_SEGMENT_FAST
@@ -424,6 +427,8 @@
 #undef GASNETC_IBV_RCV_THREAD
 #undef GASNETC_IBV_CONN_THREAD
 #undef GASNETC_IBV_MAX_HCAS
+#undef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
+#undef GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE
 
 /* GASNet pami-conduit settings */
 #undef GASNETI_SIZEOF_PAMI_TASK_T

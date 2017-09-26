@@ -110,6 +110,22 @@ extern gasnetc_gni_lock_t gasnetc_gni_lock;
 extern gasnetc_gni_lock_t gasnetc_am_buffer_lock;
 
 typedef uint64_t gasnetc_notify_t;
+
+/* NOTE: notify_type is "pre shifted" by 24 bits */
+enum gc_notify_type {
+  gc_notify_request = 0x01000000,
+  gc_notify_reply   = 0x02000000,
+  gc_notify_credit  = 0x03000000,
+  gc_notify_ctrl    = 0x04000000
+};
+
+#define gc_build_notify(_type, _initiator, _target)\
+  ((uint64_t)(_type) |  ((uint64_t)(_initiator) << 8) |  ((uint64_t)(_target)))
+
+#define gc_notify_get_type(n) ((n) & 0xff000000)
+#define gc_notify_get_target_slot(n) ((uint8_t)((n) & 255)) /* actual range 0..63 */
+#define gc_notify_get_initiator_slot(n) ((uint16_t)(((n) >> 8) & 65535))
+
 typedef struct gasnetc_post_descriptor gasnetc_post_descriptor_t;
 
 typedef struct {

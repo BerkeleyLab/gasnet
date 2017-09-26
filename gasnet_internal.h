@@ -255,6 +255,12 @@ GASNETI_MALLOCP(_gasneti_strndup)
 
 extern void gasneti_freezeForDebugger(void);
 
+#if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
+  // dynamic check for Linux flavor, to detect binary porting
+  // return non-zero iff this Linux system is actually Microsoft Windows Subsystem for Linux
+  extern int gasneti_platform_isWSL(void);
+#endif
+
 /* GASNET_DEBUG_VERBOSE is set by configure to request job startup and general 
    status messages on stderr 
 */
@@ -263,30 +269,76 @@ extern void gasneti_freezeForDebugger(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Apply a reversible xform to obfuscate pointers exposed to clients in DEBUG builds
+ *
+ * NDEBUG:
+ *   EXPORT: cast to the public type
+ *   IMPORT: cast to the internal type
+ * DEBUG:
+ *   EXPORT: apply obfuscation to an internal pointer and cast
+ *   IMPORT: remove obfuscation to reproduce the internal pointer and cast
+ */
+#if defined(GASNETI_EXPORT_POINTER) && defined(GASNETI_IMPORT_POINTER)
+  /* Preserve existing definitions */
+  /* When overriding:
+   * Keep in mind that code is permitted call these macros in a GASNET_NDEBUG build.
+   */
+#elif !defined(GASNETI_EXPORT_POINTER) && !defined(GASNETI_IMPORT_POINTER)
+  #if GASNET_DEBUG
+    /* Default xform is to invert all bits, except that NULL is preserved */
+    GASNETI_INLINE(_gasneti_swizzle_pointer)
+    uintptr_t _gasneti_swizzle_pointer(uintptr_t _p) { return _p ? ~_p : _p; }
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
+  #else
+    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)(ptr))
+    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)(ptr))
+  #endif
+#elif defined(GASNETI_EXPORT_POINTER) || defined(GASNETI_IMPORT_POINTER)
+  #error Must define both or neither of GASNETI_EXPORT_POINTER and GASNETI_IMPORT_POINTER
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 // Common handing of the basic object types
+
+#define GASNETI_CLIENT_MAGIC       GASNETI_MAKE_MAGIC('C','L','I','t')
+#define GASNETI_CLIENT_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('C','L','I','t')
 
 extern gasneti_Client_t gasneti_alloc_client(
                        const char *name, 
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_client(gasneti_Client_t client);
+
+#define GASNETI_SEGMENT_MAGIC      GASNETI_MAKE_MAGIC('S','E','G','t')
+#define GASNETI_SEGMENT_BAD_MAGIC  GASNETI_MAKE_BAD_MAGIC('S','E','G','t')
 
 extern gasneti_Segment_t gasneti_alloc_segment(
                        gasneti_Client_t client,
                        void *addr,
                        uintptr_t len,
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_segment(gasneti_Segment_t segment);
+
+#define GASNETI_EP_MAGIC           GASNETI_MAKE_MAGIC('E','P','_','t')
+#define GASNETI_EP_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('E','P','_','t')
 
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_ep(gasneti_EP_t endpoint);
+
+#define GASNETI_TM_MAGIC           GASNETI_MAKE_MAGIC('T','M','_','t')
+#define GASNETI_TM_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('T','M','_','t')
 
 extern gasneti_TM_t gasneti_alloc_tm(
                        gasneti_EP_t ep,
                        gex_Rank_t rank,
                        gex_Rank_t size,
-                       gex_Flags_t flags);
+                       gex_Flags_t flags,
+                       size_t alloc_size);
 void gasneti_free_tm(gasneti_TM_t tm);
 
 /* ------------------------------------------------------------------------------------ */
@@ -393,7 +445,7 @@ extern void gasneti_propagate_env(const char *keyname, int flags);
     currently, all nodes MUST return the same value (may be relaxed in the future)
    * second callback is "ok, here's what you got"
     it happens after attach and before gasnete_init, with auxseg_info
-    set to the array (gasnet_nodes() elements) of auxseg components on each node
+    set to the array (gasneti_nodes elements) of auxseg components on each node
     indicating the space assigned to this auxseg consumer.
     callee must copy the array of metadata if it wants to keep it 
     (the seg space it references is permanent)
@@ -737,7 +789,7 @@ extern int gasneti_amregister( gex_AM_Entry_t *output,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
 extern int gasneti_amregister_client(gex_AM_Entry_t *output,
-                                     gex_AM_Entry_t *input, int numentries);
+                                     gex_AM_Entry_t *input, size_t numentries);
 extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
@@ -752,6 +804,19 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 #define GASNETI_FLAG_AM_ANY \
      ( GEX_FLAG_AM_SHORT|GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG | \
        GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY )
+
+/* ------------------------------------------------------------------------------------ */
+/* common logic for gex_Token_Info() */
+
+// OR of all the required bits
+#define GASNETI_TI_REQUIRED GEX_TI_SRCRANK
+
+#if GASNET_DEBUG
+  extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t * info, gex_TI_t mask);
+  #define GASNETI_TOKEN_INFO_RETURN gasneti_token_info_return
+#else
+  #define GASNETI_TOKEN_INFO_RETURN(result, info, mask) (result)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */

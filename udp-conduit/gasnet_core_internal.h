@@ -114,8 +114,8 @@ const char *gasneti_AMErrorName(int errval) {
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
-/* handler table (recommended impl) */
-extern gex_AM_Entry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+/* handler table (temporary global impl) */
+extern gex_AM_Entry_t *gasnetc_handler;
 
 /* ------------------------------------------------------------------------------------ */
 /* Configure gasnet_event_internal.h and gasnet_event.c */

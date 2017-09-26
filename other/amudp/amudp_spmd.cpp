@@ -613,11 +613,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
     // append WORKERIP which it is needed before the master env is sent
     { char *network = AMUDP_getenv_prefixed_withdefault("WORKERIP","");
       if (network && network[0]) {
-        #if HAVE_GETIFADDRS
-          strncat(slave_env, network, remain-1);
-        #else
-          AMUDP_Warn("WORKERIP set in the environment, but your platform lacks the required getifaddrs() support.  Ignoring WORKERIP.");
-        #endif
+        strncat(slave_env, network, remain-1);
       }
     }
     if (!remain) { // ran out of space!
@@ -950,7 +946,8 @@ pollentry:
     }
 
     // parse special env var with our arguments
-    char * slave_args = strdup(env_var);
+    char * _slave_args = AMUDP_strdup(env_var);
+    char * slave_args = _slave_args;
     SockAddr masterAddr;
     { // Strip required "flag," off beginning
       char *endptr;
@@ -1033,18 +1030,21 @@ pollentry:
       /* here we assume the interface used to contact the master is the same 
          one to be used for UDP endpoints */
       SockAddr myinterface = getsockname(AMUDP_SPMDControlSocket);
-      #if HAVE_GETIFADDRS // allow user to override our same-interface assumption
-        if (network && network[0]) {
+      if (network && network[0]) {
+        #if HAVE_GETIFADDRS // allow user to override our same-interface assumption
           SockAddr networkaddr(network, 0);
           char subnets[1024];
           if (! getIfaceAddr(networkaddr, myinterface, subnets, sizeof(subnets))) {
             AMUDP_Err("Failed to find interface on requested subnet %s. Available subnets: %s", network, subnets);
             AMUDP_RETURN(AM_ERR_RESOURCE);
           }
-        }
-      #endif
+        #else
+          AMUDP_Warn("WORKERIP set in the environment, but your platform lacks the required getifaddrs() support.  Ignoring WORKERIP.");
+        #endif
+      }
       if (!AMUDP_SilentMode) AMUDP_Info("slave using IP %s", myinterface.IPStr());
       AMUDP_SetUDPInterface(myinterface.IP());
+      AMUDP_free(_slave_args);
         
       /* create endpoint and get name */
       temp = AM_AllocateBundle(AM_SEQ, &AMUDP_SPMDBundle);

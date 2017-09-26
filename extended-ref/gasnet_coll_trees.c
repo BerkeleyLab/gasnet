@@ -774,7 +774,7 @@ void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
 	gasneti_weakatomic_decrement(&(geom->ref_count), 0);
   /*
   fprintf(stderr, "[%u] gasnete_coll_tree_geom_release: geom->ref_count %u\n",
-          gasnet_mynode(), gasneti_weakatomic_read(&(geom->ref_count), 0));
+          gasneti_mynode, gasneti_weakatomic_read(&(geom->ref_count), 0));
   */
 }
 
@@ -786,15 +786,15 @@ void gasnete_coll_tree_geom_print(gasnete_coll_tree_geom_t *geom)
   ref_count = gasneti_weakatomic_read(&(geom->ref_count), 0);
   
   fprintf(stderr, "[%u] tree_geom %p, ref_count %u.\n", 
-          gasnet_mynode(), geom, ref_count);
+          gasneti_mynode, geom, ref_count);
 
-  for (i=0; i<gasnet_nodes(); i++) {
+  for (i=0; i<gasneti_nodes; i++) {
     if (geom->local_views[i] != NULL) {
       local_ref_count = 
         gasneti_weakatomic_read(&(geom->local_views[i]->ref_count), 0);
 
       fprintf(stderr, "[%u] localview[%u] ref_count %u\n", 
-              gasnet_mynode(), i, local_ref_count);
+              gasneti_mynode, i, local_ref_count);
     }
   }
 }                 
@@ -944,7 +944,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 
   /*
   fprintf(stderr, "[%u] gasnete_coll_local_tree_geom_fetch: curr_geom->ref_count %u, ret->ref_count %u \n",
-          gasnet_mynode(), gasneti_weakatomic_read(&(curr_geom->ref_count), 0),
+          gasneti_mynode, gasneti_weakatomic_read(&(curr_geom->ref_count), 0),
           gasneti_weakatomic_read(&(ret->ref_count), 0));
   */
 #endif

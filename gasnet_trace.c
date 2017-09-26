@@ -437,14 +437,14 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
       #endif
       #if GASNETI_THREADS
         fprintf(fp, "%i(%x) %8.6fs>%s (%c) %s%s", 
-          (int)gasnet_mynode(), (int)(uintptr_t)pthread_self(), time, srclinestr, *type,
+          (int)gasneti_mynode, (int)(uintptr_t)pthread_self(), time, srclinestr, *type,
           msg, (msg[strlen(msg)-1]=='\n'?"":"\n"));
       #else
-        fprintf(fp, "%i %8.6fs>%s (%c) %s%s", (int)gasnet_mynode(), time, srclinestr, *type,
+        fprintf(fp, "%i %8.6fs>%s (%c) %s%s", (int)gasneti_mynode, time, srclinestr, *type,
           msg, (msg[strlen(msg)-1]=='\n'?"":"\n"));
       #endif
     } else {
-        fprintf(fp, "%i> (%c) %s%s", (int)gasnet_mynode(), *type, msg,
+        fprintf(fp, "%i> (%c) %s%s", (int)gasneti_mynode, *type, msg,
                 (msg[strlen(msg)-1]=='\n'?"":"\n"));
     }
     GASNETI_TRACEFILE_FLUSH(fp);
@@ -489,7 +489,7 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr) {
     gasneti_mutex_assertlocked(&gasneti_tracelock);
     gasneti_assert(fp);
-    fprintf(fp, "%i> ", (int)gasnet_mynode());
+    fprintf(fp, "%i> ", (int)gasneti_mynode);
     vfprintf(fp, format, argptr);
     if (format[strlen(format)-1]!='\n') fprintf(fp, "\n");
     GASNETI_TRACEFILE_FLUSH(fp);
@@ -562,7 +562,7 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
       char temp[255];
       char *p = strchr(pathtemp,'%');
       *p = '\0';
-      sprintf(temp,"%s%i%s",pathtemp,(int)gasnet_mynode(),p+1);
+      sprintf(temp,"%s%i%s",pathtemp,(int)gasneti_mynode,p+1);
       strcpy(pathtemp,temp);
     }
     filename = pathtemp;
@@ -592,7 +592,7 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
 
 /* check node restriction */
 extern int gasneti_check_node_list(const char *listvar) {
-  unsigned long node = (unsigned long)gasnet_mynode();
+  unsigned long node = (unsigned long)gasneti_mynode;
   char *p = gasneti_getenv_withdefault(listvar,NULL);
   if (!p || !*p) return 1;
 
@@ -1046,20 +1046,28 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
       gasneti_exename, (int)getpid(), gasnett_gethostname(), temp);
    }
-   if (pargv && pargv) {
-    char temp[1024];
-    char *p = temp;
-    int i;
-    for (i=0; i < *pargc; i++) { 
-      char *q = (*pargv)[i];
-      int hasspace = 0;
-      for (;*q;q++) if (isspace((int)*q)) hasspace = 1;
-      if (hasspace) sprintf(p, "'%s'", (*pargv)[i]);
-      else sprintf(p, "%s", (*pargv)[i]);
+   if (pargc && pargv && (gasneti_tracefile || gasneti_statsfile)) {
+    size_t sz = 80;
+    for (int i=0; i < *pargc; i++) { 
+      const char *arg = (*pargv)[i];
+      sz += (arg?strlen(arg):0) + 8;
+    }
+    char *temp = gasneti_malloc(sz);
+    char *p = temp; *p = 0;
+    for (int i=0; i < *pargc; i++) { 
+      const char *arg = (*pargv)[i];
+      if (!arg) strcpy(p,"<null>");
+      else {
+        int hasspace = 0;
+        for (const char *q = arg; *q && !hasspace; q++) if (isspace((int)*q)) hasspace = 1;
+        if (hasspace) sprintf(p, "'%s'", arg);
+        else sprintf(p, "%s", arg);
+      } 
       if (i < *pargc-1) strcat(p, " ");
       p += strlen(p);
     }
     gasneti_tracestats_printf("Command-line: %s", temp);
+    gasneti_free(temp);
   }
 
   gasneti_tracestats_printf("GASNET_CONFIG_STRING: %s", GASNET_CONFIG_STRING);
@@ -1068,9 +1076,10 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_tracestats_printf("GASNet configure buildid: " GASNETI_BUILD_ID);
   gasneti_tracestats_printf("GASNet system tuple:      " GASNETI_SYSTEM_TUPLE);
   gasneti_tracestats_printf("GASNet configure system:  " GASNETI_SYSTEM_NAME);
-  gasneti_tracestats_printf("gasnet_mynode(): %i", (int)gasnet_mynode());
-  gasneti_tracestats_printf("gasnet_nodes(): %i", (int)gasnet_nodes());
+  gasneti_tracestats_printf("gex_System_QueryJobRank(): %i", (int)gex_System_QueryJobRank());
+  gasneti_tracestats_printf("gex_System_QueryJobSize(): %i", (int)gex_System_QueryJobSize());
   gasneti_tracestats_printf("gasneti_cpu_count(): %i", (int)gasneti_cpu_count());
+  gasneti_tracestats_printf("gasneti_getPhysMemSz(): %"PRIu64, gasneti_getPhysMemSz(0));
   #if GASNET_STATS
     gasneti_stats_printf("GASNET_STATSMASK: %s", GASNETI_STATS_GETMASK());
   #endif
@@ -1308,7 +1317,7 @@ extern void gasneti_trace_finish(void) {
       fprintf(fp, "# program: %s\n",gasneti_exename);
       fprintf(fp, "# host:    %s\n",gasnett_gethostname());
       fprintf(fp, "# pid:     %i\n",(int)getpid());
-      fprintf(fp, "# node:    %i / %i\n", (int)gasnet_mynode(), (int)gasnet_nodes());
+      fprintf(fp, "# node:    %i / %i\n", (int)gasneti_mynode, (int)gasneti_nodes);
       fprintf(fp, "#\n");
       fprintf(fp, "# Private memory utilization:\n");
       fprintf(fp, "# ---------------------------\n");

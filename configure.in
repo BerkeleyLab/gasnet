@@ -10,17 +10,17 @@ define([cv_prefix],[gasnet_cv_])
 
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2017])
-define([GASNET_RELEASE_VERSION_MINOR_D],[6])
+define([GASNET_RELEASE_VERSION_MINOR_D],[9])
 define([GASNET_RELEASE_VERSION_PATCH_D],[0])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
-define([GASNETEX_SPEC_VERSION_MINOR_D],[1])
+define([GASNETEX_SPEC_VERSION_MINOR_D],[2])
 dnl GASNet-1 spec version:
 define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 define([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-define([GASNETT_SPEC_VERSION_MINOR_D],[9])
+define([GASNETT_SPEC_VERSION_MINOR_D],[10])
 
 define([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -1445,6 +1445,7 @@ else
   AC_SEARCH_LIBS(pthread_setconcurrency, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_SETCONCURRENCY))
   AC_SEARCH_LIBS(pthread_kill, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_KILL))
   AC_SEARCH_LIBS(pthread_kill_other_threads_np, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))
+  AC_SEARCH_LIBS(pthread_sigmask, $opt_pthread_libs, AC_DEFINE(HAVE_PTHREAD_SIGMASK))
 
   GASNET_IF_ENABLED_WITH_AUTO(rwlock, Enable/disable use of pthread_rwlock_t (auto-detected),
     enabled_rwlock=yes, enabled_rwlock=no, enabled_rwlock=probe)
@@ -1779,10 +1780,9 @@ AC_SUBST(GASNET_PSHM_LDFLAGS)
 AC_SUBST(GASNET_PSHM_LIBS)
 
 # Note that --enable-pshm disables aligned segments ONLY for conduits that USE it
-GASNET_IF_DISABLED([aligned-segments],
-                   [Disable requirement to achieve aligned VM segments, for heterogeneous clusters and platforms with address randomization],
-		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
-		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
+GASNETI_DISABLE_ALIGNED_SEGMENTS=0
+GASNET_IF_ENABLED([aligned-segments],
+                   [Force alignment for GASNet-allocated segment base address. Incompatible with PSHM, heterogeneous clusters and OS address randomization],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
 		    if test -n "$GASNETI_ARCH_BGQ"; then
                       : # Cross-compiled and NOT applicable
@@ -1791,10 +1791,16 @@ GASNET_IF_DISABLED([aligned-segments],
 		    elif test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
-nodes, you need to re-run configure with --disable-aligned-segments"
+nodes, you need to re-run configure without --enable-aligned-segments"
 		      GASNET_MSG_WARN([$WMSG])
 		    fi
-		   ])
+                    if test "$with_pshm" != no; then
+		      AC_MSG_ERROR([--enable-aligned-segments is incompatible with PSHM support. To force aligned segments, add --disable-pshm])
+                    fi
+		   ],[
+		    GASNETI_DISABLE_ALIGNED_SEGMENTS=1
+		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)
+                   ])
 dnl GASNET_TOOLSONLY_FALSE_END
 
 AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
@@ -2115,6 +2121,7 @@ GASNET_TRY_CACHE_LINK(for __builtin_ctz, cc_has_builtin_ctz,
 
 #---------------------------------------------------------------------------------------------------------------
 # Linux's PR_SET_PDEATHSIG of interest to both smp-conduit and ssh-spawer
+# Linux's PR_SET_PTRACER of interest for backtracing
 if expr "$target_os" : "linux" >/dev/null; then
   GASNET_IF_DISABLED(pdeathsig,
     [Support use of Linux-specific prctl(PR_SET_PDEATHSIG) (default is to probe)],
@@ -2131,6 +2138,19 @@ if expr "$target_os" : "linux" >/dev/null; then
         AC_DEFINE(HAVE_PR_SET_PDEATHSIG)
       ])
     ])
+  GASNET_TRY_CACHE_LINK([for PR_SET_PTRACER], pr_set_ptracer, [
+    #include <sys/prctl.h>
+    #ifndef PR_SET_PTRACER
+      #define PR_SET_PTRACER 0x59616d61 /* 'Yama' */
+    #endif
+    #ifndef PR_SET_PTRACER_ANY
+      #define PR_SET_PTRACER_ANY ((unsigned long)(-1))
+    #endif
+  ],[
+    int rc = prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+  ],[
+    AC_DEFINE(HAVE_PR_SET_PTRACER)
+  ])
 fi
 
 #---------------------------------------------------------------------------------------------------------------
@@ -3053,7 +3073,10 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       else
         GASNET_TRY_CACHE_RUN_EXPR([MPI_CC for value of MPI_VERSION], MPI_VERSION, mpi_header, [val = MPI_VERSION;], GASNETI_MPI_VERSION)
       fi
-      AC_DEFINE(GASNETI_MPI_VERSION)
+      if test -z "$GASNETI_MPI_VERSION" || test 0 = "$GASNETI_MPI_VERSION" ; then # probe failed, assume worst-case MPI-1
+        GASNETI_MPI_VERSION=1
+      fi
+      AC_DEFINE_UNQUOTED([GASNETI_MPI_VERSION],[$GASNETI_MPI_VERSION])
 
       # check MPI_CC for a working C99 environment (enough to parse gasnet.h) -- in case MPI_CFLAGS broke C99 compliance
       GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
@@ -3323,6 +3346,10 @@ elif test "$enabled_psm" = yes; then
       GASNET_POPVAR(LIBS)
     fi
 
+    if test "$have_psm" = yes; then
+      GASNET_MSG_WARN([psm-conduit has been deprecated.  Please see the psm-conduit README for more information.])
+    fi
+
   CONDUIT_SPAWNER
 fi
 AC_SUBST(PSM_CFLAGS)
@@ -3520,12 +3547,30 @@ if test "$enabled_ibv" = yes; then
        [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
           gasnetc_ibv_max_hcas="$withval"
         else
-          AC_MSG_ERROR([--with-ibv-max-hcas requires a postive integer argument])
+          AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])
         fi],
-       [AC_MSG_ERROR([--with-ibv-max-hcas requires a postive integer argument])],
+       [AC_MSG_ERROR([--with-ibv-max-hcas requires a positive integer argument])],
        [:])
     if test "$enabled_ibv_multirail" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibv_max_hcas)
+    fi
+
+    GASNET_WITH(ibv-physmem-max,
+       [maximum physical memory IBV may pin: less than 1.0 is fraction of apparent physical memory, larger than 1 is absolute size with optional M, G and T suffix (default is 2/3)],
+       [if expr "${withval}" : "[[0-9]]" >/dev/null; then
+          : # TODO: stronger validation?
+          AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_MAX_CONFIGURE, "$withval")
+        else
+          AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])
+        fi],
+       [AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])],
+       [:])
+
+    GASNET_IF_ENABLED_WITH_AUTO(ibv-physmem-probe,
+       [force default enable/disable of GASNET_PHYSMEM_PROBE in ibv-conduit],
+       force_ibv_physmem_probe=1, force_ibv_physmem_probe=0, force_ibv_physmem_probe='')
+    if test -n "$force_ibv_physmem_probe"; then
+      AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE, $force_ibv_physmem_probe)
     fi
 
     GASNET_IF_DISABLED([ibv-srq],
@@ -3944,7 +3989,7 @@ if test "$enabled_ofi" = yes; then
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     # List of supported providers in order of preference.
-    supported_providers="psm2 psm gni sockets"
+    supported_providers="psm2 gni sockets"
     
     GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
         ofi_provider="$withval", )
@@ -3964,7 +4009,7 @@ if test "$enabled_ofi" = yes; then
         GASNET_POPVAR(PATH)
     fi
     case "$ofi_provider" in
-        psm|psm2)
+        psm2)
             ofi_define_mr_scalable=1
             ofi_use_thread_domain=1
         ;;
@@ -4470,6 +4515,7 @@ GASNET_IF_ENABLED_WITH_AUTO(backtrace-execinfo, support backtrace via execinfo.h
 if test "$use_execinfo" != no; then
   AC_CHECK_HEADERS(execinfo.h)
   if test "$ac_cv_header_execinfo_h" = "yes" ; then
+    AC_SEARCH_LIBS(backtrace, execinfo) # bug3637: BSD requires -lexecinfo
     AC_CHECK_FUNCS(backtrace backtrace_symbols)
   fi
   if test "$use_execinfo$ac_cv_func_backtrace" = 'yesno'; then
@@ -4536,18 +4582,6 @@ if test "$use_idb" != no; then
   fi
 fi
 
-
-GASNET_IF_ENABLED_WITH_AUTO(backtrace-ladebug, support backtrace via ladebug (auto-detected),
-                 [use_ladebug="yes"], [use_ladebug="no"], [use_ladebug="$use_backtrace"])
-if test "$use_ladebug" != no; then
-  AC_PATH_PROGS(LADEBUG_PATH, $LADEBUG ladebug, , /usr/bin:${PATH})
-  if test -n "$LADEBUG_PATH"; then
-    AC_DEFINE_UNQUOTED(LADEBUG_PATH,"$LADEBUG_PATH")
-  elif test "$use_ladebg" = yes; then
-    AC_MSG_ERROR(User requested --enable-backtrace-ladebug but ladebug was not found.  Perhaps you need to set \$LADEBUG?)
-  fi
-fi
-
 GASNET_IF_ENABLED_WITH_AUTO(backtrace-dbx, support backtrace via dbx (auto-detected),
                  [use_dbx="yes"], [use_dbx="no"], [use_dbx="$use_backtrace"])
 if test "$use_dbx" != no; then
@@ -4556,6 +4590,17 @@ if test "$use_dbx" != no; then
     AC_DEFINE_UNQUOTED(DBX_PATH,"$DBX_PATH")
   elif test "$use_dbx" = yes; then
     AC_MSG_ERROR(User requested --enable-backtrace-dbx but dbx was not found.  Perhaps you need to set \$DBX?)
+  fi
+fi
+
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-lldb, support backtrace via lldb (auto-detected),
+                 [use_lldb="yes"], [use_lldb="no"], [use_lldb="$use_backtrace"])
+if test "$use_lldb" != no; then
+  AC_PATH_PROGS(LLDB_PATH, $LLDB lldb, , /usr/bin:${PATH})
+  if test -n "$LLDB_PATH"; then
+    AC_DEFINE_UNQUOTED(LLDB_PATH,"$LLDB_PATH")
+  elif test "$use_lldb" = yes; then
+    AC_MSG_ERROR(User requested --enable-backtrace-lldb but lldb was not found.  Perhaps you need to set \$LLDB?)
   fi
 fi
 
@@ -4772,7 +4817,7 @@ if test "$HAVE_MMAP" != "0" ; then
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
   GASNET_IF_ENABLED(bug3480-workaround,[See Aries or Gemini conduit's README],[
       AC_DEFINE(GASNETI_BUG3480_WORKAROUND)
-      if test x"$GASNETI_DISABLE_ALIGNED_SEGMENTS" != x1 && \
+      if test "$GASNETI_DISABLE_ALIGNED_SEGMENTS" != 1 && \
          test "$segconfig" != everything; then
         GASNET_MSG_WARN([--enable-bug3480-workaround is incompatible with GASNET_ALIGNED_SEGMENTS --  automatically applying option --disable-aligned-segments.])
         GASNETI_DISABLE_ALIGNED_SEGMENTS=1
@@ -4812,9 +4857,13 @@ case "$target" in
 *-openbsd*)
    debugmalloc_support=yes
    DEBUGMALLOC_VAR=MALLOC_OPTIONS
-   DEBUGMALLOC_VAL=AFJ # (A)bort (F)reeguard (J)unk-fill
-   if test `expr \`uname -r\` : '\([[1-9]]*\).'` -ge 5; then
-     DEBUGMALLOC_VAL="${DEBUGMALLOC_VAL}S" # (S)ecurity auditing
+   DEBUGMALLOC_VAL=FJ # (F)reeguard (J)unk-fill
+   openbsd_major=`expr \`uname -r\` : '\([[1-9]]*\).'`
+   if test $openbsd_major -ge 5; then
+     DEBUGMALLOC_VAL="${DEBUGMALLOC_VAL}S" # (S)ecurity auditing - added in 5.0
+   fi
+   if test $openbsd_major -lt 6; then
+     DEBUGMALLOC_VAL="${DEBUGMALLOC_VAL}A" # (A)bort - removed in 6.0
    fi
    ;;
 *-freebsd* | *-netbsd*)
@@ -4955,6 +5004,7 @@ AC_SUBST(ENVCMD)
 
 # complete linker setup
 
+NOASLR_LDFLAGS=
 case "$target_os" in
   darwin*)
     # Darwin linker complains about symbols defined in multiple dynamic libs.
@@ -4968,60 +5018,27 @@ case "$target_os" in
     LDFLAGS="$LDFLAGS ${dash_Wl}-multiply_defined,suppress"
 
     # Darwin 11 (MacOSX Lion) and newer use address-space randomization by default
-    # TODO: should this be ommitted if aligned segments have been disabled?
     tmp_ver=`expr "$target_os" : 'darwin\([[0-9]]*\)' 2>/dev/null`
     if expr $tmp_ver \>= 11 >/dev/null; then
-      LDFLAGS="$LDFLAGS ${dash_Wl}-no_pie"
+      NOASLR_LDFLAGS="${dash_Wl}-no_pie"
     fi
   ;;
 
   openbsd*)
     # OpenBSD PIE-by-default breaks aligned segments and upcr linker segment (bug 3248)
-    extra_ldflags='-nopie'
-    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $extra_ldflags")
-    GASNET_TRY_CACHE_LINK(if linker supports '$extra_ldflags', ld_has_nopie,
+    NOASLR_LDFLAGS='-nopie'
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $NOASLR_LDFLAGS")
+    GASNET_TRY_CACHE_LINK(if linker supports '$NOASLR_LDFLAGS', ld_has_nopie,
         [], [],
-        [], [extra_ldflags=''])
+        [], [NOASLR_LDFLAGS=''])
     GASNET_POPVAR(LDFLAGS)
-    if test -n "$extra_ldflags"; then
-      LDFLAGS="$LDFLAGS $extra_ldflags"
-    fi
   ;;
 
 esac
-
-########################################################################
-
-# Add any compiler flags too dangerous to use for configure probes
-
-GASNET_IF_ENABLED(strict-prototypes, [Use strict prototypes in GASNet headers (at the expense of slight deviation from the specification)], [
-  AC_DEFINE(GASNET_USE_STRICT_PROTOTYPES)
-  case "$CC_FAMILY" in
-  GNU|Pathscale|Open64)
-        dnl Consistent w/ other GNU warning flags:
-        dnl    CFLAGS and MPI_CFLAGS get the flag only for a debug build
-        dnl    MISC_CXXFLAGS gets the flag for any build
-        if test "$enabled_debug" = yes; then
-          GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [MISC_CFLAGS="$MISC_CFLAGS -Wstrict-prototypes"])
-        fi
-        if test "$enabled_debug$have_mpi" = yesyes; then
-          dnl Ick: will show "checking for C compiler flag -Wstrict-prototypes" twice in a row
-          GASNET_PUSHVAR(CC,"$MPI_CC")   
-          GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
-          GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [MPI_CFLAGS="$MPI_CFLAGS -Wstrict-prototypes"])
-          GASNET_POPVAR(CFLAGS)
-          GASNET_POPVAR(CC)
-        fi
-        if test "$have_cxx" = yes; then
-          GASNET_TRY_CXXFLAG([-Wstrict-prototypes],
-                             [MISC_CXXFLAGS="$MISC_CXXFLAGS -Wstrict-prototypes"])
-        fi
-        ;;
-  esac
-])
-AM_CONDITIONAL(USE_STRICT_PROTOTYPES, test "x$enable_strict_prototypes" = xyes)
+if test "$GASNETI_DISABLE_ALIGNED_SEGMENTS" != 1 ; then
+  LDFLAGS="$LDFLAGS $NOASLR_LDFLAGS"
+fi
+AC_SUBST(NOASLR_LDFLAGS)
 
 ########################################################################
 

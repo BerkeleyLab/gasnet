@@ -24,14 +24,8 @@ else
   blcr_ldflags =
 endif
 
-if USE_STRICT_PROTOTYPES
-  strict_proto_flags = -DGASNET_USE_STRICT_PROTOTYPES
-else
-  strict_proto_flags = 
-endif
-
 CC  = @CC@
-CFLAGS = @GASNET_OPT_CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ @SYS_HEADER_BLD@ $(MANUAL_CFLAGS) $(apputils_flags) $(strict_proto_flags)
+CFLAGS = @GASNET_OPT_CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ @SYS_HEADER_BLD@ $(MANUAL_CFLAGS) $(apputils_flags)
 CXX = @CXX@
 CXXFLAGS = @GASNET_OPT_CXXFLAGS@ @MISC_CXXFLAGS@ @MISC_CPPFLAGS@ @SYS_HEADER_BLD@ $(MANUAL_CXXFLAGS)
 LDFLAGS = @LDFLAGS@ @cxxLDFLAGS@ $(MANUAL_LDFLAGS)
@@ -89,8 +83,12 @@ libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o) $(libamudp_a_SOURCES:%
 
 $(libamudp_a_DEPENDENCIES): $(allheaders)
 
+# Makefile.{standalone,common,generic} enable amudprun-host
 EXTRA_DIST = \
         $(headers)              \
+        Makefile.common         \
+        Makefile.generic        \
+        Makefile.standalone     \
 	Makefile.tests  	\
 	Makefile.titanium.in 	\
 	amudprun.c              \
@@ -139,6 +137,22 @@ amudprun$(EXEEXT): amudprun.o $(headers) libamudp.a
 $(top_builddir)/libgasnet_tools-seq.a: force
 	@cd $(top_builddir) && $(MAKE) libgasnet_tools-seq.a
 
+# WARNING: This is NOT an officially supported feature and may be removed in the future!
+# This target attempts to build amudprun for the host system and output binary amudprun-host
+# It may require explicitly providing working C/C++ compilers for the host, eg:
+#   gmake -C other/amudp amudprun-host CC=clang CXX=clang++
+amudprun-host$(EXEEXT): force
+	@ srcdir=`cd $(srcdir) && pwd`; \
+	set -x && \
+	mkdir -p host && \
+	cd host && \
+	ln -sf $$srcdir/Makefile* . && \
+	ln -sf $$srcdir/../portable_inttypes.h . && \
+	ln -sf $$srcdir/../gasnet_portable_platform.h amudp_portable_platform.h && \
+	$(MAKE) amudprun -f Makefile.standalone srcdir=$$srcdir altincdir=. MANUAL_DEFINES="-DAMUDP_ENV_PREFIX=GASNET $(MANUAL_DEFINES)" && \
+	mv amudprun ../amudprun-host && \
+	cd .. && rm -Rf host
+
 if USE_UDP_CONDUIT
 if GNU_NM
 check-exports: libamudp.a
@@ -168,7 +182,7 @@ endif
 # No check-exports by default due to name mangling
 check: tests
 
-clean_local_files = libamudp.a *.o core .test-results $(BUILT_SOURCES)
+clean_local_files = libamudp.a *.o core .test-results amudprun-host $(BUILT_SOURCES)
 clean-local:
 	@for f in $(testprograms); do                                \
 	  cmd="rm -f '$$f$(EXESUFFIX)'"; echo "$$cmd"; eval "$$cmd" || exit $$? ; \

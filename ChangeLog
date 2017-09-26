@@ -1,6 +1,52 @@
 GASNet-EX ChangeLog
 -------------------
 ----------------------------------------------------------------------
+09-28-2017: GASNet-EX 2017.9.0 Integration release
+
+* First Integration release of the GASNet-EX system.
+  This archive represents a work-in-progress focused on "hardening" the features
+  added by the previous quarter's release, and has been well-tested against the
+  concurrent release of UPC++.
+  Many additional new features are coming soon, and are not yet reflected in this
+  archive. All new interfaces are subject to change without notice.
+
+  Feedback or questions on any matters related to the EX project are
+  welcomed at: gasnet-devel@lbl.gov
+
+* GASNet-EX Spec v0.2:
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+
+* Major new features implemented in this release:
+  - gex_Event_t is no longer thread-specific: one can safely pass a gex_Event_t
+    generated in one thread to a Test or Wait call in another thread.
+  - New gex_Segment_QueryBound() [EXPERIMENTAL]
+  - New gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
+  - New IS_REQ and IS_LONG queries in gex_Token_Info()
+  - Interface changes for negotiated-payload AM calls
+
+* Notable bugs fixed in this release:
+  - ibv: assertion failures at shutdown
+  - pshm: assertion failure in gasneti_AMPSHM_service_incoming_msg()
+  - pshm: SEGV at initialization when using System V shared memory
+  - pshm: work-around an assertion failure due to a PGI compiler bug
+  - aries/gemini: SEGV at startup with multi-domain enabled
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+* Other Known Limitations:
+  - This release supports Microsoft Windows Subsystem for Linux, but is
+    affected by an OS bug which was fixed starting in build 16278. 
+    Details: http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3588
+
+----------------------------------------------------------------------
 06-30-2017: GASNet-EX 2017.6.0 Beta release
 
 * Initial BETA release of the GASNet-EX system.
@@ -61,15 +107,81 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-06-30-2017: pending 1.30.0 work @79eaf07e
+09-29-2017: pending 1.30.2 work @9dbccb00
+
+* Cray uGNI (gemini- and aries-conduits)
+  - Fix bug 3632: aries-conduit SEGV at startup with multi-domain
+
+* GASNet tools
+  - Numerous improvements to backtrace support, including fixing the
+    following bugs:
+    + Bug 3624: Improve backtrace fail-over behavior
+    + Bug 3625: call prctl(PR_SET_PTRACER,...) before backtrace on Linux
+    + Bug 3626: prioritize lldb on Mac OS X
+    + Bug 3627: unblock the unfreeze signal prior to backtrace
+    + Bug 3637: Fix EXECINFO backtrace for *BSD
+    + Enable GDB backtrace on Cray systems, when available
+
+* General and Misc.
+  - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
+
+* Platform support/portability
+  - Update MALLOC_OPTIONS setting for OpenBSD 6.x
+
+* Configure and Build
+  - Option --enable-strict-prototypes has been removed, see bug 3608.
+  - Fix bug 3613: warning on #pragma GCC diagnostic for gcc < 4.6
+  - Fix bug 3629: avoid a parallel make bug
+  - Add a git hash "watermark" to libraries
+
+----------------------------------------------------------------------
+08-31-2017 : Release 1.30.0
 
 * Cray uGNI (gemini- and aries-conduits)
   - Work-around bug 3480.  For more details see gemini-conduit/README (source),
     or share/doc/gasnet/README-{aries,gemini} (installed).
+  - Improve the handling of GASNET_PHYSMEM_* env vars to be more user-friendly
+  - Improve robustness of exit code
+  - The following configure options have been renamed, replacing "gni" by
+    "aries" or "gemini" as appropriate:
+          --with-gni-max-medium=
+          --{en,dis}able-gni-multi-domain
+          --{en,dis}able-gni-udreg
+  - NOTE to users of PrgEnv-cray: there is a known bug in CCE-8.6 that leads to
+    errors when linking libgasnet.  See bug 3589 at http://gasnet-bugs.lbl.gov
+    for the most complete and up-to-date details.
+
+* InfiniBand Verbs (ibv-conduit)
+  - Improve the handling of GASNET_PHYSMEM_* env vars
+    + Make variable names and interpretations more user-friendly
+    + Allow configure-time setting of default values
+    + Warn user if a slow probe is required for GASNET_PHYSMEM_MAX
+    + Improve the corresponding documentation
+
+* Libfabric (ofi-conduit)
+  - Fix bug 3426: Unbounded recursion within gasnetc_ofi_poll()
+  - Significant improvements to AM buffer management and wire header overheads
+  - Finer-grained control over AM buffering, see ofi-conduit/README
+  - Initialization cleanups for stricter compliance with the OFI specification
+  - Support for the Intel(R) True Scale Fabric provider, psm, has been removed.
+    The Intel(R) Omni-Path Fabric is still supported through the psm2 provider.
+  - We now recommend ofi-conduit for the Intel Omni-Path fabric.
+  - The conduit has been validated on libfabric version 1.5.0. 
+    See ofi-conduit README for known issues regarding specific providers.
+
+* Intel Omni-Path PSM2 (psm-conduit)
+  - This conduit is now DEPRECATED.
+  - Use of ofi-conduit with libfabric's psm2 provider is recommended for users
+    of the Intel Omni-Path fabric.
+
+* IBM PAMI (pami-conduit)
+  - Improve latency for AM Medium/Long under 128 bytes, via PAMI_Send_immediate()
+  - gasnet.h no longer includes PAMI headers into client code
 
 * GASNet tools
   - Fix bug 3448: x86*/Linux timers once again default to use of the TSC due
     to addition of new logic for correct calibration on newer Intel CPUs.
+  - Add gasnett_nsleep()
 
 * Configure and Build
   - ${C,CXX,CPP,LD}FLAGS are now respected by configure in the traditional manner.
@@ -82,8 +194,34 @@ GASNet ChangeLog
   - Most --with-*-includes options are renamed --with-*-cflags
   - --with-{blcr,fca}=/path are renamed to --with-{blcr,fca}-home=/path
   - BLCR support now disabled by default, use --enable-blcr to activate
+  - {strict,missing}-prototype warnings are now automatically suppressed
+    in GASNet public headers for clang and gcc 4.6+.
+  - --enable-strict-prototypes is now deprecated, see bug 3608.
+  - --disable-aligned-segments is now the default behavior, and GASNet will
+    no longer default to adding -nopie linker flags on Darwin/OpenBSD.
   - Retire several obsolete or subsumed configure options
   - Numerous cosmetic improvements to configure --{help,version} output
+  - GASNET_{LIBS,LDFLAGS} exported from .mak fragments more robustly contain
+    the documented subset of linker arguments.
+  - Improve system tuple handling for cross-configure
+  - Fix a few non-portable constructs in shell commands
+
+* General and Misc.
+  - GASNet spec v1.8.1 is a new edition of the 1.8 spec document:
+    + bug 3575: clarify that loopback contiguous RMA operations with
+      overlapping source and destination regions give indeterminate results.
+    + Clarify the AMLong source/dest overlap prohibition
+    + Correct the specified return type of gasnet_Error{Name,Desc}
+    + Significant cosmetic formatting improvements
+    + Updated contact information and URLs
+    + Correct minor spelling errors and phrasing issues
+  - Remove 'register' keyword from public headers for strict C++11/14 compliance 
+  - Fix some cosmetic overflows in trace/debug output of large numbers on ILP32
+  - Fix bug 3600: SEGV on long command line w/ STATS/TRACE/DEBUG 
+
+* Platform support/portability
+  - Add beta support for Microsoft Windows Subsystem for Linux (WSL)
+  - Add lldb backtrace support for Mac OS X
 
 ----------------------------------------------------------------------
 03-17-2017 : Release 1.28.2
@@ -229,6 +367,7 @@ GASNet ChangeLog
     is now enforced at link time, to ensure correct operation.
   - Apply optional MANUAL_* make flags more consistently (see README)
   - Cleanup extern "C" in public headers for more robust C++ client support
+  - Add GASNET_LD_REQUIRES_{CXX,MPI} exports from .mak fragments
   - Numerous minor fixes to silence harmless warnings on various systems
 
 ----------------------------------------------------------------------

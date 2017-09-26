@@ -9,7 +9,7 @@
 #endif
 
 /* Clang can be picky */
-#if PLATFORM_COMPILER_CLANG
+#if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wconstant-logical-operand"
 #endif
@@ -1227,7 +1227,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 
-#if PLATFORM_COMPILER_CLANG
+#if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
   #pragma clang diagnostic pop
 #endif
 

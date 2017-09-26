@@ -241,8 +241,16 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
     (GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_PRAGMA_GCC_DIAGNOSTIC) || \
     (GASNETI_COMPILER_IS_CXX && GASNETI_HAVE_CXX_PRAGMA_GCC_DIAGNOSTIC)
   #define GASNETI_USE_PRAGMA_GCC_DIAGNOSTIC 1
+  #if defined(__cplusplus)
+    #define _GASNETI_NOWARN_IGNORES_C_ONLY
+  #else
+    #define _GASNETI_NOWARN_IGNORES_C_ONLY \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wstrict-prototypes") \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wmissing-prototypes")
+  #endif
   #define GASNETI_BEGIN_NOWARN                                          \
           GASNETI_PRAGMA(GCC diagnostic push)                           \
+          _GASNETI_NOWARN_IGNORES_C_ONLY                                \
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-function")    \
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-variable")    \
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-value")       \
@@ -755,34 +763,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #else
   #define GASNETI_PREFETCH_READ_HINT(P)
   #define GASNETI_PREFETCH_WRITE_HINT(P)
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-
-/* Apply a reversible xform to obfuscate pointers exposed to clients in DEBUG builds
- *
- * NDEBUG:
- *   EXPORT: cast to the public type
- *   IMPORT: cast to the internal type
- * DEBUG:
- *   EXPORT: apply obfuscating to an internal pointer and cast
- *   IMPORT: remove obfuscation to reproduce the internal pointer and cast
- */
-#if defined(GASNETI_EXPORT_POINTER) && defined(GASNETI_IMPORT_POINTER)
-  /* Preserve existing definitions */
-#elif !defined(GASNETI_EXPORT_POINTER) && !defined(GASNETI_IMPORT_POINTER)
-  #if GASNET_DEBUG
-    /* Default xform is to invert all bits, except that NULL is preserved */
-    GASNETI_INLINE(_gasneti_swizzle_pointer)
-    uintptr_t _gasneti_swizzle_pointer(uintptr_t _p) { return _p ? ~_p : _p; }
-    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
-    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)_gasneti_swizzle_pointer((uintptr_t)(ptr)))
-  #else
-    #define GASNETI_EXPORT_POINTER(type,ptr) ((type)(ptr))
-    #define GASNETI_IMPORT_POINTER(type,ptr) ((type)(ptr))
-  #endif
-#elif defined(GASNETI_EXPORT_POINTER) || defined(GASNETI_IMPORT_POINTER)
-  #error Must define both or neither of GASNETI_EXPORT_POINTER and GASNETI_IMPORT_POINTER
 #endif
 
 /* ------------------------------------------------------------------------------------ */
