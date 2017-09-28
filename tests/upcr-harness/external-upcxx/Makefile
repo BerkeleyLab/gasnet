@@ -1,11 +1,11 @@
 UPCXX_GIT_REPO   ?= berkeleylab/upcxx
 UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
-UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst
+UPCXX_BACKEND    ?= gasnet1_seq
+UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst-$(UPCXX_BACKEND)
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
-UPCXX_BACKEND    ?= gasnet1_seq
 export UPCXX_BACKEND
 
 # Options for providing GASNET to nobs:
@@ -34,6 +34,7 @@ else # default to using builddir
 endif
 UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
+UPCXX_USE_META  ?= 1
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
@@ -160,16 +161,25 @@ _upcxx: force
           done; \
 	) $(TO_LOG)
 	@touch upcxx-built
-	$(MAKE) upcxx-install 2>&1 | tee -a $(LOGFILE)
+	$(MAKE) upcxx-install-gasnet1_seq UPCXX_BACKEND=gasnet1_seq 2>&1 | tee -a $(LOGFILE)
+	$(MAKE) upcxx-install-gasnetex_par UPCXX_BACKEND=gasnetex_par 2>&1 | tee -a $(LOGFILE)
+	@UPCXXRUN=$(UPCXX_BLDDIR)/utils/upcxx-run ; \
+	 if test -f $$UPCXXRUN ; then set -x ; \
+	   rm -f ./launcher ; \
+	   cp -f $$UPCXXRUN ./launcher ; \
+	   chmod +x ./launcher ; \
+	 else \
+	   echo "ERROR: $$UPCXXRUN is missing" ; \
+	 fi 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-upcxx-install: upcxx-built # NO force
-	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS)
+upcxx-install-$(UPCXX_BACKEND): upcxx-built # NO force
+	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) UPCXX_BACKEND=$(UPCXX_BACKEND)
 	rm -Rf $(UPCXX_INSTDIR) upcxx-install 
 	@echo ======== UPCXX install ========; set -x; \
 	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install --single $(UPCXX_INSTDIR) && \
 	 /bin/ls -alR $(UPCXX_INSTDIR)
-	@touch upcxx-install
+	@touch $@
 
 # Build a single test from the nobs build directory
 one_test: upcxx-built
@@ -177,13 +187,13 @@ one_test: upcxx-built
 	OUTPUT=`$(DO_NOBS) exe $(TEST_PATH)` && cp $$OUTPUT $(TEST_EXE)
 
 # Build a single test from the installed UPCXX directory
-inst_test: upcxx-install
+inst_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
 	META_CXX=`$(UPCXX_INSTDIR)/bin/upcxx-meta CXX` && \
 	PPFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta PPFLAGS` && \
 	LDFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LDFLAGS` && \
 	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $$LIBFLAGS
+	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
 
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
 
@@ -192,7 +202,7 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
 	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@
 
 # Pattern rule builds example/prog-guide tests
-% :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp upcxx-install force
+% :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
 	@if test -n "$(UPCXX_USE_META)"; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	else set -x ; \
