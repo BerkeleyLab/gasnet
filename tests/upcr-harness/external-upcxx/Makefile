@@ -198,15 +198,17 @@ inst_test: upcxx-install-$(UPCXX_BACKEND)
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
 
 # Pattern rule builds any named test with a corresponding cpp in test directory
-% :: %.cpp force
+%-seq %-par :: %.cpp force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; set -x ; \
 	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@
 
 # Pattern rule builds example/prog-guide tests
-% :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
-	@if test -n "$(UPCXX_USE_META)"; then set -x ; \
+%-seq %-par :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; \
+	 if test -n "$(UPCXX_USE_META)"; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	else set -x ; \
-	  $(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) -DUPCXX_BACKEND=$(UPCXX_BACKEND)' ; \
+	  $(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) '-DUPCXX_BACKEND=$$UPCXX_BACKEND ; \
 	fi
 
 force:
