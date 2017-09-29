@@ -11,7 +11,7 @@ define([cv_prefix],[gasnet_cv_])
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2017])
 define([GASNET_RELEASE_VERSION_MINOR_D],[9])
-define([GASNET_RELEASE_VERSION_PATCH_D],[0])
+define([GASNET_RELEASE_VERSION_PATCH_D],[1])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[2])
