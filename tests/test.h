@@ -1085,7 +1085,9 @@ static void _test_init(const char *testname, int reports_performance, int early,
   }
 #define TEST_BACKTRACE_INIT(_exename)                       \
   /* Only test our backtrace handler if the user is not trying to backtrace */ \
-  if (!gasnett_getenv("GASNET_BACKTRACE")) {                \
+  /* Bug 3644: cannot reliably override GASNET_BACKTRACE_TYPE if already set */ \
+  if (!gasnett_getenv("GASNET_BACKTRACE") &&                \
+      !gasnett_getenv("GASNET_BACKTRACE_TYPE")) {           \
     test_my_backtrace = 1;                                  \
     gasnett_setenv("GASNET_BACKTRACE_TYPE","USER");         \
   }                                                         \
