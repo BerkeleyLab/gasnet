@@ -5,7 +5,8 @@ UPCXX_BACKEND    ?= gasnet1_seq
 UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst-$(UPCXX_BACKEND)
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
-UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers
+UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers, may be set by pushbuild/end-user
+UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 export UPCXX_BACKEND
 
 # Options for providing GASNET to nobs:
@@ -182,7 +183,7 @@ upcxx-install-$(UPCXX_BACKEND): upcxx-built # NO force
 	@touch $@
 
 # Build a single test from the nobs build directory
-one_test: upcxx-built
+nobs_test: upcxx-built
 	$(DO_NOBS) exe $(TEST_PATH)
 	OUTPUT=`$(DO_NOBS) exe $(TEST_PATH)` && cp $$OUTPUT $(TEST_EXE)
 
@@ -193,14 +194,14 @@ inst_test: upcxx-install-$(UPCXX_BACKEND)
 	PPFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta PPFLAGS` && \
 	LDFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LDFLAGS` && \
 	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
+	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
 
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
 
 # Pattern rule builds any named test with a corresponding cpp in test directory
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; set -x ; \
-	$(MAKE) one_test TEST_PATH=$< TEST_EXE=$@
+	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@
 
 # Pattern rule builds example/prog-guide tests
 %-seq %-par :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
@@ -208,9 +209,9 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
 	 if test -n "$(UPCXX_USE_META)"; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	else set -x ; \
-	  $(MAKE) one_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) '-DUPCXX_BACKEND=$$UPCXX_BACKEND ; \
+	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) '-DUPCXX_BACKEND=$$UPCXX_BACKEND ; \
 	fi
 
 force:
 
-.PHONY: force one_test 
+.PHONY: force nobs_test inst_test
