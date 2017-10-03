@@ -162,8 +162,10 @@ _upcxx: force
           done; \
 	) $(TO_LOG)
 	@touch upcxx-built
-	$(MAKE) upcxx-install-gasnet1_seq UPCXX_BACKEND=gasnet1_seq 2>&1 | tee -a $(LOGFILE)
-	$(MAKE) upcxx-install-gasnetex_par UPCXX_BACKEND=gasnetex_par 2>&1 | tee -a $(LOGFILE)
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
+_upcxx-inst-SEQ:
+	$(MAKE) upcxx-inst-gasnet1_seq UPCXX_BACKEND=gasnet1_seq 2>&1 | tee -a $(LOGFILE)
 	@UPCXXRUN=$(UPCXX_BLDDIR)/utils/upcxx-run ; \
 	 if test -f $$UPCXXRUN ; then set -x ; \
 	   rm -f ./launcher ; \
@@ -174,13 +176,17 @@ _upcxx: force
 	 fi 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-upcxx-install-$(UPCXX_BACKEND): upcxx-built # NO force
+_upcxx-inst-PAR:
+	$(MAKE) upcxx-inst-gasnetex_par UPCXX_BACKEND=gasnetex_par 2>&1 | tee -a $(LOGFILE)
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
+upcxx-inst-$(UPCXX_BACKEND): upcxx-built
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) UPCXX_BACKEND=$(UPCXX_BACKEND)
-	rm -Rf $(UPCXX_INSTDIR) upcxx-install 
-	@echo ======== UPCXX install ========; set -x; \
+	rm -Rf $(UPCXX_INSTDIR) $@
+	@echo ======== UPCXX install $(UPCXX_BACKEND) ========; set -x; \
 	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install --single $(UPCXX_INSTDIR) && \
 	 /bin/ls -alR $(UPCXX_INSTDIR)
-	@touch $@
+	@touch upcxx-install-$(UPCXX_BACKEND)
 
 # Build a single test from the nobs build directory
 nobs_test: upcxx-built
