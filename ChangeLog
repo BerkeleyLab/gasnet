@@ -111,6 +111,7 @@ GASNet ChangeLog
 
 * Cray uGNI (gemini- and aries-conduits)
   - Fix bug 3632: aries-conduit SEGV at startup with multi-domain
+  - Fix bug 3647: aries-conduit should honor non-default process layouts
 
 * GASNet tools
   - Numerous improvements to backtrace support, including fixing the
