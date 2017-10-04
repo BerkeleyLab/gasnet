@@ -273,6 +273,11 @@ GASNET_AM_DOMAIN_POLL_MASK
   For their use, please see the multi-domain documentation under the
   "Optional configure-time settings" section, above.
 
+MPICH_RANK_REORDER_METHOD
+  This environment variable is not processed directly by GASNet itself.
+  Howevever, it controls the numbering of GASNet processes launched with
+  either 'aprun' or 'srun', as descibed in Cray's intro_mpi(3) manpage.
+
 PMI_GNI_LOC_ADDR   - NIC address on local node
 PMI_GNI_COOKIE     - Access code shared by all nodes in job
 PMI_GNI_PTAG       - Protection tag shared by all nodes in job
