@@ -22,12 +22,12 @@ GASNet-EX ChangeLog
   - New gex_Segment_QueryBound() [EXPERIMENTAL]
   - New gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
   - New IS_REQ and IS_LONG queries in gex_Token_Info()
-  - Interface changes for negitiated-payload AM calls
+  - Interface changes for negotiated-payload AM calls
 
 * Notable bugs fixed in this release:
   - ibv: assertion failures at shutdown
   - pshm: assertion failure in gasneti_AMPSHM_service_incoming_msg()
-  - pshm: SEGV an initialization when using System V shared memory
+  - pshm: SEGV at initialization when using System V shared memory
   - pshm: work-around an assertion failure due to a PGI compiler bug
   - aries/gemini: SEGV at startup with multi-domain enabled
 
