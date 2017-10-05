@@ -2967,6 +2967,15 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       GASNET_PUSHVAR(CPPFLAGS,"")
       GASNET_PUSHVAR(MISC_CFLAGS,"")
       GASNET_PUSHVAR(MISC_CPPFLAGS,"")
+      AC_MSG_CHECKING(if $MPI_CC appears functional)
+      AC_TRY_COMPILE([],[],[AC_MSG_RESULT(yes)],[
+         AC_MSG_RESULT(no)
+         have_mpi=no
+         mpi_reason="compile test failed"
+         GASNET_MSG_WARN([MPI compiler "$MPI_CC" does not appear to be functional.  Consider passing --with-mpi-cc=/path/to/mpicc if you want mpi-conduit or require MPI compatibility])
+      ])
+
+    if test $have_mpi = yes; then
       GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
       GASNET_PUSHVAR(CC_FAMILY,"$MPI_CC_FAMILY")
         # we re-detect miscflags for MPI_CC, because it may differ from CC
@@ -2977,8 +2986,9 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         else
           SAFE_MPI_CFLAGS="-O"
         fi
-      GASNET_POPVAR(CC)
       GASNET_POPVAR(CC_FAMILY)
+    fi
+      GASNET_POPVAR(CC)
       GASNET_POPVAR(CFLAGS)
       GASNET_POPVAR(CPPFLAGS)
       GASNET_POPVAR(MISC_CFLAGS)
