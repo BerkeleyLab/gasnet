@@ -1508,6 +1508,34 @@ extern int gasneti_print_backtrace(int fd) {
           gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
 	  rewind(file);
           gasneti_bt_rc_unused = ftruncate(tmpfd, 0); // in case failed backtrace wrote any output
+
+          // detect and report system configuration issues that may be responsible for backtrace failure
+          #if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL) && !defined(YAMA_PTRACE_SCOPE)
+            #define YAMA_PTRACE_SCOPE "/proc/sys/kernel/yama/ptrace_scope"
+          #endif
+          #ifdef YAMA_PTRACE_SCOPE
+          { int ptracefd = 0;
+            if (!access(YAMA_PTRACE_SCOPE,R_OK) && (ptracefd = open(YAMA_PTRACE_SCOPE,O_RDONLY))) {
+              char scope = 0; // docs: https://www.kernel.org/doc/Documentation/security/Yama.txt
+              if (read(ptracefd, &scope, 1) == 1 && scope != '0' && scope != '1') {
+                snprintf(linep, linelen, "WARNING: %s=%c may be preventing debugger attach\n", YAMA_PTRACE_SCOPE, scope);
+                gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
+              }
+              gasneti_bt_rc_unused = close(ptracefd);
+            }
+          }
+          #endif
+          #if PLATFORM_OS_OPENBSD && \
+              defined(CTL_KERN) && defined(KERN_GLOBAL_PTRACE)
+          { int mib[] = { CTL_KERN, KERN_GLOBAL_PTRACE };
+            int ptrace = 0;
+            size_t len = sizeof(ptrace);
+            if (!sysctl(mib, sizeof(mib)/sizeof(int), &ptrace, &len, NULL, 0) && ptrace == 0) {
+                snprintf(linep, linelen, "WARNING: sysctl kern.global_ptrace=%i may be preventing debugger attach\n", ptrace);
+                gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
+            }
+          }
+          #endif
         }
       }
 
