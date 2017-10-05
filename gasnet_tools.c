@@ -1007,6 +1007,17 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 
     volatile int i=0;
     if (!fork()) { /* the child - debugger co-process launcher */
+#if PLATFORM_OS_OPENBSD
+      // OpenBSD refuses to ptrace attach a connected ancestor because it
+      // would create a cycle in the process tree which the kernel is unable
+      // to tolerate.  This behavior was introduced in OpenBSD 4.5 Errata 011
+      // and has not changed though at least OpenBSD 6.1.
+      // We avoid this cycle using an extra fork()+_exit() to disconnect the
+      // process requesting the attach from the target.
+      pid_t childpid = getpid();
+      if (fork()) _exit(0);
+      do {} while (getppid() == childpid);
+#endif
       int retval = gasneti_system_redirected(cmd, tmpfd);
       if (retval) { /* system call failed - nuke the output */
         gasneti_bt_rc_unused = ftruncate(tmpfd, 0);
@@ -1199,7 +1210,13 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
       goto out;
     }
 
+#if PLATFORM_OS_OPENBSD
+    // OpenBSD is unable to ptrace attach a connected ancestor.
+    // For more info see comment in gasneti_system_redirected_coprocess().
+    rc = gasneti_system_redirected_coprocess(cmd, fd);
+#else
     rc = gasneti_system_redirected(cmd, fd);
+#endif
 
 out:
     (void)unlink(filename); /* just in case */
