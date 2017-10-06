@@ -1597,19 +1597,33 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
     fflush(stderr);
     return -1;
   }
+  #if !GASNET_DEBUG
+    #define GASNETI_NDEBUG_ADVISORY() do { \
+      if (!noticeshown) {                  \
+        fprintf(stderr, "NOTICE: We recommend linking the debug version of GASNet to assist you in resolving this application issue.\n"); \
+        fflush(stderr);                    \
+        noticeshown = 1;                   \
+      }                                    \
+    } while (0)
+  #else
+    #define GASNETI_NDEBUG_ADVISORY() ((void)0)
+  #endif
 #ifndef GASNETT_BUILDING_TOOLS
   if (gasneti_backtrace_userdisabled) {
     return 1; /* User turned off backtrace, so don't whine */
   } else
 #endif
   if (gasneti_backtrace_userenabled) {
+    GASNETI_NDEBUG_ADVISORY();
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
     fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
     fflush(stderr);
+    GASNETI_NDEBUG_ADVISORY();
     noticeshown = 1;
     return 1;
   } else {
+    GASNETI_NDEBUG_ADVISORY();
     return 1; /* We don't support any backtrace methods, so avoid false advertising. */
   }
 }
