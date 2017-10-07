@@ -96,6 +96,7 @@ UPCXX_URL      ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-$(
 upcxx-download: force
 	rm -Rf $(UPCXX_BLDDIR) $(UPCXX_TMPDIR) && mkdir $(UPCXX_TMPDIR)
 	cd $(UPCXX_TMPDIR) && $(WGET) $(UPCXX_URL) 2>&1
+	cd $(UPCXX_TMPDIR) && cat wget-log 2> /dev/null ; rm -f wget-log ; exit 0
 	@UPCXX_TESTDIR=`pwd` && \
 	 cd $(UPCXX_TMPDIR) && UPCXX_ARCHIVE=`/bin/ls` && UPCXX_DOWNLOAD="$(strip $(UPCXX_DOWNLOAD))" && \
 	 if test -z "$$UPCXX_DOWNLOAD" ; then \
@@ -108,7 +109,7 @@ upcxx-download: force
 	 fi && \
 	 echo Fetched $$UPCXX_ARCHIVE : UPCXX_DOWNLOAD=$$UPCXX_DOWNLOAD && \
 	 $(MAKE) -f $$UPCXX_TESTDIR/Makefile upcxx-unpack-$$UPCXX_DOWNLOAD UPCXX_ARCHIVE="$$UPCXX_ARCHIVE" && \
-	 rm -f $(UPCXX_TMPDIR)/$$UPCXX_ARCHIVE $(UPCXX_TMPDIR)/wget-log
+	 rm -f $(UPCXX_TMPDIR)/$$UPCXX_ARCHIVE
 	mv $(UPCXX_TMPDIR)/* $(UPCXX_BLDDIR) # archive's root dir will vary
 	rmdir $(UPCXX_TMPDIR)
 # Three ways to unpack the archive:
