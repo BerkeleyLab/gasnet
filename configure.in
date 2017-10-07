@@ -1242,6 +1242,7 @@ case "$target_os" in
   *)          EXESUFFIX='' ;;
 esac
 AC_SUBST(EXESUFFIX)
+AM_CONDITIONAL(HAVE_EXESUFFIX, test -n "$EXESUFFIX")
 
 ########################################################################
 ##

@@ -50,6 +50,11 @@ if USE_UDP_CONDUIT
 BUILT_SOURCES = amudp_portable_platform.h
 lib_LIBRARIES = libamudp.a
 bin_PROGRAMS = amudprun
+if HAVE_EXESUFFIX
+# ensure 'make amudprun' works on Cygwin
+amudpru% : amudpru%$(EXESUFFIX)
+	:
+endif
 endif
 headers = \
 	amudp.h			\
