@@ -28,6 +28,8 @@ PENDING:
   - Fix bug 3613: warning on #pragma GCC diagnostic for gcc < 4.6
   - Fix bug 3629: avoid a parallel make bug
   - Add a git hash "watermark" to libraries
+  - Warning enable flags are removed from GASNET_C(XX)FLAGS and friends. 
+    The flags remain available in GASNET_DEVWARN_C(XX)FLAGS for opt-in.
 
 ----------------------------------------------------------------------
 08-31-2017 : Release 1.30.0

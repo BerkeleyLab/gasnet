@@ -262,15 +262,15 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
   if test "$enabled_dev_warnings" = "yes" ; then
     # enable additional supported warnings
         ]GASNET_TRY_[$1]FLAG[([$3-Wall],
-                              [[$1]FLAGS="$[$1]FLAGS $3-Wall"])
+                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wall"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wpointer-arith],
-                              [[$1]FLAGS="$[$1]FLAGS $3-Wpointer-arith"])
+                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wpointer-arith"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wnested-externs],
-                              [[$1]FLAGS="$[$1]FLAGS $3-Wnested-externs"])
+                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wnested-externs"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wwrite-strings],
-                              [[$1]FLAGS="$[$1]FLAGS $3-Wwrite-strings"])
+                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wwrite-strings"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
-                              [[$1]FLAGS="$[$1]FLAGS $3-Wmissing-format-attribute"])
+                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wmissing-format-attribute"])
   fi
 
     if test "$2" = "Pathscale" ; then
@@ -327,7 +327,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 # NOTE: we intentionally *overwrite* CFLAGS with reasonable, well-tested values, 
 # to avoid picking up bad default flags from AC_PROG_CC or the default user environment
 # Users who want to insert a specific compiler flag for all builds should append it to $CC
-
+DEVWARN_CFLAGS_OPT=
 case "$CC_FAMILY" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"-O3")
 	# prefer the --param inliner option(s), which give us finer control
@@ -350,9 +350,9 @@ case "$CC_FAMILY" in
         # for inlining operations which the user did not request.
         # Detect that gcc bug and avoid -Winline for those versions
         GASNET_TRY_CFLAG([${gcc_flag_prefix}-Winline],[
-          noninlineCFLAGS="$CFLAGS"
-          CFLAGS="$CFLAGS ${gcc_flag_prefix}-Winline"
+          DEVWARN_CFLAGS_OPT="${gcc_flag_prefix}-Winline"
           AC_MSG_CHECKING(for buggy -Winline)
+          GASNET_PUSHVAR(CFLAGS,"$CFLAGS $DEVWARN_CFLAGS_OPT")
           GASNET_TRY_CCOMPILE_WITHWARN([
            int foo() { return 0; }
            int bar() { return foo() + bar(); }
@@ -360,8 +360,9 @@ case "$CC_FAMILY" in
            int x = bar(); 
           ], [ AC_MSG_RESULT(ok) # keep -Winline
           ], [ AC_MSG_RESULT(buggy)
-               CFLAGS="$noninlineCFLAGS" # remove -Winline
+               DEVWARN_CFLAGS_OPT="" # remove -Winline
           ], [ GASNET_MSG_ERROR(failure when detecting buggy -Winline)])
+	  GASNET_POPVAR(CFLAGS)
         ])
 
         CCOPTFLAGS="$CFLAGS"
@@ -374,17 +375,18 @@ case "$CC_FAMILY" in
         # on every inline keyword, due to -fno-inline being inserted
         # by the compiler driver.  Avoid using -Winline in such a case.
         GASNET_TRY_CFLAG([-Winline],[
-          noninlineCFLAGS="$CFLAGS"
-          CFLAGS="$CFLAGS -Winline"
+          DEVWARN_CFLAGS_OPT="-Winline"
           AC_MSG_CHECKING(for -Winline flags conflict)
+          GASNET_PUSHVAR(CFLAGS,"$CFLAGS $DEVWARN_CFLAGS_OPT")
           GASNET_TRY_CCOMPILE_WITHWARN([
            inline int foo() { return 0; }
           ], [ 
            int x = foo(); 
           ], [ AC_MSG_RESULT(ok) # keep -Winline
           ], [ AC_MSG_RESULT(conflict)
-               CFLAGS="$noninlineCFLAGS" # remove -Winline
+               DEVWARN_CFLAGS_OPT="" # remove -Winline
           ], [ GASNET_MSG_ERROR(failure when detecting -Winline conflict)])
+	  GASNET_POPVAR(CFLAGS)
         ])
         CCOPTFLAGS="$CFLAGS"
 	GASNET_POPVAR(CFLAGS)
@@ -751,6 +753,7 @@ AC_DEFUN([GASNET_VA_ARGS_TEST],[
     int d[[GASNETI_AMNUMARGS(1,2,3)+1]];
 ])
 
+DEVWARN_CFLAGS=
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
   [ 
     if test -z "$GASNET_SUPPRESS_DEBUG_WARNING" ; then
@@ -771,15 +774,21 @@ GASNET_MSG_WARN([
     BUILDCONFIG="debug"
     enabled_debug=yes],
   [ GASNET_OPT_CFLAGS="$CCOPTFLAGS"
+    DEVWARN_CFLAGS="$DEVWARN_CFLAGS $DEVWARN_CFLAGS_OPT"
     AC_DEFINE(GASNET_NDEBUG)
     BUILDCONFIG="optimize"
     enabled_debug=no])
 AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
 
-GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler warnings (enabled by default with --enable-debug), 
-  enabled_dev_warnings=yes, enabled_dev_warnings=no, enabled_dev_warnings=$enabled_debug)
+GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler warnings for the library and tests (default: yes), 
+  enabled_dev_warnings=yes, enabled_dev_warnings=no, enabled_dev_warnings=yes)
 
 GASNET_SET_MISCFLAGS(CC,[ GASNET_VA_ARGS_TEST GASNET_C99_TEST ])
+
+if test "$enabled_dev_warnings" = "no" ; then
+  DEVWARN_CFLAGS=
+fi
+AC_SUBST(DEVWARN_CFLAGS)
 
 # Some C compilers disable OS POSIX entry points when strict c99 conformance is selected
 # _GNU_SOURCE implies _XOPEN_SOURCE and enables other features we probe for, like "adaptive" mutex_t and pthread_rwlock_t
@@ -2760,6 +2769,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   AC_SUBST(GASNET_OPT_CXXFLAGS)
 
   # Add GNU-style warning enable/suppression flags to MISC_CXXFLAGS
+  DEVWARN_CXXFLAGS=
   case "$CXX_FAMILY" in
     GNU | Pathscale | Open64 | Clang)
       GASNET_PUSHVAR(CXXFLAGS,"$MISC_CXXFLAGS")
@@ -2769,6 +2779,10 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     ;;
     *) ;;
   esac
+  if test "$enabled_dev_warnings" = "no" ; then
+    DEVWARN_CXXFLAGS=
+  fi
+  AC_SUBST(DEVWARN_CXXFLAGS)
 
   # MISC_CXXFLAGS are added to CXXFLAGS here to ensure they are used for the remaining configure tests,
   # but they retain a separate identity post-configure
@@ -2968,6 +2982,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       GASNET_PUSHVAR(CPPFLAGS,"")
       GASNET_PUSHVAR(MISC_CFLAGS,"")
       GASNET_PUSHVAR(MISC_CPPFLAGS,"")
+      GASNET_PUSHVAR(DEVWARN_CFLAGS,"")
       AC_MSG_CHECKING(if $MPI_CC appears functional)
       AC_TRY_COMPILE([],[],[AC_MSG_RESULT(yes)],[
          AC_MSG_RESULT(no)
@@ -2989,11 +3004,14 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         fi
       GASNET_POPVAR(CC_FAMILY)
     fi
+      DEVWARN_MPI_CFLAGS="$DEVWARN_CFLAGS"
+      AC_SUBST(DEVWARN_MPI_CFLAGS)
       GASNET_POPVAR(CC)
       GASNET_POPVAR(CFLAGS)
       GASNET_POPVAR(CPPFLAGS)
       GASNET_POPVAR(MISC_CFLAGS)
       GASNET_POPVAR(MISC_CPPFLAGS)
+      GASNET_POPVAR(DEVWARN_CFLAGS)
       GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
       MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
     else

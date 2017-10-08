@@ -45,6 +45,7 @@ LIBDEFINES =                        \
 TOOLLIBCFLAGS =                   \
         -DGASNETT_BUILDING_TOOLS  \
         @GASNET_OPT_CFLAGS@       \
+	@DEVWARN_CFLAGS@          \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
         $(TOOLLIBDEFINES)         \
@@ -55,6 +56,7 @@ TOOLLIBCFLAGS =                   \
 
 LIBCFLAGS =                       \
         @GASNET_OPT_CFLAGS@       \
+	@DEVWARN_CFLAGS@          \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
         @GASNET_PSHM_CFLAGS@      \
