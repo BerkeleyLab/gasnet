@@ -216,7 +216,7 @@ inst_test: upcxx-install-$(UPCXX_BACKEND)
 	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
 	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
 
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
+VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression
 
 # Pattern rule builds any named test with a corresponding cpp in test directory
 %-seq %-par :: %.cpp force
