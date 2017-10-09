@@ -303,6 +303,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         # some crappy pthread mutex implementations generate warnings without -Wno-missing-braces
 	AC_MSG_CHECKING(for buggy pthread.h mutex initializers)
         old[$1]FLAGS="$[$1]FLAGS"
+        [$1]FLAGS="$DEVWARN_[$1]FLAGS $[$1]FLAGS"
         # FREEBSD requires the -pthread compiler flag when including pthread.h
         case "$target_os" in 
           freebsd*) [$1]FLAGS="-pthread $[$1]FLAGS" ;;
@@ -4509,6 +4510,7 @@ GASNET_CHECK_SYS_DECL(isascii)
 GASNET_CHECK_SYS_DECL(toascii)
 
 AC_CACHE_CHECK([for buggy ctype.h], gasnet_cv_buggy_ctype, [
+ GASNET_PUSHVAR(CFLAGS,"$DEVWARN_CFLAGS $CFLAGS")
   gasnet_cv_buggy_ctype=unk
   GASNET_TRY_CCOMPILE_WITHWARN(
        [#include <ctype.h>
@@ -4517,6 +4519,7 @@ AC_CACHE_CHECK([for buggy ctype.h], gasnet_cv_buggy_ctype, [
        [gasnet_cv_buggy_ctype=ok],
        [gasnet_cv_buggy_ctype=yes/warning],
        [GASNET_MSG_ERROR(failure building test of ctype.h)])
+ GASNET_POPVAR(CFLAGS)
 ])
 if test x$gasnet_cv_buggy_ctype != xok; then
   AC_DEFINE(GASNETI_NEED_CTYPE_WRAPPERS)
