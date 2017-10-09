@@ -4145,13 +4145,14 @@ elif test "$enable_pmi" != 'no'; then
   unset PMI_LDFLAGS
 
   # If user specifies one PMI version then disqualify the other
-  GASNET_WITH(pmi-version, [PMI version (1 or 2)] , [
+  GASNET_WITH(pmi-version, [PMI version (x, 1, or 2)] , [
     case "$withval" in
       1) use_pmi1=yes;;
       2) use_pmi2=yes;;
-      *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be '1' or '2']);;
+      x) use_pmix=yes;;
+      *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be 'x', '1' or '2']);;
     esac
-    with_pmi_version="withval"
+    with_pmi_version="$withval"
   ], [
     GASNET_MSG_WARN([Ignoring --without-pmi-version])
   ])
@@ -4159,7 +4160,19 @@ elif test "$enable_pmi" != 'no'; then
   # Check for libs unless disqualifed by --with-pmi-version=
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_ENV_DEFAULT(PMI_LIBS, probe)
-  if test -z "${use_pmi1+set}"; then
+  if test -z "${use_pmi1+set}" && test -z "${use_pmi2+set}"; then
+    GASNET_PUSHVAR(LIBS,"")
+    AC_CHECK_LIB(pmix, PMIx_Init, [
+      use_pmix=yes
+      have_pmi=yes
+      pmi_suffix='x'
+      AC_DEFINE(HAVE_PMIX_H)
+      PMI_SPAWNER_LIBS='-lpmix'
+      AC_CHECK_HEADERS([stdbool.h])  # TODO: see if bool really works
+    ])
+    GASNET_POPVAR(LIBS)
+  fi
+  if test -z "${use_pmi1+set}" && test -z "${use_pmix+set}"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMI2_Init, [pmi2 mpich], [have_pmi=yes])
@@ -4177,7 +4190,7 @@ elif test "$enable_pmi" != 'no'; then
     fi
     GASNET_POPVAR(LIBS)
   fi
-  if test -z "${use_pmi2+set}"; then
+  if test -z "${use_pmi2+set}" && test -z "${use_pmix+set}"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMI_Init, [pmi mpich portals_runtime], [have_pmi=yes])
@@ -4993,6 +5006,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   BLCR support:           $have_blcr
   Atomics support:        $atomics_config
+  PMI support:            $have_pmi (version=$pmi_suffix)
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
