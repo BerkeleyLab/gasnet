@@ -28,9 +28,6 @@
 #  undef free
 #  undef malloc
 #  undef strdup
-#  define free(x)    gasneti_free(x)
-#  define malloc(x)  gasneti_malloc(x)
-#  define strdup(x)  gasneti_strdup(x)
 #else
 #  error "Unknown path to PMI header"
 #endif
@@ -208,8 +205,7 @@ void do_kvs_get(void *value, size_t sz) {
     if (NULL != val &&
         PMIX_STRING == val->type &&
         NULL != val->data.string) {
-        kvs_value = val->data.string;
-        val->data.string = NULL;
+        strcpy(kvs_value, val->data.string);
         PMIX_VALUE_RELEASE(val);
     }
 #elif USE_PMI2_API

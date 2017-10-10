@@ -4162,14 +4162,19 @@ elif test "$enable_pmi" != 'no'; then
   GASNET_ENV_DEFAULT(PMI_LIBS, probe)
   if test -z "${use_pmi1+set}" && test -z "${use_pmi2+set}"; then
     GASNET_PUSHVAR(LIBS,"")
-    AC_CHECK_LIB(pmix, PMIx_Init, [
+    if test "$PMI_LIBS" = 'probe'; then
+      AC_SEARCH_LIBS(PMIx_Init, [pmix], [have_pmi=yes])
+    else
+      LIBS="$PMI_LIBS"
+      AC_CHECK_FUNC(PMIx_Init, [have_pmi=yes])
+    fi
+    if test "$have_pmi" = 'yes'; then
       use_pmix=yes
-      have_pmi=yes
       pmi_suffix='x'
       AC_DEFINE(HAVE_PMIX_H)
-      PMI_SPAWNER_LIBS='-lpmix'
+      PMI_SPAWNER_LIBS="$LIBS"
       AC_CHECK_HEADERS([stdbool.h])  # TODO: see if bool really works
-    ])
+    fi
     GASNET_POPVAR(LIBS)
   fi
   if test -z "${use_pmi1+set}" && test -z "${use_pmix+set}"; then
