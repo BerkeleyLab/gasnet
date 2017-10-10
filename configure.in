@@ -2525,6 +2525,29 @@ AC_DEFUN([CONDUIT_SPAWNER],[
   popdef([the_variable])
   popdef([the_option])
 ])
+dnl CONDUIT_PHYSMEM(default)
+dnl defines GASNETC_[CONDUIT_NAME]_PHYSMEM_{MAX,PROBE}_CONFIGURE
+AC_DEFUN([CONDUIT_PHYSMEM],[
+  pushdef([the_option],--with-[]CONDUIT_NAME[]-physmem-max)
+  GASNET_WITH(CONDUIT_NAME[]-physmem-max,
+     [Maximum physical memory CONDUIT_UPPERNAME may pin: less than 1.0 is fraction of apparent physical memory, larger than 1 is absolute size with optional M, G and T suffix (default is $1)],
+     [if expr "${withval}" : "[[0-9]]" >/dev/null; then
+        : # TODO: stronger validation?
+        AC_DEFINE_UNQUOTED(GASNETC_[]CONDUIT_UPPERNAME[]_PHYSMEM_MAX_CONFIGURE, "$withval")
+      else
+        AC_MSG_ERROR([the_option requires a positive argument])
+      fi],
+     [AC_MSG_ERROR([the_option requires a positive argument])],
+     [:])
+  popdef([the_option])
+
+  GASNET_IF_ENABLED_WITH_AUTO(CONDUIT_NAME[]-physmem-probe,
+     [Force default enable/disable of GASNET_PHYSMEM_PROBE in CONDUIT_NAME[]-conduit],
+     force_physmem_probe=1, force_physmem_probe=0, force_physmem_probe='')
+  if test -n "$force_physmem_probe"; then
+    AC_DEFINE_UNQUOTED(GASNETC_[]CONDUIT_UPPERNAME[]_PHYSMEM_PROBE_CONFIGURE, $force_physmem_probe)
+  fi
+])
 dnl CONDUIT_END(test_conduit_enabled)
 AC_DEFUN([CONDUIT_END],[
   if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -3335,6 +3358,8 @@ elif test "$enabled_mxm" != no; then
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
 
+    CONDUIT_PHYSMEM("2/3")
+
   CONDUIT_SPAWNER
 fi
 AC_SUBST(MXM_CFLAGS)
@@ -3593,23 +3618,7 @@ if test "$enabled_ibv" = yes; then
       AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibv_max_hcas)
     fi
 
-    GASNET_WITH(ibv-physmem-max,
-       [maximum physical memory IBV may pin: less than 1.0 is fraction of apparent physical memory, larger than 1 is absolute size with optional M, G and T suffix (default is 2/3)],
-       [if expr "${withval}" : "[[0-9]]" >/dev/null; then
-          : # TODO: stronger validation?
-          AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_MAX_CONFIGURE, "$withval")
-        else
-          AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])
-        fi],
-       [AC_MSG_ERROR([--with-ibv-physmem-max requires a positive argument])],
-       [:])
-
-    GASNET_IF_ENABLED_WITH_AUTO(ibv-physmem-probe,
-       [force default enable/disable of GASNET_PHYSMEM_PROBE in ibv-conduit],
-       force_ibv_physmem_probe=1, force_ibv_physmem_probe=0, force_ibv_physmem_probe='')
-    if test -n "$force_ibv_physmem_probe"; then
-      AC_DEFINE_UNQUOTED(GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE, $force_ibv_physmem_probe)
-    fi
+    CONDUIT_PHYSMEM("2/3")
 
     GASNET_IF_DISABLED([ibv-srq],
                        [Disable Shared Receive Queue (SRQ) support in ibv-conduit (enabled by default)],
