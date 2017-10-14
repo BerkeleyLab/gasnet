@@ -76,7 +76,8 @@ COMMON_ENV = \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(NOBS_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb PAGER=cat 
-DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
+DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && \
+         export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
 
 # Parametrized support for download/unpack
@@ -221,7 +222,7 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 # Pattern rule builds any named test with a corresponding cpp in test directory
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; set -x ; \
-	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@
+	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)'
 
 # Pattern rule builds example/prog-guide tests
 %-seq %-par :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
