@@ -79,6 +79,27 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define gasneti_assert(expr) gasneti_assert_always(expr)
 #endif
 
+/* gasneti_unreachable(): annotation to mark the current code location as unreachable, to assist optimization 
+ * deliberately compiles away in NDEBUG to hopefully avoid inserting dead instructions
+ */
+#if GASNETT_USE_BUILTIN_UNREACHABLE
+  #define gasneti_unreachable() (__builtin_unreachable(),gasneti_assert(!"gasneti_unreachable"))
+#else
+  #define gasneti_unreachable() gasneti_assert(!"gasneti_unreachable")
+#endif
+
+/* gasneti_assume(cond): assert a simple condition is always true, as a directive to help compiler analysis
+ * Becomes an assertion in DEBUG mode and an analysis directive (when available) in NDEBUG mode
+ * Note that cond should NOT contain any function calls or side-effects, otherwise it may incur a runtime cost.
+ */
+#if GASNET_DEBUG
+  #define gasneti_assume(cond) gasneti_assert_always(cond)
+#elif GASNETT_USE_ASSUME
+  #define gasneti_assume(cond) ((void)__assume(cond))
+#else
+  #define gasneti_assume(cond) (GASNETT_PREDICT_TRUE(cond) ? (void)0 : gasneti_unreachable())
+#endif
+
 /* gasneti_assert_zeroret(), gasneti_assert_nzeroret():
  * evaluate an expression (always), and in debug mode additionally 
  * assert that it returns zero or non-zero
