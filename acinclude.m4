@@ -1632,6 +1632,26 @@ GASNET_FUN_BEGIN([$0])
 GASNET_FUN_END([$0])
 ])
 
+dnl GASNET_CHECK_BUILTINS(PREFIX, opt compiler-desc)
+dnl Checks for various commpiler builtins of interest
+dnl #defines [PREFIX]_<feature> symbols
+AC_DEFUN([GASNET_CHECK_BUILTINS],[
+GASNET_FUN_BEGIN([$0])
+  pushdef([cvprefix],translit([$1],'A-Z','a-z'))
+  GASNET_TRY_CACHE_LINK($2 for __assume, cvprefix[]__assume,
+    [ extern int x; int x = 0; ], [
+      __assume(x == 0); 
+      if (x) __assume(0);
+    ], AC_DEFINE([$1]_ASSUME))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_unreachable, cvprefix[]__builtin_unreachable,
+    [ extern int x; int x = 0; ], [
+      if (x) __builtin_unreachable(); 
+    ], AC_DEFINE([$1]_BUILTIN_UNREACHABLE))
+
+  popdef([cvprefix])
+GASNET_FUN_END([$0])
+])
 dnl INTERNL USE ONLY
 AC_DEFUN([GASNETI_C_OR_CXX],[ifelse(index([$1],[CXX]),[-1],[C],[CXX])])
 

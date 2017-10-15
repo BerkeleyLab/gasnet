@@ -124,6 +124,18 @@
 #undef GASNETI_CXX_RESTRICT
 #undef GASNETI_MPI_CC_RESTRICT
 
+/* C, C++ and MPI_CC compilers misc builtins */
+
+/* has __assume */
+#undef GASNETI_HAVE_CC_ASSUME
+#undef GASNETI_HAVE_CXX_ASSUME
+#undef GASNETI_HAVE_MPI_CC_ASSUME
+
+/* has __builtin_unreachable */
+#undef GASNETI_HAVE_CC_BUILTIN_UNREACHABLE
+#undef GASNETI_HAVE_CXX_BUILTIN_UNREACHABLE
+#undef GASNETI_HAVE_MPI_CC_BUILTIN_UNREACHABLE
+
 /* Which inline asm style(s) are supported - these are defined only
    where we use configure to determine what a compiler supports */
 #undef GASNETI_HAVE_CC_XLC_ASM

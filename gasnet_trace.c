@@ -94,7 +94,9 @@ int (*_gasnett_trace_enabled)(char tracecat) = &_gasnett_trace_enabled_body;
 /* ------------------------------------------------------------------------------------ */
 /* VIS trace formatting - these are legal even without STATS/TRACE */
 extern size_t gasneti_format_memveclist_bufsz(size_t count) {
-  return 200+count*50;
+  size_t res = 200+count*50;
+  gasneti_assume(res > 0); // silence a warning observed on gcc 7.2.1 (Advance-Toolchain-at11.0)
+  return res;
 }
 extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gasnet_memvec_t const *list) {
   const int bufsz = gasneti_format_memveclist_bufsz(count);
@@ -144,7 +146,9 @@ extern size_t gasneti_format_putvgetv(char *buf, gasnet_node_t node,
 }
 
 extern size_t gasneti_format_addrlist_bufsz(size_t count) {
-  return 200+count*25;
+  size_t res = 200+count*25;
+  gasneti_assume(res > 0); // silence a warning observed on gcc 7.2.1 (Advance-Toolchain-at11.0)
+  return res;
 }
 extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count, void * const *list, size_t len) {
   const int bufsz = gasneti_format_addrlist_bufsz(count);
