@@ -598,9 +598,6 @@ fake_as_now:
 */
 /* ------------------------------------------------------------------------------------ */
 
-#define gasnete_val_assign(_dst, _val) \
-    (*(gex_RMA_Value_t *)(_dst) = (gex_RMA_Value_t)(_val))
-
 extern int gasnete_put_val(
                 gex_TM_t tm,
                 gex_Rank_t rank, void *dest,
@@ -617,8 +614,8 @@ extern int gasnete_put_val(
     gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
-    gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gpd->u.put_val = value;
+    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     gasneti_polluntil(done);
     return 0;
@@ -645,8 +642,8 @@ extern gex_Event_t gasnete_put_nb_val(
       gasnete_consume_eop(eop GASNETI_THREAD_PASS);
       return GEX_EVENT_NO_OP;
     }
-    gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gpd->u.put_val = value;
+    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     return((gex_Event_t) eop);
@@ -672,8 +669,8 @@ extern int gasnete_put_nbi_val(
       gasneti_resume_spinpollers();
       return 1;
     }
-    gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gpd->u.put_val = value;
+    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     return 0;
   }
@@ -787,7 +784,7 @@ static uint64_t gasnete_fetchop_u64_val(
   gasneti_resume_spinpollers();
 
   gasneti_polluntil(done);
-  result = * (uint64_t *) gpd->u.immediate;
+  result = gpd->u.u64;
   gasnetc_free_post_descriptor(gpd);
   return result;
 }

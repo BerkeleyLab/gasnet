@@ -297,6 +297,8 @@ struct gasnetc_post_descriptor {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasneti_weakatomic_t counter;
     gasnetc_notify_t notify;
+    gex_RMA_Value_t put_val;
+    uint64_t u64;
   #if GASNETC_GNI_UDREG
     udreg_entry_t *udreg_entry;
   #endif
