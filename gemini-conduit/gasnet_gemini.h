@@ -283,6 +283,8 @@ struct gasnetc_post_descriptor {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasneti_weakatomic_t counter;
     gasnetc_notify_t notify;
+    gasnet_register_value_t put_val;
+    uint64_t u64;
   #if GASNETC_GNI_FIREHOSE
     firehose_request_t fh_req;
   #endif

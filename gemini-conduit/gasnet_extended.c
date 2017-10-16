@@ -926,9 +926,6 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 */
 /* ------------------------------------------------------------------------------------ */
 
-#define gasnete_val_assign(_dst, _val) \
-    (*(gasnet_register_value_t *)(_dst) = (gasnet_register_value_t)(_val))
-
 extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
@@ -939,8 +936,8 @@ extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_valu
     gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
-    gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gpd->u.put_val = value;
+    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     gasneti_polluntil(done);
   }
@@ -955,8 +952,8 @@ extern gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
     gpd = gasnete_cntr_gpd(GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
-    gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gpd->u.put_val = value;
+    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     return((gasnet_handle_t) eop);
   }
@@ -971,8 +968,8 @@ extern void gasnete_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
     gpd = gasnete_cntr_gpd(GASNETE_IOP_CNTRS(iop, put) GASNETC_DIDX_PASS);
-    gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gpd->u.put_val = value;
+    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
   }
 }
@@ -1167,7 +1164,7 @@ static uint64_t gasnete_fetchop_u64_val(
   gasneti_resume_spinpollers();
 
   gasneti_polluntil(done);
-  result = * (uint64_t *) gpd->u.immediate;
+  result = gpd->u.u64;
   gasnetc_free_post_descriptor(gpd);
   return result;
 }
