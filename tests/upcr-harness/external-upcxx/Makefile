@@ -76,42 +76,57 @@ COMMON_ENV = \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
 	GASNET="$(NOBS_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb PAGER=cat 
-DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && export CC="$$CC $(UPCXX_EXTRA_FLAGS)" CXX="$$CXX $(UPCXX_EXTRA_FLAGS)"
+DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && \
+         export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
 DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
+
+# Parametrized support for download/unpack
+UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
+upcxx_dl_suffix_unzip := .zip
+upcxx_dl_suffix_p7zip := .zip
+upcxx_dl_suffix_tgz   := .tar.gz
+upcxx_dl_suffix=$(upcxx_dl_suffix_$(strip $(UPCXX_DOWNLOAD)))
+ifeq ($(strip $(upcxx_dl_suffix)),)
+upcxx_dl_suffix := .zip
+endif
 
 # XXX: Hard-coded download of fixed tarball for now
 UPCXX_URL      ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
+#UPCXX_URL      ?= https://bitbucket.org/$(UPCXX_GIT_REPO)/get/$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
 
-# Parametrized support for download/unpack
-UPCXX_URL      ?= https://bitbucket.org/$(UPCXX_GIT_REPO)/get/$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
-UPCXX_ARCHIVE  ?= berkeleylab-upcxx-*$(upcxx_dl_suffix)
-UPCXX_DOWNLOAD ?= unzip # one of "unzip", "p7zip" or "tgz"
 upcxx-download: force
 	rm -Rf $(UPCXX_BLDDIR) $(UPCXX_TMPDIR) && mkdir $(UPCXX_TMPDIR)
 	cd $(UPCXX_TMPDIR) && $(WGET) $(UPCXX_URL) 2>&1
-	@cd $(UPCXX_TMPDIR) && echo Fetched $(UPCXX_ARCHIVE)
-	$(MAKE) -C $(UPCXX_TMPDIR) -f `pwd`/Makefile upcxx-unpack-$(UPCXX_DOWNLOAD)
-	rm -f $(UPCXX_TMPDIR)/$(UPCXX_ARCHIVE) $(UPCXX_TMPDIR)/wget-log
+	cd $(UPCXX_TMPDIR) && cat wget-log 2> /dev/null ; rm -f wget-log ; exit 0
+	@UPCXX_TESTDIR=`pwd` && \
+	 cd $(UPCXX_TMPDIR) && UPCXX_ARCHIVE=`/bin/ls` && UPCXX_DOWNLOAD="$(strip $(UPCXX_DOWNLOAD))" && \
+	 if test -z "$$UPCXX_DOWNLOAD" ; then \
+	   case "$$UPCXX_ARCHIVE" in \
+	     *.zip)          UPCXX_DOWNLOAD=unzip ;; \
+	     *.p7z|*.7z)     UPCXX_DOWNLOAD=p7zip ;; \
+	     *.tar.gz|*.tgz) UPCXX_DOWNLOAD=tgz   ;; \
+	     *) echo "ERROR: Unknown archive suffix on '$$UPCXX_ARCHIVE': Set UPCXX_DOWNLOAD=(unzip,p7zip,tgz)" ; exit 1; \
+	   esac \
+	 fi && \
+	 echo Fetched $$UPCXX_ARCHIVE : UPCXX_DOWNLOAD=$$UPCXX_DOWNLOAD && \
+	 $(MAKE) -f $$UPCXX_TESTDIR/Makefile upcxx-unpack-$$UPCXX_DOWNLOAD UPCXX_ARCHIVE="$$UPCXX_ARCHIVE" && \
+	 rm -f $(UPCXX_TMPDIR)/$$UPCXX_ARCHIVE
 	mv $(UPCXX_TMPDIR)/* $(UPCXX_BLDDIR) # archive's root dir will vary
 	rmdir $(UPCXX_TMPDIR)
 # Three ways to unpack the archive:
 #  Option 1: "unzip" - .zip w/ unzip
 #   This is the favored approach because it gives us the hash and uses a widely available utility.
 upcxx-unpack-unzip: force; $(UNZIP) -z $(UPCXX_ARCHIVE) && $(UNZIP) -q $(UPCXX_ARCHIVE)
-upcxx_dl_suffix_unzip = .zip
 #  Option 2: "p7zip" - .zip w/ 7za (from p7zip package)
 #   This also gives us the hash, but uses a less widely available utility.
 #   However, it is sometimes necessary because many unzip installations contain a bug w.r.t. symlinks
 upcxx-unpack-p7zip: force; $(P7ZIP) x -bd $(UPCXX_ARCHIVE)
-upcxx_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 upcxx-unpack-tgz:   force
 	-$(GZCAT) $(UPCXX_ARCHIVE) | $(GIT) get-tar-commit-id ; exit 0
 	$(GZCAT) $(UPCXX_ARCHIVE) | $(TAR) xf -
-upcxx_dl_suffix_tgz   = .tar.gz
 ####
-upcxx_dl_suffix = $(upcxx_dl_suffix_$(strip $(UPCXX_DOWNLOAD)))
 .PHONY: upcxx-download upcxx-unpack-unzip upcxx-unpack-p7zip upcxx-unpack-tgz
 
 # Symlink or simple script that corresponds to
@@ -202,12 +217,12 @@ inst_test: upcxx-install-$(UPCXX_BACKEND)
 	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
 	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
 
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts
+VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression
 
 # Pattern rule builds any named test with a corresponding cpp in test directory
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; set -x ; \
-	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@
+	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)'
 
 # Pattern rule builds example/prog-guide tests
 %-seq %-par :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
