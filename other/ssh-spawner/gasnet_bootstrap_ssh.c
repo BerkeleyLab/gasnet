@@ -2387,7 +2387,7 @@ static void do_common(int argc, char **argv)
   {
     char **sublist;
     gasnet_node_t rank;
-    nodediv_t ppn, npc;
+    nodediv_t ppn, npc = {0,0};
     int j;
 
     ppn = nodediv(tree_ranks, tree_nodes);
@@ -2683,6 +2683,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char *
   if (!null_init && (*argc_p > 1) && !strcmp((*argv_p)[1], "-GASNET-SPAWN-master")) {
     /* Force legacy explict-master support: */
     explicit_master = 1;
+    spawn_args = "XX"; // unused, but avoids "may be used uninitialized" warnings
   } else {
     spawner    = my_getenv(ENV_PREFIX "SPAWN_CONTROL");
     spawn_args = my_getenv(ENV_PREFIX "SPAWN_ARGS");
