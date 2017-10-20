@@ -119,6 +119,7 @@ sub gasnet_encode($) {
                       $mpirun_help =~ m|Usage: srun |);
     my $is_prun    = ($mpirun_help =~ m|railmask|);
     my $is_pam     = ($mpirun_help =~ m|TaskStarter|);
+    my $is_jsrun   = ($mpirun_help =~ m|jsrun --usage|);
     my $envprog = $ENV{'GASNET_ENVCMD'};
     if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
       $envprog = `which env`;
@@ -354,6 +355,10 @@ sub gasnet_encode($) {
 	$encode_args = 1;
 	$encode_env = 1;
 	@verbose_opt = ("-v");
+    } elsif ($is_jsrun) {
+	$spawner_desc = "jsrun - IBM Job Step Manager";
+	%envfmt = ( 'pre' => '-E', 'inter' => '-E');
+	$ppn_opt = '-r';
     } else {
 	$spawner_desc = "unknown program (using generic MPI spawner)";
 	# assume the OS will not propagate the environment
