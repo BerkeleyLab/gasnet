@@ -3516,7 +3516,7 @@ if test "$enabled_ibv" = yes; then
     #endif
   ], [{
     struct ibv_device device;
-    char *s = ibv_get_device_name(&device);
+    const char *s = ibv_get_device_name(&device);
   }], [ : ], [ have_ibv=no; GASNET_ERR_SAVE() ] )
 
   if test "$have_ibv" = yes; then
@@ -4801,6 +4801,7 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
   #include <fcntl.h>
   #include <stdio.h>
   #include <stdlib.h>
+  #include <string.h>
   char junk[[16384]];
   int testfd(int);
   int main(void) {
