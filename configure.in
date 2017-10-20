@@ -3302,7 +3302,7 @@ CONDUIT_END([test "$enabled_smp" = yes])
 CONDUIT_BEGIN(mxm,[Mellanox InfiniBand MXM conduit (mxm)])
 have_mxm=no
 if test "$have_fork" = no; then
-    GASNET_MSG_WARN([mxm-conduit requires or fork() ($fork_reason) for startup - disabling mxm])
+    GASNET_MSG_WARN([mxm-conduit requires fork() ($fork_reason) for startup - disabling mxm])
 elif test "$have_pthread" = no; then
     GASNET_MSG_WARN([mxm-conduit requires libpthread ($pthread_reason) - disabling mxm])
 elif test "$enabled_mxm" != no; then
