@@ -498,7 +498,7 @@ typedef struct {
 #if GASNETC_USE_RCV_THREAD
   /* Rcv thread */
   gasnetc_progress_thread_t rcv_thread;
-  void                      *rcv_thread_priv;
+  struct gasnetc_rbuf_s *rcv_thread_priv;
 #endif
 
   /* AM-over-RMDA */

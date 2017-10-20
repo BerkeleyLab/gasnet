@@ -83,7 +83,7 @@ gasnet_node_t                           gasnetc_remote_nodes = 0;
  * Note that use of the freelist will overwrite the first sizeof(void *) bytes (linkage).
  * Note the macros following the typedef are used to hide the existence of the union.
  */
-typedef struct {
+typedef struct gasnetc_rbuf_s {
   union {
     void 			*linkage;
     struct {
@@ -1812,7 +1812,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
 static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
 {
   gasnetc_hca_t * const hca = (gasnetc_hca_t *)arg;
-  gasnetc_rbuf_t ** const spare_p = (gasnetc_rbuf_t **)&hca->rcv_thread_priv;
+  gasnetc_rbuf_t ** const spare_p = &hca->rcv_thread_priv;
 
   gasneti_assert(gasnetc_use_rcv_thread);
 
