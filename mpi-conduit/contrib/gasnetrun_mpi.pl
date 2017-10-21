@@ -662,8 +662,8 @@ EOF
 	@envargs = ();
      }
 
-# Process LSF host list to ensure it conforms to our request
-if (exists($ENV{'LSB_MCPU_HOSTS'})) {
+# Process LSF host list to ensure it conforms to our request (non-jsrun)
+if (exists($ENV{'LSB_MCPU_HOSTS'}) && !$is_jsrun) {
   my @tmp = split(" ", $ENV{'LSB_MCPU_HOSTS'});
   my %tmp;
   while (@tmp) {
@@ -699,6 +699,23 @@ if (exists($ENV{'LSB_MCPU_HOSTS'})) {
   $ENV{'LSB_MCPU_HOSTS'} = join(' ', @tmp);
   print("gasnetrun: rewrote LSB_MCPU_HOSTS='$ENV{'LSB_MCPU_HOSTS'}'\n") if ($verbose);
   $dashN_ok = 1;
+}
+
+# With jsrun we (attempt to) default to job size if -N was not given.
+# The "attempt" is a heutistic to exclude the login node which will
+# appear in LSM_MCPU_HOSTS, based on its CPU count of 1.  In the case
+# that *all* hosts are listed as single CPUs this code will not result
+# in any change to $numnode.
+if ($is_jsrun && !defined($numnode)) {
+  my @tmp = split(" ", $ENV{'LSB_MCPU_HOSTS'});
+  my %tmp;
+  while (@tmp) {
+    my $h = shift @tmp; # Host
+    my $n = shift @tmp; # Numcpus
+    $tmp{$h} += $n;
+  }
+  my $count = grep { $tmp{$_} > 1 } keys %tmp;  # counts hosts w/ >1 CPU
+  if ($count) { $numnode = $count; }
 }
 
 # LAM-specific preprocessing of $numproc in the presence of $numnode
