@@ -26,35 +26,51 @@ unexport CC CFLAGS
 unexport CXX CXXFLAGS
 unexport AR RANLIB
 
-# Parameterized support for download/unpack
+# Parametrized support for download/unpack
+CHAPEL_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
+chapel_dl_suffix_unzip := .zip
+chapel_dl_suffix_p7zip := .zip
+chapel_dl_suffix_tgz   := .tar.gz
+chapel_dl_suffix=$(chapel_dl_suffix_$(strip $(CHAPEL_DOWNLOAD)))
+ifeq ($(strip $(chapel_dl_suffix)),)
+chapel_dl_suffix := .zip
+endif
+
 CHAPEL_URL      ?= https://github.com/$(CHAPEL_GIT_REPO)/archive/$(CHAPEL_GIT_COMMIT)$(chapel_dl_suffix)
 CHAPEL_ARCHIVE  ?= $(notdir $(CHAPEL_URL))
-CHAPEL_DOWNLOAD ?= unzip # one of "unzip", "p7zip" or "tgz"
 chapel-download: force
 	rm -Rf $(CHAPEL_BLDDIR) $(CHAPEL_TMPDIR) && mkdir $(CHAPEL_TMPDIR)
 	cd $(CHAPEL_TMPDIR) && $(WGET) $(CHAPEL_URL) 2>&1
-	$(MAKE) -C $(CHAPEL_TMPDIR) -f `pwd`/Makefile chapel-unpack-$(CHAPEL_DOWNLOAD)
-	rm -f $(CHAPEL_TMPDIR)/$(CHAPEL_ARCHIVE) $(CHAPEL_TMPDIR)/wget-log
+	cd $(CHAPEL_TMPDIR) && cat wget-log 2> /dev/null ; rm -f wget-log ; exit 0
+	@CHAPEL_TESTDIR=`pwd` && \
+	 cd $(CHAPEL_TMPDIR) && CHAPEL_ARCHIVE=`/bin/ls` && CHAPEL_DOWNLOAD="$(strip $(CHAPEL_DOWNLOAD))" && \
+	 if test -z "$$CHAPEL_DOWNLOAD" ; then \
+	   case "$$CHAPEL_ARCHIVE" in \
+	     *.zip)          CHAPEL_DOWNLOAD=unzip ;; \
+	     *.p7z|*.7z)     CHAPEL_DOWNLOAD=p7zip ;; \
+	     *.tar.gz|*.tgz) CHAPEL_DOWNLOAD=tgz   ;; \
+	     *) echo "ERROR: Unknown archive suffix on '$$CHAPEL_ARCHIVE': Set CHAPEL_DOWNLOAD=(unzip,p7zip,tgz)" ; exit 1; \
+	   esac \
+	 fi && \
+	 echo Fetched $$CHAPEL_ARCHIVE : CHAPEL_DOWNLOAD=$$CHAPEL_DOWNLOAD && \
+	 $(MAKE) -f $$CHAPEL_TESTDIR/Makefile chapel-unpack-$$CHAPEL_DOWNLOAD CHAPEL_ARCHIVE="$$CHAPEL_ARCHIVE" && \
+	 rm -f $(CHAPEL_TMPDIR)/$$CHAPEL_ARCHIVE
 	mv $(CHAPEL_TMPDIR)/* $(CHAPEL_BLDDIR) # archive's root dir will vary
 	rmdir $(CHAPEL_TMPDIR)
 # Three ways to unpack the archive:
 #  Option 1: "unzip" - .zip w/ unzip
 #   This is the favored approach because it gives us the hash and uses a widely available utility.
 chapel-unpack-unzip: force; $(UNZIP) -z $(CHAPEL_ARCHIVE) && $(UNZIP) -q $(CHAPEL_ARCHIVE)
-chapel_dl_suffix_unzip = .zip
 #  Option 2: "p7zip" - .zip w/ 7za (from p7zip package)
 #   This also gives us the hash, but uses a less widely available utility.
 #   However, it is sometimes necessary because many unzip installations contain a bug w.r.t. symlinks
 chapel-unpack-p7zip: force; $(P7ZIP) x -bd $(CHAPEL_ARCHIVE)
-chapel_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 chapel-unpack-tgz:   force
 	-$(GZCAT) $(CHAPEL_ARCHIVE) | $(GIT) get-tar-commit-id; exit 0
 	$(GZCAT) $(CHAPEL_ARCHIVE) | $(TAR) xf -
-chapel_dl_suffix_tgz   = .tar.gz
 ####
-chapel_dl_suffix = $(chapel_dl_suffix_$(strip $(CHAPEL_DOWNLOAD)))
 .PHONY: chapel-download chapel-unpack-unzip chapel-unpack-p7zip chapel-unpack-tgz
 
 # Save time by building for a single conduit
