@@ -24,6 +24,12 @@
 #define GASNETC_IMMEDIATE_AMPOLLS 1
 #endif
 
+// How many times to retry a Post which fails with GNI_RC_ERROR_RESOURCE
+// TODO: Should this be an env var?
+#ifndef GASNETC_RESOURCE_RETRIES
+#define GASNETC_RESOURCE_RETRIES 65536
+#endif
+
 #ifdef GASNET_CONDUIT_GEMINI
   /* Use remote event + PI_FLUSH to get "proper" ordering w/ relaxed and default PI ordering */
   #define FIX_HT_ORDERING 1
@@ -1441,7 +1447,6 @@ GASNETI_INLINE(gasnetc_send_am_common)
 int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-  const int max_trials = 4;
   int trial = 0;
   gni_return_t status;
 
@@ -1457,7 +1462,8 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
       gasnetc_GNIT_Abort("PostFma for AM returned error %s", gasnetc_gni_rc_string(status));
     }
 
-    if_pf (++trial == max_trials) {
+    if_pf (++trial == GASNETC_RESOURCE_RETRIES) {
+      gasnetc_GNIT_Log("PostFma retry for AM failed");
       return GASNET_ERR_RESOURCE;
     }
 
@@ -2181,7 +2187,6 @@ static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gp
   GASNETC_DIDX_POST(gpd->domain_idx);
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
-  const int max_trials = 1000;
   int trial = 0;
 
   do {
@@ -2195,7 +2200,7 @@ static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gp
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
       GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-  } while (++trial < max_trials);
+  } while (++trial < GASNETC_RESOURCE_RETRIES);
   if (status == GNI_RC_ERROR_RESOURCE) {
     gasnetc_GNIT_Log("PostRdma retry failed");
   }
@@ -2207,7 +2212,6 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd
   GASNETC_DIDX_POST(gpd->domain_idx);
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
-  const int max_trials = 1000;
   int trial = 0;
 
   do {
@@ -2221,7 +2225,7 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
       GASNETI_WAITHOOK();
       gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-  } while (++trial < max_trials);
+  } while (++trial < GASNETC_RESOURCE_RETRIES);
   if (status == GNI_RC_ERROR_RESOURCE) {
     gasnetc_GNIT_Log("PostFma retry failed");
   }
