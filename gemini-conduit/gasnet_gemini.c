@@ -42,7 +42,7 @@
 #else
   #define GASNETC_CDM_MODE GNI_CDM_MODE_FORK_FULLCOPY
 #endif
-static uint32_t gasnetc_cdm_mode = GASNETC_CDM_MODE;
+static uint32_t gasnetc_cdm_mode = GASNETC_CDM_MODE | GNI_CDM_MODE_DUAL_EVENTS;
 
 int      gasnetc_dev_id;
 uint32_t gasnetc_cookie;
@@ -99,6 +99,7 @@ static gasnet_seginfo_t gasnetc_pd_buffers;
 
 unsigned int gasnetc_log2_remote;
 static unsigned int num_pd;
+static unsigned int num_cqe;
 static uint32_t notify_ring_mask; /* ring size minus 1 */
 static unsigned int am_slotsz;
 static unsigned int am_slot_bits;
@@ -755,8 +756,8 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     gasnetc_memreg_flags |= GNI_MEM_PI_FLUSH; 
     gasnetc_fma_put_cq_mode |= GNI_CQMODE_REMOTE_EVENT;
 
-    /* With 1 completion entry this queue is INTENDED to always overflow */
-    status = GNI_CqCreate(nic_handle, 1, 0, GNI_CQ_NOBLOCK, NULL, NULL, &destination_cq_handle);
+    /* With 2 entries (DUAL_EVENTS requires even value) this Cq is INTENDED to always overflow */
+    status = GNI_CqCreate(nic_handle, 2, 0, GNI_CQ_NOBLOCK, NULL, NULL, &destination_cq_handle);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
 #endif
@@ -906,7 +907,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 #endif
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
-  status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), num_pd + 2, 0, GNI_CQ_NOBLOCK, 
+  status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), num_cqe, 0, GNI_CQ_NOBLOCK, 
                         NULL, NULL, &DOMAIN_SPECIFIC_VAL(bound_cq_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
   /* create and bind endpoints */
@@ -935,8 +936,8 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   }
 #if FIX_HT_ORDERING
   if (gasnetc_mem_consistency != GASNETC_STRICT_MEM_CONSISTENCY) {
-    /* With 1 completion entry this queue is INTENDED to always overflow */
-    status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), 1, 0, GNI_CQ_NOBLOCK, NULL, NULL, &DOMAIN_SPECIFIC_VAL(destination_cq_handle));
+    /* With 2 completion entries this queue is INTENDED to always overflow */
+    status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), 2, 0, GNI_CQ_NOBLOCK, NULL, NULL, &DOMAIN_SPECIFIC_VAL(destination_cq_handle));
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
 #else
@@ -1073,14 +1074,13 @@ uintptr_t gasnetc_init_messaging(void)
   am_maxcredit = MIN(am_maxcredit, reply_count);
 
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
-    int cq_entries;
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
                                             GASNETC_GNI_NUM_PD_DEFAULT,0);
     num_pd = MAX(32, num_pd); /* Min is 32 (XXX: should be cores+1) */
 
-    cq_entries = num_pd+2; /* XXX: why +2 ?? */
+    num_cqe = 2*num_pd + 2; /* XXX: why +2 ?? */
 
-    status = GNI_CqCreate(nic_handle, cq_entries, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
+    status = GNI_CqCreate(nic_handle, num_cqe, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
 
@@ -1101,7 +1101,7 @@ uintptr_t gasnetc_init_messaging(void)
    * allocate a CQ in which to receive message notifications
    * include logarithmic space for shutdown messaging
    */
-  i = gasnetc_log2_remote + 2*remote_nodes*am_maxcredit; /* 2 = Request + Reply */
+  i = GASNETI_ALIGNUP(gasnetc_log2_remote, 2) + 2*remote_nodes*am_maxcredit; /* 2 = Request + Reply */
   status = GNI_CqCreate(nic_handle,i,0,GNI_CQ_NOBLOCK,NULL,NULL,&am_cq_handle);
   if (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_CqCreate returned error %s", gasnetc_gni_rc_string(status));
