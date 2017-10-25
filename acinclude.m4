@@ -1600,7 +1600,7 @@ GASNET_FUN_END([$0(...)])
 dnl GASNET_CHECK_RESTRICT(PREFIX, opt compiler-desc)
 dnl Checks if 'restrict' C99 keyword (or variants) supported
 dnl #defines [PREFIX]_RESTRICT to correct variant, or to nothing
-dnl #defines [PREFIX]_RESTRICT_MAY_QUALIFY_TYPEDEFS if appropriate
+dnl #defines [PREFIX]_RESTRICT_MAY_QUALIFY_TYPEDEFS as appropriate
 AC_DEFUN([GASNET_CHECK_RESTRICT],[
 GASNET_FUN_BEGIN([$0])
   dnl Check for restrict keyword
@@ -1624,10 +1624,12 @@ GASNET_FUN_BEGIN([$0])
       restrict_keyword="__restrict")
   fi
   AC_DEFINE_UNQUOTED([$1]_RESTRICT, $restrict_keyword)
+  restrict_on_typedefs=0
   GASNET_TRY_CACHE_CHECK($2 for restrict qualifying typedefs, cvprefix[]_restrict_typedefs,
     [typedef void *foo_t;
      int dummy(foo_t [$1]_RESTRICT p) { return 1; }], [],
-    AC_DEFINE([$1]_RESTRICT_MAY_QUALIFY_TYPEDEFS))
+     restrict_on_typedefs=1)
+  AC_DEFINE_UNQUOTED([$1]_RESTRICT_MAY_QUALIFY_TYPEDEFS, $restrict_on_typedefs)
   popdef([cvprefix])
 GASNET_FUN_END([$0])
 ])
@@ -1705,8 +1707,8 @@ dnl Caller must setup CC, CFLAGS, etc for MPI_CC case.
 dnl XXX: treatment of inline modifier is not generic
 AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   pushdef([inline_modifier],ifelse(index([$1],[MPI_CC]),
-                                   [-1],[GASNET_CC_INLINE_MODIFIER],
-                                        [GASNET_MPICC_INLINE_MODIFIER]))
+                                   [-1],[GASNETI_CC_INLINE_MODIFIER],
+                                        [GASNETI_MPICC_INLINE_MODIFIER]))
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__always_inline__],
             [__attribute__((__always_inline__))
              #if defined __cplusplus

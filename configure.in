@@ -969,8 +969,8 @@ GASNET_TRY_INLINE($1,lowername,[_Inline])
 if test -n "$inlinemod"; then
   GASNET_TRY_CACHE_CHECK($1 for working 'static $inlinemod', lowername[_static_inline],
    [static $inlinemod int dummy() { return 1; }], [], [inlinemod="static $inlinemod"])
-  AC_DEFINE_UNQUOTED(GASNET_[]uppername[]_INLINE_MODIFIER, $inlinemod)
 fi
+AC_DEFINE_UNQUOTED(GASNETI_[]uppername[]_INLINE_MODIFIER, $inlinemod)
 popdef([uppername])
 popdef([lowername])
 ])
