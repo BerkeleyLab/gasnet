@@ -693,23 +693,13 @@
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
        other warnings
+       bug 3664: PREDICT_TRUE negates exp to hint equality to zero
      */
-   #define GASNETT_PREDICT_TRUE(exp)  __builtin_expect( ((uintptr_t)(exp)), 1 )
-   #define GASNETT_PREDICT_FALSE(exp) __builtin_expect( ((uintptr_t)(exp)), 0 )
-  #elif PLATFORM_COMPILER_XLC && __xlC__ > 0x0600 && \
-       defined(_ARCH_PWR5) /* usually helps on Power5, usually hurts on Power3, mixed on other PPCs */
-   #if 1 /* execution_frequency pragma only takes effect when it occurs within a block statement */
-     #define GASNETT_PREDICT_TRUE(exp)  ((exp) && ({; _Pragma("execution_frequency(very_high)"); 1; }))
-     #define GASNETT_PREDICT_FALSE(exp) ((exp) && ({; _Pragma("execution_frequency(very_low)"); 1; }))
-   #else /* experimentally determined that pragma is sometimes(?) ignored unless it is
-            preceded by a non-trivial statement - unfortunately the dummy statement can also hurt performance */
-     static __inline gasneti_xlc_pragma_dummy(void) {} 
-     #define GASNETT_PREDICT_TRUE(exp)  ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_high)"); 1; }))
-     #define GASNETT_PREDICT_FALSE(exp) ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_low)"); 1; }))
-   #endif
+    #define GASNETT_PREDICT_TRUE(exp)  (!__builtin_expect( (!(uintptr_t)(exp)), 0 ))
+    #define GASNETT_PREDICT_FALSE(exp) ( __builtin_expect( ( (uintptr_t)(exp)), 0 ))
   #else
-   #define GASNETT_PREDICT_TRUE(exp)  (exp)
-   #define GASNETT_PREDICT_FALSE(exp) (exp)
+    #define GASNETT_PREDICT_TRUE(exp)  (exp)
+    #define GASNETT_PREDICT_FALSE(exp) (exp)
   #endif
 #endif
 

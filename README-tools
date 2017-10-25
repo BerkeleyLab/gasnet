@@ -668,10 +668,13 @@ declarator
 GASNETT_PREDICT_TRUE(expr)
 GASNETT_PREDICT_FALSE(expr)
 
-  These macros return the value of the expression given, but pass on a hint
-  that one expects the value to be true or false.  Use them to wrap a
-  conditional expression when you have strong reason to believe the branch
-  will frequently go in one direction and that the branch is a bottleneck.
+  These macros yield a non-zero value if and only if expr has non-zero value.
+
+  Additionally, they pass a hint to the compiler that one expects the value to
+  be non-zero or zero, respectively.  Use them to wrap a branch-controlling
+  expression when you have strong reason to believe the branch will frequently
+  go in one direction and that the branch is a bottleneck.
+
   The macros if_pf() and if_pf() are implemented in terms of these macros.
   Examples:
     do { S; } while(GASNETT_PREDICT_FALSE(expr)); // single-trip is common case
