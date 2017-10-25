@@ -1649,6 +1649,21 @@ GASNET_FUN_BEGIN([$0])
       if (x) __builtin_unreachable(); 
     ], AC_DEFINE([$1]_BUILTIN_UNREACHABLE))
 
+  GASNET_TRY_CACHE_LINK($2 for __builtin_expect, cvprefix[]__builtin_expect,
+    [ extern int x; int x = 0; ], [
+      if (__builtin_expect(x,1)) return 1;
+    ], AC_DEFINE([$1]_BUILTIN_EXPECT))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_constant_p, cvprefix[]__builtin_constant_p,
+    [ extern int x; int x = 0; ], [
+      x = __builtin_constant_p(x) + __builtin_constant_p(2);
+    ], AC_DEFINE([$1]_BUILTIN_CONSTANT_P))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_prefetch, cvprefix[]__builtin_prefetch,
+    [ extern int x; int x = 0; ], [
+      __builtin_prefetch(&x,0);
+    ], AC_DEFINE([$1]_BUILTIN_PREFETCH))
+
   popdef([cvprefix])
 GASNET_FUN_END([$0])
 ])

@@ -136,6 +136,21 @@
 #undef GASNETI_HAVE_CXX_BUILTIN_UNREACHABLE
 #undef GASNETI_HAVE_MPI_CC_BUILTIN_UNREACHABLE
 
+/* has __builtin_expect */
+#undef GASNETI_HAVE_CC_BUILTIN_EXPECT
+#undef GASNETI_HAVE_CXX_BUILTIN_EXPECT
+#undef GASNETI_HAVE_MPI_CC_BUILTIN_EXPECT
+
+/* has __builtin_constant_p */
+#undef GASNETI_HAVE_CC_BUILTIN_CONSTANT_P
+#undef GASNETI_HAVE_CXX_BUILTIN_CONSTANT_P
+#undef GASNETI_HAVE_MPI_CC_BUILTIN_CONSTANT_P
+
+/* has __builtin_prefetch */
+#undef GASNETI_HAVE_CC_BUILTIN_PREFETCH
+#undef GASNETI_HAVE_CXX_BUILTIN_PREFETCH
+#undef GASNETI_HAVE_MPI_CC_BUILTIN_PREFETCH
+
 /* Which inline asm style(s) are supported - these are defined only
    where we use configure to determine what a compiler supports */
 #undef GASNETI_HAVE_CC_XLC_ASM
@@ -312,15 +327,6 @@
 
 /* has _builtin_ctz */
 #undef HAVE_BUILTIN_CTZ
-
-/* has __builtin_expect */
-#undef HAVE_BUILTIN_EXPECT
-
-/* has __builtin_constant_p */
-#undef HAVE_BUILTIN_CONSTANT_P
-
-/* has __builtin_prefetch */
-#undef HAVE_BUILTIN_PREFETCH
 
 /* has __func__ function name defined */
 #undef HAVE_FUNC
