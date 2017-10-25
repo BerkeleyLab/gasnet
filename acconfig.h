@@ -116,8 +116,8 @@
 
 /* Defined to be the inline function modifier supported by the C
    compilers (if supported), prefixed by 'static' (if permitted) */
-#undef GASNET_CC_INLINE_MODIFIER
-#undef GASNET_MPI_CC_INLINE_MODIFIER
+#undef GASNETI_CC_INLINE_MODIFIER
+#undef GASNETI_MPI_CC_INLINE_MODIFIER
 
 /* C, C++ and MPI_CC compilers 'restrict' keywords (or empty) */
 #undef GASNETI_CC_RESTRICT
