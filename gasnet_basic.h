@@ -127,7 +127,7 @@
   #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS 1
 #endif
 
-#if HAVE_BUILTIN_CONSTANT_P
+#if GASNETI_COMPILER_HAS(BUILTIN_CONSTANT_P)
   #define gasneti_constant_p(_expr) __builtin_constant_p(_expr)
 #else
   #define gasneti_constant_p(_expr) (0)
@@ -715,7 +715,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
    in one direction and the branch is a bottleneck
  */
 #ifndef GASNETT_PREDICT_TRUE
-  #if defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
+  #if GASNETI_COMPILER_HAS(BUILTIN_EXPECT)
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
@@ -763,12 +763,12 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
    For instance, GASNETI_PREFETCH_{READ,WRITE}_HINT(NULL) is explicitly permitted.
    The macros may expand to nothing, so the argument must not have side effects.
  */
-#if HAVE_BUILTIN_PREFETCH
+#if GASNETI_COMPILER_HAS(BUILTIN_PREFETCH)
   #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((void *)(P),0)
   #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((void *)(P),1)
 #else
-  #define GASNETI_PREFETCH_READ_HINT(P)
-  #define GASNETI_PREFETCH_WRITE_HINT(P)
+  #define GASNETI_PREFETCH_READ_HINT(P)  ((void)0)
+  #define GASNETI_PREFETCH_WRITE_HINT(P) ((void)0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
