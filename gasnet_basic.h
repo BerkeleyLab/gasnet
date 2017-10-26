@@ -268,7 +268,6 @@
   /* __has_attribute(x) macro provided by some compilers gives the ability
    * to probe attributes at compile time. The following do not use this 
    * detection mechanism because the probes are context dependent:
-   *    ATTRIBUTE_UNUSED_TYPEDEF
    *    ATTRIBUTE_FORMAT_FUNCPTR
    *    ATTRIBUTE_FORMAT_FUNCPTR_ARG
    */
@@ -291,14 +290,6 @@
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_USED
     #define GASNETT_USE_GCC_ATTRIBUTE_USED \
        GASNETI_COMPILER_HAS_ATTRIBUTE(USED,__used__)
-  #endif
-  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED \
-       GASNETI_COMPILER_HAS_ATTRIBUTE(UNUSED,__unused__)
-  #endif
-  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_UNUSED_TYPEDEF
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED_TYPEDEF \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_UNUSED_TYPEDEF)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
     #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS \
@@ -367,13 +358,6 @@
   #define GASNETI_USED __attribute__((__used__))
 #else
   #define GASNETI_USED 
-#endif
-
-/* GASNETI_UNUSED: assert that variable is potentially unused to avoid unused variable warnings */
-#if GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-  #define GASNETI_UNUSED __attribute__((__unused__))
-#else
-  #define GASNETI_UNUSED 
 #endif
 
 /* GASNETI_MAY_ALIAS: annotate type as not subject to ANSI aliasing rules */

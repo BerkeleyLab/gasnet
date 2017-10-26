@@ -1734,8 +1734,6 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__used__],
             [#include <stdlib.h>
 	     __attribute__((__used__)) void dummy(void) { abort(); }])
-  GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__unused__],
-            [void dummy(void) { __attribute__((__unused__)) int pointless; return; }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__may_alias__],
             [typedef int __attribute__((__may_alias__)) dummy;])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__noreturn__],
@@ -1789,22 +1787,6 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
       AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR_ARG, 0)
   fi
   popdef([cachevar])
-
-  pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_unused_typedef)
-  AC_CACHE_CHECK($2 for __attribute__((__unused__)) on typedefs, cachevar,
-    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
-          typedef struct foo_s { int i; long l; } foo_t __attribute__((__unused__));
-      ], [
-          foo_t pointless;
-      ], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
-  )
-  if test "$cachevar" = yes; then
-      AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF)
-  else
-      AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF, 0)
-  fi
-  popdef([cachevar])
-
 
   # bug 3613: try to enable any warning settings that might be relevant to -Wunknown-pragmas
   GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS")
