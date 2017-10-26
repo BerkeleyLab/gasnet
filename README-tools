@@ -1242,10 +1242,6 @@ COMPILER.
       Compiler supports __attribute__((__warn_unused_result__)) 
     GASNETT_USE_GCC_ATTRIBUTE_USED
       Compiler supports __attribute__((__used__)) 
-    GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-      Compiler supports __attribute__((__unused__)) 
-    GASNETT_USE_GCC_ATTRIBUTE_UNUSED_TYPEDEF
-      Compiler supports __attribute__((__unused__)) on typedefs
     GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
       Compiler supports __attribute__((__may_alias__)) 
     GASNETT_USE_GCC_ATTRIBUTE_NORETURN
