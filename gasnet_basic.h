@@ -62,6 +62,24 @@
      (GASNETI_COMPILER_IS_CXX    && GASNETI_HAVE_CXX_ ## feature) || \
      (GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_ ## feature) )
 
+// GASNETI_COMPILER_HAS_BUILTIN: specialized for testing builtins
+#ifdef __has_builtin
+  #define _GASNETI_HAS_BUILTIN(x) __has_builtin(x)
+#else
+  #define _GASNETI_HAS_BUILTIN(x) 0
+#endif
+#define GASNETI_COMPILER_HAS_BUILTIN(MACRO_NAME,token_name) \
+       (GASNETI_COMPILER_HAS(BUILTIN_ ## MACRO_NAME) || _GASNETI_HAS_BUILTIN(__builtin_ ## token_name))
+
+// GASNETI_COMPILER_HAS_ATTRIBUTE: specialized for testing attributes
+#ifdef __has_attribute
+  #define _GASNETI_HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+  #define _GASNETI_HAS_ATTRIBUTE(x) 0
+#endif
+#define GASNETI_COMPILER_HAS_ATTRIBUTE(MACRO_NAME,attrib_token) \
+       (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || _GASNETI_HAS_ATTRIBUTE(attrib_token))
+
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
 //                  or 'otherwise' in the case of a compiler mismatch
@@ -131,7 +149,7 @@
   #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_COMPILER_FEATURE(RESTRICT_MAY_QUALIFY_TYPEDEFS,1)
 #endif
 
-#if GASNETI_COMPILER_HAS(BUILTIN_CONSTANT_P)
+#if GASNETI_COMPILER_HAS_BUILTIN(CONSTANT_P,constant_p)
   #define gasneti_constant_p(_expr) __builtin_constant_p(_expr)
 #else
   #define gasneti_constant_p(_expr) (0)
@@ -272,31 +290,38 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #endif
 
 /* If we have recognized the compiler, pick up its attribute support */
-#if GASNETI_COMPILER_HAS(ATTRIBUTE)
+#if GASNETI_COMPILER_HAS(ATTRIBUTE) || defined(__has_attribute)
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  /* __has_attribute(x) macro provided by some compilers gives the ability
+   * to probe attributes at compile time. The following do not use this 
+   * detection mechanism because the probes are context dependent:
+   *    ATTRIBUTE_UNUSED_TYPEDEF
+   *    ATTRIBUTE_FORMAT_FUNCPTR
+   *    ATTRIBUTE_FORMAT_FUNCPTR_ARG
+   */
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_ALWAYSINLINE)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(ALWAYSINLINE,__always_inline__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_NOINLINE)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(NOINLINE,__noinline__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_MALLOC
     #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_MALLOC)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(MALLOC,__malloc__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
     #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_WARNUNUSEDRESULT)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(WARNUNUSEDRESULT,__warn_unused_result__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_USED
     #define GASNETT_USE_GCC_ATTRIBUTE_USED \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_USED)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(USED,__used__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_UNUSED
     #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_UNUSED)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(UNUSED,__unused__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_UNUSED_TYPEDEF
     #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED_TYPEDEF \
@@ -304,35 +329,35 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
     #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_MAYALIAS)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(MAYALIAS,__may_alias__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_NORETURN
     #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_NORETURN)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(NORETURN,__noreturn__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_PURE
     #define GASNETT_USE_GCC_ATTRIBUTE_PURE \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_PURE)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(PURE,__pure__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_CONST
     #define GASNETT_USE_GCC_ATTRIBUTE_CONST \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_CONST)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(CONST,__const__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_HOT
     #define GASNETT_USE_GCC_ATTRIBUTE_HOT \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_HOT)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(HOT,__hot__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_COLD
     #define GASNETT_USE_GCC_ATTRIBUTE_COLD \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_COLD)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(COLD,__cold__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
     #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_DEPRECATED)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(DEPRECATED,__deprecated__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT \
-       GASNETI_COMPILER_HAS(ATTRIBUTE_FORMAT)
+       GASNETI_COMPILER_HAS_ATTRIBUTE(FORMAT,__format__)
   #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR \
@@ -341,56 +366,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG \
        GASNETI_COMPILER_HAS(ATTRIBUTE_FORMAT_FUNCPTR_ARG)
-  #endif
-#elif defined(__has_attribute)
-  /* Compiler provides the ability to probe attributes at compile time.
-   * The following are omitted because the probes are context dependent:
-   *    GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF
-   *    GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
-   *    GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-   */
-  #define GASNETI_HAVE_GCC_ATTRIBUTE 1
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE __has_attribute(__alwaysinline__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE __has_attribute(__noinline__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MALLOC
-    #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC __has_attribute(__malloc__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
-    #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT __has_attribute(__warn_unused_result__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_USED
-    #define GASNETT_USE_GCC_ATTRIBUTE_USED __has_attribute(__used__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED __has_attribute(__unused__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
-    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS __has_attribute(__may_alias__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NORETURN
-    #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN __has_attribute(__noreturn__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_PURE
-    #define GASNETT_USE_GCC_ATTRIBUTE_PURE __has_attribute(__pure__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_CONST
-    #define GASNETT_USE_GCC_ATTRIBUTE_CONST __has_attribute(__const__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_HOT
-    #define GASNETT_USE_GCC_ATTRIBUTE_HOT __has_attribute(__hot__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_COLD
-    #define GASNETT_USE_GCC_ATTRIBUTE_COLD __has_attribute(__cold__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
-    #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED __has_attribute(__deprecated__)
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT __has_attribute(__format__)
   #endif
 #endif
 
@@ -630,7 +605,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
    in one direction and the branch is a bottleneck
  */
 #ifndef GASNETT_PREDICT_TRUE
-  #if GASNETI_COMPILER_HAS(BUILTIN_EXPECT)
+  #if GASNETI_COMPILER_HAS_BUILTIN(EXPECT,expect)
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
@@ -668,7 +643,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
    For instance, GASNETI_PREFETCH_{READ,WRITE}_HINT(NULL) is explicitly permitted.
    The macros may expand to nothing, so the argument must not have side effects.
  */
-#if GASNETI_COMPILER_HAS(BUILTIN_PREFETCH)
+#if GASNETI_COMPILER_HAS_BUILTIN(PREFETCH,prefetch)
   #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((void *)(P),0)
   #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((void *)(P),1)
 #else
@@ -682,7 +657,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if !defined(GASNETT_USE_ASSUME) && GASNETI_COMPILER_HAS(ASSUME)
     #define GASNETT_USE_ASSUME 1
 #endif
-#if !defined(GASNETT_USE_BUILTIN_UNREACHABLE) && GASNETI_COMPILER_HAS(BUILTIN_UNREACHABLE)
+#if !defined(GASNETT_USE_BUILTIN_UNREACHABLE) && GASNETI_COMPILER_HAS_BUILTIN(UNREACHABLE,unreachable)
     #define GASNETT_USE_BUILTIN_UNREACHABLE 1
 #endif
 /* ------------------------------------------------------------------------------------ */
