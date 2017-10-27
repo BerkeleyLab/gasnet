@@ -657,6 +657,9 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if !defined(GASNETT_USE_ASSUME) && GASNETI_COMPILER_HAS(ASSUME)
     #define GASNETT_USE_ASSUME 1
 #endif
+#if !defined(GASNETT_USE_BUILTIN_ASSUME) && GASNETI_COMPILER_HAS_BUILTIN(ASSUME,assume)
+    #define GASNETT_USE_BUILTIN_ASSUME 1
+#endif
 #if !defined(GASNETT_USE_BUILTIN_UNREACHABLE) && GASNETI_COMPILER_HAS_BUILTIN(UNREACHABLE,unreachable)
     #define GASNETT_USE_BUILTIN_UNREACHABLE 1
 #endif

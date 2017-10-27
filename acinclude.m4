@@ -1646,6 +1646,12 @@ GASNET_FUN_BEGIN([$0])
       if (x) __assume(0);
     ], AC_DEFINE([$1]_ASSUME))
 
+  GASNET_TRY_CACHE_LINK($2 for __builtin_assume, cvprefix[]__builtin_assume,
+    [ extern int x; int x = 0; ], [
+      __builtin_assume(x == 0); 
+      if (x) __builtin_assume(0);
+    ], AC_DEFINE([$1]_BUILTIN_ASSUME))
+
   GASNET_TRY_CACHE_LINK($2 for __builtin_unreachable, cvprefix[]__builtin_unreachable,
     [ extern int x; int x = 0; ], [
       if (x) __builtin_unreachable(); 
