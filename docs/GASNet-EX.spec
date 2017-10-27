@@ -1164,6 +1164,48 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 //
+// Neighborhood: [EXPERIMENTAL]
+// A "neighborhood" is defined as a set of GEX processes that can share
+// memory via the GASNet PSHM feature.
+//
+
+// Const-qualified struct type for describing a member of a neighborhood
+typedef const struct {
+    gex_Rank_t gex_jobrank; // the Job Rank (as defined above)
+    // Reserved for future expansion and/or internal-use fields
+} gex_NeighborhoodInfo_t;
+
+// Query information about the neighborhood of the calling process.
+//
+// All arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// info_p:
+//        Receives the address of an array with elements of type
+//        gex_NeighborhoodInfo_t (defined above), which includes one entry
+//        for each process in the neighborhood of the calling process.
+//        Entries are sorted by increasing gex_jobrank.
+//        The storage of this array is owned by GASNet and must not be
+//        written to or free()ed.
+//        High-quality implementations will store this array in shared memory
+//        to reduce memory footprint.  Therefore, clients should consider using
+//        it in-place to avoid creating a less-scalable copy per process.
+// info_count_p:
+//        Receives the number of processes in the neighborhood of the calling
+//        process.  This includes the caller, and is therefore always non-zero.
+// my_info_index_p:
+//        Receives the 0-based index of the calling process relative to its
+//        neighborhood.  In particular, the following formula holds:
+//        (*info_p)[*my_info_index_p].gex_jobrank == gex_System_QueryJobRank()
+//
+// Semantics in a resilient build will be defined in a later release.
+extern void gex_System_QueryNeighborhoodInfo(
+            gex_NeighborhoodInfo_t **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p);
+
+
+//
 // Handler-safe locks (HSLs)
 // Lock semantics are identical to those in GASNet-1
 //
