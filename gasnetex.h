@@ -500,6 +500,18 @@ extern gex_TI_t gex_Token_Info(
   typedef void *gasnet_threadinfo_t;
 #endif
 
+typedef const struct {
+  gex_Rank_t gex_jobrank;
+  // Avert your eyes - space below is reserved for internal use
+
+  // Nothing to see here (yet)
+} gex_NeighborhoodInfo_t;
+
+extern void gex_System_QueryNeighborhoodInfo(
+            gex_NeighborhoodInfo_t **_info_p,
+            gex_Rank_t             *_info_count_p,
+            gex_Rank_t             *_my_info_index_p);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
