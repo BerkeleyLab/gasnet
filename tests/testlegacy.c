@@ -336,6 +336,32 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_System_QueryJobRank() == gasnet_mynode());
   assert_always(gex_System_QueryJobSize() == gasnet_nodes());
 
+  // Neighborhood-vs-NodeInfo
+  {
+    gasnet_nodeinfo_t *nodeinfo = (gasnet_nodeinfo_t *)
+                                  test_malloc(gasnet_nodes() * sizeof(gasnet_nodeinfo_t));
+    GASNET_Safe(gasnet_getNodeInfo(nodeinfo, gasnet_nodes()));
+    gasnet_node_t mysupernode_id = nodeinfo[gasnet_mynode()].supernode;
+    gasnet_node_t mysupernode_size = 0;
+    gasnet_node_t mysupernode_rank = GEX_RANK_INVALID;
+    for (gasnet_node_t i = 0; i < gasnet_nodes(); ++i) {
+      if (i == gasnet_mynode()) mysupernode_rank = mysupernode_size;
+      if (nodeinfo[i].supernode == mysupernode_id) mysupernode_size += 1;
+    }
+    assert_always(mysupernode_size >= 1);
+    assert_always(mysupernode_rank != GEX_RANK_INVALID);
+
+    gex_NeighborhoodInfo_t *neighbor_array;
+    gex_Rank_t neighbor_size, neighbor_rank;
+    gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
+    assert_always(neighbor_size == mysupernode_size);
+    assert_always(neighbor_rank == mysupernode_rank);
+    for (gasnet_node_t i = 0; i < mysupernode_size; ++i) {
+      assert_always(nodeinfo[neighbor_array[i].gex_jobrank].supernode == mysupernode_id);
+    }
+    test_free(nodeinfo);
+  }
+
   // GEX objects
   { gex_Client_t  client;
     gex_EP_t      endpoint;

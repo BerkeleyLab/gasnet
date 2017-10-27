@@ -431,6 +431,37 @@ void doit(int partner, int *partnerseg) {
   assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
 #endif
 
+  {
+    gex_NeighborhoodInfo_t *neighbor_array;
+    gex_Rank_t neighbor_size, neighbor_rank;
+    gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
+
+    assert_always(neighbor_array != NULL);
+    assert_always((neighbor_size > 0) && (neighbor_size <= gex_System_QueryJobSize()));
+    assert_always((neighbor_rank >= 0) && (neighbor_rank < neighbor_size));
+    assert_always(neighbor_array[neighbor_rank].gex_jobrank == gex_System_QueryJobRank());
+
+    BARRIER();
+    for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
+      // Check sort:
+      assert_always(!i || (neighbor_array[i].gex_jobrank > neighbor_array[i-1].gex_jobrank));
+
+      // Check sharing (part 1):
+      gex_Rank_t *crossmap = NULL;
+      int rc = gex_Segment_QueryBound(myteam, neighbor_array[i].gex_jobrank, NULL, (void**)&crossmap, NULL);
+      assert_always(rc == 0);
+      assert_always(crossmap != NULL);
+      crossmap[neighbor_rank] = myrank;
+    }
+    BARRIER();
+    gex_Rank_t *myseg = TEST_MYSEG();
+    for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
+      // Check sharing (part 2):
+      assert_always(neighbor_array[i].gex_jobrank == myseg[i]);
+    }
+    BARRIER();
+  }
+
   /* width-independent computation of an integer variable with unknown unsigned type */
   #if PLATFORM_ARCH_LITTLE_ENDIAN
     #define compute_uint_val(lval_u64,var) do {          \
