@@ -89,11 +89,15 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
 #endif
 
 /* gasneti_assume(cond): assert a simple condition is always true, as a directive to help compiler analysis
- * Becomes an assertion in DEBUG mode and an analysis directive (when available) in NDEBUG mode
- * Note that cond should NOT contain any function calls or side-effects, otherwise it may incur a runtime cost.
+ * Becomes an assertion in DEBUG mode and an analysis directive (when available) in NDEBUG mode.
+ * This notably differs from gasneti_assert() in that the expression must remain valid in NDEBUG mode
+ * (because it is not preprocessed away), and furthermore may or may not be evaluated at runtime.
+ * To ensure portability and performance, cond should NOT contain any function calls or side-effects.
  */
 #if GASNET_DEBUG
   #define gasneti_assume(cond) gasneti_assert_always(cond)
+#elif GASNETT_USE_BUILTIN_ASSUME
+  #define gasneti_assume(cond) ((void)__builtin_assume(cond))
 #elif GASNETT_USE_ASSUME
   #define gasneti_assume(cond) ((void)__assume(cond))
 #else
