@@ -62,6 +62,28 @@
 // where we feel we have a suitable design ready for consideration, but
 // have yet to provide a complete and/or correct implementation.
 
+
+// Hybrid/transitional client support:
+//
+// To enable clients that mix GASNet-1 and GASNet-EX, the following API is
+// provided to allow jobs that initialize GASNet using the legacy
+// gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
+// created by those operations.  The types and usage of these objects are
+// described below.  This call is defined in gasnet.h (not gasnetex.h).
+//
+// The arguments are all pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+//     client_p: receives the gex_Client_t created implicitly by gasnet_init()
+//   endpoint_p: receives the gex_EP_t created implicitly by gasnet_init()
+//         tm_p: receives the gex_TM_t created implicitly by gasnet_init()
+//    segment_p: receives the gex_Segment created implicitly by gasnet_attach()
+//
+extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
+                                   gex_EP_t          *endpoint_p,
+                                   gex_TM_t          *tm_p,
+                                   gex_Segment_t     *segment_p);
+
 //
 // Basic types:
 //
