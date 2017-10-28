@@ -6,6 +6,9 @@
 //
 // This document assumes a reasonable degree of familiarity with the current
 // (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+//
+// Except where otherwise noted, all definitions in this document
+// are provided by gasnetex.h.
 
 
 //
