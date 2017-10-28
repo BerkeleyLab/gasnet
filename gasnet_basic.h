@@ -56,6 +56,43 @@
   #define GASNETI_CONFIGURE_MISMATCH 1
 #endif
 
+// preprocessor conditional: configure detected GASNETI_HAVE_<id>_<feature> for the current compiler
+#define GASNETI_COMPILER_HAS(feature) ( \
+     (GASNETI_COMPILER_IS_CC     && GASNETI_HAVE_CC_ ## feature)  || \
+     (GASNETI_COMPILER_IS_CXX    && GASNETI_HAVE_CXX_ ## feature) || \
+     (GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_ ## feature) )
+
+// GASNETI_COMPILER_HAS_BUILTIN: specialized for testing builtins
+#ifdef __has_builtin
+  #define _GASNETI_HAS_BUILTIN(x) __has_builtin(x)
+#else
+  #define _GASNETI_HAS_BUILTIN(x) 0
+#endif
+#define GASNETI_COMPILER_HAS_BUILTIN(MACRO_NAME,token_name) \
+       (GASNETI_COMPILER_HAS(BUILTIN_ ## MACRO_NAME) || _GASNETI_HAS_BUILTIN(__builtin_ ## token_name))
+
+// GASNETI_COMPILER_HAS_ATTRIBUTE: specialized for testing attributes
+#ifdef __has_attribute
+  #define _GASNETI_HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+  #define _GASNETI_HAS_ATTRIBUTE(x) 0
+#endif
+#define GASNETI_COMPILER_HAS_ATTRIBUTE(MACRO_NAME,attrib_token) \
+       (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || _GASNETI_HAS_ATTRIBUTE(attrib_token))
+
+// token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
+//                  (which MUST NOT be #undef, although it can be #defined to blank)
+//                  or 'otherwise' in the case of a compiler mismatch
+#if GASNETI_COMPILER_IS_CC
+  #define GASNETI_COMPILER_FEATURE(feature, otherwise) GASNETI_CC_ ## feature
+#elif GASNETI_COMPILER_IS_MPI_CC
+  #define GASNETI_COMPILER_FEATURE(feature, otherwise) GASNETI_MPI_CC_ ## feature
+#elif GASNETI_COMPILER_IS_CXX
+  #define GASNETI_COMPILER_FEATURE(feature, otherwise) GASNETI_CXX_ ## feature
+#else
+  #define GASNETI_COMPILER_FEATURE(feature, otherwise) otherwise
+#endif
+
 /* include files that may conflict with macros defined later */
 #ifdef HAVE_SYS_PARAM_H
   #include <sys/param.h>
@@ -105,23 +142,14 @@
   #endif
 #elif defined(GASNETT_USE_RESTRICT_ON_TYPEDEFS)
   #error GASNETT_USE_RESTRICT_ON_TYPEDEFS defined without GASNETT_USE_RESTRICT
-#elif GASNETI_COMPILER_IS_CC
-  #define GASNETI_RESTRICT                      GASNETI_CC_RESTRICT
-  #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_CC_RESTRICT_MAY_QUALIFY_TYPEDEFS
-#elif GASNETI_COMPILER_IS_MPI_CC
-  #define GASNETI_RESTRICT                      GASNETI_MPI_CC_RESTRICT
-  #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_MPI_CC_RESTRICT_MAY_QUALIFY_TYPEDEFS
-#elif GASNETI_COMPILER_IS_CXX
-  #define GASNETI_RESTRICT                      GASNETI_CXX_RESTRICT
-  #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_CXX_RESTRICT_MAY_QUALIFY_TYPEDEFS
 #else
-  /* define away to nothing, which should always be safe */
-  #define GASNETI_RESTRICT
-  /* define to 1 because 0 triggers use of (void*) in place of the typedef */
-  #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS 1
+  // mismatch behavior: define away to nothing, which should always be safe
+  //   define to 1 because 0 triggers use of (void*) in place of the typedef
+  #define GASNETI_RESTRICT                      GASNETI_COMPILER_FEATURE(RESTRICT,)
+  #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_COMPILER_FEATURE(RESTRICT_MAY_QUALIFY_TYPEDEFS,1)
 #endif
 
-#if HAVE_BUILTIN_CONSTANT_P
+#if GASNETI_COMPILER_HAS_BUILTIN(CONSTANT_P,constant_p)
   #define gasneti_constant_p(_expr) __builtin_constant_p(_expr)
 #else
   #define gasneti_constant_p(_expr) (0)
@@ -210,9 +238,7 @@
   #define GASNETI_PRAGMA(x) _Pragma ( #x )
 #endif
 
-#if (GASNETI_COMPILER_IS_CC && GASNETI_HAVE_CC_PRAGMA_GCC_DIAGNOSTIC) || \
-    (GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_PRAGMA_GCC_DIAGNOSTIC) || \
-    (GASNETI_COMPILER_IS_CXX && GASNETI_HAVE_CXX_PRAGMA_GCC_DIAGNOSTIC)
+#if GASNETI_COMPILER_HAS(PRAGMA_GCC_DIAGNOSTIC)
   #define GASNETI_USE_PRAGMA_GCC_DIAGNOSTIC 1
   #if defined(__cplusplus)
     #define _GASNETI_NOWARN_IGNORES_C_ONLY
@@ -237,208 +263,73 @@
 #endif
 
 /* If we have recognized the compiler, pick up its attribute support */
-#if GASNETI_COMPILER_IS_CC && GASNETI_HAVE_CC_ATTRIBUTE
+#if GASNETI_COMPILER_HAS(ATTRIBUTE) || defined(__has_attribute)
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
-  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_CC_ATTRIBUTE_UNUSED_TYPEDEF
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_CC_ATTRIBUTE_ALWAYSINLINE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE GASNETI_HAVE_CC_ATTRIBUTE_NOINLINE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MALLOC
-    #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC GASNETI_HAVE_CC_ATTRIBUTE_MALLOC
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
-    #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT GASNETI_HAVE_CC_ATTRIBUTE_WARNUNUSEDRESULT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_USED
-    #define GASNETT_USE_GCC_ATTRIBUTE_USED GASNETI_HAVE_CC_ATTRIBUTE_USED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED GASNETI_HAVE_CC_ATTRIBUTE_UNUSED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
-    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS GASNETI_HAVE_CC_ATTRIBUTE_MAYALIAS
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NORETURN
-    #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN GASNETI_HAVE_CC_ATTRIBUTE_NORETURN
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_PURE
-    #define GASNETT_USE_GCC_ATTRIBUTE_PURE GASNETI_HAVE_CC_ATTRIBUTE_PURE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_CONST
-    #define GASNETT_USE_GCC_ATTRIBUTE_CONST GASNETI_HAVE_CC_ATTRIBUTE_CONST
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_HOT
-    #define GASNETT_USE_GCC_ATTRIBUTE_HOT GASNETI_HAVE_CC_ATTRIBUTE_HOT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_COLD
-    #define GASNETT_USE_GCC_ATTRIBUTE_COLD GASNETI_HAVE_CC_ATTRIBUTE_COLD
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
-    #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED GASNETI_HAVE_CC_ATTRIBUTE_DEPRECATED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT GASNETI_HAVE_CC_ATTRIBUTE_FORMAT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-  #endif
-#elif GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_ATTRIBUTE
-  #define GASNETI_HAVE_GCC_ATTRIBUTE 1
-  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED_TYPEDEF
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_MPI_CC_ATTRIBUTE_ALWAYSINLINE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE GASNETI_HAVE_MPI_CC_ATTRIBUTE_NOINLINE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MALLOC
-    #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC GASNETI_HAVE_MPI_CC_ATTRIBUTE_MALLOC
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
-    #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT GASNETI_HAVE_MPI_CC_ATTRIBUTE_WARNUNUSEDRESULT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_USED
-    #define GASNETT_USE_GCC_ATTRIBUTE_USED GASNETI_HAVE_MPI_CC_ATTRIBUTE_USED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
-    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS GASNETI_HAVE_MPI_CC_ATTRIBUTE_MAYALIAS
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NORETURN
-    #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN GASNETI_HAVE_MPI_CC_ATTRIBUTE_NORETURN
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_PURE
-    #define GASNETT_USE_GCC_ATTRIBUTE_PURE GASNETI_HAVE_MPI_CC_ATTRIBUTE_PURE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_CONST
-    #define GASNETT_USE_GCC_ATTRIBUTE_CONST GASNETI_HAVE_MPI_CC_ATTRIBUTE_CONST
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_HOT
-    #define GASNETT_USE_GCC_ATTRIBUTE_HOT GASNETI_HAVE_MPI_CC_ATTRIBUTE_HOT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_COLD
-    #define GASNETT_USE_GCC_ATTRIBUTE_COLD GASNETI_HAVE_MPI_CC_ATTRIBUTE_COLD
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
-    #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED GASNETI_HAVE_MPI_CC_ATTRIBUTE_DEPRECATED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-  #endif
-#elif GASNETI_COMPILER_IS_CXX && GASNETI_HAVE_CXX_ATTRIBUTE
-  #define GASNETI_HAVE_GCC_ATTRIBUTE 1
-  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED_TYPEDEF
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_CXX_ATTRIBUTE_ALWAYSINLINE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE GASNETI_HAVE_CXX_ATTRIBUTE_NOINLINE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MALLOC
-    #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC GASNETI_HAVE_CXX_ATTRIBUTE_MALLOC
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
-    #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT GASNETI_HAVE_CXX_ATTRIBUTE_WARNUNUSEDRESULT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_USED
-    #define GASNETT_USE_GCC_ATTRIBUTE_USED GASNETI_HAVE_CXX_ATTRIBUTE_USED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
-    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS GASNETI_HAVE_CXX_ATTRIBUTE_MAYALIAS
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NORETURN
-    #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN GASNETI_HAVE_CXX_ATTRIBUTE_NORETURN
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_PURE
-    #define GASNETT_USE_GCC_ATTRIBUTE_PURE GASNETI_HAVE_CXX_ATTRIBUTE_PURE
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_CONST
-    #define GASNETT_USE_GCC_ATTRIBUTE_CONST GASNETI_HAVE_CXX_ATTRIBUTE_CONST
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_HOT
-    #define GASNETT_USE_GCC_ATTRIBUTE_HOT GASNETI_HAVE_CXX_ATTRIBUTE_HOT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_COLD
-    #define GASNETT_USE_GCC_ATTRIBUTE_COLD GASNETI_HAVE_CXX_ATTRIBUTE_COLD
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
-    #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED GASNETI_HAVE_CXX_ATTRIBUTE_DEPRECATED
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR
-  #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR_ARG
-  #endif
-#elif defined(__has_attribute)
-  /* Compiler provides the ability to probe attributes at compile time.
-   * The following are omitted because the probes are context dependent:
-   *    GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF
-   *    GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
-   *    GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+  /* __has_attribute(x) macro provided by some compilers gives the ability
+   * to probe attributes at compile time. The following do not use this 
+   * detection mechanism because the probes are context dependent:
+   *    ATTRIBUTE_FORMAT_FUNCPTR
+   *    ATTRIBUTE_FORMAT_FUNCPTR_ARG
    */
-  #define GASNETI_HAVE_GCC_ATTRIBUTE 1
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE __has_attribute(__alwaysinline__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
+    #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(ALWAYSINLINE,__always_inline__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
-    #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE __has_attribute(__noinline__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
+    #define GASNETT_USE_GCC_ATTRIBUTE_NOINLINE \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(NOINLINE,__noinline__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MALLOC
-    #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC __has_attribute(__malloc__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_MALLOC
+    #define GASNETT_USE_GCC_ATTRIBUTE_MALLOC \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(MALLOC,__malloc__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
-    #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT __has_attribute(__warn_unused_result__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
+    #define GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(WARNUNUSEDRESULT,__warn_unused_result__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_USED
-    #define GASNETT_USE_GCC_ATTRIBUTE_USED __has_attribute(__used__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_USED
+    #define GASNETT_USE_GCC_ATTRIBUTE_USED \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(USED,__used__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-    #define GASNETT_USE_GCC_ATTRIBUTE_UNUSED __has_attribute(__unused__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
+    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(MAYALIAS,__may_alias__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
-    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS __has_attribute(__may_alias__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_NORETURN
+    #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(NORETURN,__noreturn__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_NORETURN
-    #define GASNETT_USE_GCC_ATTRIBUTE_NORETURN __has_attribute(__noreturn__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_PURE
+    #define GASNETT_USE_GCC_ATTRIBUTE_PURE \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(PURE,__pure__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_PURE
-    #define GASNETT_USE_GCC_ATTRIBUTE_PURE __has_attribute(__pure__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_CONST
+    #define GASNETT_USE_GCC_ATTRIBUTE_CONST \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(CONST,__const__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_CONST
-    #define GASNETT_USE_GCC_ATTRIBUTE_CONST __has_attribute(__const__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_HOT
+    #define GASNETT_USE_GCC_ATTRIBUTE_HOT \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(HOT,__hot__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_HOT
-    #define GASNETT_USE_GCC_ATTRIBUTE_HOT __has_attribute(__hot__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_COLD
+    #define GASNETT_USE_GCC_ATTRIBUTE_COLD \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(COLD,__cold__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_COLD
-    #define GASNETT_USE_GCC_ATTRIBUTE_COLD __has_attribute(__cold__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
+    #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(DEPRECATED,__deprecated__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED
-    #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED __has_attribute(__deprecated__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT
+    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(FORMAT,__format__)
   #endif
-  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT
-    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT __has_attribute(__format__)
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
+    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR \
+       GASNETI_COMPILER_HAS(ATTRIBUTE_FORMAT_FUNCPTR)
+  #endif
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG \
+       GASNETI_COMPILER_HAS(ATTRIBUTE_FORMAT_FUNCPTR_ARG)
   #endif
 #endif
 
@@ -467,13 +358,6 @@
   #define GASNETI_USED __attribute__((__used__))
 #else
   #define GASNETI_USED 
-#endif
-
-/* GASNETI_UNUSED: assert that variable is potentially unused to avoid unused variable warnings */
-#if GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-  #define GASNETI_UNUSED __attribute__((__unused__))
-#else
-  #define GASNETI_UNUSED 
 #endif
 
 /* GASNETI_MAY_ALIAS: annotate type as not subject to ANSI aliasing rules */
@@ -567,12 +451,8 @@
   #define GASNETI_PLEASE_INLINE(fnname) GASNETT_USE_PLEASE_INLINE(fnname)
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
-#elif GASNETI_COMPILER_IS_CC && defined(GASNET_CC_INLINE_MODIFIER)
-  #define GASNETI_PLEASE_INLINE(fnname) GASNET_CC_INLINE_MODIFIER
-#elif GASNETI_COMPILER_IS_MPI_CC && defined(GASNET_MPI_CC_INLINE_MODIFIER)
-  #define GASNETI_PLEASE_INLINE(fnname) GASNET_MPI_CC_INLINE_MODIFIER
 #else
-  #define GASNETI_PLEASE_INLINE(fnname) static
+  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
 #endif
 
 /* GASNETI_ALWAYS_INLINE aka GASNETI_INLINE: Most forceful inlining demand available.
@@ -682,28 +562,18 @@
    in one direction and the branch is a bottleneck
  */
 #ifndef GASNETT_PREDICT_TRUE
-  #if defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
+  #if GASNETI_COMPILER_HAS_BUILTIN(EXPECT,expect)
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
        other warnings
+       bug 3664: PREDICT_TRUE negates exp to hint equality to zero
      */
-   #define GASNETT_PREDICT_TRUE(exp)  __builtin_expect( ((uintptr_t)(exp)), 1 )
-   #define GASNETT_PREDICT_FALSE(exp) __builtin_expect( ((uintptr_t)(exp)), 0 )
-  #elif PLATFORM_COMPILER_XLC && __xlC__ > 0x0600 && \
-       defined(_ARCH_PWR5) /* usually helps on Power5, usually hurts on Power3, mixed on other PPCs */
-   #if 1 /* execution_frequency pragma only takes effect when it occurs within a block statement */
-     #define GASNETT_PREDICT_TRUE(exp)  ((exp) && ({; _Pragma("execution_frequency(very_high)"); 1; }))
-     #define GASNETT_PREDICT_FALSE(exp) ((exp) && ({; _Pragma("execution_frequency(very_low)"); 1; }))
-   #else /* experimentally determined that pragma is sometimes(?) ignored unless it is
-            preceded by a non-trivial statement - unfortunately the dummy statement can also hurt performance */
-     static __inline gasneti_xlc_pragma_dummy(void) {} 
-     #define GASNETT_PREDICT_TRUE(exp)  ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_high)"); 1; }))
-     #define GASNETT_PREDICT_FALSE(exp) ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_low)"); 1; }))
-   #endif
+    #define GASNETT_PREDICT_TRUE(exp)  (!__builtin_expect( (!(uintptr_t)(exp)), 0 ))
+    #define GASNETT_PREDICT_FALSE(exp) ( __builtin_expect( ( (uintptr_t)(exp)), 0 ))
   #else
-   #define GASNETT_PREDICT_TRUE(exp)  (exp)
-   #define GASNETT_PREDICT_FALSE(exp) (exp)
+    #define GASNETT_PREDICT_TRUE(exp)  (exp)
+    #define GASNETT_PREDICT_FALSE(exp) (exp)
   #endif
 #endif
 
@@ -730,13 +600,25 @@
    For instance, GASNETI_PREFETCH_{READ,WRITE}_HINT(NULL) is explicitly permitted.
    The macros may expand to nothing, so the argument must not have side effects.
  */
-#if HAVE_BUILTIN_PREFETCH
+#if GASNETI_COMPILER_HAS_BUILTIN(PREFETCH,prefetch)
   #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((void *)(P),0)
   #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((void *)(P),1)
 #else
-  #define GASNETI_PREFETCH_READ_HINT(P)
-  #define GASNETI_PREFETCH_WRITE_HINT(P)
+  #define GASNETI_PREFETCH_READ_HINT(P)  ((void)0)
+  #define GASNETI_PREFETCH_WRITE_HINT(P) ((void)0)
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+// Misc builtins 
+
+#if !defined(GASNETT_USE_ASSUME) && GASNETI_COMPILER_HAS(ASSUME)
+    #define GASNETT_USE_ASSUME 1
+#endif
+#if !defined(GASNETT_USE_BUILTIN_ASSUME) && GASNETI_COMPILER_HAS_BUILTIN(ASSUME,assume)
+    #define GASNETT_USE_BUILTIN_ASSUME 1
+#endif
+#if !defined(GASNETT_USE_BUILTIN_UNREACHABLE) && GASNETI_COMPILER_HAS_BUILTIN(UNREACHABLE,unreachable)
+    #define GASNETT_USE_BUILTIN_UNREACHABLE 1
+#endif
 /* ------------------------------------------------------------------------------------ */
 #endif

@@ -668,10 +668,13 @@ declarator
 GASNETT_PREDICT_TRUE(expr)
 GASNETT_PREDICT_FALSE(expr)
 
-  These macros return the value of the expression given, but pass on a hint
-  that one expects the value to be true or false.  Use them to wrap a
-  conditional expression when you have strong reason to believe the branch
-  will frequently go in one direction and that the branch is a bottleneck.
+  These macros yield a non-zero value if and only if expr has non-zero value.
+
+  Additionally, they pass a hint to the compiler that one expects the value to
+  be non-zero or zero, respectively.  Use them to wrap a branch-controlling
+  expression when you have strong reason to believe the branch will frequently
+  go in one direction and that the branch is a bottleneck.
+
   The macros if_pf() and if_pf() are implemented in terms of these macros.
   Examples:
     do { S; } while(GASNETT_PREDICT_FALSE(expr)); // single-trip is common case
@@ -1225,7 +1228,9 @@ COMPILER.
 
   The client may define any of the following preprocessor symbols, prior to inclusion of
   gasnet.h or gasnet_tools.h, to inform GASNet's headers that the current compiler does
-  (#define to 1) or does NOT (#define to 0) support the corresponding syntax:
+  (#define to 1) or does NOT (#define to 0) support the corresponding syntax.
+  When using a configure-recognized compiler, these default to their configure-detected
+  values.
 
     GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
       Compiler supports __attribute__((__always_inline__))
@@ -1237,8 +1242,6 @@ COMPILER.
       Compiler supports __attribute__((__warn_unused_result__)) 
     GASNETT_USE_GCC_ATTRIBUTE_USED
       Compiler supports __attribute__((__used__)) 
-    GASNETT_USE_GCC_ATTRIBUTE_UNUSED
-      Compiler supports __attribute__((__unused__)) 
     GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
       Compiler supports __attribute__((__may_alias__)) 
     GASNETT_USE_GCC_ATTRIBUTE_NORETURN

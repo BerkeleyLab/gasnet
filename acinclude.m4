@@ -1600,7 +1600,7 @@ GASNET_FUN_END([$0(...)])
 dnl GASNET_CHECK_RESTRICT(PREFIX, opt compiler-desc)
 dnl Checks if 'restrict' C99 keyword (or variants) supported
 dnl #defines [PREFIX]_RESTRICT to correct variant, or to nothing
-dnl #defines [PREFIX]_RESTRICT_MAY_QUALIFY_TYPEDEFS if appropriate
+dnl #defines [PREFIX]_RESTRICT_MAY_QUALIFY_TYPEDEFS as appropriate
 AC_DEFUN([GASNET_CHECK_RESTRICT],[
 GASNET_FUN_BEGIN([$0])
   dnl Check for restrict keyword
@@ -1624,14 +1624,57 @@ GASNET_FUN_BEGIN([$0])
       restrict_keyword="__restrict")
   fi
   AC_DEFINE_UNQUOTED([$1]_RESTRICT, $restrict_keyword)
+  restrict_on_typedefs=0
   GASNET_TRY_CACHE_CHECK($2 for restrict qualifying typedefs, cvprefix[]_restrict_typedefs,
     [typedef void *foo_t;
      int dummy(foo_t [$1]_RESTRICT p) { return 1; }], [],
-    AC_DEFINE([$1]_RESTRICT_MAY_QUALIFY_TYPEDEFS))
+     restrict_on_typedefs=1)
+  AC_DEFINE_UNQUOTED([$1]_RESTRICT_MAY_QUALIFY_TYPEDEFS, $restrict_on_typedefs)
   popdef([cvprefix])
 GASNET_FUN_END([$0])
 ])
 
+dnl GASNET_CHECK_BUILTINS(PREFIX, opt compiler-desc)
+dnl Checks for various commpiler builtins of interest
+dnl #defines [PREFIX]_<feature> symbols
+AC_DEFUN([GASNET_CHECK_BUILTINS],[
+GASNET_FUN_BEGIN([$0])
+  pushdef([cvprefix],translit([$1],'A-Z','a-z'))
+  GASNET_TRY_CACHE_LINK($2 for __assume, cvprefix[]__assume,
+    [ extern int x; int x = 0; ], [
+      __assume(x == 0); 
+      if (x) __assume(0);
+    ], AC_DEFINE([$1]_ASSUME))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_assume, cvprefix[]__builtin_assume,
+    [ extern int x; int x = 0; ], [
+      __builtin_assume(x == 0); 
+      if (x) __builtin_assume(0);
+    ], AC_DEFINE([$1]_BUILTIN_ASSUME))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_unreachable, cvprefix[]__builtin_unreachable,
+    [ extern int x; int x = 0; ], [
+      if (x) __builtin_unreachable(); 
+    ], AC_DEFINE([$1]_BUILTIN_UNREACHABLE))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_expect, cvprefix[]__builtin_expect,
+    [ extern int x; int x = 0; ], [
+      if (__builtin_expect(x,1)) return 1;
+    ], AC_DEFINE([$1]_BUILTIN_EXPECT))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_constant_p, cvprefix[]__builtin_constant_p,
+    [ extern int x; int x = 0; ], [
+      x = __builtin_constant_p(x) + __builtin_constant_p(2);
+    ], AC_DEFINE([$1]_BUILTIN_CONSTANT_P))
+
+  GASNET_TRY_CACHE_LINK($2 for __builtin_prefetch, cvprefix[]__builtin_prefetch,
+    [ extern int x; int x = 0; ], [
+      __builtin_prefetch(&x,0);
+    ], AC_DEFINE([$1]_BUILTIN_PREFETCH))
+
+  popdef([cvprefix])
+GASNET_FUN_END([$0])
+])
 dnl INTERNL USE ONLY
 AC_DEFUN([GASNETI_C_OR_CXX],[ifelse(index([$1],[CXX]),[-1],[C],[CXX])])
 
@@ -1670,8 +1713,8 @@ dnl Caller must setup CC, CFLAGS, etc for MPI_CC case.
 dnl XXX: treatment of inline modifier is not generic
 AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   pushdef([inline_modifier],ifelse(index([$1],[MPI_CC]),
-                                   [-1],[GASNET_CC_INLINE_MODIFIER],
-                                        [GASNET_MPICC_INLINE_MODIFIER]))
+                                   [-1],[GASNETI_CC_INLINE_MODIFIER],
+                                        [GASNETI_MPICC_INLINE_MODIFIER]))
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__always_inline__],
             [__attribute__((__always_inline__))
              #if defined __cplusplus
@@ -1691,8 +1734,6 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__used__],
             [#include <stdlib.h>
 	     __attribute__((__used__)) void dummy(void) { abort(); }])
-  GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__unused__],
-            [void dummy(void) { __attribute__((__unused__)) int pointless; return; }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__may_alias__],
             [typedef int __attribute__((__may_alias__)) dummy;])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__noreturn__],
@@ -1746,22 +1787,6 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
       AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR_ARG, 0)
   fi
   popdef([cachevar])
-
-  pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_unused_typedef)
-  AC_CACHE_CHECK($2 for __attribute__((__unused__)) on typedefs, cachevar,
-    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
-          typedef struct foo_s { int i; long l; } foo_t __attribute__((__unused__));
-      ], [
-          foo_t pointless;
-      ], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
-  )
-  if test "$cachevar" = yes; then
-      AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF)
-  else
-      AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF, 0)
-  fi
-  popdef([cachevar])
-
 
   # bug 3613: try to enable any warning settings that might be relevant to -Wunknown-pragmas
   GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS")
