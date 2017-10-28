@@ -254,6 +254,11 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #undef __attribute__ /* bug 1766: undo a stupid, gcc-centric definition from Linux sys/cdefs.h */
 #endif
 
+#if PLATFORM_COMPILER_SUN && defined(__has_attribute)
+#undef __has_attribute /* bug 3666: Sun CC __has_attribute returns wrong answers and cannot be trusted */
+#define __has_attribute(x)  0
+#endif
+
 /* work around bug 1620 unless client has explicitly set GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE */
 #if PLATFORM_COMPILER_PATHSCALE && !defined(GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE)
   #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE 0
