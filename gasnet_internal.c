@@ -2388,16 +2388,14 @@ extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
   gasneti_nodemapParse();
 }
 
-/* Presently just frees the space allocated for the nodemaps.
+/* Presently just frees the space allocated for the full nodemap.
  */
 extern void gasneti_nodemapFini(void) {
   gasneti_free(gasneti_nodemap);
-  gasneti_free(gasneti_myhost.nodes);
 #if GASNET_DEBUG
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;
   gasneti_myhost.nodes = NULL;
-  gasneti_mysupernode.nodes = NULL;
 #endif
 }
 

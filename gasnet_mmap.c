@@ -1763,6 +1763,41 @@ extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries
   return GASNET_OK;
 }
 
+// Provides information about supernode peers (the caller's "neighborhood")
+//
+// TODO: Could improve "safety" by not exposing addr of critical internal data
+// TODO: Could reduce memory use if array lived in shared memory
+extern void gex_System_QueryNeighborhoodInfo(
+            gex_NeighborhoodInfo_t **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p)
+{
+  GASNETI_CHECKINIT();
+#if GASNET_PSHM
+  if (info_p) {
+    gasneti_assert(sizeof(gex_NeighborhoodInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_NeighborhoodInfo_t *) gasneti_mysupernode.nodes;
+  }
+  if (info_count_p) {
+    *info_count_p = gasneti_mysupernode.node_count;
+  }
+  if (my_info_index_p) {
+    *my_info_index_p = gasneti_mysupernode.node_rank;
+  }
+#else
+  if (info_p) {
+    gasneti_assert(sizeof(gex_NeighborhoodInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_NeighborhoodInfo_t *) &gasneti_mynode;
+  }
+  if (info_count_p) {
+    *info_count_p = 1;
+  }
+  if (my_info_index_p) {
+    *my_info_index_p = 0;
+  }
+#endif
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* seginfo initialization and manipulation */
 extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {

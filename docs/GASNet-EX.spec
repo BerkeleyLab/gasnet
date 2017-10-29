@@ -6,6 +6,9 @@
 //
 // This document assumes a reasonable degree of familiarity with the current
 // (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+//
+// Except where otherwise noted, all definitions in this document
+// are provided by gasnetex.h.
 
 
 //
@@ -61,6 +64,28 @@
 // This document includes the annotation [UNIMPLEMENTED] in several places
 // where we feel we have a suitable design ready for consideration, but
 // have yet to provide a complete and/or correct implementation.
+
+
+// Hybrid/transitional client support:
+//
+// To enable clients that mix GASNet-1 and GASNet-EX, the following API is
+// provided to allow jobs that initialize GASNet using the legacy
+// gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
+// created by those operations.  The types and usage of these objects are
+// described below.  This call is defined in gasnet.h (not gasnetex.h).
+//
+// The arguments are all pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+//     client_p: receives the gex_Client_t created implicitly by gasnet_init()
+//   endpoint_p: receives the gex_EP_t created implicitly by gasnet_init()
+//         tm_p: receives the gex_TM_t created implicitly by gasnet_init()
+//    segment_p: receives the gex_Segment created implicitly by gasnet_attach()
+//
+extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
+                                   gex_EP_t          *endpoint_p,
+                                   gex_TM_t          *tm_p,
+                                   gex_Segment_t     *segment_p);
 
 //
 // Basic types:
@@ -1161,6 +1186,48 @@ void gex_NBI_Wait(gex_EC_t event_mask, gex_Flags_t flags);
 gex_Event_t gex_Event_QueryLeaf(
         gex_Event_t event,
         gex_EC_t event_category);
+
+
+//
+// Neighborhood: [EXPERIMENTAL]
+// A "neighborhood" is defined as a set of GEX processes that can share
+// memory via the GASNet PSHM feature.
+//
+
+// Const-qualified struct type for describing a member of a neighborhood
+typedef const struct {
+    gex_Rank_t gex_jobrank; // the Job Rank (as defined above)
+    // Reserved for future expansion and/or internal-use fields
+} gex_NeighborhoodInfo_t;
+
+// Query information about the neighborhood of the calling process.
+//
+// All arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// info_p:
+//        Receives the address of an array with elements of type
+//        gex_NeighborhoodInfo_t (defined above), which includes one entry
+//        for each process in the neighborhood of the calling process.
+//        Entries are sorted by increasing gex_jobrank.
+//        The storage of this array is owned by GASNet and must not be
+//        written to or free()ed.
+//        High-quality implementations will store this array in shared memory
+//        to reduce memory footprint.  Therefore, clients should consider using
+//        it in-place to avoid creating a less-scalable copy per process.
+// info_count_p:
+//        Receives the number of processes in the neighborhood of the calling
+//        process.  This includes the caller, and is therefore always non-zero.
+// my_info_index_p:
+//        Receives the 0-based index of the calling process relative to its
+//        neighborhood.  In particular, the following formula holds:
+//        (*info_p)[*my_info_index_p].gex_jobrank == gex_System_QueryJobRank()
+//
+// Semantics in a resilient build will be defined in a later release.
+extern void gex_System_QueryNeighborhoodInfo(
+            gex_NeighborhoodInfo_t **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p);
 
 
 //
