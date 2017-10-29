@@ -454,7 +454,7 @@ void doit(int partner, int *partnerseg) {
       crossmap[neighbor_rank] = myrank;
     }
     BARRIER();
-    gex_Rank_t *myseg = TEST_MYSEG();
+    gex_Rank_t *myseg = (gex_Rank_t *)TEST_MYSEG();
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       // Check sharing (part 2):
       assert_always(neighbor_array[i].gex_jobrank == myseg[i]);
