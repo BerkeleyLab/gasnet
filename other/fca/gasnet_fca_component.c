@@ -36,7 +36,7 @@ int gasnet_fca_get_fca_lib(int my_rank)
     struct fca_init_spec *spec;
     int ret;
     unsigned long fca_ver, major, minor, detected_ver;
-    char x[3];
+    char x[16];
 
     fca_ver = FCA_API_CLEAR_MICRO(fca_get_version());
     major = (fca_ver>>FCA_MAJOR_BIT);
