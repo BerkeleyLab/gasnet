@@ -1259,6 +1259,18 @@ COMPILER.
     GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
       Compiler supports __attribute__((__format__ (...))) applied to a function pointer
       as an argument to a function (in its declaration and/or definition).
+    GASNETT_USE_BUILTIN_CONSTANT_P
+      Compiler supports __builtin_constant_p()
+    GASNETT_USE_BUILTIN_PREFETCH
+      Compiler supports __builtin_prefetch()
+    GASNETT_USE_BUILTIN_EXPECT
+      Compiler supports __builtin_expect()
+    GASNETT_USE_BUILTIN_UNREACHABLE
+      Compiler supports __builtin_unreachable()
+    GASNETT_USE_BUILTIN_ASSUME
+      Compiler supports __builtin_assume()
+    GASNETT_USE_ASSUME
+      Compiler supports __assume()
 
   The following can be defined to control use of "restrict"
     GASNETT_USE_RESTRICT
