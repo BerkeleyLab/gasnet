@@ -69,7 +69,8 @@
   #define _GASNETI_HAS_BUILTIN(x) 0
 #endif
 #define GASNETI_COMPILER_HAS_BUILTIN(MACRO_NAME,token_name) \
-       (GASNETI_COMPILER_HAS(BUILTIN_ ## MACRO_NAME) || _GASNETI_HAS_BUILTIN(__builtin_ ## token_name))
+       (GASNETI_COMPILER_HAS(BUILTIN_ ## MACRO_NAME) || \
+        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_BUILTIN(__builtin_ ## token_name)))
 
 // GASNETI_COMPILER_HAS_ATTRIBUTE: specialized for testing attributes
 #ifdef __has_attribute
@@ -78,7 +79,8 @@
   #define _GASNETI_HAS_ATTRIBUTE(x) 0
 #endif
 #define GASNETI_COMPILER_HAS_ATTRIBUTE(MACRO_NAME,attrib_token) \
-       (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || _GASNETI_HAS_ATTRIBUTE(attrib_token))
+       (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || \
+        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
