@@ -241,7 +241,7 @@ static int __fca_comm_new(gasnet_team_handle_t team)
      int i,j;
      const int team_root_id = 0;
      int max_info_size = 0;
-     void *max_info;
+     void *max_info = NULL;
      gasnet_image_t team_root_image = (gasnet_image_t)team_root_id;
      fca_comm_data_t *fca_comm_data = &team->fca_comm_data;
      /* call fca_get_rank_info() on node managers only*/
