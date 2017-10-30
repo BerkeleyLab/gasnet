@@ -1714,7 +1714,7 @@ dnl XXX: treatment of inline modifier is not generic
 AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   pushdef([inline_modifier],ifelse(index([$1],[MPI_CC]),
                                    [-1],[GASNETI_CC_INLINE_MODIFIER],
-                                        [GASNETI_MPICC_INLINE_MODIFIER]))
+                                        [GASNETI_MPI_CC_INLINE_MODIFIER]))
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__always_inline__],
             [__attribute__((__always_inline__))
              #if defined __cplusplus
