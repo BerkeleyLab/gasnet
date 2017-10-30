@@ -2341,6 +2341,9 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       }
       args = buf->longmsg.args;
       break;
+
+    default:
+      gasneti_unreachable();
     }
    
     /* Assemble an array of arguments. */
