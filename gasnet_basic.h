@@ -465,6 +465,8 @@
   #define GASNETI_PLEASE_INLINE(fnname) GASNETT_USE_PLEASE_INLINE(fnname)
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
+#elif __STDC_VERSION__ >= 199901L
+  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static inline)
 #else
   #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
 #endif
