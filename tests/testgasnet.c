@@ -700,23 +700,17 @@ void doit(int partner, int *partnerseg) {
   gex_AM_SrcDesc_t sd = 0;
   CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
 
-  #ifdef __cplusplus
-    #define CPP_STRUCT_INIT = { 0 }
-  #else
-    #define CPP_STRUCT_INIT /*empty*/
-  #endif
-
   #define typeissigned   <
   #define typeisunsigned >
   #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \
-    static volatile structtype S CPP_STRUCT_INIT;                            \
+    static volatile structtype S;                                            \
     assert_inttype(fieldtype);                                               \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
     assert_always((fieldtype)(S.fieldname-1) signedop (fieldtype)0);         \
   } while (0)
 
   #define assert_field_int_unspec(structtype, fieldname)  do { \
-    static volatile structtype S CPP_STRUCT_INIT;                            \
+    static volatile structtype S;                                            \
     S.fieldname = (signed char)0x55;/* warnings here mean non-compliance */  \
     assert_always(S.fieldname > 1); /* warnings here mean non-compliance */  \
     uint64_t val; compute_uint_val(val,S.fieldname);                         \
@@ -724,12 +718,23 @@ void doit(int partner, int *partnerseg) {
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
-    static volatile structtype S CPP_STRUCT_INIT;                            \
+    static volatile structtype S;                                            \
     static fieldtype volatile v;                                             \
     S.fieldname = v; /* warnings here mean non-compliance */                 \
     v = S.fieldname; /* warnings here mean non-compliance */                 \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
   } while (0)
+
+  #define assert_field_constint(structtype, fieldtype, fieldname, signedop)  do { \
+    static volatile union {                                                  \
+      char _x;                                                               \
+      structtype S;                                                          \
+    } U = { 0 };                                                             \
+    assert_inttype(fieldtype);                                               \
+    assert_always(sizeof(U.S.fieldname) == sizeof(fieldtype));               \
+    assert_always((fieldtype)(U.S.fieldname-1) signedop (fieldtype)0);       \
+  } while (0)
+
 
   assert_field_int(gex_AM_Entry_t,     gex_AM_Index_t, gex_index, typeisunsigned);
   assert_field_int(gex_AM_Entry_t,     gex_Flags_t,    gex_flags, typeisunsigned);
@@ -743,7 +748,7 @@ void doit(int partner, int *partnerseg) {
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
-  assert_field_int(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
+  assert_field_constint(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
   if (success) MSG("*** passed object test!!");
 
