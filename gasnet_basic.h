@@ -374,6 +374,16 @@
   #define GASNETI_USED 
 #endif
 
+/* GASNETI_MAY_ALIAS override(s) */
+#if !defined(GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS) && !GASNETI_BUG1389_WORKAROUND && GASNETI_CONFIGURE_MISMATCH
+  /* Apply conservative default based on compiler version if user did not
+   * define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS nor --enable-conservative-local-copy
+   */
+  #if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_GE(4,4,0)
+    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS 1
+  #endif
+#endif
+
 /* GASNETI_MAY_ALIAS: annotate type as not subject to ANSI aliasing rules */
 #if GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
   #define GASNETI_MAY_ALIAS __attribute__((__may_alias__))
@@ -381,11 +391,7 @@
   #define GASNETI_MAY_ALIAS 
   /* may_alias attribute is sometimes required for correctness */
   #if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_GE(4,4,0) && !GASNETI_BUG1389_WORKAROUND
-   #if GASNETI_CONFIGURE_MISMATCH
-    #error "GCC's __may_alias__ attribute is required for correctness in gcc >= 4.4, but because you are NOT compiling with the same compiler used to configure GASNet we do not know if __may_alias__ support is present."
-   #else
     #error "GCC's __may_alias__ attribute is required for correctness in gcc >= 4.4, but is disabled or unsupported."
-   #endif
   #endif
 #endif
 
