@@ -375,7 +375,7 @@
 #endif
 
 /* GASNETI_MAY_ALIAS override(s) */
-#if !defined(GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS) && !GASNETI_BUG1389_WORKAROUND && GASNETI_CONFIGURE_MISMATCH
+#if !defined(GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS) && !GASNETI_BUG1389_WORKAROUND && GASNETI_COMPILER_IS_UNKNOWN
   /* Apply conservative default based on compiler version if user did not
    * define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS nor --enable-conservative-local-copy
    */
