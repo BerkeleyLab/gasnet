@@ -15,6 +15,10 @@
 #include <gasnet.h> /* MUST come first to ensure correct inttypes behavior */
 #include <gasnet_tools.h>
 
+#if GASNETI_COMPILER_IS_UNKNOWN
+  #error "Invalid attempt to build GASNet with a compiler other than the one probed at configure time"
+#endif
+
 GASNETI_BEGIN_EXTERNC
 GASNETI_BEGIN_NOWARN
 
