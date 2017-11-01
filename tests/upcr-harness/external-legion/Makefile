@@ -84,6 +84,14 @@ legion-unpack-tgz:   force
 ####
 .PHONY: legion-download legion-unpack-unzip legion-unpack-p7zip legion-unpack-tgz
 
+# Apply upsteam or local patches, if any
+legion_patches = \
+	https://github.com/StanfordLegion/legion/commit/a6c94d12.patch
+legion-patch: force
+	cd $(LEGION_BLDDIR) && \
+	for p in $(legion_patches); do $(WGET) $$p && patch -p1 < `basename $$p`; done
+.PHONY: legion-patch
+
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
@@ -105,6 +113,7 @@ rtlibs: force
 _legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
 	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
+	$(MAKE) legion-patch 2>&1 | tee -a $(LOGFILE)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
 	if test -f "$(LEGION_GASNET)/include/gasnet.h"; then \
 	  echo ======== GASNet symlinked ========; \
