@@ -96,8 +96,8 @@ GASNETI_BEGIN_NOWARN
 #define GASNETT_SYSTEM_TUPLE     GASNETI_SYSTEM_TUPLE
 #define GASNETT_CONFIGURE_ARGS   GASNETI_CONFIGURE_ARGS
 
-#ifdef GASNETI_CONFIGURE_MISMATCH
-#define GASNETT_CONFIGURE_MISMATCH 1  /* indicate configure and build compilers mismatch */
+#if !GASNETI_COMPILER_IS_CC
+#define GASNETT_CONFIGURE_MISMATCH 1  /* indicate build compiler mismatches configure $CC */
 #endif
 
 /* platform identifiers for the compiler detected at *configure*-time */

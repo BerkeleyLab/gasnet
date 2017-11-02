@@ -41,24 +41,11 @@
 #if !defined(GASNETI_COMPILER_IS_CC) && \
     !defined(GASNETI_COMPILER_IS_CXX) && \
     !defined(GASNETI_COMPILER_IS_MPI_CC)
-  #define GASNETI_COMPILER_IS_UNKNOWN 1
-#endif
-
-#ifndef GASNETI_COMPILER_IS_CC
-  /* detect when the compiler in use differs from the $CC tested by configure,
+  /* detect when the compiler in use differs from the compilers tested by configure,
      indicating some of the configure-detected results may be invalid for this compilation
      this is permitted in certain VERY limited contexts, and activates conservative assumptions
-
-     As of 2010-01-27 this has only two remaining uses:
-     + GASNETI_THREADKEY_*
-       TLS support will conservatively use library calls if compiler has changed
-     + GASNETT_CONFIGURE_MISMATCH
-       exported for use by client code
-
-     Note that in the common case that $MPI_CC presents the same ID as $CC
-     this will not be set simply becuase one compiling with $MPI_CC.
-   */
-  #define GASNETI_CONFIGURE_MISMATCH 1
+  */
+  #define GASNETI_COMPILER_IS_UNKNOWN 1
 #endif
 
 // preprocessor conditional: configure detected GASNETI_HAVE_<id>_<feature> for the current compiler
