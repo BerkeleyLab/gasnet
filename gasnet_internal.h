@@ -616,12 +616,14 @@ extern int gasneti_VerboseErrors;
 /* make a GASNet call - if it fails, print error message and return error */
 #define GASNETI_SAFE_PROPAGATE(fncall) do {                  \
    int retcode = (fncall);                                   \
-   if_pf (gasneti_VerboseErrors && retcode != GASNET_OK) {   \
-     char msg[1024];                                         \
-     snprintf(msg, sizeof(msg),                              \
-        "\nGASNet encountered an error: %s(%i)\n",           \
+   if_pf (retcode != GASNET_OK) {                            \
+     char msg[80] = { 0 };                                   \
+     if (gasneti_VerboseErrors) {                            \
+       snprintf(msg, sizeof(msg),                            \
+        "GASNet encountered an error: %s(%i)",               \
         gasnet_ErrorName(retcode), retcode);                 \
-     msg[sizeof(msg)-2] = '\n'; msg[sizeof(msg)-1] = '\0';   \
+       msg[sizeof(msg)-1] = '\0';                            \
+     }                                                       \
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
    }                                                         \
  } while (0)

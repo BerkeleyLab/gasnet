@@ -513,7 +513,7 @@ typedef struct {
 #if GASNETC_USE_RCV_THREAD
   /* Rcv thread */
   gasnetc_progress_thread_t rcv_thread;
-  void                      *rcv_thread_priv;
+  struct gasnetc_rbuf_s     *rcv_thread_priv;
  #if GASNETI_THREADINFO_OPT
   gasnet_threadinfo_t       rcv_threadinfo;
  #endif

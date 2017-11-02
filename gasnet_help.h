@@ -429,7 +429,7 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
     uint32_t gasnete_threadinfo_available = 0
     /* if you get an unused variable warning on gasnete_threadinfo_available, 
        it means you POST'ed in a function which made no GASNet calls that needed it
-       So, PLEASE don't add GASNETI_UNUSED annotations here. */
+       So, PLEASE don't add __unused__ annotations here. */
 
   #if GASNETI_LAZY_BEGINFUNCTION
     // bug 3498: Ensure a sequence point after the assignment to gasnete_threadinfo_cache

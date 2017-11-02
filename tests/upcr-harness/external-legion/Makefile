@@ -37,34 +37,51 @@ COMMON_ENV = \
 DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE)
 
 # Parametrized support for download/unpack
+LEGION_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
+legion_dl_suffix_unzip := .zip
+legion_dl_suffix_p7zip := .zip
+legion_dl_suffix_tgz   := .tar.gz
+legion_dl_suffix=$(legion_dl_suffix_$(strip $(LEGION_DOWNLOAD)))
+ifeq ($(strip $(legion_dl_suffix)),)
+legion_dl_suffix := .zip
+endif
+
 LEGION_URL      ?= https://github.com/$(LEGION_GIT_REPO)/archive/$(LEGION_GIT_COMMIT)$(legion_dl_suffix)
 LEGION_ARCHIVE  ?= $(notdir $(LEGION_URL))
 LEGION_DOWNLOAD ?= unzip # one of "unzip", "p7zip" or "tgz"
 legion-download: force
 	rm -Rf $(LEGION_BLDDIR) $(LEGION_TMPDIR) && mkdir $(LEGION_TMPDIR)
 	cd $(LEGION_TMPDIR) && $(WGET) $(LEGION_URL) 2>&1
-	$(MAKE) -C $(LEGION_TMPDIR) -f `pwd`/Makefile legion-unpack-$(LEGION_DOWNLOAD)
-	rm -f $(LEGION_TMPDIR)/$(LEGION_ARCHIVE) $(LEGION_TMPDIR)/wget-log
+	cd $(LEGION_TMPDIR) && cat wget-log 2> /dev/null ; rm -f wget-log ; exit 0
+	@LEGION_TESTDIR=`pwd` && \
+	 cd $(LEGION_TMPDIR) && LEGION_ARCHIVE=`/bin/ls` && LEGION_DOWNLOAD="$(strip $(LEGION_DOWNLOAD))" && \
+	 if test -z "$$LEGION_DOWNLOAD" ; then \
+	   case "$$LEGION_ARCHIVE" in \
+	     *.zip)          LEGION_DOWNLOAD=unzip ;; \
+	     *.p7z|*.7z)     LEGION_DOWNLOAD=p7zip ;; \
+	     *.tar.gz|*.tgz) LEGION_DOWNLOAD=tgz   ;; \
+	     *) echo "ERROR: Unknown archive suffix on '$$LEGION_ARCHIVE': Set LEGION_DOWNLOAD=(unzip,p7zip,tgz)" ; exit 1; \
+	   esac \
+	 fi && \
+	 echo Fetched $$LEGION_ARCHIVE : LEGION_DOWNLOAD=$$LEGION_DOWNLOAD && \
+	 $(MAKE) -f $$LEGION_TESTDIR/Makefile legion-unpack-$$LEGION_DOWNLOAD LEGION_ARCHIVE="$$LEGION_ARCHIVE" && \
+	 rm -f $(LEGION_TMPDIR)/$$LEGION_ARCHIVE
 	mv $(LEGION_TMPDIR)/* $(LEGION_BLDDIR) # archive's root dir will vary
 	rmdir $(LEGION_TMPDIR)
 # Three ways to unpack the archive:
 #  Option 1: "unzip" - .zip w/ unzip
 #   This is the favored approach because it gives us the hash and uses a widely available utility.
 legion-unpack-unzip: force; $(UNZIP) -z $(LEGION_ARCHIVE) && $(UNZIP) -q $(LEGION_ARCHIVE)
-legion_dl_suffix_unzip = .zip
 #  Option 2: "p7zip" - .zip w/ 7za (from p7zip package)
 #   This also gives us the hash, but uses a less widely available utility.
 #   However, it is sometimes necessary because many unzip installations contain a bug w.r.t. symlinks
 legion-unpack-p7zip: force; $(P7ZIP) x -bd $(LEGION_ARCHIVE)
-legion_dl_suffix_p7zip = .zip
 #  Option 3: "tgz" - tar + gzip
 #   This is the most portable, but cannot extract the hash unless git is available
 legion-unpack-tgz:   force
 	-$(GZCAT) $(LEGION_ARCHIVE) | $(GIT) get-tar-commit-id; exit 0
 	$(GZCAT) $(LEGION_ARCHIVE) | $(TAR) xf -
-legion_dl_suffix_tgz   = .tar.gz
 ####
-legion_dl_suffix = $(legion_dl_suffix_$(strip $(LEGION_DOWNLOAD)))
 .PHONY: legion-download legion-unpack-unzip legion-unpack-p7zip legion-unpack-tgz
 
 # Symlink or simple script that corresponds to
