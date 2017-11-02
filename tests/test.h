@@ -484,6 +484,7 @@ static int test_thread_limit(int numthreads) {
 }
 #if HAVE_PTHREAD_SETCONCURRENCY && __cplusplus
   // ensure we have a declaration for the configure-detected function
+  #undef pthread_setconcurrency
   extern "C" int pthread_setconcurrency(int);
 #endif
 static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(void *), 
