@@ -2029,18 +2029,12 @@ void gasnetc_poll_am_queue(void)
 
 /* Poll the bound_ep completion queue */
 GASNETI_INLINE(gasnetc_poll_bound_cq)
-gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
+gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(gni_cq_handle_t bound_cq_handle)
 {
-  DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle);
   gni_post_descriptor_t * result = NULL;
   gni_cq_entry_t event_data;
   gni_return_t status;
 
-#if GASNETC_USE_MULTI_DOMAIN
-  if_pf (!DOMAIN_SPECIFIC_VAL(initialized)) return NULL;
-#endif
-
-  GASNETC_LOCK_GNI();
   status = GNI_CqGetEvent(bound_cq_handle,&event_data);
   if (status == GNI_RC_NOT_DONE) { /* empty queue is most common case */
     /* nothing */
@@ -2055,7 +2049,6 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
   } else if (!gasnetc_shutdownInProgress) {
     gasnetc_GNIT_Abort("bound CqGetEvent %s", gasnetc_gni_rc_string(status));
   }
-  GASNETC_UNLOCK_GNI();
 
   return result ? container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
 }
@@ -2063,10 +2056,16 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
 GASNETI_NEVER_INLINE(gasnetc_poll_local_queue,
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
 {
-  int i;
+#if GASNETC_USE_MULTI_DOMAIN
+  if_pf (!DOMAIN_SPECIFIC_VAL(initialized)) return;
+#endif
 
-  for (i = 0; i < gasnetc_poll_burst; i += 1) {
-    gasnetc_post_descriptor_t * const gpd = gasnetc_poll_bound_cq(GASNETC_DIDX_PASS_ALONE);
+  DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle);
+
+  for (int i = 0; i < gasnetc_poll_burst; i += 1) {
+    GASNETC_LOCK_GNI();
+    gasnetc_post_descriptor_t * const gpd = gasnetc_poll_bound_cq(bound_cq_handle);
+    GASNETC_UNLOCK_GNI();
 
     if_pt (! gpd) { /* empty Cq is common case */
       break;
