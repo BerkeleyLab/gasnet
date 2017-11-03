@@ -2485,11 +2485,12 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
   if test "$$3" = "unknown"; then
     GASNET_IFDEF(__GNUC__, $3=GNU, [], $_force_compile) 
     dnl Note GNUC one above must precede many of those below
+    GASNET_IFDEF(__clang__, $3=Clang, [], $_force_compile)
+    dnl Note __clang__ must precede one or more of those below
     GASNET_IFDEF(__PGI, $3=PGI, [], $_force_compile)
     GASNET_IFDEF(__INTEL_COMPILER, $3=Intel, [], $_force_compile)
     GASNET_IFDEF(__OPENCC__, $3=Open64, [], $_force_compile)
     GASNET_IFDEF(__PCC__, $3=PCC, [], $_force_compile)
-    GASNET_IFDEF(__clang__, $3=Clang, [], $_force_compile)
     GASNET_IFDEF(__PATHCC__, $3=Pathscale, [], $_force_compile)
   fi
   dnl other vendor compilers
