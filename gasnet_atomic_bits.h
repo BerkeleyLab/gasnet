@@ -1444,7 +1444,7 @@
         defined(__sparc_v9__) || defined(GASNETI_ARCH_ULTRASPARC) /* SPARC v9 ISA */
       #if PLATFORM_COMPILER_GNU
         #define GASNETI_HAVE_ATOMIC32_T 1
-        typedef struct { volatile int32_t ctr; } gasneti_atomic32_t;
+        typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
         #define gasneti_atomic32_init(v)       { (v) }
         #define _gasneti_atomic32_read(p)      ((p)->ctr)
         #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
@@ -1467,7 +1467,7 @@
            * This function requires the cas instruction in Sparc V9, and therefore gcc -mcpu=ultrasparc
 	   * The manual says (sec A.9) no memory fences in CAS (in conflict w/ JMM web page).
            */
-          GASNETI_ASM_REGISTER_KEYWORD int32_t volatile * addr = (int32_t volatile *)(&v->ctr);
+          GASNETI_ASM_REGISTER_KEYWORD uint32_t volatile * addr = (uint32_t volatile *)(&v->ctr);
           GASNETI_ASM_REGISTER_KEYWORD uint32_t oldval;
           GASNETI_ASM_REGISTER_KEYWORD uint32_t newval;
           __asm__ __volatile__ ( 
@@ -2730,7 +2730,7 @@
       #define gasneti_atomic32_compare_and_swap gasneti_atomic32_compare_and_swap
 
       GASNETI_INLINE(gasneti_atomic32_swap)
-      uint32_t gasneti_atomic32_swap(gasneti_atomic32_t *p, int32_t op, const int flags) {
+      uint32_t gasneti_atomic32_swap(gasneti_atomic32_t *p, uint32_t op, const int flags) {
         register unsigned long newval __asm("r1") = op;
         register unsigned long _p __asm("r2") = (unsigned long)(p);
         register unsigned long oldval __asm("r4");
