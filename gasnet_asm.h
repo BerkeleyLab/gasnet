@@ -155,7 +155,7 @@
   #else /* Sun C */
     #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
   #endif
-#elif PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_MTA || PLATFORM_COMPILER_LCC
+#elif PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_LCC
   /* platforms where inline assembly not supported or used */
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 
   #undef GASNETI_ASM_AVAILABLE

@@ -207,25 +207,6 @@
  #define gasneti_local_mb()  gasneti_local_wmb()
  #define GASNETI_WMB_IS_MB
 /* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_ARCH_MTA
-   #if 0 /* causes warnings */
-     #define gasneti_compiler_fence() (_Pragma("mta fence"))
-   #else
-     GASNETI_INLINE(_gasneti_compiler_fence)
-     void _gasneti_compiler_fence(void) {
-       (void)0;
-       #pragma mta fence
-       (void)0;
-     }
-     #define gasneti_compiler_fence() _gasneti_compiler_fence()
-   #endif
-   /* MTA has no caches or write buffers - just need a compiler reordering fence */
-   #define gasneti_local_wmb() gasneti_compiler_fence()
-   #define gasneti_local_rmb() gasneti_compiler_fence()
-   #define gasneti_local_mb()  gasneti_compiler_fence()
-   #define GASNETI_RMB_IS_MB
-   #define GASNETI_WMB_IS_MB
-/* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_MICROBLAZE
    /* no SMP support */
    #define gasneti_local_wmb() gasneti_compiler_fence()

@@ -127,8 +127,8 @@
          For now, the code for x86/86-64 is the only decent example.
 
    TODO: Document definition of a "private" atomic type.
-         For now the MTA code is the only surviving example, but the SPARC7 and
-         PA-RISC code (removed after GASNet-1.22.0) were better examples.
+         There are no surviving examples, however the SPARC7 and
+         PA-RISC code (removed after GASNet-1.22.0) were good examples.
 
    TODO: Document definition of "special" and "slow" atomics.
          In brief: "special" is for out-of-line asm available in some compilers,
@@ -150,8 +150,7 @@
     (PLATFORM_ARCH_MIPS && defined(_MIPS_ISA) && (_MIPS_ISA < 2)) ||               \
     PLATFORM_ARCH_MICROBLAZE   /* no atomic instructions */
   #define GASNETI_USE_GENERIC_ATOMICOPS
-#elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */ \
-    PLATFORM_ARCH_MTA
+#elif defined(GASNETI_FORCE_OS_ATOMICOPS) /* for debugging */
   #define GASNETI_USE_OS_ATOMICOPS
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS) || /* for debugging */ \
     (PLATFORM_COMPILER_XLC && !GASNETI_HAVE_XLC_ASM && GASNETI_HAVE_SYNC_ATOMICS_32) || \
@@ -305,27 +304,7 @@
    * Use OS-provided atomics, which should be CPU-independent and
    * which should work regardless of the compiler's inline assembly support.
    * ------------------------------------------------------------------------------------ */
-  #if PLATFORM_OS_MTA
-      /* use MTA intrinsics */
-      #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1	/* No CAS or SWAP */
-      typedef uint64_t                      gasneti_atomic_val_t;
-      typedef int64_t                       gasneti_atomic_sval_t;
-      #define GASNETI_ATOMIC_MAX            ((gasneti_atomic_val_t)0xFFFFFFFFFFFFFFFFLLU)
-      #define GASNETI_ATOMIC_SIGNED_MIN     ((gasneti_atomic_sval_t)0x8000000000000000LL)
-      #define GASNETI_ATOMIC_SIGNED_MAX     ((gasneti_atomic_sval_t)0x7FFFFFFFFFFFFFFFLL)
-      #define gasneti_atomic_align          8
-      typedef uint64_t gasneti_atomic_t;
-      #define gasneti_atomic_init(v)       (v)
-      #define _gasneti_atomic_read(p)      ((uint64_t)*(volatile uint64_t*)(p))
-      #define _gasneti_atomic_set(p,v)     ((*(volatile uint64_t*)(p)) = (v))
-
-      /* Default impls of inc, dec, dec-and-test, add and sub */
-      #define _gasneti_atomic_fetchadd int_fetch_add
-      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
-
-      /* Using default fences, but this machine is Sequential Consistent anyway */
-  /* ------------------------------------------------------------------------------------ */
-  #elif PLATFORM_OS_CYGWIN
+  #if PLATFORM_OS_CYGWIN
       /* These are *NOT* Cywgin calls, but Windows API calls that may actually
        * be intrinsics in the MS compilers on 64-bit systems. */
       #include <windows.h>
