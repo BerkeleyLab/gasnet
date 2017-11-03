@@ -2773,7 +2773,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
                ;;
            esac
            ;;
-    KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],
                           [MISC_CXXFLAGS="$MISC_CXXFLAGS -wd1572"])
