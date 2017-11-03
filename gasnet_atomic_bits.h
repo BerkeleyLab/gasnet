@@ -145,7 +145,6 @@
 /* Identify special cases lacking native support */
 
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */                \
-    PLATFORM_COMPILER_LCC    || /* not implemented - lacks inline asm */           \
     (PLATFORM_ARCH_ARM && !defined(GASNETI_HAVE_ARM_CMPXCHG)) ||                   \
     (PLATFORM_ARCH_MIPS && defined(_MIPS_ISA) && (_MIPS_ISA < 2)) ||               \
     PLATFORM_ARCH_MICROBLAZE   /* no atomic instructions */
@@ -203,7 +202,6 @@
      * + llvm-gcc: mimics gcc, but is able to schedule %ebx so no work-around is needed
      * + Sun cc: use of specials doesn't encounter the problem
      * + tcc: N/A since no PIC support
-     * + lcc: N/A since no native atomic support
      *
      * Bottom line is that we recommend YOUR_PIC_CFLAGS="-fPIC -DGASNETI_FORCE_PIC",
      * replacing "-fPIC" with your compiler-specific flag(s) as needed.
