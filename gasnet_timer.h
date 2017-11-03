@@ -30,33 +30,6 @@
 #elif defined(GASNETI_FORCE_GETTIMEOFDAY) || defined(GASNETI_FORCE_POSIX_REALTIME)
 /* bug3508: forced portable timer implementation overrides compilation of native timers */
 /* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_OS_MTA
-  #include <sys/mta_task.h>
-  #include <machine/mtaops.h>
-
-  typedef int64_t gasneti_tick_t;
-  #define GASNETI_TIMER_DEFN \
-         double gasneti_timer_Tick = 0.0; \
-         int    gasneti_timer_firstTime = 1;
-  extern double gasneti_timer_Tick; /* inverse GHz */
-  extern int    gasneti_timer_firstTime;
-  GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t ticks) {
-    if_pf(gasneti_timer_firstTime) {
-      double freq = mta_clock_freq();
-      gasneti_timer_Tick = 1.0E9/freq;
-      gasneti_sync_writes();
-      gasneti_timer_firstTime = 0;
-      #if 0
-        printf("first time: ticks=%" PRId64 "  freq=%f adjust=%f\n", 
-               ticks, freq, adjust);
-      #endif
-    } else gasneti_sync_reads();
-    return (uint64_t)(((double)ticks) * gasneti_timer_Tick);
-  }
-  #define gasneti_ticks_now()      (MTA_CLOCK(0))
-  #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
-/* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_OS_SOLARIS
 #if 1
   /* workaround bizarre failures on gcc 3.2.1 - seems they sometimes use a

@@ -551,11 +551,7 @@ extern void gasneti_killmyprocess(int exitcode) {
 }
 extern void gasneti_filesystem_sync(void) {
   if ( gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0) ) {
-#if PLATFORM_OS_MTA
-    mta_sync();
-#else
     sync();
-#endif
   }
 }
 extern void gasneti_flush_streams(void) {
@@ -2197,8 +2193,6 @@ extern int gasneti_cpu_count(void) {
         const uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
         hwprocs = 64 / ppn; /* XXX: this counts all SMT threads as cpus */
       }
-  #elif PLATFORM_OS_MTA
-      hwprocs = 0; /* appears to be no way to query CPU count */
   #else
       hwprocs = sysconf(_SC_NPROCESSORS_ONLN);
       if (hwprocs < 1) hwprocs = 0; /* catch failures on Solaris/Cygwin */

@@ -191,8 +191,6 @@ case "$CC_FAMILY" in
                   ;;
         esac
         ;;
-  MTA)  # override target_os for MTA, which may be wrong if cross-compiling
-        target_os="mtx"   ;;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -438,7 +436,6 @@ case "$CC_FAMILY" in
     done
   ;;
   Intel) CCOPTFLAGS="-O3" ;;
-  MTA) CCOPTFLAGS="-O3" ;; # MTA C actually ignores -O, optimization controlled by presence/absence of -g
   PGI)
     CCOPTFLAGS="-O2"  # Default
     # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 through 10.7-0 at -O2
@@ -480,7 +477,6 @@ case "$CC_FAMILY" in
         CCDEBUGFLAGS="$CFLAGS"
         GASNET_POPVAR(CFLAGS)
   ;;
-  MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Pathscale) CCDEBUGFLAGS="-g3 -O0" ;; # need to explicitly disable optimization
   Open64)    CCDEBUGFLAGS="-g3" ;;
   Clang)     CCDEBUGFLAGS="-g -O0" ;;
@@ -662,7 +658,6 @@ case "$CC_FAMILY" in
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
   PGI) MISC_CFLAGS="-Masmkeyword -Msignextend";; # get inline assembly and sign-extended narrowing
-  MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
   Sun) if test "$target_cpu" = "sparc"; then 
          GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
        fi
@@ -1247,10 +1242,6 @@ case "$target_os" in
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS=""
 	;;
-  mtx*)
-	GASNET_THREAD_DEFINES=""
-        GASNET_THREAD_LIBS="-lpthread" 
-        ;;
   *)
         GASNET_MSG_WARN(unknown OS - you may need to update the configure script)
         ;;
@@ -2761,10 +2752,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
            esac
            ;;
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
-    MTA)   MISC_CXXFLAGS="-exceptions -display_error_number -WS 111,174,238" 
-           CXXDEBUGFLAGS="-g2"
-           CXXOPTFLAGS="-O3"
-      ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],
                           [MISC_CXXFLAGS="$MISC_CXXFLAGS -wd1572"])
@@ -2995,11 +2982,6 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
           GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
           popdef([GASNET_SUPPRESSHELP])
         fi
-        ;;
-    mtx*)
-    	GASNET_ENV_DEFAULT(MPI_CC, cc)
-    	GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mtarun -t %N -m %N /usr/bin/env _MPI_MT=%N %C)
         ;;
     *) 
       # unknown OS - if user doesn't provide info, assume generic settings that often work

@@ -37,10 +37,7 @@
   #define STDERR_FILENO 2
 #endif
 
-#if PLATFORM_OS_MTA
-   #include <machine/runtime.h>
-   #define _gasneti_sched_yield() mta_yield()
-#elif defined(HAVE_SCHED_YIELD)
+#if defined(HAVE_SCHED_YIELD)
    #include <sched.h>
    #define _gasneti_sched_yield() sched_yield()
 #else

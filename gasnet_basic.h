@@ -440,8 +440,6 @@
 #if GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
   /* bug1525: gcc's __always_inline__ attribute appears to be maximally aggressive */
   #define _GASNETI_ALWAYS_INLINE(fnname) __attribute__((__always_inline__))
-#elif PLATFORM_COMPILER_MTA
-  #define _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(mta inline)
 #else
   #define _GASNETI_ALWAYS_INLINE(fnname)
 #endif
@@ -586,17 +584,8 @@
 
 /* if with branch prediction */
 #ifndef if_pf
-#if PLATFORM_COMPILER_MTA
-  /* MTA's pragma mechanism is buggy, so allow it to be selectively disabled */
-  #define GASNETT_MTA_PRAGMA_EXPECT_ENABLED(x) _Pragma(x)
-  #define GASNETT_MTA_PRAGMA_EXPECT_DISABLED(x) 
-  #define GASNETT_MTA_PRAGMA_EXPECT_OVERRIDE GASNETT_MTA_PRAGMA_EXPECT_ENABLED
-  #define if_pf(cond) GASNETT_MTA_PRAGMA_EXPECT_OVERRIDE("mta expect false") if (cond)
-  #define if_pt(cond) GASNETT_MTA_PRAGMA_EXPECT_OVERRIDE("mta expect true")  if (cond)
-#else
   #define if_pf(cond) if (GASNETT_PREDICT_FALSE(cond))
   #define if_pt(cond) if (GASNETT_PREDICT_TRUE(cond))
-#endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
