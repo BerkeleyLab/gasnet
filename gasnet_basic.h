@@ -463,13 +463,10 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #endif
 
 /* GASNETI_ALWAYS_INLINE: force inlining of function if possible */
+// bug 3673: Cannot use Cray pragma _CRI inline_always here
 #if GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
   /* bug1525: gcc's __always_inline__ attribute appears to be maximally aggressive */
   #define _GASNETI_ALWAYS_INLINE(fnname) __attribute__((__always_inline__))
-#elif PLATFORM_COMPILER_CRAY_C
-  /* the only way to request inlining a particular fn in Cray C */
-  /* possibly should be using inline_always here */
-  #define _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(_CRI inline fnname)
 #elif PLATFORM_COMPILER_MTA
   #define _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(mta inline)
 #else
@@ -504,6 +501,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 
 /* GASNETI_NEVER_INLINE: Most forceful demand available to disable inlining for function.
  */
+// bug 3673: Cannot use Cray pragma _CRI inline_never here
 #if GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
  #ifdef __noinline__ /* e.g. nvcc's host_defines */
   #define GASNETI_NEVER_INLINE(fnname,declarator) __attribute__((noinline)) declarator
@@ -512,8 +510,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
  #endif
 #elif PLATFORM_COMPILER_SUN_C
   #define GASNETI_NEVER_INLINE(fnname,declarator) declarator; GASNETI_PRAGMA(no_inline(fnname)) declarator
-#elif PLATFORM_COMPILER_CRAY
-  #define GASNETI_NEVER_INLINE(fnname,declarator) GASNETI_PRAGMA(_CRI inline_never fnname) declarator
 #else
   #define GASNETI_NEVER_INLINE(fnname,declarator) declarator
 #endif
