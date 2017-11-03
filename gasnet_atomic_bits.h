@@ -585,8 +585,7 @@
         /* left-over typedef of gasneti_atomic64_t will get hidden by a #define */
       #elif GASNETI_USE_X86_EBX && \
             !PLATFORM_COMPILER_TINY && !PLATFORM_COMPILER_PGI && \
-            !(__APPLE_CC__ && defined(__llvm__)) /* bug 3071 */ && \
-            !(PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_LT(3,0,0)) /* bug 1790 */
+            !(__APPLE_CC__ && defined(__llvm__)) /* bug 3071 */
 	/* "Normal" ILP32 case:
 	 *
 	 * To perform read and set atomically on x86 requires use of the locked
@@ -805,13 +804,11 @@
           return oldval;
         }
         #define _gasneti_atomic64_cas_val _gasneti_atomic64_cas_val
-      #else /* Tiny CC, PGI and (GCC < 3.0.0) */
+      #else /* Tiny CC and PGI */
 	/* Everything here works like the "normal" ILP32 case, except that we break everything
 	 * down in to nice bite-sized (4-bytes actually) chunks and explictly assign
 	 * them to registers A through D.
 	 * This is needed for TCC and PGI that lack (or have buggy) support for the "A" constraint.
-	 * This is used for older GCC that complain about too many reloads for the "normal" case.
-	 * Also to, appease older GCC, we use "+m" where "=m" is sufficient/correct (see bug 1790).
 	 */
         GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
         int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
