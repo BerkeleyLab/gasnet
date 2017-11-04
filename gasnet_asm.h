@@ -63,12 +63,12 @@
     #error "GASNet does not support PGI compilers prior to 7.2-5"
   #endif
   #if PLATFORM_ARCH_32 && \
-      PLATFORM_COMPILER_VERSION_GE(7,1,5) && PLATFORM_COMPILER_VERSION_LT(13,4,0)
+      PLATFORM_COMPILER_VERSION_GE(7,1,5) && PLATFORM_COMPILER_VERSION_LT(8,0,6)
     /* Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
      * be met unless they appear in a specific order.  This is on 32-bit targets only.
      *
      * NOTE: PGI reports TPR 14969 was fixed in 8.0-1.
-     * However, we have not been able to test on anything prior to 13.4-0.
+     * However, we have only been able to test 8.0-6 and later.
      */
     #define GASNETI_PGI_ASM_BUG2294 1
   #endif
