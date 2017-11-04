@@ -105,6 +105,28 @@ fi
 GASNET_FUN_END([$0($1)])
 ])
 
+dnl GASNET_PGI_VERSION_CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_PGI_VERSION_CHECK],[
+GASNET_FUN_BEGIN([$0($1)])
+AC_MSG_CHECKING(for known buggy compilers)
+badpgimsg=""
+AC_TRY_COMPILE([
+#if ((10000 * __PGIC__) + (100 * __PGIC_MINOR__) + __PGIC_PATCHLEVEL__) < 70205
+# error
+#endif
+],[ ], [:], [
+AC_MSG_RESULT([$1] is PGI prior to 7.2-5)
+badpgimsg="Use of PGI compilers older than 7.2-5 is not supported.
+Consider using \$[$1] to select a different compiler."
+])
+if test -n "$badpgimsg"; then
+  AC_MSG_ERROR([$badpgimsg])
+else
+  AC_MSG_RESULT(ok)
+fi
+GASNET_FUN_END([$0($1)])
+])
+
 AC_DEFUN([GASNET_FIX_SHELL],[
 GASNET_FUN_BEGIN([$0])
 AC_MSG_CHECKING(for good shell)

@@ -153,7 +153,7 @@
     #include <sys/sysctl.h> 
   #endif
   typedef uint64_t gasneti_tick_t;
- #if (PLATFORM_COMPILER_PGI && !GASNETI_PGI_ASM_GNU) || PLATFORM_COMPILER_SUN
+ #if PLATFORM_COMPILER_SUN
    /* The current compiler lacks full GNU-style asm() support.
     *
     * Defining GASNETI_TICKS_NOW_BODY at library build time will use the
@@ -187,11 +187,7 @@
     uint64_t ret;
     #if PLATFORM_COMPILER_CRAY
       ret = _rtc();
-    #elif PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC || \
-        (PLATFORM_COMPILER_PGI && PLATFORM_ARCH_X86 && !GASNETI_PGI_ASM_X86_A)
-      /* This asm() for x86-64 also works for x86 compilers w/o working support
-       * for the "A" constraint (currently only pgcc 6.1-x, which crashes).
-       */
+    #elif PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
       uint32_t lo, hi;
       __asm__ __volatile__("rdtsc"
                            : "=a" (lo), "=d" (hi)
