@@ -196,6 +196,7 @@ case "$CC_FAMILY" in
                   ;;
         esac
         ;;
+  PGI)  GASNET_PGI_VERSION_CHECK(CC);;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -2027,11 +2028,11 @@ if test "$cross_compiling" = "yes" ; then
 fi
 if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; then
   GASNET_TRY_CACHE_RUN_WITHCC([for x86-64 cmpxchg16b support],[x86_64_cmpxchg16b],[
-    #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_PGI_ASM_GNU */
+    #include "gasnet_portable_platform.h"
   ],[[
   #if PLATFORM_ARCH_X86_64
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU || \
+        PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
         PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
 
 	unsigned long *array[3];
@@ -2075,11 +2076,11 @@ GASNET_POPVAR(CFLAGS)
 ## cases for other compilers in the future.
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
-  #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_PGI_ASM_GNU */
+  #include "gasnet_portable_platform.h" /* For PLATFORM_COMPILER_* */
 ], [
   #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86 
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU || \
+        PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
         PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || \
         PLATFORM_COMPILER_CLANG
       __asm__ __volatile__ ("push %0" : : "b" (0));
@@ -2772,6 +2773,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
                GASNET_TRY_CXXFLAG([-Mllalign], [MISC_CXXFLAGS="$MISC_CXXFLAGS -Mllalign"])
                ;;
            esac
+           GASNET_PGI_VERSION_CHECK(CXX)
            ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],

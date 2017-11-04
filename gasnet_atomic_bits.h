@@ -166,10 +166,6 @@
 /* Cannot always use "register" (bug 3528): */
 #ifdef GASNETI_ASM_REGISTER_KEYWORD
   /* Preserve any override */
-#elif GASNETI_PGI_ASM_BUG2149
-  /* PGI can generate bad code in the presence of "register".
-   * See gasnet_asm.h and bug 2149 for info. */
-  #define GASNETI_ASM_REGISTER_KEYWORD /* empty */
 #elif PLATFORM_ARCH_ARM && defined(GASNETI_HAVE_ARM_CMPXCHG) && \
       PLATFORM_OS_LINUX && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG)
    /* This target *must* use the "register" keyword.
@@ -370,7 +366,7 @@
     #endif
 
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_THREADSAFE || \
+        PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
         PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || \
         PLATFORM_COMPILER_CLANG
      #define GASNETI_HAVE_ATOMIC32_T 1
@@ -443,11 +439,7 @@
 	          : "=m" (v->ctr), "=qm" (retval)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	#if GASNETI_PGI_ASM_BUG1754
-          return retval & 0xFF;
-	#else
           return retval;
-	#endif
       }
       #define _gasneti_atomic32_decrement_and_test _gasneti_atomic32_decrement_and_test
 
@@ -467,11 +459,7 @@
 	#endif
 		: "r" (newval), "m" (v->ctr), "a" (oldval)
 		: "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	#if GASNETI_PGI_ASM_BUG1754
-          return retval & 0xFF;
-	#else
           return retval;
-	#endif
       }
       #define _gasneti_atomic32_compare_and_swap _gasneti_atomic32_compare_and_swap
 
@@ -539,11 +527,7 @@
 		    : "=q" (retval), "=m" (p->ctr), "=a" (readval)
 		    : "r" (newval), "m" (p->ctr), "a" (oldval)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	  #if GASNETI_PGI_ASM_BUG1754
-            return retval & 0xFF;
-	  #else
             return retval;
-	  #endif
           }
           #define _gasneti_atomic64_compare_and_swap _gasneti_atomic64_compare_and_swap
           GASNETI_INLINE(_gasneti_atomic64_swap)
@@ -584,7 +568,7 @@
         #undef gasneti_atomic64_init
         /* left-over typedef of gasneti_atomic64_t will get hidden by a #define */
       #elif GASNETI_USE_X86_EBX && \
-            !PLATFORM_COMPILER_TINY && !PLATFORM_COMPILER_PGI && \
+            !PLATFORM_COMPILER_TINY && \
             !(__APPLE_CC__ && defined(__llvm__)) /* bug 3071 */
 	/* "Normal" ILP32 case:
 	 *
@@ -804,7 +788,7 @@
           return oldval;
         }
         #define _gasneti_atomic64_cas_val _gasneti_atomic64_cas_val
-      #else /* Tiny CC and PGI */
+      #else /* Tiny CC */
 	/* Everything here works like the "normal" ILP32 case, except that we break everything
 	 * down in to nice bite-sized (4-bytes actually) chunks and explictly assign
 	 * them to registers A through D.
@@ -896,11 +880,7 @@
 		: "=q" (retval), "=m" (*p), "+&a" (oldlo), "+&d" (oldhi)
 		: "b" (newlo), "c" (newhi)
 		: "cc", "memory");
-	  #if GASNETI_PGI_ASM_BUG1754
-	    return retval & 0xFF;
-	  #else
 	    return retval;
-	  #endif
 	}
 	#define gasneti_atomic128_compare_and_swap gasneti_atomic128_compare_and_swap
 
@@ -937,7 +917,7 @@
 	}
 	#define gasneti_atomic128_read gasneti_atomic128_read
       #endif /* GASNETI_HAVE_X86_CMPXCHG16B */
-    #elif PLATFORM_COMPILER_SUN || PLATFORM_COMPILER_PGI_C
+    #elif PLATFORM_COMPILER_SUN
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
         #define _gasneti_atomic_addr		"(%rdi)"
@@ -1143,24 +1123,6 @@
 
       #define GASNETI_ATOMIC_SPECIALS   GASNETI_ATOMIC32_SPECIALS \
                                         GASNETI_ATOMIC64_SPECIALS
-    #elif PLATFORM_COMPILER_PGI_CXX
-      /* pgCC w/o threadsafe GNU-style asm():
-       * Here we must use the slow atomics since we don't know if the library has been
-       * built w/ native or "special" atomics support.
-       * See bug 1752 for discussion of how this might be avoided.
-       */
-      /* XXX: Only works because both possible library versions use these representations. */
-      #define GASNETI_HAVE_ATOMIC32_T 1
-      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
-      #define gasneti_atomic32_init(v)      { (v) }
-
-      #define GASNETI_HAVE_ATOMIC64_T 1
-      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
-      #define gasneti_atomic64_init(v)      { (v) }
-
-      #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
-      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
-      #define GASNETI_USING_SLOW_ATOMICS 1
     #elif (PLATFORM_ARCH_X86_64 && PLATFORM_COMPILER_CRAY)
       #define GASNETI_HAVE_ATOMIC32_T 1
       typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;

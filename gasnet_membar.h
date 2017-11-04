@@ -26,8 +26,7 @@
  */
 #include <gasnet_asm.h>
 
-#if PLATFORM_COMPILER_SUN_CXX || \
-   (PLATFORM_COMPILER_PGI_CXX && !GASNETI_PGI_ASM_GNU)
+#if PLATFORM_COMPILER_SUN_CXX
   /* no inline assembly in these C++ compilers, so pay a function call overhead */
   #define GASNETI_USING_SLOW_MEMBARS 1
 /* ------------------------------------------------------------------------------------ */
@@ -86,7 +85,7 @@
       * Unfortunately, all read-modify-write operations also set condition
       * codes.  So, we have an extra messy case for gcc, icc, etc.
       */
-     #if (PLATFORM_COMPILER_PGI && !GASNETI_PGI_ASM_GNU) || PLATFORM_COMPILER_SUN_C
+     #if PLATFORM_COMPILER_SUN_C
        GASNETI_ASM("lock; addl $0,0(%esp)");
      #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
            PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_OPEN64
