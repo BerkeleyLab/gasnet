@@ -441,12 +441,15 @@ void doit(int partner, int *partnerseg) {
     assert_always(neighbor_rank < neighbor_size);
     assert_always(neighbor_array[neighbor_rank].gex_jobrank == gex_System_QueryJobRank());
 
-    BARRIER();
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       // Check sort:
       assert_always(!i || (neighbor_array[i].gex_jobrank > neighbor_array[i-1].gex_jobrank));
+    }
 
-      // Check sharing (part 1):
+  #if !GASNET_SEGMENT_EVERYTHING
+    // Exercise sharing to validate ranks in neighbor_array
+    BARRIER();
+    for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       gex_Rank_t *crossmap = NULL;
       int rc = gex_Segment_QueryBound(myteam, neighbor_array[i].gex_jobrank, NULL, (void**)&crossmap, NULL);
       assert_always(rc == 0);
@@ -456,10 +459,10 @@ void doit(int partner, int *partnerseg) {
     BARRIER();
     gex_Rank_t *myseg = (gex_Rank_t *)TEST_MYSEG();
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
-      // Check sharing (part 2):
       assert_always(neighbor_array[i].gex_jobrank == myseg[i]);
     }
     BARRIER();
+  #endif
   }
 
   /* width-independent computation of an integer variable with unknown unsigned type */
