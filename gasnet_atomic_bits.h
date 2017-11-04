@@ -147,6 +147,7 @@
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */                \
     (PLATFORM_ARCH_ARM && !defined(GASNETI_HAVE_ARM_CMPXCHG)) ||                   \
     (PLATFORM_ARCH_MIPS && defined(_MIPS_ISA) && (_MIPS_ISA < 2)) ||               \
+    PLATFORM_COMPILER_TINY ||  /* not worth special case atomics implementation */ \
     PLATFORM_ARCH_MICROBLAZE   /* no atomic instructions */
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #elif defined(GASNETI_FORCE_OS_ATOMICOPS) /* for debugging */
@@ -197,7 +198,6 @@
      * + open64: mimics gcc, but is able to schedule %ebx so no work-around is needed
      * + llvm-gcc: mimics gcc, but is able to schedule %ebx so no work-around is needed
      * + Sun cc: use of specials doesn't encounter the problem
-     * + tcc: N/A since no PIC support
      *
      * Bottom line is that we recommend YOUR_PIC_CFLAGS="-fPIC -DGASNETI_FORCE_PIC",
      * replacing "-fPIC" with your compiler-specific flag(s) as needed.
@@ -367,7 +367,7 @@
 
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
-        PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || \
+        PLATFORM_COMPILER_OPEN64 || \
         PLATFORM_COMPILER_CLANG
      #define GASNETI_HAVE_ATOMIC32_T 1
      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
@@ -568,7 +568,6 @@
         #undef gasneti_atomic64_init
         /* left-over typedef of gasneti_atomic64_t will get hidden by a #define */
       #elif GASNETI_USE_X86_EBX && \
-            !PLATFORM_COMPILER_TINY && \
             !(__APPLE_CC__ && defined(__llvm__)) /* bug 3071 */
 	/* "Normal" ILP32 case:
 	 *
@@ -788,79 +787,8 @@
           return oldval;
         }
         #define _gasneti_atomic64_cas_val _gasneti_atomic64_cas_val
-      #else /* Tiny CC */
-	/* Everything here works like the "normal" ILP32 case, except that we break everything
-	 * down in to nice bite-sized (4-bytes actually) chunks and explictly assign
-	 * them to registers A through D.
-	 * This is needed for TCC and PGI that lack (or have buggy) support for the "A" constraint.
-	 */
-        GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
-        int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = GASNETI_LOWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = GASNETI_HIWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(newval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(newval);
-          __asm__ __volatile__ (
-		    "lock;			"
-		    "cmpxchg8b	%0		\n\t"
-		    "sete	%b1		"
-                    : "+m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
-                    : "b" (newlo), "c" (newhi)
-		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-          return (uint8_t)oldlo;
-        }
-        #define _gasneti_atomic64_compare_and_swap _gasneti_atomic64_compare_and_swap
-        GASNETI_INLINE(_gasneti_atomic64_swap)
-        uint64_t _gasneti_atomic64_swap(gasneti_atomic64_t *p, uint64_t v) {
-	  uint64_t oldval = p->ctr;
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = GASNETI_LOWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = GASNETI_HIWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(v);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(v);
-          _GASNETI_ATOMIC_CHECKALIGN(gasneti_atomic64_align, p);
-          __asm__ __volatile__ (
-		    "0:				\n\t"
-		    "lock;			"
-		    "cmpxchg8b	%0		\n\t"
-		    "jnz	0b		"
-		    : "+m" (p->ctr), "+&a" (oldlo),  "+&d" (oldhi)
-		    : "b" (newlo), "c" (newhi)
-		    : "cc", "memory");
-          return GASNETI_MAKEWORD(oldhi, oldlo);
-	}
-	#define _gasneti_atomic64_swap _gasneti_atomic64_swap
-	#define _gasneti_atomic64_set(p,v) ((void)_gasneti_atomic64_swap(p,v))
-        GASNETI_INLINE(_gasneti_atomic64_read)
-        uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *p) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t retlo, rethi;
-          _GASNETI_ATOMIC_CHECKALIGN(gasneti_atomic64_align, p);
-          __asm__ __volatile__ (
-		    /* Set [a:d] = [b:c], thus preserving b and c */
-		    "movl	%%ebx, %%eax	\n\t"
-		    "movl	%%ecx, %%edx	\n\t"
-		    "lock;			"
-		    "cmpxchg8b	%0		"
-		    : "+m" (p->ctr), "=&a" (retlo),  "=&d" (rethi)
-		    : /* no inputs */
-		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	  return GASNETI_MAKEWORD(rethi, retlo);
-	}
-	#define _gasneti_atomic64_read _gasneti_atomic64_read
-        GASNETI_INLINE(_gasneti_atomic64_cas_val) /* for 64-bit FETCHADD */
-        uint64_t _gasneti_atomic64_cas_val(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = GASNETI_LOWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = GASNETI_HIWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(newval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(newval);
-          __asm__ __volatile__ (
-		    "lock;			"
-		    "cmpxchg8b	%0		"
-                    : "+m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
-                    : "b" (newlo), "c" (newhi)
-		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-          return GASNETI_MAKEWORD(oldhi, oldlo);
-        }
-        #define _gasneti_atomic64_cas_val _gasneti_atomic64_cas_val
+      #else
+        #error "unreachable case in gasneti_asm_bits.h"
       #endif
 
       /* Optionally build a 128-bit atomic type using 64-bit types for all args */
