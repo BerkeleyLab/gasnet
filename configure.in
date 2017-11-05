@@ -196,8 +196,7 @@ case "$CC_FAMILY" in
                   ;;
         esac
         ;;
-  MTA)  # override target_os for MTA, which may be wrong if cross-compiling
-        target_os="mtx"   ;;
+  PGI)  GASNET_PGI_VERSION_CHECK(CC);;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -443,7 +442,6 @@ case "$CC_FAMILY" in
     done
   ;;
   Intel) CCOPTFLAGS="-O3" ;;
-  MTA) CCOPTFLAGS="-O3" ;; # MTA C actually ignores -O, optimization controlled by presence/absence of -g
   PGI)
     CCOPTFLAGS="-O2"  # Default
     # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 through 10.7-0 at -O2
@@ -485,7 +483,6 @@ case "$CC_FAMILY" in
         CCDEBUGFLAGS="$CFLAGS"
         GASNET_POPVAR(CFLAGS)
   ;;
-  MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Pathscale) CCDEBUGFLAGS="-g3 -O0" ;; # need to explicitly disable optimization
   Open64)    CCDEBUGFLAGS="-g3" ;;
   Clang)     CCDEBUGFLAGS="-g -O0" ;;
@@ -667,7 +664,6 @@ case "$CC_FAMILY" in
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
   PGI) MISC_CFLAGS="-Masmkeyword -Msignextend";; # get inline assembly and sign-extended narrowing
-  MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
   Sun) if test "$target_cpu" = "sparc"; then 
          GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
        fi
@@ -1252,10 +1248,6 @@ case "$target_os" in
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS=""
 	;;
-  mtx*)
-	GASNET_THREAD_DEFINES=""
-        GASNET_THREAD_LIBS="-lpthread" 
-        ;;
   *)
         GASNET_MSG_WARN(unknown OS - you may need to update the configure script)
         ;;
@@ -1854,14 +1846,14 @@ if expr "$target_cpu" : "mips" >/dev/null; then
   AC_CHECK_HEADERS(sgidefs.h)
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
-    #include "gasnet_asm.h"
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   ], [
     GASNETI_ASM(".set noat\n\t"
                 "move \$1,\$0\n\t"
                 ".set at"); 
   ], [AC_DEFINE(GASNETI_HAVE_MIPS_REG_1)])
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$at', mips_reg_at, [
-    #include "gasnet_asm.h"
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   ], [
     GASNETI_ASM(".set noat\n\t"
                 "move \$at,\$0\n\t"
@@ -1983,7 +1975,7 @@ fi
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 AC_MSG_CHECKING(for ia64 cmp8xchg16 support)
 AC_TRY_RUN([
-  #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_*_ASM_* */
+  #include "gasnet_portable_platform.h" /* For PLATFORM_{ARCH,COMPILER}_* */
 
   #if !PLATFORM_ARCH_IA64
     #error wrong CPU architecture
@@ -2036,11 +2028,11 @@ if test "$cross_compiling" = "yes" ; then
 fi
 if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; then
   GASNET_TRY_CACHE_RUN_WITHCC([for x86-64 cmpxchg16b support],[x86_64_cmpxchg16b],[
-    #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_PGI_ASM_GNU */
+    #include "gasnet_portable_platform.h"
   ],[[
   #if PLATFORM_ARCH_X86_64
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU || \
+        PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
         PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
 
 	unsigned long *array[3];
@@ -2084,12 +2076,12 @@ GASNET_POPVAR(CFLAGS)
 ## cases for other compilers in the future.
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
-  #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_PGI_ASM_GNU */
+  #include "gasnet_portable_platform.h" /* For PLATFORM_COMPILER_* */
 ], [
   #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86 
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU || \
-        PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || \
+        PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
+        PLATFORM_COMPILER_OPEN64 || \
         PLATFORM_COMPILER_CLANG
       __asm__ __volatile__ ("push %0" : : "b" (0));
     #else
@@ -2781,12 +2773,8 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
                GASNET_TRY_CXXFLAG([-Mllalign], [MISC_CXXFLAGS="$MISC_CXXFLAGS -Mllalign"])
                ;;
            esac
+           GASNET_PGI_VERSION_CHECK(CXX)
            ;;
-    KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
-    MTA)   MISC_CXXFLAGS="-exceptions -display_error_number -WS 111,174,238" 
-           CXXDEBUGFLAGS="-g2"
-           CXXOPTFLAGS="-O3"
-      ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],
                           [MISC_CXXFLAGS="$MISC_CXXFLAGS -wd1572"])
@@ -3017,11 +3005,6 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
           GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
           popdef([GASNET_SUPPRESSHELP])
         fi
-        ;;
-    mtx*)
-    	GASNET_ENV_DEFAULT(MPI_CC, cc)
-    	GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mtarun -t %N -m %N /usr/bin/env _MPI_MT=%N %C)
         ;;
     *) 
       # unknown OS - if user doesn't provide info, assume generic settings that often work
