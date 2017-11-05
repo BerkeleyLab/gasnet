@@ -31,6 +31,17 @@ PENDING:
   - Warning enable flags are removed from GASNET_C(XX)FLAGS and friends. 
     The flags remain available in GASNET_DEVWARN_C(XX)FLAGS for opt-in.
 
+* Removal of unmaintained platform support
+  - This release no longer supports the following platform:
+    + Cray/Terra MTA
+  - This release removes support for the following compilers:
+    + Kuck and Associates (KAI) C++ Compiler
+    + PGI compilers older than the 7.2-5 release
+  - This release removes support for the following compilers which had
+    ceased to work with GASNet 1.28.0 due to insufficient support for C99:
+    + GCC 2.x
+    + LCC (a.k.a. "Local C Compiler" or "Little C Compiler")
+
 ----------------------------------------------------------------------
 08-31-2017 : Release 1.30.0
 
