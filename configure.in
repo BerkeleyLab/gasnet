@@ -1846,14 +1846,14 @@ if expr "$target_cpu" : "mips" >/dev/null; then
   AC_CHECK_HEADERS(sgidefs.h)
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
-    #include "gasnet_asm.h"
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   ], [
     GASNETI_ASM(".set noat\n\t"
                 "move \$1,\$0\n\t"
                 ".set at"); 
   ], [AC_DEFINE(GASNETI_HAVE_MIPS_REG_1)])
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$at', mips_reg_at, [
-    #include "gasnet_asm.h"
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   ], [
     GASNETI_ASM(".set noat\n\t"
                 "move \$at,\$0\n\t"
@@ -1975,7 +1975,7 @@ fi
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 AC_MSG_CHECKING(for ia64 cmp8xchg16 support)
 AC_TRY_RUN([
-  #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_*_ASM_* */
+  #include "gasnet_portable_platform.h" /* For PLATFORM_{ARCH,COMPILER}_* */
 
   #if !PLATFORM_ARCH_IA64
     #error wrong CPU architecture
