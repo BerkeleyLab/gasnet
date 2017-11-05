@@ -26,8 +26,7 @@
  */
 #include <gasnet_asm.h>
 
-#if PLATFORM_COMPILER_SUN_CXX || \
-   (PLATFORM_COMPILER_PGI_CXX && !GASNETI_PGI_ASM_GNU)
+#if PLATFORM_COMPILER_SUN_CXX
   /* no inline assembly in these C++ compilers, so pay a function call overhead */
   #define GASNETI_USING_SLOW_MEMBARS 1
 /* ------------------------------------------------------------------------------------ */
@@ -86,7 +85,7 @@
       * Unfortunately, all read-modify-write operations also set condition
       * codes.  So, we have an extra messy case for gcc, icc, etc.
       */
-     #if (PLATFORM_COMPILER_PGI && !GASNETI_PGI_ASM_GNU) || PLATFORM_COMPILER_SUN_C
+     #if PLATFORM_COMPILER_SUN_C
        GASNETI_ASM("lock; addl $0,0(%esp)");
      #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
            PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_OPEN64
@@ -206,25 +205,6 @@
  /* TODO: 'lwsync' is LL+SS but not LS or SL barrier.  Is that enough? */
  #define gasneti_local_mb()  gasneti_local_wmb()
  #define GASNETI_WMB_IS_MB
-/* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_ARCH_MTA
-   #if 0 /* causes warnings */
-     #define gasneti_compiler_fence() (_Pragma("mta fence"))
-   #else
-     GASNETI_INLINE(_gasneti_compiler_fence)
-     void _gasneti_compiler_fence(void) {
-       (void)0;
-       #pragma mta fence
-       (void)0;
-     }
-     #define gasneti_compiler_fence() _gasneti_compiler_fence()
-   #endif
-   /* MTA has no caches or write buffers - just need a compiler reordering fence */
-   #define gasneti_local_wmb() gasneti_compiler_fence()
-   #define gasneti_local_rmb() gasneti_compiler_fence()
-   #define gasneti_local_mb()  gasneti_compiler_fence()
-   #define GASNETI_RMB_IS_MB
-   #define GASNETI_WMB_IS_MB
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_MICROBLAZE
    /* no SMP support */
