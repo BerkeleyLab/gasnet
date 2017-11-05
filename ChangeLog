@@ -139,7 +139,7 @@ GASNet ChangeLog
 
 * Removal of unmaintained platform support
   - This release no longer supports the following platform:
-    + Cray/Terra MTA
+    + Cray/Tera MTA
   - This release removes support for the following compilers:
     + Kuck and Associates (KAI) C++ Compiler
     + PGI compilers older than the 7.2-5 release
