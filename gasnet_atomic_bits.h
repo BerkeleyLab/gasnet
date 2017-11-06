@@ -406,8 +406,13 @@
       }
       #define _gasneti_atomic32_swap _gasneti_atomic32_swap
 
+     #if GASNETI_PGI_ASM_BUG3674
+      #define _gasneti_atomic32_read(p)      (*(uint32_t volatile *)&((p)->ctr))
+      #define _gasneti_atomic32_set(p,v)     (*(uint32_t volatile *)&((p)->ctr) = (v))
+     #else
       #define _gasneti_atomic32_read(p)      ((p)->ctr)
       #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
+     #endif
 
       GASNETI_INLINE(_gasneti_atomic32_increment)
       void _gasneti_atomic32_increment(gasneti_atomic32_t *v) {
@@ -482,8 +487,13 @@
 
       /* 64-bit differ between x86 and x86-64: */
       #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC /* Athlon64/Opteron */
+       #if GASNETI_PGI_ASM_BUG3674
+        #define _gasneti_atomic64_read(p)      (*(uint64_t volatile *)&((p)->ctr))
+        #define _gasneti_atomic64_set(p,v)     (*(uint64_t volatile *)&((p)->ctr) = (v))
+       #else
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
+       #endif
 
         #if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(2,3,0)
 	  /* A "dirty hack" for bug 1620 because pathcc < 2.3 botches the 64-bit asm */
