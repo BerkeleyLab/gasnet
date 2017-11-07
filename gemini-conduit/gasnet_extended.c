@@ -528,6 +528,52 @@ gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nby
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
+gasnete_put_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
+                  unsigned int *initiated_lc,
+                  volatile unsigned int *completed_lc,
+                  gasneti_weakatomic_val_t * const initiated_p,
+                  gasneti_weakatomic_t * const completed_p
+                  GASNETC_DIDX_FARG)
+{
+  gasnetc_post_descriptor_t *gpd;
+  size_t chunksz;
+
+  chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+
+  if (nbytes > 2*chunksz) {
+    /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
+    size_t tmp, xfer_len;
+retry:
+    xfer_len = chunksz - ((uintptr_t)src & (GASNETI_PAGESIZE-1));
+    gasneti_assert(xfer_len != 0);
+    gasneti_assert(xfer_len < nbytes);
+    gpd = gasnete_cntr_gpd(initiated_p, completed_p GASNETC_DIDX_PASS);
+    gpd->gpd_put_lc = (uint64_t) completed_lc;
+    tmp = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, gpd);
+    dest = (char *) dest + tmp;
+    src  = (char *) src  + tmp;
+    nbytes -= tmp;
+
+    if_pf (tmp != xfer_len) { /* MemRegister failed */
+      gasneti_assert(chunksz == GC_MAXRDMA_OUT); /* out-of-seg and not looping */
+      chunksz = tmp; /* Will avoid more MemRegister failures */
+      goto retry;
+    }
+  }
+
+  gasneti_assert(nbytes);
+  do {
+    const size_t xfer_len = MIN(nbytes, chunksz);
+    gpd = gasnete_cntr_gpd(initiated_p, completed_p GASNETC_DIDX_PASS);
+    gpd->gpd_put_lc = (uint64_t) completed_lc;
+    chunksz = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, gpd);
+    dest = (char *) dest + chunksz;
+    src  = (char *) src  + chunksz;
+    nbytes -= chunksz;
+  } while (nbytes);
+}
+
+static void /* XXX: Inlining left to compiler's discretion */
 gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p
@@ -617,39 +663,18 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 }
 
 extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
-  gasnete_eop_t *tail_op;
-  const size_t max_tail = gasnetc_max_put_lc;
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  GASNETC_DIDX_POST(mythread->domain_idx);
-
-  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
-
-  gasneti_suspend_spinpollers();
-
-  /* Non-blocking bulk put of "head" portion */
-  if (nbytes > max_tail) {
-    const size_t head_len = nbytes - max_tail;
-    gasnete_eop_t * const eop = _gasnete_eop_new(mythread);
-    gasnete_put_bulk_inner(node, dest, src, head_len, GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
-    head_op = (gasnet_handle_t) eop;
-    dest = (char *) dest + head_len;
-    src  = (char *) src  + head_len;
-    nbytes = max_tail;
-  }
-
-  /* Non-blocking non-bulk put of "tail" portion */
-  tail_op = _gasnete_eop_new(mythread);
-  gasnetc_rdma_put_lc(node, dest, src, nbytes,
-                      gasnete_cntr_gpd(GASNETE_EOP_CNTRS(tail_op) GASNETC_DIDX_PASS));
-
-  gasneti_resume_spinpollers();
-
-  /* Block for completion of head, if any */
-  gasnete_wait_syncnb(head_op);
-
-  /* return the tail_op */
-  return (gasnet_handle_t)tail_op;
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_eop_t *eop = gasnete_eop_new(mythread);
+    GASNETC_DIDX_POST(mythread->domain_idx);
+    unsigned int initiated_lc = 0;
+    volatile unsigned int completed_lc = 0;
+    gasneti_suspend_spinpollers();
+    gasnete_put_inner(node, dest, src, nbytes,
+                      &initiated_lc, &completed_lc,
+                      GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
+    gasneti_resume_spinpollers();
+    gasneti_polluntil(initiated_lc == completed_lc);
+    return (gasnet_handle_t) eop;
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
@@ -793,35 +818,17 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 }
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t * const tail_op = mythread->current_iop;
-  gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
-  const size_t max_tail = gasnetc_max_put_lc;
-  GASNETC_DIDX_POST(mythread->domain_idx);
-
-  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
-
-  gasneti_suspend_spinpollers();
-
-  /* Non-blocking bulk put of "head" portion */
-  if (nbytes > max_tail) {
-    const size_t head_len = nbytes - max_tail;
-    gasnete_eop_t * const eop = _gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_put_bulk_inner(node, dest, src, head_len, GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
-    head_op = (gasnet_handle_t) eop;
-    dest = (char *) dest + head_len;
-    src  = (char *) src  + head_len;
-    nbytes = max_tail;
-  }
-
-  /* Non-blocking non-bulk put of "tail" portion */
-  gasnetc_rdma_put_lc(node, dest, src, nbytes,
-                      gasnete_cntr_gpd(GASNETE_IOP_CNTRS(tail_op, put) GASNETC_DIDX_PASS));
-
-  gasneti_resume_spinpollers();
-
-  /* Block for completion of head, if any */
-  gasnete_wait_syncnb(head_op);
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t * const iop = mythread->current_iop;
+    GASNETC_DIDX_POST(mythread->domain_idx);
+    unsigned int initiated_lc = 0;
+    volatile unsigned int completed_lc = 0;
+    gasneti_suspend_spinpollers();
+    gasnete_put_inner(node, dest, src, nbytes,
+                      &initiated_lc, &completed_lc,
+                      GASNETE_IOP_CNTRS(iop, put) GASNETC_DIDX_PASS);
+    gasneti_resume_spinpollers();
+    gasneti_polluntil(initiated_lc == completed_lc);
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
