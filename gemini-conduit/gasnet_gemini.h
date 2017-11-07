@@ -246,9 +246,6 @@ typedef union gasnetc_packet_u {
 /* largest get that can be handled by gasnetc_rdma_get_unaligned() */
 extern size_t gasnetc_max_get_unaligned;
 
-/* largest put that gasnetc_rdma_put_lc() will accept */
-extern size_t gasnetc_max_put_lc;
-
 /* completion actions: */
 enum {
   _gc_post_reserved = 2,  /* Bits 0-2 hold offset for trimmed copy operations */
@@ -310,6 +307,7 @@ struct gasnetc_post_descriptor {
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
   #define gpd_am_peer    pd.first_operand
+  #define gpd_put_lc     pd.second_operand
   uint32_t gpd_flags;
 #if GASNETC_USE_MULTI_DOMAIN
   int domain_idx;
@@ -350,9 +348,10 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
-void gasnetc_rdma_put_lc(gex_Rank_t node,
+size_t gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
+		 size_t nbytes, unsigned int *initiated_lc,
+		 gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
 void gasnetc_rdma_put_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,

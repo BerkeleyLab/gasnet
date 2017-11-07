@@ -275,6 +275,57 @@ gasnete_get_bulk_unaligned(void *dest, gex_Rank_t node, void *src, size_t nbytes
 
 GASNETI_WARN_UNUSED_RESULT // Returns non-zero in IMMEDIATE case only
 static int /* XXX: Inlining left to compiler's discretion */
+gasnete_put_inner(gex_Rank_t node, void *dest, void *src, size_t nbytes, gex_Flags_t flags,
+                  unsigned int *initiated_lc, volatile unsigned int *completed_lc,
+                  gasneti_weakatomic_val_t *initiated_p, gasnete_op_t * const op,
+                  uint32_t gpd_flags GASNETC_DIDX_FARG)
+{
+  gasnetc_post_descriptor_t *gpd;
+  size_t chunksz;
+
+  chunksz = gasneti_in_segment(NULL/*tm*/, gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+
+  if (nbytes > 2*chunksz) {
+    /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
+    size_t tmp, xfer_len;
+retry:
+    xfer_len = chunksz - ((uintptr_t)src & (GASNETI_PAGESIZE-1));
+    gasneti_assert(xfer_len != 0);
+    gasneti_assert(xfer_len < nbytes);
+    gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
+    if_pf (!gpd) return 1;
+    gpd->gpd_put_lc = (uint64_t) completed_lc;
+    flags &= ~GEX_FLAG_IMMEDIATE;
+    tmp = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, gpd);
+    dest = (char *) dest + tmp;
+    src  = (char *) src  + tmp;
+    nbytes -= tmp;
+
+    if_pf (tmp != xfer_len) { /* MemRegister failed */
+      gasneti_assert(chunksz == GC_MAXRDMA_OUT); /* out-of-seg and not looping */
+      chunksz = tmp; /* Will avoid more MemRegister failures */
+      goto retry;
+    }
+  }
+
+  gasneti_assert(nbytes);
+  do {
+    const size_t xfer_len = MIN(nbytes, chunksz);
+    gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
+    if_pf (!gpd) return 1;
+    gpd->gpd_put_lc = (uint64_t) completed_lc;
+    flags &= ~GEX_FLAG_IMMEDIATE;
+    chunksz = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, gpd);
+    dest = (char *) dest + chunksz;
+    src  = (char *) src  + chunksz;
+    nbytes -= chunksz;
+  } while (nbytes);
+
+  return 0;
+}
+
+GASNETI_WARN_UNUSED_RESULT // Returns non-zero in IMMEDIATE case only
+static int /* XXX: Inlining left to compiler's discretion */
 gasnete_put_bulk_inner(gex_Rank_t node, void *dest, void *src, size_t nbytes, gex_Flags_t flags,
                        gasneti_weakatomic_val_t *initiated_p, gasnete_op_t * const op,
                        uint32_t gpd_flags GASNETC_DIDX_FARG)
@@ -368,52 +419,20 @@ gex_Event_t _gasnete_put_nb (
                      void *src, size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gex_Event_t head_op = GEX_EVENT_INVALID;
-  gasnete_eop_t *tail_op;
-  const size_t max_tail = gasnetc_max_put_lc;
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  gasnetc_post_descriptor_t *gpd;
-  GASNETC_DIDX_POST(mythread->domain_idx);
-
-  gasneti_suspend_spinpollers();
-
-  /* Non-blocking bulk put of "head" portion */
-  if (nbytes > max_tail) {
-    const size_t head_len = nbytes - max_tail;
-    gasnete_eop_t * const eop = gasnete_eop_new(mythread);
-    int imm = gasnete_put_bulk_inner(node, dest, src, head_len, flags,
-                                     GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
-    if_pf (imm) {
-      tail_op = eop;
-      goto out_immediate;
-    }
+    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasnete_eop_t *eop = gasnete_eop_new(mythread);
+    GASNETC_DIDX_POST(mythread->domain_idx);
+    unsigned int initiated_lc = 0;
+    volatile unsigned int completed_lc = 0;
+    gasneti_suspend_spinpollers();
+    int imm = gasnete_put_inner(node, dest, src, nbytes, flags,
+                                &initiated_lc, &completed_lc,
+                                GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
+    gasneti_resume_spinpollers();
+    gasneti_polluntil(initiated_lc == completed_lc);
+    if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GEX_EVENT_NO_OP);
     GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    flags &= ~GEX_FLAG_IMMEDIATE;
-    head_op = (gex_Event_t) eop;
-    dest = (char *) dest + head_len;
-    src  = (char *) src  + head_len;
-    nbytes = max_tail;
-  }
-
-  /* Non-blocking non-bulk put of "tail" portion */
-  tail_op = gasnete_eop_new(mythread);
-  gpd = gasnete_cntr_gpd(GASNETE_EOP_CNTRS(tail_op), flags GASNETC_DIDX_PASS);
-  if_pf (!gpd) goto out_immediate;
-  gasnetc_rdma_put_lc(node, dest, src, nbytes, gpd);
-  GASNETE_EOP_MARKDONE(tail_op); // TODO-EX: optimize away this extra atomic op under some conditions?
-
-  gasneti_resume_spinpollers();
-
-  /* Block for completion of head, if any */
-  gasnete_wait(head_op GASNETI_THREAD_PASS);
-
-  /* return the tail_op */
-  return (gex_Event_t)tail_op;
-
-out_immediate:
-  gasneti_resume_spinpollers();
-  gasnete_consume_eop(tail_op GASNETI_THREAD_PASS);
-  return GEX_EVENT_NO_OP;
+    return (gex_Event_t) eop;
 }
 
 GASNETI_INLINE(_gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
@@ -505,48 +524,18 @@ int _gasnete_put_nbi (
                      void *src, size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  gasnete_iop_t * const tail_op = mythread->current_iop;
-  gex_Event_t head_op = GEX_EVENT_INVALID;
-  const size_t max_tail = gasnetc_max_put_lc;
-  gasnetc_post_descriptor_t *gpd;
-  GASNETC_DIDX_POST(mythread->domain_idx);
-
-  gasneti_suspend_spinpollers();
-
-  /* Non-blocking bulk put of "head" portion */
-  if (nbytes > max_tail) {
-    const size_t head_len = nbytes - max_tail;
-    gasnete_eop_t * const eop = gasnete_eop_new(GASNETI_MYTHREAD);
-    int imm = gasnete_put_bulk_inner(node, dest, src, head_len, flags,
-                                     GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
-    if_pf (imm) {
-      gasnete_consume_eop(eop GASNETI_THREAD_PASS);
-      goto out_immediate;
-    }
-    GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
-    flags &= ~GEX_FLAG_IMMEDIATE;
-    head_op = (gex_Event_t) eop;
-    dest = (char *) dest + head_len;
-    src  = (char *) src  + head_len;
-    nbytes = max_tail;
-  }
-
-  /* Non-blocking non-bulk put of "tail" portion */
-  gpd = gasnete_cntr_gpd(GASNETE_IOP_CNTRS(tail_op, put), flags GASNETC_DIDX_PASS);
-  if_pf (!gpd) goto out_immediate;
-  gasnetc_rdma_put_lc(node, dest, src, nbytes, gpd);
-
-  gasneti_resume_spinpollers();
-
-  /* Block for completion of head, if any */
-  gasnete_wait(head_op GASNETI_THREAD_PASS);
-
-  return 0;
-
-out_immediate:
-  gasneti_resume_spinpollers();
-  return 1;
+    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasnete_iop_t * const iop = mythread->current_iop;
+    GASNETC_DIDX_POST(mythread->domain_idx);
+    unsigned int initiated_lc = 0;
+    volatile unsigned int completed_lc = 0;
+    gasneti_suspend_spinpollers();
+    int imm = gasnete_put_inner(node, dest, src, nbytes, flags,
+                                &initiated_lc, &completed_lc,
+                                GASNETE_IOP_CNTRS(iop, put) GASNETC_DIDX_PASS);
+    gasneti_resume_spinpollers();
+    gasneti_polluntil(initiated_lc == completed_lc);
+    return imm;
 }
 
 GASNETI_INLINE(_gasnete_put_nbi_bulk)
