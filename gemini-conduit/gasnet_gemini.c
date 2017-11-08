@@ -2274,7 +2274,7 @@ gasnetc_rdma_put_lc(gasnet_node_t node,
     } else {
        pd->length = nbytes = MIN(nbytes, gasnetc_put_bounce_register_cutover);
        gpd->flags |= GC_POST_UNBOUNCE;
-       buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS);
+       buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
     }
     pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
   #endif
@@ -2295,7 +2295,7 @@ gasnetc_rdma_put_lc(gasnet_node_t node,
           (!gasnetc_register_gpd(gpd, GNI_MEM_READ_ONLY) &&
           // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
            (pd->length = nbytes = gasnetc_put_bounce_register_cutover))) {
-        void * const buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS);
+        void * const buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
         gpd->flags |= GC_POST_UNBOUNCE;
         goto post_rdma;
