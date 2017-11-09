@@ -83,6 +83,11 @@
      */
     #define GASNETI_PGI_ASM_BUG2843 1
   #endif
+  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(17,0,0)
+    // C++ compiler generates code that is consistent with having lost the volatile
+    // qualifier from the integer member of the atomic type struct.
+    #define GASNETI_PGI_ASM_BUG3674 1
+  #endif
 #elif PLATFORM_COMPILER_SUN 
   #ifdef __cplusplus 
     #if PLATFORM_OS_LINUX
