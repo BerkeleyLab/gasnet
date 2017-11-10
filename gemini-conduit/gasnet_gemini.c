@@ -1546,7 +1546,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
         req_len = req_len ? req_len : 1; /* request never allocates zero */
         break;
       case GC_CMD_AM_MEDIUM: {
-        if_pt (0 != gasnetc_am_nbytes(notify)) {
+        if_pt (0 == gasnetc_am_nbytes(notify)) {
           /* We can reuse the Request buffer, since the Medium had no payload */
           /* TODO: also safe for "TAIL_REPLY" when implemented */
           req_len = GASNETC_HEADLEN(medium, numargs);
