@@ -109,6 +109,12 @@ rtlibs: force
 	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
 	) $(TO_LOG)
 .PHONY: rtlibs
+
+_legion_clean: force
+	( echo ======== Cleaning Legion RT libs via $(SEED_DIR) ========; \
+	  $(DO_MAKE) -C $(SEED_DIR) clean \
+	) $(TO_LOG)
+.PHONY: _legion_clean
 	
 _legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
@@ -142,6 +148,9 @@ one_test: legion-built
 	) $(TO_LOG)
 	$(DO_MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)
 	mv $(LEGION_BLDDIR)/$(TEST_DIR)/$(TEST_EXE) .
+	( cd $(LEGION_BLDDIR)/$(TEST_DIR) &&               \
+          rm -f $(TEST_EXE).o $(RUNTIME_TARGETS) || exit 0 \
+	) $(TO_LOG)
 
 # examples/:
 EXAMPLES = circuit dynamic_registration ghost ghost_pull realm_saxpy spmd_cgsolver virtual_map 
