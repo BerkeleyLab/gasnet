@@ -114,6 +114,7 @@ _legion_clean: force
 	( echo ======== Cleaning Legion RT libs via $(SEED_DIR) ========; \
 	  $(DO_MAKE) -C $(SEED_DIR) clean \
 	) $(TO_LOG)
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
 .PHONY: _legion_clean
 	
 _legion: force
