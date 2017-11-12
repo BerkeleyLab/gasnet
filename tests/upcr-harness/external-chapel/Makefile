@@ -114,6 +114,12 @@ _chapel: force
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
 
+_chapel_clean: force
+	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
+	    $(MAKE) $(CHAPEL_MAKE_ARGS) clean >> $(LOGFILE) 2>&1
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
 # Not reliable other than on UDP, and wants to *run* the test
 check: chapel-built
 	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
