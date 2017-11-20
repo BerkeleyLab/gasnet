@@ -57,11 +57,6 @@
     // C++ compiler fails with certain asm constructs at -O2
     #define GASNETI_PGI_ASM_TPR24514 1
   #endif
-  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(17,0,0)
-    // C++ compiler generates code that is consistent with having lost the volatile
-    // qualifier from the integer member of the atomic type struct.
-    #define GASNETI_PGI_ASM_BUG3674 1
-  #endif
 #elif PLATFORM_COMPILER_PGI /* x86 and x86-64 */
   #define GASNETI_HAVE_GCC_ASM 1
   #if PLATFORM_COMPILER_VERSION_LT(7,2,5)
