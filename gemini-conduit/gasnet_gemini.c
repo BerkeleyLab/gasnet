@@ -2065,11 +2065,21 @@ again:
         // TODO-EX: Could handle GC_POST_UNREGISTER here, earlier than the GLOBAL_EVENT.
         // However, that would probably require dropping the lock.
         gasneti_assert(gpd->pd.type == GNI_POST_RDMA_PUT);
-        gasneti_assert(gpd->pd.cq_mode == (GNI_CQMODE_LOCAL_EVENT | GNI_CQMODE_GLOBAL_EVENT));
         gasneti_assert(gpd->gpd_put_lc);
 
-        * (volatile unsigned int *) gpd->gpd_put_lc += 1; // count the event
-        gpd->pd.cq_mode = GNI_CQMODE_GLOBAL_EVENT; // disambiguate the following global event
+        const uint32_t gpd_flags = gpd->gpd_flags;
+        if (gpd_flags & GC_POST_LC_NOW) {
+          * (volatile gasneti_weakatomic_val_t *) gpd->gpd_put_lc += 1;
+        } else if (gpd_flags & GC_POST_COMPLETION_EOP) {
+          GASNETC_EOP_CNT_FINISH((gasnete_eop_t *) gpd->gpd_put_lc, alc);
+        } else {
+          gasneti_assert(gpd_flags & GC_POST_COMPLETION_IPUT);
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_put_lc, alc, 1, 0);
+        }
+
+        // disambiguate the following global event
+        gasneti_assert(gpd->pd.cq_mode == (GNI_CQMODE_LOCAL_EVENT | GNI_CQMODE_GLOBAL_EVENT));
+        gpd->pd.cq_mode = GNI_CQMODE_GLOBAL_EVENT;
 
         goto again; // LC is so cheap that we don't count it against gasnetc_poll_burst
       }
@@ -2328,7 +2338,7 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 size_t
 gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, unsigned int *initiated_lc,
+		 size_t nbytes, gasneti_weakatomic_val_t *initiated_lc,
                  gasnetc_post_descriptor_t *gpd)
 {
   GASNETC_DIDX_POST(gpd->domain_idx);

@@ -262,6 +262,8 @@ enum {
   _gc_post_completion_iput,
   _gc_post_completion_iget,
   _gc_post_completion_send,
+  /* local-completion variation(s) */
+  _gc_post_lc_now,
   /* optionally suppress free of the gpd */
   _gc_post_keep_gpd,
 };
@@ -278,6 +280,7 @@ enum {
 #define GC_POST_COMPLETION_IPUT GC_POST(completion_iput)
 #define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
 #define GC_POST_COMPLETION_SEND GC_POST(completion_send)
+#define GC_POST_LC_NOW          GC_POST(lc_now)
 #define GC_POST_KEEP_GPD        GC_POST(keep_gpd)
 
 #define GC_POST_COMPLETION_MASK (GC_POST_COMPLETION_FLAG | \
@@ -350,7 +353,7 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 
 size_t gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, unsigned int *initiated_lc,
+		 size_t nbytes, gasneti_weakatomic_val_t *initiated_lc,
 		 gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
 void gasnetc_rdma_put_buff(gex_Rank_t node,
