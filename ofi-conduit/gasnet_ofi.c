@@ -1398,9 +1398,8 @@ int gasnetc_rdma_put_non_bulk(gasnet_node_t dest, void* dest_addr, void* src_add
     /* Bounce buffers are needed */
     else if (nbytes <= gasnetc_ofi_bbuf_threshold) {
         uintptr_t dest_ptr = (uintptr_t)dest_addr;
-        int num_bufs_needed = nbytes / ofi_bbuf_size;
+        int num_bufs_needed = (nbytes + ofi_bbuf_size - 1) / ofi_bbuf_size;
         size_t bytes_to_copy;
-        if(num_bufs_needed == 0) num_bufs_needed = 1;
         gasnetc_ofi_bounce_buf_t* buffs[OFI_MAX_NUM_BOUNCE_BUFFERS];
 
         /* If there are not enough bounce buffers available, simply block as
@@ -1418,6 +1417,7 @@ int gasnetc_rdma_put_non_bulk(gasnet_node_t dest, void* dest_addr, void* src_add
 
         while (num_bufs_needed > 0) {
             bytes_to_copy = num_bufs_needed != 1 ? ofi_bbuf_size : nbytes;
+            gasneti_assert(bytes_to_copy <= ofi_bbuf_size);
             buf_container = buffs[i];
             gasneti_lifo_push(&bbuf_ctxt->bbuf_list, buf_container);
             memcpy(buf_container->buf, (void*)src_ptr, bytes_to_copy);
