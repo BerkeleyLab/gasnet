@@ -132,22 +132,15 @@ upcxx-unpack-tgz:   force
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
-	@set -x; \
-	if test $(UPCXX_CONDUIT) = smp; then \
-	  echo '#!/bin/sh' > $@ ; \
-	  echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
-	  chmod +x $@; \
-	elif test -d "$(UPCXX_LAUNCHERS)"/bin; then \
-	  case $(UPCXX_CONDUIT) in \
-	  udp) ln -s "$(UPCXX_LAUNCHERS)"/bin/amudprun $@;; \
-	    *) ln -s "$(UPCXX_LAUNCHERS)"/bin/gasnetrun_$(UPCXX_CONDUIT) $@;; \
-	  esac; \
-	else \
-	  case $(UPCXX_CONDUIT) in \
-	  udp) ln -s "$(UPCXX_LAUNCHERS)"/other/amudp/amudprun $@;; \
-	    *) ln -s "$(UPCXX_LAUNCHERS)"/$(strip $(UPCXX_CONDUIT))-conduit/contrib/gasnetrun_$(UPCXX_CONDUIT) $@;; \
-	  esac; \
-	fi
+	@UPCXXRUN=$(UPCXX_BLDDIR)/utils/upcxx-run ; \
+	 if test -f $$UPCXXRUN ; then set -x ; \
+	   rm -f $@ ; \
+	   echo '#!/bin/sh' > $@ ; \
+	   echo "exec env GASNET_PREFIX='$(UPCXX_LAUNCHERS)' $$UPCXXRUN"' "$$@"' >> $@ ; \
+	   chmod +x $@ ; \
+	 else \
+	   echo "ERROR: $$UPCXXRUN is missing" ; exit 1 ; \
+	 fi 
 
 _upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
@@ -181,14 +174,6 @@ _upcxx: force
 
 _upcxx-inst-SEQ:
 	$(MAKE) upcxx-inst-gasnet1_seq UPCXX_BACKEND=gasnet1_seq 2>&1 | tee -a $(LOGFILE)
-	@UPCXXRUN=$(UPCXX_BLDDIR)/utils/upcxx-run ; \
-	 if test -f $$UPCXXRUN ; then set -x ; \
-	   rm -f ./launcher ; \
-	   cp -f $$UPCXXRUN ./launcher ; \
-	   chmod +x ./launcher ; \
-	 else \
-	   echo "ERROR: $$UPCXXRUN is missing" ; \
-	 fi 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 _upcxx-inst-PAR:
