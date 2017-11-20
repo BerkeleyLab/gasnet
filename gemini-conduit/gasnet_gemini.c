@@ -2062,6 +2062,8 @@ again:
 
       // Handle local events with lock still held
       if (gpd && (gpd->pd.cq_mode & GNI_CQMODE_LOCAL_EVENT)) {
+        // TODO-EX: Could handle GC_POST_UNREGISTER here, earlier than the GLOBAL_EVENT.
+        // However, that would probably require dropping the lock.
         gasneti_assert(gpd->pd.type == GNI_POST_RDMA_PUT);
         gasneti_assert(gpd->pd.cq_mode == (GNI_CQMODE_LOCAL_EVENT | GNI_CQMODE_GLOBAL_EVENT));
         gasneti_assert(gpd->gpd_put_lc);
@@ -2357,6 +2359,13 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
     /* On Gemini (only) return from PostFma implies local completion. */
   #else
     /* Favor immediate buffer or bounce-buffers upto the FMA limit. */
+    // TODO-EX: when indication of LC is requested we are currently favoring a
+    // FMA+copy over the alternative in which LC is not signalled until RC.
+    // This gives synchronous LC up to the FMA/RDMA cutover (4K by default).
+    // While this does simplify the completion logic (by avoiding any LC
+    // signalling options when handling a GLOBAL_EVENT) it may not always
+    // be the best option - especially given that 4K memcpy() is not free.
+    // So, GEX_FLAG_LC_COPY_{YES,NO} eventually should be applied here.
     void * buffer;
     if (nbytes <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
        buffer = gpd->u.immediate;
