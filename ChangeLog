@@ -7,6 +7,9 @@ PENDING:
   - Fix bug 3632: aries-conduit SEGV at startup with multi-domain
   - Fix bug 3647: aries-conduit should honor non-default process layouts
 
+* Libfabric (ofi-conduit)
+  - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
+
 * GASNet tools
   - Numerous improvements to backtrace support, including fixing the
     following bugs:
