@@ -83,6 +83,13 @@
     // qualifier from the integer member of the atomic type struct.
     #define GASNETI_PGI_ASM_BUG3674 1
   #endif
+  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GT(17,4,0)
+    // C++ compiler generates code that promotes 8-bit asm output to
+    // 32-bits without clearing the other 24 bits.
+    // The work-around is the same as for an older (unrelated) bug 1754.
+    // Present in 17.10 and not in 17.4, but uncertain about in between.
+    #define GASNETI_PGI_ASM_BUG1754 1
+  #endif
 #elif PLATFORM_COMPILER_SUN 
   #ifdef __cplusplus 
     #if PLATFORM_OS_LINUX
