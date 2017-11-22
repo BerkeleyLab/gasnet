@@ -201,6 +201,53 @@ extern void gasneti_check_config_preinit(void) {
   #undef CHECK_INT_DT
   #undef CHECK_FP_DT
 
+  #define _CHECK_OP(id, pred1, pred2, pred3) do { \
+      gasneti_assert_always(gasneti_op_atomic(id)); \
+      gasneti_assert_always(gasneti_op_int(id)); \
+      gasneti_assert_always(!!gasneti_op_0arg(id) + \
+                            !!gasneti_op_1arg(id) + \
+                            !!gasneti_op_2arg(id) == 1); \
+      gasneti_assert_always(gasneti_op_##pred1(id)); \
+      gasneti_assert_always(gasneti_op_##pred2(id)); \
+      gasneti_assert_always(gasneti_op_##pred3(id)); \
+    } while (0)
+  #define CHECK_ARITH_OP(stem, reduce_pred, fp_pred) do { \
+      gasneti_assert_always(!gasneti_op_fetch(GEX_OP_##stem)); \
+      _CHECK_OP(GEX_OP_##stem, reduce_pred, fp_pred, valid); \
+      gasneti_assert_always(gasneti_op_fetch(GEX_OP_F##stem)); \
+      _CHECK_OP(GEX_OP_F##stem, not_reduce, fp_pred, valid); \
+    } while (0)
+  #define CHECK_ACCESSOR(stem, pred) do { \
+      gasneti_assert_always(gasneti_op_valid(GEX_OP_##stem)); \
+      _CHECK_OP(GEX_OP_##stem, fp, not_reduce, pred); \
+    } while (0)
+  #define gasneti_op_not_reduce !gasneti_op_reduce
+  #define gasneti_op_not_fetch  !gasneti_op_fetch
+  #define gasneti_op_not_fp     !gasneti_op_fp
+
+  CHECK_ARITH_OP(AND,  reduce, not_fp);
+  CHECK_ARITH_OP(OR,   reduce, not_fp);
+  CHECK_ARITH_OP(XOR,  reduce, not_fp);
+  CHECK_ARITH_OP(ADD,  reduce,     fp);
+  CHECK_ARITH_OP(SUB,  reduce,     fp);
+  CHECK_ARITH_OP(MULT, reduce,     fp);
+  CHECK_ARITH_OP(MIN,  reduce,     fp);
+  CHECK_ARITH_OP(MAX,  reduce,     fp);
+  CHECK_ARITH_OP(INC,  not_reduce, fp);
+  CHECK_ARITH_OP(DEC,  not_reduce, fp);
+
+  CHECK_ACCESSOR(SET,   not_fetch);
+  CHECK_ACCESSOR(GET,   fetch);
+  CHECK_ACCESSOR(SWAP,  fetch);
+  CHECK_ACCESSOR(CSWAP, fetch);
+
+  #undef _CHECK_OP
+  #undef CHECK_ARITH_OP
+  #undef CHECK_ACCESSOR
+  #undef gasneti_op_not_reduce
+  #undef gasneti_op_not_fetch
+  #undef gasneti_op_not_fp
+
   #if WORDS_BIGENDIAN
     #if PLATFORM_ARCH_LITTLE_ENDIAN
       #error endianness disagreement: PLATFORM_ARCH_LITTLE_ENDIAN and WORDS_BIGENDIAN are both set

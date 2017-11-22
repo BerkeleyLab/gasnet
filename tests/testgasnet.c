@@ -716,6 +716,27 @@ void doit(int partner, int *partnerseg) {
     GEX_DT_FLT, GEX_DT_DBL
   };
 
+  assert_inttype(gex_OP_t);
+  static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
+    GEX_OP_AND,  GEX_OP_OR,   GEX_OP_XOR,
+    GEX_OP_ADD,  GEX_OP_SUB,  /*GEX_OP_MULT [UNIMPLEMENTED],*/
+    GEX_OP_MIN,  GEX_OP_MAX,
+    GEX_OP_INC,  GEX_OP_DEC,
+    GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
+    GEX_OP_FADD, GEX_OP_FSUB, /*GEX_OP_FMULT [UNIMPLEMENTED],*/
+    GEX_OP_FMIN, GEX_OP_FMAX,
+    GEX_OP_FINC, GEX_OP_FDEC,
+    GEX_OP_SET,  GEX_OP_GET,
+    GEX_OP_SWAP, GEX_OP_CSWAP
+  };
+  size_t const ops_cnt = sizeof(ops_arr)/sizeof(gex_OP_t);
+  gex_OP_t ops_acc = 0; // accumulator to test disjoint bits
+  for (size_t i = 0; i < ops_cnt; i++) {
+    assert_always(ops_arr[i] != 0);             // value is non-zero
+    assert_always((ops_arr[i] & ops_acc) == 0); // value is bitwise disjoint
+    ops_acc |= ops_arr[i];
+  }
+
   #define typeissigned   <
   #define typeisunsigned >
   #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \

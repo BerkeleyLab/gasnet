@@ -567,6 +567,50 @@ typedef uintptr_t gex_RMA_Value_t;
   #define GEX_DT_DBL   _GEX_MAKE_DT(DBL)
 #endif
 
+#ifndef _GEX_OP_T
+#define _GEX_OP_T
+  // Use an enum to allocate distinct integer index for each op
+  typedef enum { // TODO: Is there value to reserving index 0?
+    gasneti_op_idx_AND,  gasneti_op_idx_OR,   gasneti_op_idx_XOR,
+    gasneti_op_idx_ADD,  gasneti_op_idx_SUB,  gasneti_op_idx_MULT,
+    gasneti_op_idx_MIN,  gasneti_op_idx_MAX,
+    gasneti_op_idx_INC,  gasneti_op_idx_DEC,
+    gasneti_op_idx_FAND, gasneti_op_idx_FOR,  gasneti_op_idx_FXOR,
+    gasneti_op_idx_FADD, gasneti_op_idx_FSUB, gasneti_op_idx_FMULT,
+    gasneti_op_idx_FMIN, gasneti_op_idx_FMAX,
+    gasneti_op_idx_FINC, gasneti_op_idx_FDEC,
+    gasneti_op_idx_SET,  gasneti_op_idx_GET,
+    gasneti_op_idx_SWAP, gasneti_op_idx_CSWAP
+  } gasneti_op_idx_t;
+  // Use those indicies to define constants with a single bit each
+  typedef uint32_t gex_OP_t;
+  #define _GEX_MAKE_OP(opcode) ((gex_OP_t)1 << gasneti_op_idx_##opcode)
+  #define GEX_OP_AND   _GEX_MAKE_OP(AND)
+  #define GEX_OP_OR    _GEX_MAKE_OP(OR)
+  #define GEX_OP_XOR   _GEX_MAKE_OP(XOR)
+  #define GEX_OP_ADD   _GEX_MAKE_OP(ADD)
+  #define GEX_OP_SUB   _GEX_MAKE_OP(SUB)
+  #define GEX_OP_MULT  _GEX_MAKE_OP(MULT)
+  #define GEX_OP_MIN   _GEX_MAKE_OP(MIN)
+  #define GEX_OP_MAX   _GEX_MAKE_OP(MAX)
+  #define GEX_OP_INC   _GEX_MAKE_OP(INC)
+  #define GEX_OP_DEC   _GEX_MAKE_OP(DEC)
+  #define GEX_OP_FAND  _GEX_MAKE_OP(FAND)
+  #define GEX_OP_FOR   _GEX_MAKE_OP(FOR)
+  #define GEX_OP_FXOR  _GEX_MAKE_OP(FXOR)
+  #define GEX_OP_FADD  _GEX_MAKE_OP(FADD)
+  #define GEX_OP_FSUB  _GEX_MAKE_OP(FSUB)
+  #define GEX_OP_FMULT _GEX_MAKE_OP(FMULT)
+  #define GEX_OP_FMIN  _GEX_MAKE_OP(FMIN)
+  #define GEX_OP_FMAX  _GEX_MAKE_OP(FMAX)
+  #define GEX_OP_FINC  _GEX_MAKE_OP(FINC)
+  #define GEX_OP_FDEC  _GEX_MAKE_OP(FDEC)
+  #define GEX_OP_SET   _GEX_MAKE_OP(SET)
+  #define GEX_OP_GET   _GEX_MAKE_OP(GET)
+  #define GEX_OP_SWAP  _GEX_MAKE_OP(SWAP)
+  #define GEX_OP_CSWAP _GEX_MAKE_OP(CSWAP)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* Active Message Source Descriptor */
 

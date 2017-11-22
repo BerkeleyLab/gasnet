@@ -1349,4 +1349,77 @@ int  gex_HSL_Trylock(gex_HSL_t *hsl);
 typedef [some integer type] gex_DT_t;
 #define GEX_DT_??? ((gex_DT_t)???) // For each GEX_DT_* above
 
+//
+// Operation codes for atomics and reductions
+//
+// GASNet-EX defines (as preprocess-time constants) at least the following
+// operation codes for use with atomic and reduction operations.  Not all
+// operations are valid in all contexts, as indicated below.
+// See documentation for the atomic and reduction operations for more details.
+//
+// The following apply to the operation definitions which follow:
+//   For atomics:
+//     op0 denotes the value at the target location prior to the operation
+//     op1 and op2 denote the value of the corresponding function arguments
+//     Fetching operations always return op0
+//   For reductions:
+//     op0 represents the "left" (first) reduction operand
+//     op1 represents the "right" (second) reduction operand
+//
+// + Non-fetching Operations
+//    - Binary Arithmetic Operations
+//      Valid for Atomics and Reductions
+//      Valid for all specified GEX_DT_* types
+//        GEX_OP_ADD   (op0 + op1)
+//        GEX_OP_SUB   (op0 - op1)
+//        GEX_OP_MULT  (op0 * op1) [UNIMPLEMENTED]
+//        GEX_OP_MIN   (op0 < op1) ? op0 : op1
+//        GEX_OP_MAX   (op0 > op1) ? op0 : op1
+//    - Unary Arithmetic Operations
+//      Valid only for Atomics
+//      Valid for all specified GEX_DT_* types
+//        GEX_OP_INC   (op0 + 1)
+//        GEX_OP_DEC   (op0 - 1)
+//    - Bit-wise Operations
+//      Valid for Atomics and Reductions
+//      Valid only for Integer types
+//        GEX_OP_AND   (op0 & op1)
+//        GEX_OP_OR    (op0 | op1)
+//        GEX_OP_XOR   (op0 ^ op1)
+// + Fetching Operations
+//   Valid only for Atomics
+//   Each GEX_OP_Fxxx performs the same operation as GEX_OP_xxx, above,
+//   and is valid for the same types.
+//   Additionally these operations fetch op0 as the result of the atomic.
+//    - Binary Arithmetic Operations
+//        GEX_OP_FADD
+//        GEX_OP_FSUB
+//        GEX_OP_FMULT [UNIMPLEMENTED]
+//        GEX_OP_FMIN
+//        GEX_OP_FMAX
+//    - Unary Arithmetic Operations
+//        GEX_OP_FINC
+//        GEX_OP_FDEC
+//    - Bit-wise Operations
+//        GEX_OP_FAND
+//        GEX_OP_FOR
+//        GEX_OP_FXOR
+// + Accessor Operations
+//   Valid only for Atomics
+//   Valid for all specified GEX_DT_* types
+//    - Non-fetching Accessor
+//        GEX_OP_SET   Writes op1 to target location.
+//    - Fetching Accessors
+//        GEX_OP_GET   Does not modify target location.
+//        GEX_OP_SWAP  Writes op1 to target location.
+//        GEX_OP_CSWAP Writes op2 to target location if and only if (op0 == op1),
+//                     and is guaranteed to be free of spurious failures as from
+//                     cache events.
+//
+// It is guaranteed that all GEX_OP_* values can be combined via bit-wise OR without
+// loss of information.
+
+typedef [some integer type] gex_OP_t;
+#define GEX_OP_??? ((gex_OP_t)???) // For each GEX_OP_* above
+
 // vim: syntax=c
