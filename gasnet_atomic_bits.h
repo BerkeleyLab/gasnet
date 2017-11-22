@@ -445,7 +445,11 @@
 	          : "=m" (v->ctr), "=qm" (retval)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
+	#if GASNETI_PGI_ASM_BUG1754
+          return retval & 0xFF;
+	#else
           return retval;
+	#endif
       }
       #define _gasneti_atomic32_decrement_and_test _gasneti_atomic32_decrement_and_test
 
@@ -465,7 +469,11 @@
 	#endif
 		: "r" (newval), "m" (v->ctr), "a" (oldval)
 		: "cc" GASNETI_ATOMIC_MEM_CLOBBER);
+	#if GASNETI_PGI_ASM_BUG1754
+          return retval & 0xFF;
+	#else
           return retval;
+	#endif
       }
       #define _gasneti_atomic32_compare_and_swap _gasneti_atomic32_compare_and_swap
 
@@ -538,7 +546,11 @@
 		    : "=q" (retval), "=m" (p->ctr), "=a" (readval)
 		    : "r" (newval), "m" (p->ctr), "a" (oldval)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
+	  #if GASNETI_PGI_ASM_BUG1754
+            return retval & 0xFF;
+	  #else
             return retval;
+	  #endif
           }
           #define _gasneti_atomic64_compare_and_swap _gasneti_atomic64_compare_and_swap
           GASNETI_INLINE(_gasneti_atomic64_swap)
@@ -819,7 +831,11 @@
 		: "=q" (retval), "=m" (*p), "+&a" (oldlo), "+&d" (oldhi)
 		: "b" (newlo), "c" (newhi)
 		: "cc", "memory");
+	  #if GASNETI_PGI_ASM_BUG1754
+	    return retval & 0xFF;
+	  #else
 	    return retval;
+	  #endif
 	}
 	#define gasneti_atomic128_compare_and_swap gasneti_atomic128_compare_and_swap
 
