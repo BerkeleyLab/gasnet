@@ -543,6 +543,30 @@ typedef uintptr_t gex_RMA_Value_t;
   } gasnet_memvec_t;
 #endif
 
+#ifndef _GEX_DT_T
+#define _GEX_DT_T
+  // Use an enum to allocate distinct integer index for each value
+  typedef enum { // TODO: Is there value to reserving index 0?
+    gasneti_dt_idx_I32,
+    gasneti_dt_idx_U32,
+    gasneti_dt_idx_I64,
+    gasneti_dt_idx_U64,
+    gasneti_dt_idx_FLT,
+    gasneti_dt_idx_DBL
+  } gasneti_dt_idx_t;
+  // Use those indicies to define constants with a single bit each
+  typedef uint32_t gex_DT_t;
+  #define _GEX_MAKE_DT(idx) ((gex_DT_t)1 << gasneti_dt_idx_##idx)
+  // Integer types:
+  #define GEX_DT_I32   _GEX_MAKE_DT(I32)
+  #define GEX_DT_U32   _GEX_MAKE_DT(U32)
+  #define GEX_DT_I64   _GEX_MAKE_DT(I64)
+  #define GEX_DT_U64   _GEX_MAKE_DT(U64)
+  // Floating-point types:
+  #define GEX_DT_FLT   _GEX_MAKE_DT(FLT)
+  #define GEX_DT_DBL   _GEX_MAKE_DT(DBL)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* Active Message Source Descriptor */
 

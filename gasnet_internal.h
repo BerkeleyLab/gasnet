@@ -362,6 +362,55 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 #define gasneti_THUNK_SEGMENT gasneti_export_segment(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment)
 
 /* ------------------------------------------------------------------------------------ */
+// Internal helpers for data types (like ctypes)
+
+// Masks (disjoint pairs):
+
+#define _GEX_DT_4BYTE  (GEX_DT_I32 | GEX_DT_U32 | GEX_DT_FLT)
+#define _GEX_DT_8BYTE  (GEX_DT_I64 | GEX_DT_U64 | GEX_DT_DBL)
+
+#define _GEX_DT_INT (GEX_DT_I32 | GEX_DT_U32 | GEX_DT_I64 | GEX_DT_U64)
+#define _GEX_DT_FP  (GEX_DT_FLT | GEX_DT_DBL)
+
+#define _GEX_DT_SIGNED    (GEX_DT_I32 | GEX_DT_I64)
+#define _GEX_DT_UNSIGNED  (GEX_DT_U32 | GEX_DT_U64)
+
+// Union of all:
+
+#define _GEX_DT_VALID  (_GEX_DT_INT | _GEX_DT_FP)
+
+// Predicates:
+
+// Is the argument a *single* valid data type?
+GASNETI_INLINE(gasneti_dt_valid) GASNETI_PURE
+int gasneti_dt_valid(gex_DT_t dt) {
+  return (((dt) & _GEX_DT_VALID) && GASNETI_POWEROFTWO(dt));
+}
+
+// Is the argument a (possibly empty) mask consisting of only valid data types?
+#define gasneti_dt_valid_mask(dts) (!((dts) & ~_GEX_DT_VALID))
+
+#define gasneti_dt_int(dt)    ((dt) & _GEX_DT_INT)
+#define gasneti_dt_fp(dt)     ((dt) & _GEX_DT_FP)
+
+#define gasneti_dt_signed(dt)   ((dt) & _GEX_DT_SIGNED)
+#define gasneti_dt_unsigned(dt) ((dt) & _GEX_DT_UNSIGNED)
+
+#define gasneti_dt_4byte(dt) ((dt) & _GEX_DT_4BYTE)
+#define gasneti_dt_8byte(dt) ((dt) & _GEX_DT_8BYTE)
+
+// Query:
+
+// What is the size of the type?
+// TODO: might be made cheaper by encoding size into the GEX_DT_* constants
+GASNETI_INLINE(gasneti_dt_size) GASNETI_PURE
+size_t gasneti_dt_size(gex_DT_t dt) {
+  gasneti_assert(!gasneti_dt_4byte(dt) ^ !gasneti_dt_8byte(dt));
+  return (size_t) (gasneti_dt_4byte(dt) ? 4 : 8);
+}
+
+
+/* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
 
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);

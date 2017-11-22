@@ -1323,4 +1323,30 @@ void gex_HSL_Lock   (gex_HSL_t *hsl);
 void gex_HSL_Unlock (gex_HSL_t *hsl);
 int  gex_HSL_Trylock(gex_HSL_t *hsl);
 
+
+//
+// Data types for atomics and reductions
+//
+// Note that GASNet-EX supports signed and unsigned exact-width integer types.
+// Any mapping to types such as 'int', 'long' and 'long long' is the
+// responsibility of the client.
+//
+// GASNet-EX defines (as preprocess-time constants) at least the following
+// data types codes for use with atomic and reduction operations.
+//
+//   Integer types:
+//     GEX_DT_I32  =>  int32_t
+//     GEX_DT_U32  =>  uint32_t
+//     GEX_DT_I64  =>  int64_t
+//     GEX_DT_U64  =>  uint64_t
+//   Floating-point types:
+//     GEX_DT_FLT  =>  float
+//     GEX_DT_DBL  =>  double
+//
+// It is guaranteed that all GEX_DT_* values can be combined via bit-wise OR
+// without loss of information.
+
+typedef [some integer type] gex_DT_t;
+#define GEX_DT_??? ((gex_DT_t)???) // For each GEX_DT_* above
+
 // vim: syntax=c

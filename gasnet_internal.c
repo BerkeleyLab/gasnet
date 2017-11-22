@@ -173,6 +173,34 @@ extern void gasneti_check_config_preinit(void) {
 
   gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
 
+  #define CHECK_DT(id, type) do { \
+      gasneti_assert_always(gasneti_dt_valid(id)); \
+      gasneti_assert_always(gasneti_dt_size(id) == sizeof(type)); \
+      gasneti_assert_always(!!gasneti_dt_int(id) == !gasneti_dt_fp(id)); \
+    } while (0)
+  #define CHECK_INT_DT(id, type, sign) do { \
+      CHECK_DT(id, type); \
+      gasneti_assert_always(gasneti_dt_int(id)); \
+      gasneti_assert_always(gasneti_dt_##sign(id)); \
+      gasneti_assert_always(!!gasneti_dt_signed(id) == !gasneti_dt_unsigned(id)); \
+    } while (0)
+  #define CHECK_FP_DT(id, type) do { \
+      CHECK_DT(id, type); \
+      gasneti_assert_always(gasneti_dt_fp(id)); \
+    } while (0)
+
+  CHECK_INT_DT(GEX_DT_I32,  int32_t,   signed);
+  CHECK_INT_DT(GEX_DT_U32, uint32_t, unsigned);
+  CHECK_INT_DT(GEX_DT_I64,  int64_t,   signed);
+  CHECK_INT_DT(GEX_DT_U64, uint64_t, unsigned);
+
+  CHECK_FP_DT(GEX_DT_FLT,  float);
+  CHECK_FP_DT(GEX_DT_DBL, double);
+
+  #undef CHECK_DT
+  #undef CHECK_INT_DT
+  #undef CHECK_FP_DT
+
   #if WORDS_BIGENDIAN
     #if PLATFORM_ARCH_LITTLE_ENDIAN
       #error endianness disagreement: PLATFORM_ARCH_LITTLE_ENDIAN and WORDS_BIGENDIAN are both set

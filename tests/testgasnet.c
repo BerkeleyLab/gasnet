@@ -709,6 +709,13 @@ void doit(int partner, int *partnerseg) {
   gex_AM_SrcDesc_t sd = 0;
   CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
 
+  assert_inttype(gex_DT_t);
+  static gex_DT_t const datatypes_arr[] = { // ensure all the specified values exist
+    GEX_DT_I32, GEX_DT_U32,
+    GEX_DT_I64, GEX_DT_U64,
+    GEX_DT_FLT, GEX_DT_DBL
+  };
+
   #define typeissigned   <
   #define typeisunsigned >
   #define assert_field_int(structtype, fieldtype, fieldname, signedop)  do { \
