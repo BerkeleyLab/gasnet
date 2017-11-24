@@ -432,6 +432,31 @@ void doit(int partner, int *partnerseg) {
 #endif
 
   {
+    gex_AD_t       ad;
+    gex_DT_t       domain_type  = GEX_DT_U32;
+    gex_OP_t       domain_ops   = GEX_OP_FADD|GEX_OP_SWAP;
+    gex_Flags_t    domain_flags = GEX_FLAG_DST_IN_BOUND_SEGMENT;
+    gex_AD_Create(&ad, myteam, domain_type, domain_ops, domain_flags);
+
+    if (myteam != gex_AD_QueryTM(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN TM TEST!!!!!");
+    }
+    if (domain_type != gex_AD_QueryDT(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN DATATYPE TEST!!!!!");
+    }
+    if (domain_ops != gex_AD_QueryOps(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN OPS TEST!!!!!");
+    }
+    if (domain_flags != gex_AD_QueryFlags(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN FLAGS TEST!!!!!");
+    }
+
+    TEST_CDATA(AD,ad);
+
+    // TODO: test destruction
+  }
+
+  {
     gex_NeighborhoodInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
     gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);

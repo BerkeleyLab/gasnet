@@ -55,4 +55,64 @@ void gasneti_free_ad(gasneti_AD_t ad)
   gasneti_free(ad);
 }
 
+void gasneti_AD_Create(
+        gex_AD_t                   *ad_p,
+        gex_TM_t                   tm,
+        gex_DT_t                   dt,
+        gex_OP_t                   ops,
+        gex_Flags_t                flags)
+{
+  gasneti_TM_t real_tm = gasneti_import_tm(tm);
+
+  // Argument validation is done here, rather than gasneti_alloc_ad(), to
+  // allow conduit-specific extensions (such as additional types or ops).
+  // However, this leaves a significant amount of code to be cloned into
+  // the conduit.
+  // TODO: refactor if/when we have a conduit-specific type or op?
+
+#if GASNET_DEBUG
+  // Verify that call is collective and single-valued
+  // TODO-EX: should use normal collectives and just a Gather.
+  // TODO-EX: needs to be scoped to proper team, of course.
+  {
+    struct {
+        gex_DT_t       dt;
+        gex_OP_t       ops;
+        gex_Flags_t    flags;
+    } myargs, *allargs;
+    allargs = gasneti_malloc(real_tm->_size * sizeof(myargs));
+    myargs.dt    = dt;
+    myargs.ops   = ops;
+    myargs.flags = flags;
+    gasneti_defaultExchange(&myargs, sizeof(myargs), allargs);
+    if (!real_tm->_rank) {
+      for (gex_Rank_t r = 0; r < real_tm->_size; ++r) {
+        gasneti_assert(allargs[r].dt    == dt);
+        gasneti_assert(allargs[r].ops   == ops);
+        gasneti_assert(allargs[r].flags == flags);
+      }
+    }
+    gasneti_free(allargs);
+    GASNETI_SAFE(gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED));
+  }
+
+  // Does the 'dt' arument name a single valid data type?
+  gasneti_assert(gasneti_dt_valid(dt));
+
+  // Does ops specify a non-empty set with ALL members valid for remote atomics on the data type?
+  gasneti_assert(ops); // Not empty
+  gasneti_assert(gasneti_op_atomic_mask(ops));
+  gasneti_assert(gasneti_op_fp_mask(ops)  || !gasneti_dt_fp(dt));
+  gasneti_assert(gasneti_op_int_mask(ops) || !gasneti_dt_int(dt));
+
+  // Verify we agree on the size of the FP type, if any
+  gasneti_assert((dt != GEX_DT_FLT) || sizeof(float) == 4);
+  gasneti_assert((dt != GEX_DT_DBL) || sizeof(double) == 8);
+#endif
+
+  gasneti_AD_t real_ad = gasneti_alloc_ad(real_tm, dt, ops, flags, 0);
+  *ad_p = gasneti_export_ad(real_ad);
+  return;
+}
+
 #endif // _GEX_AD_T

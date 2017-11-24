@@ -41,11 +41,11 @@ typedef struct gasneti_ad_t *gex_AD_t;
 // Collective creation of an atomic domain - default implementation
 #ifndef gex_AD_Create
   extern void gasneti_AD_Create(
-        gex_AD_t                   *ad_p,            // Output
-        gex_TM_t                   tm,               // The team
-        gex_DT_t                   dt,               // The data type
-        gex_OP_t                   ops,              // OR of operations to be supported
-        gex_Flags_t                flags             // flags
+        gex_AD_t                   *_ad_p,            // Output
+        gex_TM_t                   _tm,               // The team
+        gex_DT_t                   _dt,               // The data type
+        gex_OP_t                   _ops,              // OR of operations to be supported
+        gex_Flags_t                _flags             // flags
         );
   #define gex_AD_Create gasneti_AD_Create
 #endif
