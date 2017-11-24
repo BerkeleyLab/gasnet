@@ -1422,4 +1422,74 @@ typedef [some integer type] gex_DT_t;
 typedef [some integer type] gex_OP_t;
 #define GEX_OP_??? ((gex_OP_t)???) // For each GEX_OP_* above
 
+
+//----------------------------------------------------------------------
+//
+// Remote Atomic Operations
+// APIs in this section are provided by gasnet_ratomic.h
+//
+
+// TODO: Need text here to define atomic domain, etc.
+
+// Opaque type for Atomic Domain
+typedef ... gex_AD_t;
+
+// Create an Atomic Domain
+//
+// This call, collective over the 'tm' argument, creates an atomic domain for
+// the operations in the 'ops' argument performed on data type 'dt'.
+//
+// The 'ad_p' is an OUT parameter that receives a reference to the
+// newly created atomic domain.
+//
+// The 'dt' and 'ops' arguments define the type and operations.
+//  + 'dt' is a value of type gex_DT_t
+//  + 'ops' is a bitwise-OR of one or GEX_OP_* constants of type gex_OP_t.
+// If 'dt' and 'ops' do not define only valid combinations (as described in the
+// definitions of gex_OP_t), then the behavior is undefined.
+//
+// The 'flags' argument provides additional control over the created domain.
+//  + GEX_FLAG_AD_FAVOR_*: [UNIMPLEMENTED]
+//    Family of flags (still TBD) to influence the selection of implementation,
+//    for instance to favor performance of access by the process to which the data
+//    affinity vs access via the network (among other possibilities).
+//
+// The 'dt', 'ops' and 'flags' arguments must each be single-valued (or the
+// behavior is undefined.)
+//
+void gex_AD_Create(
+            gex_AD_t                   *ad_p,            // Output
+            gex_TM_t                   tm,               // The team
+            gex_DT_t                   dt,               // The data type
+            gex_OP_t                   ops,              // OR of operations
+            gex_Flags_t                flags);           // flags
+
+// Destroy an Atomic Domain
+//
+// This call destroys an atomic domain.
+//
+// Calls must be collective over the team used to create the atomic domain.
+// All atomic operations initiated on the atomic domain must be complete prior
+// to making this call (or the behavior is undefined).
+//
+// Though this function is collective, it does not guarantee barrier
+// synchronization.
+//
+void gex_AD_Destroy(gex_AD_t ad);
+
+//
+// Query operations on gex_AD_t
+//
+
+// Query the parameters passed when atomic domain was created
+gex_Flags_t  gex_AD_QueryFlags(gex_AD_t ad);
+gex_TM_t  gex_AD_QueryTM(gex_AD_t ad);
+gex_DT_t  gex_AD_QueryDT(gex_AD_t ad);
+gex_OP_t  gex_AD_QueryOps(gex_AD_t ad);
+
+// Client Data support for gex_AD_t
+// This field is NULL for a newly created AD.
+void  gex_AD_SetCData(gex_AD_t ad, const void *val);
+void* gex_AD_QueryCData(gex_AD_t ad);
+
 // vim: syntax=c
