@@ -294,7 +294,7 @@ struct gasneti_token_s;
 typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
-typedef struct gasneti_team_s *gex_TM_t;
+typedef struct gasneti_team_member_s *gex_TM_t;
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
