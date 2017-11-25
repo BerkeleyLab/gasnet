@@ -115,4 +115,20 @@ void gasneti_AD_Create(
   return;
 }
 
+void gasneti_AD_Destroy(gex_AD_t ad)
+{
+  gasneti_AD_t real_ad = gasneti_import_ad(ad);
+
+#if GASNET_DEBUG
+  // Try to verify that call is collective.
+  // TODO-EX: must be scoped to real_ad->_tm
+  GASNETI_SAFE(gasnet_barrier(0xcafef00d ^ __LINE__, 0));
+
+  // TODO: can/should we verify that there are no incompete ops?
+#endif
+
+  gasneti_free_ad(real_ad);
+  return;
+}
+
 #endif // _GEX_AD_T

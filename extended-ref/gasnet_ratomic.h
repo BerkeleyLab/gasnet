@@ -50,4 +50,10 @@ typedef struct gasneti_ad_t *gex_AD_t;
   #define gex_AD_Create gasneti_AD_Create
 #endif
 
+// Collective destruction of an atomic domain - default implementation
+#ifndef gex_AD_Destroy
+  extern void gasneti_AD_Destroy(gex_AD_t _ad);
+  #define gex_AD_Destroy gasneti_AD_Destroy
+#endif
+
 #endif

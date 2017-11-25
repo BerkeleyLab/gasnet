@@ -453,7 +453,7 @@ void doit(int partner, int *partnerseg) {
 
     TEST_CDATA(AD,ad);
 
-    // TODO: test destruction
+    gex_AD_Destroy(ad);
   }
 
   {
