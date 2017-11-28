@@ -528,6 +528,19 @@ void doit(int partner, int *partnerseg) {
     assert_always((type)(v-1) > v);              \
     test_static_assert((type)(-1) > (type)0);    \
   } while (0)
+  #define assert_unaliased(type, arr) do {      \
+    size_t const cnt = sizeof(arr)/sizeof(type); \
+    for (size_t i = 0; i < cnt; i++) {           \
+      type other = 0;                            \
+      for (size_t j = 0; j < cnt; j++) {         \
+        if (i != j) {                            \
+          other |= arr[j];                       \
+        }                                        \
+      }                                          \
+      /* arr[i] has at least one unique bit: */  \
+      assert_always((other | arr[i]) != other);  \
+    }                                            \
+  } while (0)
 
   /* sanity check macros and system types */
   assert_signed(int8_t);
@@ -701,22 +714,17 @@ void doit(int partner, int *partnerseg) {
   static gex_TI_t const ti_arr[] = { // all flags but _ALL
           GEX_TI_SRCRANK, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
       };
-  size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
   // in particular, each flag needs at least one unique bit
+  assert_unaliased(gex_TI_t, ti_arr);
+  // verify ALL includes them all:
+  size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
   gex_TI_t ti_some = 0;
   for (size_t i = 0; i < ti_cnt; i++) {
-    gex_TI_t ti_other = 0;
-    for (size_t j = 0; j < ti_cnt; j++) {
-      if (i != j) {
-        ti_other |= ti_arr[j];
-      }
-    }
-    assert_always((ti_other | ti_arr[i]) != ti_other); // ti_arr[i] has a unique bit
     ti_some |= ti_arr[i];
   }
-  assert_always((ti_some & ~ti_all) == 0); // verify ALL includes them all
+  assert_always((ti_some & ~ti_all) == 0);
 
   gex_RMA_Value_t val = 0;
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
@@ -740,6 +748,7 @@ void doit(int partner, int *partnerseg) {
     GEX_DT_I64, GEX_DT_U64,
     GEX_DT_FLT, GEX_DT_DBL
   };
+  assert_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
 
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
@@ -754,13 +763,7 @@ void doit(int partner, int *partnerseg) {
     GEX_OP_SET,  GEX_OP_GET,
     GEX_OP_SWAP, GEX_OP_CSWAP
   };
-  size_t const ops_cnt = sizeof(ops_arr)/sizeof(gex_OP_t);
-  gex_OP_t ops_acc = 0; // accumulator to test disjoint bits
-  for (size_t i = 0; i < ops_cnt; i++) {
-    assert_always(ops_arr[i] != 0);             // value is non-zero
-    assert_always((ops_arr[i] & ops_acc) == 0); // value is bitwise disjoint
-    ops_acc |= ops_arr[i];
-  }
+  assert_unaliased(gex_OP_t, ops_arr); // ensure alias-free
 
   #define typeissigned   <
   #define typeisunsigned >
