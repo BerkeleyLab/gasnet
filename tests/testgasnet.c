@@ -710,7 +710,7 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
   static gex_EC_t const ec_arr[] = { // all the flags but _ALL
-     GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC 
+     GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC, GEX_EC_RMW
   };
   assert_arr_nonzero(gex_EC_t, ec_arr); // No zero values
   assert_arr_all_val(gex_EC_t, ec_arr, ec_all); // ALL includes them all

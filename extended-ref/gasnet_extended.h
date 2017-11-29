@@ -276,6 +276,7 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
 #define GASNETI_EC_PUT (1U << 0)
 #define GASNETI_EC_ALC (1U << 1)
 #define GASNETI_EC_GET (1U << 2)
+#define GASNETI_EC_RMW (1U << 3)
 
 typedef unsigned int gex_EC_t;
 
@@ -290,6 +291,9 @@ typedef unsigned int gex_EC_t;
 #endif
 #ifndef GEX_EC_LC
   #define GEX_EC_LC   ((gex_EC_t)GASNETI_EC_ALC)
+#endif
+#ifndef GEX_EC_RMW
+  #define GEX_EC_RMW  ((gex_EC_t)GASNETI_EC_RMW)
 #endif
 #ifndef GEX_EC_ALL
   #define GEX_EC_ALL  (~(gex_EC_t)0)

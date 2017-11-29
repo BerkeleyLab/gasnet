@@ -1228,6 +1228,7 @@ typedef [some integer type] gex_EC_t;
 #define GEX_EC_PUT   ((gex_EC_t)???)
 #define GEX_EC_AM    ((gex_EC_t)???)
 #define GEX_EC_LC    ((gex_EC_t)???)
+#define GEX_EC_RMW   ((gex_EC_t)???)
 
 // Sync of specified subset of NBI operations
 // The 'event_mask' argument is bitwise-OR of GEX_EC_* constants
