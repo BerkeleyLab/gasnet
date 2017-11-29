@@ -639,6 +639,14 @@ void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t excha
    Conduits provide two opaque scalar types: gasneti_eop_t and gasneti_iop_t
    and the following manipulator functions
  */
+
+// TODO-EX: EOP_INTERFACE
+//   Must generalize these interfaces beyond just put/get
+//   At a minimum:
+//     IOP interfaces must support all the counters
+//     EOP interfaces must support LC
+//   However, EOP will likely need to support more subevents in the future
+
 #ifndef _GASNETI_EOP_T
 #define _GASNETI_EOP_T
 struct _gasneti_eop_S;

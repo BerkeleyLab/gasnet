@@ -202,6 +202,10 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define gasnete_event_check(h)  ((void)0)
 #endif
 
+// TODO-EX: EOP_INTERFACE
+//    To efficiently generalize beyond put/get, this enum will
+//    probably need to reflect the order of the counters in the iop
+//    (to compute addresses instead of dispatch via 'if' or 'switch').
 #if 1 // TODO-EX: do we want/need a mechanism for overriding these assignments?
   // gasnete_iop_event_* the event indexes for the named event in an iop
   enum {
@@ -416,6 +420,9 @@ int gasnete_iop_isdone(gasnete_iop_t *iop) {
 }
 
 /*  mark an op done - isget ignored for explicit ops */
+// TODO-EX: DEPRECATED
+//   Must replace the only remaining call (in gasnet_extended_amref.c)
+//   with something supporting all event categories.
 static
 void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
@@ -476,7 +483,7 @@ void gasnete_eop_free(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
   }
 }
 
-#endif // GASNETI_DISABLE_EOP_INTERFACE
+#endif // GASNETI_DISABLE_REFERENCE_EOP
 /* ------------------------------------------------------------------------------------ */
 
 #endif

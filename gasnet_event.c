@@ -196,6 +196,15 @@ void gasnete_iop_free(gasnete_iop_t *iop GASNETI_THREAD_FARG) {
 
 #if !GASNETI_DISABLE_EOP_INTERFACE
 
+// TODO-EX: EOP_INTERFACE
+//   Must generalize IOP to encompass LC, RMW and future Event Categories
+//     Anticipated implementation is to replace 'isget' with a member of the
+//     gasnete_iop_event_* enum, and to use it to compute the address of the
+//     initiated and completed counters.
+//   Must generalize EOP to encompass LC
+//     Initially we only have PUT and LC subevents, but the generalization
+//     should allow for more, and thus likely resembles the plan for IOP.
+
 gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE) {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   return (gasneti_eop_t *)op;
