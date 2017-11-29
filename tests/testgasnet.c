@@ -528,7 +528,7 @@ void doit(int partner, int *partnerseg) {
     assert_always((type)(v-1) > v);              \
     test_static_assert((type)(-1) > (type)0);    \
   } while (0)
-  #define assert_unaliased(type, arr) do {      \
+  #define assert_arr_unaliased(type, arr) do {   \
     size_t const cnt = sizeof(arr)/sizeof(type); \
     for (size_t i = 0; i < cnt; i++) {           \
       type other = 0;                            \
@@ -540,6 +540,20 @@ void doit(int partner, int *partnerseg) {
       /* arr[i] has at least one unique bit: */  \
       assert_always((other | arr[i]) != other);  \
     }                                            \
+  } while (0)
+  #define assert_arr_nonzero(type, arr) do {     \
+    size_t const cnt = sizeof(arr)/sizeof(type); \
+    for (size_t i = 0; i < cnt; i++) {           \
+      assert_always(arr[i] != 0);                \
+    }                                            \
+  } while (0)
+  #define assert_arr_all_val(type, arr, allval) do { \
+    size_t const cnt = sizeof(arr)/sizeof(type); \
+    type some = 0;                               \
+    for (size_t i = 0; i < cnt; i++) {           \
+      some |= arr[i];                            \
+    }                                            \
+    assert_always((some & ~allval) == 0);        \
   } while (0)
 
   /* sanity check macros and system types */
@@ -689,10 +703,7 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_AM_REPLY,
     GEX_FLAG_AM_REQREP,
   };
-  size_t const flags_cnt = sizeof(flags_arr)/sizeof(gex_Flags_t);
-  for (size_t i = 0; i < flags_cnt; i++) {
-    assert_always(flags_arr[i] != 0);
-  }
+  assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
   // TODO-EX: ensure lack of aliasing within groups of flags that are mutually exclusive (eg GEX_FLAG_*_SEG_*)
 
@@ -701,13 +712,8 @@ void doit(int partner, int *partnerseg) {
   static gex_EC_t const ec_arr[] = { // all the flags but _ALL
      GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC 
   };
-  size_t const ec_cnt = sizeof(ec_arr)/sizeof(gex_EC_t);
-  gex_EC_t ec_some = 0;
-  for (size_t i = 0; i < ec_cnt; i++) {
-    assert_always(ec_arr[i] != 0);
-    ec_some |= ec_arr[i];
-  }
-  assert_always((ec_some & ~ec_all) == 0); // verify ALL includes them all
+  assert_arr_nonzero(gex_EC_t, ec_arr); // No zero values
+  assert_arr_all_val(gex_EC_t, ec_arr, ec_all); // ALL includes them all
 
   assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
@@ -717,14 +723,8 @@ void doit(int partner, int *partnerseg) {
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
   // in particular, each flag needs at least one unique bit
-  assert_unaliased(gex_TI_t, ti_arr);
-  // verify ALL includes them all:
-  size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
-  gex_TI_t ti_some = 0;
-  for (size_t i = 0; i < ti_cnt; i++) {
-    ti_some |= ti_arr[i];
-  }
-  assert_always((ti_some & ~ti_all) == 0);
+  assert_arr_unaliased(gex_TI_t, ti_arr);
+  assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
 
   gex_RMA_Value_t val = 0;
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
@@ -748,7 +748,7 @@ void doit(int partner, int *partnerseg) {
     GEX_DT_I64, GEX_DT_U64,
     GEX_DT_FLT, GEX_DT_DBL
   };
-  assert_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
+  assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
 
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
@@ -763,7 +763,7 @@ void doit(int partner, int *partnerseg) {
     GEX_OP_SET,  GEX_OP_GET,
     GEX_OP_SWAP, GEX_OP_CSWAP
   };
-  assert_unaliased(gex_OP_t, ops_arr); // ensure alias-free
+  assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
 
   #define typeissigned   <
   #define typeisunsigned >
