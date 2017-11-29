@@ -432,6 +432,7 @@ void doit(int partner, int *partnerseg) {
   assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
 #endif
 
+#if !GASNET_CONDUIT_SMP
   {
     gex_AD_t       ad;
     gex_DT_t       domain_type  = GEX_DT_U32;
@@ -456,6 +457,7 @@ void doit(int partner, int *partnerseg) {
 
     gex_AD_Destroy(ad);
   }
+#endif
 
   {
     gex_NeighborhoodInfo_t *neighbor_array;
