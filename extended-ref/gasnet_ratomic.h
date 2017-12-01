@@ -1,15 +1,16 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet_ratomic.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_ratomic.h $
  * Description: GASNet Remote Atomics API Header
  * Copyright 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _IN_GASNETEX_H
-  #error This file is not meant to be included directly- clients should include gasnetex.h
-#endif
-
 #ifndef _GASNET_RATOMIC_H
 #define _GASNET_RATOMIC_H
+
+#include <gasnetex.h>
+
+GASNETI_BEGIN_EXTERNC
+GASNETI_BEGIN_NOWARN
 
 // gex_AD_t is an opaque scalar handle
 struct gasneti_ad_t;
@@ -55,5 +56,8 @@ typedef struct gasneti_ad_t *gex_AD_t;
   extern void gasneti_AD_Destroy(gex_AD_t _ad);
   #define gex_AD_Destroy gasneti_AD_Destroy
 #endif
+
+GASNETI_END_NOWARN
+GASNETI_END_EXTERNC
 
 #endif

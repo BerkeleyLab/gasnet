@@ -5,6 +5,7 @@
  */
 
 #include <gasnetex.h>
+#include <gasnet_ratomic.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */

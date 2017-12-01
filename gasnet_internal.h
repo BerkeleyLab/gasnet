@@ -345,17 +345,6 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        size_t alloc_size);
 void gasneti_free_tm(gasneti_TM_t tm);
 
-#define GASNETI_AD_MAGIC           GASNETI_MAKE_MAGIC('A','D','_','t')
-#define GASNETI_AD_BAD_MAGIC       GASNETI_MAKE_BAD_MAGIC('A','D','_','t')
-
-extern gasneti_AD_t gasneti_alloc_ad(
-                       gasneti_TM_t tm,
-                       gex_DT_t dt,
-                       gex_OP_t ops,
-                       gex_Flags_t flags,
-                       size_t alloc_size);
-void gasneti_free_ad(gasneti_AD_t ad);
-
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: Please remove this!
 //

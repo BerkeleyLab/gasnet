@@ -703,9 +703,6 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
 /* Main extended header */
 #include <gasnet_extended.h>
 
-/* Remote atomics */
-#include <gasnet_ratomic.h>
-
 #if GASNETI_THREADINFO_OPT
   #define GASNETI_TIOPT_CONFIG tiopt
 #else

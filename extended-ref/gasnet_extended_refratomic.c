@@ -7,6 +7,8 @@
 #include <gasnet_internal.h>
 
 
+#include <gasnet_ratomic_internal.h>
+
 #ifndef _GEX_AD_T
 
 #ifndef gasneti_import_ad
