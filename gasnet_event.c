@@ -233,6 +233,23 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   gasnete_iop_check(op);
 }
 
+// TODO-EX: EOP_INTERFACE
+//   These next two are a stop-gap pending proper generalization.
+
+gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  gasnete_iop_check(op);
+  op->initiated_rmw_cnt += noperations;
+  gasnete_iop_check(op);
+  return (gasneti_iop_t *)op;
+}
+void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations) {
+  gasnete_iop_t *op = (gasnete_iop_t *)iop;
+  GASNETE_IOP_CNT_FINISH(op, rmw, noperations, 0);
+  gasnete_iop_check(op);
+}
+
 #endif // GASNETI_DISABLE_EOP_INTERFACE
 
 /* ------------------------------------------------------------------------------------ */

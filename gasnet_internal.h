@@ -696,6 +696,16 @@ void gasneti_eop_markdone(gasneti_eop_t *eop);
    Caller is responsible for calling gasneti_sync_writes before calling this fn, if necessary
    AMSAFE: must be safe to call in AM context */
 void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget);
+
+// TODO-EX: EOP_INTERFACE
+//   These next two are a stop-gap measure pending proper generalization.
+
+/* registers in-flight remote atomic operation(s) ... */
+gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_FARG);
+
+/* marks in-flight remote atomic operation(s) as complete ... */
+void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations);
+
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
