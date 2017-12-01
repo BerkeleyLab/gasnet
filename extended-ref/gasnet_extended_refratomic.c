@@ -5,7 +5,6 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_ratomic_internal.h>
 #include <gasnet_extended_refratomic.h>
 
@@ -132,5 +131,48 @@ void gasneti_AD_Destroy(gex_AD_t ad)
   gasneti_free_ad(real_ad);
   return;
 }
+
+
+/*---------------------------------------------------------------------------------*/
+#if GASNET_DEBUG
+void gasnete_ratomic_validate(
+        gex_AD_t            ad,        void             *result_p,
+        gex_Rank_t          tgt_rank,  void             *tgt_addr,
+        gex_OP_t            opcode,    gex_DT_t         datatype,
+        gex_Flags_t         flags)
+{
+    gasneti_AD_t real_ad = gasneti_import_ad(ad);
+
+    // TODO: should print (at least numerical value of) invalid arguents
+
+    // Rank must be valid (redundant, but clearer than a later failure)
+    if (tgt_rank >= real_ad->_tm->_size) {
+      gasneti_fatalerror("gex_AD_Op*() called with invalid target rank");
+    }
+
+    // Datatype must match AD
+    if (datatype != real_ad->_dt) {
+      gasneti_fatalerror("gex_AD_Op*() called with data type not matching the AD");
+    }
+
+    // Opcode must be exactly 1 bit and valid for AD
+    if (! gasneti_op_valid(opcode)) {
+      gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode");
+    }
+    if (! (opcode & real_ad->_ops)) {
+      gasneti_fatalerror("gex_AD_Op*() called with an opcode not valid for the AD");
+    }
+
+    // Fetching ops must have non-NULL result_p
+    if (gasneti_op_fetch(opcode) && !result_p) {
+      gasneti_fatalerror("gex_AD_Op*() called with a fetching opcode, but result_p==NULL");
+    }
+
+    // Address must be in bound segment
+    // TODO: remove this restriction?
+    gasneti_boundscheck(gasneti_export_tm(real_ad->_tm), tgt_rank, tgt_addr, gasneti_dt_size(datatype));
+}
+#endif
+
 
 #endif // _GEX_AD_T

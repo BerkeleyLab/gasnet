@@ -57,6 +57,24 @@ typedef struct gasneti_ad_t *gex_AD_t;
   #define gex_AD_Destroy gasneti_AD_Destroy
 #endif
 
+
+/*---------------------------------------------------------------------------------*/
+//
+// Common logic for RAtomic implementatons
+//
+
+#ifndef _GEX_AD_T
+  #if GASNET_DEBUG
+    extern void gasnete_ratomic_validate(
+        gex_AD_t            _ad,        void             *_result_p,
+        gex_Rank_t          _tgt_rank,  void             *_tgt_addr,
+        gex_OP_t            _opcode,    gex_DT_t         _datatype,
+        gex_Flags_t         _flags);
+  #else
+    #define gasnete_ratomic_validate(ad,result_p,rank,addr,op,dt,flags) ((void)0)
+  #endif
+#endif
+
 GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
