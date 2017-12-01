@@ -154,6 +154,9 @@ static gex_AM_Entry_t const gasnete_handlers[] = {
   #ifdef GASNETE_AMREF_HANDLERS
     GASNETE_AMREF_HANDLERS()
   #endif
+  #ifdef GASNETE_AMRATOMIC_HANDLERS
+    GASNETE_AMRATOMIC_HANDLERS()
+  #endif
 
   /* ptr-width independent handlers */
 

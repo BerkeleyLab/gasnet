@@ -11,6 +11,19 @@
 // AM Handler Table entries
 //
 
-// ... coming soon ...
+/* conduits may override this to relocate the ref-ratomic handlers */
+#ifndef GASNETE_RATOMIC_HANDLER_BASE
+#define GASNETE_RATOMIC_HANDLER_BASE 98
+#endif
+
+#define _hidx_gasnete_amratomic_reqh  (GASNETE_RATOMIC_HANDLER_BASE+0)
+#define _hidx_gasnete_amratomic_reph  (GASNETE_RATOMIC_HANDLER_BASE+1)
+
+MEDIUM_HANDLER_DECL(gasnete_amratomic_reqh,3,5);
+MEDIUM_HANDLER_DECL(gasnete_amratomic_reph,1,2);
+
+#define GASNETE_AMRATOMIC_HANDLERS() \
+    gasneti_handler_tableentry_with_bits(gasnete_amratomic_reqh,3,5,REQUEST,MEDIUM,0),   \
+    gasneti_handler_tableentry_with_bits(gasnete_amratomic_reph,1,2,REPLY,MEDIUM,0),
 
 #endif
