@@ -354,7 +354,7 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 size_t gasnetc_rdma_put_lc(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasneti_weakatomic_val_t *initiated_lc,
-		 gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
+		 int last_eop_chunk, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
 void gasnetc_rdma_put_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,

@@ -37,33 +37,40 @@ extern gex_AM_Entry_t *gasnetc_handler;
   gasneti_weakatomic_val_t initiated_cnt; \
   gasneti_weakatomic_t     completed_cnt; \
   gasneti_weakatomic_val_t initiated_alc; \
-  gasneti_weakatomic_t     completed_alc;
+  gasneti_weakatomic_val_t completed_alc;
 
 #define GASNETE_EOP_ALLOC_EXTRA(_eop) do { \
     gasneti_weakatomic_set(&(_eop)->completed_cnt, 0 , 0); \
-    gasneti_weakatomic_set(&(_eop)->completed_alc, 0 , 0); \
+    (_eop)->completed_alc = 0; \
   } while (0)
 
 #if GASNET_DEBUG
-#define GASNETC_EOP_CNT_DONE(_eop,_field) \
-    (gasneti_weakatomic_read(&(_eop)->completed_##_field, 0) \
-        == ((_eop)->initiated_##_field & GASNETI_ATOMIC_MAX))
+#define GASNETC_EOP_CNT_DONE(_eop) \
+    (gasneti_weakatomic_read(&(_eop)->completed_cnt, 0) \
+        == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
+#define GASNETC_EOP_ALC_DONE(_eop) \
+    ((_eop)->completed_alc == (_eop)->initiated_alc)
 #endif
 
-#define GASNETC_EOP_CNT_FINISH(_eop,_field) do { \
-    gasneti_assert(!GASNETC_EOP_CNT_DONE(_eop,_field));                             \
-    gasneti_weakatomic_val_t _completed =                                           \
-        gasneti_weakatomic_add(&(_eop)->completed_##_field, 1, GASNETI_ATOMIC_ACQ); \
-    if (_completed == ((_eop)->initiated_##_field & GASNETI_ATOMIC_MAX)) {          \
-      SET_EVENT_DONE((_eop), _gasnetc_eop_event_##_field);                          \
-    }                                                                               \
+#define GASNETC_EOP_CNT_FINISH(_eop) do { \
+    gasneti_assert(!GASNETC_EOP_CNT_DONE(_eop));                               \
+    gasneti_weakatomic_val_t _completed =                                      \
+        gasneti_weakatomic_add(&(_eop)->completed_cnt, 1, GASNETI_ATOMIC_ACQ); \
+    if (_completed == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX)) {          \
+      GASNETE_EOP_MARKDONE(_eop);                                              \
+    }                                                                          \
   } while (0)
-#define _gasnetc_eop_event_cnt 0
-#define _gasnetc_eop_event_alc gasnete_eop_event_alc
+#define GASNETC_EOP_ALC_FINISH(_eop) do { \
+    gasneti_assert(!GASNETC_EOP_ALC_DONE(_eop));                               \
+    gasneti_weakatomic_val_t _completed = ((_eop)->completed_alc += 1);        \
+    if (_completed == (_eop)->initiated_alc) {                                 \
+      GASNETE_EOP_LC_FINISH(_eop);                                             \
+    }                                                                          \
+  } while (0)
 
 #define GASNETE_EOP_PREP_FREE_EXTRA(_eop) do { \
-    gasneti_assert(GASNETC_EOP_CNT_DONE(_eop,cnt)); \
-    gasneti_assert(GASNETC_EOP_CNT_DONE(_eop,alc)); \
+    gasneti_assert(GASNETC_EOP_CNT_DONE(_eop)); \
+    gasneti_assert(GASNETC_EOP_ALC_DONE(_eop)); \
   } while (0)
 
 #define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_PREP_FREE_EXTRA

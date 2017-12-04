@@ -151,7 +151,7 @@ GASNETI_INLINE(gasnete_consume_eop)
 void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
   // decrement the initiated counter rather than atomically increment the completed counter
   eop->initiated_cnt -= 1;
-  gasneti_assert(GASNETC_EOP_CNT_DONE(eop,cnt));
+  gasneti_assert(GASNETC_EOP_CNT_DONE(eop));
   SET_EVENT_DONE(eop, 0);
   gasnete_eop_free(eop GASNETI_THREAD_PASS);
 }
@@ -308,7 +308,7 @@ retry:
     if_pf (!gpd) goto out_immediate;
     gpd->gpd_put_lc = (uint64_t) lc_completion;
     flags &= ~GEX_FLAG_IMMEDIATE;
-    tmp = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, gpd);
+    tmp = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, 0, gpd);
     dest = (char *) dest + tmp;
     src  = (char *) src  + tmp;
     nbytes -= tmp;
@@ -321,13 +321,15 @@ retry:
   }
 
   gasneti_assert(nbytes);
+  const int is_eop = (gpd_flags & GC_POST_COMPLETION_EOP);
   do {
     const size_t xfer_len = MIN(nbytes, chunksz);
     gpd = gasnete_cntr_gpd(initiated_p, op, gpd_flags, flags GASNETC_DIDX_PASS);
     if_pf (!gpd) goto out_immediate;
     gpd->gpd_put_lc = (uint64_t) lc_completion;
     flags &= ~GEX_FLAG_IMMEDIATE;
-    chunksz = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, gpd);
+    int eop_last_chunk = is_eop && (nbytes == xfer_len);
+    chunksz = gasnetc_rdma_put_lc(node, dest, src, xfer_len, initiated_lc, eop_last_chunk, gpd);
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
     nbytes -= chunksz;
@@ -434,7 +436,7 @@ gex_Event_t gasnete_get_nb(
     }
     gasneti_resume_spinpollers();
     if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GEX_EVENT_NO_OP);
-    GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
+    GASNETC_EOP_CNT_FINISH(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     return (gex_Event_t) eop;
   }
 }
@@ -458,30 +460,19 @@ gex_Event_t gasnete_put_nb(
                                      GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
     if (imm) goto out_immediate;
   } else {
-    const gasneti_weakatomic_val_t start_alc = eop->initiated_alc;
-    gasneti_weakatomic_val_t my_initiated_lc = 0;
-    volatile gasneti_weakatomic_val_t my_completed_lc = 0;
-
-    gasneti_weakatomic_val_t *initiated_lc;
-    void *lc_completion;
-    uint32_t extra_flags = 0;
-
-    if (lc_opt == GEX_EVENT_NOW) {
-      initiated_lc = &my_initiated_lc;
-      lc_completion = (void *) &my_completed_lc;
-      extra_flags = GC_POST_LC_NOW;
-    } else if (gasneti_leaf_is_pointer(lc_opt)) {
-      initiated_lc = &eop->initiated_alc;
-      lc_completion = (void *) eop;
-      GASNETE_EOP_LC_START(eop);
-      eop->initiated_alc += 1;
-    } else {
+  #if GASNET_DEBUG
+    if ((lc_opt != GEX_EVENT_NOW) && !gasneti_leaf_is_pointer(lc_opt)) {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
     }
+  #endif
+
+    GASNETE_EOP_LC_START(eop);
+    const gasneti_weakatomic_val_t start_alc = eop->initiated_alc;
+    eop->initiated_alc += 1;
 
     int imm = gasnete_put_inner(rank, dest, src, nbytes, flags,
-                                initiated_lc, lc_completion,
-                                GASNETE_EOP_CNTRS(eop) | extra_flags
+                                &eop->initiated_alc, (void *)eop,
+                                GASNETE_EOP_CNTRS(eop)
                                 GASNETC_DIDX_PASS);
     if (imm) {
       eop->initiated_alc = start_alc;
@@ -489,27 +480,17 @@ gex_Event_t gasnete_put_nb(
     }
 
     if (lc_opt == GEX_EVENT_NOW) {
-      gasneti_polluntil(my_initiated_lc == my_completed_lc);
+      gasneti_polluntil(GASNETE_EOP_LC_DONE(eop));
     } else {
-      gasneti_assert(gasneti_leaf_is_pointer(lc_opt));
-      if (eop->initiated_alc == (start_alc + 1)) {
-        // Synchronous LC - reset the eop's LC state (non-atomic)
-        eop->initiated_alc = start_alc;
-        gasneti_assert(GASNETC_EOP_CNT_DONE(eop,alc));
-        GASNETE_EOP_LC_FINISH(eop);
-        *lc_opt = GEX_EVENT_INVALID;
-      } else {
-        GASNETC_EOP_CNT_FINISH(eop,alc); // TODO-EX: optimize away this extra atomic op under some conditions?
-        *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
-      }
+      *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
     }
   }
 
-  GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
+  GASNETC_EOP_CNT_FINISH(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
   return (gex_Event_t) eop;
 
 out_immediate:
-  gasneti_assert(GASNETC_EOP_CNT_DONE(eop,alc));
+  gasneti_assert(GASNETC_EOP_ALC_DONE(eop));
   gasnete_consume_eop(eop GASNETI_THREAD_PASS);
   return GEX_EVENT_NO_OP;
 }
@@ -577,14 +558,18 @@ int gasnete_put_nbi( gex_TM_t tm,
     uint32_t extra_flags = 0;
 
     if (lc_opt == GEX_EVENT_NOW) {
+      // Use a non-atomic counter and avoid over synchronizing
       initiated_lc = &my_initiated_lc;
       lc_completion = (void *) &my_completed_lc;
       extra_flags = GC_POST_LC_NOW;
-    } else if (lc_opt == GEX_EVENT_GROUP) {
+    } else {
+    #if GASNET_DEBUG
+      if (lc_opt != GEX_EVENT_GROUP) {
+        gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
+      }
+    #endif
       initiated_lc = &iop->initiated_alc_cnt;
       lc_completion = (void *) iop;
-    } else {
-      gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
     }
 
     imm = gasnete_put_inner(rank, dest, src, nbytes, flags,
@@ -651,7 +636,7 @@ extern gex_Event_t gasnete_put_nb_val(
     gpd->u.put_val = value;
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
-    GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
+    GASNETC_EOP_CNT_FINISH(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
     return((gex_Event_t) eop);
   }
 }
@@ -751,7 +736,7 @@ static gex_Event_t gasnete_fetchop_u64_nb(
   gpd->gpd_flags |= GC_POST_COPY_IMM;
   gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
   gasneti_resume_spinpollers();
-  GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
+  GASNETC_EOP_CNT_FINISH(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
 
   return (gex_Event_t) eop;
 }
