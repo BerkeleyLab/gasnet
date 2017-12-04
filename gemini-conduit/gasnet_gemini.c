@@ -2115,7 +2115,7 @@ again:
           gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
           break;
         case GC_POST_COMPLETION_EOP:
-          GASNETE_EOP_MARKDONE((gasnete_eop_t *) gpd->gpd_completion);
+          GASNETC_EOP_CNT_FINISH((gasnete_eop_t *) gpd->gpd_completion, cnt);
           break;
         case GC_POST_COMPLETION_IPUT:
           GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, put, 1, 0);

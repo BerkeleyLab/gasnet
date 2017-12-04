@@ -44,10 +44,6 @@ extern gex_AM_Entry_t *gasnetc_handler;
     gasneti_weakatomic_set(&(_eop)->completed_alc, 0 , 0); \
   } while (0)
 
-#define GASNETE_EOP_NEW_EXTRA(_eop) do { \
-    (_eop)->initiated_cnt++; \
-  } while (0)
-
 #if GASNET_DEBUG
 #define GASNETC_EOP_CNT_DONE(_eop,_field) \
     (gasneti_weakatomic_read(&(_eop)->completed_##_field, 0) \
@@ -64,8 +60,6 @@ extern gex_AM_Entry_t *gasnetc_handler;
   } while (0)
 #define _gasnetc_eop_event_cnt 0
 #define _gasnetc_eop_event_alc gasnete_eop_event_alc
-
-#define GASNETE_EOP_MARKDONE(_eop) GASNETC_EOP_CNT_FINISH(_eop,cnt)
 
 #define GASNETE_EOP_PREP_FREE_EXTRA(_eop) do { \
     gasneti_assert(GASNETC_EOP_CNT_DONE(_eop,cnt)); \

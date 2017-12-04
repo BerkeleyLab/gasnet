@@ -138,6 +138,14 @@ gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
   return gpd;
 }
 
+// Allocate an eop with the initiated_cnt pre-incremented
+GASNETI_INLINE(gasnete_eop_new_cnt)
+gasnete_eop_t *gasnete_eop_new_cnt(gasnete_threaddata_t * const thread) {
+  gasnete_eop_t *eop = gasnete_eop_new(thread);
+  eop->initiated_cnt++;
+  return eop;
+}
+
 // Free a never-used eop
 GASNETI_INLINE(gasnete_consume_eop)
 void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
@@ -414,7 +422,7 @@ gex_Event_t gasnete_get_nb(
   {
     int imm;
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-    gasnete_eop_t *eop = gasnete_eop_new(mythread);
+    gasnete_eop_t *eop = gasnete_eop_new_cnt(mythread);
     GASNETC_DIDX_POST(mythread->domain_idx);
     gasneti_suspend_spinpollers();
     if_pf (GASNETE_GET_IS_UNALIGNED(nbytes, src, dest)) {
@@ -426,7 +434,7 @@ gex_Event_t gasnete_get_nb(
     }
     gasneti_resume_spinpollers();
     if_pf (imm) return (gasnete_consume_eop(eop GASNETI_THREAD_PASS), GEX_EVENT_NO_OP);
-    GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
+    GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
     return (gex_Event_t) eop;
   }
 }
@@ -442,7 +450,7 @@ gex_Event_t gasnete_put_nb(
   GASNETI_CHECKPSHM_PUT(H);
 
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-  gasnete_eop_t *eop = gasnete_eop_new(mythread);
+  gasnete_eop_t *eop = gasnete_eop_new_cnt(mythread);
   GASNETC_DIDX_POST(mythread->domain_idx);
 
   if (lc_opt == GEX_EVENT_DEFER) {
@@ -497,7 +505,7 @@ gex_Event_t gasnete_put_nb(
     }
   }
 
-  GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
+  GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
   return (gex_Event_t) eop;
 
 out_immediate:
@@ -631,7 +639,7 @@ extern gex_Event_t gasnete_put_nb_val(
   {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     GASNETC_DIDX_POST(mythread->domain_idx);
-    gasnete_eop_t * const eop = gasnete_eop_new(mythread);
+    gasnete_eop_t * const eop = gasnete_eop_new_cnt(mythread);
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
     gpd = gasnete_cntr_gpd(GASNETE_EOP_CNTRS(eop), flags GASNETC_DIDX_PASS);
@@ -643,7 +651,7 @@ extern gex_Event_t gasnete_put_nb_val(
     gpd->u.put_val = value;
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(&gpd->u.put_val, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
-    GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
+    GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
     return((gex_Event_t) eop);
   }
 }
@@ -734,7 +742,7 @@ static gex_Event_t gasnete_fetchop_u64_nb(
 {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
-  gasnete_eop_t * const eop = gasnete_eop_new(mythread);
+  gasnete_eop_t * const eop = gasnete_eop_new_cnt(mythread);
   gasnetc_post_descriptor_t *gpd;
 
   gasneti_suspend_spinpollers();
@@ -743,7 +751,7 @@ static gex_Event_t gasnete_fetchop_u64_nb(
   gpd->gpd_flags |= GC_POST_COPY_IMM;
   gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
   gasneti_resume_spinpollers();
-  GASNETE_EOP_MARKDONE(eop); // TODO-EX: optimize away this extra atomic op under some conditions?
+  GASNETC_EOP_CNT_FINISH(eop,cnt); // TODO-EX: optimize away this extra atomic op under some conditions?
 
   return (gex_Event_t) eop;
 }
