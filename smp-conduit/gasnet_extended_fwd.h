@@ -21,6 +21,7 @@
 #define GASNETI_DISABLE_EOP_INTERFACE 1
 
 #define GASNETE_BUILD_AMRATOMIC 0
+#define GASNETI_RATOMIC_STATS(CNT,VAL,TIME) /* unused */
 #define gex_AD_Create gex_SMP_CONDUIT_DOES_NOT_IMPLEMENT_REMOTE_ATOMICS
 
   /* if conduit-internal threads may call the Extended API and/or they may run
@@ -50,6 +51,7 @@
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+        GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
 
 #define GASNETE_AUXSEG_DECLS \

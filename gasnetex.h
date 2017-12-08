@@ -165,6 +165,7 @@ GASNETI_BEGIN_NOWARN
 
 #include <gasnet_vis_fwd.h>
 #include <gasnet_coll_fwd.h>
+#include <gasnet_ratomic_fwd.h>
 
 /* GASNET_PSHM = GASNet conduit is using PSHM */
 #if defined(GASNET_PSHM) && (GASNET_PSHM != 1)
