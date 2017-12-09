@@ -6,6 +6,7 @@
 
 #ifndef _GASNET_RATOMIC_H
 #define _GASNET_RATOMIC_H
+#define _IN_GASNET_RATOMIC_H
 
 #include <gasnetex.h>
 
@@ -550,9 +551,23 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DISP)
 #endif
 
 #endif // GASNETE_BUILD_AMRATOMIC
+
+/*---------------------------------------------------------------------------------*/
+//
+// Hook for conduit-specific additions
+//
+// To use, #define GASNETE_HAVE_RATOMIC_EXTRA_H in the conduit's
+// gasnet_extended_fwd.h or gasnet_ratomic_fwd.h.
+//
+
+#ifdef GASNETE_HAVE_RATOMIC_EXTRA_H
+  #include <gasnet_ratomic_extra.h>
+#endif
+
 /*---------------------------------------------------------------------------------*/
 
 GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
+#undef _IN_GASNET_RATOMIC_H
 #endif
