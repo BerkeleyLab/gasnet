@@ -607,8 +607,8 @@ void doit(int partner, int *partnerseg) {
   assert_always(noop != invalid);
   gex_Event_t lc = noop;
   size_t sz = MIN(8192,TEST_SEGSZ/2);
-  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_OFFSET | GEX_FLAG_DST_OFFSET); // TODO-EX
-  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_IN_BOUND_SEGMENT | GEX_FLAG_DST_IN_BOUND_SEGMENT);
+  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, 0, sz, &lc, GEX_FLAG_SELF_SEG_OFFSET | GEX_FLAG_PEER_SEG_OFFSET); // TODO-EX
+  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SELF_SEG_BOUND | GEX_FLAG_PEER_SEG_BOUND);
   assert_always(rc != noop);
   assert_always(lc != noop);
   if (rc) {
@@ -633,12 +633,16 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
     GEX_FLAG_IMMEDIATE,
-    GEX_FLAG_SRC_IN_SEGMENT,
-    GEX_FLAG_SRC_IN_BOUND_SEGMENT,
-    GEX_FLAG_SRC_OFFSET,
-    GEX_FLAG_DST_IN_SEGMENT,
-    GEX_FLAG_DST_IN_BOUND_SEGMENT,
-    GEX_FLAG_DST_OFFSET,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,
@@ -651,6 +655,8 @@ void doit(int partner, int *partnerseg) {
   for (size_t i = 0; i < flags_cnt; i++) {
     assert_always(flags_arr[i] != 0);
   }
+
+  // TODO-EX: ensure lack of aliasing within groups of flags that are mutually exclusive (eg GEX_FLAG_*_SEG_*)
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
