@@ -909,7 +909,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
 #endif
   for (i = 0; i < gasneti_nodes; i += 1) {
-  #if !GASNETC_GNI_FETCHOP
+  #if !GASNETC_BUILD_GNIRATOMIC
     if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
   #endif
    status = GNI_EpCreate(DOMAIN_SPECIFIC_VAL(nic_handle), DOMAIN_SPECIFIC_VAL(bound_cq_handle), 
@@ -1185,7 +1185,7 @@ uintptr_t gasnetc_init_messaging(void)
       peer_data[i].nic_addr = all_am_exchg[i].nic_addr;
     #endif
 
-    #if !GASNETC_GNI_FETCHOP
+    #if !GASNETC_BUILD_GNIRATOMIC
       if (!node_is_local(i)) /* no connection to self or PSHM-reachable peers */
     #endif
       {
@@ -1299,7 +1299,7 @@ void gasnetc_shutdown(void)
     left = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
     for (tries=0; tries<10; ++tries) {
       for (i = 0; i < gasneti_nodes; i += 1) {
-      #if !GASNETC_GNI_FETCHOP
+      #if !GASNETC_BUILD_GNIRATOMIC
           if_pf (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
       #endif
           if_pt (peer_data[i].ep_handle != NULL) {
@@ -2093,6 +2093,14 @@ again:
       const uint32_t gpd_flags = gpd->gpd_flags; /* see note w/ GC_POST_COMPLETION_FLAG */
 
       /* handle remaining work */
+      if (gpd_flags & GC_POST_COPY_AMO4) {
+        * (uint32_t *) gpd->gpd_amo_result = gpd->u.u32;
+        gasneti_sync_writes(); /* sync memcpy */
+      } else
+      if (gpd_flags & GC_POST_COPY_AMO8) {
+        * (uint64_t *) gpd->gpd_amo_result = gpd->u.u64;
+        gasneti_sync_writes(); /* sync memcpy */
+      } else
       if (gpd_flags & GC_POST_COPY_IMM) {
         memcpy((void *) gpd->gpd_get_dst, (void *) gpd->u.immediate, gpd->pd.length);
         gasneti_sync_writes(); /* sync memcpy */
@@ -2124,6 +2132,9 @@ again:
           break;
         case GC_POST_COMPLETION_IGET:
           GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, get, 1, 0);
+          break;
+        case GC_POST_COMPLETION_IRMW:
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, rmw, 1, 0);
           break;
         case GC_POST_COMPLETION_SEND: {
           gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
@@ -2451,7 +2462,9 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
+#if !GASNETC_BUILD_GNIRATOMIC
   gasneti_assert(!node_is_local(node));
+#endif
 
   /* confirm that the destination is in-segment on the far end */
   gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, dest_addr, nbytes);
@@ -2512,7 +2525,9 @@ size_t gasnetc_rdma_get(gex_Rank_t node,
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
 
+#if !GASNETC_BUILD_GNIRATOMIC
   gasneti_assert(!node_is_local(node));
+#endif
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2660,33 +2675,28 @@ int gasnetc_rdma_get_buff(gex_Rank_t node,
   return pre;
 }
 
-#if GASNETC_GNI_FETCHOP
-/* Perform an 8-byte fetch-and-op */
-void gasnetc_fetchop_u64(
-                gex_Rank_t node, void *source_addr,
-                gni_fma_cmd_type_t cmd, uint64_t operand,
+#if GASNETC_BUILD_GNIRATOMIC
+/*------ Post Fma for NIC atomic */
+void gasnetc_post_amo(
+                gex_Rank_t tgt_rank, void *tgt_addr,
                 gasnetc_post_descriptor_t *gpd)
 {
   GASNETC_DIDX_POST(gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
-  peer_struct_t * const peer = &peer_data[node];
+  peer_struct_t * const peer = &peer_data[tgt_rank];
   gni_post_descriptor_t * const pd = &gpd->pd;
-  gni_return_t status;
 
-  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, node, source_addr, 8);
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, tgt_rank, tgt_addr, pd->length);
 
   pd->type = GNI_POST_AMO;
-  pd->amo_cmd = cmd;
-  pd->first_operand = operand;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
-  pd->remote_addr = (uint64_t) source_addr;
-  pd->remote_mem_hndl = gasnetc_remote_mh(peer, source_addr);
   pd->local_addr = (uint64_t) gpd->u.immediate;
-  pd->local_mem_hndl = my_mem_handle;
-  pd->length = 8;
+  pd->local_mem_hndl = my_aux_handle;
+  pd->remote_addr = (uint64_t) tgt_addr;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, tgt_addr);
 
-  status = myPostFma(peer->ep_handle, gpd, 0);
+  gni_return_t status = myPostFma(peer->ep_handle, gpd, 0);
   if_pf (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_POST_AMO failed with %s", gasnetc_gni_rc_string(status));
   }

@@ -25,6 +25,8 @@ SUBDIRS = contrib
 # and any subdirectories not containing Makefile.am's
 CONDUIT_FILELIST =            \
       gasnet_empty_internal.h \
+      gasnet_ratomic_fwd.h    \
+      gasnet_ratomic_extra.h  \
       README                  \
       license.txt
 

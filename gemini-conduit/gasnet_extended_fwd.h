@@ -93,18 +93,6 @@
 #define GASNETE_CONDUIT_THREADDATA_FIELDS \
         GASNETE_TD_DOMAIN_IDX
 
-/* ------------------------------------------------------------------------------------ */
-/* Extensions: */
-
-/* Proof-of-concept GNI uint64_t fetch-and-op.
- * Not supported, and subject to change or removal
- */
-#ifndef GASNETC_GNI_FETCHOP
-#define GASNETC_GNI_FETCHOP 1 /* enabled by default */
-#endif
-#if GASNETC_GNI_FETCHOP
-#define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H 1
-#endif
 
 #endif
 

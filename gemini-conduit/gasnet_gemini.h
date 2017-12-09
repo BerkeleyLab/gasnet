@@ -251,7 +251,9 @@ enum {
   _gc_post_reserved = 2,  /* Bits 0-2 hold offset for trimmed copy operations */
   /* mutually-exclusive data-movement actions */
   _gc_post_copy,
-  _gc_post_copy_imm,
+  _gc_post_copy_imm,  // memcpy()
+  _gc_post_copy_amo4, // 4-byte assignment
+  _gc_post_copy_amo8, // 8-byte assignment
   /* mutually-exclusive resource recovery actions */
   _gc_post_unbounce,
   _gc_post_unregister,
@@ -261,6 +263,7 @@ enum {
   _gc_post_completion_eop,
   _gc_post_completion_iput,
   _gc_post_completion_iget,
+  _gc_post_completion_irmw,
   _gc_post_completion_send,
   /* local-completion variation(s) */
   _gc_post_lc_now,
@@ -271,6 +274,8 @@ enum {
 #define GC_POST(name)           ((uint32_t)1 << _gc_post_##name)
 #define GC_POST_COPY            GC_POST(copy)
 #define GC_POST_COPY_IMM        GC_POST(copy_imm)
+#define GC_POST_COPY_AMO4       GC_POST(copy_amo4)
+#define GC_POST_COPY_AMO8       GC_POST(copy_amo8)
 #define GC_POST_SEND            GC_POST(send)
 #define GC_POST_UNBOUNCE        GC_POST(unbounce)
 #define GC_POST_UNREGISTER      GC_POST(unregister)
@@ -279,6 +284,7 @@ enum {
 #define GC_POST_COMPLETION_EOP  GC_POST(completion_eop)
 #define GC_POST_COMPLETION_IPUT GC_POST(completion_iput)
 #define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
+#define GC_POST_COMPLETION_IRMW GC_POST(completion_irmw)
 #define GC_POST_COMPLETION_SEND GC_POST(completion_send)
 #define GC_POST_LC_NOW          GC_POST(lc_now)
 #define GC_POST_KEEP_GPD        GC_POST(keep_gpd)
@@ -288,6 +294,7 @@ enum {
                                  GC_POST_COMPLETION_EOP  | \
                                  GC_POST_COMPLETION_IPUT | \
                                  GC_POST_COMPLETION_IGET | \
+                                 GC_POST_COMPLETION_IRMW | \
                                  GC_POST_COMPLETION_SEND)
 
 /* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
@@ -299,6 +306,7 @@ struct gasnetc_post_descriptor {
     gasnetc_notify_t notify;
     gex_RMA_Value_t put_val;
     uint64_t u64;
+    uint64_t u32;
   #if GASNETC_GNI_UDREG
     udreg_entry_t *udreg_entry;
   #endif
@@ -307,10 +315,15 @@ struct gasnetc_post_descriptor {
   #define gpd_completion pd.post_id
   #define gpd_get_src    pd.first_operand
   #define gpd_get_dst    pd.second_operand
+  #define gpd_amo_result pd.sync_flag_value
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
   #define gpd_am_peer    pd.first_operand
   #define gpd_put_lc     pd.second_operand
+  #define gpd_amo_len    pd.length
+  #define gpd_amo_cmd    pd.amo_cmd
+  #define gpd_amo_op1    pd.first_operand
+  #define gpd_amo_op2    pd.second_operand
   uint32_t gpd_flags;
 #if GASNETC_USE_MULTI_DOMAIN
   int domain_idx;
@@ -372,10 +385,9 @@ int gasnetc_rdma_get_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-/* Extensions: */
-#if GASNETC_GNI_FETCHOP
-void gasnetc_fetchop_u64(gex_Rank_t node,
-                 void *source_addr, gni_fma_cmd_type_t cmd, uint64_t operand,
+#if GASNETC_BUILD_GNIRATOMIC
+void gasnetc_post_amo(
+                 gex_Rank_t tgt_rank, void *tgt_addr,
                  gasnetc_post_descriptor_t *gpd);
 #endif
 
