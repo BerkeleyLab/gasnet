@@ -745,6 +745,8 @@ if ($is_aprun || $is_yod) {
             close(QSTAT);
         } elsif (exists($ENV{'SLURM_JOB_ID'}) && exists($ENV{'SLURM_NNODES'})) {
             $numnode = $ENV{'SLURM_NNODES'};
+        } elsif (exists($ENV{'COBALT_JOBID'}) && exists($ENV{'COBALT_JOBSIZE'})) {
+            $numnode = $ENV{'COBALT_JOBSIZE'};
         }
   }
 
