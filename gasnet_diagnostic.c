@@ -1131,7 +1131,7 @@ static void op_test(int id) {
       #define RAND_EVENT(output) do {                                 \
           gasneti_eop_t *_eop;                                        \
           gasneti_iop_t *_iop;                                        \
-          int _r = TEST_RAND_ONEIN(10);                               \
+          int _r = TEST_RAND(1,10);                                   \
           switch (_r) {                                               \
             case 0: case 1: /* IOP put or get */                      \
               gex_NBI_BeginAccessRegion(0);                           \
