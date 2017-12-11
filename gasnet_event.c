@@ -32,7 +32,8 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
     thread->eop_num_bufs++;
     gasneti_assert(thread->eop_num_bufs); // check for overflow
     GASNETI_TRACE_PRINTF(I,("Growing thread eop pool to %"PRIuPTR, (uintptr_t)(GASNETE_EOP_CHUNKCNT*thread->eop_num_bufs)));
-    void * const buf = gasneti_calloc(GASNETE_EOP_CHUNKCNT+2,eopsz);
+    // ensure we cache align the eops, even for an allocator that returns worst-case alignment
+    void * const buf = gasneti_calloc(1,(sizeof(void *)-1) + (GASNETI_CACHE_LINE_BYTES-1) + eopsz * GASNETE_EOP_CHUNKCNT);
     gasneti_leak(buf);
     gasnete_eop_t * const first_eop = (gasnete_eop_t *)GASNETI_ALIGNUP((uintptr_t)buf + sizeof(void*),GASNETI_CACHE_LINE_BYTES);
     gasnete_eop_t *eop = first_eop;
