@@ -5,9 +5,9 @@
  */
 
 #include <gasnet_internal.h>
-
-
+#include <gasnet_extended_internal.h>
 #include <gasnet_ratomic_internal.h>
+#include <gasnet_extended_refratomic.h>
 
 #ifndef _GEX_AD_T
 

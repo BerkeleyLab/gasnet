@@ -129,6 +129,15 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Remote Atomics:
+  ==============
+*/
+
+/* use reference implementation of remote atomics */
+#include "gasnet_extended_refratomic.h"
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */

@@ -1383,6 +1383,15 @@ static void gasnete_gdbarrier_init(gasnete_coll_team_t team) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Remote Atomics:
+  ==============
+*/
+
+/* use reference implementation of remote atomics */
+#include "gasnet_extended_refratomic.h"
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
