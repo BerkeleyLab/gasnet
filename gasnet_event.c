@@ -55,7 +55,7 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
 
       gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
-      for (i=0, eop = buf; i<(bufidx==255?255:256); i++) {
+      for (i=0, eop = buf; i < 256; i++) {
         size_t eopidx = (((uintptr_t)eop) - ((uintptr_t)buf)) / allocsz;
         gasneti_assert(eopidx < 256);
         gasneti_assert(!seen[eopidx]);/* see if we hit a cycle */
