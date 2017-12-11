@@ -156,7 +156,9 @@ static int gasnete_free_threaddata(gasnete_threaddata_t *thread) {
   #ifndef GASNETE_FREE_EOPS
   // TODO-EX: checks related to foreign eops?
   #define GASNETE_FREE_EOPS(thread) {            \
-    int missing = thread->eop_num_bufs * 256;    \
+    size_t num_bufs = thread->eop_num_bufs;      \
+    size_t total_eops = num_bufs * GASNETE_EOP_CHUNKCNT; \
+    size_t missing = total_eops;                 \
     gasnete_eop_t *eop;                          \
     eop = thread->eop_free;                      \
     while (eop) { --missing; eop = eop->next; }  \
@@ -166,13 +168,19 @@ static int gasnete_free_threaddata(gasnete_threaddata_t *thread) {
     gasneti_mutex_unlock(&thread->foreign_lock); \
     if (missing) {                               \
       /* TODO: handle this better? */            \
-      GASNETI_TRACE_PRINTF(I, ("%d eops leaked", missing)); \
+      GASNETI_TRACE_PRINTF(I, ("%"PRIuPTR" eops missing at thread destruction, leaking %"PRIuPTR" eops", \
+                               (uintptr_t)missing, (uintptr_t)total_eops)); \
       leak = 1;                                  \
     } else {                                     \
-      for (int i = 0; i < thread->eop_num_bufs; i++) { \
+      void **eopbuf = (void **)thread->eop_bufs; \
+      while (eopbuf) {                           \
         /* TODO: check for in-flight eops */     \
-         gasneti_free(thread->eop_bufs[i]);      \
+        gasneti_assert(num_bufs-- > 0);          \
+        void **next = *eopbuf;                   \
+        gasneti_free(eopbuf);                    \
+        eopbuf = next;                           \
       }                                          \
+      gasneti_assert(num_bufs == 0);             \
     }                                            \
   }
   #endif

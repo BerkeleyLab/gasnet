@@ -16,22 +16,28 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 #if !GASNETI_DISABLE_REFERENCE_EOP
 
-/*  allocate more eops */
+// eop chunk format:
+// void *next_chunk;
+// *cache pad*
+// eop[0]
+// *cache pad*
+// eop[1]
+// ...
+
+//  allocate more eops: only valid when the free pool is empty
 GASNETI_NEVER_INLINE(gasnete_eop_alloc,
 extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
-    const size_t allocsz = GASNETI_ALIGNUP(sizeof(gasnete_eop_t),GASNETI_CACHE_LINE_BYTES);
-    int bufidx = thread->eop_num_bufs;
-    gasnete_eop_t *buf;
-    int i;
-    const gasnete_threadidx_t threadidx = thread->threadidx;
-    if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit events (limit=65535)");
+    gasnete_threadidx_t const threadidx = thread->threadidx;
+    size_t const eopsz = GASNETI_ALIGNUP(sizeof(gasnete_eop_t),GASNETI_CACHE_LINE_BYTES); // eop size to ensure cache isolation
     thread->eop_num_bufs++;
-    buf = (gasnete_eop_t *)gasneti_calloc(256,allocsz);
+    gasneti_assert(thread->eop_num_bufs); // check for overflow
+    GASNETI_TRACE_PRINTF(I,("Growing thread eop pool to %"PRIuPTR, (uintptr_t)(GASNETE_EOP_CHUNKCNT*thread->eop_num_bufs)));
+    void * const buf = gasneti_calloc(GASNETE_EOP_CHUNKCNT+2,eopsz);
     gasneti_leak(buf);
-    for (i=0; i < 256; i++) {
-      gasnete_eop_t *eop = (gasnete_eop_t *)((uintptr_t)buf + i*allocsz);
+    gasnete_eop_t * const first_eop = (gasnete_eop_t *)GASNETI_ALIGNUP((uintptr_t)buf + sizeof(void*),GASNETI_CACHE_LINE_BYTES);
+    gasnete_eop_t *eop = first_eop;
+    for (int i=0; i < GASNETE_EOP_CHUNKCNT; i++) {
       eop->threadidx = threadidx;
-      eop->next = (i==255) ? NULL: (gasnete_eop_t *)((uintptr_t)eop + allocsz);
       #if GASNET_DEBUG
         // Returns to type==free_eop when on free list
         eop->event[0] = gasnete_event_type_free_eop;
@@ -39,29 +45,30 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
         // Type==eop at all times
         eop->event[0] = gasnete_event_type_eop;
       #endif
-      #ifdef GASNETE_EOP_ALLOC_EXTRA
-        // Hook for conduit-specific initializations and assertions
+      #ifdef GASNETE_EOP_ALLOC_EXTRA // Hook for conduit-specific initializations and assertions
         GASNETE_EOP_ALLOC_EXTRA(eop);
       #endif
+      eop->next = (gasnete_eop_t *)((uintptr_t)eop + eopsz);
+      eop = eop->next;
     }
-    thread->eop_bufs[bufidx] = buf;
-    thread->eop_free = buf;
+    eop = (gasnete_eop_t *)((uintptr_t)eop - eopsz);   // backup to last
+    eop->next = NULL;                                  // null terminate
+
+    *(void **)buf = thread->eop_bufs; // link the chunk
+    thread->eop_bufs = buf;
+    gasneti_assert(!thread->eop_free);
+    thread->eop_free = first_eop;
 
     #if GASNET_DEBUG
     { /* verify new free list got built correctly */
-      int i;
-      int seen[256];
-      gasnete_eop_t *eop;
-
-      gasneti_memcheck(thread->eop_bufs[bufidx]);
-      memset(seen, 0, 256*sizeof(int));
-      for (i=0, eop = buf; i < 256; i++) {
-        size_t eopidx = (((uintptr_t)eop) - ((uintptr_t)buf)) / allocsz;
-        gasneti_assert(eopidx < 256);
-        gasneti_assert(!seen[eopidx]);/* see if we hit a cycle */
-        seen[eopidx] = 1;
+      gasneti_memcheck(thread->eop_bufs);
+      eop = first_eop;
+      for (size_t i=0; i < GASNETE_EOP_CHUNKCNT; i++) {
+        size_t eopidx = (((uintptr_t)eop) - ((uintptr_t)first_eop)) / eopsz;
+        gasneti_assert(eopidx == i); // verify linkage
+        gasneti_assert(eop == (gasnete_eop_t *)GASNETI_ALIGNUP(eop,GASNETI_CACHE_LINE_BYTES)); // verify cache alignment
         eop = eop->next;
-      }                                                       
+      }
       gasneti_assert(eop == NULL);
     }
     #endif
