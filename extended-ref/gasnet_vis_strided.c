@@ -577,7 +577,7 @@ static void gasnete_convert_strided_to_addrlist(void * * srclist, void * * dstli
 }
 /*---------------------------------------------------------------------------------*/
 /* convert strided metadata to memvec metadata for the equivalent operation */
-static void gasnete_convert_strided_to_memvec(gasnet_memvec_t *srclist, gasnet_memvec_t *dstlist, 
+static void gasnete_convert_strided_to_memvec(gex_Memvec_t *srclist, gex_Memvec_t *dstlist, 
                                     gasnete_strided_stats_t const *stats,
                                     void *_dstaddr, const size_t _dststrides[],
                                     void *_srcaddr, const size_t _srcstrides[],
@@ -592,7 +592,7 @@ static void gasnete_convert_strided_to_memvec(gasnet_memvec_t *srclist, gasnet_m
   gasneti_assert(limit > contiglevel);
 
   if (srccontigsz == dstcontigsz) {
-    gasnet_memvec_t *srcpos = srclist; gasnet_memvec_t *dstpos = dstlist;
+    gex_Memvec_t *srcpos = srclist; gex_Memvec_t *dstpos = dstlist;
     void *srcaddr = _srcaddr; const size_t * const srcstrides = _srcstrides; 
     void *dstaddr = _dstaddr; const size_t * const dststrides = _dststrides; 
     #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
@@ -609,7 +609,7 @@ static void gasnete_convert_strided_to_memvec(gasnet_memvec_t *srclist, gasnet_m
     gasneti_assert(dstpos == dstlist+stats->dstsegments);
   } else {
     size_t _looplim; 
-    gasnet_memvec_t *srcpos; gasnet_memvec_t *dstpos;
+    gex_Memvec_t *srcpos; gex_Memvec_t *dstpos;
     size_t _srccontigsz; size_t _dstcontigsz;
     void *srcaddr; const size_t * __srcstrides; 
     void *dstaddr; const size_t * __dststrides; 
@@ -1020,8 +1020,8 @@ gex_Event_t gasnete_puts_ref_vector(gasnete_strided_stats_t const *stats, gasnet
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
   } else {
     gex_Event_t retval;
-    gasnet_memvec_t * const srclist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->srcsegments);
-    gasnet_memvec_t * const dstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->dstsegments);
+    gex_Memvec_t * const srclist = gasneti_malloc(sizeof(gex_Memvec_t)*stats->srcsegments);
+    gex_Memvec_t * const dstlist = gasneti_malloc(sizeof(gex_Memvec_t)*stats->dstsegments);
 
     gasnete_convert_strided_to_memvec(srclist, dstlist, stats, 
       dstaddr, dststrides, srcaddr, srcstrides, count, stridelevels);
@@ -1052,8 +1052,8 @@ gex_Event_t gasnete_gets_ref_vector(gasnete_strided_stats_t const *stats, gasnet
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
   } else {
     gex_Event_t retval;
-    gasnet_memvec_t * const srclist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->srcsegments);
-    gasnet_memvec_t * const dstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->dstsegments);
+    gex_Memvec_t * const srclist = gasneti_malloc(sizeof(gex_Memvec_t)*stats->srcsegments);
+    gex_Memvec_t * const dstlist = gasneti_malloc(sizeof(gex_Memvec_t)*stats->dstsegments);
 
     gasnete_convert_strided_to_memvec(srclist, dstlist, stats, 
       dstaddr, dststrides, srcaddr, srcstrides, count, stridelevels);

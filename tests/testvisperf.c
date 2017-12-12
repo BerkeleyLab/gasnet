@@ -41,8 +41,8 @@ typedef enum { TEST_V=0, TEST_I=1, TEST_S=2 } test_vis_t;
 int dovis[] = { 1, 1, 1 };
 const char *visdesc[] = { "VECTOR", "INDEXED", "STRIDED" };
 
-gasnet_memvec_t *make_vlist(void *baseaddr, size_t stride, size_t cnt, size_t chunksz) {
-  gasnet_memvec_t *retval = test_malloc(cnt*sizeof(gasnet_memvec_t));
+gex_Memvec_t *make_vlist(void *baseaddr, size_t stride, size_t cnt, size_t chunksz) {
+  gex_Memvec_t *retval = test_malloc(cnt*sizeof(gex_Memvec_t));
   size_t i;
   for (i = 0; i < cnt; i++) {
     retval[i].addr = ((char*)baseaddr)+i*stride;
@@ -279,8 +279,8 @@ int main(int argc, char **argv) {
               size_t Rsz = datasz/Rcnt;
               void **Lilist = NULL;
               void **Rilist = NULL;
-              gasnet_memvec_t *Lvlist = NULL;
-              gasnet_memvec_t *Rvlist = NULL;
+              gex_Memvec_t *Lvlist = NULL;
+              gex_Memvec_t *Rvlist = NULL;
               size_t *Lstrides = NULL;
               size_t *Rstrides = NULL;
               size_t *LRcount = NULL;

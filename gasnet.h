@@ -53,6 +53,11 @@ typedef gex_RMA_Value_t gasnet_register_value_t;
 typedef gex_Event_t gasnet_handle_t;
 #define GASNET_INVALID_HANDLE GEX_EVENT_INVALID
 
+typedef struct {
+   void *addr;
+   size_t len;
+} gasnet_memvec_t;
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization

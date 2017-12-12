@@ -100,12 +100,12 @@ typedef struct {
   uint64_t checksum;
   size_t count; /* in segments */
   uintptr_t totalsz; /* in bytes */
-  gasnet_memvec_t *list;
+  gex_Memvec_t *list;
 } test_memvec_list;
 
 void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
   size_t i, sum;
-  if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t)))
+  if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gex_Memvec_t)))
     FATALERR("Checksum mismatch in verify_memvec_list at %s:%i", file, line);
   sum = 0;
   for (i=0; i < mv->count; i++) {
@@ -128,9 +128,9 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
   size_t per = 0;
   if (TEST_RAND_ONEIN(20)) count = 0;
   if (count > 0) per = elemlen / count; 
-  mv = test_malloc(sizeof(test_memvec_list)+count*sizeof(gasnet_memvec_t));
+  mv = test_malloc(sizeof(test_memvec_list)+count*sizeof(gex_Memvec_t));
   mv->count = count;
-  mv->list = (gasnet_memvec_t *)(mv+1);
+  mv->list = (gex_Memvec_t *)(mv+1);
   mv->totalsz = 0;
 
   if (allowoverlap) {
@@ -184,23 +184,23 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
         }
       }
     }
-    SHUFFLE_LIST(gasnet_memvec_t,mv);
+    SHUFFLE_LIST(gex_Memvec_t,mv);
   }
 
-  mv->checksum = test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t));
+  mv->checksum = test_checksum(mv->list, mv->count*sizeof(gex_Memvec_t));
   verify_memvec_list(mv);
   return mv;
 }
 
 
 test_memvec_list *buildcontig_memvec_list(void *addr, size_t elemlen, size_t areasz) {
-  test_memvec_list *mv = test_malloc(sizeof(test_memvec_list)+sizeof(gasnet_memvec_t));
+  test_memvec_list *mv = test_malloc(sizeof(test_memvec_list)+sizeof(gex_Memvec_t));
   mv->count = 1;
-  mv->list = (gasnet_memvec_t*)(mv+1);
+  mv->list = (gex_Memvec_t*)(mv+1);
   mv->totalsz = ((uintptr_t)elemlen)*VEC_SZ;
   mv->list[0].addr = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
   mv->list[0].len = elemlen*VEC_SZ;
-  mv->checksum = test_checksum(mv->list, sizeof(gasnet_memvec_t));
+  mv->checksum = test_checksum(mv->list, sizeof(gex_Memvec_t));
   return mv;
 }
 
@@ -221,7 +221,7 @@ void trim_memvec_list(test_memvec_list *one, test_memvec_list *two) {
       p->count--;
     }
   }
-  p->checksum = test_checksum(p->list, p->count*sizeof(gasnet_memvec_t));
+  p->checksum = test_checksum(p->list, p->count*sizeof(gex_Memvec_t));
   verify_memvec_list(p);
   assert(one->totalsz == two->totalsz);
 }

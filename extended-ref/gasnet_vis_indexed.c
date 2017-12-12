@@ -600,8 +600,8 @@ gex_Event_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
                                    gex_Rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnet_memvec_t *newdstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*dstcount);
-  gasnet_memvec_t *newsrclist = gasneti_malloc(sizeof(gasnet_memvec_t)*srccount);
+  gex_Memvec_t *newdstlist = gasneti_malloc(sizeof(gex_Memvec_t)*dstcount);
+  gex_Memvec_t *newsrclist = gasneti_malloc(sizeof(gex_Memvec_t)*srccount);
   gex_Event_t retval;
   size_t i;
   GASNETI_TRACE_EVENT(C, PUTI_REF_VECTOR);
@@ -624,8 +624,8 @@ gex_Event_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gex_Rank_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasnet_memvec_t *newdstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*dstcount);
-  gasnet_memvec_t *newsrclist = gasneti_malloc(sizeof(gasnet_memvec_t)*srccount);
+  gex_Memvec_t *newdstlist = gasneti_malloc(sizeof(gex_Memvec_t)*dstcount);
+  gex_Memvec_t *newsrclist = gasneti_malloc(sizeof(gex_Memvec_t)*srccount);
   gex_Event_t retval;
   size_t i;
   GASNETI_TRACE_EVENT(C, GETI_REF_VECTOR);

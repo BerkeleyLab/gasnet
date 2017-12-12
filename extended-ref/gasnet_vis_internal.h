@@ -198,7 +198,7 @@ typedef struct {
 } gasnete_packetdesc_t;
 
 extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int lastpacket,
-                              size_t count, size_t len, gasnet_memvec_t const *list);
+                              size_t count, size_t len, gex_Memvec_t const *list);
 
 /*---------------------------------------------------------------------------------*/
 /* GASNETE_METAMACRO_ASC/DESC##maxval(fn) is a meta-macro that iteratively expands the fn_INT(x,y) macro 
