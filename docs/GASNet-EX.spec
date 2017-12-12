@@ -205,33 +205,78 @@ typedef [some integer type] gex_Flags_t;
 // specification
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
+
+// SEGMENT DISPOSITION
 //
-// {SRC,DST}_IN_SEGMENT
+// The following family of flags assert the segment disposition of 
+// address ranges provided to communication initiation operations.
 //
-// These flag bits assert that the corresponding source or
-// destination address ranges are contained entirely within the union 
-// of current GASNet-EX segments.
-#define GEX_FLAG_SRC_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_DST_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
+// The segment disposition flags come in two varieties:
 //
-// {SRC,DST}_IN_BOUND_SEGMENT
+// SELF - describes the segment disposition of addresses associated
+//        with local memory and the initiating endpoint (ie the EP 
+//        which is usually implicitly named by a gex_TM_t argument).
+//        Eg in a Put operation this variety describes source locations,
+//        and in a Get this variety describes destination locations.
 //
-// These flag bits assert that the corresponding source or
-// destination address ranges are contained entirely within the segment 
-// bound to the respective source or destination endpoint.
+// PEER - describes the segment disposition of addresses associated
+//        with (potentially) remote memory and the peer endpoint(s)
+//        (the EPs usually explicitly named by gex_Rank_t arguments)
+//        Eg in a Put operation this variety describes destination locations,
+//        and in a Get this variety describes source locations.
+//
+// The following flags are mutually exclusive within each variety -
+// a given operation may specify at most one SELF flag and one PEER flag.
+// Unless otherwise noted, the default behavior for each variety in the
+// absence of an explicitly provided flag corresponds to:
+//    GEX_FLAG_SELF_SEG_UNKNOWN, GEX_FLAG_PEER_SEG_BOUND
+// which is backwards-compatible with GASNet-1 segment behavior.
+// Each explicit flag has a distinct bit pattern.
+// Unless otherwise noted, the caller is responsible for ensuring the
+// assertions expressed by these flags to a given call remain true for 
+// the entire period of time that the described address sequences are "active" 
+// with respect to the operation requested by the call. The definition of
+// "active" varies based on call type, but generally extends from entry to
+// the call accepting the assertions until completion is signalled for 
+// all described address ranges.
+//
+// {SELF,PEER}_SEG_UNKNOWN
+//
+// These flag bits indicate that the corresponding address range(s)
+// are not known by the caller to reside within current GASNet-EX segments.
+// Example 1: the address ranges are known to lie partially or entirely
+//   outside any segments in the process hosting the respective endpoint(s).
+// Example 2: the caller lacks information about the segment disposition
+//   of the address ranges, and passes this flag to reflect a lack of
+//   such assertions and request maximally permissive behavior
+//   (potentially incurring a performance cost).
+#define GEX_FLAG_SELF_SEG_UNKNOWN ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_UNKNOWN ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// {SELF,PEER}_SEG_SOME
+//
+// These flag bits assert that the corresponding address range(s)
+// are contained entirely within the union of current GASNet-EX segments
+// created by any client in the process hosting the respective endpoint.
+#define GEX_FLAG_SELF_SEG_SOME    ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_SOME    ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// {SELF,PEER}_SEG_BOUND
+//
+// These flag bits assert that the corresponding address range(s)
+// are contained entirely within the segment bound to the respective endpoint.
 // Implies that the respective endpoint has a bound segment.
-// Implies the respective {SRC,DST}_IN_SEGMENT flag.
-#define GEX_FLAG_SRC_IN_BOUND_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_DST_IN_BOUND_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_SELF_SEG_BOUND   ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_BOUND   ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
-// {SRC,DST}_OFFSET
+// {SELF,PEER}_SEG_OFFSET
 //
-// These flag bits indicate that the corresponding address argument
-// is a byte *offset* relative to the bound segment base address.
-// Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
-// implies the respective ..._IN_SEGMENT flag, indirectly).
-#define GEX_FLAG_SRC_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_DST_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
+// These flag bits indicate that the corresponding address argument(s)
+// are byte *offsets* relative to the bound segment base address.
+// Implies that the respective endpoint has a bound segment, and
+// that the specified range(s) are contained entirely within that segment.
+#define GEX_FLAG_SELF_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
@@ -672,7 +717,8 @@ extern gex_TI_t gex_Token_Info(
 //
 //   The Medium and Long Requests accept the pre-defined constant values
 //   GEX_EVENT_NOW and GEX_EVENT_GROUP, and pointers to variables of type
-//   'gex_Event_t'.  The NOW constant requires that the Request call not
+//   'gex_Event_t' (note that GEX_EVENT_DEFER is prohibited).  
+//   The NOW constant requires that the Request call not
 //   return until after local completion.  The GROUP constant allows the
 //   Request call to return without delaying for local completion and adds
 //   the AM operation to the set of operations for which
@@ -687,6 +733,18 @@ extern gex_TI_t gex_Token_Info(
 //   "wait" on a 'gex_Event_t' in AM handler context.
 //   [TBD: we *could* allow handlers to make bounded calls to "test", which
 //   does not Poll, if we wanted to.]
+//
+// NOTE 3: The 'flags' argument for segment disposition [UNIMPLEMENTED]
+// 
+//   The 'flags' argument to Medium and Long Request/Reply calls may include
+//   GEX_FLAG_SELF_SEG_* flags to assert segment disposition properties of the
+//   address range described by [source_addr..(source_addr+nbytes-1)]. Any such
+//   assertions must remain true until local completion is signalled (see above).
+//
+//   The 'flags' argument to Long Request/Reply calls may include
+//   GEX_FLAG_PEER_SEG_* flags to assert segment disposition properties of the
+//   address range described by [dest_addr..dest_addr+nbytes-1)]. Any such
+//   assertions must remain true until the AM handler begins execution at the target.
 //
 // Other arguments behave as in the analogous GASNet-1 functions.
 // Misc semantic strengthening:
@@ -869,7 +927,7 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //   + The value *may* exceed the corresponding gex_AM_Max[...]().
 //  void *dest_addr [LONG ONLY]
 //   + If this value is non-NULL then GASNet may use this value
-//     (and flags in the GEX_FLAG_DST_* family) to guide its
+//     (and flags in the GEX_FLAG_PEER_SEG_* family) to guide its
 //     choice of outputs (addr and size)
 //   + If this value is non-NULL then the client is required to
 //     pass the same value to the Commit call.
@@ -891,11 +949,22 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //     particular a buffer of size min_length or longer) cannot
 //     be obtained.
 //     The Commit-time behavior is unaffected by this flag.
-//   + [UNIMPLEMENTED] GEX_FLAG_SRC_OFFSET: is prohibited
-//   + [UNIMPLEMENTED] GEX_FLAG_SRC_*: these describe properties
-//     of the client_buf, if non-NULL
-//   + [UNIMPLEMENTED] GEX_FLAG_DST_*: [LONG ONLY] these describe
-//     properties of the dest_addr, if non-NULL
+//   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: is prohibited
+//   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_*: these flags may only be 
+//     passed if client_buf is non-NULL, and assert segment disposition
+//     properties for the range [client_buf..(client_buf+max_length-1)]
+//     that must be true upon entry to Prepare. If gex_AM_SrcDescAddr()
+//     on the Prepare result is equal to client_buf, then the assertion 
+//     must remain true until after local completion is signalled via `lc_opt`.
+//   + [UNIMPLEMENTED] GEX_FLAG_PEER_SEG_*: [LONG ONLY] if `dest_addr` is
+//     non-NULL, these flags assert segment disposition properties for the
+//     range [dest_addr..(dest_addr+max_length-1)] that must be true upon
+//     entry to Prepare and remain true until entry to the AM handler at
+//     the target. If `dest_addr` NULL at Prepare and non-NULL at Commit,
+//     these flags assert segment disposition properties for the Commit-time
+//     range [dest_addr..(dest_addr+nbytes-1)] that must be true upon
+//     entry to Commit and remain true until entry to the AM handler at
+//     the target. 
 //  unsigned int numargs
 //   + The number of arguments to be passed to the Commit call
 //

@@ -597,13 +597,14 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 #define GEX_FLAG_IMMEDIATE              (1U <<  0)
 
-#define GEX_FLAG_SRC_IN_SEGMENT         (1U <<  1)
-#define GEX_FLAG_SRC_IN_BOUND_SEGMENT  ((1U <<  2) | GEX_FLAG_SRC_IN_SEGMENT)
-#define GEX_FLAG_SRC_OFFSET            ((1U <<  3) | GEX_FLAG_SRC_IN_BOUND_SEGMENT)
-
-#define GEX_FLAG_DST_IN_SEGMENT         (1U <<  4)
-#define GEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GEX_FLAG_DST_IN_SEGMENT)
-#define GEX_FLAG_DST_OFFSET            ((1U <<  6) | GEX_FLAG_DST_IN_BOUND_SEGMENT)
+#define GEX_FLAG_SELF_SEG_UNKNOWN       (1U <<  1)
+#define GEX_FLAG_SELF_SEG_SOME          (1U <<  2)
+#define GEX_FLAG_SELF_SEG_BOUND         (1U <<  3)
+#define GEX_FLAG_SELF_SEG_OFFSET        (1U <<  4)
+#define GEX_FLAG_PEER_SEG_UNKNOWN       (1U <<  5)
+#define GEX_FLAG_PEER_SEG_SOME          (1U <<  6)
+#define GEX_FLAG_PEER_SEG_BOUND         (1U <<  7)
+#define GEX_FLAG_PEER_SEG_OFFSET        (1U <<  8)
 
 #define GEX_FLAG_AM_SHORT               (1U <<  0)
 #define GEX_FLAG_AM_MEDIUM              (1U <<  1)

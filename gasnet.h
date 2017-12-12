@@ -386,7 +386,6 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 
 /* ------------------------------------------------------------------------------------ */
 /* Blocking Put and Get */
-// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put(node,dest,src,nbytes) \
                 gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
@@ -399,7 +398,6 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
-// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
                 gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0)
@@ -412,7 +410,6 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
-// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nb(node,dest,src,nbytes) \
                 gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0)
@@ -425,7 +422,6 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Gets - blocking and explicit-handle non-blocking */
-// TODO-EX: pass GEX_FLAG_SRC_IN_SEGMENT and possibly other flags
 
 #define gasnet_get_val(node,src,nbytes) \
                 gex_RMA_GetBlockingVal(gasneti_thunk_tm,node,src,nbytes,0)
@@ -463,7 +459,6 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Puts - blocking, and explicit- and implicit-handle non-blocking */
-// TODO-EX: pass GEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_val(node,dest,value,nbytes) \
                 gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
