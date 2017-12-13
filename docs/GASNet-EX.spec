@@ -64,6 +64,12 @@
 // This document includes the annotation [UNIMPLEMENTED] in several places
 // where we feel we have a suitable design ready for consideration, but
 // have yet to provide a complete and/or correct implementation.
+//
+// This document includes the annotation [EXPERIMENTAL] in several places
+// where we feel we have a suitable design and an implementation which is
+// sufficiently complete to be used.  However, based on feedback received
+// from early use, the design may change in non-trivial ways (to the degree
+// that client code may need to change).
 
 
 // Hybrid/transitional client support:
