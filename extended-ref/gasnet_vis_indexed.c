@@ -614,7 +614,7 @@ gex_Event_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
     newsrclist[i].addr = srclist[i];
     newsrclist[i].len = srclen;
   }
-  retval = gasnete_putv(synctype,dstnode,dstcount,newdstlist,srccount,newsrclist GASNETE_THREAD_PASS);
+  retval = gasnete_putv(synctype,gasneti_THUNK_TM,dstnode,dstcount,newdstlist,srccount,newsrclist,0/*flags*/ GASNETE_THREAD_PASS);
   gasneti_free(newdstlist);
   gasneti_free(newsrclist);
   return retval;
@@ -638,7 +638,7 @@ gex_Event_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
     newsrclist[i].addr = srclist[i];
     newsrclist[i].len = srclen;
   }
-  retval = gasnete_getv(synctype,dstcount,newdstlist,srcnode,srccount,newsrclist GASNETE_THREAD_PASS);
+  retval = gasnete_getv(synctype,gasneti_THUNK_TM,dstcount,newdstlist,srcnode,srccount,newsrclist,0/*flags*/ GASNETE_THREAD_PASS);
   gasneti_free(newdstlist);
   gasneti_free(newsrclist);
   return retval;
@@ -648,10 +648,13 @@ gex_Event_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
 /* top-level gasnet_puti_* entry point */
 #ifndef GASNETE_PUTI_OVERRIDE
 extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
-                                   gex_Rank_t dstnode,
+                                   gex_TM_t tm, gex_Rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
-                                   size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+                                   size_t srccount, void * const srclist[], size_t srclen,
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
+  gasneti_assert(!flags); // TODO-EX
+  // TODO-EX: Team support
   /* catch silly degenerate cases */
   if (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
       GASNETI_SUPERNODE_LOCAL(dstnode)) { /* purely local */ 
@@ -688,10 +691,14 @@ extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
 /* top-level gasnet_geti_* entry point */
 #ifndef GASNETE_GETI_OVERRIDE
 extern gex_Event_t gasnete_geti(gasnete_synctype_t synctype,
+                                   gex_TM_t tm,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gex_Rank_t srcnode,
-                                   size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+                                   size_t srccount, void * const srclist[], size_t srclen,
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
+  gasneti_assert(!flags); // TODO-EX
+  // TODO-EX: Team support
   /* catch silly degenerate cases */
   if (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
       GASNETI_SUPERNODE_LOCAL(srcnode)) { /* purely local */ 

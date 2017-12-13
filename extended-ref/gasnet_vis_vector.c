@@ -734,10 +734,13 @@ gex_Event_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
 /* top-level gasnet_putv_* entry point */
 #ifndef GASNETE_PUTV_OVERRIDE
 extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
-                                   gex_Rank_t dstnode,
+                                   gex_TM_t tm, gex_Rank_t dstnode,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
+  gasneti_assert(!flags); // TODO-EX
+  // TODO-EX: Team support
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GEX_EVENT_INVALID; 
@@ -760,10 +763,14 @@ extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
 /* top-level gasnet_getv_* entry point */
 #ifndef GASNETE_GETV_OVERRIDE
 extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
+                                   gex_TM_t tm,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
                                    gex_Rank_t srcnode,
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
+  gasneti_assert(!flags); // TODO-EX
+  // TODO-EX: Team support
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GEX_EVENT_INVALID; 
