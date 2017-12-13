@@ -1426,11 +1426,72 @@ typedef [some integer type] gex_OP_t;
 
 //----------------------------------------------------------------------
 //
-// Remote Atomic Operations
+// Remote Atomic Operations [EXPERIMENTAL]
 // APIs in this section are provided by gasnet_ratomic.h
 //
 
-// TODO: Need text here to define atomic domain, etc.
+//
+// Atomic Domains
+//
+// Just as all point-to-point RMA calls take a gex_TM_t argument, calls to
+// initiate Remote Atomic operations take a gex_AD_t, where "AD" is short for
+// "Atomic Domain".
+//
+// + Creation of an AD associates it with a specific gex_TM_t.
+//
+//   This association defines the memory locations which can be accessed using
+//   the AD.  In particular, only memory within the bound segments of the
+//   endpoints which comprise the team may be accessed by atomic operations
+//   which pass a given AD.
+//
+// + Creation of an AD associates with it one data type and a set of operations.
+//
+//   This permits selection of the best possible implementation which can
+//   provide correct results for the given set of operations on the given data
+//   type.  This is important because the best possible implementation of a
+//   operation "X" may not be compatible with operation "Y".  So, this best
+//   "X" can only be used when it is known that "Y" will not be used.  This
+//   issue arises because a NIC may offload "X" (but not "Y") and use of a
+//   CPU-based implementation of "Y" would not be coherent with the NIC
+//   performing a concurrent "X" operation.
+//
+// + Use of an AD is conceptually tied to specific data and time.
+//
+//   Correct operation of remote atomics is only assured if the client code
+//   can ensure that there are no other accesses to the same location(s)
+//   concurrent with the atomics on a given AD.
+//
+//   This prohibition against concurrent access applies to CPU/GPU access and
+//   to all GASNet-EX calls other than the atomics defined in this section.
+//   Note that this prohibition also extends to concurrent access via multiple
+//   ADs (even if created with identical arguments).  However, nothing
+//   prohibits concurrent access to distinct data with distinct ADs.
+//
+//   GASNet-EX does not provide any mechanisms to detect violations of the
+//   prohibitions described above.
+//
+// + Fencing: [INCOMPLETE / OPEN ISSUE]
+//
+//   It is the intent of this specification to permit NON-concurrent access to
+//   the same data using remote atomics and other (non-atomic) mechanisms.
+//   However, the means for making such a transition (in either direction) has
+//   not been fully specified.
+//
+//   FOR *THIS* RELEASE we believe it is sufficient to separate atomic and
+//   non-atomic access by a barrier synchronization.  In the case of
+//   transition *from* atomic accesses it is necessary to ensure that any
+//   atomic accesses which may conflict have been completed (synced) prior to
+//   the barrier.
+//
+// + Memory Barriers: [INCOMPLETE / OPEN ISSUE]
+//
+//   It is the intent of this specification to include flags to demand memory
+//   barriers (such as for Acquire and Release) when initiating an atomic
+//   operation.  However, these semantics have not yet been defined.
+//
+//   FOR *THIS* RELEASE we advise use of the GASNet-Tools APIs to introduce
+//   memory fences where they may be required for correctness.  See "Memory
+//   barriers" in README-tools.
 
 // Opaque type for Atomic Domain
 typedef ... gex_AD_t;
@@ -1445,7 +1506,7 @@ typedef ... gex_AD_t;
 //
 // The 'dt' and 'ops' arguments define the type and operations.
 //  + 'dt' is a value of type gex_DT_t
-//  + 'ops' is a bitwise-OR of one or GEX_OP_* constants of type gex_OP_t.
+//  + 'ops' is a bitwise-OR of one or more GEX_OP_* constants of type gex_OP_t.
 // If 'dt' and 'ops' do not define only valid combinations (as described in the
 // definitions of gex_OP_t), then the behavior is undefined.
 //
@@ -1470,8 +1531,16 @@ void gex_AD_Create(
 // This call destroys an atomic domain.
 //
 // Calls must be collective over the team used to create the atomic domain.
-// All atomic operations initiated on the atomic domain must be complete prior
-// to making this call (or the behavior is undefined).
+//
+// All atomic operations initiated on the atomic domain must be complete
+// globally prior to making this call (or the behavior is undefined).  In
+// practice, this means completing (syncing) all atomic operation at their
+// initiators, followed by a barrier prior to calling this function.
+//
+// [INCOMPLETE / OPEN ISSUE]
+// Once this specification includes a complete definition of "Fencing" between
+// atomic and non-atomic accesses to data, this call will provide and/all
+// aspects of this fence which are stronger than the quiescence pre-condition.
 //
 // Though this function is collective, it does not guarantee barrier
 // synchronization.
@@ -1483,13 +1552,16 @@ void gex_AD_Destroy(gex_AD_t ad);
 //
 
 // Query the parameters passed when atomic domain was created
-gex_Flags_t  gex_AD_QueryFlags(gex_AD_t ad);
-gex_TM_t  gex_AD_QueryTM(gex_AD_t ad);
-gex_DT_t  gex_AD_QueryDT(gex_AD_t ad);
-gex_OP_t  gex_AD_QueryOps(gex_AD_t ad);
 
-// Client Data support for gex_AD_t
-// This field is NULL for a newly created AD.
+gex_Flags_t  gex_AD_QueryFlags(gex_AD_t ad);
+gex_TM_t     gex_AD_QueryTM(gex_AD_t ad);
+gex_DT_t     gex_AD_QueryDT(gex_AD_t ad);
+gex_OP_t     gex_AD_QueryOps(gex_AD_t ad);
+
+// Client-Data (CData) support for gex_AD_t
+// These call provide the means for the client to set and retrieve one void*
+// of client-specific data.  This field is NULL for a newly created AD.
+
 void  gex_AD_SetCData(gex_AD_t ad, const void *val);
 void* gex_AD_QueryCData(gex_AD_t ad);
 
