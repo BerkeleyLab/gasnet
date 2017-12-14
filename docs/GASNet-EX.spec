@@ -1571,4 +1571,180 @@ gex_OP_t     gex_AD_QueryOps(gex_AD_t ad);
 void  gex_AD_SetCData(gex_AD_t ad, const void *val);
 void* gex_AD_QueryCData(gex_AD_t ad);
 
+
+//
+// Remote Atomic Operations
+//
+// Remote atomic operations are point-to-point communication calls which
+// perform read-modify-write and accessor operations on typed data in the
+// bound segment of an endpoint which is a member of the team passed to
+// gex_AD_Create().  These operations are guaranteed to be atomic with respect
+// to all other atomic accesses made via the same AD (but no other atomicity
+// guarantees are provided).
+//
+// Despite "Remote" in the name, it is explicitly permitted to apply these
+// operations to the caller's own memory (and a quality implementation will
+// optimize this case when possible).
+//
+// The guarantee of atomicity is only with respect to the "target" location.
+// There is no guarantee that the output of a fetching operation (one which
+// requires a non-NULL 'result_p' argument) is written without word-tearing.
+// Therefore, clients must check for operation completion before the output
+// value (if any) can safely be read.  This is the same semantic as
+// gex_RMA_Get*().
+//
+// The semantics of "completion" for a remote atomic varies systematically
+// with the opcode, and can be expressed in terms of the semantics of Put and
+// Get with the same local address, remote rank and remote address.
+//
+// + GEX_OP_GET:
+//   Completion is semantically equivalent to an gex_RMA_Get*() call.
+//
+// + GEX_OP_{SET,ADD,SUB,MULT,MIN,MAX,INC,DEC,AND,OR,XOR}:
+//   Completion is semantically equivalent to an gex_RMA_Put*() call.
+//
+// + GEX_OP_{SWAP,CSWAP,FADD,FSUB,FMULT,FMIN,FMAX,FINC,FDEC,FAND,FOR,FXOR}:
+//   Completion is equivalent to the union of the semantics of a gex_RMA_Get*()
+//   call and gex_RMA_Put*() call.
+//
+// Atomic operations are available with explicit-event (NB) or implicit-event
+// (NBI) completion:
+//
+//  + The gex_AD_OpNB_*() APIs return a gex_Event_t.
+//
+//    If (and only if) the GEX_FLAG_IMMEDIATE flag is passed to remote atomic
+//    initiation, these calls are *permitted* to return GEX_EVENT_NO_OP to
+//    indicate that no operation was initiated.  Otherwise, the return value
+//    is an event to be used in calls to gex_NBI_{Test,Wait}() to check for
+//    completionc.  These calls may return GEX_EVENT_INVALID if the operation
+//    was completed synchronously.
+//
+//  + The gex_AD_OpNBI_*() APIs return an integer.
+//
+//    If (and only if) the GEX_FLAG_IMMEDIATE flag is passed to remote atomic
+//    initiation, these calls are *permitted* to return non-zero to indicate
+//    that no operation was initiated.  Otherwise, the return value is zero
+//    and a gex_NBI_{Test,Wait}() call must be used to check completion.  For
+//    the opcodes GEX_OP_SET and GEX_OP_GET, one should use GEX_EC_PUT and
+//    GEX_EC_GET, respectively, to check completion.  All other opcodes
+//    correspond to an event category of GEX_EC_RMW.
+//
+// Data types and prototypes:
+//   The APIs for remote atomic initiation are typed.  Therefore, the
+//   prototypes below use "[DATATYPE]" to denote the tokens corresponding to
+//   the "???" in each supported GEX_DT_???, and "[TYPE]" to denote the
+//   matching C type (see description of gex_DT_t, above).  There is an
+//   instance of each function (NB and NBI) for each supported data type.
+//   The current supported atomic data types:
+//     GEX_DT_{I32,U32,I64,U64,FLT,DBL}
+//
+// "Fetching":
+//   Text below uses "fetching" to denote operations which write to an output
+//   location ('*result_p') at the initiator (and "non-fetching" for all
+//   others).
+//   The current fetching atomic opcodes:
+//     GEX_OP_{GET,SWAP,CSWAP,FADD,FSUB,FMULT,FMIN,FMAX,FINC,FDEC,FAND,FOR,FXOR}
+//
+// Endpoints
+//   Let 'tm' denote the corresponding argument passed to gex_AD_Create().
+//   The endpoint associated with 'tm' is known as the "initiating endpoint".
+//   The endpoint named by (tm, tgt_rank) is known as the "target endpoint".
+//
+// ARGUMENTS:
+//
+//  gex_AD_t       ad
+//   + The Atomic Domain for this operation.
+//     The operation is restricted to operate on a datum in the bound segments
+//     of the endpoints with comprise the associated team, with the associated
+//     data type and an opcode in the associated set.
+//     Atomicity of the operation is guaranteed only with respect to other
+//     operations on the same atomic domain.
+//
+//  [TYPE] *       result_p
+//   + The output location for fetching operations.
+//     The value of the target datum at the beginning of a fetching operation
+//     ('op0' in the gex_OP_t documentation) is written to this location prior
+//     to operation completion.  Semantics are equivalent to a gex_RMA_Get*()
+//     operation, including the undefined contents of this location between
+//     initiation and completion of the operation.
+//     For fetching operations this must name a valid address on the initiator.
+//     When offset-based addressing is supported, GEX_FLAG_SELF_OFFFSET will
+//     indicate that this argument is an offset relative to the bound segment
+//     of the initiating endpoint; but otherwise this is any valid virtual
+//     address on the initiator.
+//     For non-fetching operations this argument is ignored.
+//
+//  gex_Rank_t     tgt_rank
+//   + Target rank
+//     This argument names the target endpoint as a rank relative to the team
+//     associated with the AD.
+//
+//  void *         tgt_addr
+//   + This argument names the address of the target datum.
+//     When offset-based addressing is supported, GEX_FLAG_PEER_OFFFSET will
+//     indicate that this argument is an offset relative to the bound segment
+//     of the target endpoint; but otherwise this is a virtual address.
+//     Independent of GEX_FLAG_PEER_OFFFSET, the named location must be
+//     properly aligned for its data type, and the datum must be contained
+//     entirely within the bound segment of the target endpoint (or else the
+//     behavior is undefined).
+//
+//  gex_OP_t       opcode
+//   + This argument indicates the operation to perform.
+//     Operations are described with the definition of gex_OP_t.
+//     If the given opcode was not included in the set of opcodes passed to
+//     gex_AD_Create(), then the behavior is undefined.
+//
+//  [TYPE]         operand1
+//   + First operand, if any.
+//     If the given opcode requires one or more operands, this argument
+//     provides the first one ('op1' in the gex_OP_t documentation).
+//     If the given opcode has no operands, this argument is ignored.
+//
+//  [TYPE]         operand2
+//   + Second operand, if any.
+//     If the given opcode requires two operands, this argument provides the
+//     second one ('op2' in the gex_OP_t documentation).
+//     If the given opcode has fewer than two operands, this argument is
+//     ignored.
+//
+//  gex_Flags_t    flags
+//   + Per-operation flags
+//     This argument is a bitwise OR of zero or more of the GEX_FLAG_*
+//     constants listed below.  Inclusion of any flag value not listed
+//     here will result in undefined behavior.
+//     - GEX_FLAG_IMMEDIATE: the call is permitted (but not required) to
+//       return a distinguishing value without initiating any communication if
+//       the conduit could determine that it would need to block temporarily
+//       to obtain the necessary resources.  The NBI calls return a non-zero
+//       value (only) in this "no op" case, while the NB calls will return
+//       GEX_EVENT_NO_OP.
+//     - [UNIMPLEMENTED] GEX_FLAG_SELF_OFFSET: 'result_p' is to be interpreted
+//       as an offset relative to the bound segment of the initiating endpoint.
+//       Ignored for non-fetching operations.
+//     - [UNIMPLEMENTED] GEX_FLAG_PEER_OFFSET: 'tgt_addr' is to be interpreted
+//       as an offset relative to the bound segment of the target endpoint.
+//
+gex_Event_t gex_AD_OpNB_[DATATYPE](
+            gex_AD_t       ad,          // The atomic domain
+            [TYPE] *       result_p,    // Output location, if any, else ignored
+            gex_Rank_t     tgt_rank,    // Rank of target endpoint
+            void *         tgt_addr,    // Address (or OFFSET) of target datum
+            gex_OP_t       opcode,      // The operation (GEX_OP_*) to perform
+            [TYPE]         operand1,    // First operand, if any, else ignored
+            [TYPE]         operand2,    // Second operand, if any, else ignored
+            gex_Flags_t    flags);      // Flags to control this operation
+int gex_AD_OpNBI_[DATATYPE](
+            gex_AD_t       ad,
+            [TYPE] *       result_p,
+            gex_Rank_t     tgt_rank,
+            void *         tgt_addr,
+            gex_OP_t       opcode,
+            [TYPE]         operand1,
+            [TYPE]         operand2,
+            gex_Flags_t    flags);
+
+// End of section describing APIs provided by gasnet_ratomic.h
+//----------------------------------------------------------------------
+
 // vim: syntax=c
