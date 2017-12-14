@@ -345,6 +345,22 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        size_t alloc_size);
 void gasneti_free_tm(gasneti_TM_t tm);
 
+
+/* ------------------------------------------------------------------------------------ */
+// TODO-EX: Please remove this!
+//
+// These macros are a "necessary evil" until all internal interfaces have been
+// updated to propogate Client, TM, EP and Segment arguments.
+// For the time being there is at most one of each of those objects.
+//
+// Results are undefined prior to return from gex_Client_Init() or gasnet_init().
+//
+extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
+#define gasneti_THUNK_TM      gasneti_export_tm(gasneti_thing_that_goes_thunk_in_the_dark)
+#define gasneti_THUNK_EP      gasneti_export_ep(gasneti_thing_that_goes_thunk_in_the_dark->_ep)
+#define gasneti_THUNK_CLIENT  gasneti_export_client(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_client)
+#define gasneti_THUNK_SEGMENT gasneti_export_segment(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment)
+
 /* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
 

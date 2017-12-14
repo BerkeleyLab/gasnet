@@ -130,6 +130,11 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
   peersegmid = (char *)peerseg + TEST_SEGSZ/2;
   if (testsections) TEST_SECTION_PARSE(testsections);
 
+  assert_always(gasneti_THUNK_TM      == myteam);
+  assert_always(gasneti_THUNK_EP      == gex_TM_QueryEP(myteam));
+  assert_always(gasneti_THUNK_CLIENT  == gex_TM_QueryClient(myteam));
+  assert_always(gasneti_THUNK_SEGMENT == gex_EP_QuerySegment(gex_TM_QueryEP(myteam)));
+
   TEST_GENERICS_WARNING();
 
   auxseg_test();

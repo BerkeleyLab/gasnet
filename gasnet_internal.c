@@ -125,6 +125,9 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
 gex_Rank_t gasneti_nodes = 0;
 
+// a necessary evil - see the declaration in gasnet_help.h
+gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
+
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
@@ -766,6 +769,11 @@ extern gasneti_TM_t gasneti_alloc_tm(
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
 #endif
+
+  // TODO-EX: Please remove this!
+  gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
+  gasneti_thing_that_goes_thunk_in_the_dark = tm;
+
   return tm;
 }
 
