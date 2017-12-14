@@ -329,22 +329,22 @@ int main(int argc, char **argv) {
                 switch (viscat) {                                                                \
                   case TEST_V:                                                                   \
                     for (i = 0; i < iters; i++) {                                                \
-                      if (isget) gasnet_getv_nbi_bulk(Lcnt,Lvlist,peerproc,Rcnt,Rvlist);         \
-                      else gasnet_putv_nbi_bulk(peerproc,Rcnt,Rvlist,Lcnt,Lvlist);               \
+                      if (isget) gex_VIS_VectorGetNBI(myteam,Lcnt,Lvlist,peerproc,Rcnt,Rvlist,0);\
+                      else gex_VIS_VectorPutNBI(myteam,peerproc,Rcnt,Rvlist,Lcnt,Lvlist,0);      \
                     }                                                                            \
                     break;                                                                       \
                   case TEST_I:                                                                   \
                     for (i = 0; i < iters; i++) {                                                \
-                      if (isget) gasnet_geti_nbi_bulk(Lcnt,Lilist,Lsz,peerproc,Rcnt,Rilist,Rsz); \
-                      else gasnet_puti_nbi_bulk(peerproc,Rcnt,Rilist,Rsz,Lcnt,Lilist,Lsz);       \
+                      if (isget) gex_VIS_IndexedGetNBI(myteam,Lcnt,Lilist,Lsz,peerproc,Rcnt,Rilist,Rsz,0); \
+                      else gex_VIS_IndexedPutNBI(myteam,peerproc,Rcnt,Rilist,Rsz,Lcnt,Lilist,Lsz,0);       \
                     }                                                                            \
                     break;                                                                       \
                   case TEST_S:                                                                   \
                     for (i = 0; i < iters; i++) {                                                \
-                      if (isget) gasnet_gets_nbi_bulk(Lbase,Lstrides,peerproc,Rbase,Rstrides,    \
-                                                      LRcount,stridelevels);                     \
-                      else gasnet_puts_nbi_bulk(peerproc,Rbase,Rstrides,Lbase,Lstrides,          \
-                                                LRcount,stridelevels);                           \
+                      if (isget) gex_VIS_StridedGetNBI(myteam,Lbase,Lstrides,peerproc,Rbase,Rstrides, \
+                                                      LRcount,stridelevels,0);                   \
+                      else gex_VIS_StridedPutNBI(myteam,peerproc,Rbase,Rstrides,Lbase,Lstrides,  \
+                                                LRcount,stridelevels,0);                         \
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \

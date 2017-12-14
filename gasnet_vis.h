@@ -527,7 +527,7 @@ typedef enum _gasnete_synctype_t {
         gex_Flags_t _flags GASNETE_THREAD_FARG);
 #endif
 
-#if 0 // blocking interfaces removed in EX
+#if 1 // blocking interfaces removed in EX?
 GASNETI_INLINE(_gex_VIS_VectorPutBlocking)
 int _gex_VIS_VectorPutBlocking(
         gex_TM_t _tm, gex_Rank_t _dstrank,
@@ -637,7 +637,7 @@ int _gex_VIS_VectorGetNBI(
         gex_Flags_t _flags GASNETE_THREAD_FARG);
 #endif
 
-#if 0 // blocking interfaces removed in EX
+#if 1 // blocking interfaces removed in EX?
 GASNETI_INLINE(_gex_VIS_IndexedPutBlocking)
 int _gex_VIS_IndexedPutBlocking(
         gex_TM_t _tm, gex_Rank_t _dstrank,
@@ -749,7 +749,7 @@ int _gex_VIS_IndexedGetNBI(
         gex_Flags_t _flags GASNETE_THREAD_FARG);
 #endif
 
-#if 0 // blocking interfaces removed in EX
+#if 1 // blocking interfaces removed in EX?
 GASNETI_INLINE(_gex_VIS_StridedPutBlocking)
 int _gex_VIS_StridedPutBlocking(
         gex_TM_t _tm, gex_Rank_t _dstrank,
