@@ -310,6 +310,17 @@ typedef [some unsigned integer type] gex_RMA_Value_t;
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
 #define SIZEOF_GEX_RMA_VALUE_T ...
 
+// Memvec
+// A "memvec" describes a tuple of memory address and length
+// gex_Memvec_t is guaranteed to have the same in-memory representation as gasnet_memvec_t;
+// these two struct types name their fields differently so they are technically 
+// incompatible as far as the compiler is concerned -- it *is* safe to type-pun 
+// pointers to them with explicit casts.
+typedef struct {
+  void  *gex_addr;  // [EXPERIMENTAL]: will eventually have type gex_Addr_t
+  size_t gex_len;
+} gex_Memvec_t;
+
 // gex_EP_t is an opaque scalar handle to an Endpoint (EP),
 // a local representative of an isolated communication context
 typedef ... gex_EP_t;
@@ -1340,7 +1351,6 @@ void gex_HSL_Lock   (gex_HSL_t *hsl);
 void gex_HSL_Unlock (gex_HSL_t *hsl);
 int  gex_HSL_Trylock(gex_HSL_t *hsl);
 
-
 //
 // Data types for atomics and reductions
 //
@@ -1755,6 +1765,73 @@ int gex_AD_OpNBI_[DATATYPE](
             gex_Flags_t    flags);
 
 // End of section describing APIs provided by gasnet_ratomic.h
+//----------------------------------------------------------------------
+//
+// Vector/Indexed/Strided (VIS) [EXPERIMENTAL]
+//
+// APIs in this section are provided by gasnet_vis.h
+
+// This API is an updated and expanded version of the VIS prototype offered
+// in GASNet-1, which is documented here: http://gasnet.lbl.gov/upc_memcpy_gasnet-2.0.pdf
+
+// For NB variants, return type for all functions in this section is gex_Event_t.
+// For NBI/Blocking variants, the return type is int which is non-zero *only* in the
+// "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
+
+// NOTE: This interface does not yet offer local completion indication - all client-owned
+// buffers passed to the non-blocking initiation functions are implicitly treated as
+// GEX_EVENT_DEFER (for NB) or GEX_EVENT_GROUP (for NBI) semantics, and thus must remain
+// valid until the operation is fully completed (as in GASNet-1).
+// A future revision will expose intermediate completion events [UNIMPLEMENTED]
+
+// NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]
+
+// Vector and Indexed Puts and Gets
+
+{gex_Event_t,int} gex_VIS_VectorGet{NB,NBI,Blocking}(
+        gex_TM_t tm,                                   // Names a local context
+        size_t dstcount, gex_Memvec_t const dstlist[], // Local destination data description
+        gex_Rank_t srcrank,                            // Together with 'tm', names a remote context
+        size_t srccount, gex_Memvec_t const srclist[], // Remote source data description
+        gex_Flags_t flags);                            // Flags to control this operation
+{gex_Event_t,int} gex_VIS_VectorPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        size_t dstcount, gex_Memvec_t const dstlist[],
+        size_t srccount, gex_Memvec_t const srclist[],
+        gex_Flags_t flags);
+
+{gex_Event_t,int} gex_VIS_IndexedGet{NB,NBI,Blocking}(
+        gex_TM_t tm,
+        size_t dstcount, void * const dstlist[], size_t dstlen,
+        gex_Rank_t srcrank,
+        size_t srccount, void * const srclist[], size_t srclen,
+        gex_Flags_t flags);
+{gex_Event_t,int} gex_VIS_IndexedPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        size_t dstcount, void * const dstlist[], size_t dstlen,
+        size_t srccount, void * const srclist[], size_t srclen,
+        gex_Flags_t flags);
+
+// These operate analogously to the GASNet-1 gasnet_{put,get}[vi]_* functions
+
+{gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
+        gex_TM_t tm,
+        void *dstaddr, const size_t dststrides[],
+        gex_Rank_t srcrank,
+        void *srcaddr, const size_t srcstrides[],
+        const size_t count[], size_t stridelevels,  // <-- CHANGING SOON
+        gex_Flags_t flags);
+{gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        void *dstaddr, const size_t dststrides[],
+        void *srcaddr, const size_t srcstrides[],
+        const size_t count[], size_t stridelevels,
+        gex_Flags_t flags);
+
+// These operate similarly to the GASNet-1 gasnet_{put,get}s_* functions,
+// but the metadata format is changing slightly in EX. [FILL THIS IN]
+
+// End of section describing APIs provided by gasnet_vis.h
 //----------------------------------------------------------------------
 
 // vim: syntax=c
