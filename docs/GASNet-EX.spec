@@ -231,6 +231,9 @@ typedef [some integer type] gex_Flags_t;
 // absence of an explicitly provided flag corresponds to:
 //    GEX_FLAG_SELF_SEG_UNKNOWN, GEX_FLAG_PEER_SEG_BOUND
 // which is backwards-compatible with GASNet-1 segment behavior.
+// NOTE: the flags below are currently [UNIMPLEMENTED], and consequently
+// these defaults are also the only supported settings for all APIs.
+//
 // Each explicit flag has a distinct bit pattern.
 // Unless otherwise noted, the caller is responsible for ensuring the
 // assertions expressed by these flags to a given call remain true for 
