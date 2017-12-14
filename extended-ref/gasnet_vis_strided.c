@@ -676,7 +676,7 @@ gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_sy
     void * const packedbuf = visop + 1;
     gasnete_strided_pack_all(srcaddr, srcstrides, count, stridelevels, packedbuf);
     visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
-    visop->event = gasnete_put_nb(NULL, dstnode, dstaddr, packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    visop->event = gasnete_put_nb(gasneti_THUNK_TM, dstnode, dstaddr, packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
@@ -715,7 +715,7 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
     visop->type = GASNETI_VIS_CAT_GETS_SCATTER;
     visop->addr = dstaddr;
     visop->len = stridelevels;
-    visop->event = gasnete_get_nb(NULL, packedbuf, srcnode, srcaddr, nbytes, 0 GASNETE_THREAD_PASS);
+    visop->event = gasnete_get_nb(gasneti_THUNK_TM, packedbuf, srcnode, srcaddr, nbytes, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
@@ -795,7 +795,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, gasnet
         nbytes += packetoverhead;
       }
       /* fill packet with remote metadata */
-      gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_puts_AMPipeline_reqh),
+      gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_puts_AMPipeline_reqh),
                                packetbase, nbytes, GEX_EVENT_NOW, 0,
                                PACK(iop), PACK(dstaddr), stridelevels, stats->dualcontiguity, packetchunks);
     }
@@ -899,7 +899,7 @@ gex_Event_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, gasnet
       size_t const adjnbytes = packetchunks*adjchunksz;
       remaining -= packetchunks;
       memcpy(packetinit, tableinit, stridelevels*sizeof(size_t));
-      gex_AM_RequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_gets_AMPipeline_reqh),
+      gex_AM_RequestMedium(gasneti_THUNK_TM, srcnode, gasneti_handleridx(gasnete_gets_AMPipeline_reqh),
                       packetbase, packetnbytes, GEX_EVENT_NOW, 0,
                       PACK(visop), PACK(srcaddr), stridelevels, stats->dualcontiguity, packetchunks, packetidx);
 

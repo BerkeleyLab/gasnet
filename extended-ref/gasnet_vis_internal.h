@@ -167,7 +167,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_boundscheck_allowoutseg(NULL/*team*/, dstnode, dstaddr, nbytes);    \
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
-    else gasnete_put_nbi(NULL, (dstnode), (dstaddr), (srcaddr), (nbytes),       \
+    else gasnete_put_nbi(gasneti_THUNK_TM, (dstnode), (dstaddr), (srcaddr), (nbytes), \
                          GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
@@ -176,7 +176,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_boundscheck_allowoutseg(NULL/*team*/, srcnode, srcaddr, nbytes);    \
     gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
-    else gasnete_get_nbi(NULL, (dstaddr), (srcnode), (srcaddr), (nbytes),       \
+    else gasnete_get_nbi(gasneti_THUNK_TM, (dstaddr), (srcnode), (srcaddr), (nbytes), \
                          0 GASNETE_THREAD_PASS);                                \
   } while (0)
 

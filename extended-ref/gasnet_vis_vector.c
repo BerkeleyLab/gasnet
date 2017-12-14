@@ -244,7 +244,7 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
     void * const packedbuf = visop + 1;
     gasnete_memvec_pack(srccount, srclist, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTV_GATHER;
-    visop->event = gasnete_put_nb(NULL, dstnode, dstlist[0].gex_addr, packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    visop->event = gasnete_put_nb(gasneti_THUNK_TM, dstnode, dstlist[0].gex_addr, packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
@@ -277,7 +277,7 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
     memcpy(savedlst, dstlist, dstcount*sizeof(gex_Memvec_t));
     visop->type = GASNETI_VIS_CAT_GETV_SCATTER;
     visop->count = dstcount;
-    visop->event = gasnete_get_nb(NULL, packedbuf, srcnode, srclist[0].gex_addr, nbytes, 0 GASNETE_THREAD_PASS);
+    visop->event = gasnete_get_nb(gasneti_THUNK_TM, packedbuf, srcnode, srclist[0].gex_addr, nbytes, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
@@ -373,7 +373,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
       #endif
 
       /* send AM(rnum, iop) from packedbuf */
-      gex_AM_RequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_putv_AMPipeline_reqh),
+      gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_putv_AMPipeline_reqh),
                                packedbuf, packetlen, GEX_EVENT_NOW, 0,
                                PACK(iop), rnum);
     }
@@ -520,7 +520,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
       #endif
 
       /* send AM(visop) from packedbuf */
-      gex_AM_RequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
+      gex_AM_RequestMedium(gasneti_THUNK_TM, srcnode, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
                       packedbuf, rnum*sizeof(gex_Memvec_t), GEX_EVENT_NOW, 0,
                       PACK(visop), packetidx);
     }
