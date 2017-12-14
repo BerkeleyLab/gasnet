@@ -45,8 +45,8 @@ gex_Memvec_t *make_vlist(void *baseaddr, size_t stride, size_t cnt, size_t chunk
   gex_Memvec_t *retval = test_malloc(cnt*sizeof(gex_Memvec_t));
   size_t i;
   for (i = 0; i < cnt; i++) {
-    retval[i].addr = ((char*)baseaddr)+i*stride;
-    retval[i].len = chunksz;
+    retval[i].gex_addr = ((char*)baseaddr)+i*stride;
+    retval[i].gex_len = chunksz;
   }
   return retval;
 }

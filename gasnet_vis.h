@@ -18,7 +18,7 @@ uintptr_t gasnete_memveclist_totalsz(size_t count, gex_Memvec_t const *list) {
   uintptr_t retval = 0;
   size_t i;
   for (i = 0; i < count; i++) {
-    retval += list[i].len;
+    retval += list[i].gex_len;
   }
   return retval;
 }
@@ -32,8 +32,8 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gex_Memvec_t c
   char *maxaddr = (char *)0;
   size_t i;
   for (i = 0; i < count; i++) {
-    size_t const len = list[i].len;
-    char * const addr = (char *)list[i].addr;
+    size_t const len = list[i].gex_len;
+    char * const addr = (char *)list[i].gex_addr;
     if (len > 0) {
       if (len < minsz) minsz = len;
       if (len > maxsz) maxsz = len;

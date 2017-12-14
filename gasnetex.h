@@ -539,8 +539,8 @@ typedef uintptr_t gex_RMA_Value_t;
 #ifndef _GEX_MEMVEC_T
 #define _GEX_MEMVEC_T
   typedef struct {
-    void *addr;  // TODO-EX: gex_Addr_t
-    size_t len;
+    void  *gex_addr;  // TODO-EX: gex_Addr_t
+    size_t gex_len;
   } gex_Memvec_t;
 #endif
 

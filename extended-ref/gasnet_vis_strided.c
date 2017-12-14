@@ -596,11 +596,11 @@ static void gasnete_convert_strided_to_memvec(gex_Memvec_t *srclist, gex_Memvec_
     void *srcaddr = _srcaddr; const size_t * const srcstrides = _srcstrides; 
     void *dstaddr = _dstaddr; const size_t * const dststrides = _dststrides; 
     #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-      srcpos->addr = psrc;                                   \
-      srcpos->len = srccontigsz;                             \
+      srcpos->gex_addr = psrc;                               \
+      srcpos->gex_len = srccontigsz;                         \
       srcpos++;                                              \
-      dstpos->addr = pdst;                                   \
-      dstpos->len = dstcontigsz;                             \
+      dstpos->gex_addr = pdst;                               \
+      dstpos->gex_len = dstcontigsz;                         \
       dstpos++;                                              \
     } while(0)
     GASNETE_STRIDED_HELPER(limit,contiglevel);
@@ -633,12 +633,12 @@ static void gasnete_convert_strided_to_memvec(gex_Memvec_t *srclist, gex_Memvec_
       const size_t * const srcstrides = __srcstrides; 
       const size_t * const dststrides = __dststrides; 
       #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-        srcpos->addr = psrc;                                   \
-        srcpos->len = _srccontigsz;                            \
+        srcpos->gex_addr = psrc;                               \
+        srcpos->gex_len = _srccontigsz;                        \
         srcpos++;                                              \
         if (--loopcnt == 0) {                                  \
-          dstpos->addr = pdst;                                 \
-          dstpos->len = _dstcontigsz;                          \
+          dstpos->gex_addr = pdst;                             \
+          dstpos->gex_len = _dstcontigsz;                      \
           dstpos++;                                            \
           loopcnt = looplim;                                   \
         }                                                      \

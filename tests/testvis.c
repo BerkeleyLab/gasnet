@@ -109,7 +109,7 @@ void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
     FATALERR("Checksum mismatch in verify_memvec_list at %s:%i", file, line);
   sum = 0;
   for (i=0; i < mv->count; i++) {
-    sum += mv->list[i].len;
+    sum += mv->list[i].gex_len;
   }
   if (mv->totalsz != sum)
     FATALERR("totalsz mismatch in verify_memvec_list at %s:%i", file, line);
@@ -139,11 +139,11 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
       size_t offset = TEST_RAND(0, elemlen-1);
       size_t len = TEST_RAND(0, MIN(per,elemlen-offset));
       if (TEST_RAND_ONEIN(20)) {
-        mv->list[i].addr = NULL;
-        mv->list[i].len = 0;
+        mv->list[i].gex_addr = NULL;
+        mv->list[i].gex_len = 0;
       } else {
-        mv->list[i].addr = ((VEC_T*)addr)+offset;
-        mv->list[i].len = VEC_SZ*len;
+        mv->list[i].gex_addr = ((VEC_T*)addr)+offset;
+        mv->list[i].gex_len = VEC_SZ*len;
         mv->totalsz += VEC_SZ*len;
       }
     }
@@ -154,13 +154,13 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
       size_t lim = 0;
       for (i = 0; i < count; i++) {
         if (TEST_RAND_ONEIN(20)) {
-          mv->list[i].addr = NULL;
-          mv->list[i].len = 0;
+          mv->list[i].gex_addr = NULL;
+          mv->list[i].gex_len = 0;
         } else {
           size_t offset = TEST_RAND(lim, per*(i+1)-1);
           size_t len = TEST_RAND(0, per*(i+1)-offset);
-          mv->list[i].addr = ((VEC_T*)addr)+offset;
-          mv->list[i].len = VEC_SZ*len;
+          mv->list[i].gex_addr = ((VEC_T*)addr)+offset;
+          mv->list[i].gex_len = VEC_SZ*len;
           mv->totalsz += VEC_SZ*len;
           lim = offset + len;
           assert(lim <= per*(i+1) && lim <= elemlen);
@@ -171,13 +171,13 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
       size_t lim = 0;
       for (i = 0; i < count; i++) {
         if (TEST_RAND_ONEIN(20)) {
-          mv->list[i].addr = NULL;
-          mv->list[i].len = 0;
+          mv->list[i].gex_addr = NULL;
+          mv->list[i].gex_len = 0;
         } else {
           size_t offset = TEST_RAND(lim, lim+(elemlen-lim)/4);
           size_t len = TEST_RAND(0, (elemlen-offset)/2);
-          mv->list[i].addr = ((VEC_T*)addr)+offset;
-          mv->list[i].len = VEC_SZ*len;
+          mv->list[i].gex_addr = ((VEC_T*)addr)+offset;
+          mv->list[i].gex_len = VEC_SZ*len;
           mv->totalsz += VEC_SZ*len;
           lim = offset + len;
           assert(lim <= elemlen);
@@ -198,8 +198,8 @@ test_memvec_list *buildcontig_memvec_list(void *addr, size_t elemlen, size_t are
   mv->count = 1;
   mv->list = (gex_Memvec_t*)(mv+1);
   mv->totalsz = ((uintptr_t)elemlen)*VEC_SZ;
-  mv->list[0].addr = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
-  mv->list[0].len = elemlen*VEC_SZ;
+  mv->list[0].gex_addr = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
+  mv->list[0].gex_len = elemlen*VEC_SZ;
   mv->checksum = test_checksum(mv->list, sizeof(gex_Memvec_t));
   return mv;
 }
@@ -213,11 +213,11 @@ void trim_memvec_list(test_memvec_list *one, test_memvec_list *two) {
 
   while (p->totalsz > totalsz) {
     uintptr_t diff = p->totalsz - totalsz;
-    if (diff < p->list[p->count-1].len) {
-      p->list[p->count-1].len -= diff;
+    if (diff < p->list[p->count-1].gex_len) {
+      p->list[p->count-1].gex_len -= diff;
       p->totalsz -= diff;
     } else {
-      p->totalsz -= p->list[p->count-1].len;
+      p->totalsz -= p->list[p->count-1].gex_len;
       p->count--;
     }
   }
@@ -232,13 +232,13 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
   VEC_T *p = result;
   size_t i,j;
   for (i = 0; i < src->count; i++) {
-    for (j = 0; j < src->list[i].len/VEC_SZ; j ++) {
+    for (j = 0; j < src->list[i].gex_len/VEC_SZ; j ++) {
       VEC_T srcval;
       VEC_T resval = *p;
       if (areaptr == NULL) /* local src */
-        srcval = ((VEC_T *)(src->list[i].addr))[j];
+        srcval = ((VEC_T *)(src->list[i].gex_addr))[j];
       else { /* remote src */
-        size_t offset = (VEC_T *)(src->list[i].addr) + j - areaptr;
+        size_t offset = (VEC_T *)(src->list[i].gex_addr) + j - areaptr;
         srcval = SEG_VALUE(nodeid, offset);
       }
       if (srcval != resval) {
@@ -801,7 +801,7 @@ void doit(int iters, int runtests) {
         TIMED_GET(gasnet_getv_bulk(tmp->count, tmp->list, partner, dst->count, dst->list),dst->totalsz);
         verify_memvec_list(tmp);
         verify_memvec_list(dst);
-        verify_memvec_data(src, tmp->list[0].addr, "gasnet_putv_bulk/gasnet_getv_bulk test");
+        verify_memvec_data(src, tmp->list[0].gex_addr, "gasnet_putv_bulk/gasnet_getv_bulk test");
         test_free(src);
         test_free(dst);
         test_free(tmp);
@@ -829,7 +829,7 @@ void doit(int iters, int runtests) {
         }
         verify_memvec_list(tmp);
         verify_memvec_list(dst);
-        verify_memvec_data_remote(src, tmp->list[0].addr, partner, partner_seg_read_area, "gasnet_getv_bulk test");
+        verify_memvec_data_remote(src, tmp->list[0].gex_addr, partner, partner_seg_read_area, "gasnet_getv_bulk test");
         test_free(src);
         test_free(dst);
         test_free(tmp);
@@ -1072,7 +1072,7 @@ void doit(int iters, int runtests) {
           verify_memvec_list(ops[i].vsrc);
           verify_memvec_list(ops[i].vdst);
           verify_memvec_list(ops[i].vtmp);
-          verify_memvec_data(ops[i].vsrc, ops[i].vtmp->list[0].addr, "non-blocking gasnet_putv_bulk/gasnet_getv_bulk test");
+          verify_memvec_data(ops[i].vsrc, ops[i].vtmp->list[0].gex_addr, "non-blocking gasnet_putv_bulk/gasnet_getv_bulk test");
 
           test_free(ops[i].vsrc);
           test_free(ops[i].vdst);

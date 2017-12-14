@@ -607,12 +607,12 @@ gex_Event_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTI_REF_VECTOR);
   gasneti_assert(GASNETE_PUTV_ALLOWS_VOLATILE_METADATA);
   for (i=0; i < dstcount; i++) {
-    newdstlist[i].addr = dstlist[i];
-    newdstlist[i].len = dstlen;
+    newdstlist[i].gex_addr = dstlist[i];
+    newdstlist[i].gex_len = dstlen;
   }
   for (i=0; i < srccount; i++) {
-    newsrclist[i].addr = srclist[i];
-    newsrclist[i].len = srclen;
+    newsrclist[i].gex_addr = srclist[i];
+    newsrclist[i].gex_len = srclen;
   }
   retval = gasnete_putv(synctype,gasneti_THUNK_TM,dstnode,dstcount,newdstlist,srccount,newsrclist,0/*flags*/ GASNETE_THREAD_PASS);
   gasneti_free(newdstlist);
@@ -631,12 +631,12 @@ gex_Event_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, GETI_REF_VECTOR);
   gasneti_assert(GASNETE_GETV_ALLOWS_VOLATILE_METADATA);
   for (i=0; i < dstcount; i++) {
-    newdstlist[i].addr = dstlist[i];
-    newdstlist[i].len = dstlen;
+    newdstlist[i].gex_addr = dstlist[i];
+    newdstlist[i].gex_len = dstlen;
   }
   for (i=0; i < srccount; i++) {
-    newsrclist[i].addr = srclist[i];
-    newsrclist[i].len = srclen;
+    newsrclist[i].gex_addr = srclist[i];
+    newsrclist[i].gex_len = srclen;
   }
   retval = gasnete_getv(synctype,gasneti_THUNK_TM,dstcount,newdstlist,srcnode,srccount,newsrclist,0/*flags*/ GASNETE_THREAD_PASS);
   gasneti_free(newdstlist);

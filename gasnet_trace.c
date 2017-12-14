@@ -111,7 +111,7 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
   for (i=0; i < count; i++) {
     j++;
     sprintf(p, "{"GASNETI_LADDRFMT",%5lu}", 
-      GASNETI_LADDRSTR(list[i].addr), (unsigned long)list[i].len);
+      GASNETI_LADDRSTR(list[i].gex_addr), (unsigned long)list[i].gex_len);
     if (i < count-1) { 
       strcat(p, ", ");
       if (j % 4 == 0) strcat(p,"\n      ");
