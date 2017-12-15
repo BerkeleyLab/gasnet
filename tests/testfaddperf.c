@@ -162,7 +162,7 @@ void do_##_tcode(int skipwarmup)                                               \
         for (int i = 0; i < warm_iters; ++i) {                                 \
             ph[i] = gex_AD_OpNB_##_tcode(myad, &result, peerproc, peerseg,     \
                                          GEX_OP_FADD, 1, 9999, 0);             \
-            gex_AD_OpNBI_##_tcode(myad, &result, 0, peerseg,                   \
+            gex_AD_OpNBI_##_tcode(myad, &result, peerproc, peerseg,            \
                                   GEX_OP_FADD, 1, 9999, 0);                    \
         }                                                                      \
         gex_NBI_Wait(GEX_EC_RMW,0);                                            \
