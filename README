@@ -575,7 +575,7 @@ application-specific support.
  on some systems (32-bit Linux in particular) the disable is only partly effective
  because once the sbrk()-controlled heap reaches the bottom of shared libraries,
  glibc will use mmap() used to obtain memory regardless of any options one can
- control.
+ control. The default is conduit-dependent.
 
 * GASNET_MAX_THREADS - per-node limit on the number of GASNet client pthreads 
   (in PAR and PARSYNC modes) that can simultaneously be live on each GASNet node.
@@ -695,16 +695,14 @@ application-specific support.
 * GASNET_VIS_AMPIPE - set to 1 to enable packing of most non-contiguous
  put/gets into AMMediums, with each packet of size approx MaxMedium (the only
  exception being cases where both sides happen to be fully contiguous, in
- which case we skip packing). This support is currently experimental, and thus
- disabled by default.
+ which case we skip packing). The default is conduit-dependent.
 
 * GASNET_VIS_MAXCHUNK - limits the max size of a strided or indexed chunk which
  will be packed by AM pipelining. Defaults to the size that will fit in one MaxMedium
 
 * GASNET_VIS_REMOTECONTIG - enables a pack & RDMA algorithm for gather puts and
  scatter gets - i.e. cases that are locally non-contiguous but remotely
- contiguous. Currently unsafe for use on some conduits, thus disabled by default.
- (Currently ibv is known to be unsafe without GASNET_DISABLE_MUNMAP).
+ contiguous. The default is conduit-dependent.
 
 * GASNET_COLL_OPT - set to 1 to enable the optimized versions of 
  the collectives. These include binomial trees for the rooted collectives 

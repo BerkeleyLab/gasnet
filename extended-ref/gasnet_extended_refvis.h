@@ -61,23 +61,27 @@
 #define GASNETE_RANDOM_SELECTOR 0
 #endif
 
-#ifndef GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
+#ifndef GASNETE_USE_REMOTECONTIG_GATHER_SCATTER // whether or not to compile in this alg
   #if GASNETI_HAVE_EOP_INTERFACE
     #define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER 1
   #else
     #define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER 0
   #endif
 #endif
-#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT 0
+#ifndef GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT // runtime alg enable default
+#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT 1
+#endif
 
-#ifndef GASNETE_USE_AMPIPELINE
+#ifndef GASNETE_USE_AMPIPELINE // whether or not to compile in this alg
   #if GASNETI_HAVE_EOP_INTERFACE
     #define GASNETE_USE_AMPIPELINE 1
   #else
     #define GASNETE_USE_AMPIPELINE 0
   #endif
 #endif
-#define GASNETE_USE_AMPIPELINE_DEFAULT 0
+#ifndef GASNETE_USE_AMPIPELINE_DEFAULT // runtime alg enable default
+#define GASNETE_USE_AMPIPELINE_DEFAULT 1
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Handlers *** */

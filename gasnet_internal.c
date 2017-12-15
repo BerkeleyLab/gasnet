@@ -223,6 +223,7 @@ extern void gasneti_check_config_preinit(void) {
 }
 
 static void gasneti_check_portable_conduit(void);
+int gasneti_malloc_munmap_disabled = 0;
 extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
 
@@ -238,11 +239,15 @@ extern void gasneti_check_config_postattach(void) {
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
 
-      if (gasneti_getenv_yesno_withdefault("GASNET_DISABLE_MUNMAP",0)) {
+      #ifndef GASNET_DISABLE_MUNMAP_DEFAULT
+      #define GASNET_DISABLE_MUNMAP_DEFAULT 0
+      #endif
+      if (gasneti_getenv_yesno_withdefault("GASNET_DISABLE_MUNMAP",GASNET_DISABLE_MUNMAP_DEFAULT)) {
         #if HAVE_PTMALLOC                                        
           mallopt(M_TRIM_THRESHOLD, -1);
           mallopt(M_MMAP_MAX, 0);
           GASNETI_TRACE_PRINTF(I,("Setting mallopt M_TRIM_THRESHOLD=-1 and M_MMAP_MAX=0"));
+          gasneti_malloc_munmap_disabled = 1;
         #else
           GASNETI_TRACE_PRINTF(I,("WARNING: GASNET_DISABLE_MUNMAP set on an unsupported platform"));
           if (gasneti_verboseenv()) 

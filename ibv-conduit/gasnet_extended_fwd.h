@@ -72,5 +72,12 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define gasnete_amref_memset_nb     gasnete_memset_nb
 #define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
+#ifndef GASNET_DISABLE_MUNMAP_DEFAULT
+#define GASNET_DISABLE_MUNMAP_DEFAULT 1 // default to disabling munmap for bug 955
+#endif
+// this VIS algorithm uses put/get with local-side buffers that are dynamically malloced and freed, 
+// thus is only safe if we disabled malloc munmap to avoid running afowl of firehose bug3364/bug955
+#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT gasneti_malloc_munmap_disabled
+
 #endif
 
