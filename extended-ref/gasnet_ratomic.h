@@ -351,8 +351,7 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
 // which together constitute one implementation of remote atomics.
 //
 // Example usage for a "fooratomic" implementation:
-//    #define GASNETE_FOORATOMIC_DISP(dtcode) \
-//            GASNETE_RATOMIC_DISP(gasnete_fooratomic, dtcode, cpusafe)
+//    #define GASNETE_FOORATOMIC_DISP(dtcode) GASNETE_RATOMIC_DISP(gasnete_fooratomic, dtcode, cpusafe)
 //    GASNETE_DT_APPLY(GASNETE_FOORATOMIC_DISP)
 // Where the 'cpusafe' argument is a literal 1 to enable "loopback" calls to
 // use the gasnete_ratomicfn##dtcode() functions, or literal 0 to disable.
