@@ -647,7 +647,9 @@ typedef struct {
     //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
-    // Entry for the currently-running handler corresponding to this token.
+    // Entry describing the currently-running handler corresponding to this token.
+    // The referenced gex_AM_Entry_t object resides in library-owned storage,
+    // and should not be directly modified by client code.
     // If handler was registered using the legacy gasnet_attach() call, this
     // value may be set to a valid pointer to a gex_AM_Entry_t, with undefined
     // contents.
