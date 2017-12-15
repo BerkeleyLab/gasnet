@@ -553,6 +553,12 @@ typedef struct {
 // guarantees that entries with gex_index==0 are processed in the same order
 // they appear in 'table' and are assigned the highest-numbered index which is
 // then still unallocated (where 255 is the highest possible).
+// Updating of gex_index fields that were passed as 0 upon input is the only
+// modification this function will perform upon the contents of 'table'
+// (whose elements are otherwise treated as const-qualified by this call).
+// Upon return from this function, the relevant information from 'table'
+// has been copied into storage internal to the endpoint implementation,
+// and the client is permitted to overwrite or free the contents of 'table'.
 //
 // If any sequence of calls attempts register a total of more than (256 -
 // GEX_AM_INDEX_BASE) handlers to a single gex_EP_t, the result is undefined
@@ -584,6 +590,8 @@ unsigned int gex_AM_MaxArgs(void);
 // 4. 'lc_opt' indicates the payload local completion option to be used for the AM injection in question,
 //    and should be either GEX_EVENT_NOW, GEX_EVENT_GROUP (Requests only), or NULL to indicate
 //    gex_Event_t-based AM local completion.
+// 5. 'flags' indicates the flags that will be provided to the corresponding AM
+//    Request/Reply injection function (not to be confused with the handler registration flags).
 // The result is guaranteed to be stable - ie for the same set of input arguments,
 // it will always return the same value.
 // Aside from the explicit guarantees above, the result may otherwise vary with the 
