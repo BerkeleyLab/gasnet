@@ -1815,7 +1815,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
       const size_t head_len = GASNETC_HEADLEN(medium, numargs);
       uint8_t * data = (uint8_t *)packet + head_len;
       gasneti_assert(0 == (((uintptr_t) data) % GASNETI_MEDBUF_ALIGNMENT));
-      gasneti_assert(gasnetc_am_nbytes(notify) <= GASNETC_MAX_MEDIUM);
+      gasneti_assert(head_len + gasnetc_am_nbytes(notify) <= GASNETC_MSG_MAXSIZE);
       GASNETI_RUN_HANDLER_MEDIUM(is_req, handlerindex, handler,
                                  token, packet->gamp.args, numargs,
                                  data, gasnetc_am_nbytes(notify));

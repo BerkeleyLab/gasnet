@@ -174,7 +174,7 @@ typedef struct {
 /* This type is used by an AMLong request or reply */
 typedef struct {
   void *data;
-#if GASNETC_MAX_LONG <= 0xFFFFFFFFU
+#if GASNETC_LUB_LONG <= 0xFFFFFFFFU
   uint32_t data_length;
 #else
   size_t data_length;
@@ -202,7 +202,7 @@ typedef union gasnetc_packet_u {
 #define GASNETC_CACHELINE_SIZE 64
 #define GASNETC_MSG_MAXSIZE \
         GASNETI_ALIGNUP_NOASSERT((GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) \
-                                 + GASNETC_MAX_MEDIUM), GASNETC_CACHELINE_SIZE)
+                                 + GASNETC_LUB_MEDIUM), GASNETC_CACHELINE_SIZE)
 
 /* max data one can pack into a message with a long header: */
 /* TODO: runtime control of cut-off via an env var */

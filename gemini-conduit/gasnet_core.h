@@ -118,30 +118,34 @@ typedef struct {
 #define gex_AM_MaxArgs() ((unsigned int)GASNETC_MAX_ARGS)
 
 #ifdef GASNET_CONDUIT_ARIES
-  #define GASNETC_MAX_LONG 0x800000
+  #define GASNETC_LUB_LONG 0x800000
 #else
-  #define GASNETC_MAX_LONG 0x100000
+  #define GASNETC_LUB_LONG 0x100000
 #endif
 #if GASNET_PSHM
   /* (###) If supporting PSHM a conduit must "negotiate" the maximum size of a
    * Medium message.  This can either be done by lowering the conduit's value to
    * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
    * defined in gasnet_core_fwd.h to give the conduit complete control. */
-  #define GASNETC_MAX_MEDIUM        ((size_t)MIN(GASNETC_GNI_MAX_MEDIUM, GASNETI_MAX_MEDIUM_PSHM))
+  #define GASNETC_LUB_MEDIUM        ((size_t)MIN(GASNETC_GNI_MAX_MEDIUM, GASNETI_MAX_MEDIUM_PSHM))
 #else
-  #define GASNETC_MAX_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM) 
+  #define GASNETC_LUB_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM)
 #endif
+#define GASNETC_MAX_MEDIUM(nargs) (GASNETC_LUB_MEDIUM+8*((GASNETC_MAX_ARGS-(nargs))/2))
 
-#define gex_AM_LUBRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
-#define gex_AM_LUBReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
-#define gex_AM_LUBRequestLong()   ((size_t)GASNETC_MAX_LONG)
-#define gex_AM_LUBReplyLong()     ((size_t)GASNETC_MAX_LONG)
+#define gex_AM_LUBRequestMedium() ((size_t)GASNETC_LUB_MEDIUM)
+#define gex_AM_LUBReplyMedium()   ((size_t)GASNETC_LUB_MEDIUM)
+#define gex_AM_LUBRequestLong()   ((size_t)GASNETC_LUB_LONG)
+#define gex_AM_LUBReplyLong()     ((size_t)GASNETC_LUB_LONG)
 
-  // TODO-EX: Medium sizes can be improved upon for PSHM case and (nargs<max)
-#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) ((size_t)GASNETC_MAX_MEDIUM)
-#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM)
-#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_LONG)
-#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)GASNETC_MAX_LONG)
+  // TODO-EX: Medium sizes can be improved upon for PSHM case
+#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) GASNETC_MAX_MEDIUM(nargs)
+#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   GASNETC_MAX_MEDIUM(nargs)
+#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_LUB_LONG)
+#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)GASNETC_LUB_LONG)
+
+// TODO-EX: a temporary interface for use in PrepareReply - TO BE REMOVED
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   GASNETC_MAX_MEDIUM(nargs)
 
 /* ------------------------------------------------------------------------------------ */
 /*

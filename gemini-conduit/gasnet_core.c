@@ -52,7 +52,7 @@ static void gasnetc_check_config(void) {
 
   /* Otherwise space is being wasted: */
   gasneti_assert(GASNETC_MSG_MAXSIZE ==
-                 (GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) + GASNETC_MAX_MEDIUM));
+                 (GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) + GASNETC_LUB_MEDIUM));
   
   gasneti_assert((int)GC_CMD_AM_LONG_PACKED == ((int)GC_CMD_AM_LONG + 1));
 
