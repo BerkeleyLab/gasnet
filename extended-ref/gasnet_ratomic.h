@@ -387,7 +387,7 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
                                  _opcode, dtcode##_dtype, _flags);       \
         gasneti_AD_t _real_ad = gasneti_import_ad(_ad);                  \
         if (cpusafe && (_tgt_rank == _real_ad->_rank)) {                 \
-            type _result = gasnete_ratomicfn##dtcode(_tgt_addr,          \
+            type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,  \
                                                      _operand1,          \
                                                      _operand2,          \
                                                      _opcode);           \
