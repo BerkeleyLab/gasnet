@@ -437,7 +437,7 @@ void doit(int partner, int *partnerseg) {
     gex_AD_t       ad;
     gex_DT_t       domain_type  = GEX_DT_U32;
     gex_OP_t       domain_ops   = GEX_OP_FADD|GEX_OP_SWAP;
-    gex_Flags_t    domain_flags = GEX_FLAG_DST_IN_BOUND_SEGMENT;
+    gex_Flags_t    domain_flags = GEX_FLAG_PEER_SEG_OFFSET;
     gex_AD_Create(&ad, myteam, domain_type, domain_ops, domain_flags);
 
     if (myteam != gex_AD_QueryTM(ad)) {
