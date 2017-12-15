@@ -317,7 +317,7 @@ void gasnete_amratomic_reph_inner(
     gasnete_amratomic_op_free(rop);
 }
 MEDIUM_HANDLER(gasnete_amratomic_reph,1,2,
-               (token,addr,nbytes, UNPACK(a0),     ),
+               (token,addr,nbytes, UNPACK(a0)      ),
                (token,addr,nbytes, UNPACK2(a0, a1)));
 
 
