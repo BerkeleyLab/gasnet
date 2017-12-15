@@ -137,6 +137,15 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Remote Atomics:
+  ==============
+*/
+
+/* use reference implementation of remote atomics */
+//#include "gasnet_extended_refratomic.h" - UNUSED
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -152,6 +161,9 @@ static gex_AM_Entry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_AMREF_HANDLERS
     GASNETE_AMREF_HANDLERS()
+  #endif
+  #ifdef GASNETE_AMRATOMIC_HANDLERS
+    GASNETE_AMRATOMIC_HANDLERS()
   #endif
 
   /* ptr-width independent handlers */

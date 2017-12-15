@@ -63,6 +63,7 @@ typedef struct _gasnete_iop_t {
 #if GASNETE_HAVE_LC
   gasnete_op_atomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
 #endif
+  gasnete_op_atomic_val_t initiated_rmw_cnt;     /*  count of ratomic rmw ops initiated */
   gasnete_op_atomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
   gasnete_op_atomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
 
@@ -70,14 +71,15 @@ typedef struct _gasnete_iop_t {
 
   /*  make sure the corresponding initiated/completed counters live on different cache lines for SMP's */
 #if GASNETE_HAVE_LC
-  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 3*sizeof(gasnete_op_atomic_val_t))];
+  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 4*sizeof(gasnete_op_atomic_val_t))];
 #else
-  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 2*sizeof(gasnete_op_atomic_val_t))];
+  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 3*sizeof(gasnete_op_atomic_val_t))];
 #endif
 
 #if GASNETE_HAVE_LC
   gasnete_op_atomic_t completed_alc_cnt;     /*  count of async-lc ops completed */
 #endif
+  gasnete_op_atomic_t completed_rmw_cnt;     /*  count of ratomic rmw ops completed */
   gasnete_op_atomic_t completed_get_cnt;     /*  count of get ops completed */
   gasnete_op_atomic_t completed_put_cnt;     /*  count of put ops completed */
 
@@ -202,12 +204,17 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define gasnete_event_check(h)  ((void)0)
 #endif
 
+// TODO-EX: EOP_INTERFACE
+//    To efficiently generalize beyond put/get, this enum will
+//    probably need to reflect the order of the counters in the iop
+//    (to compute addresses instead of dispatch via 'if' or 'switch').
 #if 1 // TODO-EX: do we want/need a mechanism for overriding these assignments?
   // gasnete_iop_event_* the event indexes for the named event in an iop
   enum {
     gasnete_iop_event_put = 0,
     gasnete_iop_event_alc = 1,
     gasnete_iop_event_get = 2,
+    gasnete_iop_event_rmw = 3,
   };
 #endif
 // gasnete_eop_event_* the child event indexes for the named event in an eop
@@ -394,15 +401,12 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
   return eop;
 }
 
-/*  query an eop for completeness */
-static
-int gasnete_eop_isdone(gasnete_eop_t *eop) {
-  gasnete_eop_check(eop);
-  return EVENT_ALL_DONE(eop);
-}
-
+#if GASNET_DEBUG
 /*  query an iop for completeness -
- *  this always means puts, gets and LC too */
+ *  this means all catagories (puts, gets, LC, etc.)
+ *  TODO-EX: DEPRECATE/REMOVE?
+ *   Only used (via GASNETE_IOP_ISDONE) to assert in gasnete_free_threaddata().
+ */
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
   int result;
@@ -410,12 +414,19 @@ int gasnete_iop_isdone(gasnete_iop_t *iop) {
   if (iop->next) { // access region, uses op bits
     result = EVENT_ALL_DONE(iop);
   } else { // implicit iop, uses counters
-    result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_CNTDONE(iop));
+    result = (GASNETE_IOP_CNTDONE(iop,get) &&
+              GASNETE_IOP_CNTDONE(iop,put) &&
+              GASNETE_IOP_CNTDONE(iop,rmw) &&
+              GASNETE_IOP_LC_CNTDONE(iop));
   }
   return result;
 }
+#endif // GASNET_DEBUG
 
 /*  mark an op done - isget ignored for explicit ops */
+// TODO-EX: DEPRECATED
+//   Must replace the only remaining call (in gasnet_extended_amref.c)
+//   with something supporting all event categories.
 static
 void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
@@ -476,7 +487,7 @@ void gasnete_eop_free(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
   }
 }
 
-#endif // GASNETI_DISABLE_EOP_INTERFACE
+#endif // GASNETI_DISABLE_REFERENCE_EOP
 /* ------------------------------------------------------------------------------------ */
 
 #endif
