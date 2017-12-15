@@ -62,6 +62,10 @@
 #define GASNETE_USING_REF_EXTENDED_GET      0
 #define GASNETE_USING_REF_EXTENDED_PUT      0
 
+/* Compile out VIS algorithms that should never be used in shared memory */
+#define GASNETE_USE_AMPIPELINE 0
+#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER 0
+
 /* All the "real work" is in gasnet_extended_help_extra.h */
 #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H 1
 

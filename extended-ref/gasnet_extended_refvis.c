@@ -29,19 +29,22 @@ extern void gasnete_vis_init(void) {
   #define GASNETE_VIS_ENV_YN(varname, envname, enabler) do {                                                    \
     if (enabler) {                                                                                              \
       varname = gasneti_getenv_yesno_withdefault(#envname, enabler##_DEFAULT);                                  \
-    } else if (!gasneti_mynode && gasneti_getenv(#envname) && gasneti_getenv_yesno_withdefault(#envname, 0)) { \
-      fprintf(stderr, "WARNING: %s is set in environment, but %s support is compiled out - setting ignored",    \
+    } else if (!gasneti_mynode && gasneti_getenv(#envname) && gasneti_getenv_yesno_withdefault(#envname, 0)) {  \
+      fprintf(stderr, "WARNING: %s is set in environment, but %s support is compiled out - setting ignored\n",  \
                       #envname, #enabler);                                                                      \
     }                                                                                                           \
   } while (0)
-  #if GASNETE_USE_AMPIPELINE
+  #if !GASNETE_USE_AMPIPELINE
+    int gasnete_vis_use_ampipe = 0; // dummy
+    size_t gasnete_vis_maxchunk = 0; // dummy
+  #endif
   GASNETE_VIS_ENV_YN(gasnete_vis_use_ampipe,GASNET_VIS_AMPIPE, GASNETE_USE_AMPIPELINE);
   gasnete_vis_maxchunk = MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())-2*sizeof(void*);
   gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnete_vis_maxchunk, 1);
+  #if !GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
+    int gasnete_vis_use_remotecontig = 0; // dummy
   #endif
-  #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
   GASNETE_VIS_ENV_YN(gasnete_vis_use_remotecontig,GASNET_VIS_REMOTECONTIG, GASNETE_USE_REMOTECONTIG_GATHER_SCATTER);
-  #endif
 }
 /*---------------------------------------------------------------------------------*/
 

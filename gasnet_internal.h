@@ -49,6 +49,8 @@ extern char gasneti_exename[PATH_MAX];
 extern void gasneti_check_config_preinit(void);
 extern void gasneti_check_config_postattach(void);
 
+extern int gasneti_malloc_munmap_disabled;
+
 /* decode the command-line arguments */
 extern void gasneti_decode_args(int *argc, char ***argv);
 
