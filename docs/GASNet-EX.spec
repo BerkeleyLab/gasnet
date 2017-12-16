@@ -862,7 +862,7 @@ int gex_AM_ReplyShort[M](
 //
 // The return from the Prepare call provides the client with an address and a
 // length.  The length is in the range defined by the minimum and maximum
-// lengths.  The address will be either the the client_buf (if non_NULL) or
+// lengths.  The address will be either the client_buf (if non_NULL) or
 // it may be a GASNet-owned buffer of the indicated length, suitably aligned
 // to hold any data type.
 //
@@ -1812,24 +1812,50 @@ int gex_AD_OpNBI_[DATATYPE](
         size_t srccount, void * const srclist[], size_t srclen,
         gex_Flags_t flags);
 
-// These operate analogously to the GASNet-1 gasnet_{put,get}[vi]_* functions
+// These operate analogously to those in the GASNet-1 prototype gasnet_{put,get}[vi]_* API
 
 {gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
         gex_TM_t tm,
-        void *dstaddr, const size_t dststrides[],
+        void *dstaddr, const ssize_t dststrides[],
         gex_Rank_t srcrank,
-        void *srcaddr, const size_t srcstrides[],
-        const size_t count[], size_t stridelevels,  // <-- CHANGING SOON
+        void *srcaddr, const ssize_t srcstrides[],
+        size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 {gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
         gex_TM_t tm, gex_Rank_t dstrank,
-        void *dstaddr, const size_t dststrides[],
-        void *srcaddr, const size_t srcstrides[],
-        const size_t count[], size_t stridelevels,
+        void *dstaddr, const ssize_t dststrides[],
+        void *srcaddr, const ssize_t srcstrides[],
+        size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 
-// These operate similarly to the GASNet-1 gasnet_{put,get}s_* functions,
-// but the metadata format is changing slightly in EX. [FILL THIS IN]
+// These operate similarly to the GASNet-1 prototype gasnet_{put,get}s_* API,
+// but the metadata format is changing slightly in EX.  Notable changes:
+// + The stride arrays change type from (const size_t[]) to (const ssize_t[])
+// + The 'count[0]' datum moves to a new parameter 'elemsz', and the subsequent
+//   elements 'count[1..stridelevels]' "slide down", meaning 'count' now references
+//   an array with 'stridelevels' entries (down from 'stridelevels+1').
+// Note that 'elemsz' need not match the "native" element size of the underlying
+// datastructure, it just needs to indicate a size of contiguous data chunks
+// (eg, it could be the length of an entire row of doubles stored contiguously).
+// These interface changes will enable a future release of the Strided interface
+// to expose more generalized data movement (specifically, transpose and reflection).
+//
+// The current release preserves metadata preconditions analogous to those
+// in the GASNet-1 prototype, with 'count[0]' replaced by 'elemsz' - ie:
+// For stridelevels == 0:
+//   the operation is a contiguous copy of elemsz bytes, and the 
+//   srcstrides, dststrides, count arguments are all ignored
+// For stridelevels == 1, the following preconditions must hold:
+//   srcstrides[0] >= elemsz
+//   (and analogously for dststrides)
+// For stridelevels > 1, the following preconditions must hold: 
+//   srcstrides[0] >= elemsz AND 
+//   srcstrides[1] >= (elemsz * count[0]) AND
+//   ForAll i in [2..stridelevels) :
+//     srcstrides[i] >= (count[i - 1] * srcstrides[i - 1])
+//   (and analogously for dststrides)
+// 
+// These restrictions will be loosened in an upcoming release. [UNIMPLEMENTED]
 
 // End of section describing APIs provided by gasnet_vis.h
 //----------------------------------------------------------------------
