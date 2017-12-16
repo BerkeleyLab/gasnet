@@ -39,7 +39,10 @@ extern void gasnete_vis_init(void) {
     size_t gasnete_vis_maxchunk = 0; // dummy
   #endif
   GASNETE_VIS_ENV_YN(gasnete_vis_use_ampipe,GASNET_VIS_AMPIPE, GASNETE_USE_AMPIPELINE);
-  gasnete_vis_maxchunk = MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())-2*sizeof(void*);
+  #ifndef GASNETE_VIS_MAXCHUNK_DEFAULT
+  #define GASNETE_VIS_MAXCHUNK_DEFAULT MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())-2*sizeof(void*)
+  #endif
+  gasnete_vis_maxchunk = GASNETE_VIS_MAXCHUNK_DEFAULT;
   gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnete_vis_maxchunk, 1);
   #if !GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
     int gasnete_vis_use_remotecontig = 0; // dummy

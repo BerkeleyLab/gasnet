@@ -93,6 +93,11 @@
 #define GASNETE_CONDUIT_THREADDATA_FIELDS \
         GASNETE_TD_DOMAIN_IDX
 
+// Configure default VIS tuning knobs
+// 12/15/17: Measurements on NERSC Cori show the ideal MAXCHUNK for I+S to be:
+//   Haswell: ~512 for puts and ~1024 for gets
+//   KNL:     ~512 for puts and gets
+#define GASNETE_VIS_MAXCHUNK_DEFAULT 512
 
 #endif
 
