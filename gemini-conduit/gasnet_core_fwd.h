@@ -31,6 +31,7 @@
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
 #define GASNET_PSHM 1
+#define GASNETC_MAX_MEDIUM_PSHM GASNETC_MAX_MEDIUM(0)
 #endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */

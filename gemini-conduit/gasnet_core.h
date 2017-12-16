@@ -122,15 +122,8 @@ typedef struct {
 #else
   #define GASNETC_LUB_LONG 0x100000
 #endif
-#if GASNET_PSHM
-  /* (###) If supporting PSHM a conduit must "negotiate" the maximum size of a
-   * Medium message.  This can either be done by lowering the conduit's value to
-   * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
-   * defined in gasnet_core_fwd.h to give the conduit complete control. */
-  #define GASNETC_LUB_MEDIUM        ((size_t)MIN(GASNETC_GNI_MAX_MEDIUM, GASNETI_MAX_MEDIUM_PSHM))
-#else
-  #define GASNETC_LUB_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM)
-#endif
+#define GASNETC_LUB_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM)
+
 #define GASNETC_MAX_MEDIUM(nargs) (GASNETC_LUB_MEDIUM+8*((GASNETC_MAX_ARGS-(nargs))/2))
 
 #define gex_AM_LUBRequestMedium() ((size_t)GASNETC_LUB_MEDIUM)
