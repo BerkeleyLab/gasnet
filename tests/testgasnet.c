@@ -453,7 +453,14 @@ void doit(int partner, int *partnerseg) {
       MSG("*** ERROR - FAILED ATOMIC DOMAIN FLAGS TEST!!!!!");
     }
 
-    TEST_CDATA(AD,ad);
+    // Don't use TEST_CDATA because EVERYTHING reaches here multiple times w/ different objects
+    if (NULL != gex_AD_QueryCData(ad)) {
+       MSG("*** ERROR - FAILED gex_AD_QueryCData TEST!!!!!");
+    }
+    gex_AD_SetCData(ad, (void*) ad);
+    if (ad != gex_AD_QueryCData(ad)) {
+       MSG("*** ERROR - FAILED gex_AD_QueryCData TEST!!!!!");
+    }
 
     gex_AD_Destroy(ad);
   }
