@@ -845,6 +845,78 @@ int _gex_VIS_StridedGetNBI(
        _gex_VIS_StridedGetNBI(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels,flags GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
+// g2ex Strided wrappers
+// These translate the Strided metadata from legacy to EX format
+
+GASNETI_INLINE(_gasnet_puts_bulk)
+void _gasnet_puts_bulk(
+        gex_TM_t _tm, gex_Rank_t _dstrank,
+        void *_dstaddr, const size_t _dststrides[],
+        void *_srcaddr, const size_t _srcstrides[],
+        const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
+  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  _gex_VIS_StridedPutBlocking(_tm,_dstrank,_dstaddr,(ssize_t*)_dststrides,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+}
+GASNETI_INLINE(_gasnet_gets_bulk)
+void _gasnet_gets_bulk(
+        gex_TM_t _tm,
+        void *_dstaddr, const size_t _dststrides[],
+        gex_Rank_t _srcrank,
+        void *_srcaddr, const size_t _srcstrides[],
+        const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
+  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  _gex_VIS_StridedGetBlocking(_tm,_dstaddr,(ssize_t*)_dststrides,_srcrank,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+}
+GASNETI_INLINE(_gasnet_puts_nb_bulk) GASNETI_WARN_UNUSED_RESULT
+gex_Event_t _gasnet_puts_nb_bulk(
+        gex_TM_t _tm, gex_Rank_t _dstrank,
+        void *_dstaddr, const size_t _dststrides[],
+        void *_srcaddr, const size_t _srcstrides[],
+        const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  return _gex_VIS_StridedPutNB(_tm,_dstrank,_dstaddr,(ssize_t*)_dststrides,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+}
+GASNETI_INLINE(_gasnet_gets_nb_bulk) GASNETI_WARN_UNUSED_RESULT
+gex_Event_t _gasnet_gets_nb_bulk(
+        gex_TM_t _tm,
+        void *_dstaddr, const size_t _dststrides[],
+        gex_Rank_t _srcrank,
+        void *_srcaddr, const size_t _srcstrides[],
+        const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  return _gex_VIS_StridedGetNB(_tm,_dstaddr,(ssize_t*)_dststrides,_srcrank,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+}
+GASNETI_INLINE(_gasnet_puts_nbi_bulk)
+void _gasnet_puts_nbi_bulk(
+        gex_TM_t _tm, gex_Rank_t _dstrank,
+        void *_dstaddr, const size_t _dststrides[],
+        void *_srcaddr, const size_t _srcstrides[],
+        const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
+  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  _gex_VIS_StridedPutNBI(_tm,_dstrank,_dstaddr,(ssize_t*)_dststrides,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+}
+GASNETI_INLINE(_gasnet_gets_nbi_bulk)
+void _gasnet_gets_nbi_bulk(
+        gex_TM_t _tm,
+        void *_dstaddr, const size_t _dststrides[],
+        gex_Rank_t _srcrank,
+        void *_srcaddr, const size_t _srcstrides[],
+        const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
+  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  _gex_VIS_StridedGetNBI(_tm,_dstaddr,(ssize_t*)_dststrides,_srcrank,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+}
+
+/*---------------------------------------------------------------------------------*/
 
 GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
