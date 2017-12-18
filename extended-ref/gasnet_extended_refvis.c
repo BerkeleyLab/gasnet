@@ -99,7 +99,7 @@ extern void gasneti_vis_progressfn(void) {
     #ifdef GASNETE_GETV_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETV_SCATTER:
         if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
-          gasnet_memvec_t const * const savedlst = (gasnet_memvec_t const *)(visop + 1);
+          gex_Memvec_t const * const savedlst = (gex_Memvec_t const *)(visop + 1);
           void const * const packedbuf = savedlst + visop->count;
           gasnete_memvec_unpack(visop->count, savedlst, packedbuf, 0, (size_t)-1);
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 1);

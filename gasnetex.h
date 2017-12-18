@@ -536,12 +536,12 @@ extern void gex_System_QueryNeighborhoodInfo(
 typedef uintptr_t gex_RMA_Value_t;
 #define SIZEOF_GEX_RMA_VALUE_T  SIZEOF_VOID_P
 
-#ifndef _GASNET_MEMVEC_T
-#define _GASNET_MEMVEC_T
+#ifndef _GEX_MEMVEC_T
+#define _GEX_MEMVEC_T
   typedef struct {
-    void *addr;
-    size_t len;
-  } gasnet_memvec_t;
+    void  *gex_addr;  // TODO-EX: gex_Addr_t
+    size_t gex_len;
+  } gex_Memvec_t;
 #endif
 
 #ifndef _GEX_DT_T

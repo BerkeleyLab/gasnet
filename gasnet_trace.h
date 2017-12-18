@@ -785,11 +785,11 @@ extern void gasneti_trace_finish(void);
 
 /* these are legal even without STATS/TRACE */
 extern size_t gasneti_format_memveclist_bufsz(size_t count);
-extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gasnet_memvec_t const *list);
+extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gex_Memvec_t const *list);
 extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount);
 extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
-                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                    size_t srccount, gasnet_memvec_t const srclist[]);
+                                    size_t dstcount, gex_Memvec_t const dstlist[], 
+                                    size_t srccount, gex_Memvec_t const srclist[]);
 
 extern size_t gasneti_format_addrlist_bufsz(size_t count);
 extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count, void * const *list, size_t len);
