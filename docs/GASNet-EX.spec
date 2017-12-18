@@ -197,6 +197,13 @@ typedef [some integer type] gex_Flags_t;
 // GEX_EVENT_NO_OP while those with return type 'int' will
 // return non-zero.
 //
+// Additionally, calls with this flag are not required to make any
+// progress toward recovery of the "necessary resources".  Therefore,
+// clients should not assume that repeated calls with this flag will
+// eventually succeed.  In the presence of multiple threads, it is
+// even possible that calls with this flag may never succeed due to
+// racing for resources.
+//
 #define GEX_FLAG_IMMEDIATE ((gex_Flags_t)???)
 //
 // LC_COPY_{YES,NO}
