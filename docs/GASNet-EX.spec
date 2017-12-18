@@ -1778,15 +1778,22 @@ int gex_AD_OpNBI_[DATATYPE](
 // For NBI/Blocking variants, the return type is int which is non-zero *only* in the
 // "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
 
+// For the CURRENT release, all 'flags' arguments must be zero.
+// A future revision offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
+
 // NOTE: This interface does not yet offer local completion indication - all client-owned
-// buffers passed to the non-blocking initiation functions are implicitly treated as
-// GEX_EVENT_DEFER (for NB) or GEX_EVENT_GROUP (for NBI) semantics, and thus must remain
+// buffers (ie payload buffers and metadata arrays) passed to the non-blocking initiation 
+// functions are implicitly treated as GEX_EVENT_DEFER semantics, and thus must remain 
 // valid until the operation is fully completed (as in GASNet-1).
 // A future revision will expose intermediate completion events [UNIMPLEMENTED]
 
 // NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]
 
+//
 // Vector and Indexed Puts and Gets
+//
+
+// These operate analogously to those in the GASNet-1 prototype gasnet_{put,get}[vi]_* API
 
 {gex_Event_t,int} gex_VIS_VectorGet{NB,NBI,Blocking}(
         gex_TM_t tm,                                   // Names a local context
@@ -1812,21 +1819,9 @@ int gex_AD_OpNBI_[DATATYPE](
         size_t srccount, void * const srclist[], size_t srclen,
         gex_Flags_t flags);
 
-// These operate analogously to those in the GASNet-1 prototype gasnet_{put,get}[vi]_* API
-
-{gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
-        gex_TM_t tm,
-        void *dstaddr, const ssize_t dststrides[],
-        gex_Rank_t srcrank,
-        void *srcaddr, const ssize_t srcstrides[],
-        size_t elemsz, const size_t count[], size_t stridelevels,
-        gex_Flags_t flags);
-{gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
-        gex_TM_t tm, gex_Rank_t dstrank,
-        void *dstaddr, const ssize_t dststrides[],
-        void *srcaddr, const ssize_t srcstrides[],
-        size_t elemsz, const size_t count[], size_t stridelevels,
-        gex_Flags_t flags);
+//
+// Strided Puts and Gets
+//
 
 // These operate similarly to the GASNet-1 prototype gasnet_{put,get}s_* API,
 // but the metadata format is changing slightly in EX.  Notable changes:
@@ -1840,7 +1835,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // These interface changes will enable a future release of the Strided interface
 // to expose more generalized data movement (specifically, transpose and reflection).
 //
-// The current release preserves metadata preconditions analogous to those
+// The CURRENT release preserves metadata preconditions analogous to those
 // in the GASNet-1 prototype, with 'count[0]' replaced by 'elemsz' - ie:
 // For stridelevels == 0:
 //   the operation is a contiguous copy of elemsz bytes, and the 
@@ -1856,6 +1851,20 @@ int gex_AD_OpNBI_[DATATYPE](
 //   (and analogously for dststrides)
 // 
 // These restrictions will be loosened in an upcoming release. [UNIMPLEMENTED]
+
+{gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
+        gex_TM_t tm,
+        void *dstaddr, const ssize_t dststrides[],
+        gex_Rank_t srcrank,
+        void *srcaddr, const ssize_t srcstrides[],
+        size_t elemsz, const size_t count[], size_t stridelevels,
+        gex_Flags_t flags);
+{gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        void *dstaddr, const ssize_t dststrides[],
+        void *srcaddr, const ssize_t srcstrides[],
+        size_t elemsz, const size_t count[], size_t stridelevels,
+        gex_Flags_t flags);
 
 // End of section describing APIs provided by gasnet_vis.h
 //----------------------------------------------------------------------
