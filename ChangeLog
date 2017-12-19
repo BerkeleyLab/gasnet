@@ -1,6 +1,47 @@
 GASNet-EX ChangeLog
 -------------------
 ----------------------------------------------------------------------
+12-20-2017: GASNet-EX 2017.12.0 Beta release
+
+* BETA release of the GASNet-EX system.
+  This archive represents a lightly-tested snapshot of a work-in-progress.
+  Many additional new features are coming soon, and are not yet reflected in this
+  archive. All new interfaces are subject to change without notice.
+
+  Feedback or questions on any matters related to the EX project are
+  welcomed at: gasnet-devel@lbl.gov
+
+* GASNet-EX Spec v0.3:
+  - Specified Remote Atomics API, and correponding types [EXPERIMENTAL]
+  - Specified Vector, Indexed, Strided API [EXPERIMENTAL]
+  - Specified gasnet_QueryGexObjects()
+  - Specified gex_System_QueryNeighborhoodInfo() [EXPERIMENTAL]
+  - Significant alteration to Segment Disposition flags [UNIMPLEMENTED]
+  - Minor clarifications throughout
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+
+* Major new features implemented in this release:
+  - Remote Atomic operations: untuned, network-independent implementation 
+    + See docs/GASNet-EX.spec for details
+  - Vector, Indexed, Strided extensions: untuned, network-independent implementation 
+    + See docs/GASNet-EX.spec for details 
+  - Cray Aries implementation specializations for the following features:
+    + New AM Interfaces, Immediate Operations, Local Completion and Remote Atomics.
+
+* Notable bugs fixed in this release:
+  - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
 09-28-2017: GASNet-EX 2017.9.0 Integration release
 
 * First Integration release of the GASNet-EX system.
@@ -14,6 +55,9 @@ GASNet-EX ChangeLog
   welcomed at: gasnet-devel@lbl.gov
 
 * GASNet-EX Spec v0.2:
+  - Specified gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
+  - Specified gex_Segment_QueryBound() [EXPERIMENTAL]
+  - Significant changes to Negotiated-Payload AM semantics
   - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
 
 * Major new features implemented in this release:
@@ -107,7 +151,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-09-29-2017: pending 1.30.2 work @9dbccb00
+12-20-2017: pending 1.30.2 work @ccd5286
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
