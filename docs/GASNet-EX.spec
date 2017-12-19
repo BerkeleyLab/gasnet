@@ -111,7 +111,7 @@ typedef [some unsigned integer type] gex_Rank_t;
 // In particular, might NOT be equal to GASNET_MAXNODES
 #define GEX_RANK_INVALID ((gex_Rank_t)???)
 
-// "Job rank": [EXPERIMENTAL]
+// "Job rank":
 // In a non-resilient build this will be the same as the rank in the team
 // constructed by gex_Client_Init() and will be identical across clients.
 // This is semantically equivalent to gasnet_mynode().
@@ -119,7 +119,7 @@ typedef [some unsigned integer type] gex_Rank_t;
 // Semantics in a resilient build will be defined in a later release.
 gex_Rank_t gex_System_QueryJobRank(void);
 
-// "Job size": [EXPERIMENTAL]
+// "Job size":
 // In a non-resilient build this will be the same as the size in the team
 // constructed by gex_Client_Init() and will be identical across clients.
 // This is semantically equivalent to gasnet_nodes().
@@ -841,7 +841,6 @@ int gex_AM_ReplyShort[M](
 
 //
 // Negotiated-payload AM APIs
-// [CHANGED SINCE JUNE 2017 BETA]
 //
 
 // The fixed-payload APIs for Active Message Mediums and Longs (brought
