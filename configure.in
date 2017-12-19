@@ -88,8 +88,8 @@ AC_DEFINE_UNQUOTED(GASNET_RELEASE_VERSION_MINOR,GASNET_RELEASE_VERSION_MINOR_D)
 AC_DEFINE_UNQUOTED(GASNET_RELEASE_VERSION_PATCH,GASNET_RELEASE_VERSION_PATCH_D)
 AC_DEFINE_UNQUOTED(GASNETI_SPEC_VERSION_MAJOR,GASNET_SPEC_VERSION_MAJOR_D)
 AC_DEFINE_UNQUOTED(GASNETI_SPEC_VERSION_MINOR,GASNET_SPEC_VERSION_MINOR_D)
-AC_DEFINE_UNQUOTED(GASNETIT_SPEC_VERSION_MAJOR,GASNETT_SPEC_VERSION_MAJOR_D)
-AC_DEFINE_UNQUOTED(GASNETIT_SPEC_VERSION_MINOR,GASNETT_SPEC_VERSION_MINOR_D)
+AC_DEFINE_UNQUOTED(GASNETI_TOOLS_SPEC_VERSION_MAJOR,GASNETT_SPEC_VERSION_MAJOR_D)
+AC_DEFINE_UNQUOTED(GASNETI_TOOLS_SPEC_VERSION_MINOR,GASNETT_SPEC_VERSION_MINOR_D)
 dnl legacy defines:
 AC_DEFINE_UNQUOTED(GASNETI_RELEASE_VERSION,GASNET_RELEASE_VERSION_D)
 
@@ -2460,6 +2460,10 @@ AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
   fi
   popdef([upperseg])
 ])
+dnl flags this conduit as not yet working in EX
+AC_DEFUN([CONDUIT_EX_UNIMPLEMENTED],[
+  dnl ex_unimplemented_[]CONDUIT_NAME=yes dnl Deliberately disabled in GASNet-1 branch
+])
 dnl CONDUIT_HOME(DESC, PROG, DIRS, FILE)
 dnl Wrapper around GASNET_PACKAGE_HOME() to pass the implicit conduit name
 AC_DEFUN([CONDUIT_HOME],[
@@ -2545,6 +2549,19 @@ AC_DEFUN([CONDUIT_END],[
     if $1; then
       _conduit_enabled_[]CONDUIT_NAME=yes
       _conduit_flagstr="ON    ($_conduit_reason_[]CONDUIT_NAME)"
+      if test "$ex_unimplemented_[]CONDUIT_NAME" = "yes"; then
+        pushdef([EX_UNIMPL_MESSAGE],[It appears your system has the required support for CONDUIT_NAME[]-conduit, 
+	  however CONDUIT_NAME[]-conduit is not yet fully implemented in this GASNet-EX distribution, 
+	  If you want to use this conduit, please download the GASNet v1.x distribution from http://gasnet.lbl.gov.
+	  Otherwise, you should run configure with --disable-[]CONDUIT_NAME to disable this conduit.
+	])
+        if test "$force_[]CONDUIT_NAME" = yes ; then # allow --enable-conduit to override for developers
+	  GASNET_MSG_WARN([EX_UNIMPL_MESSAGE])
+	else # but defaults to fatal when probed
+	  AC_MSG_ERROR([EX_UNIMPL_MESSAGE])
+	fi
+        popdef([EX_UNIMPL_MESSAGE])
+      fi
     else
       if test "$force_[]CONDUIT_NAME" = yes ; then
        GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME but I don't know how to build CONDUIT_NAME programs for your system])
@@ -2770,7 +2787,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
       ;;
     Cray)
      case "$target_cpu" in
-      x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc. 3185=bug 3306
+      x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc.
       *)        AC_MSG_ERROR(Cray C++ compiler for unknown target CPU) ;;
      esac ;;
     Pathscale)  CXXDEBUGFLAGS="-g3 -O0"  # consistent with CCDEBUGFLAGS
@@ -3337,6 +3354,7 @@ AC_SUBST(MXM_CFLAGS)
 AC_SUBST(MXM_LDFLAGS)
 AC_SUBST(MXM_LIBS)
 AM_CONDITIONAL(USE_MXM_CONDUIT, test "$have_mxm" = yes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_mxm" = yes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3389,6 +3407,7 @@ AC_SUBST(PSM_CFLAGS)
 AC_SUBST(PSM_LDFLAGS)
 AC_SUBST(PSM_LIBS)
 AM_CONDITIONAL(USE_PSM_CONDUIT, test "$have_psm" = yes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_psm" = yes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3473,6 +3492,7 @@ AC_SUBST(PORTALS4_CFLAGS)
 AC_SUBST(PORTALS4_LDFLAGS)
 AC_SUBST(PORTALS4_LIBS)
 AM_CONDITIONAL(USE_PORTALS4_CONDUIT, test "$have_portals4" = yes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_portals4" = yes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3871,6 +3891,7 @@ AC_SUBST(SHMEM_INCLUDES)
 AC_SUBST(SHMEM_LDFLAGS)
 AC_SUBST(SHMEM_LIBS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$enabled_shmem$have_shmem" = yesyes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -4103,6 +4124,7 @@ AC_SUBST(OFI_CFLAGS)
 AC_SUBST(OFI_LDFLAGS)
 AC_SUBST(OFI_LIBS)
 AM_CONDITIONAL(USE_OFI_CONDUIT, test "$have_ofi" = yes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_ofi" = yes])
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
