@@ -4,13 +4,22 @@ GASNet ChangeLog
 PENDING:
 
 * Cray uGNI (gemini- and aries-conduits)
+  - Improved performance of non-bulk puts beyond the bounce-buffer size
   - Fix bug 3632: aries-conduit SEGV at startup with multi-domain
   - Fix bug 3647: aries-conduit should honor non-default process layouts
+  - Fix bug 3695: AMReply injection might corrupt the payload of the
+    running AM Medium Request handler.
 
 * Libfabric (ofi-conduit)
   - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
 
-* GASNet tools
+* InfiniBand Verbs (ibv-conduit)
+  - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
+
+* Mellanox ConnectX series HCAs (mxm-conduit)
+  - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
+
+* GASNet tools (spec v1.11)
   - Numerous improvements to backtrace support, including fixing the
     following bugs:
     + Bug 3624: Improve backtrace fail-over behavior
@@ -19,12 +28,18 @@ PENDING:
     + Bug 3627: unblock the unfreeze signal prior to backtrace
     + Bug 3637: Fix EXECINFO backtrace for *BSD
     + Enable GDB backtrace on Cray systems, when available
+  - Bug 3664: GASNETT_PREDICT_{TRUE,FALSE} result value semantics change slightly
+  - Improve behavior when installed public headers are passed to a compiler 
+    that was not probed at configure time.
 
 * General and Misc.
+  - GASNET_VIS_{AMPIPE,REMOTECONTIG} is now enabled by default on most conduits
+  - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
+  - Add gasnetrun support for IBM Job Step Manager (jsrun)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.
@@ -89,7 +104,7 @@ PENDING:
   - Improve latency for AM Medium/Long under 128 bytes, via PAMI_Send_immediate()
   - gasnet.h no longer includes PAMI headers into client code
 
-* GASNet tools
+* GASNet tools (spec v1.10)
   - Fix bug 3448: x86*/Linux timers once again default to use of the TSC due
     to addition of new logic for correct calibration on newer Intel CPUs.
   - Add gasnett_nsleep()
