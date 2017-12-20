@@ -42,6 +42,7 @@
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+        GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
 
 #define GASNETE_AUXSEG_DECLS \
@@ -92,18 +93,11 @@
 #define GASNETE_CONDUIT_THREADDATA_FIELDS \
         GASNETE_TD_DOMAIN_IDX
 
-/* ------------------------------------------------------------------------------------ */
-/* Extensions: */
-
-/* Proof-of-concept GNI uint64_t fetch-and-op.
- * Not supported, and subject to change or removal
- */
-#ifndef GASNETC_GNI_FETCHOP
-#define GASNETC_GNI_FETCHOP 1 /* enabled by default */
-#endif
-#if GASNETC_GNI_FETCHOP
-#define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H 1
-#endif
+// Configure default VIS tuning knobs
+// 12/15/17: Measurements on NERSC Cori show the ideal MAXCHUNK for I+S to be:
+//   Haswell: ~512 for puts and ~1024 for gets
+//   KNL:     ~512 for puts and gets
+#define GASNETE_VIS_MAXCHUNK_DEFAULT 512
 
 #endif
 

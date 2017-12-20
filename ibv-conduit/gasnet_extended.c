@@ -844,6 +844,15 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Remote Atomics:
+  ==============
+*/
+
+/* use reference implementation of remote atomics */
+#include "gasnet_extended_refratomic.h"
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -859,6 +868,9 @@ static gex_AM_Entry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_AMREF_HANDLERS
     GASNETE_AMREF_HANDLERS()
+  #endif
+  #ifdef GASNETE_AMRATOMIC_HANDLERS
+    GASNETE_AMRATOMIC_HANDLERS()
   #endif
 
   /* ptr-width independent handlers */

@@ -482,13 +482,21 @@ static int test_thread_limit(int numthreads) {
   #endif
     return MIN(numthreads, limit);
 }
+#if HAVE_PTHREAD_SETCONCURRENCY && __cplusplus
+  // ensure we have a declaration for the configure-detected function
+  #undef pthread_setconcurrency
+  #ifndef __THROW
+  #define __THROW
+  #endif
+  extern "C" int pthread_setconcurrency(int) __THROW;
+#endif
 static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(void *), 
                                       void *threadarg_arr, size_t threadarg_elemsz) {
     int i;
     int jointhreads = 0;
     uint8_t *threadarg_pos = (uint8_t *)threadarg_arr;
     pthread_t *threadid = (pthread_t *)test_malloc(sizeof(pthread_t)*numthreads);
-    #if HAVE_PTHREAD_SETCONCURRENCY && !GASNETT_CONFIGURE_MISMATCH
+    #if HAVE_PTHREAD_SETCONCURRENCY
       pthread_setconcurrency(numthreads);
     #endif
 
@@ -1107,7 +1115,9 @@ static void _test_init(const char *testname, int reports_performance, int early,
   }
 #define TEST_BACKTRACE_INIT(_exename)                       \
   /* Only test our backtrace handler if the user is not trying to backtrace */ \
-  if (!gasnett_getenv("GASNET_BACKTRACE")) {                \
+  /* Bug 3644: cannot reliably override GASNET_BACKTRACE_TYPE if already set */ \
+  if (!gasnett_getenv("GASNET_BACKTRACE") &&                \
+      !gasnett_getenv("GASNET_BACKTRACE_TYPE")) {           \
     test_my_backtrace = 1;                                  \
     gasnett_setenv("GASNET_BACKTRACE_TYPE","USER");         \
   }                                                         \

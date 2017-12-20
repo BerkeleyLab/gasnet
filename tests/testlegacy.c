@@ -313,6 +313,17 @@ void doit(int partner, int *partnerseg) {
     assert_always(!memcmp(p1,p2,sizeof(t1)));     \
   } while (0)
     
+  #define assert_field_compat(t1, f1, t2, f2) do {     \
+    static union { t1 v1; t2 v2; } u;                  \
+    static t1 v1;                                      \
+    static t2 v2;                                      \
+    test_static_assert(sizeof(t1) == sizeof(t2));      \
+    assert_always((void*)&u.v1 == (void*)&u.v2);       \
+    assert_always(sizeof(u.v1.f1) == sizeof(u.v2.f2)); \
+    assert_always(&u.v1.f1 == &u.v2.f2);               \
+    v1.f1 == v2.f2; v2.f2 = v1.f1;                     \
+  } while (0)
+
   // types
   assert_equal(gasnet_handle_t, gex_Event_t, 
                GASNET_INVALID_HANDLE, GEX_EVENT_INVALID);
@@ -326,6 +337,8 @@ void doit(int partner, int *partnerseg) {
                SIZEOF_GASNET_REGISTER_VALUE_T, SIZEOF_GEX_RMA_VALUE_T);
   assert_equal_nonscalar(gasnet_hsl_t, gex_HSL_t,
                GASNET_HSL_INITIALIZER, GEX_HSL_INITIALIZER);
+  assert_field_compat(gasnet_memvec_t, addr, gex_Memvec_t, gex_addr);
+  assert_field_compat(gasnet_memvec_t, len,  gex_Memvec_t, gex_len);
 
   // AM limits
   assert_always(MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium()) == gasnet_AMMaxMedium());
@@ -335,6 +348,32 @@ void doit(int partner, int *partnerseg) {
   // Rank-vs-node
   assert_always(gex_System_QueryJobRank() == gasnet_mynode());
   assert_always(gex_System_QueryJobSize() == gasnet_nodes());
+
+  // Neighborhood-vs-NodeInfo
+  {
+    gasnet_nodeinfo_t *nodeinfo = (gasnet_nodeinfo_t *)
+                                  test_malloc(gasnet_nodes() * sizeof(gasnet_nodeinfo_t));
+    GASNET_Safe(gasnet_getNodeInfo(nodeinfo, gasnet_nodes()));
+    gasnet_node_t mysupernode_id = nodeinfo[gasnet_mynode()].supernode;
+    gasnet_node_t mysupernode_size = 0;
+    gasnet_node_t mysupernode_rank = GEX_RANK_INVALID;
+    for (gasnet_node_t i = 0; i < gasnet_nodes(); ++i) {
+      if (i == gasnet_mynode()) mysupernode_rank = mysupernode_size;
+      if (nodeinfo[i].supernode == mysupernode_id) mysupernode_size += 1;
+    }
+    assert_always(mysupernode_size >= 1);
+    assert_always(mysupernode_rank != GEX_RANK_INVALID);
+
+    gex_NeighborhoodInfo_t *neighbor_array;
+    gex_Rank_t neighbor_size, neighbor_rank;
+    gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
+    assert_always(neighbor_size == mysupernode_size);
+    assert_always(neighbor_rank == mysupernode_rank);
+    for (gasnet_node_t i = 0; i < mysupernode_size; ++i) {
+      assert_always(nodeinfo[neighbor_array[i].gex_jobrank].supernode == mysupernode_id);
+    }
+    test_free(nodeinfo);
+  }
 
   // GEX objects
   { gex_Client_t  client;

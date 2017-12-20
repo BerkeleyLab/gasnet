@@ -45,6 +45,7 @@ LIBDEFINES =                        \
 TOOLLIBCFLAGS =                   \
         -DGASNETT_BUILDING_TOOLS  \
         @GASNET_OPT_CFLAGS@       \
+	@DEVWARN_CFLAGS@          \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
         $(TOOLLIBDEFINES)         \
@@ -55,6 +56,7 @@ TOOLLIBCFLAGS =                   \
 
 LIBCFLAGS =                       \
         @GASNET_OPT_CFLAGS@       \
+	@DEVWARN_CFLAGS@          \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
         @GASNET_PSHM_CFLAGS@      \
@@ -74,6 +76,7 @@ libgasnet_sources =                                         \
         $(PSHM_SOURCES)                                     \
         $(top_srcdir)/extended-ref/gasnet_extended_refvis.c \
         $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c\
+        $(top_srcdir)/extended-ref/gasnet_extended_refratomic.c \
         $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \
         $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
         $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \

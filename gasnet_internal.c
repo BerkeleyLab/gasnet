@@ -125,6 +125,9 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 gex_Rank_t gasneti_mynode = (gex_Rank_t)-1;
 gex_Rank_t gasneti_nodes = 0;
 
+// a necessary evil - see the declaration in gasnet_help.h
+gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
+
 /* Default global definitions of GASNet-wide internal variables
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
@@ -169,6 +172,81 @@ extern void gasneti_check_config_preinit(void) {
   gasneti_assert_always(sizeof(gasnete_anytype64_t) == 8);
 
   gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
+
+  #define CHECK_DT(id, type) do { \
+      gasneti_assert_always(gasneti_dt_valid(id)); \
+      gasneti_assert_always(gasneti_dt_size(id) == sizeof(type)); \
+      gasneti_assert_always(!!gasneti_dt_int(id) == !gasneti_dt_fp(id)); \
+    } while (0)
+  #define CHECK_INT_DT(id, type, sign) do { \
+      CHECK_DT(id, type); \
+      gasneti_assert_always(gasneti_dt_int(id)); \
+      gasneti_assert_always(gasneti_dt_##sign(id)); \
+      gasneti_assert_always(!!gasneti_dt_signed(id) == !gasneti_dt_unsigned(id)); \
+    } while (0)
+  #define CHECK_FP_DT(id, type) do { \
+      CHECK_DT(id, type); \
+      gasneti_assert_always(gasneti_dt_fp(id)); \
+    } while (0)
+
+  CHECK_INT_DT(GEX_DT_I32,  int32_t,   signed);
+  CHECK_INT_DT(GEX_DT_U32, uint32_t, unsigned);
+  CHECK_INT_DT(GEX_DT_I64,  int64_t,   signed);
+  CHECK_INT_DT(GEX_DT_U64, uint64_t, unsigned);
+
+  CHECK_FP_DT(GEX_DT_FLT,  float);
+  CHECK_FP_DT(GEX_DT_DBL, double);
+
+  #undef CHECK_DT
+  #undef CHECK_INT_DT
+  #undef CHECK_FP_DT
+
+  #define _CHECK_OP(id, pred1, pred2, pred3) do { \
+      gasneti_assert_always(gasneti_op_atomic(id)); \
+      gasneti_assert_always(gasneti_op_int(id)); \
+      gasneti_assert_always(!!gasneti_op_0arg(id) + \
+                            !!gasneti_op_1arg(id) + \
+                            !!gasneti_op_2arg(id) == 1); \
+      gasneti_assert_always(gasneti_op_##pred1(id)); \
+      gasneti_assert_always(gasneti_op_##pred2(id)); \
+      gasneti_assert_always(gasneti_op_##pred3(id)); \
+    } while (0)
+  #define CHECK_ARITH_OP(stem, reduce_pred, fp_pred) do { \
+      gasneti_assert_always(!gasneti_op_fetch(GEX_OP_##stem)); \
+      _CHECK_OP(GEX_OP_##stem, reduce_pred, fp_pred, valid); \
+      gasneti_assert_always(gasneti_op_fetch(GEX_OP_F##stem)); \
+      _CHECK_OP(GEX_OP_F##stem, not_reduce, fp_pred, valid); \
+    } while (0)
+  #define CHECK_ACCESSOR(stem, pred) do { \
+      gasneti_assert_always(gasneti_op_valid(GEX_OP_##stem)); \
+      _CHECK_OP(GEX_OP_##stem, fp, not_reduce, pred); \
+    } while (0)
+  #define gasneti_op_not_reduce !gasneti_op_reduce
+  #define gasneti_op_not_fetch  !gasneti_op_fetch
+  #define gasneti_op_not_fp     !gasneti_op_fp
+
+  CHECK_ARITH_OP(AND,  reduce, not_fp);
+  CHECK_ARITH_OP(OR,   reduce, not_fp);
+  CHECK_ARITH_OP(XOR,  reduce, not_fp);
+  CHECK_ARITH_OP(ADD,  reduce,     fp);
+  CHECK_ARITH_OP(SUB,  reduce,     fp);
+  CHECK_ARITH_OP(MULT, reduce,     fp);
+  CHECK_ARITH_OP(MIN,  reduce,     fp);
+  CHECK_ARITH_OP(MAX,  reduce,     fp);
+  CHECK_ARITH_OP(INC,  not_reduce, fp);
+  CHECK_ARITH_OP(DEC,  not_reduce, fp);
+
+  CHECK_ACCESSOR(SET,   not_fetch);
+  CHECK_ACCESSOR(GET,   fetch);
+  CHECK_ACCESSOR(SWAP,  fetch);
+  CHECK_ACCESSOR(CSWAP, fetch);
+
+  #undef _CHECK_OP
+  #undef CHECK_ARITH_OP
+  #undef CHECK_ACCESSOR
+  #undef gasneti_op_not_reduce
+  #undef gasneti_op_not_fetch
+  #undef gasneti_op_not_fp
 
   #if WORDS_BIGENDIAN
     #if PLATFORM_ARCH_LITTLE_ENDIAN
@@ -216,6 +294,7 @@ extern void gasneti_check_config_preinit(void) {
 }
 
 static void gasneti_check_portable_conduit(void);
+int gasneti_malloc_munmap_disabled = 0;
 extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
 
@@ -232,11 +311,15 @@ extern void gasneti_check_config_postattach(void) {
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
 
-      if (gasneti_getenv_yesno_withdefault("GASNET_DISABLE_MUNMAP",0)) {
+      #ifndef GASNET_DISABLE_MUNMAP_DEFAULT
+      #define GASNET_DISABLE_MUNMAP_DEFAULT 0
+      #endif
+      if (gasneti_getenv_yesno_withdefault("GASNET_DISABLE_MUNMAP",GASNET_DISABLE_MUNMAP_DEFAULT)) {
         #if HAVE_PTMALLOC                                        
           mallopt(M_TRIM_THRESHOLD, -1);
           mallopt(M_MMAP_MAX, 0);
           GASNETI_TRACE_PRINTF(I,("Setting mallopt M_TRIM_THRESHOLD=-1 and M_MMAP_MAX=0"));
+          gasneti_malloc_munmap_disabled = 1;
         #else
           GASNETI_TRACE_PRINTF(I,("WARNING: GASNET_DISABLE_MUNMAP set on an unsupported platform"));
           if (gasneti_verboseenv()) 
@@ -766,6 +849,11 @@ extern gasneti_TM_t gasneti_alloc_tm(
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
 #endif
+
+  // TODO-EX: Please remove this!
+  gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
+  gasneti_thing_that_goes_thunk_in_the_dark = tm;
+
   return tm;
 }
 
@@ -2388,16 +2476,14 @@ extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
   gasneti_nodemapParse();
 }
 
-/* Presently just frees the space allocated for the nodemaps.
+/* Presently just frees the space allocated for the full nodemap.
  */
 extern void gasneti_nodemapFini(void) {
   gasneti_free(gasneti_nodemap);
-  gasneti_free(gasneti_myhost.nodes);
 #if GASNET_DEBUG
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;
   gasneti_myhost.nodes = NULL;
-  gasneti_mysupernode.nodes = NULL;
 #endif
 }
 

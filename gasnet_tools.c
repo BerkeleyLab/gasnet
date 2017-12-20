@@ -551,11 +551,7 @@ extern void gasneti_killmyprocess(int exitcode) {
 }
 extern void gasneti_filesystem_sync(void) {
   if ( gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0) ) {
-#if PLATFORM_OS_MTA
-    mta_sync();
-#else
     sync();
-#endif
   }
 }
 extern void gasneti_flush_streams(void) {
@@ -1007,6 +1003,17 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 
     volatile int i=0;
     if (!fork()) { /* the child - debugger co-process launcher */
+#if PLATFORM_OS_OPENBSD
+      // OpenBSD refuses to ptrace attach a connected ancestor because it
+      // would create a cycle in the process tree which the kernel is unable
+      // to tolerate.  This behavior was introduced in OpenBSD 4.5 Errata 011
+      // and has not changed though at least OpenBSD 6.1.
+      // We avoid this cycle using an extra fork()+_exit() to disconnect the
+      // process requesting the attach from the target.
+      pid_t childpid = getpid();
+      if (fork()) _exit(0);
+      do {} while (getppid() == childpid);
+#endif
       int retval = gasneti_system_redirected(cmd, tmpfd);
       if (retval) { /* system call failed - nuke the output */
         gasneti_bt_rc_unused = ftruncate(tmpfd, 0);
@@ -1199,7 +1206,13 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
       goto out;
     }
 
+#if PLATFORM_OS_OPENBSD
+    // OpenBSD is unable to ptrace attach a connected ancestor.
+    // For more info see comment in gasneti_system_redirected_coprocess().
+    rc = gasneti_system_redirected_coprocess(cmd, fd);
+#else
     rc = gasneti_system_redirected(cmd, fd);
+#endif
 
 out:
     (void)unlink(filename); /* just in case */
@@ -1491,6 +1504,34 @@ extern int gasneti_print_backtrace(int fd) {
           gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
 	  rewind(file);
           gasneti_bt_rc_unused = ftruncate(tmpfd, 0); // in case failed backtrace wrote any output
+
+          // detect and report system configuration issues that may be responsible for backtrace failure
+          #if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL) && !defined(YAMA_PTRACE_SCOPE)
+            #define YAMA_PTRACE_SCOPE "/proc/sys/kernel/yama/ptrace_scope"
+          #endif
+          #ifdef YAMA_PTRACE_SCOPE
+          { int ptracefd = 0;
+            if (!access(YAMA_PTRACE_SCOPE,R_OK) && (ptracefd = open(YAMA_PTRACE_SCOPE,O_RDONLY))) {
+              char scope = 0; // docs: https://www.kernel.org/doc/Documentation/security/Yama.txt
+              if (read(ptracefd, &scope, 1) == 1 && scope != '0' && scope != '1') {
+                snprintf(linep, linelen, "WARNING: %s=%c may be preventing debugger attach\n", YAMA_PTRACE_SCOPE, scope);
+                gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
+              }
+              gasneti_bt_rc_unused = close(ptracefd);
+            }
+          }
+          #endif
+          #if PLATFORM_OS_OPENBSD && \
+              defined(CTL_KERN) && defined(KERN_GLOBAL_PTRACE)
+          { int mib[] = { CTL_KERN, KERN_GLOBAL_PTRACE };
+            int ptrace = 0;
+            size_t len = sizeof(ptrace);
+            if (!sysctl(mib, sizeof(mib)/sizeof(int), &ptrace, &len, NULL, 0) && ptrace == 0) {
+                snprintf(linep, linelen, "WARNING: sysctl kern.global_ptrace=%i may be preventing debugger attach\n", ptrace);
+                gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
+            }
+          }
+          #endif
         }
       }
 
@@ -1552,19 +1593,33 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
     fflush(stderr);
     return -1;
   }
+  #if !GASNET_DEBUG
+    #define GASNETI_NDEBUG_ADVISORY() do { \
+      if (!noticeshown) {                  \
+        fprintf(stderr, "NOTICE: We recommend linking the debug version of GASNet to assist you in resolving this application issue.\n"); \
+        fflush(stderr);                    \
+        noticeshown = 1;                   \
+      }                                    \
+    } while (0)
+  #else
+    #define GASNETI_NDEBUG_ADVISORY() ((void)0)
+  #endif
 #ifndef GASNETT_BUILDING_TOOLS
   if (gasneti_backtrace_userdisabled) {
     return 1; /* User turned off backtrace, so don't whine */
   } else
 #endif
   if (gasneti_backtrace_userenabled) {
+    GASNETI_NDEBUG_ADVISORY();
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
     fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
     fflush(stderr);
+    GASNETI_NDEBUG_ADVISORY();
     noticeshown = 1;
     return 1;
   } else {
+    GASNETI_NDEBUG_ADVISORY();
     return 1; /* We don't support any backtrace methods, so avoid false advertising. */
   }
 }
@@ -2138,8 +2193,6 @@ extern int gasneti_cpu_count(void) {
         const uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
         hwprocs = 64 / ppn; /* XXX: this counts all SMT threads as cpus */
       }
-  #elif PLATFORM_OS_MTA
-      hwprocs = 0; /* appears to be no way to query CPU count */
   #else
       hwprocs = sysconf(_SC_NPROCESSORS_ONLN);
       if (hwprocs < 1) hwprocs = 0; /* catch failures on Solaris/Cygwin */

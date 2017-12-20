@@ -151,28 +151,30 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
-#define _gasneti_boundscheck(tm,rank,ptr,nbytes,nodetest,segtest) do {       \
-    gex_TM_t _tm = (tm);                                                       \
-    gex_Rank_t _node = (rank); /* TODO-EX: team support */                \
-    const void *_ptr = (const void *)(ptr);                                    \
-    size_t _nbytes = (size_t)(nbytes);                                         \
-    if_pf (!nodetest(_node))                                                   \
+#define _gasneti_boundscheck(tm,rank,ptr,nbytes,nodetest,segtest) do {         \
+    gex_TM_t _gex_bc_tm = (tm);                                                \
+    gex_Rank_t _gex_bc_node = (rank); /* TODO-EX: team support */              \
+    const void *_gex_bc_ptr = (const void *)(ptr);                             \
+    size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
+    if_pf (!nodetest(_gex_bc_node))                                            \
       gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
-                         (unsigned long)_node, (unsigned long)gasneti_nodes,   \
-                         gasneti_current_loc);                                 \
-    if_pf (_ptr == NULL || !segtest(_tm,_node,_ptr,_nbytes))                   \
+              (unsigned long)_gex_bc_node, (unsigned long)gasneti_nodes,       \
+              gasneti_current_loc);                                            \
+    if_pf (_gex_bc_ptr == NULL ||                                              \
+           !segtest(_gex_bc_tm,_gex_bc_node,_gex_bc_ptr,_gex_bc_nbytes))       \
       gasneti_fatalerror("Remote address out of range "                        \
          "(node=%lu ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"        \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
          "\n     auxsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")",      \
-         (unsigned long)_node, GASNETI_LADDRSTR(_ptr), (uintptr_t)_nbytes,     \
+         (unsigned long)_gex_bc_node, GASNETI_LADDRSTR(_gex_bc_ptr),           \
+         (uintptr_t)_gex_bc_nbytes,                                            \
          gasneti_current_loc,                                                  \
-         GASNETI_LADDRSTR(gasneti_seginfo[_node].addr),                        \
-         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo[_node].addr +             \
-                                     gasneti_seginfo[_node].size),             \
-         GASNETI_LADDRSTR(gasneti_seginfo_aux[_node].addr),                    \
-         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo_aux[_node].addr +         \
-                                     gasneti_seginfo_aux[_node].size)          \
+         GASNETI_LADDRSTR(gasneti_seginfo[_gex_bc_node].addr),                 \
+         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo[_gex_bc_node].addr +      \
+                                     gasneti_seginfo[_gex_bc_node].size),      \
+         GASNETI_LADDRSTR(gasneti_seginfo_aux[_gex_bc_node].addr),             \
+         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo_aux[_gex_bc_node].addr +  \
+                                     gasneti_seginfo_aux[_gex_bc_node].size)   \
          );                                                                    \
   } while(0)
 
@@ -429,7 +431,7 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
     uint32_t gasnete_threadinfo_available = 0
     /* if you get an unused variable warning on gasnete_threadinfo_available, 
        it means you POST'ed in a function which made no GASNet calls that needed it
-       So, PLEASE don't add GASNETI_UNUSED annotations here. */
+       So, PLEASE don't add __unused__ annotations here. */
 
   #if GASNETI_LAZY_BEGINFUNCTION
     // bug 3498: Ensure a sequence point after the assignment to gasnete_threadinfo_cache

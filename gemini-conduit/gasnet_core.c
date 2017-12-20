@@ -52,7 +52,7 @@ static void gasnetc_check_config(void) {
 
   /* Otherwise space is being wasted: */
   gasneti_assert(GASNETC_MSG_MAXSIZE ==
-                 (GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) + GASNETC_MAX_MEDIUM));
+                 (GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) + GASNETC_LUB_MEDIUM));
   
   gasneti_assert((int)GC_CMD_AM_LONG_PACKED == ((int)GC_CMD_AM_LONG + 1));
 
@@ -175,6 +175,9 @@ static gex_Rank_t gasnetc_dissem_peers = 0;
 static gex_Rank_t *gasnetc_dissem_peer = NULL;
 static gex_Rank_t *gasnetc_exchange_rcvd = NULL;
 static gex_Rank_t *gasnetc_exchange_send = NULL;
+#if GASNET_PSHM
+static gex_Rank_t *gasnetc_exchange_permute = NULL;
+#endif
 static uint32_t gasnetc_sys_barrier_rcvd[2];
 
 static void gasnetc_sys_barrier_reqh(gex_Token_t token, uint32_t arg)
@@ -301,9 +304,20 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
 
     if (pre_attach) gasneti_attach_done = 0;
 
-    /* Copy to destination while performing the "rotation" */
-    memcpy(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
-    memcpy((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+    /* Copy to destination while performing the rotation or permutation */
+#if GASNET_PSHM
+    if (gasnetc_exchange_permute) {
+      gex_Rank_t n;
+      for (n = 0; n < gasneti_nodes; ++n) {
+        const gex_Rank_t peer = gasnetc_exchange_permute[n];
+        memcpy((uint8_t*) dest + len * peer, temp + len * n, len);
+      }
+    } else
+#endif
+    {
+      memcpy(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
+      memcpy((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+    }
 
 #if GASNET_PSHM
 end_network_comms:
@@ -387,6 +401,44 @@ static void gasnetc_sys_coll_init(void)
     }
     gasnetc_exchange_send[step-1] = gasneti_nodes - sum2;
     gasnetc_exchange_rcvd[step] = gasneti_nodes;
+    /* Step 3: construct the permutation vector, if necessary */
+    {
+      gex_Rank_t n;
+
+      /* Step 3a. determine if we even need a permutation vector */
+      int sorted = 1;
+      gasneti_assert(0 == gasneti_nodeinfo[0].supernode);
+      n = 0;
+      for (i = 1; i < gasneti_nodes; ++i) {
+        if (n > gasneti_nodeinfo[i].supernode) {
+          sorted = 0;
+          break;
+        }
+        n = gasneti_nodeinfo[i].supernode;
+      }
+
+      /* Step 3b. contstruct the vector if needed */
+      if (!sorted) {
+        gex_Rank_t *offset = gasneti_malloc(size * sizeof(gex_Rank_t));
+
+        /* Form a sort of shifted prefix-reduction on width */
+        sum1 = 0;
+        n = rank;
+        for (i = 0; i < size; ++i) {
+          offset[n] = sum1;
+          sum1 += width[n];
+          n = (n == size-1) ? 0 : (n+1);
+        }
+        gasneti_assert(sum1 == gasneti_nodes);
+
+        /* Scan nodeinfo to collect all the nodes in each supernode (in their order) */
+        gasnetc_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
+        for (i = 0; i < gasneti_nodes; ++i) {
+          int index = offset[ gasneti_nodeinfo[i].supernode ]++;
+          gasnetc_exchange_permute[index] = i;
+        }
+      }
+    }
     gasneti_free(width);
   #else
     for (step = 0; step < gasnetc_dissem_peers; ++step) {
@@ -406,11 +458,17 @@ static void gasnetc_sys_coll_fini(void)
   gasneti_free(gasnetc_dissem_peer);
   gasneti_free(gasnetc_exchange_rcvd);
   gasneti_free(gasnetc_exchange_send);
+#if GASNET_PSHM
+  gasneti_free(gasnetc_exchange_permute);
+#endif
 
 #if GASNET_DEBUG
   gasnetc_dissem_peer = NULL;
   gasnetc_exchange_rcvd = NULL;
   gasnetc_exchange_send = NULL;
+ #if GASNET_PSHM
+  gasnetc_exchange_permute = NULL;
+ #endif
 #endif
 }
 

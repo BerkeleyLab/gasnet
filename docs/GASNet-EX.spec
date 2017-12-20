@@ -6,6 +6,9 @@
 //
 // This document assumes a reasonable degree of familiarity with the current
 // (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+//
+// Except where otherwise noted, all definitions in this document
+// are provided by gasnetex.h.
 
 
 //
@@ -17,14 +20,14 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2017
-#define GASNET_RELEASE_VERSION_MINOR 9
+#define GASNET_RELEASE_VERSION_MINOR 12
 #define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 2
+#define GEX_SPEC_VERSION_MINOR 3
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -38,7 +41,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 10
+#define GASNETT_SPEC_VERSION_MINOR 11
 
 //
 // Relationship to GASNet-1 APIs:
@@ -61,6 +64,34 @@
 // This document includes the annotation [UNIMPLEMENTED] in several places
 // where we feel we have a suitable design ready for consideration, but
 // have yet to provide a complete and/or correct implementation.
+//
+// This document includes the annotation [EXPERIMENTAL] in several places
+// where we feel we have a suitable design and an implementation which is
+// sufficiently complete to be used.  However, based on feedback received
+// from early use, the design may change in non-trivial ways (to the degree
+// that client code may need to change).
+
+
+// Hybrid/transitional client support:
+//
+// To enable clients that mix GASNet-1 and GASNet-EX, the following API is
+// provided to allow jobs that initialize GASNet using the legacy
+// gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
+// created by those operations.  The types and usage of these objects are
+// described below.  This call is defined in gasnet.h (not gasnetex.h).
+//
+// The arguments are all pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+//     client_p: receives the gex_Client_t created implicitly by gasnet_init()
+//   endpoint_p: receives the gex_EP_t created implicitly by gasnet_init()
+//         tm_p: receives the gex_TM_t created implicitly by gasnet_init()
+//    segment_p: receives the gex_Segment created implicitly by gasnet_attach()
+//
+extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
+                                   gex_EP_t          *endpoint_p,
+                                   gex_TM_t          *tm_p,
+                                   gex_Segment_t     *segment_p);
 
 //
 // Basic types:
@@ -80,7 +111,7 @@ typedef [some unsigned integer type] gex_Rank_t;
 // In particular, might NOT be equal to GASNET_MAXNODES
 #define GEX_RANK_INVALID ((gex_Rank_t)???)
 
-// "Job rank": [EXPERIMENTAL]
+// "Job rank":
 // In a non-resilient build this will be the same as the rank in the team
 // constructed by gex_Client_Init() and will be identical across clients.
 // This is semantically equivalent to gasnet_mynode().
@@ -88,7 +119,7 @@ typedef [some unsigned integer type] gex_Rank_t;
 // Semantics in a resilient build will be defined in a later release.
 gex_Rank_t gex_System_QueryJobRank(void);
 
-// "Job size": [EXPERIMENTAL]
+// "Job size":
 // In a non-resilient build this will be the same as the size in the team
 // constructed by gex_Client_Init() and will be identical across clients.
 // This is semantically equivalent to gasnet_nodes().
@@ -166,6 +197,13 @@ typedef [some integer type] gex_Flags_t;
 // GEX_EVENT_NO_OP while those with return type 'int' will
 // return non-zero.
 //
+// Additionally, calls with this flag are not required to make any
+// progress toward recovery of the "necessary resources".  Therefore,
+// clients should not assume that repeated calls with this flag will
+// eventually succeed.  In the presence of multiple threads, it is
+// even possible that calls with this flag may never succeed due to
+// racing for resources.
+//
 #define GEX_FLAG_IMMEDIATE ((gex_Flags_t)???)
 //
 // LC_COPY_{YES,NO}
@@ -180,33 +218,81 @@ typedef [some integer type] gex_Flags_t;
 // specification
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
+
+// SEGMENT DISPOSITION
 //
-// {SRC,DST}_IN_SEGMENT
+// The following family of flags assert the segment disposition of 
+// address ranges provided to communication initiation operations.
 //
-// These flag bits assert that the corresponding source or
-// destination address ranges are contained entirely within the union 
-// of current GASNet-EX segments.
-#define GEX_FLAG_SRC_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_DST_IN_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
+// The segment disposition flags come in two varieties:
 //
-// {SRC,DST}_IN_BOUND_SEGMENT
+// SELF - describes the segment disposition of addresses associated
+//        with local memory and the initiating endpoint (ie the EP 
+//        which is usually implicitly named by a gex_TM_t argument).
+//        Eg in a Put operation this variety describes source locations,
+//        and in a Get this variety describes destination locations.
 //
-// These flag bits assert that the corresponding source or
-// destination address ranges are contained entirely within the segment 
-// bound to the respective source or destination endpoint.
+// PEER - describes the segment disposition of addresses associated
+//        with (potentially) remote memory and the peer endpoint(s)
+//        (the EPs usually explicitly named by gex_Rank_t arguments)
+//        Eg in a Put operation this variety describes destination locations,
+//        and in a Get this variety describes source locations.
+//
+// The following flags are mutually exclusive within each variety -
+// a given operation may specify at most one SELF flag and one PEER flag.
+// Unless otherwise noted, the default behavior for each variety in the
+// absence of an explicitly provided flag corresponds to:
+//    GEX_FLAG_SELF_SEG_UNKNOWN, GEX_FLAG_PEER_SEG_BOUND
+// which is backwards-compatible with GASNet-1 segment behavior.
+// NOTE: the flags below are currently [UNIMPLEMENTED], and consequently
+// these defaults are also the only supported settings for all APIs.
+//
+// Each explicit flag has a distinct bit pattern.
+// Unless otherwise noted, the caller is responsible for ensuring the
+// assertions expressed by these flags to a given call remain true for 
+// the entire period of time that the described address sequences are "active" 
+// with respect to the operation requested by the call. The definition of
+// "active" varies based on call type, but generally extends from entry to
+// the call accepting the assertions until completion is signalled for 
+// all described address ranges.
+//
+// {SELF,PEER}_SEG_UNKNOWN
+//
+// These flag bits indicate that the corresponding address range(s)
+// are not known by the caller to reside within current GASNet-EX segments.
+// Example 1: the address ranges are known to lie partially or entirely
+//   outside any segments in the process hosting the respective endpoint(s).
+// Example 2: the caller lacks information about the segment disposition
+//   of the address ranges, and passes this flag to reflect a lack of
+//   such assertions and request maximally permissive behavior
+//   (potentially incurring a performance cost).
+#define GEX_FLAG_SELF_SEG_UNKNOWN ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_UNKNOWN ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// {SELF,PEER}_SEG_SOME
+//
+// These flag bits assert that the corresponding address range(s)
+// are contained entirely within the union of current GASNet-EX segments
+// created by any client in the process hosting the respective endpoint.
+#define GEX_FLAG_SELF_SEG_SOME    ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_SOME    ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// {SELF,PEER}_SEG_BOUND
+//
+// These flag bits assert that the corresponding address range(s)
+// are contained entirely within the segment bound to the respective endpoint.
 // Implies that the respective endpoint has a bound segment.
-// Implies the respective {SRC,DST}_IN_SEGMENT flag.
-#define GEX_FLAG_SRC_IN_BOUND_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_DST_IN_BOUND_SEGMENT ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_SELF_SEG_BOUND   ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_BOUND   ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
-// {SRC,DST}_OFFSET
+// {SELF,PEER}_SEG_OFFSET
 //
-// These flag bits indicate that the corresponding address argument
-// is a byte *offset* relative to the bound segment base address.
-// Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
-// implies the respective ..._IN_SEGMENT flag, indirectly).
-#define GEX_FLAG_SRC_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_DST_OFFSET ((gex_Flags_t)???) [UNIMPLEMENTED]
+// These flag bits indicate that the corresponding address argument(s)
+// are byte *offsets* relative to the bound segment base address.
+// Implies that the respective endpoint has a bound segment, and
+// that the specified range(s) are contained entirely within that segment.
+#define GEX_FLAG_SELF_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_PEER_SEG_OFFSET  ((gex_Flags_t)???) [UNIMPLEMENTED]
 
 // A "token" is an opaque scalar type
 // This type is interoperable with gasnet_token_t
@@ -230,6 +316,17 @@ typedef [some unsigned integer type] gex_RMA_Value_t;
 // Preprocess-time constant size of gex_RMA_Value_t
 // Synonymous with SIZEOF_GASNET_REGISTER_VALUE_T
 #define SIZEOF_GEX_RMA_VALUE_T ...
+
+// Memvec
+// A "memvec" describes a tuple of memory address and length
+// gex_Memvec_t is guaranteed to have the same in-memory representation as gasnet_memvec_t;
+// these two struct types name their fields differently so they are technically 
+// incompatible as far as the compiler is concerned -- it *is* safe to type-pun 
+// pointers to them with explicit casts.
+typedef struct {
+  void  *gex_addr;  // [EXPERIMENTAL]: will eventually have type gex_Addr_t
+  size_t gex_len;
+} gex_Memvec_t;
 
 // gex_EP_t is an opaque scalar handle to an Endpoint (EP),
 // a local representative of an isolated communication context
@@ -257,8 +354,8 @@ typedef ... gex_TM_t;
 // Client-Data (CData)
 //
 // The major opaque object types in GASNet-EX provide the means for the client
-// to set and retrieve one void* of client-specific data.  This field is NULL
-// for newly created objects.
+// to set and retrieve one void* field of client-specific data for each object
+// instance, which is NULL for newly created objects.
 
 void  gex_Client_SetCData(gex_Client_t client, const void *val);
 void* gex_Client_QueryCData(gex_Client_t client);
@@ -474,6 +571,12 @@ typedef struct {
 // guarantees that entries with gex_index==0 are processed in the same order
 // they appear in 'table' and are assigned the highest-numbered index which is
 // then still unallocated (where 255 is the highest possible).
+// Updating of gex_index fields that were passed as 0 upon input is the only
+// modification this function will perform upon the contents of 'table'
+// (whose elements are otherwise treated as const-qualified by this call).
+// Upon return from this function, the relevant information from 'table'
+// has been copied into storage internal to the endpoint implementation,
+// and the client is permitted to overwrite or free the contents of 'table'.
 //
 // If any sequence of calls attempts register a total of more than (256 -
 // GEX_AM_INDEX_BASE) handlers to a single gex_EP_t, the result is undefined
@@ -505,6 +608,8 @@ unsigned int gex_AM_MaxArgs(void);
 // 4. 'lc_opt' indicates the payload local completion option to be used for the AM injection in question,
 //    and should be either GEX_EVENT_NOW, GEX_EVENT_GROUP (Requests only), or NULL to indicate
 //    gex_Event_t-based AM local completion.
+// 5. 'flags' indicates the flags that will be provided to the corresponding AM
+//    Request/Reply injection function (not to be confused with the handler registration flags).
 // The result is guaranteed to be stable - ie for the same set of input arguments,
 // it will always return the same value.
 // Aside from the explicit guarantees above, the result may otherwise vary with the 
@@ -560,7 +665,9 @@ typedef struct {
     //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
-    // Entry for the currently-running handler corresponding to this token.
+    // Entry describing the currently-running handler corresponding to this token.
+    // The referenced gex_AM_Entry_t object resides in library-owned storage,
+    // and should not be directly modified by client code.
     // If handler was registered using the legacy gasnet_attach() call, this
     // value may be set to a valid pointer to a gex_AM_Entry_t, with undefined
     // contents.
@@ -647,7 +754,8 @@ extern gex_TI_t gex_Token_Info(
 //
 //   The Medium and Long Requests accept the pre-defined constant values
 //   GEX_EVENT_NOW and GEX_EVENT_GROUP, and pointers to variables of type
-//   'gex_Event_t'.  The NOW constant requires that the Request call not
+//   'gex_Event_t' (note that GEX_EVENT_DEFER is prohibited).  
+//   The NOW constant requires that the Request call not
 //   return until after local completion.  The GROUP constant allows the
 //   Request call to return without delaying for local completion and adds
 //   the AM operation to the set of operations for which
@@ -662,6 +770,18 @@ extern gex_TI_t gex_Token_Info(
 //   "wait" on a 'gex_Event_t' in AM handler context.
 //   [TBD: we *could* allow handlers to make bounded calls to "test", which
 //   does not Poll, if we wanted to.]
+//
+// NOTE 3: The 'flags' argument for segment disposition [UNIMPLEMENTED]
+// 
+//   The 'flags' argument to Medium and Long Request/Reply calls may include
+//   GEX_FLAG_SELF_SEG_* flags to assert segment disposition properties of the
+//   address range described by [source_addr..(source_addr+nbytes-1)]. Any such
+//   assertions must remain true until local completion is signalled (see above).
+//
+//   The 'flags' argument to Long Request/Reply calls may include
+//   GEX_FLAG_PEER_SEG_* flags to assert segment disposition properties of the
+//   address range described by [dest_addr..dest_addr+nbytes-1)]. Any such
+//   assertions must remain true until the AM handler begins execution at the target.
 //
 // Other arguments behave as in the analogous GASNet-1 functions.
 // Misc semantic strengthening:
@@ -721,7 +841,6 @@ int gex_AM_ReplyShort[M](
 
 //
 // Negotiated-payload AM APIs
-// [CHANGED SINCE JUNE 2017 BETA]
 //
 
 // The fixed-payload APIs for Active Message Mediums and Longs (brought
@@ -749,7 +868,7 @@ int gex_AM_ReplyShort[M](
 //
 // The return from the Prepare call provides the client with an address and a
 // length.  The length is in the range defined by the minimum and maximum
-// lengths.  The address will be either the the client_buf (if non_NULL) or
+// lengths.  The address will be either the client_buf (if non_NULL) or
 // it may be a GASNet-owned buffer of the indicated length, suitably aligned
 // to hold any data type.
 //
@@ -844,7 +963,7 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //   + The value *may* exceed the corresponding gex_AM_Max[...]().
 //  void *dest_addr [LONG ONLY]
 //   + If this value is non-NULL then GASNet may use this value
-//     (and flags in the GEX_FLAG_DST_* family) to guide its
+//     (and flags in the GEX_FLAG_PEER_SEG_* family) to guide its
 //     choice of outputs (addr and size)
 //   + If this value is non-NULL then the client is required to
 //     pass the same value to the Commit call.
@@ -866,11 +985,22 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //     particular a buffer of size min_length or longer) cannot
 //     be obtained.
 //     The Commit-time behavior is unaffected by this flag.
-//   + [UNIMPLEMENTED] GEX_FLAG_SRC_OFFSET: is prohibited
-//   + [UNIMPLEMENTED] GEX_FLAG_SRC_*: these describe properties
-//     of the client_buf, if non-NULL
-//   + [UNIMPLEMENTED] GEX_FLAG_DST_*: [LONG ONLY] these describe
-//     properties of the dest_addr, if non-NULL
+//   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: is prohibited
+//   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_*: these flags may only be 
+//     passed if client_buf is non-NULL, and assert segment disposition
+//     properties for the range [client_buf..(client_buf+max_length-1)]
+//     that must be true upon entry to Prepare. If gex_AM_SrcDescAddr()
+//     on the Prepare result is equal to client_buf, then the assertion 
+//     must remain true until after local completion is signalled via `lc_opt`.
+//   + [UNIMPLEMENTED] GEX_FLAG_PEER_SEG_*: [LONG ONLY] if `dest_addr` is
+//     non-NULL, these flags assert segment disposition properties for the
+//     range [dest_addr..(dest_addr+max_length-1)] that must be true upon
+//     entry to Prepare and remain true until entry to the AM handler at
+//     the target. If `dest_addr` NULL at Prepare and non-NULL at Commit,
+//     these flags assert segment disposition properties for the Commit-time
+//     range [dest_addr..(dest_addr+nbytes-1)] that must be true upon
+//     entry to Commit and remain true until entry to the AM handler at
+//     the target. 
 //  unsigned int numargs
 //   + The number of arguments to be passed to the Commit call
 //
@@ -1131,6 +1261,7 @@ typedef [some integer type] gex_EC_t;
 #define GEX_EC_PUT   ((gex_EC_t)???)
 #define GEX_EC_AM    ((gex_EC_t)???)
 #define GEX_EC_LC    ((gex_EC_t)???)
+#define GEX_EC_RMW   ((gex_EC_t)???)
 
 // Sync of specified subset of NBI operations
 // The 'event_mask' argument is bitwise-OR of GEX_EC_* constants
@@ -1164,6 +1295,48 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 //
+// Neighborhood: [EXPERIMENTAL]
+// A "neighborhood" is defined as a set of GEX processes that can share
+// memory via the GASNet PSHM feature.
+//
+
+// Const-qualified struct type for describing a member of a neighborhood
+typedef const struct {
+    gex_Rank_t gex_jobrank; // the Job Rank (as defined above)
+    // Reserved for future expansion and/or internal-use fields
+} gex_NeighborhoodInfo_t;
+
+// Query information about the neighborhood of the calling process.
+//
+// All arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// info_p:
+//        Receives the address of an array with elements of type
+//        gex_NeighborhoodInfo_t (defined above), which includes one entry
+//        for each process in the neighborhood of the calling process.
+//        Entries are sorted by increasing gex_jobrank.
+//        The storage of this array is owned by GASNet and must not be
+//        written to or free()ed.
+//        High-quality implementations will store this array in shared memory
+//        to reduce memory footprint.  Therefore, clients should consider using
+//        it in-place to avoid creating a less-scalable copy per process.
+// info_count_p:
+//        Receives the number of processes in the neighborhood of the calling
+//        process.  This includes the caller, and is therefore always non-zero.
+// my_info_index_p:
+//        Receives the 0-based index of the calling process relative to its
+//        neighborhood.  In particular, the following formula holds:
+//        (*info_p)[*my_info_index_p].gex_jobrank == gex_System_QueryJobRank()
+//
+// Semantics in a resilient build will be defined in a later release.
+extern void gex_System_QueryNeighborhoodInfo(
+            gex_NeighborhoodInfo_t **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p);
+
+
+//
 // Handler-safe locks (HSLs)
 // Lock semantics are identical to those in GASNet-1
 //
@@ -1183,5 +1356,615 @@ void gex_HSL_Destroy(gex_HSL_t *hsl);
 void gex_HSL_Lock   (gex_HSL_t *hsl);
 void gex_HSL_Unlock (gex_HSL_t *hsl);
 int  gex_HSL_Trylock(gex_HSL_t *hsl);
+
+//
+// Data types for atomics and reductions [EXPERIMENTAL]
+//
+// GASNet-EX defines (as preprocess-time constants) at least the following
+// data types codes for use with remote atomic and reduction operations.
+//
+//     GEX Constant  C Data Type
+//     ------------  -----------
+// Integer types:
+//     GEX_DT_I32    int32_t
+//     GEX_DT_U32    uint32_t
+//     GEX_DT_I64    int64_t
+//     GEX_DT_U64    uint64_t
+// Floating-point types:
+//     GEX_DT_FLT    float
+//     GEX_DT_DBL    double
+//
+// It is guaranteed that all GEX_DT_* values can be combined via bit-wise OR
+// without loss of information.
+//
+// Currently, Remote Atomics support all six data types listed above.
+// Currently, Reductions are unimplemented.
+//
+// Note that GASNet-EX supports signed and unsigned exact-width integer types.
+// Any mapping to types such as 'int', 'long' and 'long long' is the
+// responsibility of the client.
+
+typedef [some integer type] gex_DT_t;
+#define GEX_DT_??? ((gex_DT_t)???) // For each GEX_DT_* above
+
+//
+// Operation codes (opcodes) for atomics and reductions [EXPERIMENTAL]
+//
+// GASNet-EX defines (as preprocess-time constants) at least the following
+// operation codes for use with atomic and reduction operations.  Not all
+// operations are valid in all contexts, as indicated below.
+// See documentation for the atomic and reduction operations for more details.
+//
+// The following apply to the operation definitions which follow:
+//   For atomics:
+//     'op0' denotes the value at the target location prior to the operation
+//     'op1' and 'op2' denote the value of the corresponding function arguments
+//     'expr' denotes the value of the target location after the operation
+//     Fetching operations always return 'op0'
+//   For reductions:
+//     'op0' represents the "left" (first) reduction operand
+//     'op1' represents the "right" (second) reduction operand
+//     'expr' denotes the value of the result of the pairwise reduction
+//
+// Except where otherwise noted, the expressions below are evaluated according
+// to C language rules.
+//
+// + Non-fetching Operations
+//    - Binary Arithmetic Operations
+//      Valid for Atomics and Reductions
+//      Valid for all specified GEX_DT_* types
+//        GEX_OP_ADD   expr = (op0 + op1)
+//        GEX_OP_SUB   expr = (op0 - op1)
+//        GEX_OP_MULT  expr = (op0 * op1) [UNIMPLEMENTED]
+//        GEX_OP_MIN   expr = ((op0 < op1) ? op0 : op1)
+//        GEX_OP_MAX   expr = ((op0 > op1) ? op0 : op1)
+//    - Unary Arithmetic Operations
+//      Valid only for Atomics
+//      Valid for all specified GEX_DT_* types
+//        GEX_OP_INC   expr = (op0 + 1)
+//        GEX_OP_DEC   expr = (op0 - 1)
+//    - Bit-wise Operations
+//      Valid for Atomics and Reductions
+//      Valid only for Integer types
+//        GEX_OP_AND   expr = (op0 & op1)
+//        GEX_OP_OR    expr = (op0 | op1)
+//        GEX_OP_XOR   expr = (op0 ^ op1)
+// + Fetching Operations
+//   Valid only for Atomics
+//   Each GEX_OP_Fxxx performs the same operation as GEX_OP_xxx, above,
+//   and is valid for the same types.
+//   Additionally these operations fetch 'op0' as the result of the atomic.
+//    - Binary Arithmetic Operations
+//        GEX_OP_FADD
+//        GEX_OP_FSUB
+//        GEX_OP_FMULT [UNIMPLEMENTED]
+//        GEX_OP_FMIN
+//        GEX_OP_FMAX
+//    - Unary Arithmetic Operations
+//        GEX_OP_FINC
+//        GEX_OP_FDEC
+//    - Bit-wise Operations
+//        GEX_OP_FAND
+//        GEX_OP_FOR
+//        GEX_OP_FXOR
+// + Accessor Operations
+//   Valid only for Atomics
+//   Valid for all specified GEX_DT_* types
+//    - Non-fetching Accessor
+//        GEX_OP_SET   expr = op1  (writes 'op1' to the target location)
+//    - Fetching Accessors (fetch 'op0' as the result of the atomic)
+//        GEX_OP_GET   expr = op0  (does not modify the target location)
+//        GEX_OP_SWAP  expr = op1  (swaps 'op1' with the target location)
+//        GEX_OP_CSWAP expr = ((op0 == op1) ? op2 : op0)
+//                     With a guarantee to be free of spurious failures as from
+//                     cache events.
+//
+// It is guaranteed that all GEX_OP_* values can be combined via bit-wise OR without
+// loss of information.
+
+typedef [some integer type] gex_OP_t;
+#define GEX_OP_??? ((gex_OP_t)???) // For each GEX_OP_* above
+
+
+//----------------------------------------------------------------------
+//
+// Remote Atomic Operations [EXPERIMENTAL]
+// APIs in this section are provided by gasnet_ratomic.h
+//
+
+//
+// Atomic Domains
+//
+// Just as all point-to-point RMA calls take a gex_TM_t argument, calls to
+// initiate Remote Atomic operations take a gex_AD_t, where "AD" is short for
+// "Atomic Domain".
+//
+// + Creation of an AD associates it with a specific gex_TM_t.
+//
+//   This association defines the memory locations which can be accessed using
+//   the AD.  Only memory within the address space of a process hosting an
+//   endpoint that is a member of this team may be accessed by atomic
+//   operations which pass a given AD.
+//
+//   Currently, there is an additional constraint that target locations must
+//   lie within the bound segments of the team's endpoints.
+//
+// + Creation of an AD associates with it one data type and a set of operations.
+//
+//   This permits selection of the best possible implementation which can
+//   provide correct results for the given set of operations on the given data
+//   type.  This is important because the best possible implementation of a
+//   operation "X" may not be compatible with operation "Y".  So, this best
+//   "X" can only be used when it is known that "Y" will not be used.  This
+//   issue arises because a NIC may offload "X" (but not "Y") and use of a
+//   CPU-based implementation of "Y" would not be coherent with the NIC
+//   performing a concurrent "X" operation.
+//
+// + Use of an AD is conceptually tied to specific data and time.
+//
+//   Correct operation of gex_AD_Op*() APIs is only assured if the client code
+//   can ensure that there are no other accesses to the same target locations
+//   concurrent with the operations on a given AD.
+//
+//   The prohibition against concurrent access applies to all access by CPUs,
+//   GPUs and any other hardware that references memory; and to all GASNet-EX
+//   operations other than the atomic accesses defined in this section.  The
+//   write by a fetching remote atomic operation to an output location on the
+//   initiator is NOT an atomic access for the purposes of this prohibition.
+//
+//   Prohibited accesses by CPUs and GPUs include not only load/store, but
+//   also any atomic operations provided by languages such as C11 and C++11,
+//   by compiler intrinsics, operating system facilities, etc.
+//
+//   This prohibition also extends to concurrent access via multiple ADs, even
+//   if created with identical arguments.  However, this specification does
+//   not prohibit concurrent access to distinct (non overlapping) data using
+//   distinct ADs.
+//
+//   GASNet-EX does not provide any mechanisms to detect violations of the
+//   prohibitions described above.
+//
+// + Atomic Access Phases [INCOMPLETE / OPEN ISSUE]
+//
+//   It is the intent of this specification to permit access to the same data
+//   using remote atomics and other (non-atomic) mechanisms, and to the same
+//   data using mutiple atomics domains.  However, such different accesses
+//   must be NON-concurrent.  This separation is into what we will call
+//   "atomic access phases":
+//     During a given atomic access phase, any given byte in the memory of any
+//     GASNet process shall NOT be accessed by more than ONE of:
+//      (1) gex_AD_Op*() calls that reference that byte as part of the target
+//          object.
+//      (2) any means except for (1).
+//     Furthermore, during a given atomic access phase, all gex_AD_Op*() calls
+//     accessing a given target byte shall use the same AD object.
+//
+//   Note that the byte-granularity of this definition has consequences for
+//   the use of union types and of type-punning, either of which may result in
+//   a given byte being considered part of multiple C objects.
+//
+//   The means for a transition between atomic access phases has not yet been
+//   fully specified.  We do NOT expect that the resolution to this open issue
+//   will invalidate any interface defined in this current specification.
+//   However, when implementations of remote atomics are introduced with
+//   properties such as caching, it may become necessary for clients using
+//   remote atomics to take additional steps to transition between atomic
+//   access phases.
+//
+//   FOR *THIS* RELEASE we believe it is sufficient to separate atomic access
+//   phases by a barrier synchronization.  However, it is necessary to ensure
+//   that any GASNet-EX accesses which may conflict have been completed
+//   (synced) prior to the barrier.  This includes completing all remote atomic
+//   operations before a transition to non-atomic access or accesses by a
+//   different atomic domain; and completing all other GASNet data-movement
+//   operations (RMA, Collective, etc.) before a transition to atomic access.
+//
+// + Memory Ordering/Fencing/Consistency [INCOMPLETE / OPEN ISSUE]
+//
+//   It is the intent of this specification to include flags to demand memory
+//   ordering fences (such as for Acquire and Release) when initiating an atomic
+//   operation.  However, these semantics have not yet been defined.  We
+//   expect that the resolution to this open issue will involve the definition
+//   of additional GEX_FLAG_* values, and will not invalidate any interface
+//   defined in this current specification.
+//
+//   FOR *THIS* RELEASE we advise use of the GASNet-Tools APIs to introduce
+//   memory ordering fences where they may be required for correctness.
+//   See "Memory barriers" in README-tools.
+
+// Opaque type for Atomic Domain
+typedef ... gex_AD_t;
+
+// Create an Atomic Domain
+//
+// This call, collective over the 'tm' argument, creates an atomic domain for
+// the operations in the 'ops' argument performed on data type 'dt'.
+//
+// The 'ad_p' is an OUT parameter that receives a reference to the
+// newly created atomic domain.
+//
+// The 'dt' and 'ops' arguments define the type and operations.
+//  + 'dt' is a value of type gex_DT_t
+//  + 'ops' is a bitwise-OR of one or more GEX_OP_* constants of type gex_OP_t.
+// If 'dt' and 'ops' do not define only valid combinations (as described in the
+// definitions of gex_OP_t), then the behavior is undefined.
+//
+// The 'flags' argument provides additional control over the created domain.
+//  + GEX_FLAG_AD_FAVOR_*: [UNIMPLEMENTED]
+//    Family of flags (still TBD) to influence the selection of implementation,
+//    for instance to favor performance of access by the process to which the data
+//    has affinity vs access via the network (among other possibilities).
+//
+// The 'dt', 'ops' and 'flags' arguments must each be equal across all callers
+// (single-valued) or the behavior is undefined.
+//
+void gex_AD_Create(
+            gex_AD_t                   *ad_p,            // Output
+            gex_TM_t                   tm,               // The team
+            gex_DT_t                   dt,               // The data type
+            gex_OP_t                   ops,              // OR of operations
+            gex_Flags_t                flags);           // flags
+
+// Destroy an Atomic Domain
+//
+// This call destroys an atomic domain.
+//
+// Calls must be collective over the team used to create the atomic domain.
+//
+// All operations initiated on the atomic domain must be complete prior to any
+// rank making this call (or the behavior is undefined).  In practice, this
+// means completing (syncing) all atomic operation at their initiators,
+// followed by a barrier prior to calling this function.
+//
+// [INCOMPLETE / OPEN ISSUE]
+// Once this specification includes a complete specification of atomic access
+// phases, this call will provide and/all aspects of division between such
+// phases which are stronger than the quiescence pre-condition.  We do NOT
+// expect that the resolution to this open issue will invalidate this API's
+// specification.
+//
+// Though this function is collective, it does not guarantee barrier
+// synchronization.
+//
+void gex_AD_Destroy(gex_AD_t ad);
+
+//
+// Query operations on gex_AD_t
+//
+
+// Query the parameters passed when atomic domain was created
+
+gex_Flags_t  gex_AD_QueryFlags(gex_AD_t ad);
+gex_TM_t     gex_AD_QueryTM(gex_AD_t ad);
+gex_DT_t     gex_AD_QueryDT(gex_AD_t ad);
+gex_OP_t     gex_AD_QueryOps(gex_AD_t ad);
+
+// Client-Data (CData) support for gex_AD_t
+// These calls provide the means for the client to set and retrieve one void*
+// field of client-specific data for each AD, which is NULL for a newly
+// created AD.
+
+void  gex_AD_SetCData(gex_AD_t ad, const void *val);
+void* gex_AD_QueryCData(gex_AD_t ad);
+
+
+//
+// Remote Atomic Operations
+//
+// Remote atomic operations are point-to-point communication calls that
+// perform read-modify-write and accessor operations on typed data (the
+// "target location") in the address space of a process hosting an endpoint
+// that is a member of the team passed to gex_AD_Create().
+//
+// These operations are guaranteed to be atomic with respect to all other
+// accesses to the same target location made using the same AD, from any rank.
+// When using a thread-safe endpoint this includes atomicity of concurrent
+// access by multiple threads within a rank.  No other atomicity guarantees
+// are provided.  [Currently all endpoints are "thread-safe" when using a
+// GASNET_PAR build, and no endpoints are thread-safe otherwise.]
+//
+// Despite "Remote" in the name, it is explicitly permitted to apply these
+// operations to the caller's own memory (and a high-quality implementation
+// will optimize this case when possible).
+//
+// Additional semantics are described following the "Argument synopsis".
+//
+// Return value:
+//
+// Atomic operations are available with explicit-event (NB) or implicit-event
+// (NBI) completion, with different return types:
+//
+//  + The gex_AD_OpNB_*() APIs return a gex_Event_t.
+//
+//    If (and only if) the GEX_FLAG_IMMEDIATE flag is passed to remote atomic
+//    initiation, these calls are *permitted* to return GEX_EVENT_NO_OP to
+//    indicate that no operation was initiated.  Otherwise, the return value
+//    is an event to be used in calls to gex_NBI_{Test,Wait}() to check for
+//    completion.  These calls may return GEX_EVENT_INVALID if the operation
+//    was completed synchronously.
+//
+//  + The gex_AD_OpNBI_*() APIs return an integer.
+//
+//    If (and only if) the GEX_FLAG_IMMEDIATE flag is passed to remote atomic
+//    initiation, these calls are *permitted* to return non-zero to indicate
+//    that no operation was initiated.  Otherwise, the return value is zero
+//    and a gex_NBI_{Test,Wait}() call must be used to check completion.  For
+//    the opcodes GEX_OP_SET and GEX_OP_GET, one should use GEX_EC_PUT and
+//    GEX_EC_GET, respectively, to check completion.  All other opcodes
+//    correspond to an event category of GEX_EC_RMW.
+//
+// Data types and prototypes:
+//   The APIs for remote atomic initiation are typed.  Therefore, descriptions
+//   and prototypes below use "[DATATYPE]" to denote the tokens corresponding
+//   to the "???" in each supported GEX_DT_???, and "[TYPE]" to denote the
+//   corresponding C type.  There is an instance of each function (NB and NBI)
+//   for each supported data type.
+//   See the "Data types for atomics and reductions" section for which data
+//   types are supported for remote atomics, and their corresponding C types.
+//
+// "Fetching":
+//   Text below uses "fetching" to denote operations that write to an output
+//   location ('*result_p') at the initiator (and "non-fetching" for all
+//   others).
+//   See the "Operation codes (opcodes) for atomics and reductions" section
+//   for which opcodes are fetching vs non-fetching.
+//
+// Endpoints:
+//   Let 'tm' denote the corresponding argument passed to gex_AD_Create().
+//   The endpoint associated with 'tm' is known as the "initiating endpoint".
+//   The endpoint named by (tm, tgt_rank) is known as the "target endpoint".
+//
+// Argument synopsis:
+//   gex_AD_t       ad
+//     + The Atomic Domain for this operation.
+//   [TYPE] *       result_p
+//     + Address (or offset) of the output location for fetching operations.
+//       Ignored for non-fetching operations.
+//   gex_Rank_t     tgt_rank
+//     + Rank of the target location
+//   void *         tgt_addr
+//     + Address (or offset) of the target location
+//   gex_OP_t       opcode
+//     + Indicates the operation to perform atomically.
+//       Operations are described with the definition of gex_OP_t.
+//   [TYPE]         operand1
+//     + First operand, if any.
+//       Ignored if the given opcode takes no operands.
+//   [TYPE]         operand2
+//     + Second operand, if any.
+//       Ignored if the given opcode takes fewer than two operands.
+//   gex_Flags_t    flags
+//     + Per-operation flags
+//       A bitwise OR of zero or more of the GEX_FLAG_* constants.
+//
+// Semantics of gex_AD_Op*():
+//
+// + Successful synchronization of a fetching remote atomic operation means
+//   that the local output value (at *result_p) is ready to be examined, and
+//   will contain a value that was held at the target location at some time in
+//   the interval between the call to the initiation function and the
+//   successful completion of the synchronization.  This value will be the one
+//   present at the start of the atomic operation and denoted as 'op0' in the
+//   definition of the applicable opcode.
+//   [THIS PARAGRAPH IS NOT INTENDED TO BE A FORMAL MODEL.
+//    HOWEVER, ONE IS FORTHCOMING.]
+//
+// + Successful synchronization of any remote atomic operation means the
+//   operation has been performed atomically (including any constituent Read
+//   and Write access to the target location) and any remote atomic issued
+//   subsequently by any thread on any rank with the same AD and target
+//   location will observe the Write, if any (assuming no intervening updates).
+//   [THIS PARAGRAPH IS NOT INTENDED TO BE A FORMAL MODEL.
+//    HOWEVER, ONE IS FORTHCOMING.]
+//
+// + Atomicity guarantees apply only to "target locations".  They do not apply
+//   to the output of a fetching operation.  Therefore, clients must check for
+//   operation completion before the output value of a fetching operation can
+//   safely be read (analogous to the destination of an gex_RMA_Get*()).
+//   Additionally, a given 'result_p' location must not be used as the target
+//   location of remote atomic operations in the same atomic access phase.
+//   (see "Atomic Access Phases").
+//
+// + If two target objects accessed by gex_AD_Op*() overlap (partially or
+//   completely) those accesses are subject to the restrictions documented in
+//   "Atomic Access Phases" above.  In particular, such accesses are
+//   permitted during the same atomic access phase *only* if the accessed
+//   bytes exactly coincide and the calls use the same AD object.
+//
+// + Currently, the target location must be contained entirely within the
+//   bound segment of the target endpoint (though this may eventually be
+//   relaxed).
+//
+// + The data type associated with 'ad' and that of the gex_AD_Op*() call must
+//   be equal.
+//
+// + The 'result_p' argument to fetching operations must be a valid pointer to
+//   an object of the given type [TYPE] on the initiator.  (See also the
+//   description of the [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET flag, below.)
+//
+// + The 'result_p' argument to non-fetching operations is ignored.
+//
+// + The 'tgt_rank' argument names the target endpoint as a valid rank
+//   relative to the team associated with the AD at its creation.
+//
+// + The 'tgt_addr' argument names the target location, which must be properly
+//   aligned for its data type [TYPE] and (for any operation except
+//   GEX_OP_SET) must contain an object with compatible effective type,
+//   including a qualified version of [TYPE], and (for integer types only)
+//   including signed or unsigned variants.  (See also the description of the
+//   [UNIMPLEMENTED] GEX_FLAG_PEER_SEG_OFFSET flag, below.)
+//
+// + The 'opcode' argument gives the operation to be performed atomically.
+//   See the "Operation codes (opcodes) for atomics and reductions" section
+//   for definitions of each operation.
+//
+// + The 'opcode' must be a single GEX_OP* value_, not a bitwise OR of two or
+//   more GEX_OP_* values.
+//
+// + The 'opcode' must be a member of the set of opcodes passed to
+//   gex_AD_Create().
+//
+// + Operations on floating-point data types are not guaranteed to obey all
+//   rules in the IEEE 754 standard even when the C float and double types
+//   otherwise do conform.  Deviations from IEEE 754 include (at least):
+//     - Operations on signalling NaNs have undefined behavior.
+//     - CSWAP *may* be performed as if on integers of the same width.
+//       This could result in non-conforming behavior with quiet NaNs
+//       or negative zero.
+//     - MIN, MAX, FMIN and FMAX *may* be performed as if on "sign
+//       and magnitude representation integers" of the same width.
+//       This could result in non-conforming behavior with quiet NaNs.
+//       (see https://en.wikipedia.org/wiki/IEEE_754-1985, and especially
+//       the section Comparing_floating-point_numbers)
+//   [THIS PARAGRAPH MAY NOT BE A COMPLETE LIST OF NON-IEEE BEHAVIORS]
+//
+//  + If the given opcode requires one or more operands, the 'operand1'
+//    argument provides the first ('op1' in the gex_OP_t documentation).
+//    Otherwise, 'operand1' is ignored.
+//
+//  + If the given opcode requires two operands, the 'operand2' argument
+//    provides the second ('op2' in the gex_OP_t documentation).
+//    Otherwise, 'operand2' is ignored.
+//
+//  + The 'flags' argument must either be zero, or a bitwise OR of one or more
+//    of the following flags.
+//     - GEX_FLAG_IMMEDIATE: the call is permitted (but not required) to
+//       return a distinguishing value without initiating any communication if
+//       the conduit could determine that it would need to block temporarily
+//       to obtain the necessary resources.  The NBI calls return a non-zero
+//       value (only) in this "no op" case, while the NB calls will return
+//       GEX_EVENT_NO_OP.
+//     - [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: 'result_p' is to be
+//       interpreted as an offset relative to the bound segment of the
+//       initiating endpoint (instead of as a virtual address).
+//       Ignored for non-fetching operations.
+//     - [UNIMPLEMENTED] GEX_FLAG_PEER_SEG_OFFSET: 'tgt_addr' is to be
+//       interpreted as an offset relative to the bound segment of the target
+//       endpoint (instead of as a virtual address).
+//
+
+gex_Event_t gex_AD_OpNB_[DATATYPE](
+            gex_AD_t      ad,         // The atomic domain
+            [TYPE] *      result_p,   // Output location, if any, else ignored
+            gex_Rank_t    tgt_rank,   // Rank of target endpoint
+            void *        tgt_addr,   // Address (or OFFSET) of target location
+            gex_OP_t      opcode,     // The operation (GEX_OP_*) to perform
+            [TYPE]        operand1,   // First operand, if any, else ignored
+            [TYPE]        operand2,   // Second operand, if any, else ignored
+            gex_Flags_t   flags);     // Flags to control this operation
+int gex_AD_OpNBI_[DATATYPE](
+            gex_AD_t      ad,
+            [TYPE] *      result_p,
+            gex_Rank_t    tgt_rank,
+            void *        tgt_addr,
+            gex_OP_t      opcode,
+            [TYPE]        operand1,
+            [TYPE]        operand2,
+            gex_Flags_t   flags);
+
+// End of section describing APIs provided by gasnet_ratomic.h
+//----------------------------------------------------------------------
+//
+// Vector/Indexed/Strided (VIS) [EXPERIMENTAL]
+//
+// APIs in this section are provided by gasnet_vis.h
+
+// This API is an updated and expanded version of the VIS prototype offered
+// in GASNet-1, which is documented here: http://gasnet.lbl.gov/upc_memcpy_gasnet-2.0.pdf
+
+// For NB variants, return type for all functions in this section is gex_Event_t.
+// For NBI/Blocking variants, the return type is int which is non-zero *only* in the
+// "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
+
+// For the CURRENT release, all 'flags' arguments must be zero.
+// A future revision offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
+
+// NOTE: This interface does not yet offer local completion indication - all client-owned
+// buffers (ie payload buffers and metadata arrays) passed to the non-blocking initiation 
+// functions are implicitly treated as GEX_EVENT_DEFER semantics, and thus must remain 
+// valid until the operation is fully completed (as in GASNet-1).
+// A future revision will expose intermediate completion events [UNIMPLEMENTED]
+
+// NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]
+
+//
+// Vector and Indexed Puts and Gets
+//
+
+// These operate analogously to those in the GASNet-1 prototype gasnet_{put,get}[vi]_* API
+
+{gex_Event_t,int} gex_VIS_VectorGet{NB,NBI,Blocking}(
+        gex_TM_t tm,                                   // Names a local context
+        size_t dstcount, gex_Memvec_t const dstlist[], // Local destination data description
+        gex_Rank_t srcrank,                            // Together with 'tm', names a remote context
+        size_t srccount, gex_Memvec_t const srclist[], // Remote source data description
+        gex_Flags_t flags);                            // Flags to control this operation
+{gex_Event_t,int} gex_VIS_VectorPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        size_t dstcount, gex_Memvec_t const dstlist[],
+        size_t srccount, gex_Memvec_t const srclist[],
+        gex_Flags_t flags);
+
+{gex_Event_t,int} gex_VIS_IndexedGet{NB,NBI,Blocking}(
+        gex_TM_t tm,
+        size_t dstcount, void * const dstlist[], size_t dstlen,
+        gex_Rank_t srcrank,
+        size_t srccount, void * const srclist[], size_t srclen,
+        gex_Flags_t flags);
+{gex_Event_t,int} gex_VIS_IndexedPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        size_t dstcount, void * const dstlist[], size_t dstlen,
+        size_t srccount, void * const srclist[], size_t srclen,
+        gex_Flags_t flags);
+
+//
+// Strided Puts and Gets
+//
+
+// These operate similarly to the GASNet-1 prototype gasnet_{put,get}s_* API,
+// but the metadata format is changing slightly in EX.  Notable changes:
+// + The stride arrays change type from (const size_t[]) to (const ssize_t[])
+// + The 'count[0]' datum moves to a new parameter 'elemsz', and the subsequent
+//   elements 'count[1..stridelevels]' "slide down", meaning 'count' now references
+//   an array with 'stridelevels' entries (down from 'stridelevels+1').
+// Note that 'elemsz' need not match the "native" element size of the underlying
+// datastructure, it just needs to indicate a size of contiguous data chunks
+// (eg, it could be the length of an entire row of doubles stored contiguously).
+// These interface changes will enable a future release of the Strided interface
+// to expose more generalized data movement (specifically, transpose and reflection).
+//
+// The CURRENT release preserves metadata preconditions analogous to those
+// in the GASNet-1 prototype, with 'count[0]' replaced by 'elemsz' - ie:
+// For stridelevels == 0:
+//   the operation is a contiguous copy of elemsz bytes, and the 
+//   srcstrides, dststrides, count arguments are all ignored
+// For stridelevels == 1, the following preconditions must hold:
+//   srcstrides[0] >= elemsz
+//   (and analogously for dststrides)
+// For stridelevels > 1, the following preconditions must hold: 
+//   srcstrides[0] >= elemsz AND 
+//   srcstrides[1] >= (elemsz * count[0]) AND
+//   ForAll i in [2..stridelevels) :
+//     srcstrides[i] >= (count[i - 1] * srcstrides[i - 1])
+//   (and analogously for dststrides)
+// 
+// These restrictions will be loosened in an upcoming release. [UNIMPLEMENTED]
+
+{gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
+        gex_TM_t tm,
+        void *dstaddr, const ssize_t dststrides[],
+        gex_Rank_t srcrank,
+        void *srcaddr, const ssize_t srcstrides[],
+        size_t elemsz, const size_t count[], size_t stridelevels,
+        gex_Flags_t flags);
+{gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
+        gex_TM_t tm, gex_Rank_t dstrank,
+        void *dstaddr, const ssize_t dststrides[],
+        void *srcaddr, const ssize_t srcstrides[],
+        size_t elemsz, const size_t count[], size_t stridelevels,
+        gex_Flags_t flags);
+
+// End of section describing APIs provided by gasnet_vis.h
+//----------------------------------------------------------------------
 
 // vim: syntax=c

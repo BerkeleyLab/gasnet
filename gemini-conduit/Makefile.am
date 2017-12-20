@@ -25,7 +25,6 @@ CONDUIT_FILELIST =           \
       gasnet_core_internal.h \
       gasnet_extended.c      \
       gasnet_extended_fwd.h  \
-      gasnet_extended_help_extra.h  \
       gasnet_gemini.h        \
       gasnet_gemini.c
 

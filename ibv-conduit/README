@@ -968,6 +968,19 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   That bug report describes the conditions under which the problem may
   manifest, and the recommended work-arounds.
 
++ Bug 3693
+  In some circumstances, one may see the following message at startup:
+
+  *** FATAL ERROR: Unexpected error Bad address (errno=14) when registering the segment
+
+  If your system is configured to allow large SystemV shared memory segments,
+  then this can be resolved by switching to SystemV instead of POSIX for
+  GASNet's shared memory support.
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3693
+  That bug report describes more about the problem, and provides more detail
+  regarding the recommended work-around(s).
+
 + See the GASNet Bugzilla server for details on other known bugs:
   http://gasnet-bugs.lbl.gov/
 

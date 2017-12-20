@@ -55,7 +55,7 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
 
       gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
-      for (i=0, eop = buf; i<(bufidx==255?255:256); i++) {
+      for (i=0, eop = buf; i < 256; i++) {
         size_t eopidx = (((uintptr_t)eop) - ((uintptr_t)buf)) / allocsz;
         gasneti_assert(eopidx < 256);
         gasneti_assert(!seen[eopidx]);/* see if we hit a cycle */
@@ -82,8 +82,10 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     iop->threadidx = thread->threadidx;
     iop->initiated_get_cnt = 0;
     iop->initiated_put_cnt = 0;
+    iop->initiated_rmw_cnt = 0;
     gasnete_op_atomic_set(&(iop->completed_get_cnt), 0, 0);
     gasnete_op_atomic_set(&(iop->completed_put_cnt), 0, 0);
+    gasnete_op_atomic_set(&(iop->completed_rmw_cnt), 0, 0);
   #if GASNETE_HAVE_LC
     iop->initiated_alc_cnt = 0;
     gasnete_op_atomic_set(&(iop->completed_alc_cnt), 0, 0);
@@ -150,6 +152,7 @@ void gasnete_iop_prep_free(gasnete_iop_t *iop) {
   gasneti_assert(EVENT_ALL_DONE(iop));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,rmw));
   gasneti_assert(GASNETE_IOP_LC_CNTDONE(iop));
   gasneti_assert(iop->next == iop);
 #ifdef GASNETE_IOP_PREP_FREE_EXTRA
@@ -196,6 +199,15 @@ void gasnete_iop_free(gasnete_iop_t *iop GASNETI_THREAD_FARG) {
 
 #if !GASNETI_DISABLE_EOP_INTERFACE
 
+// TODO-EX: EOP_INTERFACE
+//   Must generalize IOP to encompass LC, RMW and future Event Categories
+//     Anticipated implementation is to replace 'isget' with a member of the
+//     gasnete_iop_event_* enum, and to use it to compute the address of the
+//     initiated and completed counters.
+//   Must generalize EOP to encompass LC
+//     Initially we only have PUT and LC subevents, but the generalization
+//     should allow for more, and thus likely resembles the plan for IOP.
+
 gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE) {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   return (gasneti_eop_t *)op;
@@ -218,6 +230,23 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   gasnete_iop_t *op = (gasnete_iop_t *)iop;
   if (isget) GASNETE_IOP_CNT_FINISH(op, get, noperations, 0);
   else       GASNETE_IOP_CNT_FINISH(op, put, noperations, 0);
+  gasnete_iop_check(op);
+}
+
+// TODO-EX: EOP_INTERFACE
+//   These next two are a stop-gap pending proper generalization.
+
+gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  gasnete_iop_check(op);
+  op->initiated_rmw_cnt += noperations;
+  gasnete_iop_check(op);
+  return (gasneti_iop_t *)op;
+}
+void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations) {
+  gasnete_iop_t *op = (gasnete_iop_t *)iop;
+  GASNETE_IOP_CNT_FINISH(op, rmw, noperations, 0);
   gasnete_iop_check(op);
 }
 
@@ -541,6 +570,8 @@ extern int gasnete_test_syncnbi_mask(gex_EC_t mask, gex_Flags_t flags GASNETI_TH
       gasneti_fatalerror("VIOLATION: attempted to call gex_NBI_Test() inside an NBI access region");
   #endif
 
+#if 0
+  // Version suitable for inlining when mask is constant
   if (mask & GASNETI_EC_ALC) {
     if (! GASNETE_IOP_LC_CNTDONE(iop)) return GASNET_ERR_NOT_READY;
   }
@@ -549,9 +580,25 @@ extern int gasnete_test_syncnbi_mask(gex_EC_t mask, gex_Flags_t flags GASNETI_TH
   }
   if (mask & GASNETI_EC_GET) {
     if (! GASNETE_IOP_CNTDONE(iop,get)) return GASNET_ERR_NOT_READY;
-    gasneti_sync_reads(); // TODO-EX: revisit this
+  }
+  if (mask & GASNETI_EC_RMW) {
+    if (! GASNETE_IOP_CNTDONE(iop,rmw)) return GASNET_ERR_NOT_READY;
+  }
+#else
+  // Version to reduce branches when mask is unknown
+  gex_EC_t live_mask = 0;
+  if (! GASNETE_IOP_LC_CNTDONE(iop))  live_mask |= GASNETI_EC_ALC;
+  if (! GASNETE_IOP_CNTDONE(iop,put)) live_mask |= GASNETI_EC_PUT;
+  if (! GASNETE_IOP_CNTDONE(iop,get)) live_mask |= GASNETI_EC_GET;
+  if (! GASNETE_IOP_CNTDONE(iop,rmw)) live_mask |= GASNETI_EC_RMW;
+  if (mask & live_mask) return GASNET_ERR_NOT_READY;
+#endif
+
+  // TODO-EX: revisit this logic
+  if (mask & (GASNETI_EC_GET|GASNETI_EC_RMW)) {
+    gasneti_sync_reads();
   } else {
-    gasneti_compiler_fence(); // TODO-EX: revisit this
+    gasneti_compiler_fence();
   }
 
   return GASNET_OK;
@@ -576,10 +623,14 @@ extern void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion
       gasneti_fatalerror("VIOLATION: tried to initiate a recursive NBI access region");
   #endif
 
+  // "Arm" all events and offset the counters to prevent them "firing" prematurely
+  // TODO: should merge SET_EVENT_TYPE() calls into one write.
   iop->initiated_put_cnt++;
   iop->initiated_get_cnt++;
+  iop->initiated_rmw_cnt++;
   SET_EVENT_TYPE(iop, gasnete_iop_event_put, gasnete_event_type_iop);
   SET_EVENT_TYPE(iop, gasnete_iop_event_get, gasnete_event_type_iop);
+  SET_EVENT_TYPE(iop, gasnete_iop_event_rmw, gasnete_event_type_iop);
 #if GASNETE_HAVE_LC
   iop->initiated_alc_cnt++;
   SET_EVENT_TYPE(iop, gasnete_iop_event_alc, gasnete_event_type_lc);
@@ -596,8 +647,10 @@ extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
 
+  // Balance the offsets applied to each counter by begin_nbi_accessregion
   GASNETE_IOP_CNT_FINISH_REG(iop, put, 1, 0);
   GASNETE_IOP_CNT_FINISH_REG(iop, get, 1, 0);
+  GASNETE_IOP_CNT_FINISH_REG(iop, rmw, 1, 0);
 #if GASNETE_HAVE_LC
   GASNETE_IOP_CNT_FINISH_REG(iop, alc, 1, 0);
 #endif
@@ -624,6 +677,7 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, gex_EC_t event_id) {
       switch (event_id) {
         case GEX_EC_PUT:  // fall-through...
         case GEX_EC_GET:  // fall-through...
+        case GEX_EC_RMW:  // fall-through...
         case GEX_EC_LC:    return;
       }
       break;
@@ -653,6 +707,7 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id) 
     // TODO_EX: did we really want to allow extraction of PUT and GET (root) events?
     case GEX_EC_PUT: return gasneti_op_event(op, gasnete_iop_event_put);
     case GEX_EC_GET: return gasneti_op_event(op, gasnete_iop_event_get);
+    case GEX_EC_RMW: return gasneti_op_event(op, gasnete_iop_event_rmw);
     case GEX_EC_LC:  return gasneti_op_event(op, gasnete_iop_event_alc);
   }
 

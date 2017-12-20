@@ -100,16 +100,16 @@ typedef struct {
   uint64_t checksum;
   size_t count; /* in segments */
   uintptr_t totalsz; /* in bytes */
-  gasnet_memvec_t *list;
+  gex_Memvec_t *list;
 } test_memvec_list;
 
 void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
   size_t i, sum;
-  if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t)))
+  if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gex_Memvec_t)))
     FATALERR("Checksum mismatch in verify_memvec_list at %s:%i", file, line);
   sum = 0;
   for (i=0; i < mv->count; i++) {
-    sum += mv->list[i].len;
+    sum += mv->list[i].gex_len;
   }
   if (mv->totalsz != sum)
     FATALERR("totalsz mismatch in verify_memvec_list at %s:%i", file, line);
@@ -128,9 +128,9 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
   size_t per = 0;
   if (TEST_RAND_ONEIN(20)) count = 0;
   if (count > 0) per = elemlen / count; 
-  mv = test_malloc(sizeof(test_memvec_list)+count*sizeof(gasnet_memvec_t));
+  mv = test_malloc(sizeof(test_memvec_list)+count*sizeof(gex_Memvec_t));
   mv->count = count;
-  mv->list = (gasnet_memvec_t *)(mv+1);
+  mv->list = (gex_Memvec_t *)(mv+1);
   mv->totalsz = 0;
 
   if (allowoverlap) {
@@ -139,11 +139,11 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
       size_t offset = TEST_RAND(0, elemlen-1);
       size_t len = TEST_RAND(0, MIN(per,elemlen-offset));
       if (TEST_RAND_ONEIN(20)) {
-        mv->list[i].addr = NULL;
-        mv->list[i].len = 0;
+        mv->list[i].gex_addr = NULL;
+        mv->list[i].gex_len = 0;
       } else {
-        mv->list[i].addr = ((VEC_T*)addr)+offset;
-        mv->list[i].len = VEC_SZ*len;
+        mv->list[i].gex_addr = ((VEC_T*)addr)+offset;
+        mv->list[i].gex_len = VEC_SZ*len;
         mv->totalsz += VEC_SZ*len;
       }
     }
@@ -154,13 +154,13 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
       size_t lim = 0;
       for (i = 0; i < count; i++) {
         if (TEST_RAND_ONEIN(20)) {
-          mv->list[i].addr = NULL;
-          mv->list[i].len = 0;
+          mv->list[i].gex_addr = NULL;
+          mv->list[i].gex_len = 0;
         } else {
           size_t offset = TEST_RAND(lim, per*(i+1)-1);
           size_t len = TEST_RAND(0, per*(i+1)-offset);
-          mv->list[i].addr = ((VEC_T*)addr)+offset;
-          mv->list[i].len = VEC_SZ*len;
+          mv->list[i].gex_addr = ((VEC_T*)addr)+offset;
+          mv->list[i].gex_len = VEC_SZ*len;
           mv->totalsz += VEC_SZ*len;
           lim = offset + len;
           assert(lim <= per*(i+1) && lim <= elemlen);
@@ -171,36 +171,36 @@ test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap)
       size_t lim = 0;
       for (i = 0; i < count; i++) {
         if (TEST_RAND_ONEIN(20)) {
-          mv->list[i].addr = NULL;
-          mv->list[i].len = 0;
+          mv->list[i].gex_addr = NULL;
+          mv->list[i].gex_len = 0;
         } else {
           size_t offset = TEST_RAND(lim, lim+(elemlen-lim)/4);
           size_t len = TEST_RAND(0, (elemlen-offset)/2);
-          mv->list[i].addr = ((VEC_T*)addr)+offset;
-          mv->list[i].len = VEC_SZ*len;
+          mv->list[i].gex_addr = ((VEC_T*)addr)+offset;
+          mv->list[i].gex_len = VEC_SZ*len;
           mv->totalsz += VEC_SZ*len;
           lim = offset + len;
           assert(lim <= elemlen);
         }
       }
     }
-    SHUFFLE_LIST(gasnet_memvec_t,mv);
+    SHUFFLE_LIST(gex_Memvec_t,mv);
   }
 
-  mv->checksum = test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t));
+  mv->checksum = test_checksum(mv->list, mv->count*sizeof(gex_Memvec_t));
   verify_memvec_list(mv);
   return mv;
 }
 
 
 test_memvec_list *buildcontig_memvec_list(void *addr, size_t elemlen, size_t areasz) {
-  test_memvec_list *mv = test_malloc(sizeof(test_memvec_list)+sizeof(gasnet_memvec_t));
+  test_memvec_list *mv = test_malloc(sizeof(test_memvec_list)+sizeof(gex_Memvec_t));
   mv->count = 1;
-  mv->list = (gasnet_memvec_t*)(mv+1);
+  mv->list = (gex_Memvec_t*)(mv+1);
   mv->totalsz = ((uintptr_t)elemlen)*VEC_SZ;
-  mv->list[0].addr = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
-  mv->list[0].len = elemlen*VEC_SZ;
-  mv->checksum = test_checksum(mv->list, sizeof(gasnet_memvec_t));
+  mv->list[0].gex_addr = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
+  mv->list[0].gex_len = elemlen*VEC_SZ;
+  mv->checksum = test_checksum(mv->list, sizeof(gex_Memvec_t));
   return mv;
 }
 
@@ -213,15 +213,15 @@ void trim_memvec_list(test_memvec_list *one, test_memvec_list *two) {
 
   while (p->totalsz > totalsz) {
     uintptr_t diff = p->totalsz - totalsz;
-    if (diff < p->list[p->count-1].len) {
-      p->list[p->count-1].len -= diff;
+    if (diff < p->list[p->count-1].gex_len) {
+      p->list[p->count-1].gex_len -= diff;
       p->totalsz -= diff;
     } else {
-      p->totalsz -= p->list[p->count-1].len;
+      p->totalsz -= p->list[p->count-1].gex_len;
       p->count--;
     }
   }
-  p->checksum = test_checksum(p->list, p->count*sizeof(gasnet_memvec_t));
+  p->checksum = test_checksum(p->list, p->count*sizeof(gex_Memvec_t));
   verify_memvec_list(p);
   assert(one->totalsz == two->totalsz);
 }
@@ -232,13 +232,13 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
   VEC_T *p = result;
   size_t i,j;
   for (i = 0; i < src->count; i++) {
-    for (j = 0; j < src->list[i].len/VEC_SZ; j ++) {
+    for (j = 0; j < src->list[i].gex_len/VEC_SZ; j ++) {
       VEC_T srcval;
       VEC_T resval = *p;
       if (areaptr == NULL) /* local src */
-        srcval = ((VEC_T *)(src->list[i].addr))[j];
+        srcval = ((VEC_T *)(src->list[i].gex_addr))[j];
       else { /* remote src */
-        size_t offset = (VEC_T *)(src->list[i].addr) + j - areaptr;
+        size_t offset = (VEC_T *)(src->list[i].gex_addr) + j - areaptr;
         srcval = SEG_VALUE(nodeid, offset);
       }
       if (srcval != resval) {
@@ -446,7 +446,7 @@ typedef struct {
   size_t *srcstrides; /* in bytes */
   size_t *dststrides; /* in bytes */
   size_t *contigstrides; /* in bytes */
-  size_t *count; /* count[0] in bytes, count[1+] in elem */
+  size_t *count; /* count[0] in bytes, count[1+] in elem */ // TODO-EX: trans
   size_t stridelevels;
 } test_strided_desc;
 
@@ -495,6 +495,7 @@ void _verify_strided_desc(test_strided_desc *sd, const char *file, int line) {
    [srcaddr...srcaddr+elemlen*VEC_SZ] and [dstaddr...dstaddr+elemlen*VEC_SZ]
    note elemlen is a VEC_T element count
  */
+// TODO-EX: trans
 test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contigaddr, size_t elemlen) {
   size_t dim = TEST_RAND(2, TEST_RAND(2, TEST_RAND(2, MAX_STRIDEDIM)));
   size_t sz;
@@ -582,6 +583,7 @@ test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contiga
   }
 }
 
+// TODO-EX: trans
 void _verify_strided_desc_data_both(test_strided_desc *desc, void *result, 
                             gex_Rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
@@ -795,13 +797,13 @@ void doit(int iters, int runtests) {
         trim_memvec_list(src, dst);
         tmp = buildcontig_memvec_list(TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area), dst->totalsz/VEC_SZ, areasz);
 
-        TIMED_PUT(gasnet_putv_bulk(partner, dst->count, dst->list, src->count, src->list),dst->totalsz);
+        TIMED_PUT(gex_VIS_VectorPutBlocking(myteam, partner, dst->count, dst->list, src->count, src->list, 0),dst->totalsz);
         verify_memvec_list(src);
         verify_memvec_list(dst);
-        TIMED_GET(gasnet_getv_bulk(tmp->count, tmp->list, partner, dst->count, dst->list),dst->totalsz);
+        TIMED_GET(gex_VIS_VectorGetBlocking(myteam, tmp->count, tmp->list, partner, dst->count, dst->list, 0),dst->totalsz);
         verify_memvec_list(tmp);
         verify_memvec_list(dst);
-        verify_memvec_data(src, tmp->list[0].addr, "gasnet_putv_bulk/gasnet_getv_bulk test");
+        verify_memvec_data(src, tmp->list[0].gex_addr, "gasnet_putv_bulk/gasnet_getv_bulk test");
         test_free(src);
         test_free(dst);
         test_free(tmp);
@@ -818,18 +820,18 @@ void doit(int iters, int runtests) {
         trim_memvec_list(src, dst);
         tmp = buildcontig_memvec_list(my_seg_write2_area, dst->totalsz/VEC_SZ, areasz);
 
-        gasnet_getv_bulk(dst->count, dst->list, partner, src->count, src->list);
+        gex_VIS_VectorGetBlocking(myteam, dst->count, dst->list, partner, src->count, src->list, 0);
         verify_memvec_list(src);
         verify_memvec_list(dst);
         if ((segeverything || dstarea == my_seg_write1_area) && 
             TEST_RAND_PICK(0,1)) {
-          gasnet_getv_bulk(tmp->count, tmp->list, mynode, dst->count, dst->list);
+          gex_VIS_VectorGetBlocking(myteam, tmp->count, tmp->list, mynode, dst->count, dst->list, 0);
         } else {
-          gasnet_putv_bulk(mynode, tmp->count, tmp->list, dst->count, dst->list);
+          gex_VIS_VectorPutBlocking(myteam, mynode, tmp->count, tmp->list, dst->count, dst->list, 0);
         }
         verify_memvec_list(tmp);
         verify_memvec_list(dst);
-        verify_memvec_data_remote(src, tmp->list[0].addr, partner, partner_seg_read_area, "gasnet_getv_bulk test");
+        verify_memvec_data_remote(src, tmp->list[0].gex_addr, partner, partner_seg_read_area, "gasnet_getv_bulk test");
         test_free(src);
         test_free(dst);
         test_free(tmp);
@@ -858,10 +860,10 @@ void doit(int iters, int runtests) {
         trim_addr_list(src, dst);
         tmp = buildcontig_addr_list(TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area), dst->totalsz/VEC_SZ, areasz);
 
-        TIMED_PUT(gasnet_puti_bulk(partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen),dst->totalsz);
+        TIMED_PUT(gex_VIS_IndexedPutBlocking(myteam, partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen, 0),dst->totalsz);
         verify_addr_list(src);
         verify_addr_list(dst);
-        TIMED_GET(gasnet_geti_bulk(tmp->count, tmp->list, tmp->chunklen, partner, dst->count, dst->list, dst->chunklen),dst->totalsz);
+        TIMED_GET(gex_VIS_IndexedGetBlocking(myteam, tmp->count, tmp->list, tmp->chunklen, partner, dst->count, dst->list, dst->chunklen, 0),dst->totalsz);
         verify_addr_list(tmp);
         verify_addr_list(dst);
         verify_addr_list_data(src, tmp->list[0], "gasnet_puti_bulk/gasnet_geti_bulk test");
@@ -883,14 +885,14 @@ void doit(int iters, int runtests) {
         trim_addr_list(src, dst);
         tmp = buildcontig_addr_list(my_seg_write2_area, dst->totalsz/VEC_SZ, areasz);
 
-        gasnet_geti_bulk(dst->count, dst->list, dst->chunklen, partner, src->count, src->list, src->chunklen);
+        gex_VIS_IndexedGetBlocking(myteam, dst->count, dst->list, dst->chunklen, partner, src->count, src->list, src->chunklen, 0);
         verify_addr_list(src);
         verify_addr_list(dst);
         if ((segeverything || dstarea == my_seg_write1_area) && 
             TEST_RAND_PICK(0,1)) {
-          gasnet_geti_bulk(tmp->count, tmp->list, tmp->chunklen, mynode, dst->count, dst->list, dst->chunklen);
+          gex_VIS_IndexedGetBlocking(myteam, tmp->count, tmp->list, tmp->chunklen, mynode, dst->count, dst->list, dst->chunklen, 0);
         } else {
-          gasnet_puti_bulk(mynode, tmp->count, tmp->list, tmp->chunklen, dst->count, dst->list, dst->chunklen);
+          gex_VIS_IndexedPutBlocking(myteam, mynode, tmp->count, tmp->list, tmp->chunklen, dst->count, dst->list, dst->chunklen, 0);
         }
         verify_addr_list(tmp);
         verify_addr_list(dst);
@@ -921,9 +923,9 @@ void doit(int iters, int runtests) {
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
         tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
 
-        TIMED_PUT(gasnet_puts_bulk(partner, desc->dstaddr, desc->dststrides, desc->srcaddr, desc->srcstrides, desc->count, desc->stridelevels),desc->totalsz);
+        TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, (ssize_t*)desc->dststrides, desc->srcaddr, (ssize_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
         verify_strided_desc(desc);
-        TIMED_GET(gasnet_gets_bulk(tmpbuf, desc->contigstrides, partner, desc->dstaddr, desc->dststrides, desc->count, desc->stridelevels),desc->totalsz);
+        TIMED_GET(gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ssize_t*)desc->contigstrides, partner, desc->dstaddr, (ssize_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
         verify_strided_desc(desc);
         verify_strided_desc_data(desc, tmpbuf, "gasnet_puts_bulk/gasnet_gets_bulk test");
         test_free(desc);
@@ -939,13 +941,13 @@ void doit(int iters, int runtests) {
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
         tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
 
-        gasnet_gets_bulk(desc->dstaddr, desc->dststrides, partner, desc->srcaddr, desc->srcstrides, desc->count, desc->stridelevels);
+        gex_VIS_StridedGetBlocking(myteam, desc->dstaddr, (ssize_t*)desc->dststrides, partner, desc->srcaddr, (ssize_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         verify_strided_desc(desc);
         if ((segeverything || dstarea == my_seg_write1_area) && 
             TEST_RAND_PICK(0,1)) {
-          gasnet_gets_bulk(tmpbuf, desc->contigstrides, mynode, desc->dstaddr, desc->dststrides, desc->count, desc->stridelevels);
+          gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ssize_t*)desc->contigstrides, mynode, desc->dstaddr, (ssize_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         } else {
-          gasnet_puts_bulk(mynode, tmpbuf, desc->contigstrides, desc->dstaddr, desc->dststrides, desc->count, desc->stridelevels);
+          gex_VIS_StridedPutBlocking(myteam, mynode, tmpbuf, (ssize_t*)desc->contigstrides, desc->dstaddr, (ssize_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         }
         verify_strided_desc(desc);
         verify_strided_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gasnet_gets_bulk test");
@@ -984,8 +986,8 @@ void doit(int iters, int runtests) {
             ops[i].vtmp = buildcontig_memvec_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].vdst->totalsz/VEC_SZ, opareasz);
 
             if (TEST_RAND_ONEIN(2)) 
-              events[i] = gasnet_putv_nb_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
-            else gasnet_putv_nbi_bulk(partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list);
+              events[i] = gex_VIS_VectorPutNB(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, 0);
+            else gex_VIS_VectorPutNBI(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, 0);
 
             verify_memvec_list(ops[i].vsrc);
             verify_memvec_list(ops[i].vdst);
@@ -1001,8 +1003,8 @@ void doit(int iters, int runtests) {
             ops[i].itmp = buildcontig_addr_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].idst->totalsz/VEC_SZ, opareasz);
 
             if (TEST_RAND_ONEIN(2)) 
-              events[i] = gasnet_puti_nb_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
-            else gasnet_puti_nbi_bulk(partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen);
+              events[i] = gex_VIS_IndexedPutNB(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, 0);
+            else gex_VIS_IndexedPutNBI(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, 0);
 
             verify_addr_list(ops[i].isrc);
             verify_addr_list(ops[i].idst);
@@ -1017,8 +1019,8 @@ void doit(int iters, int runtests) {
             ops[i].stmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,opareasz - ops[i].sdesc->totalsz/VEC_SZ);
 
             if (TEST_RAND_ONEIN(2)) 
-              events[i] = gasnet_puts_nb_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
-            else gasnet_puts_nbi_bulk(partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, ops[i].sdesc->srcstrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
+              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ssize_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
+            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ssize_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
 
             verify_strided_desc(ops[i].sdesc);
             break;
@@ -1036,8 +1038,8 @@ void doit(int iters, int runtests) {
           assert(ops[i].vdst != NULL && ops[i].vtmp != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            events[i] = gasnet_getv_nb_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
-          else gasnet_getv_nbi_bulk(ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list);
+            events[i] = gex_VIS_VectorGetNB(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, 0);
+          else gex_VIS_VectorGetNBI(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, 0);
 
           verify_memvec_list(ops[i].vtmp);
           verify_memvec_list(ops[i].vdst);
@@ -1045,8 +1047,8 @@ void doit(int iters, int runtests) {
           assert(ops[i].idst != NULL && ops[i].itmp != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            events[i] = gasnet_geti_nb_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
-          else gasnet_geti_nbi_bulk(ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen);
+            events[i] = gex_VIS_IndexedGetNB(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, 0);
+          else gex_VIS_IndexedGetNBI(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, 0);
 
           verify_addr_list(ops[i].itmp);
           verify_addr_list(ops[i].idst);
@@ -1054,8 +1056,8 @@ void doit(int iters, int runtests) {
           assert(ops[i].sdesc != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            events[i] = gasnet_gets_nb_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
-          else gasnet_gets_nbi_bulk(ops[i].stmpbuf, ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, ops[i].sdesc->dststrides, ops[i].sdesc->count, ops[i].sdesc->stridelevels);
+            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ssize_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
+          else gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ssize_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
 
           verify_strided_desc(ops[i].sdesc);
         }
@@ -1072,7 +1074,7 @@ void doit(int iters, int runtests) {
           verify_memvec_list(ops[i].vsrc);
           verify_memvec_list(ops[i].vdst);
           verify_memvec_list(ops[i].vtmp);
-          verify_memvec_data(ops[i].vsrc, ops[i].vtmp->list[0].addr, "non-blocking gasnet_putv_bulk/gasnet_getv_bulk test");
+          verify_memvec_data(ops[i].vsrc, ops[i].vtmp->list[0].gex_addr, "non-blocking gasnet_putv_bulk/gasnet_getv_bulk test");
 
           test_free(ops[i].vsrc);
           test_free(ops[i].vdst);
