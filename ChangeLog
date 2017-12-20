@@ -12,7 +12,7 @@ GASNet-EX ChangeLog
   welcomed at: gasnet-devel@lbl.gov
 
 * GASNet-EX Spec v0.3:
-  - Specified Remote Atomics API, and correponding types [EXPERIMENTAL]
+  - Specified Remote Atomics API, and corresponding types [EXPERIMENTAL]
   - Specified Vector, Indexed, Strided API [EXPERIMENTAL]
   - Specified gasnet_QueryGexObjects()
   - Specified gex_System_QueryNeighborhoodInfo() [EXPERIMENTAL]
