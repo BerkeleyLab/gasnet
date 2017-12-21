@@ -664,7 +664,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
 extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-    gasnete_eop_t *eop = gasnete_eop_new(mythread);
+    gasnete_eop_t *eop = _gasnete_eop_new(mythread);
     GASNETC_DIDX_POST(mythread->domain_idx);
     unsigned int initiated_lc = 0;
     volatile unsigned int completed_lc = 0;
