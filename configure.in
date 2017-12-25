@@ -273,6 +273,16 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                     -Wmissing-format-attribute  \
                 dnl Selected warnings:
                     -Winit-self                 \
+                dnl -Wextra subset:
+                    -Wclobbered                 \
+                    -Wcast-function-type        \
+                    -Wempty-body                \
+                    -Wignored-qualifiers        \
+                dnl -Wimplicit-fallthrough broken by collectives
+                    -Wmissing-parameter-type    \
+                    -Wold-style-declaration     \
+                    -Wuninitialized             \
+                    -Wshift-negative-value      \
       ; do
       ]GASNET_TRY_[$1]FLAG[([$3$warnflag],
                             [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3$warnflag"])
