@@ -39,9 +39,9 @@
        _GASNETI_TRACE_EVENT_TIME(type, name, _time);      \
       } while (0)
 #else
-  #define GASNETI_TRACE_EVENT(type, name)
-  #define GASNETI_TRACE_EVENT_VAL(type, name, val)
-  #define GASNETI_TRACE_EVENT_TIME(type, name, time)
+  #define GASNETI_TRACE_EVENT(type, name)            ((void)0)
+  #define GASNETI_TRACE_EVENT_VAL(type, name, val)   ((void)0)
+  #define GASNETI_TRACE_EVENT_TIME(type, name, time) ((void)0)
 #endif
 
 #if GASNET_TRACE
@@ -61,8 +61,8 @@
     }                                           \
   } while(0)
 #else
-  #define GASNETI_TRACE_MSG(type, string) 
-  #define GASNETI_TRACE_PRINTF(type, args)
+  #define GASNETI_TRACE_MSG(type, string)   ((void)0)
+  #define GASNETI_TRACE_PRINTF(type, args)  ((void)0)
 #endif
 
 #if GASNET_STATS
@@ -82,17 +82,17 @@
     }                                           \
   } while(0)
 #else
-  #define GASNETI_STATS_MSG(type, string) 
-  #define GASNETI_STATS_PRINTF(type, args)
+  #define GASNETI_STATS_MSG(type, string)   ((void)0)
+  #define GASNETI_STATS_PRINTF(type, args)  ((void)0)
 #endif
 
 /* allow for final output of conduit-core specific statistics */
 #ifndef GASNETC_TRACE_FINISH
-#define GASNETC_TRACE_FINISH()
+#define GASNETC_TRACE_FINISH()  ((void)0)
 #endif
 /* allow for final output of conduit-extended specific statistics */
 #ifndef GASNETE_TRACE_FINISH
-#define GASNETE_TRACE_FINISH()
+#define GASNETE_TRACE_FINISH()  ((void)0)
 #endif
 
 #ifndef GASNETI_STATS_ECHOED_TO_TRACEFILE
@@ -161,10 +161,10 @@
   #define GASNETI_TRACE_UNFREEZESOURCELINE() \
       (GASNETI_SRCLINE_TRACKING() ? gasneti_trace_unfreezesourceline() : ((void)0))
 #else
-  #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) ((void)0)
+  #define GASNETI_TRACE_SETSOURCELINE(filename, linenum)   ((void)0)
   #define GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum) ((void)0)
-  #define GASNETI_TRACE_FREEZESOURCELINE() 
-  #define GASNETI_TRACE_UNFREEZESOURCELINE()
+  #define GASNETI_TRACE_FREEZESOURCELINE()                 ((void)0)
+  #define GASNETI_TRACE_UNFREEZESOURCELINE()               ((void)0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -343,12 +343,12 @@
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) \
      GASNETI_TRACE_EVENT(A,AMREPLY_LONG)
 #else
-  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,numargs)
-  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) 
-  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,numargs)
-  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) 
-  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,numargs)
-  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) 
+  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,numargs)                                ((void)0)
+  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs)                                    ((void)0)
+  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,numargs)            ((void)0)
+  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs)                ((void)0)
+  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,numargs)    ((void)0)
+  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs)        ((void)0)
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* AM Handler tracing */
@@ -869,9 +869,9 @@ extern size_t gasneti_format_putsgets(char *buf, void *pstats,
         #name, gasneti_stats[(int)GASNETI_STAT_##name].desc, \
         gasneti_ticks_to_ns(time)/1000.0))
 #else
-  #define _GASNETI_TRACE_EVENT(type, name) 
-  #define _GASNETI_TRACE_EVENT_VAL(type, name, val) 
-  #define _GASNETI_TRACE_EVENT_TIME(type, name, time) 
+  #define _GASNETI_TRACE_EVENT(type, name)             ((void)0)
+  #define _GASNETI_TRACE_EVENT_VAL(type, name, val)    ((void)0)
+  #define _GASNETI_TRACE_EVENT_TIME(type, name, time)  ((void)0)
 #endif
 
 
@@ -903,9 +903,9 @@ extern size_t gasneti_format_putsgets(char *buf, void *pstats,
       gasneti_stat_timeval_accumulate(&gasneti_stat_timeval_##name,(gasneti_tick_t)time);\
   } while (0)
 #else
-  #define _GASNETI_STAT_EVENT(type, name)
-  #define _GASNETI_STAT_EVENT_VAL(type, name, val) 
-  #define _GASNETI_STAT_EVENT_TIME(type, name, time) 
+  #define _GASNETI_STAT_EVENT(type, name)            ((void)0)
+  #define _GASNETI_STAT_EVENT_VAL(type, name, val)   ((void)0)
+  #define _GASNETI_STAT_EVENT_TIME(type, name, time) ((void)0)
 #endif
 #define GASNETI_STAT_EVENT      _GASNETI_STAT_EVENT
 #define GASNETI_STAT_EVENT_VAL  _GASNETI_STAT_EVENT_VAL
