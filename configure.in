@@ -271,6 +271,8 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                     -Wnested-externs            \
                     -Wwrite-strings             \
                     -Wmissing-format-attribute  \
+                dnl Selected warnings:
+                    -Winit-self                 \
       ; do
       ]GASNET_TRY_[$1]FLAG[([$3$warnflag],
                             [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3$warnflag"])
