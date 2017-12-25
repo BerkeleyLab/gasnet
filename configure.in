@@ -260,16 +260,16 @@ dnl GASNET_GET_GNUWARNINGFLAGS(type, family, flagprefix)  type=C or CXX
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
   if test "$enabled_dev_warnings" = "yes" ; then
     # enable additional supported warnings
-        ]GASNET_TRY_[$1]FLAG[([$3-Wall],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wall"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wpointer-arith],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wpointer-arith"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wnested-externs],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wnested-externs"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wwrite-strings],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wwrite-strings"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wmissing-format-attribute"])
+    for warnflag in dnl Traditional GASNet devwarn:
+                    -Wall                       \
+                    -Wpointer-arith             \
+                    -Wnested-externs            \
+                    -Wwrite-strings             \
+                    -Wmissing-format-attribute  \
+      ; do
+      ]GASNET_TRY_[$1]FLAG[([$3$warnflag],
+                            [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3$warnflag"])
+    done
   fi
 
   case "$2" in
