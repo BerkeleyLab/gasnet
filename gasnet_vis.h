@@ -76,77 +76,74 @@ gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t _count, void * const *_li
 
 /* returns non-zero iff the specified strided region is empty */
 GASNETI_INLINE(gasnete_strided_empty)
-int gasnete_strided_empty(size_t const *count, size_t stridelevels) {
-  size_t i;
-  for (i = 0; i <= stridelevels; i++) {
-    if_pf (count[i] == 0) return 1;
+int gasnete_strided_empty(size_t _elemsz, size_t const *_count, size_t _stridelevels) {
+  if_pf (!_elemsz) return 1;
+  for (size_t _i = 0; _i < _stridelevels; _i++) {
+    if_pf (_count[_i] == 0) return 1;
   }
   return 0;
 }
 
 /* returns the number of top-level dimensions with a count of 1 */
 GASNETI_INLINE(gasnete_strided_nulldims)
-size_t gasnete_strided_nulldims(size_t const *count, size_t stridelevels) {
-  ssize_t i;
-  for (i = stridelevels; i >= 0; i--) {
-    if_pt (count[i] != 1) return stridelevels-i;
+size_t gasnete_strided_nulldims(size_t const *_count, size_t _stridelevels) {
+  for (ssize_t _i = _stridelevels-1; _i >= 0; _i--) {
+    if_pt (_count[_i] != 1) return _stridelevels-(_i+1);
   }
-  return stridelevels+1;
+  return _stridelevels;
 }
 
 /* returns the length of the bounding box containing all the data */
 GASNETI_INLINE(gasnete_strided_extent)
-size_t gasnete_strided_extent(size_t const *strides, size_t const *count, size_t stridelevels) {
+size_t gasnete_strided_extent(ssize_t const *_strides, size_t _elemsz, size_t const *_count, size_t _stridelevels) {
   /* Calculating the bounding rectangle for a strided section is subtle.
      The obvious choice:
        count[stridelevels]*strides[stridelevels-1]
      is an upper bound which is too large in many cases
-     The true exact length is:
-       count[0] + SUM(i=[1..stridelevels] | (count[i]-1)*strides[i-1])
+     The true exact length for non-transpositional is:
+       elemsz + SUM(i=[0..stridelevels-1] | (count[i]-1)*strides[i])
    */
-  size_t i;
-  size_t sz = count[0];
-  if_pf (count[0] == 0) return 0;
-  for (i = 1; i <= stridelevels; i++) {
-    if_pf (count[i] == 0) return 0;
-    sz += (count[i]-1)*strides[i-1];
+  size_t _sz = _elemsz;
+  if_pf (_sz == 0) return 0;
+  for (size_t _i = 0; _i < _stridelevels; _i++) {
+    size_t const _cnt = _count[_i];
+    if_pf (_cnt == 0) return 0;
+    _sz += (_cnt-1)*(size_t)_strides[_i]; // TODO-EX: trans
   }
-  return sz;
+  return _sz;
 }
 
 /* returns the total bytes of data in the transfer */
 GASNETI_INLINE(gasnete_strided_datasize)
-size_t gasnete_strided_datasize(size_t const *count, size_t stridelevels) {
-  size_t i;
-  size_t sz = count[0];
-  for (i = 1; i <= stridelevels; i++) {
-    size_t const cnt = count[i];
-    if_pf (sz == 0) return 0;
-    if_pf (cnt != 1) sz *= cnt;
+size_t gasnete_strided_datasize(size_t _elemsz, size_t const *_count, size_t _stridelevels) {
+  size_t _sz = _elemsz;
+  for (size_t _i = 0; _i < _stridelevels; _i++) {
+    size_t const _cnt = _count[_i];
+    if_pf (_sz == 0) return 0;
+    _sz *= _cnt;
   }
-  return sz;
+  return _sz;
 }
 
 /* returns the size of the contiguous segments in the transfer
  */
 GASNETI_INLINE(gasnete_strided_contigsz)
-size_t gasnete_strided_contigsz(size_t const *strides, size_t const *count, size_t stridelevels) {
-  size_t limit = stridelevels;
-  size_t sz = count[0];
-  size_t i;
-
+size_t gasnete_strided_contigsz(ssize_t const *_strides, size_t _elemsz, size_t const *_count, size_t _stridelevels) {
   /* querying the contiguity of an empty region probably signifies a bug */
-  gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
+  gasneti_assert(!gasnete_strided_empty(_elemsz,_count,_stridelevels)); 
 
-  while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  if (strides[0] > sz || limit == 0) return sz;
-  for (i = 1; i < limit; i++) {
-    sz *= count[i];
-    if (strides[i] > sz) return sz;
-    gasneti_assert(strides[i] == (count[i]*strides[i-1]));
+  size_t _limit = _stridelevels;
+  for ( ; _limit > 0; _limit--) // ignore null dims
+    if_pt (_count[_limit-1] != 1) break;
+  if_pf (_limit == 0) return _elemsz; /* trivially fully contiguous */
+
+  size_t _sz = _elemsz;
+  for (size_t _i = 0; _i < _limit; _i++) {
+    if (_strides[_i] > _sz) return _sz;
+    gasneti_assert(_strides[_i] == _sz);  // TODO-EX: trans
+    _sz *= _count[_i];
   }
-  sz *= count[limit];
-  return sz;
+  return _sz;
 }
 
 /* returns the highest stridelevel with data contiguity 
@@ -154,23 +151,22 @@ size_t gasnete_strided_contigsz(size_t const *strides, size_t const *count, size
    and stridelevels if the entire region is contiguous
  */
 GASNETI_INLINE(gasnete_strided_contiguity)
-size_t gasnete_strided_contiguity(size_t const *strides, size_t const *count, size_t stridelevels) {
-  size_t i;
-  size_t limit = stridelevels;
-
+size_t gasnete_strided_contiguity(ssize_t const *_strides, size_t _elemsz, size_t const *_count, size_t _stridelevels) {
   /* querying the contiguity of an empty region probably signifies a bug */
-  gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
+  gasneti_assert(!gasnete_strided_empty(_elemsz,_count,_stridelevels)); 
 
-  while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  if_pf (limit == 0) return stridelevels; /* trivially fully contiguous */
+  size_t _limit = _stridelevels;
+  for ( ; _limit > 0; _limit--) // ignore null dims
+    if_pt (_count[_limit-1] != 1) break;
+  if_pf (_limit == 0) return _stridelevels; /* trivially fully contiguous */
 
-  if (strides[0] > count[0]) return 0;
-  gasneti_assert(strides[0] == count[0]);
-  for (i = 1; i < limit; i++) {
-    if (strides[i] > (count[i]*strides[i-1])) return i;
-    gasneti_assert(strides[i] == (count[i]*strides[i-1]));
+  size_t _sz = _elemsz;
+  for (size_t _i = 0; _i < _limit; _i++) {
+    if (_strides[_i] > _sz) return _i;
+    gasneti_assert(_strides[_i] == _sz);  // TODO-EX: trans
+    _sz *= _count[_i];
   }
-  return stridelevels;
+  return _stridelevels;
 }
 
 /* returns the highest stridelevel with data contiguity in both regions
@@ -179,94 +175,69 @@ size_t gasnete_strided_contiguity(size_t const *strides, size_t const *count, si
    this can computed more efficiently than checking contiguity of each separately
  */
 GASNETI_INLINE(gasnete_strided_dualcontiguity)
-size_t gasnete_strided_dualcontiguity(size_t const *strides1, size_t const *strides2, size_t const *count, size_t stridelevels) {
-  size_t i;
-  size_t temp;
-  size_t limit = stridelevels;
-
+size_t gasnete_strided_dualcontiguity(ssize_t const *_strides1, ssize_t const *_strides2, 
+                                      size_t _elemsz, size_t const *_count, size_t _stridelevels) {
   /* querying the contiguity of an empty region probably signifies a bug */
-  gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
+  gasneti_assert(!gasnete_strided_empty(_elemsz,_count,_stridelevels)); 
 
-  while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  if_pf (limit == 0) return stridelevels; /* trivially fully contiguous */
+  size_t _limit = _stridelevels;
+  for ( ; _limit > 0; _limit--) // ignore null dims
+    if_pt (_count[_limit-1] != 1) break;
+  if_pf (_limit == 0) return _stridelevels; /* trivially fully contiguous */
 
-  temp = (strides1[0]+strides2[0]);
-  if (temp > (count[0]<<1)) {
-    gasneti_assert(strides1[0] > count[0] || strides2[0] > count[0]);
-    return 0;
+  size_t _sz = _elemsz<<1;
+  for (size_t _i = 0; _i < _limit; _i++) {
+    size_t const _temp = (_strides1[_i]+_strides2[_i]);  // TODO-EX: trans
+    if (_temp > _sz) return _i;
+    gasneti_assert(_temp == _sz);
+    _sz *= _count[_i];
   }
-  gasneti_assert(strides1[0] == count[0] && strides1[0] == count[0]);
-  /* loop invariant: temp == strides1[i-1]*2 == strides2[i-1]*2 */
-  for (i = 1; i < limit; i++) {
-    size_t const newtemp = (strides1[i]+strides2[i]);
-    if (newtemp > (count[i]*temp)) {
-      gasneti_assert(strides1[i] > (count[i]*strides1[i-1]) || strides2[i] > (count[i]*strides2[i-1]));
-      return i;
-    }
-    gasneti_assert(strides1[i] == (count[i]*strides1[i-1]) || strides2[i] == (count[i]*strides2[i-1]));
-    temp = newtemp;
-  }
-  return stridelevels;
+  return _stridelevels;
 }
 
 /* returns the size of the contiguous region at the dualcontiguity level */
 GASNETI_INLINE(gasnete_strided_dualcontigsz)
-size_t gasnete_strided_dualcontigsz(size_t const *strides1, size_t const *strides2, size_t const *count, size_t stridelevels) {
-  size_t i;
-  size_t temp;
-  size_t limit = stridelevels;
-
+size_t gasnete_strided_dualcontigsz(ssize_t const *_strides1, ssize_t const *_strides2, 
+                                        size_t _elemsz, size_t const *_count, size_t _stridelevels) {
   /* querying the contiguity of an empty region probably signifies a bug */
-  gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
+  gasneti_assert(!gasnete_strided_empty(_elemsz,_count,_stridelevels)); 
 
-  while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  if_pf (limit == 0) return count[0]; /* trivially fully contiguous */
+  size_t _limit = _stridelevels;
+  for ( ; _limit > 0; _limit--) // ignore null dims
+    if_pt (_count[_limit-1] != 1) break;
+  if_pf (_limit == 0) return _elemsz; /* trivially fully contiguous */
 
-  temp = (strides1[0]+strides2[0]);
-  if (temp > (count[0]<<1)) {
-    gasneti_assert(strides1[0] > count[0] || strides2[0] > count[0]);
-    return count[0];
+  size_t _sz = _elemsz<<1;
+  for (size_t _i = 0; _i < _limit; _i++) {
+    size_t const _temp = (_strides1[_i]+_strides2[_i]);  // TODO-EX: trans
+    if (_temp > _sz) return _sz>>1;
+    gasneti_assert(_temp == _sz);
+    _sz *= _count[_i];
   }
-  gasneti_assert(strides1[0] == count[0] && strides1[0] == count[0]);
-  /* loop invariant: temp == strides1[i-1]*2 == strides2[i-1]*2 */
-  for (i = 1; i < limit; i++) {
-    size_t const newtemp = (strides1[i]+strides2[i]);
-    temp *= count[i];
-    if (newtemp > temp) {
-      gasneti_assert(strides1[i] > (count[i]*strides1[i-1]) || strides2[i] > (count[i]*strides2[i-1]));
-      return temp>>1;
-    }
-    gasneti_assert(strides1[i] == (count[i]*strides1[i-1]) || strides2[i] == (count[i]*strides2[i-1]));
-    temp = newtemp;
-  }
-  temp *= count[limit];
-  return temp>>1;
+  return _sz>>1;
 }
 
 /* returns the number of contiguous segments in the transfer */
 GASNETI_INLINE(gasnete_strided_segments)
-size_t gasnete_strided_segments(size_t const *strides, size_t const *count, size_t stridelevels) {
-  size_t contiglevel = gasnete_strided_contiguity(strides, count, stridelevels);
-  if (contiglevel == stridelevels) return 1;
-  else {
-    size_t i;
-    size_t sz = count[contiglevel+1];
-    for (i = contiglevel+2; i <= stridelevels; i++) {
-      sz *= count[i];
-    }
-    return sz;
+size_t gasnete_strided_segments(ssize_t const *_strides, size_t _elemsz, 
+                                size_t const *_count, size_t _stridelevels) {
+  size_t _contiglevel = gasnete_strided_contiguity(_strides, _elemsz, _count, _stridelevels);
+  size_t _cnt = 1;
+  for (size_t _i = _contiglevel; _i < _stridelevels; _i++) {
+    _cnt *= _count[_i];
   }
+  return _cnt;
 }
 
-typedef struct {
+typedef struct {  // TODO-EX: trans
   size_t srcextent; /* the length of the bounding box containing all the src data */
   size_t dstextent; /* the length of the bounding box containing all the dst data */
 
-  uintptr_t totalsz;   /* the total bytes of data in the transfer */
+  size_t totalsz;   /* the total bytes of data in the transfer */
 
   size_t nulldims;  /* number of top-level dimensions with a count of 1 -
                        these dimensions can be ignored for most purposes 
-                       (stridelevels+1 means all counts are one)
+                       (stridelevels means all counts are one)
                      */
 
   size_t srccontiguity; /* the highest stridelevel with data contiguity in the src region
@@ -290,102 +261,103 @@ typedef struct {
 
 /* calculate a number of useful shape properties over the given regions */
 GASNETI_INLINE(gasnete_strided_stats)
-void gasnete_strided_stats(gasnete_strided_stats_t *result, 
-                           size_t const *dststrides, size_t const *srcstrides, 
-                           size_t const *count, size_t stridelevels) {
-  if_pf (stridelevels == 0 && count[0] != 0) {
-    size_t const sz = count[0];
-    gasneti_assert(!gasnete_strided_empty(count, stridelevels));
-    result->srcextent = sz;
-    result->dstextent = sz;
-    result->totalsz = sz;
-    result->nulldims = 0;
-    result->srccontiguity = 0;
-    result->dstcontiguity = 0;
-    result->dualcontiguity = 0;
-    result->srcsegments = 1;
-    result->dstsegments = 1;
-    result->srccontigsz = sz;
-    result->dstcontigsz = sz;
-    result->dualcontigsz = sz;
+void gasnete_strided_stats(gasnete_strided_stats_t *_result, 
+                           ssize_t const *_dststrides, ssize_t const *_srcstrides, 
+                           size_t _elemsz, size_t const *_count, size_t _stridelevels) {
+  if_pf (_elemsz == 0) {
+    memset(_result, 0, sizeof(*_result));
     return;
-  } else {
-    ssize_t limit;
-    ssize_t i;
-    int srcbreak = 0;
-    int dstbreak = 0;
-    size_t const sz = count[0];
-    size_t srcextent = sz;
-    size_t dstextent = sz;
-    size_t srcsegments = 1;
-    size_t dstsegments = 1;
-    size_t srccontigsz = sz;
-    size_t dstcontigsz = sz;
-    for (limit = stridelevels; limit >= 0; limit--) if (count[limit] != 1) break;
-    result->nulldims = stridelevels - limit;
-    result->srccontiguity = stridelevels;
-    result->dstcontiguity = stridelevels;
+  } else if_pf (_stridelevels == 0) {
+    gasneti_assert(!gasnete_strided_empty(_elemsz, _count, _stridelevels));
+    _result->srcextent = _elemsz;
+    _result->dstextent = _elemsz;
+    _result->totalsz = _elemsz;
+    _result->nulldims = 0;
+    _result->srccontiguity = 0;
+    _result->dstcontiguity = 0;
+    _result->dualcontiguity = 0;
+    _result->srcsegments = 1;
+    _result->dstsegments = 1;
+    _result->srccontigsz = _elemsz;
+    _result->dstcontigsz = _elemsz;
+    _result->dualcontigsz = _elemsz;
+    return;
+  } else { // TODO-EX: trans
+    int _srcbreak = 0;
+    int _dstbreak = 0;
+    size_t _srcextent = _elemsz;
+    size_t _dstextent = _elemsz;
+    size_t _srcsegments = 1;
+    size_t _dstsegments = 1;
+    size_t _srccontigsz = _elemsz;
+    size_t _dstcontigsz = _elemsz;
+    size_t _limit;
+    for (_limit = _stridelevels; _limit > 0; _limit--) // ignore null dims
+      if_pt (_count[_limit-1] != 1) break;
+    _result->nulldims = _stridelevels - _limit;
+    _result->srccontiguity = _stridelevels;
+    _result->dstcontiguity = _stridelevels;
 
-    for (i=0; i < limit; i++) {
-      size_t const nextcount = count[i+1];
-      size_t const srcstride = srcstrides[i];
-      size_t const dststride = dststrides[i];
-      srcextent += (nextcount-1)*srcstride;
-      dstextent += (nextcount-1)*dststride;
+    for (size_t _i=0; _i < _limit; _i++) {
+      size_t const _cnt = _count[_i];
+      ssize_t const _srcstride = _srcstrides[_i];
+      ssize_t const _dststride = _dststrides[_i];
+      _srcextent += (_cnt-1)*_srcstride;
+      _dstextent += (_cnt-1)*_dststride;
 
-      if (srcbreak) srcsegments *= nextcount;
-      else if (srcstride > srccontigsz) {
-          srcbreak = 1;
-          result->srccontiguity = i;
-          srcsegments *= nextcount;
-      } else srccontigsz *= nextcount;
+      if (_srcbreak) _srcsegments *= _cnt;
+      else if (_srcstride > _srccontigsz) {
+          _srcbreak = 1;
+          _result->srccontiguity = _i;
+          _srcsegments *= _cnt;
+      } else _srccontigsz *= _cnt;
 
-      if (dstbreak) dstsegments *= nextcount;
-      else if (dststride > dstcontigsz) {
-          dstbreak = 1;
-          result->dstcontiguity = i;
-          dstsegments *= nextcount;
-      } else dstcontigsz *= nextcount;
+      if (_dstbreak) _dstsegments *= _cnt;
+      else if (_dststride > _dstcontigsz) {
+          _dstbreak = 1;
+          _result->dstcontiguity = _i;
+          _dstsegments *= _cnt;
+      } else _dstcontigsz *= _cnt;
     }
 
-    result->totalsz = ((uintptr_t)srcsegments)*srccontigsz;
-    if (result->totalsz == 0) { /* empty xfer */
-      gasneti_assert(gasnete_strided_empty(count, stridelevels));
-      gasneti_assert(gasnete_strided_datasize(count, stridelevels) == 0);
-      result->srcextent = 0;
-      result->dstextent = 0;
-      result->nulldims = 0;
-      result->srccontiguity = 0;
-      result->dstcontiguity = 0;
-      result->dualcontiguity = 0;
-      result->srcsegments = 0;
-      result->dstsegments = 0;
-      result->srccontigsz = 0;
-      result->dstcontigsz = 0;
+    _result->totalsz = _srcsegments*_srccontigsz;
+    if_pf (_result->totalsz == 0) { /* empty xfer */
+      gasneti_assert(gasnete_strided_empty(_elemsz, _count, _stridelevels));
+      gasneti_assert(gasnete_strided_datasize(_elemsz, _count, _stridelevels) == 0);
+      _result->srcextent = 0;
+      _result->dstextent = 0;
+      _result->nulldims = 0;
+      _result->srccontiguity = 0;
+      _result->dstcontiguity = 0;
+      _result->dualcontiguity = 0;
+      _result->srcsegments = 0;
+      _result->dstsegments = 0;
+      _result->srccontigsz = 0;
+      _result->dstcontigsz = 0;
       return;
     }
-    result->srccontigsz = srccontigsz;
-    result->dstcontigsz = dstcontigsz;
-    result->srcsegments = srcsegments;
-    result->dstsegments = dstsegments;
-    result->srcextent = srcextent;
-    result->dstextent = dstextent;
-    result->dualcontiguity = MIN(result->srccontiguity, result->dstcontiguity);
-    result->dualcontigsz = MIN(result->srccontigsz, result->dstcontigsz);
+    _result->srccontigsz = _srccontigsz;
+    _result->dstcontigsz = _dstcontigsz;
+    _result->srcsegments = _srcsegments;
+    _result->dstsegments = _dstsegments;
+    _result->srcextent = _srcextent;
+    _result->dstextent = _dstextent;
+    _result->dualcontiguity = MIN(_result->srccontiguity, _result->dstcontiguity);
+    _result->dualcontigsz = MIN(_result->srccontigsz, _result->dstcontigsz);
     /* sanity check */
-    gasneti_assert(!gasnete_strided_empty(count, stridelevels));
-    gasneti_assert(result->srcextent == gasnete_strided_extent(srcstrides, count, stridelevels));
-    gasneti_assert(result->dstextent == gasnete_strided_extent(dststrides, count, stridelevels));
-    gasneti_assert(result->totalsz == gasnete_strided_datasize(count, stridelevels));
-    gasneti_assert(result->nulldims == gasnete_strided_nulldims(count, stridelevels));
-    gasneti_assert(result->srccontiguity == gasnete_strided_contiguity(srcstrides, count, stridelevels));
-    gasneti_assert(result->dstcontiguity == gasnete_strided_contiguity(dststrides, count, stridelevels));
-    gasneti_assert(result->dualcontiguity == gasnete_strided_dualcontiguity(srcstrides, dststrides, count, stridelevels));
-    gasneti_assert(result->srcsegments == gasnete_strided_segments(srcstrides, count, stridelevels));
-    gasneti_assert(result->dstsegments == gasnete_strided_segments(dststrides, count, stridelevels));
-    gasneti_assert(result->srccontigsz == gasnete_strided_contigsz(srcstrides, count, stridelevels));
-    gasneti_assert(result->dstcontigsz == gasnete_strided_contigsz(dststrides, count, stridelevels));
-    gasneti_assert(result->dualcontigsz == gasnete_strided_dualcontigsz(srcstrides, dststrides, count, stridelevels));
+    gasneti_assert(!gasnete_strided_empty(_elemsz, _count, _stridelevels));
+    gasneti_assert(_result->srcextent == gasnete_strided_extent(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->dstextent == gasnete_strided_extent(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->totalsz == gasnete_strided_datasize(_elemsz, _count, _stridelevels));
+    gasneti_assert(_result->nulldims == gasnete_strided_nulldims(_count, _stridelevels));
+    gasneti_assert(_result->srccontiguity == gasnete_strided_contiguity(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->dstcontiguity == gasnete_strided_contiguity(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->dualcontiguity == gasnete_strided_dualcontiguity(_srcstrides, _dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->srcsegments == gasnete_strided_segments(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->dstsegments == gasnete_strided_segments(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->srccontigsz == gasnete_strided_contigsz(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->dstcontigsz == gasnete_strided_contigsz(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->dualcontigsz == gasnete_strided_dualcontigsz(_srcstrides, _dststrides, _elemsz, _count, _stridelevels));
   }
   return;
 }
@@ -395,8 +367,9 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
   #define gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist)
   #define gasnete_boundscheck_addrlist(tm, node, count, list, len) 
   #define gasnete_addrlist_checksizematch(dstcount, dstlen, srccount, srclen)
-  #define gasnete_boundscheck_strided(tm, node, addr, strides, count, stridelevels)
-  #define gasnete_check_strides(dststrides, srcstrides, count, stridelevels)
+  #define gasnete_boundscheck_strided(tm, node, addr, strides, elemsz, count, stridelevels)
+  #define gasnete_check_strides(dststrides, srcstrides, elemsz, count, stridelevels)
+  #define gasnete_check_stridesNT(dststrides, srcstrides, count, stridelevels)
 #else
   #define gasnete_boundscheck_memveclist(tm, rank, count, list) do { \
     gex_TM_t __tm = (tm);                                            \
@@ -465,12 +438,55 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     }                                                                                     \
   } while (0)
 
-  #define gasnete_check_strides(dststrides, srcstrides, count, stridelevels) do {                       \
+  #define gasnete_boundscheck_strided(tm, node, addr, strides, elemsz, count, stridelevels) do { \
+    const ssize_t * const __strides = (strides);                                                 \
+    const size_t * const __count = (count);                                                      \
+    const size_t __elemsz = (elemsz);                                                            \
+    size_t __stridelevels = (stridelevels);                                                      \
+    if_pt (!gasnete_strided_empty(__elemsz, __count, __stridelevels)) {                          \
+      gasneti_boundscheck((tm), (node), (addr),                                                  \
+        gasnete_strided_extent(__strides,__elemsz,__count,__stridelevels));                      \
+    }                                                                                            \
+  } while (0)
+
+  #define gasnete_check_strides(dststrides, srcstrides, elemsz, count, stridelevels) do {               \
+    const ssize_t * const __dststrides = (dststrides);                                                  \
+    const ssize_t * const __srcstrides = (srcstrides);                                                  \
+    const size_t __elemsz = (elemsz);                                                                   \
+    const size_t * const __count = (count);                                                             \
+    const size_t __stridelevels = (stridelevels);                                                       \
+    if_pt (!gasnete_strided_empty(__elemsz, __count, __stridelevels)) {  /* TODO-EX: trans */           \
+      for (size_t _i = 0; _i < __stridelevels; _i++) {                                                  \
+        if_pf (__srcstrides[_i] <= 0 || __dststrides[_i] <= 0)                                          \
+          gasneti_fatalerror("stride array elements must be positive in this release (at %s)",          \
+                             gasneti_current_loc);                                                      \
+      }                                                                                                 \
+      if_pf (__stridelevels > 0 && __dststrides[0] < (ssize_t)__elemsz)                                 \
+          gasneti_fatalerror("dststrides[0](%i) < elemsz(%i) at: %s",                                   \
+                        (int)__dststrides[0],(int)__elemsz, gasneti_current_loc);                       \
+      if_pf (__stridelevels > 0 && __srcstrides[0] < (ssize_t)__elemsz)                                 \
+          gasneti_fatalerror("srcstrides[0](%i) < elemsz(%i) at: %s",                                   \
+                        (int)__srcstrides[0],(int)__elemsz, gasneti_current_loc);                       \
+      for (size_t _i = 2; _i < __stridelevels; _i++) {                                                  \
+        if_pf (__dststrides[_i] < (__count[_i-1] * __dststrides[_i-1]))                                 \
+          gasneti_fatalerror("dststrides[%i](%i) < (count[%i](%i) * dststrides[%i](%i)) at: %s",        \
+                     (int)_i,(int)__dststrides[_i], (int)_i-1,(int)__count[_i]-1,                       \
+                     (int)_i-1,(int)__dststrides[_i-1], gasneti_current_loc);                           \
+        if_pf (__srcstrides[_i] < (__count[_i-1] * __srcstrides[_i-1]))                                 \
+          gasneti_fatalerror("srcstrides[%i](%i) < (count[%i](%i) * srcstrides[%i](%i)) at: %s",        \
+                     (int)_i,(int)__srcstrides[_i], (int)_i-1,(int)__count[_i]-1,                       \
+                     (int)_i-1,(int)__srcstrides[_i-1], gasneti_current_loc);                           \
+      }                                                                                                 \
+    }                                                                                                   \
+  } while (0)
+
+  // g2ex check for non-transpositional strides on LEGACY-format metadata
+  #define gasnete_check_stridesNT(dststrides, srcstrides, count, stridelevels) do {                     \
     const size_t * const __dststrides = (dststrides);                                                   \
     const size_t * const __srcstrides = (srcstrides);                                                   \
     const size_t * const __count = (count);                                                             \
     const size_t __stridelevels = (stridelevels);                                                       \
-    if_pt (!gasnete_strided_empty(__count, __stridelevels)) {                                           \
+    if_pt (!gasnete_strided_empty(__count[0], __count+1, __stridelevels)) {                             \
       if_pf (__stridelevels > 0 && __dststrides[0] < __count[0])                                        \
           gasneti_fatalerror("dststrides[0](%i) < count[0](%i) at: %s",                                 \
                         (int)__dststrides[0],(int)__count[0], gasneti_current_loc);                     \
@@ -488,14 +504,6 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
                      (int)_i,(int)__count[_i], (int)_i-1,(int)__srcstrides[_i-1], gasneti_current_loc); \
       }                                                                                                 \
     }                                                                                                   \
-  } while (0)
-
-  #define gasnete_boundscheck_strided(tm, node, addr, strides, count, stridelevels) do { \
-    size_t __stridelevels = (stridelevels);                                              \
-    if_pt (!gasnete_strided_empty((count), __stridelevels)) {                            \
-      gasneti_boundscheck((tm), (node), (addr),                                          \
-        gasnete_strided_extent((strides),(count),__stridelevels));                       \
-    }                                                                                    \
   } while (0)
 
 #endif
@@ -759,10 +767,10 @@ int _gex_VIS_IndexedGetNBI(
 #if GASNET_DEBUG
 // technically strides are permitted to be garbage if any legacy count[i]=0
 #define GASNETE_STRIDED_BETATHUNK_STRIDECHECK                         \
-  if (!gasnete_strided_empty(_count,_stridelevels)) {                 \
+  if (!gasnete_strided_empty(_elemsz,_count,_stridelevels)) {         \
     for (size_t _i=0; _i < _stridelevels; _i++) {                     \
-      gasneti_assert(__srcstrides[_i] >= 0);                          \
-      gasneti_assert(__dststrides[_i] >= 0);                          \
+      gasneti_assert(_srcstrides[_i] >= 0);                           \
+      gasneti_assert(_dststrides[_i] >= 0);                           \
     }                                                                 \
   }
 #else
@@ -770,8 +778,8 @@ int _gex_VIS_IndexedGetNBI(
 #endif
 #define GASNETE_STRIDED_BETATHUNK                                     \
   GASNETE_STRIDED_BETATHUNK_STRIDECHECK                               \
-  const size_t *_srcstrides = (const size_t *)__srcstrides;           \
-  const size_t *_dststrides = (const size_t *)__dststrides;           \
+  const size_t *__srcstrides = (const size_t *)_srcstrides;           \
+  const size_t *__dststrides = (const size_t *)_dststrides;           \
   gasneti_assert(_stridelevels < GASNETE_STRIDED_BETATHUNK_DIMS);     \
   size_t _count_thunk[GASNETE_STRIDED_BETATHUNK_DIMS];                \
   _count_thunk[0] = _elemsz;                                          \
@@ -783,15 +791,15 @@ int _gex_VIS_IndexedGetNBI(
 GASNETI_INLINE(_gex_VIS_StridedPutBlocking)
 int _gex_VIS_StridedPutBlocking(
         gex_TM_t _tm, gex_Rank_t _dstrank,
-        void *_dstaddr, const ssize_t __dststrides[],
-        void *_srcaddr, const ssize_t __srcstrides[],
+        void *_dstaddr, const ssize_t _dststrides[],
+        void *_srcaddr, const ssize_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
+  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels);
+  GASNETI_TRACE_PUTS(PUTS_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
   GASNETE_STRIDED_BETATHUNK
-  gasnete_check_strides(_dststrides, _srcstrides, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _count, _stridelevels);
-  GASNETI_TRACE_PUTS(PUTS_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels);
-  return gasnete_puts(gasnete_synctype_b,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  return gasnete_puts(gasnete_synctype_b,_tm,_dstrank,_dstaddr,__dststrides,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedPutBlocking(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedPutBlocking(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -799,16 +807,16 @@ int _gex_VIS_StridedPutBlocking(
 GASNETI_INLINE(_gex_VIS_StridedGetBlocking)
 int _gex_VIS_StridedGetBlocking(
         gex_TM_t _tm,
-        void *_dstaddr, const ssize_t __dststrides[],
+        void *_dstaddr, const ssize_t _dststrides[],
         gex_Rank_t _srcrank,
-        void *_srcaddr, const ssize_t __srcstrides[],
+        void *_srcaddr, const ssize_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
+  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels);
+  GASNETI_TRACE_GETS(GETS_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
   GASNETE_STRIDED_BETATHUNK
-  gasnete_check_strides(_dststrides, _srcstrides, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _count, _stridelevels);
-  GASNETI_TRACE_GETS(GETS_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels);
-  return gasnete_gets(gasnete_synctype_b,_tm,_dstaddr,_dststrides,_srcrank,_srcaddr,_srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  return gasnete_gets(gasnete_synctype_b,_tm,_dstaddr,__dststrides,_srcrank,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedGetBlocking(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedGetBlocking(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -817,15 +825,15 @@ int _gex_VIS_StridedGetBlocking(
 GASNETI_INLINE(_gex_VIS_StridedPutNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_VIS_StridedPutNB(
         gex_TM_t _tm, gex_Rank_t _dstrank,
-        void *_dstaddr, const ssize_t __dststrides[],
-        void *_srcaddr, const ssize_t __srcstrides[],
+        void *_dstaddr, const ssize_t _dststrides[],
+        void *_srcaddr, const ssize_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
+  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels);
+  GASNETI_TRACE_PUTS(PUTS_NB_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
   GASNETE_STRIDED_BETATHUNK
-  gasnete_check_strides(_dststrides, _srcstrides, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _count, _stridelevels);
-  GASNETI_TRACE_PUTS(PUTS_NB_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels);
-  return gasnete_puts(gasnete_synctype_nb,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
+  return gasnete_puts(gasnete_synctype_nb,_tm,_dstrank,_dstaddr,__dststrides,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_StridedPutNB(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedPutNB(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -833,16 +841,16 @@ gex_Event_t _gex_VIS_StridedPutNB(
 GASNETI_INLINE(_gex_VIS_StridedGetNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_VIS_StridedGetNB(
         gex_TM_t _tm,
-        void *_dstaddr, const ssize_t __dststrides[],
+        void *_dstaddr, const ssize_t _dststrides[],
         gex_Rank_t _srcrank,
-        void *_srcaddr, const ssize_t __srcstrides[],
+        void *_srcaddr, const ssize_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
+  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels);
+  GASNETI_TRACE_GETS(GETS_NB_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
   GASNETE_STRIDED_BETATHUNK
-  gasnete_check_strides(_dststrides, _srcstrides, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _count, _stridelevels);
-  GASNETI_TRACE_GETS(GETS_NB_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels);
-  return gasnete_gets(gasnete_synctype_nb,_tm,_dstaddr,_dststrides,_srcrank,_srcaddr,_srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
+  return gasnete_gets(gasnete_synctype_nb,_tm,_dstaddr,__dststrides,_srcrank,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_StridedGetNB(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedGetNB(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -850,15 +858,15 @@ gex_Event_t _gex_VIS_StridedGetNB(
 GASNETI_INLINE(_gex_VIS_StridedPutNBI)
 int _gex_VIS_StridedPutNBI(
         gex_TM_t _tm, gex_Rank_t _dstrank,
-        void *_dstaddr, const ssize_t __dststrides[],
-        void *_srcaddr, const ssize_t __srcstrides[],
+        void *_dstaddr, const ssize_t _dststrides[],
+        void *_srcaddr, const ssize_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
+  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels);
+  GASNETI_TRACE_PUTS(PUTS_NBI_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
   GASNETE_STRIDED_BETATHUNK
-  gasnete_check_strides(_dststrides, _srcstrides, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _count, _stridelevels);
-  GASNETI_TRACE_PUTS(PUTS_NBI_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels);
-  return gasnete_puts(gasnete_synctype_nbi,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  return gasnete_puts(gasnete_synctype_nbi,_tm,_dstrank,_dstaddr,__dststrides,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedPutNBI(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedPutNBI(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -866,16 +874,16 @@ int _gex_VIS_StridedPutNBI(
 GASNETI_INLINE(_gex_VIS_StridedGetNBI)
 int _gex_VIS_StridedGetNBI(
         gex_TM_t _tm,
-        void *_dstaddr, const ssize_t __dststrides[],
+        void *_dstaddr, const ssize_t _dststrides[],
         gex_Rank_t _srcrank,
-        void *_srcaddr, const ssize_t __srcstrides[],
+        void *_srcaddr, const ssize_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
+  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels);
+  GASNETI_TRACE_GETS(GETS_NBI_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
   GASNETE_STRIDED_BETATHUNK
-  gasnete_check_strides(_dststrides, _srcstrides, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _count, _stridelevels);
-  GASNETI_TRACE_GETS(GETS_NBI_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_count,_stridelevels);
-  return gasnete_gets(gasnete_synctype_nbi,_tm,_dstaddr,_dststrides,_srcrank,_srcaddr,_srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  return gasnete_gets(gasnete_synctype_nbi,_tm,_dstaddr,__dststrides,_srcrank,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedGetNBI(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedGetNBI(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -892,7 +900,7 @@ void _gasnet_puts_bulk(
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
   gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
   _gex_VIS_StridedPutBlocking(_tm,_dstrank,_dstaddr,(ssize_t*)_dststrides,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_gets_bulk)
@@ -904,7 +912,7 @@ void _gasnet_gets_bulk(
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
   gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
   _gex_VIS_StridedGetBlocking(_tm,_dstaddr,(ssize_t*)_dststrides,_srcrank,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_puts_nb_bulk) GASNETI_WARN_UNUSED_RESULT
@@ -914,7 +922,7 @@ gex_Event_t _gasnet_puts_nb_bulk(
         void *_srcaddr, const size_t _srcstrides[],
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
   return _gex_VIS_StridedPutNB(_tm,_dstrank,_dstaddr,(ssize_t*)_dststrides,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_gets_nb_bulk) GASNETI_WARN_UNUSED_RESULT
@@ -925,7 +933,7 @@ gex_Event_t _gasnet_gets_nb_bulk(
         void *_srcaddr, const size_t _srcstrides[],
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
   return _gex_VIS_StridedGetNB(_tm,_dstaddr,(ssize_t*)_dststrides,_srcrank,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_puts_nbi_bulk)
@@ -936,7 +944,7 @@ void _gasnet_puts_nbi_bulk(
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
   gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
   _gex_VIS_StridedPutNBI(_tm,_dstrank,_dstaddr,(ssize_t*)_dststrides,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_gets_nbi_bulk)
@@ -948,7 +956,7 @@ void _gasnet_gets_nbi_bulk(
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
   gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  //gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
   _gex_VIS_StridedGetNBI(_tm,_dstaddr,(ssize_t*)_dststrides,_srcrank,_srcaddr,(ssize_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 

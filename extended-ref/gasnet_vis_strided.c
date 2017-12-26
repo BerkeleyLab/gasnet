@@ -360,6 +360,13 @@ static int32_t const _gasnete_strided_helper_havepartial = (int32_t)sizeof(_gasn
 } while (0)
 
 /*---------------------------------------------------------------------------------*/
+// TODO-EX REMOVE THESE HACKS
+#define gasnete_strided_empty(a,b) 0
+#define gasnete_strided_nulldims(c,sl) (gasnete_strided_nulldims)(c+1,sl)
+#define gasnete_strided_contiguity(s,c,sl) (gasnete_strided_contiguity)((ssize_t *)s,c[0],c+1,sl)
+#define gasnete_strided_stats(pstats, dststrides, srcstrides, count, stridelevels) \
+  (gasnete_strided_stats)(pstats, (ssize_t*)dststrides, (ssize_t*)srcstrides, count[0], count+1, stridelevels)
+/*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts of the dualcontiguity size */
 gex_Event_t gasnete_puts_ref_indiv(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    gex_Rank_t dstnode,
@@ -669,7 +676,6 @@ gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_sy
   gasneti_assert(stats->dstcontiguity == stridelevels && stats->srccontiguity < stridelevels); /* only supports gather put */
   gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
   gasneti_assert(nbytes > 0);
-  gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
   GASNETI_TRACE_EVENT(C, PUTS_GATHER);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
@@ -703,7 +709,6 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
   gasneti_assert(stats->srccontiguity == stridelevels && stats->dstcontiguity < stridelevels); /* only supports scatter get */
   gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
   gasneti_assert(nbytes > 0);
-  gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
   GASNETI_TRACE_EVENT(C, GETS_SCATTER);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+(2*stridelevels+1)*sizeof(size_t)+nbytes);
@@ -1014,7 +1019,6 @@ gex_Event_t gasnete_puts_ref_vector(gasnete_strided_stats_t const *stats, gasnet
 
   if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasneti_mynode);
-    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
@@ -1047,7 +1051,6 @@ gex_Event_t gasnete_gets_ref_vector(gasnete_strided_stats_t const *stats, gasnet
 
   if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasneti_mynode);
-    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
@@ -1082,7 +1085,6 @@ gex_Event_t gasnete_puts_ref_indexed(gasnete_strided_stats_t const *stats, gasne
 
   if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasneti_mynode);
-    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
@@ -1115,7 +1117,6 @@ gex_Event_t gasnete_gets_ref_indexed(gasnete_strided_stats_t const *stats, gasne
 
   if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasneti_mynode);
-    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);

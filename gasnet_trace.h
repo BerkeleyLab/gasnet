@@ -444,15 +444,15 @@
     } else GASNETI_TRACE_EVENT_VAL(type,name, (dstcount)*(dstlen));                                         \
   } while (0)
 
-  #define _GASNETI_TRACE_PUTSGETS(name,type,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) do { \
+  #define _GASNETI_TRACE_PUTSGETS(name,type,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels) do { \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                             \
       char *_tmp_str = (char *)gasneti_extern_malloc(gasneti_format_putsgets_bufsz(stridelevels));              \
       size_t _totalsz = gasneti_format_putsgets(_tmp_str,NULL,(node),(dstaddr),(dststrides),                    \
-                                                (srcaddr),(srcstrides),(count),(stridelevels));                 \
+                                                (srcaddr),(srcstrides),(elemsz),(count),(stridelevels));        \
       GASNETI_TRACE_EVENT_VAL(type,name,_totalsz);                                                              \
       GASNETI_TRACE_PRINTF(D,(#name ": %s", _tmp_str));                                                         \
       gasneti_extern_free(_tmp_str);                                                                            \
-    } else GASNETI_TRACE_EVENT_VAL(type,name, gasnete_strided_datasize(count,stridelevels));                    \
+    } else GASNETI_TRACE_EVENT_VAL(type,name, gasnete_strided_datasize(elemsz,count,stridelevels));             \
   } while (0)
 
   #define GASNETI_TRACE_PUTV(name,node,dstcount,dstlist,srccount,srclist) \
@@ -465,17 +465,17 @@
   #define GASNETI_TRACE_GETI(name,node,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
      _GASNETI_TRACE_PUTIGETI(name,G,node,dstcount,dstlist,dstlen,srccount,srclist,srclen)
 
-  #define GASNETI_TRACE_PUTS(name,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-     _GASNETI_TRACE_PUTSGETS(name,P,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)
-  #define GASNETI_TRACE_GETS(name,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-     _GASNETI_TRACE_PUTSGETS(name,G,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)
+  #define GASNETI_TRACE_PUTS(name,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels) \
+     _GASNETI_TRACE_PUTSGETS(name,P,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels)
+  #define GASNETI_TRACE_GETS(name,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels) \
+     _GASNETI_TRACE_PUTSGETS(name,G,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels)
 #else
   #define GASNETI_TRACE_PUTV(name,node,dstcount,dstlist,srccount,srclist)
   #define GASNETI_TRACE_GETV(name,node,dstcount,dstlist,srccount,srclist)
   #define GASNETI_TRACE_PUTI(name,node,dstcount,dstlist,dstlen,srccount,srclist,srclen)
   #define GASNETI_TRACE_GETI(name,node,dstcount,dstlist,dstlen,srccount,srclist,srclen)
-  #define GASNETI_TRACE_PUTS(name,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)
-  #define GASNETI_TRACE_GETS(name,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)
+  #define GASNETI_TRACE_PUTS(name,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels)
+  #define GASNETI_TRACE_GETS(name,node,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels)
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* Collectives tracing */
@@ -798,14 +798,14 @@ extern size_t gasneti_format_putigeti(char *_buf, gex_Rank_t _node,
                                     size_t _dstcount, void * const _dstlist[], size_t _dstlen,
                                     size_t _srccount, void * const _srclist[], size_t _srclen);
 
-extern size_t gasneti_format_strides_bufsz(size_t count);
-extern void gasneti_format_strides(char *buf, size_t count, const size_t *list);
-extern size_t gasneti_format_putsgets_bufsz(size_t stridelevels);
-extern size_t gasneti_format_putsgets(char *buf, void *pstats, 
-                                    gex_Rank_t node,
-                                    void *dstaddr, const size_t dststrides[],
-                                    void *srcaddr, const size_t srcstrides[],
-                                    const size_t count[], size_t stridelevels);
+extern size_t gasneti_format_strides_bufsz(size_t _count);
+extern void gasneti_format_strides(char *_buf, size_t _count, const ssize_t *_list);
+extern size_t gasneti_format_putsgets_bufsz(size_t _stridelevels);
+extern size_t gasneti_format_putsgets(char *_buf, void *_pstats, 
+                                    gex_Rank_t _node,
+                                    void *_dstaddr, const ssize_t _dststrides[],
+                                    void *_srcaddr, const ssize_t _srcstrides[],
+                                    size_t _elemsz, const size_t _count[], size_t _stridelevels);
 
 #if GASNETI_STATS_OR_TRACE
   #define BUILD_ENUM(type,name,desc) GASNETI_STAT_##name,

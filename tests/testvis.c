@@ -629,9 +629,9 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
       { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
         char *buf = test_malloc(sz);
         gasnett_format_putsgets(buf, NULL, nodeid,
-          desc->dstaddr, desc->dststrides,
-          desc->srcaddr, desc->srcstrides,
-          desc->count, desc->stridelevels);
+          desc->dstaddr, (ssize_t*)desc->dststrides,
+          desc->srcaddr, (ssize_t*)desc->srcstrides,
+          desc->count[0], desc->count+1, desc->stridelevels);
         ERR("strided desc: %s\n", buf);
       }
       FATALERR("testvis failed.");
