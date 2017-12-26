@@ -430,7 +430,7 @@
       GASNETI_TRACE_EVENT_VAL(type,name,_totalsz);                                                          \
       GASNETI_TRACE_PRINTF(D,(#name ": %s", _tmp_str));                                                     \
       gasneti_extern_free(_tmp_str);                                                                        \
-    } else GASNETI_TRACE_EVENT_VAL(type,name, gasnete_memveclist_stats(dstcount,dstlist).totalsz);          \
+    } else GASNETI_TRACE_EVENT_VAL(type,name, gasnete_memveclist_stats(dstcount,dstlist)._totalsz);         \
   } while (0)
 
   #define _GASNETI_TRACE_PUTIGETI(name,type,node,dstcount,dstlist,dstlen,srccount,srclist,srclen) do {      \
@@ -784,19 +784,19 @@ extern void gasneti_trace_finish(void);
 #endif
 
 /* these are legal even without STATS/TRACE */
-extern size_t gasneti_format_memveclist_bufsz(size_t count);
-extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gex_Memvec_t const *list);
-extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount);
-extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
-                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                    size_t srccount, gex_Memvec_t const srclist[]);
+extern size_t gasneti_format_memveclist_bufsz(size_t _count);
+extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *_buf, size_t _count, gex_Memvec_t const *_list);
+extern size_t gasneti_format_putvgetv_bufsz(size_t _dstcount, size_t _srccount);
+extern size_t gasneti_format_putvgetv(char *_buf, gex_Rank_t _node,
+                                    size_t _dstcount, gex_Memvec_t const _dstlist[], 
+                                    size_t _srccount, gex_Memvec_t const _srclist[]);
 
-extern size_t gasneti_format_addrlist_bufsz(size_t count);
-extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count, void * const *list, size_t len);
-extern size_t gasneti_format_putigeti_bufsz(size_t dstcount, size_t srccount);
-extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
-                                    size_t dstcount, void * const dstlist[], size_t dstlen,
-                                    size_t srccount, void * const srclist[], size_t srclen);
+extern size_t gasneti_format_addrlist_bufsz(size_t _count);
+extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *_buf, size_t _count, void * const *_list, size_t _len);
+extern size_t gasneti_format_putigeti_bufsz(size_t _dstcount, size_t _srccount);
+extern size_t gasneti_format_putigeti(char *_buf, gex_Rank_t _node,
+                                    size_t _dstcount, void * const _dstlist[], size_t _dstlen,
+                                    size_t _srccount, void * const _srclist[], size_t _srclen);
 
 extern size_t gasneti_format_strides_bufsz(size_t count);
 extern void gasneti_format_strides(char *buf, size_t count, const size_t *list);

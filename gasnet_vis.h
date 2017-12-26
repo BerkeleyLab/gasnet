@@ -14,62 +14,62 @@ GASNETI_BEGIN_NOWARN
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_INLINE(gasnete_memveclist_totalsz)
-uintptr_t gasnete_memveclist_totalsz(size_t count, gex_Memvec_t const *list) {
-  uintptr_t retval = 0;
-  size_t i;
-  for (i = 0; i < count; i++) {
-    retval += list[i].gex_len;
+uintptr_t gasnete_memveclist_totalsz(size_t _count, gex_Memvec_t const *_list) {
+  uintptr_t _retval = 0;
+  for (size_t _i = 0; _i < _count; _i++) {
+    _retval += _list[_i].gex_len;
   }
-  return retval;
+  return _retval;
 }
 
 GASNETI_INLINE(gasnete_memveclist_stats)
-gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gex_Memvec_t const *list) {
-  gasneti_memveclist_stats_t retval;
-  size_t minsz = (size_t)-1, maxsz = 0;
-  uintptr_t totalsz = 0;
-  char *minaddr = (char *)(intptr_t)(uintptr_t)-1;
-  char *maxaddr = (char *)0;
-  size_t i;
-  for (i = 0; i < count; i++) {
-    size_t const len = list[i].gex_len;
-    char * const addr = (char *)list[i].gex_addr;
-    if (len > 0) {
-      if (len < minsz) minsz = len;
-      if (len > maxsz) maxsz = len;
-      if (addr < minaddr) minaddr = addr;
-      if (addr + len - 1 > maxaddr) maxaddr = addr + len - 1;
-      totalsz += len;
+gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t _count, gex_Memvec_t const *_list) {
+  gasneti_memveclist_stats_t _retval;
+  size_t _minsz = (size_t)-1, _maxsz = 0;
+  uintptr_t _totalsz = 0;
+  char *_minaddr = (char *)(intptr_t)(uintptr_t)-1;
+  char *_maxaddr = (char *)0;
+  for (size_t _i = 0; _i < _count; _i++) {
+    size_t const _len = _list[_i].gex_len;
+    char * const _addr = (char *)_list[_i].gex_addr;
+    char * const _end = _addr + _len - 1;
+    if (_len > 0) {
+      if (_len < _minsz) _minsz = _len;
+      if (_len > _maxsz) _maxsz = _len;
+      if (_addr < _minaddr) _minaddr = _addr;
+      if (_end > _maxaddr) _maxaddr = _end;
+      _totalsz += _len;
     }
   }
-  retval.minsz = minsz;
-  retval.maxsz = maxsz;
-  retval.minaddr = minaddr;
-  retval.maxaddr = maxaddr;
-  retval.totalsz = totalsz;
-  gasneti_assert(totalsz == gasnete_memveclist_totalsz(count, list));
-  return retval;
+  _retval._minsz = _minsz;
+  _retval._maxsz = _maxsz;
+  _retval._minaddr = _minaddr;
+  _retval._maxaddr = _maxaddr;
+  _retval._totalsz = _totalsz;
+  gasneti_assert(_totalsz == gasnete_memveclist_totalsz(_count, _list));
+  return _retval;
 }
 /*---------------------------------------------------------------------------------*/
 
 GASNETI_INLINE(gasnete_addrlist_stats)
-gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t count, void * const *list, size_t len) {
-  gasneti_addrlist_stats_t retval;
-  char *minaddr = (char *)(intptr_t)(uintptr_t)-1;
-  char *maxaddr = (char *)0;
+gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t _count, void * const *_list, size_t _len) {
+  gasneti_addrlist_stats_t _retval;
+  char *_minaddr = (char *)(intptr_t)(uintptr_t)-1;
+  char *_maxaddr = (char *)0;
 #if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_EQ(4,5,1)
-  ssize_t i; /* size_t triggers an ICE exclusive to gcc-4.5.1, but this gets a warning instead */
+  ssize_t _i; /* size_t triggers an ICE exclusive to gcc-4.5.1, but this gets a warning instead */
 #else
-  size_t i;
+  size_t _i;
 #endif
-  for (i = 0; i < count; i++) {
-    char * const addr = (char *)list[i];
-    if (addr < minaddr) minaddr = addr;
-    if (addr + len - 1 > maxaddr) maxaddr = addr + len - 1;
+  for (_i = 0; _i < _count; _i++) {
+    char * const _addr = (char *)_list[_i];
+    char * const _end = _addr + _len - 1;
+    if (_addr < _minaddr) _minaddr = _addr;
+    if (_end > _maxaddr) _maxaddr = _end;
   }
-  retval.minaddr = minaddr;
-  retval.maxaddr = maxaddr;
-  return retval;
+  _retval._minaddr = _minaddr;
+  _retval._maxaddr = _maxaddr;
+  return _retval;
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -411,46 +411,45 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
   } while (0)
 
   #define gasnete_memveclist_checksizematch(dstcount, dstlist, srccount, srclist) do {         \
-    gasneti_memveclist_stats_t dststats = gasnete_memveclist_stats((dstcount), (dstlist));     \
-    gasneti_memveclist_stats_t srcstats = gasnete_memveclist_stats((srccount), (srclist));     \
-    if_pf (dststats.totalsz != srcstats.totalsz) {                                             \
-      char * dstlist_str =                                                                     \
+    gasneti_memveclist_stats_t _dststats = gasnete_memveclist_stats((dstcount), (dstlist));    \
+    gasneti_memveclist_stats_t _srcstats = gasnete_memveclist_stats((srccount), (srclist));    \
+    if_pf (_dststats._totalsz != _srcstats._totalsz) {                                         \
+      char * _dstlist_str =                                                                    \
              (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));         \
-      char * srclist_str =                                                                     \
+      char * _srclist_str =                                                                    \
              (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(srccount));         \
-      gasneti_format_memveclist(dstlist_str, (dstcount), (dstlist));                           \
-      gasneti_format_memveclist(srclist_str, (srccount), (srclist));                           \
+      gasneti_format_memveclist(_dstlist_str, (dstcount), (dstlist));                          \
+      gasneti_format_memveclist(_srclist_str, (srccount), (srclist));                          \
       gasneti_fatalerror("Source and destination memvec lists disagree on total size at %s:\n" \
                          "  srclist: %s\n"                                                     \
                          "  dstlist: %s\n",                                                    \
-                         gasneti_current_loc, dstlist_str, srclist_str);                       \
-      /* gasneti_extern_free(dstlist_str); -- dead code */                                     \
-      /* gasneti_extern_free(srclist_str); -- dead code */                                     \
+                         gasneti_current_loc, _dstlist_str, _srclist_str);                     \
+      /* gasneti_extern_free(_dstlist_str); -- dead code */                                    \
+      /* gasneti_extern_free(_srclist_str); -- dead code */                                    \
     }                                                                                          \
-    if_pf (dststats.totalsz != 0 &&                                                            \
-      ((uintptr_t)dststats.minaddr) + dststats.totalsz - 1 > ((uintptr_t)dststats.maxaddr)) {  \
-      char * dstlist_str =                                                                     \
+    if_pf (_dststats._totalsz != 0 &&                                                          \
+      ((uintptr_t)_dststats._minaddr) + _dststats._totalsz - 1 > ((uintptr_t)_dststats._maxaddr)) { \
+      char * _dstlist_str =                                                                    \
              (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));         \
-      gasneti_format_memveclist(dstlist_str, (dstcount), (dstlist));                           \
+      gasneti_format_memveclist(_dstlist_str, (dstcount), (dstlist));                          \
       gasneti_fatalerror("Destination memvec list has overlapping elements at %s:\n"           \
                          "  dstlist: %s\n"                                                     \
                          "(note this test is currently conservative "                          \
                          "and may fail to detect some illegal cases)",                         \
-                         gasneti_current_loc, dstlist_str);                                    \
-      /* gasneti_extern_free(dstlist_str); -- dead code */                                     \
+                         gasneti_current_loc, _dstlist_str);                                   \
+      /* gasneti_extern_free(_dstlist_str); -- dead code */                                    \
     }                                                                                          \
   } while (0)
 
   #define gasnete_boundscheck_addrlist(tm, rank, count, list, len) do { \
     gex_TM_t __tm = (tm);                                           \
-    gex_Rank_t __node = (rank); /* TOOD-EX: tm support */    \
-    size_t _count = (count);                                        \
-    void * const * const _list = (list);                            \
-    size_t _len = (len);                                            \
-    size_t _i;                                                      \
-    if_pt (_len > 0) {                                              \
-      for (_i=0; _i < _count; _i++) {                               \
-        gasneti_boundscheck(__tm, __node, _list[_i], _len);         \
+    gex_Rank_t __node = (rank);                                     \
+    size_t __count = (count);                                       \
+    void * const * const __list = (list);                           \
+    size_t __len = (len);                                           \
+    if_pt (__len > 0) {                                             \
+      for (size_t __i=0; __i < __count; __i++) {                    \
+        gasneti_boundscheck(__tm, __node, __list[__i], __len);      \
       }                                                             \
     }                                                               \
   } while (0)

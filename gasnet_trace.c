@@ -105,8 +105,8 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
   gasneti_memveclist_stats_t stats = gasnete_memveclist_stats((count), (list));
   sprintf(p, "%i entries, totalsz=%i, bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
              "list=[",
-              (int)(count), (int)(stats.totalsz),
-              GASNETI_LADDRSTR(stats.minaddr), GASNETI_LADDRSTR(stats.maxaddr));
+              (int)(count), (int)(stats._totalsz),
+              GASNETI_LADDRSTR(stats._minaddr), GASNETI_LADDRSTR(stats._maxaddr));
   p += strlen(p);
   for (i=0; i < count; i++) {
     j++;
@@ -137,12 +137,12 @@ extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
   (void) gasneti_format_memveclist(srclist_str, srccount, srclist);
   sprintf(buf,"(%i data bytes) node=%i\n"
               "dst: %s\nsrc: %s",
-              (int)dststats.totalsz, (int)(node),
+              (int)dststats._totalsz, (int)(node),
               dstlist_str, srclist_str);    
   gasneti_assert(strlen(buf) < bufsz);
   gasneti_free(dstlist_str);
   gasneti_free(srclist_str);
-  return dststats.totalsz;
+  return dststats._totalsz;
 }
 
 extern size_t gasneti_format_addrlist_bufsz(size_t count) {
@@ -158,7 +158,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   sprintf(p, "%i entries, totalsz=%i, len=%i, bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
              "list=[",
               (int)(count), (int)((count)*(len)), (int)(len),
-              GASNETI_LADDRSTR(stats.minaddr), GASNETI_LADDRSTR(stats.maxaddr));
+              GASNETI_LADDRSTR(stats._minaddr), GASNETI_LADDRSTR(stats._maxaddr));
   p += strlen(p);
   for (i=0; i < count; i++) {
     j++;
