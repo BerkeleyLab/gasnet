@@ -458,9 +458,9 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     if_pf ((srclen) == 0) gasneti_fatalerror("srclen == 0 at: %s\n",gasneti_current_loc); \
     if_pf ((dstcount)*(dstlen) != (srccount)*(srclen)) {                                  \
       gasneti_fatalerror("Total data size mismatch at: %s\n"                              \
-                         "dstcount(%i)*dstlen(%i) != srccount(%i)*srclen(%i)",            \
+       "dstcount(%" PRIuSZ ")*dstlen(%" PRIuSZ ") != srccount(%" PRIuSZ ")*srclen(%" PRIuSZ ")", \
                          gasneti_current_loc,                                             \
-                         (int)dstcount, (int)dstlen, (int)srccount, (int)srclen);         \
+                         dstcount, dstlen, srccount, srclen);                             \
     }                                                                                     \
   } while (0)
 
@@ -470,22 +470,21 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     const size_t * const _count = (count);                                                       \
     const size_t _stridelevels = (stridelevels);                                                 \
     if_pt (!gasnete_strided_empty(_count, _stridelevels)) {                                      \
-      size_t _i;                                                                                 \
       if_pf (_stridelevels > 0 && _dststrides[0] < _count[0])                                    \
-          gasneti_fatalerror("dststrides[0](%i) < count[0](%i) at: %s",                          \
-                        (int)_dststrides[0],(int)_count[0], gasneti_current_loc);                \
+          gasneti_fatalerror("dststrides[0](%" PRIuSZ ") < count[0](%" PRIuSZ ") at: %s",        \
+                        _dststrides[0],_count[0], gasneti_current_loc);                          \
       if_pf (_stridelevels > 0 && _srcstrides[0] < _count[0])                                    \
-          gasneti_fatalerror("srcstrides[0](%i) < count[0](%i) at: %s",                          \
-                        (int)_srcstrides[0],(int)_count[0], gasneti_current_loc);                \
-      for (_i = 1; _i < _stridelevels; _i++) {                                                   \
+          gasneti_fatalerror("srcstrides[0](%" PRIuSZ ") < count[0](%" PRIuSZ ") at: %s",        \
+                        _srcstrides[0],_count[0], gasneti_current_loc);                          \
+      for (size_t _i = 1; _i < _stridelevels; _i++) {                                            \
         if_pf (_dststrides[_i] < (_count[_i] * _dststrides[_i-1]))                               \
-          gasneti_fatalerror("dststrides[%i](%i) < (count[%i](%i) * dststrides[%i](%i)) at: %s", \
-                     (int)_i,(int)_dststrides[_i],                                               \
-                     (int)_i,(int)_count[_i], (int)_i-1,(int)_dststrides[_i-1], gasneti_current_loc); \
+          gasneti_fatalerror("dststrides[%" PRIuSZ "](%" PRIuSZ ") < "                           \
+                  "(count[%" PRIuSZ "](%" PRIuSZ ") * dststrides[%" PRIuSZ "](%" PRIuSZ ")) at: %s", \
+                     _i,_dststrides[_i],_i,_count[_i], _i-1,_dststrides[_i-1], gasneti_current_loc); \
         if_pf (_srcstrides[_i] < (_count[_i] * _srcstrides[_i-1]))                               \
-          gasneti_fatalerror("srcstrides[%i](%i) < (count[%i](%i) * srcstrides[%i](%i)) at: %s", \
-                     (int)_i,(int)_srcstrides[_i],                                               \
-                     (int)_i,(int)_count[_i], (int)_i-1,(int)_srcstrides[_i-1], gasneti_current_loc); \
+          gasneti_fatalerror("srcstrides[%" PRIuSZ "](%" PRIuSZ ") < "                           \
+                  "(count[%" PRIuSZ "](%" PRIuSZ ") * srcstrides[%" PRIuSZ "](%" PRIuSZ ")) at: %s", \
+                     _i,_srcstrides[_i],_i,_count[_i], _i-1,_srcstrides[_i-1], gasneti_current_loc); \
       }                                                                                          \
     }                                                                                            \
   } while (0)
