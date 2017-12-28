@@ -432,9 +432,9 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
     if_pf ((srclen) == 0) gasneti_fatalerror("srclen == 0 at: %s\n",gasneti_current_loc); \
     if_pf ((dstcount)*(dstlen) != (srccount)*(srclen)) {                                  \
       gasneti_fatalerror("Total data size mismatch at: %s\n"                              \
-                         "dstcount(%i)*dstlen(%i) != srccount(%i)*srclen(%i)",            \
+       "dstcount(%" PRIuSZ ")*dstlen(%" PRIuSZ ") != srccount(%" PRIuSZ ")*srclen(%" PRIuSZ ")", \
                          gasneti_current_loc,                                             \
-                         (int)dstcount, (int)dstlen, (int)srccount, (int)srclen);         \
+                         dstcount, dstlen, srccount, srclen);                             \
     }                                                                                     \
   } while (0)
 
@@ -462,20 +462,20 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
                              gasneti_current_loc);                                                      \
       }                                                                                                 \
       if_pf (__stridelevels > 0 && __dststrides[0] < (ssize_t)__elemsz)                                 \
-          gasneti_fatalerror("dststrides[0](%i) < elemsz(%i) at: %s",                                   \
-                        (int)__dststrides[0],(int)__elemsz, gasneti_current_loc);                       \
+          gasneti_fatalerror("dststrides[0](%" PRIdSZ ") < elemsz(%" PRIuSZ ") at: %s",                 \
+                        __dststrides[0],__elemsz, gasneti_current_loc);                                 \
       if_pf (__stridelevels > 0 && __srcstrides[0] < (ssize_t)__elemsz)                                 \
-          gasneti_fatalerror("srcstrides[0](%i) < elemsz(%i) at: %s",                                   \
-                        (int)__srcstrides[0],(int)__elemsz, gasneti_current_loc);                       \
+          gasneti_fatalerror("srcstrides[0](%" PRIdSZ ") < elemsz(%" PRIuSZ ") at: %s",                 \
+                        __srcstrides[0],__elemsz, gasneti_current_loc);                                 \
       for (size_t _i = 2; _i < __stridelevels; _i++) {                                                  \
         if_pf (__dststrides[_i] < (__count[_i-1] * __dststrides[_i-1]))                                 \
-          gasneti_fatalerror("dststrides[%i](%i) < (count[%i](%i) * dststrides[%i](%i)) at: %s",        \
-                     (int)_i,(int)__dststrides[_i], (int)_i-1,(int)__count[_i]-1,                       \
-                     (int)_i-1,(int)__dststrides[_i-1], gasneti_current_loc);                           \
+          gasneti_fatalerror("dststrides[%" PRIuSZ "](%" PRIdSZ ") < "                                  \
+                  "(count[%" PRIuSZ "](%" PRIuSZ ") * dststrides[%" PRIuSZ "](%" PRIdSZ ")) at: %s",    \
+                     _i,__dststrides[_i], _i-1,__count[_i]-1, _i-1,__dststrides[_i-1], gasneti_current_loc); \
         if_pf (__srcstrides[_i] < (__count[_i-1] * __srcstrides[_i-1]))                                 \
-          gasneti_fatalerror("srcstrides[%i](%i) < (count[%i](%i) * srcstrides[%i](%i)) at: %s",        \
-                     (int)_i,(int)__srcstrides[_i], (int)_i-1,(int)__count[_i]-1,                       \
-                     (int)_i-1,(int)__srcstrides[_i-1], gasneti_current_loc);                           \
+          gasneti_fatalerror("srcstrides[%" PRIuSZ "](%" PRIdSZ ") < "                                  \
+                  "(count[%" PRIuSZ "](%" PRIuSZ ") * srcstrides[%" PRIuSZ "](%" PRIdSZ ")) at: %s",    \
+                     _i,__srcstrides[_i], _i-1,__count[_i]-1, _i-1,__srcstrides[_i-1], gasneti_current_loc); \
       }                                                                                                 \
     }                                                                                                   \
   } while (0)
@@ -488,20 +488,20 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
     const size_t __stridelevels = (stridelevels);                                                       \
     if_pt (!gasnete_strided_empty(__count[0], __count+1, __stridelevels)) {                             \
       if_pf (__stridelevels > 0 && __dststrides[0] < __count[0])                                        \
-          gasneti_fatalerror("dststrides[0](%i) < count[0](%i) at: %s",                                 \
-                        (int)__dststrides[0],(int)__count[0], gasneti_current_loc);                     \
+          gasneti_fatalerror("dststrides[0](%" PRIuSZ ") < count[0](%" PRIuSZ ") at: %s",               \
+                        __dststrides[0],__count[0], gasneti_current_loc);                               \
       if_pf (__stridelevels > 0 && __srcstrides[0] < __count[0])                                        \
-          gasneti_fatalerror("srcstrides[0](%i) < count[0](%i) at: %s",                                 \
-                        (int)__srcstrides[0],(int)__count[0], gasneti_current_loc);                     \
+          gasneti_fatalerror("srcstrides[0](%" PRIuSZ ") < count[0](%" PRIuSZ ") at: %s",               \
+                        __srcstrides[0],__count[0], gasneti_current_loc);                               \
       for (size_t _i = 1; _i < __stridelevels; _i++) {                                                  \
         if_pf (__dststrides[_i] < (__count[_i] * __dststrides[_i-1]))                                   \
-          gasneti_fatalerror("dststrides[%i](%i) < (count[%i](%i) * dststrides[%i](%i)) at: %s",        \
-                     (int)_i,(int)__dststrides[_i],                                                     \
-                     (int)_i,(int)__count[_i], (int)_i-1,(int)__dststrides[_i-1], gasneti_current_loc); \
+          gasneti_fatalerror("dststrides[%" PRIuSZ "](%" PRIuSZ ") < "                                  \
+                  "(count[%" PRIuSZ "](%" PRIuSZ ") * dststrides[%" PRIuSZ "](%" PRIuSZ ")) at: %s",    \
+                     _i,__dststrides[_i], _i,__count[_i], _i-1,__dststrides[_i-1], gasneti_current_loc); \
         if_pf (__srcstrides[_i] < (__count[_i] * __srcstrides[_i-1]))                                   \
-          gasneti_fatalerror("srcstrides[%i](%i) < (count[%i](%i) * srcstrides[%i](%i)) at: %s",        \
-                     (int)_i,(int)__srcstrides[_i],                                                     \
-                     (int)_i,(int)__count[_i], (int)_i-1,(int)__srcstrides[_i-1], gasneti_current_loc); \
+          gasneti_fatalerror("srcstrides[%" PRIuSZ "](%" PRIuSZ ") < "                                  \
+                  "(count[%" PRIuSZ "](%" PRIuSZ ") * srcstrides[%" PRIuSZ "](%" PRIuSZ ")) at: %s",    \
+                     _i,__srcstrides[_i], _i,__count[_i], _i-1,__srcstrides[_i-1], gasneti_current_loc); \
       }                                                                                                 \
     }                                                                                                   \
   } while (0)
