@@ -663,7 +663,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
   #ifndef GASNETE_PUTI_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
       #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) do {                        \
-        switch (rand() % 3) {                                                                                                     \
+        switch (rand() % 4) {                                                                                                     \
           case 0:                                                                                                                 \
             GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);                       \
           case 1:                                                                                                                 \
@@ -672,6 +672,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
             return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
           case 3:                                                                                                                 \
             return gasnete_puti_ref_vector(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS); \
+          default: gasneti_unreachable();                                                                                         \
         } } while (0)
     #else
       #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen)       \
@@ -703,7 +704,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
   #ifndef GASNETE_GETI_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
       #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) do {                        \
-        switch (rand() % 3) {                                                                                                     \
+        switch (rand() % 4) {                                                                                                     \
           case 0:                                                                                                                 \
             GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen);                      \
           case 1:                                                                                                                 \
@@ -712,6 +713,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
             return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
           case 3:                                                                                                                 \
             return gasnete_geti_ref_vector(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS); \
+          default: gasneti_unreachable();                                                                                         \
         } } while (0)
     #else
       #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen)       \
