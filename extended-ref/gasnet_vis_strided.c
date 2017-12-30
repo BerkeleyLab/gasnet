@@ -1164,7 +1164,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   #ifndef GASNETE_PUTS_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
       #define GASNETE_PUTS_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) do {                         \
-        switch (rand() % 4) {                                                                                                                     \
+        switch (rand() % 5) {                                                                                                                     \
           case 0:                                                                                                                                 \
             GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);                        \
           case 1:                                                                                                                                 \
@@ -1175,6 +1175,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
             return gasnete_puts_ref_vector(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);  \
           case 4:                                                                                                                                 \
             return gasnete_puts_ref_indexed(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS); \
+          default: gasneti_unreachable();                                                                                                         \
         } } while (0)
     #else
       #define GASNETE_PUTS_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)       \
@@ -1214,7 +1215,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   #ifndef GASNETE_GETS_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
       #define GASNETE_GETS_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) do {                         \
-        switch (rand() % 4) {                                                                                                                     \
+        switch (rand() % 5) {                                                                                                                     \
           case 0:                                                                                                                                 \
             GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);                       \
           case 1:                                                                                                                                 \
@@ -1225,6 +1226,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
             return gasnete_gets_ref_vector(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);  \
           case 4:                                                                                                                                 \
             return gasnete_gets_ref_indexed(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS); \
+          default: gasneti_unreachable();                                                                                                         \
         } } while (0)
     #else 
       #define GASNETE_GETS_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels)       \
