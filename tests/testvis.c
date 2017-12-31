@@ -245,7 +245,7 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
           context, file, line);
         { size_t sz = gasnett_format_memveclist_bufsz(src->count);
           char *buf = test_malloc(sz);
-          gasnett_format_memveclist(buf, src->count, src->list);
+          gasnett_format_memveclist(buf, src->count, (void *)src->list);
           ERR("memvec: %s\n", buf);
         }
         FATALERR("testvis failed.");
@@ -622,9 +622,14 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
       { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
         char *buf = test_malloc(sz);
         gasnett_format_putsgets(buf, NULL, nodeid,
-          desc->dstaddr, desc->dststrides,
-          desc->srcaddr, desc->srcstrides,
-          desc->count, desc->stridelevels);
+          desc->dstaddr, (void *)desc->dststrides,
+          desc->srcaddr, (void *)desc->srcstrides,
+        #ifdef GEX_SPEC_VERSION_MAJOR // this undocumented function changed signature in EX
+          desc->count[0], desc->count+1,
+        #else
+          desc->count,
+        #endif
+          desc->stridelevels);
         ERR("strided desc: %s\n", buf);
       }
       FATALERR("testvis failed.");
