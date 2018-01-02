@@ -230,32 +230,32 @@ size_t gasnete_strided_segments(ssize_t const *_strides, size_t _elemsz,
 }
 
 typedef struct {  // TODO-EX: trans
-  size_t srcextent; /* the length of the bounding box containing all the src data */
-  size_t dstextent; /* the length of the bounding box containing all the dst data */
+  size_t _srcextent; /* the length of the bounding box containing all the src data */
+  size_t _dstextent; /* the length of the bounding box containing all the dst data */
 
-  size_t totalsz;   /* the total bytes of data in the transfer */
+  size_t _totalsz;   /* the total bytes of data in the transfer */
 
-  size_t nulldims;  /* number of top-level dimensions with a count of 1 -
+  size_t _nulldims;  /* number of top-level dimensions with a count of 1 -
                        these dimensions can be ignored for most purposes 
                        (stridelevels means all counts are one)
                      */
 
-  size_t srccontiguity; /* the highest stridelevel with data contiguity in the src region
+  size_t _srccontiguity; /* the highest stridelevel with data contiguity in the src region
                            eg. zero if only the bottom level is contiguous,
                            and stridelevels if the entire region is contiguous
                          */
-  size_t dstcontiguity; /* the highest stridelevel with data contiguity in the dst region
+  size_t _dstcontiguity; /* the highest stridelevel with data contiguity in the dst region
                            eg. zero if only the bottom level is contiguous,
                            and stridelevels if the entire region is contiguous
                          */
-  size_t dualcontiguity; /* MIN(srccontiguity, dstcontiguity) */
+  size_t _dualcontiguity; /* MIN(srccontiguity, dstcontiguity) */
 
-  size_t srcsegments;   /* number of contiguous segments in the src region */
-  size_t dstsegments;   /* number of contiguous segments in the dst region */
+  size_t _srcsegments;   /* number of contiguous segments in the src region */
+  size_t _dstsegments;   /* number of contiguous segments in the dst region */
 
-  size_t srccontigsz;   /* size of the contiguous segments in the src region */
-  size_t dstcontigsz;   /* size of the contiguous segments in the dst region */
-  size_t dualcontigsz;   /* MIN(srccontigsz,dstcontigsz) */
+  size_t _srccontigsz;   /* size of the contiguous segments in the src region */
+  size_t _dstcontigsz;   /* size of the contiguous segments in the dst region */
+  size_t _dualcontigsz;   /* MIN(srccontigsz,dstcontigsz) */
 
 } gasnete_strided_stats_t;
 
@@ -269,18 +269,18 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
     return;
   } else if_pf (_stridelevels == 0) {
     gasneti_assert(!gasnete_strided_empty(_elemsz, _count, _stridelevels));
-    _result->srcextent = _elemsz;
-    _result->dstextent = _elemsz;
-    _result->totalsz = _elemsz;
-    _result->nulldims = 0;
-    _result->srccontiguity = 0;
-    _result->dstcontiguity = 0;
-    _result->dualcontiguity = 0;
-    _result->srcsegments = 1;
-    _result->dstsegments = 1;
-    _result->srccontigsz = _elemsz;
-    _result->dstcontigsz = _elemsz;
-    _result->dualcontigsz = _elemsz;
+    _result->_srcextent = _elemsz;
+    _result->_dstextent = _elemsz;
+    _result->_totalsz = _elemsz;
+    _result->_nulldims = 0;
+    _result->_srccontiguity = 0;
+    _result->_dstcontiguity = 0;
+    _result->_dualcontiguity = 0;
+    _result->_srcsegments = 1;
+    _result->_dstsegments = 1;
+    _result->_srccontigsz = _elemsz;
+    _result->_dstcontigsz = _elemsz;
+    _result->_dualcontigsz = _elemsz;
     return;
   } else { // TODO-EX: trans
     int _srcbreak = 0;
@@ -294,9 +294,9 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
     size_t _limit;
     for (_limit = _stridelevels; _limit > 0; _limit--) // ignore null dims
       if_pt (_count[_limit-1] != 1) break;
-    _result->nulldims = _stridelevels - _limit;
-    _result->srccontiguity = _stridelevels;
-    _result->dstcontiguity = _stridelevels;
+    _result->_nulldims = _stridelevels - _limit;
+    _result->_srccontiguity = _stridelevels;
+    _result->_dstcontiguity = _stridelevels;
 
     for (size_t _i=0; _i < _limit; _i++) {
       size_t const _cnt = _count[_i];
@@ -308,56 +308,56 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
       if (_srcbreak) _srcsegments *= _cnt;
       else if (_srcstride > _srccontigsz) {
           _srcbreak = 1;
-          _result->srccontiguity = _i;
+          _result->_srccontiguity = _i;
           _srcsegments *= _cnt;
       } else _srccontigsz *= _cnt;
 
       if (_dstbreak) _dstsegments *= _cnt;
       else if (_dststride > _dstcontigsz) {
           _dstbreak = 1;
-          _result->dstcontiguity = _i;
+          _result->_dstcontiguity = _i;
           _dstsegments *= _cnt;
       } else _dstcontigsz *= _cnt;
     }
 
-    _result->totalsz = _srcsegments*_srccontigsz;
-    if_pf (_result->totalsz == 0) { /* empty xfer */
+    _result->_totalsz = _srcsegments*_srccontigsz;
+    if_pf (_result->_totalsz == 0) { /* empty xfer */
       gasneti_assert(gasnete_strided_empty(_elemsz, _count, _stridelevels));
       gasneti_assert(gasnete_strided_datasize(_elemsz, _count, _stridelevels) == 0);
-      _result->srcextent = 0;
-      _result->dstextent = 0;
-      _result->nulldims = 0;
-      _result->srccontiguity = 0;
-      _result->dstcontiguity = 0;
-      _result->dualcontiguity = 0;
-      _result->srcsegments = 0;
-      _result->dstsegments = 0;
-      _result->srccontigsz = 0;
-      _result->dstcontigsz = 0;
+      _result->_srcextent = 0;
+      _result->_dstextent = 0;
+      _result->_nulldims = 0;
+      _result->_srccontiguity = 0;
+      _result->_dstcontiguity = 0;
+      _result->_dualcontiguity = 0;
+      _result->_srcsegments = 0;
+      _result->_dstsegments = 0;
+      _result->_srccontigsz = 0;
+      _result->_dstcontigsz = 0;
       return;
     }
-    _result->srccontigsz = _srccontigsz;
-    _result->dstcontigsz = _dstcontigsz;
-    _result->srcsegments = _srcsegments;
-    _result->dstsegments = _dstsegments;
-    _result->srcextent = _srcextent;
-    _result->dstextent = _dstextent;
-    _result->dualcontiguity = MIN(_result->srccontiguity, _result->dstcontiguity);
-    _result->dualcontigsz = MIN(_result->srccontigsz, _result->dstcontigsz);
+    _result->_srccontigsz = _srccontigsz;
+    _result->_dstcontigsz = _dstcontigsz;
+    _result->_srcsegments = _srcsegments;
+    _result->_dstsegments = _dstsegments;
+    _result->_srcextent = _srcextent;
+    _result->_dstextent = _dstextent;
+    _result->_dualcontiguity = MIN(_result->_srccontiguity, _result->_dstcontiguity);
+    _result->_dualcontigsz = MIN(_result->_srccontigsz, _result->_dstcontigsz);
     /* sanity check */
     gasneti_assert(!gasnete_strided_empty(_elemsz, _count, _stridelevels));
-    gasneti_assert(_result->srcextent == gasnete_strided_extent(_srcstrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->dstextent == gasnete_strided_extent(_dststrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->totalsz == gasnete_strided_datasize(_elemsz, _count, _stridelevels));
-    gasneti_assert(_result->nulldims == gasnete_strided_nulldims(_count, _stridelevels));
-    gasneti_assert(_result->srccontiguity == gasnete_strided_contiguity(_srcstrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->dstcontiguity == gasnete_strided_contiguity(_dststrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->dualcontiguity == gasnete_strided_dualcontiguity(_srcstrides, _dststrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->srcsegments == gasnete_strided_segments(_srcstrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->dstsegments == gasnete_strided_segments(_dststrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->srccontigsz == gasnete_strided_contigsz(_srcstrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->dstcontigsz == gasnete_strided_contigsz(_dststrides, _elemsz, _count, _stridelevels));
-    gasneti_assert(_result->dualcontigsz == gasnete_strided_dualcontigsz(_srcstrides, _dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_srcextent == gasnete_strided_extent(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_dstextent == gasnete_strided_extent(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_totalsz == gasnete_strided_datasize(_elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_nulldims == gasnete_strided_nulldims(_count, _stridelevels));
+    gasneti_assert(_result->_srccontiguity == gasnete_strided_contiguity(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_dstcontiguity == gasnete_strided_contiguity(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_dualcontiguity == gasnete_strided_dualcontiguity(_srcstrides, _dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_srcsegments == gasnete_strided_segments(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_dstsegments == gasnete_strided_segments(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_srccontigsz == gasnete_strided_contigsz(_srcstrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_dstcontigsz == gasnete_strided_contigsz(_dststrides, _elemsz, _count, _stridelevels));
+    gasneti_assert(_result->_dualcontigsz == gasnete_strided_dualcontigsz(_srcstrides, _dststrides, _elemsz, _count, _stridelevels));
   }
   return;
 }

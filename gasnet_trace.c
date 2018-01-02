@@ -242,21 +242,21 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
               "src: srcaddr="GASNETI_LADDRFMT" srcstrides=%s\n"
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
               "     contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ"",
-              pstats->totalsz, (int)(node), stridelevels, elemsz, count_str,
-              pstats->dualcontiguity, pstats->nulldims,
-              GASNETI_LADDRSTR(dstaddr), dststrides_str, pstats->dstextent,
-              GASNETI_LADDRSTR(dstaddr), GASNETI_LADDRSTR((((char *)dstaddr)+pstats->dstextent)),
-              pstats->dstcontiguity, pstats->dstcontigsz, pstats->dstsegments,
-              GASNETI_LADDRSTR(srcaddr), srcstrides_str, pstats->srcextent,
-              GASNETI_LADDRSTR(srcaddr), GASNETI_LADDRSTR((((char *)srcaddr)+pstats->srcextent)),
-              pstats->srccontiguity, pstats->srccontigsz, pstats->srcsegments
+              pstats->_totalsz, (int)(node), stridelevels, elemsz, count_str,
+              pstats->_dualcontiguity, pstats->_nulldims,
+              GASNETI_LADDRSTR(dstaddr), dststrides_str, pstats->_dstextent,
+              GASNETI_LADDRSTR(dstaddr), GASNETI_LADDRSTR((((char *)dstaddr)+pstats->_dstextent)),
+              pstats->_dstcontiguity, pstats->_dstcontigsz, pstats->_dstsegments,
+              GASNETI_LADDRSTR(srcaddr), srcstrides_str, pstats->_srcextent,
+              GASNETI_LADDRSTR(srcaddr), GASNETI_LADDRSTR((((char *)srcaddr)+pstats->_srcextent)),
+              pstats->_srccontiguity, pstats->_srccontigsz, pstats->_srcsegments
           );
   gasneti_assert(strlen(buf) < bufsz);
 
   gasneti_free(srcstrides_str);
   gasneti_free(dststrides_str);
   gasneti_free(count_str);
-  return pstats->totalsz;
+  return pstats->_totalsz;
 }
 
 /* ------------------------------------------------------------------------------------ */
