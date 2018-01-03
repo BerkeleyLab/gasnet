@@ -94,6 +94,8 @@ testprograms_seq =      \
         testnbr         \
         testvisperf     \
         testqueue       \
+        testratomic     \
+        testfaddperf    \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 

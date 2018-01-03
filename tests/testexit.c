@@ -210,11 +210,11 @@ int main(int argc, char **argv) {
       snprintf(tmp,MAXLINE,"  %3i: %s\n", i+1, testdesc[i]);
       strcat(usagestr, tmp);
     }
-    strcat(usagestr, "\n Crash tests: (add 100 to activate all nodes"
-                     #ifdef GASNET_PAR
-                       ", add 200 to use multiple threads"
-                     #endif
-                    ")\n");
+    strcat(usagestr, "\n Crash tests: (add 100 to activate all nodes");
+    #ifdef GASNET_PAR
+      strcat(usagestr,", add 200 to use multiple threads");
+    #endif
+    strcat(usagestr, ")\n");
     for (i = 0; i < NUMCRASHTEST; i++) {
       char tmp[MAXLINE];
       snprintf(tmp,MAXLINE,"  %3i: %s\n", i+100, crashtestdesc[i]);

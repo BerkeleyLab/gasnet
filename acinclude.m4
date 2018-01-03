@@ -105,6 +105,28 @@ fi
 GASNET_FUN_END([$0($1)])
 ])
 
+dnl GASNET_PGI_VERSION_CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_PGI_VERSION_CHECK],[
+GASNET_FUN_BEGIN([$0($1)])
+AC_MSG_CHECKING(for known buggy compilers)
+badpgimsg=""
+AC_TRY_COMPILE([
+#if ((10000 * __PGIC__) + (100 * __PGIC_MINOR__) + __PGIC_PATCHLEVEL__) < 70205
+# error
+#endif
+],[ ], [:], [
+AC_MSG_RESULT([$1] is PGI prior to 7.2-5)
+badpgimsg="Use of PGI compilers older than 7.2-5 is not supported.
+Consider using \$[$1] to select a different compiler."
+])
+if test -n "$badpgimsg"; then
+  AC_MSG_ERROR([$badpgimsg])
+else
+  AC_MSG_RESULT(ok)
+fi
+GASNET_FUN_END([$0($1)])
+])
+
 AC_DEFUN([GASNET_FIX_SHELL],[
 GASNET_FUN_BEGIN([$0])
 AC_MSG_CHECKING(for good shell)
@@ -1714,7 +1736,7 @@ dnl XXX: treatment of inline modifier is not generic
 AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   pushdef([inline_modifier],ifelse(index([$1],[MPI_CC]),
                                    [-1],[GASNETI_CC_INLINE_MODIFIER],
-                                        [GASNETI_MPICC_INLINE_MODIFIER]))
+                                        [GASNETI_MPI_CC_INLINE_MODIFIER]))
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__always_inline__],
             [__attribute__((__always_inline__))
              #if defined __cplusplus
@@ -2485,11 +2507,12 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
   if test "$$3" = "unknown"; then
     GASNET_IFDEF(__GNUC__, $3=GNU, [], $_force_compile) 
     dnl Note GNUC one above must precede many of those below
+    GASNET_IFDEF(__clang__, $3=Clang, [], $_force_compile)
+    dnl Note __clang__ must precede one or more of those below
     GASNET_IFDEF(__PGI, $3=PGI, [], $_force_compile)
     GASNET_IFDEF(__INTEL_COMPILER, $3=Intel, [], $_force_compile)
     GASNET_IFDEF(__OPENCC__, $3=Open64, [], $_force_compile)
     GASNET_IFDEF(__PCC__, $3=PCC, [], $_force_compile)
-    GASNET_IFDEF(__clang__, $3=Clang, [], $_force_compile)
     GASNET_IFDEF(__PATHCC__, $3=Pathscale, [], $_force_compile)
   fi
   dnl other vendor compilers

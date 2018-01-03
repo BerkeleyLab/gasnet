@@ -127,8 +127,8 @@
          For now, the code for x86/86-64 is the only decent example.
 
    TODO: Document definition of a "private" atomic type.
-         For now the MTA code is the only surviving example, but the SPARC7 and
-         PA-RISC code (removed after GASNet-1.22.0) were better examples.
+         There are no surviving examples, however the SPARC7 and
+         PA-RISC code (removed after GASNet-1.22.0) were good examples.
 
    TODO: Document definition of "special" and "slow" atomics.
          In brief: "special" is for out-of-line asm available in some compilers,
@@ -145,17 +145,17 @@
 /* Identify special cases lacking native support */
 
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */                \
-    PLATFORM_COMPILER_LCC    || /* not implemented - lacks inline asm */           \
     (PLATFORM_ARCH_ARM && !defined(GASNETI_HAVE_ARM_CMPXCHG)) ||                   \
     (PLATFORM_ARCH_MIPS && defined(_MIPS_ISA) && (_MIPS_ISA < 2)) ||               \
+    PLATFORM_COMPILER_TINY ||  /* not worth special case atomics implementation */ \
     PLATFORM_ARCH_MICROBLAZE   /* no atomic instructions */
   #define GASNETI_USE_GENERIC_ATOMICOPS
-#elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */ \
-    PLATFORM_ARCH_MTA
+#elif defined(GASNETI_FORCE_OS_ATOMICOPS) /* for debugging */
   #define GASNETI_USE_OS_ATOMICOPS
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS) || /* for debugging */ \
     (PLATFORM_COMPILER_XLC && !GASNETI_HAVE_XLC_ASM && GASNETI_HAVE_SYNC_ATOMICS_32) || \
     PLATFORM_ARCH_AARCH64 || \
+    PLATFORM_ARCH_S390 || \
     PLATFORM_ARCH_TILE
   /* TODO: can (should?) do TILE and AARCH64 natively */
   /* TODO: probe for an XLC version with non-broken gcc inline asm support? */
@@ -168,10 +168,6 @@
 /* Cannot always use "register" (bug 3528): */
 #ifdef GASNETI_ASM_REGISTER_KEYWORD
   /* Preserve any override */
-#elif GASNETI_PGI_ASM_BUG2149
-  /* PGI can generate bad code in the presence of "register".
-   * See gasnet_asm.h and bug 2149 for info. */
-  #define GASNETI_ASM_REGISTER_KEYWORD /* empty */
 #elif PLATFORM_ARCH_ARM && defined(GASNETI_HAVE_ARM_CMPXCHG) && \
       PLATFORM_OS_LINUX && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG)
    /* This target *must* use the "register" keyword.
@@ -203,8 +199,6 @@
      * + open64: mimics gcc, but is able to schedule %ebx so no work-around is needed
      * + llvm-gcc: mimics gcc, but is able to schedule %ebx so no work-around is needed
      * + Sun cc: use of specials doesn't encounter the problem
-     * + tcc: N/A since no PIC support
-     * + lcc: N/A since no native atomic support
      *
      * Bottom line is that we recommend YOUR_PIC_CFLAGS="-fPIC -DGASNETI_FORCE_PIC",
      * replacing "-fPIC" with your compiler-specific flag(s) as needed.
@@ -305,27 +299,7 @@
    * Use OS-provided atomics, which should be CPU-independent and
    * which should work regardless of the compiler's inline assembly support.
    * ------------------------------------------------------------------------------------ */
-  #if PLATFORM_OS_MTA
-      /* use MTA intrinsics */
-      #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1	/* No CAS or SWAP */
-      typedef uint64_t                      gasneti_atomic_val_t;
-      typedef int64_t                       gasneti_atomic_sval_t;
-      #define GASNETI_ATOMIC_MAX            ((gasneti_atomic_val_t)0xFFFFFFFFFFFFFFFFLLU)
-      #define GASNETI_ATOMIC_SIGNED_MIN     ((gasneti_atomic_sval_t)0x8000000000000000LL)
-      #define GASNETI_ATOMIC_SIGNED_MAX     ((gasneti_atomic_sval_t)0x7FFFFFFFFFFFFFFFLL)
-      #define gasneti_atomic_align          8
-      typedef uint64_t gasneti_atomic_t;
-      #define gasneti_atomic_init(v)       (v)
-      #define _gasneti_atomic_read(p)      ((uint64_t)*(volatile uint64_t*)(p))
-      #define _gasneti_atomic_set(p,v)     ((*(volatile uint64_t*)(p)) = (v))
-
-      /* Default impls of inc, dec, dec-and-test, add and sub */
-      #define _gasneti_atomic_fetchadd int_fetch_add
-      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
-
-      /* Using default fences, but this machine is Sequential Consistent anyway */
-  /* ------------------------------------------------------------------------------------ */
-  #elif PLATFORM_OS_CYGWIN
+  #if PLATFORM_OS_CYGWIN
       /* These are *NOT* Cywgin calls, but Windows API calls that may actually
        * be intrinsics in the MS compilers on 64-bit systems. */
       #include <windows.h>
@@ -393,8 +367,8 @@
     #endif
 
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_THREADSAFE || \
-        PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || \
+        PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
+        PLATFORM_COMPILER_OPEN64 || \
         PLATFORM_COMPILER_CLANG
      #define GASNETI_HAVE_ATOMIC32_T 1
      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
@@ -433,8 +407,13 @@
       }
       #define _gasneti_atomic32_swap _gasneti_atomic32_swap
 
+     #if GASNETI_PGI_ASM_BUG3674
+      #define _gasneti_atomic32_read(p)      (*(uint32_t volatile *)&((p)->ctr))
+      #define _gasneti_atomic32_set(p,v)     (*(uint32_t volatile *)&((p)->ctr) = (v))
+     #else
       #define _gasneti_atomic32_read(p)      ((p)->ctr)
       #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
+     #endif
 
       GASNETI_INLINE(_gasneti_atomic32_increment)
       void _gasneti_atomic32_increment(gasneti_atomic32_t *v) {
@@ -517,8 +496,13 @@
 
       /* 64-bit differ between x86 and x86-64: */
       #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC /* Athlon64/Opteron */
+       #if GASNETI_PGI_ASM_BUG3674
+        #define _gasneti_atomic64_read(p)      (*(uint64_t volatile *)&((p)->ctr))
+        #define _gasneti_atomic64_set(p,v)     (*(uint64_t volatile *)&((p)->ctr) = (v))
+       #else
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
+       #endif
 
         #if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(2,3,0)
 	  /* A "dirty hack" for bug 1620 because pathcc < 2.3 botches the 64-bit asm */
@@ -607,9 +591,7 @@
         #undef gasneti_atomic64_init
         /* left-over typedef of gasneti_atomic64_t will get hidden by a #define */
       #elif GASNETI_USE_X86_EBX && \
-            !PLATFORM_COMPILER_TINY && !PLATFORM_COMPILER_PGI && \
-            !(__APPLE_CC__ && defined(__llvm__)) /* bug 3071 */ && \
-            !(PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_LT(3,0,0)) /* bug 1790 */
+            !(__APPLE_CC__ && defined(__llvm__)) /* bug 3071 */
 	/* "Normal" ILP32 case:
 	 *
 	 * To perform read and set atomically on x86 requires use of the locked
@@ -828,81 +810,8 @@
           return oldval;
         }
         #define _gasneti_atomic64_cas_val _gasneti_atomic64_cas_val
-      #else /* Tiny CC, PGI and (GCC < 3.0.0) */
-	/* Everything here works like the "normal" ILP32 case, except that we break everything
-	 * down in to nice bite-sized (4-bytes actually) chunks and explictly assign
-	 * them to registers A through D.
-	 * This is needed for TCC and PGI that lack (or have buggy) support for the "A" constraint.
-	 * This is used for older GCC that complain about too many reloads for the "normal" case.
-	 * Also to, appease older GCC, we use "+m" where "=m" is sufficient/correct (see bug 1790).
-	 */
-        GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
-        int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = GASNETI_LOWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = GASNETI_HIWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(newval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(newval);
-          __asm__ __volatile__ (
-		    "lock;			"
-		    "cmpxchg8b	%0		\n\t"
-		    "sete	%b1		"
-                    : "+m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
-                    : "b" (newlo), "c" (newhi)
-		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-          return (uint8_t)oldlo;
-        }
-        #define _gasneti_atomic64_compare_and_swap _gasneti_atomic64_compare_and_swap
-        GASNETI_INLINE(_gasneti_atomic64_swap)
-        uint64_t _gasneti_atomic64_swap(gasneti_atomic64_t *p, uint64_t v) {
-	  uint64_t oldval = p->ctr;
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = GASNETI_LOWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = GASNETI_HIWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(v);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(v);
-          _GASNETI_ATOMIC_CHECKALIGN(gasneti_atomic64_align, p);
-          __asm__ __volatile__ (
-		    "0:				\n\t"
-		    "lock;			"
-		    "cmpxchg8b	%0		\n\t"
-		    "jnz	0b		"
-		    : "+m" (p->ctr), "+&a" (oldlo),  "+&d" (oldhi)
-		    : "b" (newlo), "c" (newhi)
-		    : "cc", "memory");
-          return GASNETI_MAKEWORD(oldhi, oldlo);
-	}
-	#define _gasneti_atomic64_swap _gasneti_atomic64_swap
-	#define _gasneti_atomic64_set(p,v) ((void)_gasneti_atomic64_swap(p,v))
-        GASNETI_INLINE(_gasneti_atomic64_read)
-        uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *p) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t retlo, rethi;
-          _GASNETI_ATOMIC_CHECKALIGN(gasneti_atomic64_align, p);
-          __asm__ __volatile__ (
-		    /* Set [a:d] = [b:c], thus preserving b and c */
-		    "movl	%%ebx, %%eax	\n\t"
-		    "movl	%%ecx, %%edx	\n\t"
-		    "lock;			"
-		    "cmpxchg8b	%0		"
-		    : "+m" (p->ctr), "=&a" (retlo),  "=&d" (rethi)
-		    : /* no inputs */
-		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	  return GASNETI_MAKEWORD(rethi, retlo);
-	}
-	#define _gasneti_atomic64_read _gasneti_atomic64_read
-        GASNETI_INLINE(_gasneti_atomic64_cas_val) /* for 64-bit FETCHADD */
-        uint64_t _gasneti_atomic64_cas_val(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = GASNETI_LOWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = GASNETI_HIWORD(oldval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(newval);
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(newval);
-          __asm__ __volatile__ (
-		    "lock;			"
-		    "cmpxchg8b	%0		"
-                    : "+m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
-                    : "b" (newlo), "c" (newhi)
-		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-          return GASNETI_MAKEWORD(oldhi, oldlo);
-        }
-        #define _gasneti_atomic64_cas_val _gasneti_atomic64_cas_val
+      #else
+        #error "unreachable case in gasneti_asm_bits.h"
       #endif
 
       /* Optionally build a 128-bit atomic type using 64-bit types for all args */
@@ -963,7 +872,7 @@
 	}
 	#define gasneti_atomic128_read gasneti_atomic128_read
       #endif /* GASNETI_HAVE_X86_CMPXCHG16B */
-    #elif PLATFORM_COMPILER_SUN || PLATFORM_COMPILER_PGI_C
+    #elif PLATFORM_COMPILER_SUN
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
         #define _gasneti_atomic_addr		"(%rdi)"
@@ -1169,24 +1078,6 @@
 
       #define GASNETI_ATOMIC_SPECIALS   GASNETI_ATOMIC32_SPECIALS \
                                         GASNETI_ATOMIC64_SPECIALS
-    #elif PLATFORM_COMPILER_PGI_CXX
-      /* pgCC w/o threadsafe GNU-style asm():
-       * Here we must use the slow atomics since we don't know if the library has been
-       * built w/ native or "special" atomics support.
-       * See bug 1752 for discussion of how this might be avoided.
-       */
-      /* XXX: Only works because both possible library versions use these representations. */
-      #define GASNETI_HAVE_ATOMIC32_T 1
-      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
-      #define gasneti_atomic32_init(v)      { (v) }
-
-      #define GASNETI_HAVE_ATOMIC64_T 1
-      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
-      #define gasneti_atomic64_init(v)      { (v) }
-
-      #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
-      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
-      #define GASNETI_USING_SLOW_ATOMICS 1
     #elif (PLATFORM_ARCH_X86_64 && PLATFORM_COMPILER_CRAY)
       #define GASNETI_HAVE_ATOMIC32_T 1
       typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
@@ -1444,7 +1335,7 @@
         defined(__sparc_v9__) || defined(GASNETI_ARCH_ULTRASPARC) /* SPARC v9 ISA */
       #if PLATFORM_COMPILER_GNU
         #define GASNETI_HAVE_ATOMIC32_T 1
-        typedef struct { volatile int32_t ctr; } gasneti_atomic32_t;
+        typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
         #define gasneti_atomic32_init(v)       { (v) }
         #define _gasneti_atomic32_read(p)      ((p)->ctr)
         #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
@@ -1467,7 +1358,7 @@
            * This function requires the cas instruction in Sparc V9, and therefore gcc -mcpu=ultrasparc
 	   * The manual says (sec A.9) no memory fences in CAS (in conflict w/ JMM web page).
            */
-          GASNETI_ASM_REGISTER_KEYWORD int32_t volatile * addr = (int32_t volatile *)(&v->ctr);
+          GASNETI_ASM_REGISTER_KEYWORD uint32_t volatile * addr = (uint32_t volatile *)(&v->ctr);
           GASNETI_ASM_REGISTER_KEYWORD uint32_t oldval;
           GASNETI_ASM_REGISTER_KEYWORD uint32_t newval;
           __asm__ __volatile__ ( 
@@ -2730,7 +2621,7 @@
       #define gasneti_atomic32_compare_and_swap gasneti_atomic32_compare_and_swap
 
       GASNETI_INLINE(gasneti_atomic32_swap)
-      uint32_t gasneti_atomic32_swap(gasneti_atomic32_t *p, int32_t op, const int flags) {
+      uint32_t gasneti_atomic32_swap(gasneti_atomic32_t *p, uint32_t op, const int flags) {
         register unsigned long newval __asm("r1") = op;
         register unsigned long _p __asm("r2") = (unsigned long)(p);
         register unsigned long oldval __asm("r4");

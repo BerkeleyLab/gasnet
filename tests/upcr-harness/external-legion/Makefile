@@ -84,6 +84,14 @@ legion-unpack-tgz:   force
 ####
 .PHONY: legion-download legion-unpack-unzip legion-unpack-p7zip legion-unpack-tgz
 
+# Apply upsteam or local patches, if any
+legion_patches = \
+	https://github.com/StanfordLegion/legion/commit/a6c94d12.patch
+legion-patch: force
+	cd $(LEGION_BLDDIR) && \
+	for p in $(legion_patches); do $(WGET) $$p && patch -p1 < `basename $$p`; done
+.PHONY: legion-patch
+
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
@@ -101,10 +109,18 @@ rtlibs: force
 	  $(DO_MAKE) -C $(SEED_DIR) $(RUNTIME_TARGETS) \
 	) $(TO_LOG)
 .PHONY: rtlibs
+
+_legion_clean: force
+	( echo ======== Cleaning Legion RT libs via $(SEED_DIR) ========; \
+	  $(DO_MAKE) -C $(SEED_DIR) clean \
+	) $(TO_LOG)
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+.PHONY: _legion_clean
 	
 _legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
 	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
+	$(MAKE) legion-patch 2>&1 | tee -a $(LOGFILE)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
 	if test -f "$(LEGION_GASNET)/include/gasnet.h"; then \
 	  echo ======== GASNet symlinked ========; \
@@ -133,6 +149,9 @@ one_test: legion-built
 	) $(TO_LOG)
 	$(DO_MAKE) -C $(LEGION_BLDDIR)/$(TEST_DIR)
 	mv $(LEGION_BLDDIR)/$(TEST_DIR)/$(TEST_EXE) .
+	( cd $(LEGION_BLDDIR)/$(TEST_DIR) &&               \
+          rm -f $(TEST_EXE).o $(RUNTIME_TARGETS) || exit 0 \
+	) $(TO_LOG)
 
 # examples/:
 EXAMPLES = circuit dynamic_registration ghost ghost_pull realm_saxpy spmd_cgsolver virtual_map 

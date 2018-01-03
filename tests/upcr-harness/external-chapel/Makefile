@@ -76,25 +76,25 @@ chapel-unpack-tgz:   force
 # Save time by building for a single conduit
 CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(CHAPEL_CONDUIT)
 
-# Define CHPL_LAUNCHER for some conduits without defaults.
+# Define CHPL_LAUNCHER for some conduits without our desired defaults.
 # Note that these have not necessarily all been tested.
 chapel_launcher_opt = $(chapel_launcher_$(strip $(CHAPEL_CONDUIT)))
-chapel_launcher_ofi = CHPL_LAUNCHER=gasnetrun_ofi
-chapel_launcher_psm = CHPL_LAUNCHER=gasnetrun_psm
 chapel_launcher_pami = CHPL_LAUNCHER=gasnetrun_pami
 
 # Kludge some launchers that can be constructed as a simple delta from another:
 chapel-launcher: force
 	case $(CHAPEL_CONDUIT) in \
-	ofi) $(MAKE) clone-launcher SRC_CONDUIT=ibv DST_CONDUIT=$(CHAPEL_CONDUIT) ;; \
 	pami) $(MAKE) clone-launcher SRC_CONDUIT=mpi DST_CONDUIT=$(CHAPEL_CONDUIT) ;; \
 	esac
 clone-launcher: force
+	src=gasnetrun_$(SRC_CONDUIT); dst=gasnetrun_$(DST_CONDUIT); \
 	cd $(CHAPEL_BLDDIR)/runtime/src/launch && \
-	cp -Rp gasnetrun_$(SRC_CONDUIT) gasnetrun_$(DST_CONDUIT) && \
-	cd gasnetrun_$(DST_CONDUIT) && \
-	mv launch-gasnetrun_$(SRC_CONDUIT).c launch-gasnetrun_$(DST_CONDUIT).c && \
-	$(PERL) -pi -e 's/_$(SRC_CONDUIT)/_$(DST_CONDUIT)/g' -- *
+	if test -d $$dst; then \
+	  echo ERROR: target $$dst of $@ exists >&2; exit 1; \
+	fi && \
+	cp -Rp $$src $$dst && \
+	mv $$dst/launch-$$src.c $$dst/launch-$$dst.c && \
+	$(PERL) -pi -e 's/_$(SRC_CONDUIT)/_$(DST_CONDUIT)/g' -- $$dst/*
 .PHONY: chapel-launcher clone-launcher
 
 
@@ -113,6 +113,12 @@ _chapel: force
 	    $(MAKE) $(CHAPEL_MAKE_ARGS) all >> $(LOGFILE) 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
+
+_chapel_clean: force
+	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
+	    $(MAKE) $(CHAPEL_MAKE_ARGS) clean >> $(LOGFILE) 2>&1
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 # Not reliable other than on UDP, and wants to *run* the test
 check: chapel-built

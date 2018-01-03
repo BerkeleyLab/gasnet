@@ -37,10 +37,7 @@
   #define STDERR_FILENO 2
 #endif
 
-#if PLATFORM_OS_MTA
-   #include <machine/runtime.h>
-   #define _gasneti_sched_yield() mta_yield()
-#elif defined(HAVE_SCHED_YIELD)
+#if defined(HAVE_SCHED_YIELD)
    #include <sched.h>
    #define _gasneti_sched_yield() sched_yield()
 #else
@@ -52,7 +49,7 @@ extern void gasneti_filesystem_sync(void);
 
 #if PLATFORM_COMPILER_GNU_CXX /* bug 1681 */
   #define GASNETI_CURRENT_FUNCTION __PRETTY_FUNCTION__
-#elif (defined(HAVE_FUNC) && !GASNETI_CONFIGURE_MISMATCH) || __STDC_VERSION__ >= 199901 || __cplusplus >= 201103L
+#elif (defined(HAVE_FUNC) && GASNETI_COMPILER_IS_CC) || __STDC_VERSION__ >= 199901 || __cplusplus >= 201103L
   /* __func__ should also work for ISO C99 or C++11 compilers */
   #define GASNETI_CURRENT_FUNCTION __func__
 #elif PLATFORM_COMPILER_GNU /* fallback on gcc, last resort because it generates warnings w/-pedantic */
@@ -703,7 +700,7 @@ typedef enum {
   #define GASNETI_THREADKEY_DEFINE(key) \
     _gasneti_threadkey_t key = _GASNETI_THREADKEY_INITIALIZER
 #elif _GASNETI_THREADKEY_USES_TLS
-  #if GASNETI_CONFIGURE_MISMATCH
+  #if !GASNETI_COMPILER_IS_CC
     /* mismatched compilers can access TLS threadkeys defined in objects
        built by supported compiler via extern function call */
     #define GASNETI_THREADKEY_DECLARE(key)         \
@@ -792,7 +789,7 @@ typedef enum {
 #else /* _GASNETI_THREADKEY_USES_TLS, _GASNETI_THREADKEY_USES_NOOP */
   /* name shift to _gasneti_threadkey_val_##key prevents accidental direct access */
   #define gasneti_threadkey_init(key) ((void)0)
-  #if _GASNETI_THREADKEY_USES_TLS && GASNETI_CONFIGURE_MISMATCH
+  #if _GASNETI_THREADKEY_USES_TLS && !GASNETI_COMPILER_IS_CC
     /* defined as __thread data storage, but current compiler doesn't support TLS 
        use an extern function call as conservative fall-back position
      */

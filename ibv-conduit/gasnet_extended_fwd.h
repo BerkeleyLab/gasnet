@@ -42,6 +42,7 @@
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
 	GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+        GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
 	GASNETI_FIREHOSE_STATS(CNT,VAL,TIME) \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
 
@@ -60,6 +61,17 @@
 #define GASNETE_BUILD_AMREF_GET 1
 #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
 #define GASNETE_BUILD_AMREF_PUT 1
+
+#ifndef GASNET_DISABLE_MUNMAP_DEFAULT
+#define GASNET_DISABLE_MUNMAP_DEFAULT 1 // default to disabling munmap for bug 955
+#endif
+// this VIS algorithm uses put/get with local-side buffers that are dynamically malloced and freed, 
+// thus is only safe if we disabled malloc munmap to avoid running afowl of firehose bug3364/bug955
+#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT gasneti_malloc_munmap_disabled
+
+// Configure default VIS tuning knobs
+// 12/15/17: Measurements on multiple systems show 256 is a good value
+#define GASNETE_VIS_MAXCHUNK_DEFAULT 256
 
 #endif
 

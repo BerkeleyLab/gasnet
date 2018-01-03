@@ -33,27 +33,19 @@
     PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_CXX_VERSION
   #define GASNETI_COMPILER_IS_CXX 1
 #endif
+#if GASNETT_COMPILER_FORCE_MISMATCH // for testing purposes
+  #undef GASNETI_COMPILER_IS_CC
+  #undef GASNETI_COMPILER_IS_CXX
+  #undef GASNETI_COMPILER_IS_MPI_CC
+#endif
 #if !defined(GASNETI_COMPILER_IS_CC) && \
     !defined(GASNETI_COMPILER_IS_CXX) && \
     !defined(GASNETI_COMPILER_IS_MPI_CC)
-  #define GASNETI_COMPILER_IS_UNKNOWN 1
-#endif
-
-#ifndef GASNETI_COMPILER_IS_CC
-  /* detect when the compiler in use differs from the $CC tested by configure,
+  /* detect when the compiler in use differs from the compilers tested by configure,
      indicating some of the configure-detected results may be invalid for this compilation
      this is permitted in certain VERY limited contexts, and activates conservative assumptions
-
-     As of 2010-01-27 this has only two remaining uses:
-     + GASNETI_THREADKEY_*
-       TLS support will conservatively use library calls if compiler has changed
-     + GASNETT_CONFIGURE_MISMATCH
-       exported for use by client code
-
-     Note that in the common case that $MPI_CC presents the same ID as $CC
-     this will not be set simply becuase one compiling with $MPI_CC.
-   */
-  #define GASNETI_CONFIGURE_MISMATCH 1
+  */
+  #define GASNETI_COMPILER_IS_UNKNOWN 1
 #endif
 
 // preprocessor conditional: configure detected GASNETI_HAVE_<id>_<feature> for the current compiler
@@ -69,7 +61,8 @@
   #define _GASNETI_HAS_BUILTIN(x) 0
 #endif
 #define GASNETI_COMPILER_HAS_BUILTIN(MACRO_NAME,token_name) \
-       (GASNETI_COMPILER_HAS(BUILTIN_ ## MACRO_NAME) || _GASNETI_HAS_BUILTIN(__builtin_ ## token_name))
+       (GASNETI_COMPILER_HAS(BUILTIN_ ## MACRO_NAME) || \
+        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_BUILTIN(__builtin_ ## token_name)))
 
 // GASNETI_COMPILER_HAS_ATTRIBUTE: specialized for testing attributes
 #ifdef __has_attribute
@@ -78,7 +71,8 @@
   #define _GASNETI_HAS_ATTRIBUTE(x) 0
 #endif
 #define GASNETI_COMPILER_HAS_ATTRIBUTE(MACRO_NAME,attrib_token) \
-       (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || _GASNETI_HAS_ATTRIBUTE(attrib_token))
+       (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || \
+        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
@@ -149,7 +143,9 @@
   #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS GASNETI_COMPILER_FEATURE(RESTRICT_MAY_QUALIFY_TYPEDEFS,1)
 #endif
 
-#if GASNETI_COMPILER_HAS_BUILTIN(CONSTANT_P,constant_p)
+#if (!defined(GASNETT_USE_BUILTIN_CONSTANT_P) && GASNETI_COMPILER_HAS_BUILTIN(CONSTANT_P,constant_p)) || \
+              GASNETT_USE_BUILTIN_CONSTANT_P
+  #define     GASNETT_USE_BUILTIN_CONSTANT_P 1
   #define gasneti_constant_p(_expr) __builtin_constant_p(_expr)
 #else
   #define gasneti_constant_p(_expr) (0)
@@ -392,6 +388,16 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #define GASNETI_USED 
 #endif
 
+/* GASNETI_MAY_ALIAS override(s) */
+#if !defined(GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS) && !GASNETI_BUG1389_WORKAROUND && GASNETI_COMPILER_IS_UNKNOWN
+  /* Apply conservative default based on compiler version if user did not
+   * define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS nor --enable-conservative-local-copy
+   */
+  #if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_GE(4,4,0)
+    #define GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS 1
+  #endif
+#endif
+
 /* GASNETI_MAY_ALIAS: annotate type as not subject to ANSI aliasing rules */
 #if GASNETT_USE_GCC_ATTRIBUTE_MAYALIAS
   #define GASNETI_MAY_ALIAS __attribute__((__may_alias__))
@@ -399,11 +405,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #define GASNETI_MAY_ALIAS 
   /* may_alias attribute is sometimes required for correctness */
   #if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_GE(4,4,0) && !GASNETI_BUG1389_WORKAROUND
-   #if GASNETI_CONFIGURE_MISMATCH
-    #error "GCC's __may_alias__ attribute is required for correctness in gcc >= 4.4, but because you are NOT compiling with the same compiler used to configure GASNet we do not know if __may_alias__ support is present."
-   #else
     #error "GCC's __may_alias__ attribute is required for correctness in gcc >= 4.4, but is disabled or unsupported."
-   #endif
   #endif
 #endif
 
@@ -461,15 +463,10 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #endif
 
 /* GASNETI_ALWAYS_INLINE: force inlining of function if possible */
+// bug 3673: Cannot use Cray pragma _CRI inline_always here
 #if GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
   /* bug1525: gcc's __always_inline__ attribute appears to be maximally aggressive */
   #define _GASNETI_ALWAYS_INLINE(fnname) __attribute__((__always_inline__))
-#elif PLATFORM_COMPILER_CRAY_C
-  /* the only way to request inlining a particular fn in Cray C */
-  /* possibly should be using inline_always here */
-  #define _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(_CRI inline fnname)
-#elif PLATFORM_COMPILER_MTA
-  #define _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(mta inline)
 #else
   #define _GASNETI_ALWAYS_INLINE(fnname)
 #endif
@@ -483,6 +480,8 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #define GASNETI_PLEASE_INLINE(fnname) GASNETT_USE_PLEASE_INLINE(fnname)
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
+#elif __STDC_VERSION__ >= 199901L
+  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static inline)
 #else
   #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
 #endif
@@ -500,6 +499,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 
 /* GASNETI_NEVER_INLINE: Most forceful demand available to disable inlining for function.
  */
+// bug 3673: Cannot use Cray pragma _CRI inline_never here
 #if GASNETT_USE_GCC_ATTRIBUTE_NOINLINE
  #ifdef __noinline__ /* e.g. nvcc's host_defines */
   #define GASNETI_NEVER_INLINE(fnname,declarator) __attribute__((noinline)) declarator
@@ -508,8 +508,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
  #endif
 #elif PLATFORM_COMPILER_SUN_C
   #define GASNETI_NEVER_INLINE(fnname,declarator) declarator; GASNETI_PRAGMA(no_inline(fnname)) declarator
-#elif PLATFORM_COMPILER_CRAY
-  #define GASNETI_NEVER_INLINE(fnname,declarator) GASNETI_PRAGMA(_CRI inline_never fnname) declarator
 #else
   #define GASNETI_NEVER_INLINE(fnname,declarator) declarator
 #endif
@@ -594,7 +592,9 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
    in one direction and the branch is a bottleneck
  */
 #ifndef GASNETT_PREDICT_TRUE
-  #if GASNETI_COMPILER_HAS_BUILTIN(EXPECT,expect)
+  #if (!defined(GASNETT_USE_BUILTIN_EXPECT) && GASNETI_COMPILER_HAS_BUILTIN(EXPECT,expect)) || \
+                GASNETT_USE_BUILTIN_EXPECT
+    #define     GASNETT_USE_BUILTIN_EXPECT 1
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
@@ -611,17 +611,8 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 
 /* if with branch prediction */
 #ifndef if_pf
-#if PLATFORM_COMPILER_MTA
-  /* MTA's pragma mechanism is buggy, so allow it to be selectively disabled */
-  #define GASNETT_MTA_PRAGMA_EXPECT_ENABLED(x) _Pragma(x)
-  #define GASNETT_MTA_PRAGMA_EXPECT_DISABLED(x) 
-  #define GASNETT_MTA_PRAGMA_EXPECT_OVERRIDE GASNETT_MTA_PRAGMA_EXPECT_ENABLED
-  #define if_pf(cond) GASNETT_MTA_PRAGMA_EXPECT_OVERRIDE("mta expect false") if (cond)
-  #define if_pt(cond) GASNETT_MTA_PRAGMA_EXPECT_OVERRIDE("mta expect true")  if (cond)
-#else
   #define if_pf(cond) if (GASNETT_PREDICT_FALSE(cond))
   #define if_pt(cond) if (GASNETT_PREDICT_TRUE(cond))
-#endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -632,7 +623,9 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
    For instance, GASNETI_PREFETCH_{READ,WRITE}_HINT(NULL) is explicitly permitted.
    The macros may expand to nothing, so the argument must not have side effects.
  */
-#if GASNETI_COMPILER_HAS_BUILTIN(PREFETCH,prefetch)
+#if (!defined(GASNETT_USE_BUILTIN_PREFETCH) && GASNETI_COMPILER_HAS_BUILTIN(PREFETCH,prefetch)) || \
+              GASNETT_USE_BUILTIN_PREFETCH
+  #define     GASNETT_USE_BUILTIN_PREFETCH 1
   #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((void *)(P),0)
   #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((void *)(P),1)
 #else

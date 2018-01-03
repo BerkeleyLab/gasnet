@@ -5,6 +5,7 @@
  */
 
 #include <gasnetex.h>
+#include <gasnet_ratomic.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
@@ -431,6 +432,40 @@ void doit(int partner, int *partnerseg) {
   assert(gex_Segment_QuerySize(mysegment) >= TEST_SEGSZ_REQUEST);
 #endif
 
+#if !GASNET_CONDUIT_SMP
+  {
+    gex_AD_t       ad;
+    gex_DT_t       domain_type  = GEX_DT_U32;
+    gex_OP_t       domain_ops   = GEX_OP_FADD|GEX_OP_SWAP;
+    gex_Flags_t    domain_flags = GEX_FLAG_PEER_SEG_OFFSET;
+    gex_AD_Create(&ad, myteam, domain_type, domain_ops, domain_flags);
+
+    if (myteam != gex_AD_QueryTM(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN TM TEST!!!!!");
+    }
+    if (domain_type != gex_AD_QueryDT(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN DATATYPE TEST!!!!!");
+    }
+    if (domain_ops != gex_AD_QueryOps(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN OPS TEST!!!!!");
+    }
+    if (domain_flags != gex_AD_QueryFlags(ad)) {
+      MSG("*** ERROR - FAILED ATOMIC DOMAIN FLAGS TEST!!!!!");
+    }
+
+    // Don't use TEST_CDATA because EVERYTHING reaches here multiple times w/ different objects
+    if (NULL != gex_AD_QueryCData(ad)) {
+       MSG("*** ERROR - FAILED gex_AD_QueryCData TEST!!!!!");
+    }
+    gex_AD_SetCData(ad, (void*) ad);
+    if (ad != gex_AD_QueryCData(ad)) {
+       MSG("*** ERROR - FAILED gex_AD_QueryCData TEST!!!!!");
+    }
+
+    gex_AD_Destroy(ad);
+  }
+#endif
+
   {
     gex_NeighborhoodInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
@@ -438,15 +473,18 @@ void doit(int partner, int *partnerseg) {
 
     assert_always(neighbor_array != NULL);
     assert_always((neighbor_size > 0) && (neighbor_size <= gex_System_QueryJobSize()));
-    assert_always((neighbor_rank >= 0) && (neighbor_rank < neighbor_size));
+    assert_always(neighbor_rank < neighbor_size);
     assert_always(neighbor_array[neighbor_rank].gex_jobrank == gex_System_QueryJobRank());
 
-    BARRIER();
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       // Check sort:
       assert_always(!i || (neighbor_array[i].gex_jobrank > neighbor_array[i-1].gex_jobrank));
+    }
 
-      // Check sharing (part 1):
+  #if !GASNET_SEGMENT_EVERYTHING
+    // Exercise sharing to validate ranks in neighbor_array
+    BARRIER();
+    for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       gex_Rank_t *crossmap = NULL;
       int rc = gex_Segment_QueryBound(myteam, neighbor_array[i].gex_jobrank, NULL, (void**)&crossmap, NULL);
       assert_always(rc == 0);
@@ -456,10 +494,10 @@ void doit(int partner, int *partnerseg) {
     BARRIER();
     gex_Rank_t *myseg = (gex_Rank_t *)TEST_MYSEG();
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
-      // Check sharing (part 2):
       assert_always(neighbor_array[i].gex_jobrank == myseg[i]);
     }
     BARRIER();
+  #endif
   }
 
   /* width-independent computation of an integer variable with unknown unsigned type */
@@ -499,6 +537,33 @@ void doit(int partner, int *partnerseg) {
     assert_inttype(type);                        \
     assert_always((type)(v-1) > v);              \
     test_static_assert((type)(-1) > (type)0);    \
+  } while (0)
+  #define assert_arr_unaliased(type, arr) do {   \
+    size_t const cnt = sizeof(arr)/sizeof(type); \
+    for (size_t i = 0; i < cnt; i++) {           \
+      type other = 0;                            \
+      for (size_t j = 0; j < cnt; j++) {         \
+        if (i != j) {                            \
+          other |= arr[j];                       \
+        }                                        \
+      }                                          \
+      /* arr[i] has at least one unique bit: */  \
+      assert_always((other | arr[i]) != other);  \
+    }                                            \
+  } while (0)
+  #define assert_arr_nonzero(type, arr) do {     \
+    size_t const cnt = sizeof(arr)/sizeof(type); \
+    for (size_t i = 0; i < cnt; i++) {           \
+      assert_always(arr[i] != 0);                \
+    }                                            \
+  } while (0)
+  #define assert_arr_all_val(type, arr, allval) do { \
+    size_t const cnt = sizeof(arr)/sizeof(type); \
+    type some = 0;                               \
+    for (size_t i = 0; i < cnt; i++) {           \
+      some |= arr[i];                            \
+    }                                            \
+    assert_always((some & ~allval) == 0);        \
   } while (0)
 
   /* sanity check macros and system types */
@@ -604,8 +669,8 @@ void doit(int partner, int *partnerseg) {
   assert_always(noop != invalid);
   gex_Event_t lc = noop;
   size_t sz = MIN(8192,TEST_SEGSZ/2);
-  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_OFFSET | GEX_FLAG_DST_OFFSET); // TODO-EX
-  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SRC_IN_BOUND_SEGMENT | GEX_FLAG_DST_IN_BOUND_SEGMENT);
+  //gex_Event_t rc = gex_RMA_PutNB(myteam, partner, sz, 0, sz, &lc, GEX_FLAG_SELF_SEG_OFFSET | GEX_FLAG_PEER_SEG_OFFSET); // TODO-EX
+  gex_Event_t rc = gex_RMA_PutNB(myteam, partner, (char *)partnerseg + sz, TEST_MYSEG(), sz, &lc, GEX_FLAG_SELF_SEG_BOUND | GEX_FLAG_PEER_SEG_BOUND);
   assert_always(rc != noop);
   assert_always(lc != noop);
   if (rc) {
@@ -630,12 +695,16 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
     GEX_FLAG_IMMEDIATE,
-    GEX_FLAG_SRC_IN_SEGMENT,
-    GEX_FLAG_SRC_IN_BOUND_SEGMENT,
-    GEX_FLAG_SRC_OFFSET,
-    GEX_FLAG_DST_IN_SEGMENT,
-    GEX_FLAG_DST_IN_BOUND_SEGMENT,
-    GEX_FLAG_DST_OFFSET,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,
@@ -644,45 +713,28 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_AM_REPLY,
     GEX_FLAG_AM_REQREP,
   };
-  size_t const flags_cnt = sizeof(flags_arr)/sizeof(gex_Flags_t);
-  for (size_t i = 0; i < flags_cnt; i++) {
-    assert_always(flags_arr[i] != 0);
-  }
+  assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
+
+  // TODO-EX: ensure lack of aliasing within groups of flags that are mutually exclusive (eg GEX_FLAG_*_SEG_*)
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
   static gex_EC_t const ec_arr[] = { // all the flags but _ALL
-     GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC 
+     GEX_EC_GET, GEX_EC_PUT, GEX_EC_AM, GEX_EC_LC, GEX_EC_RMW
   };
-  size_t const ec_cnt = sizeof(ec_arr)/sizeof(gex_EC_t);
-  gex_EC_t ec_some = 0;
-  for (size_t i = 0; i < ec_cnt; i++) {
-    assert_always(ec_arr[i] != 0);
-    ec_some |= ec_arr[i];
-  }
-  assert_always((ec_some & ~ec_all) == 0); // verify ALL includes them all
+  assert_arr_nonzero(gex_EC_t, ec_arr); // No zero values
+  assert_arr_all_val(gex_EC_t, ec_arr, ec_all); // ALL includes them all
 
   assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
   static gex_TI_t const ti_arr[] = { // all flags but _ALL
           GEX_TI_SRCRANK, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
       };
-  size_t const ti_cnt = sizeof(ti_arr)/sizeof(gex_TI_t);
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
   // in particular, each flag needs at least one unique bit
-  gex_TI_t ti_some = 0;
-  for (size_t i = 0; i < ti_cnt; i++) {
-    gex_TI_t ti_other = 0;
-    for (size_t j = 0; j < ti_cnt; j++) {
-      if (i != j) {
-        ti_other |= ti_arr[j];
-      }
-    }
-    assert_always((ti_other | ti_arr[i]) != ti_other); // ti_arr[i] has a unique bit
-    ti_some |= ti_arr[i];
-  }
-  assert_always((ti_some & ~ti_all) == 0); // verify ALL includes them all
+  assert_arr_unaliased(gex_TI_t, ti_arr);
+  assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
 
   gex_RMA_Value_t val = 0;
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
@@ -699,6 +751,29 @@ void doit(int partner, int *partnerseg) {
   
   gex_AM_SrcDesc_t sd = 0;
   CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
+
+  assert_inttype(gex_DT_t);
+  static gex_DT_t const datatypes_arr[] = { // ensure all the specified values exist
+    GEX_DT_I32, GEX_DT_U32,
+    GEX_DT_I64, GEX_DT_U64,
+    GEX_DT_FLT, GEX_DT_DBL
+  };
+  assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
+
+  assert_inttype(gex_OP_t);
+  static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
+    GEX_OP_AND,  GEX_OP_OR,   GEX_OP_XOR,
+    GEX_OP_ADD,  GEX_OP_SUB,  /*GEX_OP_MULT [UNIMPLEMENTED],*/
+    GEX_OP_MIN,  GEX_OP_MAX,
+    GEX_OP_INC,  GEX_OP_DEC,
+    GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
+    GEX_OP_FADD, GEX_OP_FSUB, /*GEX_OP_FMULT [UNIMPLEMENTED],*/
+    GEX_OP_FMIN, GEX_OP_FMAX,
+    GEX_OP_FINC, GEX_OP_FDEC,
+    GEX_OP_SET,  GEX_OP_GET,
+    GEX_OP_SWAP, GEX_OP_CSWAP
+  };
+  assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
 
   #define typeissigned   <
   #define typeisunsigned >
@@ -725,6 +800,17 @@ void doit(int partner, int *partnerseg) {
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
   } while (0)
 
+  #define assert_field_constint(structtype, fieldtype, fieldname, signedop)  do { \
+    static volatile union {                                                  \
+      char _x;                                                               \
+      structtype S;                                                          \
+    } U = { 0 };                                                             \
+    assert_inttype(fieldtype);                                               \
+    assert_always(sizeof(U.S.fieldname) == sizeof(fieldtype));               \
+    assert_always((fieldtype)(U.S.fieldname-1) signedop (fieldtype)0);       \
+  } while (0)
+
+
   assert_field_int(gex_AM_Entry_t,     gex_AM_Index_t, gex_index, typeisunsigned);
   assert_field_int(gex_AM_Entry_t,     gex_Flags_t,    gex_flags, typeisunsigned);
   assert_field_int(gex_AM_Entry_t,     unsigned int,   gex_nargs, typeisunsigned);
@@ -736,6 +822,8 @@ void doit(int partner, int *partnerseg) {
   assert_field_pointer(gex_Token_Info_t, const gex_AM_Entry_t *, gex_entry);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
+
+  assert_field_constint(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
   if (success) MSG("*** passed object test!!");
 

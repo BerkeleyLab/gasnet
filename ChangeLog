@@ -1,6 +1,47 @@
 GASNet-EX ChangeLog
 -------------------
 ----------------------------------------------------------------------
+12-20-2017: GASNet-EX 2017.12.0 Beta release
+
+* BETA release of the GASNet-EX system.
+  This archive represents a lightly-tested snapshot of a work-in-progress.
+  Many additional new features are coming soon, and are not yet reflected in this
+  archive. All new interfaces are subject to change without notice.
+
+  Feedback or questions on any matters related to the EX project are
+  welcomed at: gasnet-devel@lbl.gov
+
+* GASNet-EX Spec v0.3:
+  - Specified Remote Atomics API, and corresponding types [EXPERIMENTAL]
+  - Specified Vector, Indexed, Strided API [EXPERIMENTAL]
+  - Specified gasnet_QueryGexObjects()
+  - Specified gex_System_QueryNeighborhoodInfo() [EXPERIMENTAL]
+  - Significant alteration to Segment Disposition flags [UNIMPLEMENTED]
+  - Minor clarifications throughout
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+
+* Major new features implemented in this release:
+  - Remote Atomic operations: untuned, network-independent implementation 
+    + See docs/GASNet-EX.spec for details
+  - Vector, Indexed, Strided extensions: untuned, network-independent implementation 
+    + See docs/GASNet-EX.spec for details 
+  - Cray Aries implementation specializations for the following features:
+    + New AM Interfaces, Immediate Operations, Local Completion and Remote Atomics.
+
+* Notable bugs fixed in this release:
+  - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
 09-28-2017: GASNet-EX 2017.9.0 Integration release
 
 * First Integration release of the GASNet-EX system.
@@ -14,6 +55,9 @@ GASNet-EX ChangeLog
   welcomed at: gasnet-devel@lbl.gov
 
 * GASNet-EX Spec v0.2:
+  - Specified gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
+  - Specified gex_Segment_QueryBound() [EXPERIMENTAL]
+  - Significant changes to Negotiated-Payload AM semantics
   - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
 
 * Major new features implemented in this release:
@@ -107,13 +151,25 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-09-29-2017: pending 1.30.2 work @9dbccb00
+12-20-2017: pending 1.30.2 work @ccd5286
 
 * Cray uGNI (gemini- and aries-conduits)
+  - Improved performance of non-bulk puts beyond the bounce-buffer size
   - Fix bug 3632: aries-conduit SEGV at startup with multi-domain
   - Fix bug 3647: aries-conduit should honor non-default process layouts
+  - Fix bug 3695: AMReply injection might corrupt the payload of the
+    running AM Medium Request handler.
 
-* GASNet tools
+* Libfabric (ofi-conduit)
+  - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
+
+* InfiniBand Verbs (ibv-conduit)
+  - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
+
+* Mellanox ConnectX series HCAs (mxm-conduit)
+  - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
+
+* GASNet tools (spec v1.11)
   - Numerous improvements to backtrace support, including fixing the
     following bugs:
     + Bug 3624: Improve backtrace fail-over behavior
@@ -122,12 +178,18 @@ GASNet ChangeLog
     + Bug 3627: unblock the unfreeze signal prior to backtrace
     + Bug 3637: Fix EXECINFO backtrace for *BSD
     + Enable GDB backtrace on Cray systems, when available
+  - Bug 3664: GASNETT_PREDICT_{TRUE,FALSE} result value semantics change slightly
+  - Improve behavior when installed public headers are passed to a compiler 
+    that was not probed at configure time.
 
 * General and Misc.
+  - GASNET_VIS_{AMPIPE,REMOTECONTIG} is now enabled by default on most conduits
+  - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
+  - Add gasnetrun support for IBM Job Step Manager (jsrun)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.
@@ -136,6 +198,17 @@ GASNet ChangeLog
   - Add a git hash "watermark" to libraries
   - Warning enable flags are removed from GASNET_C(XX)FLAGS and friends. 
     The flags remain available in GASNET_DEVWARN_C(XX)FLAGS for opt-in.
+
+* Removal of unmaintained platform support
+  - This release no longer supports the following platform:
+    + Cray/Tera MTA
+  - This release removes support for the following compilers:
+    + Kuck and Associates (KAI) C++ Compiler
+    + PGI compilers older than the 7.2-5 release
+  - This release removes support for the following compilers which had
+    ceased to work with GASNet 1.28.0 due to insufficient support for C99:
+    + GCC 2.x
+    + LCC (a.k.a. "Local C Compiler" or "Little C Compiler")
 
 ----------------------------------------------------------------------
 08-31-2017 : Release 1.30.0
@@ -181,7 +254,7 @@ GASNet ChangeLog
   - Improve latency for AM Medium/Long under 128 bytes, via PAMI_Send_immediate()
   - gasnet.h no longer includes PAMI headers into client code
 
-* GASNet tools
+* GASNet tools (spec v1.10)
   - Fix bug 3448: x86*/Linux timers once again default to use of the TSC due
     to addition of new logic for correct calibration on newer Intel CPUs.
   - Add gasnett_nsleep()

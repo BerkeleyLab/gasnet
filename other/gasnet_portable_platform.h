@@ -158,6 +158,7 @@
 #undef PLATFORM_ARCH_ARM
 #undef PLATFORM_ARCH_AARCH64
 #undef PLATFORM_ARCH_TILE
+#undef PLATFORM_ARCH_S390
 #undef PLATFORM_ARCH_UNKNOWN
 
 /* prevent known old/broken versions of this header from loading */
@@ -928,6 +929,16 @@
   #define PLATFORM_ARCH_FAMILYNAME TILE
   #define _PLATFORM_ARCH_LITTLE_ENDIAN 1
   #if defined(__tilegx__)
+    #define _PLATFORM_ARCH_64 1
+  #else
+    #define _PLATFORM_ARCH_32 1
+  #endif
+
+#elif defined(__s390__)
+  #define PLATFORM_ARCH_S390 1
+  #define PLATFORM_ARCH_FAMILYNAME S390
+  #define _PLATFORM_ARCH_BIG_ENDIAN 1
+  #if defined(__s390x__)
     #define _PLATFORM_ARCH_64 1
   #else
     #define _PLATFORM_ARCH_32 1

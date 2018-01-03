@@ -165,6 +165,7 @@ GASNETI_BEGIN_NOWARN
 
 #include <gasnet_vis_fwd.h>
 #include <gasnet_coll_fwd.h>
+#include <gasnet_ratomic_fwd.h>
 
 /* GASNET_PSHM = GASNet conduit is using PSHM */
 #if defined(GASNET_PSHM) && (GASNET_PSHM != 1)
@@ -294,7 +295,7 @@ struct gasneti_token_s;
 typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
-typedef struct gasneti_team_s *gex_TM_t;
+typedef struct gasneti_team_member_s *gex_TM_t;
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
@@ -535,12 +536,80 @@ extern void gex_System_QueryNeighborhoodInfo(
 typedef uintptr_t gex_RMA_Value_t;
 #define SIZEOF_GEX_RMA_VALUE_T  SIZEOF_VOID_P
 
-#ifndef _GASNET_MEMVEC_T
-#define _GASNET_MEMVEC_T
+#ifndef _GEX_MEMVEC_T
+#define _GEX_MEMVEC_T
   typedef struct {
-    void *addr;
-    size_t len;
-  } gasnet_memvec_t;
+    void  *gex_addr;  // TODO-EX: gex_Addr_t
+    size_t gex_len;
+  } gex_Memvec_t;
+#endif
+
+#ifndef _GEX_DT_T
+#define _GEX_DT_T
+  // Use an enum to allocate distinct integer index for each value
+  typedef enum { // TODO: Is there value to reserving index 0?
+    gasneti_dt_idx_I32,
+    gasneti_dt_idx_U32,
+    gasneti_dt_idx_I64,
+    gasneti_dt_idx_U64,
+    gasneti_dt_idx_FLT,
+    gasneti_dt_idx_DBL
+  } gasneti_dt_idx_t;
+  // Use those indicies to define constants with a single bit each
+  typedef uint32_t gex_DT_t;
+  #define _GEX_MAKE_DT(idx) ((gex_DT_t)1 << gasneti_dt_idx_##idx)
+  // Integer types:
+  #define GEX_DT_I32   _GEX_MAKE_DT(I32)
+  #define GEX_DT_U32   _GEX_MAKE_DT(U32)
+  #define GEX_DT_I64   _GEX_MAKE_DT(I64)
+  #define GEX_DT_U64   _GEX_MAKE_DT(U64)
+  // Floating-point types:
+  #define GEX_DT_FLT   _GEX_MAKE_DT(FLT)
+  #define GEX_DT_DBL   _GEX_MAKE_DT(DBL)
+#endif
+
+#ifndef _GEX_OP_T
+#define _GEX_OP_T
+  // Use an enum to allocate distinct integer index for each op
+  typedef enum { // TODO: Is there value to reserving index 0?
+    gasneti_op_idx_AND,  gasneti_op_idx_OR,   gasneti_op_idx_XOR,
+    gasneti_op_idx_ADD,  gasneti_op_idx_SUB,  gasneti_op_idx_MULT,
+    gasneti_op_idx_MIN,  gasneti_op_idx_MAX,
+    gasneti_op_idx_INC,  gasneti_op_idx_DEC,
+    gasneti_op_idx_FAND, gasneti_op_idx_FOR,  gasneti_op_idx_FXOR,
+    gasneti_op_idx_FADD, gasneti_op_idx_FSUB, gasneti_op_idx_FMULT,
+    gasneti_op_idx_FMIN, gasneti_op_idx_FMAX,
+    gasneti_op_idx_FINC, gasneti_op_idx_FDEC,
+    gasneti_op_idx_SET,  gasneti_op_idx_GET,
+    gasneti_op_idx_SWAP, gasneti_op_idx_CSWAP
+  } gasneti_op_idx_t;
+  // Use those indicies to define constants with a single bit each
+  typedef uint32_t gex_OP_t;
+  #define _GEX_MAKE_OP(opcode) ((gex_OP_t)1 << gasneti_op_idx_##opcode)
+  #define GEX_OP_AND   _GEX_MAKE_OP(AND)
+  #define GEX_OP_OR    _GEX_MAKE_OP(OR)
+  #define GEX_OP_XOR   _GEX_MAKE_OP(XOR)
+  #define GEX_OP_ADD   _GEX_MAKE_OP(ADD)
+  #define GEX_OP_SUB   _GEX_MAKE_OP(SUB)
+  #define GEX_OP_MULT  _GEX_MAKE_OP(MULT)
+  #define GEX_OP_MIN   _GEX_MAKE_OP(MIN)
+  #define GEX_OP_MAX   _GEX_MAKE_OP(MAX)
+  #define GEX_OP_INC   _GEX_MAKE_OP(INC)
+  #define GEX_OP_DEC   _GEX_MAKE_OP(DEC)
+  #define GEX_OP_FAND  _GEX_MAKE_OP(FAND)
+  #define GEX_OP_FOR   _GEX_MAKE_OP(FOR)
+  #define GEX_OP_FXOR  _GEX_MAKE_OP(FXOR)
+  #define GEX_OP_FADD  _GEX_MAKE_OP(FADD)
+  #define GEX_OP_FSUB  _GEX_MAKE_OP(FSUB)
+  #define GEX_OP_FMULT _GEX_MAKE_OP(FMULT)
+  #define GEX_OP_FMIN  _GEX_MAKE_OP(FMIN)
+  #define GEX_OP_FMAX  _GEX_MAKE_OP(FMAX)
+  #define GEX_OP_FINC  _GEX_MAKE_OP(FINC)
+  #define GEX_OP_FDEC  _GEX_MAKE_OP(FDEC)
+  #define GEX_OP_SET   _GEX_MAKE_OP(SET)
+  #define GEX_OP_GET   _GEX_MAKE_OP(GET)
+  #define GEX_OP_SWAP  _GEX_MAKE_OP(SWAP)
+  #define GEX_OP_CSWAP _GEX_MAKE_OP(CSWAP)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -597,13 +666,14 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 #define GEX_FLAG_IMMEDIATE              (1U <<  0)
 
-#define GEX_FLAG_SRC_IN_SEGMENT         (1U <<  1)
-#define GEX_FLAG_SRC_IN_BOUND_SEGMENT  ((1U <<  2) | GEX_FLAG_SRC_IN_SEGMENT)
-#define GEX_FLAG_SRC_OFFSET            ((1U <<  3) | GEX_FLAG_SRC_IN_BOUND_SEGMENT)
-
-#define GEX_FLAG_DST_IN_SEGMENT         (1U <<  4)
-#define GEX_FLAG_DST_IN_BOUND_SEGMENT  ((1U <<  5) | GEX_FLAG_DST_IN_SEGMENT)
-#define GEX_FLAG_DST_OFFSET            ((1U <<  6) | GEX_FLAG_DST_IN_BOUND_SEGMENT)
+#define GEX_FLAG_SELF_SEG_UNKNOWN       (1U <<  1)
+#define GEX_FLAG_SELF_SEG_SOME          (1U <<  2)
+#define GEX_FLAG_SELF_SEG_BOUND         (1U <<  3)
+#define GEX_FLAG_SELF_SEG_OFFSET        (1U <<  4)
+#define GEX_FLAG_PEER_SEG_UNKNOWN       (1U <<  5)
+#define GEX_FLAG_PEER_SEG_SOME          (1U <<  6)
+#define GEX_FLAG_PEER_SEG_BOUND         (1U <<  7)
+#define GEX_FLAG_PEER_SEG_OFFSET        (1U <<  8)
 
 #define GEX_FLAG_AM_SHORT               (1U <<  0)
 #define GEX_FLAG_AM_MEDIUM              (1U <<  1)

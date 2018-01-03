@@ -37,6 +37,7 @@
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+        GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
 
 #define GASNETE_AUXSEG_DECLS \
@@ -84,6 +85,13 @@
 /* Conduit-specific collective overrides in gasnet_core_internal: */
 #if !defined(GASNET_NO_PAMI_COLL)
 #define GASNETE_COLL_NEEDS_CORE 1
+#endif
+
+// Configure default VIS tuning knobs
+// 12/15/17: Measurements on ALCF Cetus (BG/Q) show the ideal MAXCHUNK for I+S to be:
+//   ~512 for puts and ~256 for gets
+#if PLATFORM_OS_BGQ
+  #define GASNETE_VIS_MAXCHUNK_DEFAULT 256
 #endif
 
 #endif

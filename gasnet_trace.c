@@ -98,7 +98,7 @@ extern size_t gasneti_format_memveclist_bufsz(size_t count) {
   gasneti_assume(res > 0); // silence a warning observed on gcc 7.2.1 (Advance-Toolchain-at11.0)
   return res;
 }
-extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gasnet_memvec_t const *list) {
+extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gex_Memvec_t const *list) {
   const int bufsz = gasneti_format_memveclist_bufsz(count);
   char * p = buf;
   int i, j=0;
@@ -111,7 +111,7 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
   for (i=0; i < count; i++) {
     j++;
     sprintf(p, "{"GASNETI_LADDRFMT",%5lu}", 
-      GASNETI_LADDRSTR(list[i].addr), (unsigned long)list[i].len);
+      GASNETI_LADDRSTR(list[i].gex_addr), (unsigned long)list[i].gex_len);
     if (i < count-1) { 
       strcat(p, ", ");
       if (j % 4 == 0) strcat(p,"\n      ");
@@ -128,8 +128,8 @@ extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount) {
   return 200+dstcount*50+srccount*50;
 }
 extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
-                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                    size_t srccount, gasnet_memvec_t const srclist[]) {
+                                    size_t dstcount, gex_Memvec_t const dstlist[], 
+                                    size_t srccount, gex_Memvec_t const srclist[]) {
   const int bufsz = gasneti_format_putvgetv_bufsz(dstcount, srccount);
   char * dstlist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(dstcount));
   char * srclist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(srccount));
