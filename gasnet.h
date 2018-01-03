@@ -128,6 +128,7 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 /*
   Active Message Request/Reply Functions
   ======================================
+  These all return 0 in EX for non-immediate, which matches the GASNET_OK success return code in GASNet-1
 */
 
 #define gasnet_AMRequestShort0(dest, handler) \
@@ -393,25 +394,22 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
 /* Blocking Put and Get */
 
 #define gasnet_put(node,dest,src,nbytes) \
-                gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
-#define gasnet_put_bulk(node,dest,src,nbytes) \
-                gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0)
+                ((void)gex_RMA_PutBlocking(gasneti_thunk_tm,node,dest,src,nbytes,0))
 #define gasnet_get(dest,node,src,nbytes) \
-                gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,0)
-#define gasnet_get_bulk(dest,node,src,nbytes) \
-                gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                ((void)gex_RMA_GetBlocking(gasneti_thunk_tm,dest,node,src,nbytes,0))
+#define gasnet_put_bulk gasnet_put
+#define gasnet_get_bulk gasnet_get
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
-                gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0)
+                ((void)gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_NOW,0))
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
-                gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,0)
+                ((void)gex_RMA_PutNBI(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,0))
 #define gasnet_get_nbi(dest,node,src,nbytes) \
-                gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,0)
-#define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
-                gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,0)
+                ((void)gex_RMA_GetNBI(gasneti_thunk_tm,dest,node,src,nbytes,0))
+#define gasnet_get_nbi_bulk gasnet_get_nbi
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
@@ -422,8 +420,7 @@ int gasnet_AMGetMsgSource(gasnet_token_t _token, gasnet_node_t *_srcrank) {
                 gex_RMA_PutNB(gasneti_thunk_tm,node,dest,src,nbytes,GEX_EVENT_DEFER,0)
 #define gasnet_get_nb(dest,node,src,nbytes) \
                 gex_RMA_GetNB(gasneti_thunk_tm,dest,node,src,nbytes,0)
-#define gasnet_get_nb_bulk(dest,node,src,nbytes) \
-                gex_RMA_GetNB(gasneti_thunk_tm,dest,node,src,nbytes,0)
+#define gasnet_get_nb_bulk gasnet_get_nb
 
 /* ------------------------------------------------------------------------------------ */
 /* Value Gets - blocking and explicit-handle non-blocking */
@@ -466,11 +463,11 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
 /* Value Puts - blocking, and explicit- and implicit-handle non-blocking */
 
 #define gasnet_put_val(node,dest,value,nbytes) \
-                gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
+         ((void)gex_RMA_PutBlockingVal(gasneti_thunk_tm,node,dest,value,nbytes,0))
 #define gasnet_put_nb_val(node,dest,value,nbytes) \
                 gex_RMA_PutNBVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
 #define gasnet_put_nbi_val(node,dest,value,nbytes) \
-                gex_RMA_PutNBIVal(gasneti_thunk_tm,node,dest,value,nbytes,0)
+         ((void)gex_RMA_PutNBIVal(gasneti_thunk_tm,node,dest,value,nbytes,0))
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle sync operations */
@@ -514,29 +511,29 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
 /* VIS */
 
 #define gasnet_putv_bulk(dstrank,dstcount,dstlist,srccount,srclist) \
-       gex_VIS_VectorPutBlocking(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0)
+ ((void)gex_VIS_VectorPutBlocking(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0))
 #define gasnet_getv_bulk(dstcount,dstlist,srcrank,srccount,srclist) \
-       gex_VIS_VectorGetBlocking(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0)
+ ((void)gex_VIS_VectorGetBlocking(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0))
 #define gasnet_putv_nb_bulk(dstrank,dstcount,dstlist,srccount,srclist) \
        gex_VIS_VectorPutNB(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0)
 #define gasnet_getv_nb_bulk(dstcount,dstlist,srcrank,srccount,srclist) \
        gex_VIS_VectorGetNB(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0)
 #define gasnet_putv_nbi_bulk(dstrank,dstcount,dstlist,srccount,srclist) \
-       gex_VIS_VectorPutNBI(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0)
+ ((void)gex_VIS_VectorPutNBI(gasneti_thunk_tm,dstrank,dstcount,(gex_Memvec_t*)(dstlist),srccount,(gex_Memvec_t*)(srclist),0))
 #define gasnet_getv_nbi_bulk(dstcount,dstlist,srcrank,srccount,srclist) \
-       gex_VIS_VectorGetNBI(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0)
+ ((void)gex_VIS_VectorGetNBI(gasneti_thunk_tm,dstcount,(gex_Memvec_t*)(dstlist),srcrank,srccount,(gex_Memvec_t*)(srclist),0))
 #define gasnet_puti_bulk(dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
-       gex_VIS_IndexedPutBlocking(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0)
+ ((void)gex_VIS_IndexedPutBlocking(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0))
 #define gasnet_geti_bulk(dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen) \
-       gex_VIS_IndexedGetBlocking(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0)
+ ((void)gex_VIS_IndexedGetBlocking(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0))
 #define gasnet_puti_nb_bulk(dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
        gex_VIS_IndexedPutNB(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0)
 #define gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen) \
        gex_VIS_IndexedGetNB(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0)
 #define gasnet_puti_nbi_bulk(dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
-       gex_VIS_IndexedPutNBI(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0)
+ ((void)gex_VIS_IndexedPutNBI(gasneti_thunk_tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,0))
 #define gasnet_geti_nbi_bulk(dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen) \
-       gex_VIS_IndexedGetNBI(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0)
+ ((void)gex_VIS_IndexedGetNBI(gasneti_thunk_tm,dstcount,dstlist,dstlen,srcrank,srccount,srclist,srclen,0))
 
 // dedicated g2ex wrappers translate the Strided metadata from legacy to EX format
 #define gasnet_puts_bulk(dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
