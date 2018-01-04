@@ -222,9 +222,22 @@
    * C99-compliant inttypes.h should already provide these, so here we just ensure
    * that's the case for the ones we care about and provide a last-ditch effort otherwise.
    *
-   * Currently only worry about the 64-bit and PTR versions, since everything else can portably be 
-   * handled as an (unsigned) int on all platforms of interest.
+   * Currently only worry about the 64-bit and PTR versions.
+   *
+   * Also provide the following extensions, as replacements for C99 length modifiers t and z:
+   *   PRI[diouxX]SZ  - size_t    (signed or unsigned)
+   *   PRI[diouxX]PD  - ptrdiff_t (signed or unsigned)
    */
+  #if ( defined(__PRI_USE_C99) && __PRI_USE_C99) || \
+      (!defined(__PRI_USE_C99) && (__STDC_VERSION__ >= 199901L || __cplusplus >= 201103L))
+    // default to the libc-provided length modifiers added in C99
+    #ifndef __PRISZ_PREFIX
+    #define __PRISZ_PREFIX "z"
+    #endif
+    #ifndef __PRIPD_PREFIX
+    #define __PRIPD_PREFIX "t"
+    #endif
+  #endif
   #if SIZEOF_VOID_P == 4 || PLATFORM_ARCH_32 || __INTPTR_MAX__ == 2147483647
     #ifndef __PRI64_PREFIX
     #define __PRI64_PREFIX "ll"
@@ -232,12 +245,24 @@
     #ifndef __PRIPTR_PREFIX
     #define __PRIPTR_PREFIX 
     #endif
+    #ifndef __PRISZ_PREFIX
+    #define __PRISZ_PREFIX 
+    #endif
+    #ifndef __PRIPD_PREFIX
+    #define __PRIPD_PREFIX 
+    #endif
   #else /* assume 64-bit if unsure */
     #ifndef __PRI64_PREFIX
     #define __PRI64_PREFIX  "l"
     #endif
     #ifndef __PRIPTR_PREFIX
     #define __PRIPTR_PREFIX "l"
+    #endif
+    #ifndef __PRISZ_PREFIX
+    #define __PRISZ_PREFIX "l"
+    #endif
+    #ifndef __PRIPD_PREFIX
+    #define __PRIPD_PREFIX "l"
     #endif
   #endif
 
@@ -277,6 +302,44 @@
   #endif
   #ifndef PRIXPTR
   #define PRIXPTR __PRIPTR_PREFIX "X"
+  #endif
+
+  #ifndef PRIiSZ
+  #define PRIiSZ __PRISZ_PREFIX "i"
+  #endif
+  #ifndef PRIdSZ
+  #define PRIdSZ __PRISZ_PREFIX "d"
+  #endif
+  #ifndef PRIuSZ
+  #define PRIuSZ __PRISZ_PREFIX "u"
+  #endif
+  #ifndef PRIoSZ
+  #define PRIoSZ __PRISZ_PREFIX "o"
+  #endif
+  #ifndef PRIxSZ
+  #define PRIxSZ __PRISZ_PREFIX "x"
+  #endif
+  #ifndef PRIXSZ
+  #define PRIXSZ __PRISZ_PREFIX "X"
+  #endif
+
+  #ifndef PRIiPD
+  #define PRIiPD __PRIPD_PREFIX "i"
+  #endif
+  #ifndef PRIdPD
+  #define PRIdPD __PRIPD_PREFIX "d"
+  #endif
+  #ifndef PRIuPD
+  #define PRIuPD __PRIPD_PREFIX "u"
+  #endif
+  #ifndef PRIoPD
+  #define PRIoPD __PRIPD_PREFIX "o"
+  #endif
+  #ifndef PRIxPD
+  #define PRIxPD __PRIPD_PREFIX "x"
+  #endif
+  #ifndef PRIXPD
+  #define PRIXPD __PRIPD_PREFIX "X"
   #endif
 
   #ifndef SCNi64
