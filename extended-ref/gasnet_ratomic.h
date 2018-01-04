@@ -206,6 +206,7 @@ typedef struct gasneti_ad_t *gex_AD_t;
       _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, MAX);                                \
       default: gasneti_unreachable();                                           \
     }                                                                           \
+    GASNETI_BUG3697();                                                          \
     return _result;                                                             \
   }
 // Big SWitch cases for integer types (isint == 1)
@@ -287,6 +288,12 @@ typedef struct gasneti_ad_t *gex_AD_t;
       case GEX_OP_##opname: case GEX_OP_F##opname: \
         GASNETE_RATOMIC_CAS(_result,_ratgt,dtcode,_operand1,GASNETE_RATOMIC_CAS_OP_##opname); \
         break;
+// Work-around for bug 3697
+#if PLATFORM_COMPILER_SUN
+  #define GASNETI_BUG3697() gasneti_compiler_fence()
+#else
+  #define GASNETI_BUG3697() ((void)0)
+#endif
 //
 GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
 
