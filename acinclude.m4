@@ -1676,7 +1676,7 @@ GASNET_FUN_BEGIN([$0])
 
   GASNET_TRY_CACHE_LINK($2 for __builtin_unreachable, cvprefix[]__builtin_unreachable,
     [ extern int x; int x = 0; ], [
-      if (x) __builtin_unreachable(); 
+      if (x) { __builtin_unreachable(), ((void)0); }  dnl Detect bug 3702
     ], AC_DEFINE([$1]_BUILTIN_UNREACHABLE))
 
   GASNET_TRY_CACHE_LINK($2 for __builtin_expect, cvprefix[]__builtin_expect,
