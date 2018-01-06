@@ -1272,6 +1272,12 @@ COMPILER.
     GASNETT_USE_ASSUME
       Compiler supports __assume()
 
+  The following can be defined to control use of C++ attributes:
+    GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+      C++ compiler supports [[fallthrough]]
+    GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+      C++ compiler supports [[clang::fallthrough]]
+
   The following can be defined to control use of "restrict"
     GASNETT_USE_RESTRICT
       Set to the (possibly empty) keyword to use for GASNETT_RESTRICT
