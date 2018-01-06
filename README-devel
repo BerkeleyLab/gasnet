@@ -217,6 +217,14 @@ All GASNet conduit code is required to meet the following coding standards:
     YES: extern void foo(void);
   Compiling with GCC and -Wstrict-prototypes will give you warnings for violations of this rule.
 
+* Switch statements in GASNet code should annotate any instances of "fallthough" with
+  GASNETI_FALLTHROUGH.  Here "fallthrough" is defined as a statement (within a switch)
+  that is followed by "case ...:" or "default:" without an intervening "break".
+  The annotation goes where the "missing break" would otherwise have appeared.
+  Example:
+     switch (i) { case 0: foo(); GASNETI_FALLTHROUGH
+                  case 1: bar(); }
+
 * All code in public header files should be C++98/C++14-compliant to support C++
   GASNet clients.  This means ensuring any macros or inline function code
   passes the C++98 and C++14 type checker. Note the top-level public headers already

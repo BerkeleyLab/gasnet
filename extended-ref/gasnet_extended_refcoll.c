@@ -1287,7 +1287,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
 	    break;
 	  }
 	  gasneti_assert(tmp == team->consensus_id);
-	  /* ready to advance, so fall through... */
+	  /* ready to advance, so fall through... */ GASNETI_FALLTHROUGH
   case 0:
 	  /* Our own turn has come - notify and try */
 	  gasnete_coll_consensus_do_notify(team);
@@ -4653,7 +4653,7 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
 
   case 1:	/* Initiate data movement */
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -4676,13 +4676,13 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         gasnete_coll_save_coll_handle(h GASNETE_THREAD_PASS);
       }
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
 
   case 2:	/* Sync data movement */
     if (!gasnete_coll_generic_coll_sync(data->private_data, op->team->total_images GASNETE_THREAD_PASS)) {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
 
   case 3:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -4857,7 +4857,7 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
 
   case 1:	/* Initiate data movement */
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -4901,13 +4901,13 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         }
       }
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
 
   case 2:	/* Sync data movement */
     if (!gasnete_coll_generic_coll_sync(data->private_data, op->team->total_images GASNETE_THREAD_PASS)) {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
 
   case 3:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -5186,7 +5186,7 @@ static int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
 
   case 1:	/* Initiate data movement */
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -5209,13 +5209,13 @@ static int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         gasnete_coll_save_coll_handle(h GASNETE_THREAD_PASS);
       }
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
 
   case 2:	/* Sync data movement */
     if (!gasnete_coll_generic_coll_sync(data->private_data, op->team->total_images GASNETE_THREAD_PASS)) {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
 
   case 3:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -5383,7 +5383,7 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
 
   case 1:	/* Initiate data movement */
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -5443,13 +5443,13 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         }
       }
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
 
   case 2:	/* Sync data movement */
     if (!gasnete_coll_generic_coll_sync(data->private_data, op->team->total_images GASNETE_THREAD_PASS)) {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
 
   case 3:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {

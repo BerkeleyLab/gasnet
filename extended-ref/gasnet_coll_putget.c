@@ -35,7 +35,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -46,13 +46,13 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                            args->nbytes GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -98,7 +98,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank != args->srcnode) {
@@ -129,13 +129,13 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         /* Do local copy LAST, perhaps overlapping with communication */
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, src, nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -188,14 +188,14 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       if (!gasnete_coll_generic_all_threads(data)) {
         break;
       }
-      data->state = 1; 
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:   /* Optional IN barrier over the SAME tree */
       if (!(op->flags & GASNET_COLL_IN_NOSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -240,13 +240,13 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       } else {
         break;	/* Internal node waiting for parent to push data and signal */
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:     /* sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       case 4:	/* Optional OUT barrier */
 #if 1
@@ -259,7 +259,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       /* XXX: Perform barrier over internal nodes */
       /* XXX: Wake leaves with an AMShort */
 #endif
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5: /*done*/
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
@@ -315,20 +315,20 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       case 1: /*thread barrier*/
       if (!gasnete_coll_generic_all_threads(data)) {
         break;
       }
-      
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
       case 2:   /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
       if (op->team->myrank == args->srcnode) {
@@ -357,7 +357,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
       } else {
         break;	/* Waiting for parent to push data and signal */
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       
       case 4:	/* Optional OUT barrier */
@@ -409,7 +409,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -477,7 +477,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       }
       gasnete_coll_free_implementation(impl);
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
     {
@@ -486,8 +486,9 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -544,7 +545,7 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
   case 1:	/* Initiate Scatter */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -580,7 +581,7 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
         }
         gasnete_coll_save_coll_handle(&handle[1] GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
   case 2:	/* Initiate all gather*/
       
@@ -602,16 +603,15 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
           handle[0] = GASNET_COLL_INVALID_HANDLE;
         }
         gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
-        
-        data->state = 3;
       }
+      data->state = 3; GASNETI_FALLTHROUGH
       
   case 3:
       /*sync both the allgather and broadcast*/
       if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 2 GASNETE_THREAD_PASS)) {
         break;
       }
-      data->state =4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
   case 4:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -667,7 +667,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -681,7 +681,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
                                            GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->src, args->nbytes GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement and perform local copies */
       if (data->handle != GASNET_INVALID_HANDLE) {
@@ -691,7 +691,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         gasneti_sync_reads();
         gasnete_coll_local_broadcast(op->team->my_images - 1, p + 1, *p, args->nbytes);
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -736,7 +736,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1: 	/* Initiate data movement */
       if (op->team->myrank != args->srcnode) {
@@ -783,13 +783,13 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
                                      src, nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -833,14 +833,14 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       break;
     }
     
-    data->state = 1; 
+    data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:   /* Optional IN barrier over the SAME tree */
       if (!(op->flags & GASNET_COLL_IN_NOSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -894,20 +894,21 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       } else {
         break;	/* Internal node waiting for parent to push data and signal */
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:     /* sync data movement */
       if (data->handle!=GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       case 4:	/* Optional OUT barrier */
 #if USE_CONSENSUS_BARRIER
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
+
       case 5:
 #else
         if((op->team->total_ranks > 1) &&
@@ -928,7 +929,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       /* XXX: Wake leaves with an AMShort */
       
 
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5: /*wait on the out barrier on the way down*/
 
@@ -945,7 +946,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
           }
         }
 
-        data->state = 6;
+        data->state = 6; GASNETI_FALLTHROUGH
       case 6: /*done*/
 #endif
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
@@ -997,19 +998,20 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }      
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       case 1:
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS)) {
         break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
       if (op->team->myrank == args->srcnode) {
@@ -1047,7 +1049,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
       } else {
         break;	/* Waiting for parent to push data and signal */
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
  
 #if USE_CONSENSUS_BARRIER
@@ -1055,7 +1057,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5:
 #else
@@ -1076,7 +1078,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
       /* XXX: Perform barrier over internal nodes */
       /* XXX: Wake leaves with an AMShort */
 
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5: /*wait on the out barrier on the way down*/
         if((op->team->total_ranks > 1) &&
@@ -1092,7 +1094,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
           }
         }
 
-        data->state = 6;
+        data->state = 6; GASNETI_FALLTHROUGH
       case 6: /*done*/
 #endif
         gasnete_coll_free_scratch(op);
@@ -1142,7 +1144,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -1206,7 +1208,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       }
       gasnete_coll_free_implementation(impl);
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
     {
@@ -1215,8 +1217,9 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -1273,7 +1276,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Initiate Scatter */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -1314,7 +1317,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
       }
       gasnete_coll_save_coll_handle(&handle[1] GASNETE_THREAD_PASS);
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
     case 2:	/* Initiate all gather*/
       
@@ -1337,7 +1340,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
         }
         gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       
     case 3:
@@ -1348,7 +1351,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
       gasnete_coll_local_broadcast(op->team->my_images,
                                    &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags),
                                    GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags), args->nbytes);
-      data->state =4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
     case 4:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -1404,7 +1407,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -1418,13 +1421,13 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
                                            args->nbytes GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -1469,7 +1472,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:
       if (op->team->myrank != args->srcnode) {
@@ -1504,13 +1507,13 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
                                             gasnete_coll_scale_ptr(args->src, op->team->myrank, nbytes),
                                             nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -1563,20 +1566,20 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)){
         break;
       }
-      
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -1703,23 +1706,20 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       } else {
         break; /* data not yet arrived*/
       }
-      
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       case 4: /* wait for all puts to finish*/
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      
-      data->state = 5;
-      
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5:	/* Final Out Barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
         
       }
-      data->state = 6;
+      data->state = 6; GASNETI_FALLTHROUGH
       
       case 6: /*done*/    
       gasnete_coll_free_scratch(op);
@@ -1770,20 +1770,20 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)){
         break;
       }
-      
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -1872,15 +1872,13 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       } else {
         break; /* data not yet arrived*/
       }
-      
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       case 4: /* wait for all puts to finish*/
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       
       case 5:	/* Final Out Barrier */
@@ -1888,7 +1886,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         break;
         
       }
-      data->state = 6;
+      data->state = 6; GASNETI_FALLTHROUGH
       
       case 6: /*done*/    
       gasnete_coll_free_scratch(op);
@@ -1936,7 +1934,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
@@ -1979,7 +1977,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       gasnete_coll_free_implementation(impl);
 
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
     {
@@ -1988,8 +1986,9 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -2052,7 +2051,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -2069,13 +2068,13 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                     op->team->my_images * args->nbytes GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -2119,7 +2118,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:
       if (op->team->myrank != args->srcnode) {
@@ -2181,7 +2180,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                    gasnete_coll_scale_ptr(args->src, op->team->my_offset, nbytes),
                                    nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (op->team->myrank == args->srcnode) {
@@ -2190,7 +2189,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         }
         gasneti_free(data->private_data);	/* the temporary srclist */
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -2237,19 +2236,20 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       case 1: /*thread barrier*/
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS)){
         break;
       }      
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
       
@@ -2339,17 +2339,14 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       } else {
         break; /* data not yet arrived*/
       }
-      
-      data->state = 4;
-      
-      
+      data->state = 4; GASNETI_FALLTHROUGH
       
       case 4:	/* Final Out Barrier */
 #if USE_CONSENSUS_BARRIER
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5: /*done*/    
 #else
@@ -2369,9 +2366,8 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       /* XXX: Idea Sync all the puts (acts as notify for the leaves) */
       /* XXX: Perform barrier over internal nodes */
       /* XXX: Wake leaves with an AMShort */
-      
 
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5: /*wait on the out barrier on the way down*/
 
@@ -2388,7 +2384,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
           }
         }
 
-        data->state = 6;
+        data->state = 6; GASNETI_FALLTHROUGH
       case 6: /*done*/
 
 #endif
@@ -2440,19 +2436,20 @@ static int gasnete_coll_pf_scatM_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THR
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       case 1: /*thread barrier*/
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS)){
         break;
       }      
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
           !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
       
@@ -2536,7 +2533,7 @@ static int gasnete_coll_pf_scatM_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THR
         break; /* data not yet arrived*/
       }
       
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       
       
@@ -2544,7 +2541,7 @@ static int gasnete_coll_pf_scatM_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THR
     if (!gasnete_coll_generic_outsync(op->team, data)) {
       break;
     }
-    data->state = 5;
+    data->state = 5; GASNETI_FALLTHROUGH
     
   case 5: /*done*/    
     gasnete_coll_free_scratch(op);
@@ -2591,7 +2588,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
@@ -2641,7 +2638,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       gasnete_coll_free_implementation(impl);
 
     }
-            data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
     {
@@ -2650,8 +2647,9 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -2713,7 +2711,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank != args->dstnode) {
@@ -2744,13 +2742,13 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -2789,7 +2787,7 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->dstnode) {
@@ -2802,13 +2800,13 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
                                            args->src, args->nbytes GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -2857,7 +2855,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   switch (data->state) {
     case 0:
       if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))    break;
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)||
@@ -2865,7 +2863,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         break;
       }
 
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
     case 2:	/* Local Data Movement */
       /* go up the tree with the data */
@@ -2880,14 +2878,13 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
                                         (int8_t*)args->src, args->nbytes);
           
         }
-        data->state = 3;
       } else if_pf(op->team->total_ranks == 1) {
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, 
                                       args->src, args->nbytes);
         data->state = 4;
         break;
       }
-      
+      data->state = 3; GASNETI_FALLTHROUGH
       
     case 3:
       if(op->team->myrank == args->dstnode) {        
@@ -2972,12 +2969,14 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
         }
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
+
   case 4: /*sync data movement*/
     if(data->handle !=GASNET_INVALID_HANDLE) {
       break;
     }
-    data->state = 5;
+    data->state = 5; GASNETI_FALLTHROUGH
+
   case 5: /*node level barrier*/
     
     /* go down the tree with the barrier again*/
@@ -2994,7 +2993,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[child]),0);
       }
     }
-    data->state = 6;
+    data->state = 6; GASNETI_FALLTHROUGH
     
   case 6: /* done*/
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
@@ -3037,7 +3036,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
   switch (data->state) {
   case 0:
     if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))    break;
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
     
   case 1:	/* Optional IN barrier */
     if (!gasnete_coll_generic_all_threads(data)||
@@ -3045,7 +3044,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       break;
     }
     
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
     
   case 2: /* no need for local datamovement since all data movement is done through the network*/
     /*since i am here, my data is ready to be shipped up the tree*/
@@ -3096,7 +3095,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       GASNETE_FAST_UNALIGNED_MEMCPY(gasnete_coll_scale_ptr(args->dst,op->team->myrank,args->nbytes), 
                                     (int8_t*)args->src, args->nbytes);
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
     
   case 3:
     if(op->team->myrank == args->dstnode) {        
@@ -3198,15 +3197,15 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
     } else {
       /*no children data movement already hadled in state 2*/
     }
+    data->state = 4; GASNETI_FALLTHROUGH
     
-    data->state = 4;
   case 4: /*sync data movement*/
     /*since we have initiated possibly more than one put we need to sync all of them*/
     if(data->handle !=GASNET_INVALID_HANDLE || data->handle2 !=GASNET_INVALID_HANDLE) {
       break;
     }
+    data->state = 5; GASNETI_FALLTHROUGH
     
-    data->state = 5;
   case 5: /*node level barrier*/
     
     /* go down the tree with the barrier again*/
@@ -3222,7 +3221,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[child]),1);
       }
     }
-    data->state = 6;
+    data->state = 6; GASNETI_FALLTHROUGH
     
   case 6: /* done*/
     gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
@@ -3267,7 +3266,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -3311,8 +3310,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
       gasnete_coll_free_implementation(impl);
     }
-
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
     {
@@ -3321,8 +3319,9 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -3378,7 +3377,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank != args->dstnode) {
@@ -3435,7 +3434,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                   gasnete_coll_scale_ptr(args->dst, op->team->my_offset, nbytes),
                                   &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, 0), nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (op->team->myrank == args->dstnode) {
@@ -3444,7 +3443,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         }
         gasneti_free(data->private_data);	/* the temporary dstlist */
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -3482,7 +3481,7 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->dstnode) {
@@ -3499,14 +3498,13 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                     args->nbytes GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
       if (data->handle != GASNET_INVALID_HANDLE) {
         break;
       }
-      
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -3547,21 +3545,21 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS)||
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Local Data Movement */
       /* perform a local gather into the scratch space*/
       gasnete_coll_local_gather(op->team->my_images,
                                 (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos,
                                 &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, op->flags), args->nbytes);
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
       if (gasneti_weakatomic_read(&(data->p2p->counter[0]), GASNETI_ATOMIC_RMB_POST) < child_count) {
@@ -3590,7 +3588,7 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
                                         args->nbytes*op->team->my_images, op->team->total_ranks, tree->geom->rotation_points[0]);
         
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       case 4: /*node level barrier*/
       /* go down the tree with the barrier again*/
@@ -3607,7 +3605,7 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
           gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team,children[child]),0);
         }
       }
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       case 5: /* done*/
       gasnete_coll_free_scratch(op);
@@ -3644,7 +3642,7 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
@@ -3692,7 +3690,7 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
       gasnete_coll_free_implementation(impl);
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Sync data movement */
     {
@@ -3701,8 +3699,9 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
       case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -3767,7 +3766,8 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
       /* perform a Gather up a tree rooted at 0*/
       case 1:
 #if 0
@@ -3783,9 +3783,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         }
       }
 #endif
-      data->state = 2;
-      
-      
+      data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:	/* Initiate data movement */
       /* copy my data into the start of the scratch space */
@@ -3834,7 +3832,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
         }
       }
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
       
       /* broadcast the data back down the tree*/
       case 4:
@@ -3853,7 +3851,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       } else {
         break;	/* Waiting for parent to push data and signal */
       }
-      data->state = 5;
+      data->state = 5; GASNETI_FALLTHROUGH
       
       
       case 5:	/* Optional OUT barrier */
@@ -5178,8 +5176,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
     
   case 1: /* fire off all the nonblocking puts*/
     gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
@@ -5195,17 +5192,20 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
     gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
+
   case 2: /* sync all the handles for the puts*/
     if (op->team->total_ranks > 1 && data->handle != GASNET_INVALID_HANDLE) {
       return 0;
     }
-    data->state=3;
+    data->state=3; GASNETI_FALLTHROUGH
+
   case 3: /*final out barrier*/
     if (!gasnete_coll_generic_outsync(op->team, data)) {
       break;
     }
-    data->state = 4;
+    data->state = 4; GASNETI_FALLTHROUGH
+
   case 4: /*done*/
     gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
@@ -5743,9 +5743,9 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
     case 1:	/* Optional IN barrier */
-      
       if (!gasnete_coll_generic_all_threads(data) ||
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
@@ -5756,7 +5756,8 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
         GASNETE_FAST_UNALIGNED_MEMCPY((void*) myscratch, args->src, args->nbytes);
       } 
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
+
     case 2:
      if (child_count>0) {
        int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
@@ -5817,7 +5818,8 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
                                          args->src, args->nbytes, tree->geom->sibling_id+1, 1);
        }
      } 
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
+
     case 3:
 #if FOLD_REDUCE_BARRIER
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
@@ -5921,9 +5923,9 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
     case 1:	/* Optional IN barrier */
-      
       if (!gasnete_coll_generic_all_threads(data) ||
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
@@ -5935,7 +5937,8 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
         GASNETE_FAST_UNALIGNED_MEMCPY((void*) myscratch, args->src, args->nbytes);
       } 
       data->private_data = gasneti_malloc(sizeof(gasnet_handle_t)*child_count);
-      data->state =2;
+      data->state = 2; GASNETI_FALLTHROUGH
+
     case 2:
       if(child_count > 0) {
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
@@ -5964,6 +5967,7 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
           
           switch(s) {
             case 0: done = 0; break;
+
             case 1: {
               /* ok to get so initiate get*/
               if((op->flags & GASNET_COLL_LOCAL || op->flags & GASNET_COLL_IN_MYSYNC || op->flags & GASNET_COLL_OUT_MYSYNC) || (tree->geom->grand_children[i]>0)) {
@@ -5975,9 +5979,9 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
                                                                                child_scratch, args->nbytes GASNETE_THREAD_PASS);
               gasnete_coll_save_handle(&((gasnet_handle_t*) data->private_data)[i] GASNETE_THREAD_PASS);
               
-              state[i]++;
-              
             }
+            state[i]++; GASNETI_FALLTHROUGH
+
             case 2: {
               if(((gasnet_handle_t*) data->private_data)[i] != GASNET_INVALID_HANDLE) {done = 0; break;}
               gasneti_sync_reads();
@@ -5986,8 +5990,9 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
               }
               (*reduce_fn)((void*) dst_addr, args->elem_count, (void*) dst_addr, args->elem_count, 
                            (void*) src_addr, args->elem_size, red_fn_flags, reduce_args); 
-              state[i]++;
             }
+            state[i]++; GASNETI_FALLTHROUGH
+
             case 3: {
               /*this child is done so nothing more to do so continue on to the next child*/
               continue;
@@ -6007,7 +6012,8 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
         gasnete_coll_p2p_change_states(op, GASNETE_COLL_REL2ACT(op->team, parent), 1, tree->geom->sibling_id, 1);
       }
       gasneti_free(data->private_data);
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
+
     case 3:
       /*wait for the signal from parent that the get is done*/
       if(!(op->flags & GASNET_COLL_OUT_ALLSYNC) && op->team->myrank!=args->dstnode) {
@@ -6015,7 +6021,8 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
           break;
         }
       } 
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
+
     case 4:
 #if FOLD_REDUCE_BARRIER
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
@@ -6118,7 +6125,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -6179,7 +6186,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
       gasnete_coll_free_implementation(impl);
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
     case 2:	/* Sync data movement */
     {
@@ -6188,8 +6195,9 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
@@ -6261,7 +6269,8 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
     case 1:	/* Optional IN barrier */
       
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
@@ -6279,8 +6288,8 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
         gasnete_coll_local_reduce(op->team->my_images, (void*) myscratch, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, op->flags),
                                   args->elem_size, args->elem_count, args->func, args->func_arg);
       } 
-      
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
+
     case 2:
       if (child_count>0) {
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
@@ -6342,7 +6351,8 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
                                                myscratch, args->nbytes, tree->geom->sibling_id+1, 1);
         }
       } 
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
+
     case 3:
 #if FOLD_REDUCE_BARRIER
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
@@ -6451,7 +6461,8 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
+
     case 1:	/* Optional IN barrier */
       
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
@@ -6470,7 +6481,8 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
                                   args->elem_size, args->elem_count, args->func, args->func_arg);
       } 
       data->private_data = gasneti_malloc(sizeof(gasnet_handle_t)*child_count);
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
+
     case 2:
       if(child_count > 0) {
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
@@ -6499,16 +6511,16 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
           
           switch(s) {
             case 0: done = 0; break;
+
             case 1: {
               /* ok to get so initiate get*/
               child_scratch = ((int8_t*)op->team->scratch_segs[children[i]].addr)+op->scratchpos[i];
               ((gasnet_handle_t*) data->private_data)[i] = gasnete_get_nb_bulk((void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
                                                                                child_scratch, args->nbytes GASNETE_THREAD_PASS);
               gasnete_coll_save_handle(&((gasnet_handle_t*) data->private_data)[i] GASNETE_THREAD_PASS);
-              
-              state[i]++;
-              
             }
+            state[i]++; GASNETI_FALLTHROUGH
+
             case 2: {
               if(((gasnet_handle_t*) data->private_data)[i] != GASNET_INVALID_HANDLE) {done = 0; break;}
               gasneti_sync_reads();
@@ -6517,8 +6529,9 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
               }
               (*reduce_fn)((void*) dst_addr, args->elem_count, (void*) dst_addr, args->elem_count, 
                            (void*) src_addr, args->elem_size, red_fn_flags, reduce_args); 
-              state[i]++;
             }
+            state[i]++; GASNETI_FALLTHROUGH
+
             case 3: {
               /*this child is done so nothing more to do so continue on to the next child*/
               continue;
@@ -6534,7 +6547,8 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
         gasnete_coll_p2p_change_states(op, GASNETE_COLL_REL2ACT(op->team, parent), 1, tree->geom->sibling_id, 1);
       }
       gasneti_free(data->private_data);
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
+
     case 3:
       /*wait for the signal from parent that the get is done*/
       if(!(op->flags & GASNET_COLL_OUT_ALLSYNC) && op->team->myrank!=args->dstnode) {
@@ -6542,7 +6556,8 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
           break;
         }
       } 
-      data->state = 4;
+      data->state = 4; GASNETI_FALLTHROUGH
+
     case 4:
 #if FOLD_REDUCE_BARRIER
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
@@ -6647,7 +6662,7 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Initiate data movement */
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -6714,7 +6729,7 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
       gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
       gasnete_coll_free_implementation(impl);
     }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
     case 2:	/* Sync data movement */
     {
@@ -6723,8 +6738,9 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
         break;
       }
       gasneti_free(handle_vec->handles);
-      data->state = 3;
     }   
+      data->state = 3; GASNETI_FALLTHROUGH
+
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;

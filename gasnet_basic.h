@@ -320,6 +320,10 @@
     #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED \
        GASNETI_COMPILER_HAS_ATTRIBUTE(DEPRECATED,__deprecated__)
   #endif
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
+    #define GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(FALLTHROUGH,__fallthrough__)
+  #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT \
        GASNETI_COMPILER_HAS_ATTRIBUTE(FORMAT,__format__)
@@ -502,6 +506,16 @@
   #define GASNETI_DEPRECATED __attribute__((__deprecated__))
 #else
   #define GASNETI_DEPRECATED
+#endif
+
+/* GASNETI_FALLTHROUGH: annotate a switch case as intentionally lacking "break".
+   Legal only between a statement and subsequent "case" (where "break" normally appears) or label.
+   Not legal (or necessary) between back-to-back cases w/o intervening statements. */
+#if GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
+  // Syntax requires the attribute to be attached to a null statement (the semicolon).
+  #define GASNETI_FALLTHROUGH __attribute__((__fallthrough__)) ;
+#else
+  #define GASNETI_FALLTHROUGH
 #endif
 
 /* GASNETI_FORMAT_PRINTF: enable gcc printf format checking of function args */
