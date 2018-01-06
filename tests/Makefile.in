@@ -194,9 +194,9 @@ run-tests: force
 	tests_to_run="" export tests_to_run ;                                           \
 	tests_to_ignore="" export tests_to_ignore ;                                     \
 	for file in $(testprograms) ; do if test -x "$$file" ; then                     \
-	  if test "`echo \"$(testprograms_err)\"| grep $$file ; exit 0`"; then          \
+	  if test "`echo \" $(testprograms_err) \"| grep \" $$file \"; exit 0`"; then   \
 	    tests_to_ignore="$$tests_to_ignore $$file" ;                                \
-	  else                                                                          \
+	  elif test -z "`echo \" $$tests_to_run \"| grep \" $$file \"; exit 0`"; then   \
 	    tests_to_run="$$tests_to_run $$file" ;                                      \
 	  fi ;                                                                          \
 	fi ; done ;                                                                     \
