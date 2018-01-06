@@ -5122,6 +5122,9 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
   result |= GEX_TI_SRCRANK;
 
+  info->gex_ep = gasneti_THUNK_EP;
+  result |= GEX_TI_EP;
+
   info->gex_entry = &rbuf->rr_ep->_amtbl[GASNETC_MSG_HANDLERID(flags)];
   result |= GEX_TI_ENTRY;
 

@@ -354,13 +354,22 @@ void gasneti_free_tm(gasneti_TM_t tm);
 // updated to propogate Client, TM, EP and Segment arguments.
 // For the time being there is at most one of each of those objects.
 //
-// Results are undefined prior to return from gex_Client_Init() or gasnet_init().
+// Results are NULL prior to return from gex_Client_Init() or gasnet_init().
 //
 extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 #define gasneti_THUNK_TM      gasneti_export_tm(gasneti_thing_that_goes_thunk_in_the_dark)
-#define gasneti_THUNK_EP      gasneti_export_ep(gasneti_thing_that_goes_thunk_in_the_dark->_ep)
-#define gasneti_THUNK_CLIENT  gasneti_export_client(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_client)
-#define gasneti_THUNK_SEGMENT gasneti_export_segment(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment)
+#define gasneti_THUNK_EP \
+        gasneti_export_ep(     gasneti_thing_that_goes_thunk_in_the_dark \
+                               ? gasneti_thing_that_goes_thunk_in_the_dark->_ep \
+                               : NULL )
+#define gasneti_THUNK_CLIENT \
+        gasneti_export_client( gasneti_thing_that_goes_thunk_in_the_dark \
+                               ? gasneti_thing_that_goes_thunk_in_the_dark->_ep->_client \
+                               : NULL )
+#define gasneti_THUNK_SEGMENT \
+        gasneti_export_segment( gasneti_thing_that_goes_thunk_in_the_dark \
+                                ? gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment \
+                                : NULL )
 
 /* ------------------------------------------------------------------------------------ */
 // Internal helpers for data types (like ctypes)
@@ -981,7 +990,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 /* common logic for gex_Token_Info() */
 
 // OR of all the required bits
-#define GASNETI_TI_REQUIRED GEX_TI_SRCRANK
+#define GASNETI_TI_REQUIRED (GEX_TI_SRCRANK | GEX_TI_EP)
 
 #if GASNET_DEBUG
   extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t * info, gex_TI_t mask);
