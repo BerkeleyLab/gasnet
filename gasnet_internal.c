@@ -630,7 +630,8 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
   }
   if (result & GEX_TI_EP) {
     // TODO-EX: will need some means to validate in conduit-independent manner
-    gasneti_assert(info->gex_ep == gasneti_THUNK_EP);
+    // NULL THUNK_TM may occur in bootstrap collectives before ep0 exists
+    gasneti_assert(!gasneti_THUNK_TM || info->gex_ep == gasneti_THUNK_EP);
   }
   if (result & GEX_TI_ENTRY) {
     gasneti_assert(info->gex_entry);
