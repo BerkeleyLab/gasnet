@@ -233,12 +233,12 @@ typedef struct gasneti_ad_t *gex_AD_t;
         break;                                                                   \
       }                                                                          \
       case GEX_OP_INC: case GEX_OP_FINC:                                         \
-        _operand1 = 1; /* fall through to ADD ... */                             \
+        _operand1 = 1; GASNETI_FALLTHROUGH /* to ADD */                          \
       case GEX_OP_ADD: case GEX_OP_FADD:                                         \
         _result = gasneti_atomic##bits##_add(_ratgt, _operand1, 0) - _operand1;  \
         break;                                                                   \
       case GEX_OP_DEC: case GEX_OP_FDEC:                                         \
-         _operand1 = 1; /* fall through to SUB ... */                            \
+        _operand1 = 1; GASNETI_FALLTHROUGH /* to SUB */                          \
       case GEX_OP_SUB: case GEX_OP_FSUB:                                         \
         _result = gasneti_atomic##bits##_subtract(_ratgt, _operand1, 0) + _operand1; \
         break;                                                                   \
@@ -278,10 +278,10 @@ typedef struct gasneti_ad_t *gex_AD_t;
         break;                                                                   \
       }                                                                          \
       case GEX_OP_INC: case GEX_OP_FINC:                                         \
-         _operand1 = 1.; /* fall through to ADD ... */                           \
+        _operand1 = 1.; GASNETI_FALLTHROUGH /* to ADD */                         \
       _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, ADD);                                 \
       case GEX_OP_DEC: case GEX_OP_FDEC:                                         \
-         _operand1 = 1.; /* fall through to SUB ... */                           \
+        _operand1 = 1.; GASNETI_FALLTHROUGH /* to SUB */                         \
       _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, SUB);
 // Case for a CAS-based operation (both fetching and non-fetching)
 #define _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, opname) \
