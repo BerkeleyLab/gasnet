@@ -236,6 +236,12 @@
 #undef HAVE_ISASCII_DECL
 #undef HAVE_TOASCII_DECL
 
+/* Have C99 %z and %t printf format specifiers */
+/* allow command-line override for theoretical system that links more than one printf impl */
+#ifndef HAVE_C99_FORMAT_SPECIFIERS  
+#undef HAVE_C99_FORMAT_SPECIFIERS
+#endif
+
 /* ctype.h needs wrappers */
 #undef GASNETI_NEED_CTYPE_WRAPPERS
 
