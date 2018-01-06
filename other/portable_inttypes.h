@@ -224,13 +224,19 @@
    *
    * Currently only worry about the 64-bit and PTR versions.
    *
-   * Also provide the following extensions, as replacements for C99 length modifiers t and z:
+   * Also provide the following best-effort extensions, as replacements for C99 length modifiers t and z:
    *   PRI[diouxX]SZ  - size_t    (signed or unsigned)
    *   PRI[diouxX]PD  - ptrdiff_t (signed or unsigned)
+   * these require at least ONE of: 
+   *    1. GASNet configure results
+   *    2. Advertised C99 support (via __STDC_VERSION__)
+   *    3. Defines of __PRISZ_PREFIX and __PRIPD_PREFIX selecting the prefix to use
+   *    4. Defines of HAVE_C99_FORMAT_SPECIFIERS to enable/disable use of C99 versions and 
+   *       SIZEOF_{INT,LONG,LONG_LONG) defines when disabled.
    */
-  #if ( defined(__PRI_USE_C99) && __PRI_USE_C99) || \
-      (!defined(__PRI_USE_C99) && (__STDC_VERSION__ >= 199901L || __cplusplus >= 201103L))
-    // default to the libc-provided length modifiers added in C99
+  #if HAVE_C99_FORMAT_SPECIFIERS || \
+      (!defined(HAVE_C99_FORMAT_SPECIFIERS) && __STDC_VERSION__ >= 199901L)
+    /* prefer libc-provided length modifiers added in C99 if we can determine they are available */
     #ifndef __PRISZ_PREFIX
     #define __PRISZ_PREFIX "z"
     #endif
@@ -238,31 +244,56 @@
     #define __PRIPD_PREFIX "t"
     #endif
   #endif
-  #if SIZEOF_VOID_P == 4 || PLATFORM_ARCH_32 || __INTPTR_MAX__ == 2147483647
+  #if !defined(__PRISZ_PREFIX) && SIZEOF_SIZE_T /* use configure info when available */
+    #if   SIZEOF_SIZE_T == SIZEOF_INT
+       #define __PRISZ_PREFIX 
+    #elif SIZEOF_SIZE_T == SIZEOF_LONG
+       #define __PRISZ_PREFIX "l"
+    #elif SIZEOF_SIZE_T == SIZEOF_LONG_LONG
+       #define __PRISZ_PREFIX "ll"
+    #endif
+  #endif
+  #if !defined(__PRIPD_PREFIX) && SIZEOF_PTRDIFF_T /* use configure info when available */
+    #if   SIZEOF_PTRDIFF_T == SIZEOF_INT
+       #define __PRIPD_PREFIX 
+    #elif SIZEOF_PTRDIFF_T == SIZEOF_LONG
+       #define __PRIPD_PREFIX "l"
+    #elif SIZEOF_PTRDIFF_T == SIZEOF_LONG_LONG
+       #define __PRIPD_PREFIX "ll"
+    #endif
+  #endif
+  #if !defined(__PRI64_PREFIX) /* use configure info when available */
+    #if SIZEOF_LONG == 8
+       #define __PRI64_PREFIX  "l"
+    #elif SIZEOF_INT == 8
+       #define __PRI64_PREFIX 
+    #elif SIZEOF_LONG_LONG == 8
+       #define __PRI64_PREFIX  "ll"
+    #endif
+  #endif
+  #if !defined(__PRIPTR_PREFIX) && SIZEOF_VOID_P /* use configure info when available */
+    #if   SIZEOF_VOID_P == SIZEOF_LONG
+       #define __PRIPTR_PREFIX  "l"
+    #elif SIZEOF_VOID_P == SIZEOF_INT
+       #define __PRIPTR_PREFIX 
+    #elif SIZEOF_VOID_P == SIZEOF_LONG_LONG
+       #define __PRIPTR_PREFIX  "ll"
+    #endif
+  #endif
+  /* last resort */
+  #if SIZEOF_VOID_P == 4 || PLATFORM_ARCH_32 || __INTPTR_MAX__ == 2147483647 /* assume ILP32 */
     #ifndef __PRI64_PREFIX
     #define __PRI64_PREFIX "ll"
     #endif
     #ifndef __PRIPTR_PREFIX
     #define __PRIPTR_PREFIX 
     #endif
-    #ifndef __PRISZ_PREFIX
-    #define __PRISZ_PREFIX 
-    #endif
-    #ifndef __PRIPD_PREFIX
-    #define __PRIPD_PREFIX 
-    #endif
-  #else /* assume 64-bit if unsure */
+  #else /* assume LP64 */
     #ifndef __PRI64_PREFIX
     #define __PRI64_PREFIX  "l"
     #endif
     #ifndef __PRIPTR_PREFIX
     #define __PRIPTR_PREFIX "l"
-    #endif
-    #ifndef __PRISZ_PREFIX
-    #define __PRISZ_PREFIX "l"
-    #endif
-    #ifndef __PRIPD_PREFIX
-    #define __PRIPD_PREFIX "l"
     #endif
   #endif
 
@@ -304,6 +335,7 @@
   #define PRIXPTR __PRIPTR_PREFIX "X"
   #endif
 
+ #ifdef __PRISZ_PREFIX /* these are best-effort definitions - see above */
   #ifndef PRIiSZ
   #define PRIiSZ __PRISZ_PREFIX "i"
   #endif
@@ -322,7 +354,9 @@
   #ifndef PRIXSZ
   #define PRIXSZ __PRISZ_PREFIX "X"
   #endif
+ #endif
 
+ #ifdef __PRIPD_PREFIX /* these are best-effort definitions - see above */
   #ifndef PRIiPD
   #define PRIiPD __PRIPD_PREFIX "i"
   #endif
@@ -341,6 +375,7 @@
   #ifndef PRIXPD
   #define PRIXPD __PRIPD_PREFIX "X"
   #endif
+ #endif
 
   #ifndef SCNi64
   #define SCNi64 __PRI64_PREFIX "i"
