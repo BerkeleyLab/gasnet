@@ -273,7 +273,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                     -Wcast-function-type        \
                     -Wempty-body                \
                     -Wignored-qualifiers        \
-                dnl -Wimplicit-fallthrough broken by collectives
+                    -Wimplicit-fallthrough      \
                     -Wmissing-parameter-type    \
                     -Wold-style-declaration     \
                     -Wuninitialized             \
