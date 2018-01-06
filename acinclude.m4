@@ -357,14 +357,20 @@ AC_DEFUN([GASNET_SETUP_INTTYPES], [
   GASNET_CHECK_SIZEOF(long, $1)
   GASNET_CHECK_SIZEOF(long long, $1)
   GASNET_CHECK_SIZEOF(void *, $1)
+  GASNET_CHECK_SIZEOF(size_t, $1)
+  GASNET_CHECK_SIZEOF(ptrdiff_t, $1)
 
   GASNET_SETUP_INTTYPES_DUMMY($1) 
  
   GASNET_CHECK_INTTYPES(stdint.h,$1)
   GASNET_CHECK_INTTYPES(inttypes.h,$1)
   GASNET_CHECK_INTTYPES(sys/types.h,$1)
- 
-  [$1]INTTYPES_DEFINES="-D[$1]SIZEOF_CHAR=$[$1]SIZEOF_CHAR -D[$1]SIZEOF_SHORT=$[$1]SIZEOF_SHORT -D[$1]SIZEOF_INT=$[$1]SIZEOF_INT -D[$1]SIZEOF_LONG=$[$1]SIZEOF_LONG -D[$1]SIZEOF_LONG_LONG=$[$1]SIZEOF_LONG_LONG -D[$1]SIZEOF_VOID_P=$[$1]SIZEOF_VOID_P"
+
+  for type in CHAR SHORT INT LONG LONG_LONG VOID_P SIZE_T PTRDIFF_T ; do
+    eval val="\$[$1]SIZEOF_$type"
+    GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]SIZEOF_$type, $val)
+  done
+
   GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]HAVE_STDINT_H)
   GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]COMPLETE_STDINT_H)
   GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]HAVE_INTTYPES_H)
@@ -378,11 +384,16 @@ AC_DEFUN([GASNET_SETUP_INTTYPES], [
 
 
 dnl Appends -Dvar_to_define onto target_var, iff var_to_define is set
-dnl GASNET_APPEND_DEFINE(target_var, var_to_define)
+dnl If value also is provided, adds -Dvar_to_define=value
+dnl GASNET_APPEND_DEFINE(target_var, var_to_define [, value] )
 AC_DEFUN([GASNET_APPEND_DEFINE],[
 GASNET_FUN_BEGIN([$0])
   if test "$[$2]" != ""; then
-    [$1]="$[$1] -D[$2]"
+    ifelse([$3],[],[
+      [$1]="$[$1] -D[$2]"
+    ],[
+      [$1]="$[$1] -D[$2]=$3"
+    ])
   fi
 GASNET_FUN_END([$0])
 ]) 
