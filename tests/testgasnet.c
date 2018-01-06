@@ -793,10 +793,13 @@ void doit(int partner, int *partnerseg) {
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
-    static volatile structtype S;                                            \
-    static fieldtype volatile v;                                             \
+    static structtype S;                                                     \
+    static fieldtype v;                                                      \
     S.fieldname = v; /* warnings here mean non-compliance */                 \
     v = S.fieldname; /* warnings here mean non-compliance */                 \
+    static fieldtype *p;                                                     \
+    p = &(S.fieldname); /* warnings here mean non-compliance */              \
+    S.fieldname = *p;   /* warnings here mean non-compliance */              \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
   } while (0)
 
