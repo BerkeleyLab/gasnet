@@ -665,6 +665,9 @@ typedef struct {
     //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
+    // Destination (receiving) endpoint
+    gex_EP_t                   gex_ep;
+
     // Entry describing the currently-running handler corresponding to this token.
     // The referenced gex_AM_Entry_t object resides in library-owned storage,
     // and should not be directly modified by client code.
@@ -688,6 +691,7 @@ typedef [some integer type] gex_TI_t;
 
 // REQUIRED: All implementations must support these queries:
 #define GEX_TI_SRCRANK       ((gex_TI_t)???)
+#define GEX_TI_EP            ((gex_TI_t)???)
 
 // OPTIONAL: Some implementations might not support these queries:
 #define GEX_TI_ENTRY         ((gex_TI_t)???)

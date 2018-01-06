@@ -444,6 +444,7 @@ typedef struct {
 /*  struct type used to return info from gex_Token_Info() */
 typedef struct {
     gex_Rank_t                 gex_srcrank;
+    gex_EP_t                   gex_ep;
     const gex_AM_Entry_t      *gex_entry;
     int                        gex_is_req;
     int                        gex_is_long;
@@ -455,7 +456,8 @@ typedef unsigned int gex_TI_t;
 #define GEX_TI_ENTRY         ((gex_TI_t)1<<1)
 #define GEX_TI_IS_REQ        ((gex_TI_t)1<<2)
 #define GEX_TI_IS_LONG       ((gex_TI_t)1<<3)
-#define GEX_TI_ALL          (((gex_TI_t)1<<4) - 1)
+#define GEX_TI_EP            ((gex_TI_t)1<<4)
+#define GEX_TI_ALL          (((gex_TI_t)1<<5) - 1)
 
 // Default implementation
 #ifndef gex_Token_Info

@@ -787,6 +787,9 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_srcrank = gasnetc_msgsource(token);
   result |= GEX_TI_SRCRANK;
 
+  info->gex_ep = gasneti_THUNK_EP;
+  result |= GEX_TI_EP;
+
 #if 0 // TODO-EX: need to implement this
   /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
   info->gex_entry = ###;

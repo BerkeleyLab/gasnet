@@ -263,6 +263,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       gasneti_assert(!offsetof(gasneti_ampshm_token_t,ti.gex_srcrank));
     #endif
       my_token->ti.gex_srcrank = src;
+      my_token->ti.gex_ep = gasneti_THUNK_EP;
       my_token->ti.gex_entry = entry;
       my_token->ti.gex_is_req = isReq;
     #if GASNET_DEBUG
@@ -298,7 +299,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       gasneti_assert(info);
 
       *info = ((gasneti_ampshm_token_t *)(1^(uintptr_t)token))->ti;
-      gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
+      gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_EP | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
       return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
     }
 #endif

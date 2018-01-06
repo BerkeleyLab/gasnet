@@ -990,7 +990,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 /* common logic for gex_Token_Info() */
 
 // OR of all the required bits
-#define GASNETI_TI_REQUIRED GEX_TI_SRCRANK
+#define GASNETI_TI_REQUIRED (GEX_TI_SRCRANK | GEX_TI_EP)
 
 #if GASNET_DEBUG
   extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t * info, gex_TI_t mask);

@@ -487,6 +487,10 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_srcrank = ###;
   result |= GEX_TI_SRCRANK;
 
+  /* (###) add code here to write the receiving EP into info->gex_ep */
+  info->gex_ep = gasneti_THUNK_EP;
+  result |= GEX_TI_EP;
+
   /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
   info->gex_entry = ###;
   result |= GEX_TI_ENTRY;
