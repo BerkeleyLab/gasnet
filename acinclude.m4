@@ -1910,6 +1910,60 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   GASNET_POPVAR(CPPFLAGS)
 ])
 
+dnl check whether a given C++11 attribute is available
+dnl GASNET_CHECK_CXX11_ATTRIBUTE(PREFIX, compiler-name, attribute-name, declaration, code)
+dnl Independent of PREFIX the test is run as LANG_CPLUSPLUS
+dnl Caller is responsible for setting of CXX and friends in the MPI_CXX case (if any)
+AC_DEFUN([GASNET_CHECK_CXX11_ATTRIBUTE],[
+  GASNET_FUN_BEGIN([$0($1,$2,$3)])
+  pushdef([uppername],translit(patsubst([$3], [_], []),'a-z:','A-Z_'))
+  pushdef([cachevar],cv_prefix[]translit([$1]_cppattr_[]uppername,'A-Z','a-z'))
+  AC_CACHE_CHECK($2 for C++ attribute [[[[$3]]]], cachevar,
+    GASNET_TRY_COMPILE_WITHWARN(CXX, [$4], [$5], [
+          cachevar='yes'
+      ],[ dnl cachevar="no/warning: $gasnet_cmd_stdout$gasnet_cmd_stderr"
+          cachevar='no/warning'
+      ],[ dnl cachevar="no/error: $gasnet_cmd_stdout$gasnet_cmd_stderr"
+          cachevar='no/error'
+    ])
+  )
+  if test "$cachevar" = yes; then
+      AC_DEFINE($1_CXX11_ATTRIBUTE_[]uppername)
+      AC_DEFINE($1_CXX11_ATTRIBUTE)
+  else
+      AC_DEFINE($1_CXX11_ATTRIBUTE_[]uppername, 0)
+  fi
+  GASNET_FUN_END([$0($1,$2,$3)])
+  popdef([cachevar])
+  popdef([uppername])
+])
+
+dnl GASNET_GET_CXX11_ATTRIBUTES(PREFIX, opt compiler-name)
+dnl Check all C++11 attributes of interest/importance to GASNet
+dnl Caller must setup CXX, CXXFLAGS, etc for MPI_CXX case (if any).
+AC_DEFUN([GASNET_GET_CXX11_ATTRIBUTES],[
+  GASNET_CHECK_CXX11_ATTRIBUTE([$1], [$2], [fallthrough],
+            [int dummy(int x) {
+               int result = 0;
+               switch (x) {
+                 case 3: result++;  [[[[fallthrough]]]];
+                 case 2: result++;  [[[[fallthrough]]]];
+                 case 1: result++;
+               }
+               return result;
+             }])
+  GASNET_CHECK_CXX11_ATTRIBUTE([$1], [$2], [clang::fallthrough],
+            [int dummy(int x) {
+               int result = 0;
+               switch (x) {
+                 case 3: result++;  [[[[clang::fallthrough]]]];
+                 case 2: result++;  [[[[clang::fallthrough]]]];
+                 case 1: result++;
+               }
+               return result;
+             }])
+])
+
 dnl  Check to see if __thread attribute exists and works
 dnl  Caller must setup CFLAGS/LIBS to support pthreaded compilation
 dnl  GASNET_CHECK_TLS_SUPPORT(action-if-yes, action-if-no)
