@@ -163,18 +163,22 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi) { \
       TEST_ROP_MIRROR(_tcode, mirror);                        \
     SUBTEST("MIN(random)");                                   \
       y = (_type)TEST_RAND(lo,hi);                            \
+      y = TEST_RAND_ONEIN(2) ? y : ((_type)-1) * y;           \
       TEST_ROP(_tcode, GEX_OP_MIN, y, unused);                \
       TEST_ROP_MIRROR(_tcode, MIN(mirror,y));                 \
     SUBTEST("FMIN(random)");                                  \
       y = (_type)TEST_RAND(lo,hi);                            \
+      y = TEST_RAND_ONEIN(2) ? y : ((_type)-1) * y;           \
       TEST_ROP_FETCH(_tcode, GEX_OP_FMIN, y, unused);         \
       TEST_ROP_MIRROR(_tcode, MIN(mirror,y));                 \
     SUBTEST("MAX(random)");                                   \
       y = (_type)TEST_RAND(lo,hi);                            \
+      y = TEST_RAND_ONEIN(2) ? y : ((_type)-1) * y;           \
       TEST_ROP(_tcode, GEX_OP_MAX, y, unused);                \
       TEST_ROP_MIRROR(_tcode, MAX(mirror,y));                 \
     SUBTEST("FMAX(random)");                                  \
       y = (_type)TEST_RAND(lo,hi);                            \
+      y = TEST_RAND_ONEIN(2) ? y : ((_type)-1) * y;           \
       TEST_ROP_FETCH(_tcode, GEX_OP_FMAX, y, unused);         \
       TEST_ROP_MIRROR(_tcode, MAX(mirror,y));                 \
     TEST_RAND_BITS##_isint(_tcode,_type)                      \
