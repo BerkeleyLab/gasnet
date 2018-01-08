@@ -1351,9 +1351,9 @@ extern const char *AMMPI_DumpStatistics(void *_fp, ammpi_stats_t *stats, int glo
   #endif
 
     "Message Breakdown:        Requests     Replies   Avg data sz (Req/Rep/Both)\n"
-    " Short  (<=%5i bytes)   %8"PRIu64"    %8"PRIu64"   %9.*f/%.*f/%.*f bytes\n"
-    " Medium (<=%5i bytes)   %8"PRIu64"    %8"PRIu64"   %9.*f/%.*f/%.*f bytes\n"
-    " Long   (<=%5i bytes)   %8"PRIu64"    %8"PRIu64"   %9.*f/%.*f/%.*f bytes\n"
+    " Short  (<=%5"PRIuSZ" bytes)   %8"PRIu64"    %8"PRIu64"   %9.*f/%.*f/%.*f bytes\n"
+    " Medium (<=%5"PRIuSZ" bytes)   %8"PRIu64"    %8"PRIu64"   %9.*f/%.*f/%.*f bytes\n"
+    " Long   (<=%5"PRIuSZ" bytes)   %8"PRIu64"    %8"PRIu64"   %9.*f/%.*f/%.*f bytes\n"
     " Total                                           %9.*f/%.*f/%.*f bytes\n"
 
     "Data bytes sent:      %"PRIu64"/%"PRIu64"/%"PRIu64" bytes\n"
@@ -1371,17 +1371,17 @@ extern const char *AMMPI_DumpStatistics(void *_fp, ammpi_stats_t *stats, int glo
   #endif
 
     /* Message breakdown */
-    (int)(AMMPI_MAX_SHORT*sizeof(int)),
+    AMMPI_MAX_SHORT*sizeof(int),
       stats->RequestsSent[ammpi_Short], stats->RepliesSent[ammpi_Short], 
       AMMPI_StatPrecision(reqavgpayload[ammpi_Short]), reqavgpayload[ammpi_Short], 
       AMMPI_StatPrecision(repavgpayload[ammpi_Short]), repavgpayload[ammpi_Short], 
       AMMPI_StatPrecision(avgpayload[ammpi_Short]), avgpayload[ammpi_Short], 
-    (int)(AMMPI_MAX_SHORT*sizeof(int) + AMMPI_MAX_MEDIUM),
+    AMMPI_MAX_SHORT*sizeof(int) + AMMPI_MAX_MEDIUM,
       stats->RequestsSent[ammpi_Medium], stats->RepliesSent[ammpi_Medium], 
       AMMPI_StatPrecision(reqavgpayload[ammpi_Medium]), reqavgpayload[ammpi_Medium], 
       AMMPI_StatPrecision(repavgpayload[ammpi_Medium]), repavgpayload[ammpi_Medium], 
       AMMPI_StatPrecision(avgpayload[ammpi_Medium]), avgpayload[ammpi_Medium], 
-    (int)(AMMPI_MAX_SHORT*sizeof(int) + AMMPI_MAX_LONG),
+    AMMPI_MAX_SHORT*sizeof(int) + AMMPI_MAX_LONG,
       stats->RequestsSent[ammpi_Long], stats->RepliesSent[ammpi_Long], 
       AMMPI_StatPrecision(reqavgpayload[ammpi_Long]), reqavgpayload[ammpi_Long], 
       AMMPI_StatPrecision(repavgpayload[ammpi_Long]), repavgpayload[ammpi_Long], 

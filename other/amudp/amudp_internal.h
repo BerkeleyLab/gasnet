@@ -6,7 +6,6 @@
 #ifndef _AMUDP_INTERNAL_H
 #define _AMUDP_INTERNAL_H
 
-#include <portable_inttypes.h>
 #undef _PORTABLE_PLATFORM_H
 #include <amudp_portable_platform.h>
 
@@ -27,6 +26,11 @@
 #else
   #define AMUDP_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
 #endif
+#if !defined(HAVE_C99_FORMAT_SPECIFIERS) && !(defined(__PRISZ_PREFIX) && defined(__PRIPD_PREFIX))
+#define HAVE_C99_FORMAT_SPECIFIERS 1
+#endif
+#include <portable_inttypes.h>
+
 #include <amudp.h>
 #include "sockutil.h" /* for SPMD TCP stuff */
 
@@ -443,17 +447,17 @@ GASNETT_NORETURNP(AMUDP_FatalErr)
 /* memory allocation */
 static void *_AMUDP_malloc(size_t sz, const char *curloc) {
   void *ret = malloc(sz);
-  if_pf(!ret) AMUDP_FatalErr("Failed to malloc(%" PRIuPTR ") at %s", (uintptr_t)sz, curloc);
+  if_pf(!ret) AMUDP_FatalErr("Failed to malloc(%" PRIuSZ ") at %s", sz, curloc);
   return ret;
 }
 static void *_AMUDP_calloc(size_t N, size_t S, const char *curloc) {
   void *ret = calloc(N,S);
-  if_pf(!ret) AMUDP_FatalErr("Failed to calloc(%" PRIuPTR ",%" PRIuPTR ") at %s", (uintptr_t)N, (uintptr_t)S, curloc);
+  if_pf(!ret) AMUDP_FatalErr("Failed to calloc(%" PRIuSZ ",%" PRIuSZ ") at %s", N, S, curloc);
   return ret;
 }
 static void *_AMUDP_realloc(void *ptr, size_t S, const char *curloc) {
   void *ret = realloc(ptr,S);
-  if_pf(!ret) AMUDP_FatalErr("Failed to realloc(%" PRIuPTR ") at %s", (uintptr_t)S, curloc);
+  if_pf(!ret) AMUDP_FatalErr("Failed to realloc(%" PRIuSZ ") at %s", S, curloc);
   return ret;
 }
 static void _AMUDP_free(void *ptr, const char *curloc) {
@@ -461,12 +465,12 @@ static void _AMUDP_free(void *ptr, const char *curloc) {
 }
 static char *_AMUDP_strdup(const char *s, const char *curloc) {
   char *ret = strdup(s);
-  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuPTR ") at %s", (uintptr_t)s, curloc);
+  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuSZ ") at %s", strlen(s), curloc);
   return ret;
 }
 static char *_AMUDP_strndup(const char *s, size_t sz, const char *curloc) {
   char *ret = strndup(s,sz);
-  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuPTR ",%" PRIuPTR  ") at %s", (uintptr_t)s, (uintptr_t)sz, curloc);
+  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuSZ ",%" PRIuSZ ") at %s", strlen(s), sz, curloc);
   return ret;
 }
 #define AMUDP_curloc __FILE__ ":" _STRINGIFY(__LINE__)
