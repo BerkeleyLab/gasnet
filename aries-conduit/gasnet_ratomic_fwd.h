@@ -25,57 +25,36 @@
 #endif
 
 #if GASNETC_BUILD_GNIRATOMIC
-  //#define GASNETE_BUILD_AMRATOMIC 0 - cannot disable because needed for DBL
-  #define GASNETE_HAVE_RATOMIC_EXTRA_H
+  #define GASNETE_HAVE_RATOMIC_EXTRA_H 1
 
-  // #define public API *directly* to GNI-based one
-  // No array of function pointers is needed when there is only 1 implementation.
-  //
-  // We take some care not to inline a big switch if opcode is non-constant.
-  #define GASNETE_GNIRATOMIC_FN(stem,ad,result_p,rank,addr,opcode,op1,op2,flags) \
-    (gasneti_constant_p(opcode) \
-     ? gasnete_gniratomic_##stem(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET) \
-     : gasnete_gniratomic_##stem##_external(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET))
-  //
-  #define gex_AD_OpNB_I32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_I32_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNBI_I32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_I32_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNB_U32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_U32_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNBI_U32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_U32_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNB_I64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_I64_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNBI_I64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_I64_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNB_U64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_U64_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNBI_U64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_U64_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNB_FLT(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_FLT_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNBI_FLT(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_FLT_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
-
-  #if 0 // No DBL because DP addition is known to be broken (e.g. see OFI GNI provider)
-  #define gex_AD_OpNB_DBL(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_DBL_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #define gex_AD_OpNBI_DBL(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-        GASNETE_GNIRATOMIC_FN(gex_dt_DBL_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
-  #endif
+  #define GASNETI_AD_CREATE_HOOK gasnete_gniratomic_create_hook
 
   /* stats needed by the GNI-specific atomics implementation */
   #ifndef GASNETI_RATOMIC_STATS
     #define GASNETI_RATOMIC_STATS(CNT,VAL,TIME)    \
         /* Currently empty */
   #endif
+
+  // Cannot assume always cpusafe - need to chech each AD
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_I32 0
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_U32 0
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_I64 0
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_U64 0
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_FLT 0
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_DBL 0
 #else // NOT building GNI-specific atomics
   /* stats needed by the RAtomic reference implementation */
   #ifndef GASNETI_RATOMIC_STATS
     #define GASNETI_RATOMIC_STATS(CNT,VAL,TIME)    \
         /* Currently empty */
   #endif
+
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_I32 1
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_U32 1
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_I64 1
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_U64 1
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_FLT 1
+  #define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_DBL 1
 #endif
 
 #endif // _GASNET_RATOMIC_FWD_H
