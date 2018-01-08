@@ -190,6 +190,37 @@ popdef([lowername])
 GASNET_FUN_END([$0($1)])
 ])
 
+dnl autoconf before 2.50 lacks AC_INCLUDES_DEFAULT
+AC_DEFUN([GASNET_INCLUDES_DEFAULT],[
+  ifdef([AC_INCLUDES_DEFAULT],[AC_INCLUDES_DEFAULT],[ 
+    dnl provide fallback include default for autoconf 2.13
+    /* this should include only C89 headers containing declarations we may want in configure */
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stddef.h>
+    #include <stdarg.h>
+    #include <string.h>
+    #include <ctype.h>
+    #include <limits.h>
+    #include <signal.h>
+    #include <errno.h>
+    #include <math.h>
+    #include <time.h>
+  ])
+])
+
+AC_DEFUN([myeval],[$1])
+
+dnl force our includes into an existing macro expansion
+define([_GASNET_INSERT_HEADERS],[
+ pushdef([hash],[#])
+ patsubst( [hash] (
+  $1
+ [hash] ), [\(#include <.*$\)], \1 GASNET_INCLUDES_DEFAULT)
+ popdef([hash])
+])
+
+
 ifdef([AC_AUTOCONF_VERSION],[ dnl fix a buggy AC_CHECK_SIZEOF(type *) in AC 2.66
   m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.66], [ 
     m4_copy([AC_CHECK_SIZEOF],[_GASNET_CHECK_SIZEOF])
@@ -211,7 +242,7 @@ AC_DEFUN([GASNET_CHECK_SIZEOF],[
 
   if test "$cross_compiling" = "yes" ; then
     uppername=
-    GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof($1) (binary probe)],uppername,[],[sizeof($1)],uppername)
+    GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof($1) (binary probe)],uppername,[GASNET_INCLUDES_DEFAULT],[sizeof($1)],uppername)
     if test -z "$uppername" ; then # last resort is to use CROSS var
       GASNET_CROSS_VAR(uppername,uppername)
     fi
@@ -226,7 +257,13 @@ AC_DEFUN([GASNET_CHECK_SIZEOF],[
   if test "$2" != "" ; then
     AC_MSG_CHECKING([$2 size:])
   fi
-  AC_CHECK_SIZEOF($1, $uppername) 
+
+  ifdef([AC_INCLUDES_DEFAULT], [
+    AC_CHECK_SIZEOF($1, $uppername)
+  ],[ dnl autoconf 2.13 lacks header support in CHECK_SIZEOF, add ours
+    _GASNET_INSERT_HEADERS([ AC_CHECK_SIZEOF($1, $uppername) ])
+  ])
+
   gasnet_checksizeoftmp_[]lowername="$ac_cv_[]barename"
   GASNET_POPVAR(ac_cv_[]barename)
   ac_cv_[]lowername=$gasnet_checksizeoftmp_[]lowername
@@ -2860,9 +2897,11 @@ dnl else, run action-failure
 AC_DEFUN([GASNET_COMPILE_EXAMINE], [
 AC_REQUIRE([AC_OBJEXT])
 GASNET_FUN_BEGIN([$0(...)])
-  cat >conftest.$ac_ext <<"EOF"
+  cat >conftest.$ac_ext <<EOF dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
 #include "confdefs.h"
 $1
+EOF
+  cat >>conftest.$ac_ext <<"EOF"
   int main(void) { 
 $2
   return 0; }
@@ -2895,9 +2934,11 @@ dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename o
 dnl else, run action-failure
 AC_DEFUN([GASNET_LINK_EXAMINE], [
 GASNET_FUN_BEGIN([$0(...)])
-  cat >conftest.$ac_ext <<"EOF"
+  cat >conftest.$ac_ext <<EOF dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
 #include "confdefs.h"
 $1
+EOF
+  cat >>conftest.$ac_ext <<"EOF"
   int main(void) { 
 $2
   return 0; }

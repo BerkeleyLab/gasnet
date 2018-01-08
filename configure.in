@@ -200,6 +200,11 @@ fi
 
 ## discover bit width
 
+dnl Use the results of CHECK_SIZEOF(void *) to select 64-bit mode for some tools
+dnl NOTE: CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
+
 GASNET_CHECK_SIZEOF(void *)
 GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
 AC_SUBST(GASNETI_PTR_BITS)
@@ -5039,10 +5044,6 @@ AC_CHECK_HEADERS(sys/param.h)
 ##  Supporting Command-Line Tools (continued)
 ##
 
-dnl Use the results of AC_CHECK_SIZEOF(void *) to select 64-bit mode for some tools
-dnl NOTE: AC_CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
-dnl     Store full paths, so we find right ones even if users have
-dnl     some other version in their path
 if test x"$BOURNE_SHELL" = x; then
     BOURNE_SHELL="/bin/sh"
 fi
