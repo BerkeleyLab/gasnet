@@ -5122,7 +5122,7 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_srcrank = GASNETC_MSG_SRCIDX(flags);
   result |= GEX_TI_SRCRANK;
 
-#if GASNETI_TRACE
+#if GASNET_TRACE
   // TRACE of source of bootstrap AMs can reach here before gasneti_THUNK_TM is set
   info->gex_ep = gasneti_THUNK_TM ? gasneti_THUNK_EP : NULL;
 #else
