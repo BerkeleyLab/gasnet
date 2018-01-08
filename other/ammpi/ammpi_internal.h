@@ -440,17 +440,17 @@ struct ammpi_ep {
 /* memory allocation */
 static void *_AMMPI_malloc(size_t sz, const char *curloc) {
   void *ret = malloc(sz);
-  if_pf(!ret) AMMPI_FatalErr("Failed to malloc(%"PRIuPTR") at %s", (uintptr_t)sz, curloc);
+  if_pf(!ret) AMMPI_FatalErr("Failed to malloc(%"PRIuSZ") at %s", sz, curloc);
   return ret;
 }
 static void *_AMMPI_calloc(size_t N, size_t S, const char *curloc) {
   void *ret = calloc(N,S);
-  if_pf(!ret) AMMPI_FatalErr("Failed to calloc(%"PRIuPTR",%"PRIuPTR") at %s", (uintptr_t)N, (uintptr_t)S, curloc);
+  if_pf(!ret) AMMPI_FatalErr("Failed to calloc(%"PRIuSZ",%"PRIuSZ") at %s", N, S, curloc);
   return ret;
 }
 static void *_AMMPI_realloc(void *ptr, size_t S, const char *curloc) {
   void *ret = realloc(ptr,S);
-  if_pf(!ret) AMMPI_FatalErr("Failed to realloc(%"PRIuPTR") at %s", (uintptr_t)S, curloc);
+  if_pf(!ret) AMMPI_FatalErr("Failed to realloc(%"PRIuSZ") at %s", S, curloc);
   return ret;
 }
 static void _AMMPI_free(void *ptr, const char *curloc) {

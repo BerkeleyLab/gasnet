@@ -214,13 +214,12 @@
     #include <inttypes.h>
   #endif
 #endif /* _INTTYPES_DEFINED */
-
-#ifndef _INTTYPE_FORMATS_DEFINED
-#define _INTTYPE_FORMATS_DEFINED
+#endif /* _PORTABLE_INTTYPES_H */
 
   /* Fixed-width printf/scanf format specifiers to go with the types defined above.
    * C99-compliant inttypes.h should already provide these, so here we just ensure
    * that's the case for the ones we care about and provide a last-ditch effort otherwise.
+   * These are processed on every include of this header, to allow context-dependent adjustment.
    *
    * Currently only worry about the 64-bit and PTR versions.
    *
@@ -409,6 +408,3 @@
   #define SCNxPTR __PRIPTR_PREFIX "x"
   #endif
 
-#endif /* _INTTYPE_FORMATS_DEFINED */
-
-#endif /* _PORTABLE_INTTYPES_H */
