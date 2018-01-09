@@ -200,12 +200,12 @@ extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
 extern size_t gasneti_format_strides_bufsz(size_t count) {
   return count*30+10;
 }
-extern void gasneti_format_strides(char *buf, size_t count, const ssize_t *list) {
+extern void gasneti_format_strides(char *buf, size_t count, const ptrdiff_t *list) {
   const int bufsz = gasneti_format_strides_bufsz(count);
   char * p = buf;
   strcpy(p,"["); p++;
   for (size_t i=0; i < count; i++) {
-    sprintf(p, "%"PRIdSZ, list[i]);
+    sprintf(p, "%"PRIdPD, list[i]);
     if (i < count-1) strcat(p, ", ");
     p += strlen(p);
     gasneti_assert(p-buf < bufsz);
@@ -219,8 +219,8 @@ extern size_t gasneti_format_putsgets_bufsz(size_t stridelevels) {
 }
 extern size_t gasneti_format_putsgets(char *buf, void *_pstats, 
                                     gex_Rank_t node,
-                                    void *dstaddr, const ssize_t dststrides[],
-                                    void *srcaddr, const ssize_t srcstrides[],
+                                    void *dstaddr, const ptrdiff_t dststrides[],
+                                    void *srcaddr, const ptrdiff_t srcstrides[],
                                     size_t elemsz, const size_t count[], size_t stridelevels) {
   gasnete_strided_stats_t *pstats = _pstats;
   gasnete_strided_stats_t stats;
@@ -233,7 +233,8 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   gasnete_strided_stats(pstats, dststrides, srcstrides, elemsz, count, stridelevels);
   gasneti_format_strides(srcstrides_str, stridelevels, srcstrides);
   gasneti_format_strides(dststrides_str, stridelevels, dststrides);
-  gasneti_format_strides(count_str, stridelevels, (const ssize_t *)count);
+  gasneti_assert(sizeof(ptrdiff_t) == sizeof(size_t));
+  gasneti_format_strides(count_str, stridelevels, (const ptrdiff_t *)count);
   sprintf(buf,"(%"PRIuSZ" data bytes) node=%i stridelevels=%"PRIuSZ" elemsz=%"PRIuSZ" count=%s\n"
               "dualcontiguity=%"PRIuSZ" nulldims=%"PRIuSZ"\n"
               "dst: dstaddr="GASNETI_LADDRFMT" dststrides=%s\n"

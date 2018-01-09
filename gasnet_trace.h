@@ -799,12 +799,12 @@ extern size_t gasneti_format_putigeti(char *_buf, gex_Rank_t _node,
                                     size_t _srccount, void * const _srclist[], size_t _srclen);
 
 extern size_t gasneti_format_strides_bufsz(size_t _count);
-extern void gasneti_format_strides(char *_buf, size_t _count, const ssize_t *_list);
+extern void gasneti_format_strides(char *_buf, size_t _count, const ptrdiff_t *_list);
 extern size_t gasneti_format_putsgets_bufsz(size_t _stridelevels);
 extern size_t gasneti_format_putsgets(char *_buf, void *_pstats, 
                                     gex_Rank_t _node,
-                                    void *_dstaddr, const ssize_t _dststrides[],
-                                    void *_srcaddr, const ssize_t _srcstrides[],
+                                    void *_dstaddr, const ptrdiff_t _dststrides[],
+                                    void *_srcaddr, const ptrdiff_t _srcstrides[],
                                     size_t _elemsz, const size_t _count[], size_t _stridelevels);
 
 #if GASNETI_STATS_OR_TRACE

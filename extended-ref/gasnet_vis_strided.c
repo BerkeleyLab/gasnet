@@ -363,9 +363,9 @@ static int32_t const _gasnete_strided_helper_havepartial = (int32_t)sizeof(_gasn
 // TODO-EX REMOVE THESE HACKS
 #define gasnete_strided_empty(a,b) 0
 #define gasnete_strided_nulldims(c,sl) (gasnete_strided_nulldims)(c+1,sl)
-#define gasnete_strided_contiguity(s,c,sl) (gasnete_strided_contiguity)((ssize_t *)s,c[0],c+1,sl)
+#define gasnete_strided_contiguity(s,c,sl) (gasnete_strided_contiguity)((ptrdiff_t *)s,c[0],c+1,sl)
 #define gasnete_strided_stats(pstats, dststrides, srcstrides, count, stridelevels) \
-  (gasnete_strided_stats)(pstats, (ssize_t*)dststrides, (ssize_t*)srcstrides, count[0], count+1, stridelevels)
+  (gasnete_strided_stats)(pstats, (ptrdiff_t*)dststrides, (ptrdiff_t*)srcstrides, count[0], count+1, stridelevels)
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts of the dualcontiguity size */
 gex_Event_t gasnete_puts_ref_indiv(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,

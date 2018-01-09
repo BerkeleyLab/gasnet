@@ -629,8 +629,8 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
       { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
         char *buf = test_malloc(sz);
         gasnett_format_putsgets(buf, NULL, nodeid,
-          desc->dstaddr, (ssize_t*)desc->dststrides,
-          desc->srcaddr, (ssize_t*)desc->srcstrides,
+          desc->dstaddr, (ptrdiff_t*)desc->dststrides,
+          desc->srcaddr, (ptrdiff_t*)desc->srcstrides,
           desc->count[0], desc->count+1, desc->stridelevels);
         ERR("strided desc: %s\n", buf);
       }
@@ -923,9 +923,9 @@ void doit(int iters, int runtests) {
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
         tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
 
-        TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, (ssize_t*)desc->dststrides, desc->srcaddr, (ssize_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
+        TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
         verify_strided_desc(desc);
-        TIMED_GET(gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ssize_t*)desc->contigstrides, partner, desc->dstaddr, (ssize_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
+        TIMED_GET(gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ptrdiff_t*)desc->contigstrides, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
         verify_strided_desc(desc);
         verify_strided_desc_data(desc, tmpbuf, "gasnet_puts_bulk/gasnet_gets_bulk test");
         test_free(desc);
@@ -941,13 +941,13 @@ void doit(int iters, int runtests) {
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
         tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
 
-        gex_VIS_StridedGetBlocking(myteam, desc->dstaddr, (ssize_t*)desc->dststrides, partner, desc->srcaddr, (ssize_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
+        gex_VIS_StridedGetBlocking(myteam, desc->dstaddr, (ptrdiff_t*)desc->dststrides, partner, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         verify_strided_desc(desc);
         if ((segeverything || dstarea == my_seg_write1_area) && 
             TEST_RAND_PICK(0,1)) {
-          gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ssize_t*)desc->contigstrides, mynode, desc->dstaddr, (ssize_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
+          gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ptrdiff_t*)desc->contigstrides, mynode, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         } else {
-          gex_VIS_StridedPutBlocking(myteam, mynode, tmpbuf, (ssize_t*)desc->contigstrides, desc->dstaddr, (ssize_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
+          gex_VIS_StridedPutBlocking(myteam, mynode, tmpbuf, (ptrdiff_t*)desc->contigstrides, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         }
         verify_strided_desc(desc);
         verify_strided_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gasnet_gets_bulk test");
@@ -1019,8 +1019,8 @@ void doit(int iters, int runtests) {
             ops[i].stmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,opareasz - ops[i].sdesc->totalsz/VEC_SZ);
 
             if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ssize_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ssize_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
+              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
+            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
 
             verify_strided_desc(ops[i].sdesc);
             break;
@@ -1056,8 +1056,8 @@ void doit(int iters, int runtests) {
           assert(ops[i].sdesc != NULL);
 
           if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ssize_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-          else gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ssize_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ssize_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
+            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
+          else gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
 
           verify_strided_desc(ops[i].sdesc);
         }
