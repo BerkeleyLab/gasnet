@@ -133,14 +133,12 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi) { \
     SUBTEST("SUB(x)");                                        \
       TEST_ROP(_tcode, GEX_OP_SUB, x, unused);                \
       TEST_ROP_MIRROR(_tcode, mirror - x);                    \
- /* ====> (F)MULT is "unimplemented" at this time <====      \
     SUBTEST("FMULT(x)");                                      \
       TEST_ROP_FETCH(_tcode, GEX_OP_FMULT, x, unused);        \
       TEST_ROP_MIRROR(_tcode, mirror * x);                    \
     SUBTEST("MULT(x)");                                       \
       TEST_ROP(_tcode, GEX_OP_MULT, x, unused);               \
       TEST_ROP_MIRROR(_tcode, mirror * x);                    \
- */                                                           \
     SUBTEST("SWAP(x)");                                       \
       TEST_ROP_FETCH(_tcode, GEX_OP_SWAP, x, unused);         \
       TEST_ROP_MIRROR(_tcode, x);                             \
@@ -227,10 +225,10 @@ TEST_RAND_DECL(DBL, double,   0)
 
 void doit(gex_DT_t dt) {
   gex_OP_t ops =
-        GEX_OP_ADD  | GEX_OP_SUB  | /* GEX_OP_MULT [UNIMPLEMENTED] | */
+        GEX_OP_ADD  | GEX_OP_SUB  | GEX_OP_MULT  |
         GEX_OP_MIN  | GEX_OP_MAX  |
         GEX_OP_INC  | GEX_OP_DEC  |
-        GEX_OP_FADD | GEX_OP_FSUB | /* GEX_OP_FMULT [UNIMPLEMENTED] | */
+        GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT |
         GEX_OP_FMIN | GEX_OP_FMAX |
         GEX_OP_FINC | GEX_OP_FDEC |
         GEX_OP_SET  | GEX_OP_GET  |

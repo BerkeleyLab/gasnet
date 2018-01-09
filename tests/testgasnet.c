@@ -764,11 +764,11 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
     GEX_OP_AND,  GEX_OP_OR,   GEX_OP_XOR,
-    GEX_OP_ADD,  GEX_OP_SUB,  /*GEX_OP_MULT [UNIMPLEMENTED],*/
+    GEX_OP_ADD,  GEX_OP_SUB,  GEX_OP_MULT,
     GEX_OP_MIN,  GEX_OP_MAX,
     GEX_OP_INC,  GEX_OP_DEC,
     GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
-    GEX_OP_FADD, GEX_OP_FSUB, /*GEX_OP_FMULT [UNIMPLEMENTED],*/
+    GEX_OP_FADD, GEX_OP_FSUB, GEX_OP_FMULT,
     GEX_OP_FMIN, GEX_OP_FMAX,
     GEX_OP_FINC, GEX_OP_FDEC,
     GEX_OP_SET,  GEX_OP_GET,

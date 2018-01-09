@@ -1419,7 +1419,7 @@ typedef [some integer type] gex_DT_t;
 //      Valid for all specified GEX_DT_* types
 //        GEX_OP_ADD   expr = (op0 + op1)
 //        GEX_OP_SUB   expr = (op0 - op1)
-//        GEX_OP_MULT  expr = (op0 * op1) [UNIMPLEMENTED]
+//        GEX_OP_MULT  expr = (op0 * op1)
 //        GEX_OP_MIN   expr = ((op0 < op1) ? op0 : op1)
 //        GEX_OP_MAX   expr = ((op0 > op1) ? op0 : op1)
 //    - Unary Arithmetic Operations
