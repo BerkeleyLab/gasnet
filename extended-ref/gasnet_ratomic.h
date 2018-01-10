@@ -17,13 +17,22 @@ GASNETI_BEGIN_NOWARN
 struct gasneti_ad_t;
 typedef struct gasneti_ad_t *gex_AD_t;
 
+// Forward decl of (internal) dispatch table type:
+union gasnete_ratomic_fn_tbl_u;
+typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
+
 #ifndef _GEX_AD_T
+  // TODO-EX: Current design has a pointer to the dispatch table in each AD.
+  // However, we should investigate the alterative design in which the table
+  // appears directly within the AD.
   #define GASNETI_AD_COMMON \
     GASNETI_OBJECT_HEADER              \
     gasneti_TM_t       _tm;            \
     gex_Rank_t         _rank;          \
     gex_DT_t           _dt;            \
-    gex_OP_t           _ops;
+    gex_OP_t           _ops;           \
+    int                _cpusafe;       \
+    gasnete_ratomic_fn_tbl_t _fn_tbl;
   typedef struct { GASNETI_AD_COMMON } *gasneti_AD_t;
   #if GASNET_DEBUG
     extern gasneti_AD_t gasneti_import_ad(gex_AD_t _ad);
@@ -298,94 +307,118 @@ typedef struct gasneti_ad_t *gex_AD_t;
 GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
 
 //
-// Macro expanding to declaration of a full family of "back-end" functions
-// which together constitute one implementation of remote atomics.
+// Typedef the function types used in dispatch (10 function types per DT).
 //
-// Example usage for a "fooratomic" implementation:
-//    #define GASNETE_FOORATOMIC_DECL(dtcode) GASNETE_RATOMIC_DECL(gasnete_fooratomic, dtcode)
-//    GASNETE_DT_APPLY(GASNETE_FOORATOMIC_DECL)
-//
-// Interface is intended to eliminate all opcode-dependent branches, but
-// to still be significantly narrower than one function per opcode.
-//
-// gasnete_fooratomic_{typecode}_{NB,NBI}_{N,F,S,G}{0,1,2}
-//         N  Non-fetching operation (excluding Set)
-//         F  Fetching operation (excluding Get)
-//         S  Set (only S1)
-//         G  Get (only G0)
+// gasnete_ratomic[dtcode]_{NB,NBI}_{N,F}{0,1,2}_fn_t
+//         N  Non-fetching operation
+//         F  Fetching operation
 //   {0,1,2}  Operand count
-// For NBI one wants S and G due to their differing Event Categories.
-// However, they are also included for NB under the belief that we
-// will eventually want to map these to Put/Get for some combinations
-// of data type and network.
+// Currently there are no "N2" functions, though "AX" would belong there.
 //
-// Currently there is no "N2" case, though "AX" would belong there.
+// Also defines a family of
+//   GASNETE_RATOMIC_ARGS_{N{0,1},F{0,1,2}}(type)
+// and
+//   GASNETE_RATOMIC_PASS_{N{0,1},F{0,1,2}}
+// macros for use in macros which declare or define such functions.
 //
-#define GASNETE_RATOMIC_DECL(prefix, dtcode) \
-        _GASNETE_RATOMIC_DECL(prefix##dtcode, dtcode##_type)
-#define _GASNETE_RATOMIC_DECL(prefix, type) \
-    extern gex_Event_t prefix##_NB_N0(gasneti_AD_t, gex_Rank_t, void*,                    \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern gex_Event_t prefix##_NB_N1(gasneti_AD_t, gex_Rank_t, void*, type,              \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern gex_Event_t prefix##_NB_F0(gasneti_AD_t, type*, gex_Rank_t, void*,             \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern gex_Event_t prefix##_NB_F1(gasneti_AD_t, type*, gex_Rank_t, void*, type,       \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern gex_Event_t prefix##_NB_F2(gasneti_AD_t, type*, gex_Rank_t, void*, type, type, \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern gex_Event_t prefix##_NB_S1(gasneti_AD_t, gex_Rank_t, void*, type,              \
-                                      gex_Flags_t GASNETI_THREAD_FARG);                   \
-    extern gex_Event_t prefix##_NB_G0(gasneti_AD_t, type*, gex_Rank_t, void*,             \
-                                      gex_Flags_t GASNETI_THREAD_FARG);                   \
-    extern int        prefix##_NBI_N0(gasneti_AD_t, gex_Rank_t, void*,                    \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern int        prefix##_NBI_N1(gasneti_AD_t, gex_Rank_t, void*, type,              \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern int        prefix##_NBI_F0(gasneti_AD_t, type*, gex_Rank_t, void*,             \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern int        prefix##_NBI_F1(gasneti_AD_t, type*, gex_Rank_t, void*, type,       \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern int        prefix##_NBI_F2(gasneti_AD_t, type*, gex_Rank_t, void*, type, type, \
-                                      gasneti_op_idx_t, gex_Flags_t GASNETI_THREAD_FARG); \
-    extern int        prefix##_NBI_S1(gasneti_AD_t, gex_Rank_t, void*, type,              \
-                                      gex_Flags_t GASNETI_THREAD_FARG);                   \
-    extern int        prefix##_NBI_G0(gasneti_AD_t, type*, gex_Rank_t, void*,             \
-                                      gex_Flags_t GASNETI_THREAD_FARG);
+#define GASNETE_RATOMIC_FNTYPES(dtcode) \
+  typedef gex_Event_t (gasnete_ratomic##dtcode##_NB_N0_fn_t )(GASNETE_RATOMIC_ARGS_N0(dtcode##_type)); \
+  typedef gex_Event_t (gasnete_ratomic##dtcode##_NB_N1_fn_t )(GASNETE_RATOMIC_ARGS_N1(dtcode##_type)); \
+  typedef gex_Event_t (gasnete_ratomic##dtcode##_NB_F0_fn_t )(GASNETE_RATOMIC_ARGS_F0(dtcode##_type)); \
+  typedef gex_Event_t (gasnete_ratomic##dtcode##_NB_F1_fn_t )(GASNETE_RATOMIC_ARGS_F1(dtcode##_type)); \
+  typedef gex_Event_t (gasnete_ratomic##dtcode##_NB_F2_fn_t )(GASNETE_RATOMIC_ARGS_F2(dtcode##_type)); \
+  typedef int         (gasnete_ratomic##dtcode##_NBI_N0_fn_t)(GASNETE_RATOMIC_ARGS_N0(dtcode##_type)); \
+  typedef int         (gasnete_ratomic##dtcode##_NBI_N1_fn_t)(GASNETE_RATOMIC_ARGS_N1(dtcode##_type)); \
+  typedef int         (gasnete_ratomic##dtcode##_NBI_F0_fn_t)(GASNETE_RATOMIC_ARGS_F0(dtcode##_type)); \
+  typedef int         (gasnete_ratomic##dtcode##_NBI_F1_fn_t)(GASNETE_RATOMIC_ARGS_F1(dtcode##_type)); \
+  typedef int         (gasnete_ratomic##dtcode##_NBI_F2_fn_t)(GASNETE_RATOMIC_ARGS_F2(dtcode##_type)); \
+//
+#define GASNETE_RATOMIC_ARGS_N0(type) \
+        gasneti_AD_t _real_ad, gex_Rank_t _tgt_rank, void* _tgt_addr, \
+        gex_Flags_t _flags GASNETI_THREAD_FARG
+#define GASNETE_RATOMIC_ARGS_N1(type) \
+        gasneti_AD_t _real_ad, gex_Rank_t _tgt_rank, void* _tgt_addr, \
+        type _operand1, gex_Flags_t _flags GASNETI_THREAD_FARG
+#define GASNETE_RATOMIC_ARGS_F0(type) \
+        gasneti_AD_t _real_ad, type* _result_p, gex_Rank_t _tgt_rank, void* _tgt_addr, \
+        gex_Flags_t _flags GASNETI_THREAD_FARG
+#define GASNETE_RATOMIC_ARGS_F1(type) \
+        gasneti_AD_t _real_ad, type* _result_p, gex_Rank_t _tgt_rank, void* _tgt_addr, \
+        type _operand1, gex_Flags_t _flags GASNETI_THREAD_FARG
+#define GASNETE_RATOMIC_ARGS_F2(type) \
+        gasneti_AD_t _real_ad, type* _result_p, gex_Rank_t _tgt_rank, void* _tgt_addr, \
+        type _operand1, type _operand2, gex_Flags_t _flags GASNETI_THREAD_FARG
+//
+#define GASNETE_RATOMIC_PASS_N0 \
+        _real_ad, _tgt_rank, _tgt_addr, _flags GASNETI_THREAD_PASS
+#define GASNETE_RATOMIC_PASS_N1 \
+        _real_ad, _tgt_rank, _tgt_addr, _operand1, _flags GASNETI_THREAD_PASS
+#define GASNETE_RATOMIC_PASS_F0 \
+        _real_ad, _result_p, _tgt_rank, _tgt_addr, _flags GASNETI_THREAD_PASS
+#define GASNETE_RATOMIC_PASS_F1 \
+        _real_ad, _result_p, _tgt_rank, _tgt_addr, _operand1, _flags GASNETI_THREAD_PASS
+#define GASNETE_RATOMIC_PASS_F2 \
+        _real_ad, _result_p, _tgt_rank, _tgt_addr, _operand1, _operand2, _flags GASNETI_THREAD_PASS
+//
+GASNETE_DT_APPLY(GASNETE_RATOMIC_FNTYPES)
 
 //
-// Macro expanding to definition of a full family of "dispatch" functions
-// which together constitute one implementation of remote atomics.
+// Typedef structures full of function pointers used in dispatch (1 struct type per DT)
 //
-// Example usage for a "fooratomic" implementation:
-//    #define GASNETE_FOORATOMIC_DISP(dtcode) GASNETE_RATOMIC_DISP(gasnete_fooratomic, dtcode, cpusafe)
-//    GASNETE_DT_APPLY(GASNETE_FOORATOMIC_DISP)
-// Where the 'cpusafe' argument is a literal 1 to enable "loopback" calls to
-// use the gasnete_ratomicfn##dtcode() functions, or literal 0 to disable.
-// Alternatively cpusafe might be an expression on "_real_ad" if useful.
+#define GASNETE_RATOMIC_FN_TBL(dtcode) \
+  typedef struct { \
+    _GASNETE_RATOMIC_FN_TBL(gasnete_ratomic##dtcode##_NB)  _gex_nb;  \
+    _GASNETE_RATOMIC_FN_TBL(gasnete_ratomic##dtcode##_NBI) _gex_nbi; \
+  } gasnete_ratomic##dtcode##_fn_tbl_t;
+//
+#define _GASNETE_RATOMIC_FN_TBL(prefix) \
+  struct {                                                         \
+    prefix##_N1_fn_t *_gex_op_AND,  *_gex_op_OR,   *_gex_op_XOR;   \
+    prefix##_N1_fn_t *_gex_op_ADD,  *_gex_op_SUB,  *_gex_op_MULT;  \
+    prefix##_N1_fn_t *_gex_op_MIN,  *_gex_op_MAX;                  \
+    prefix##_N0_fn_t *_gex_op_INC,  *_gex_op_DEC;                  \
+    prefix##_F1_fn_t *_gex_op_FAND, *_gex_op_FOR,  *_gex_op_FXOR;  \
+    prefix##_F1_fn_t *_gex_op_FADD, *_gex_op_FSUB, *_gex_op_FMULT; \
+    prefix##_F1_fn_t *_gex_op_FMIN, *_gex_op_FMAX;                 \
+    prefix##_F0_fn_t *_gex_op_FINC, *_gex_op_FDEC;                 \
+    prefix##_N1_fn_t *_gex_op_SET;                                 \
+    prefix##_F0_fn_t *_gex_op_GET;                                 \
+    prefix##_F1_fn_t *_gex_op_SWAP;                                \
+    prefix##_F2_fn_t *_gex_op_CSWAP;                               \
+  }
+//
+GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_TBL)
+
+//
+// Single union of all gasnete_ratomic[dtcode]_fn_tbl_t types
+//
+#define GASNETE_RATOMIC_FN_UNION(dtcode) gasnete_ratomic##dtcode##_fn_tbl_t dtcode;
+union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
+
+//
+// Define of a full family of "dispatch" functions that together
+// constitute the default implementation of remote atomics.
 //
 // TODO: should honor is-self flag once it is defined
 // TODO: need local memory fences once flags are defined
 // TODO: need trace/stats at this layer or one higher
-// TODO: The "cpusafe" logic could use gasneti_op_fetch() if it were
-//       to be defined in a client-facing header.
+// TODO: bypass indirection to table when AM is the only implementation
 //
-// GASNETE_RATOMIC_DISP(prefix, dtcode, cpusafe):
+// GASNETE_RATOMIC_DISP(dtcode):
 //   Expands to definitions of two inline functions:
-//       inline gex_Event_t prefix##dtcode##_NB() { ... }
-//       inline int         prefix##dtcode##_NBI() { ... }
+//       inline gex_Event_t gasnete_ratomic##dtcode##_NB() { ... }
+//       inline int         gasnete_ratomic##dtcode##_NBI() { ... }
 //     and extern declarations two functions of identical functionality:
-//       extern gex_Event_t prefix##dtcode##_NB_external();
-//       extern int         prefix##dtcode##_NBI_external();
+//       extern gex_Event_t gasnete_ratomic##dtcode##_NB_external();
+//       extern int         gasnete_ratomic##dtcode##_NBI_external();
 //     Each has the signature of a gex_AD_* op-initiation call for 'type'.
-//
-#define GASNETE_RATOMIC_DISP(prefix, dtcode, cpusafe) \
-        _GASNETE_RATOMIC_DISP1(prefix##dtcode, dtcode##_isint, dtcode##_type, dtcode, cpusafe)
+#define GASNETE_RATOMIC_DISP(dtcode) \
+        _GASNETE_RATOMIC_DISP1(gasnete_ratomic##dtcode, dtcode##_isint, dtcode##_type, dtcode)
 // This extra pass expands the "isint" token prior to additional concatenation
-#define _GASNETE_RATOMIC_DISP1(prefix, isint, type, dtcode, cpusafe) \
-        _GASNETE_RATOMIC_DISP2(prefix##_NB, isint, type, dtcode, cpusafe, gex_Event_t, GEX_EVENT_INVALID) \
-        _GASNETE_RATOMIC_DISP2(prefix##_NBI, isint, type, dtcode, cpusafe, int, 0)
-#define _GASNETE_RATOMIC_DISP2(fname,isint,type,dtcode,cpusafe,rettype,retdone) \
+#define _GASNETE_RATOMIC_DISP1(prefix, isint, type, dtcode) \
+        _GASNETE_RATOMIC_DISP2(prefix##_NB, _gex_nb, isint, type, dtcode, gex_Event_t, GEX_EVENT_INVALID) \
+        _GASNETE_RATOMIC_DISP2(prefix##_NBI, _gex_nbi, isint, type, dtcode, int, 0)
+#define _GASNETE_RATOMIC_DISP2(fname,nbnbi,isint,type,dtcode,rettype,retdone) \
     extern rettype fname##_external _GASNETE_RATOMIC_DISP_ARGS(type);    \
     GASNETI_ALWAYS_INLINE(fname)                                         \
     rettype fname _GASNETE_RATOMIC_DISP_ARGS(type)                       \
@@ -393,7 +426,9 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
                                  _opcode, dtcode##_dtype, _flags);       \
         gasneti_AD_t _real_ad = gasneti_import_ad(_ad);                  \
-        if (cpusafe && (_tgt_rank == _real_ad->_rank)) {                 \
+        if ((GASNETE_RATOMIC_ALWAYS_CPUSAFE##dtcode ||                   \
+                                                  _real_ad->_cpusafe) && \
+            (_tgt_rank == _real_ad->_rank)) {                            \
             type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,  \
                                                      _operand1,          \
                                                      _operand2,          \
@@ -408,25 +443,20 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
             return retdone;                                              \
         }                                                                \
         switch(_opcode) {                                                \
-            _GASNETE_RATOMIC_DISP_CASE(fname, GET,   G0)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, SET,   S1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, SWAP,  F1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, CSWAP, F2)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, ADD,   N1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FADD,  F1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, SUB,   N1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FSUB,  F1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, MULT,  N1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FMULT, F1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, MIN,   N1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FMIN,  F1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, MAX,   N1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FMAX,  F1)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, INC,   N0)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FINC,  F0)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, DEC,   N0)                 \
-            _GASNETE_RATOMIC_DISP_CASE(fname, FDEC,  F0)                 \
-            _GASNETE_RATOMIC_DISP_INT##isint(fname, type)                \
+            _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, SET,   N1)        \
+            _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, GET,   F0)        \
+            _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, SWAP,  F1)        \
+            _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, CSWAP, F2)        \
+            _GASNETE_RATOMIC_DISP_INT##isint(dtcode, nbnbi, AND, 1)      \
+            _GASNETE_RATOMIC_DISP_INT##isint(dtcode, nbnbi, OR,  1)      \
+            _GASNETE_RATOMIC_DISP_INT##isint(dtcode, nbnbi, XOR, 1)      \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, ADD,   1)         \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, SUB,   1)         \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, MULT,  1)         \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, MIN,   1)         \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, MAX,   1)         \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, INC,   0)         \
+            _GASNETE_RATOMIC_DISP_CASE2(dtcode, nbnbi, DEC,   0)         \
             default: gasneti_unreachable();                              \
         }                                                                \
         gasneti_unreachable();                                           \
@@ -438,125 +468,93 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_DEFN)
          gex_OP_t            _opcode,    type             _operand1,     \
          type                _operand2,  gex_Flags_t      _flags         \
          GASNETI_THREAD_FARG)
-#define _GASNETE_RATOMIC_DISP_INT0(prefix, type) /*empty*/
-#define _GASNETE_RATOMIC_DISP_INT1(prefix, type) /*bitwise ops*/ \
-            _GASNETE_RATOMIC_DISP_CASE(prefix, AND,   N1) \
-            _GASNETE_RATOMIC_DISP_CASE(prefix, FAND,  F1) \
-            _GASNETE_RATOMIC_DISP_CASE(prefix, OR,    N1) \
-            _GASNETE_RATOMIC_DISP_CASE(prefix, FOR,   F1) \
-            _GASNETE_RATOMIC_DISP_CASE(prefix, XOR,   N1) \
-            _GASNETE_RATOMIC_DISP_CASE(prefix, FXOR,  F1)
-#define _GASNETE_RATOMIC_DISP_CASE(prefix,opname,args) \
+#define _GASNETE_RATOMIC_DISP_INT0(dtcode,nbnbi,opstem,nargs)  /*empty*/
+#define _GASNETE_RATOMIC_DISP_INT1 _GASNETE_RATOMIC_DISP_CASE2
+#define _GASNETE_RATOMIC_DISP_CASE2(dtcode,nbnbi,opstem,nargs) \
+        _GASNETE_RATOMIC_DISP_CASE1(dtcode,nbnbi,opstem,N##nargs) \
+        _GASNETE_RATOMIC_DISP_CASE1(dtcode,nbnbi,F##opstem,F##nargs)
+#define _GASNETE_RATOMIC_DISP_CASE1(dtcode,nbnbi,opname,args) \
             case GEX_OP_##opname: \
-                return prefix##_##args _GASNETE_RATOMIC_DISP_ARGS_##args(gasneti_op_idx_##opname);
-#define _GASNETE_RATOMIC_DISP_ARGS_N0(opidx) \
-        (_real_ad,         _tgt_rank,_tgt_addr,                     opidx,_flags GASNETI_THREAD_PASS)
-#define _GASNETE_RATOMIC_DISP_ARGS_N1(opidx) \
-        (_real_ad,         _tgt_rank,_tgt_addr,_operand1,           opidx,_flags GASNETI_THREAD_PASS)
-#define _GASNETE_RATOMIC_DISP_ARGS_F0(opidx) \
-        (_real_ad,_result_p,_tgt_rank,_tgt_addr,                    opidx,_flags GASNETI_THREAD_PASS)
-#define _GASNETE_RATOMIC_DISP_ARGS_F1(opidx) \
-        (_real_ad,_result_p,_tgt_rank,_tgt_addr,_operand1,          opidx,_flags GASNETI_THREAD_PASS)
-#define _GASNETE_RATOMIC_DISP_ARGS_F2(opidx) \
-        (_real_ad,_result_p,_tgt_rank,_tgt_addr,_operand1,_operand2,opidx,_flags GASNETI_THREAD_PASS)
-#define _GASNETE_RATOMIC_DISP_ARGS_G0(opidx) \
-        (_real_ad,_result_p,_tgt_rank,_tgt_addr,                          _flags GASNETI_THREAD_PASS)
-#define _GASNETE_RATOMIC_DISP_ARGS_S1(opidx) \
-        (_real_ad,          _tgt_rank,_tgt_addr,_operand1,                _flags GASNETI_THREAD_PASS)
+                return (_GASNETE_RATOMIC_DISP_TBL(dtcode).nbnbi._gex_op_##opname)(GASNETE_RATOMIC_PASS_##args);
+#if GASNETE_RATOMIC_AMONLY
+  // AM is the only implementation - ignore _fn_tbl and resolve at link time instead
+  #define _GASNETE_RATOMIC_DISP_TBL(dtcode) gasnete_amratomic##dtcode##_fn_tbl
+  #define GASNETE_AMRATOMIC_TBL_DECL(dtcode) \
+    extern gasnete_ratomic##dtcode##_fn_tbl_t gasnete_amratomic##dtcode##_fn_tbl;
+  GASNETE_DT_APPLY(GASNETE_AMRATOMIC_TBL_DECL)
+  #undef GASNETE_AMRATOMIC_TBL_DECL
+#else
+  #define _GASNETE_RATOMIC_DISP_TBL(dtcode) _real_ad->_fn_tbl->dtcode
+#endif
+//
+GASNETE_DT_APPLY(GASNETE_RATOMIC_DISP)
 
 /*---------------------------------------------------------------------------------*/
 //
-// AM-based implementation
-// Built unless GASNETE_BUILD_AMRATOMIC is defined to 0
+// Default implementation
+// Maps client-facing gex_Op{NB,NBI}_*() calls to the default dispatch
+// functions, unless the conduit has previously defined overrides.
 //
-// TODO: per-datatype control over what gets built
-//
-#ifndef GASNETE_BUILD_AMRATOMIC
-  #define GASNETE_BUILD_AMRATOMIC 1
-#endif
 
-#if GASNETE_BUILD_AMRATOMIC
-
-// AM-based implementation
-// Part I.  Declare functions to send AM w/ NB or NBI completion upon reply.
-//
-#define GASNETE_AMRATOMIC_DECL(dtcode) GASNETE_RATOMIC_DECL(gasnete_amratomic, dtcode)
-GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DECL)
-
-// AM-based implementation
-// Part II.  Define inline functions dispatching to the back-end functions
-//
-#define GASNETE_AMRATOMIC_DISP(dtcode) GASNETE_RATOMIC_DISP(gasnete_amratomic, dtcode, 1)
-GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DISP)
-
-// AM-based implementation
-// Part III.  #define public API *directly* to AM-based one (unless already defined).
-// No array of function pointers is needed when there is only 1 implementation.
-//
-// We take some care not to inline a big switch if opcode is non-constant.
-// We require NB and NBI are overridden together (both or neither).
-//
-#define GASNETE_AMRATOMIC_FN(stem,ad,result_p,rank,addr,opcode,op1,op2,flags) \
+#define GASNETE_RATOMIC_FN(suffix,ad,result_p,rank,addr,opcode,op1,op2,flags) \
     (gasneti_constant_p(opcode) \
-     ? gasnete_amratomic_##stem(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET) \
-     : gasnete_amratomic_##stem##_external(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET))
+     ? gasnete_ratomic_##suffix(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET) \
+     : gasnete_ratomic_##suffix##_external(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET))
 //
 #if !defined(gex_AD_OpNB_I32) || !defined(gex_AD_OpNBI_I32)
   #if defined(gex_AD_OpNB_I32) || defined(gex_AD_OpNBI_I32)
     #error "Conduit must override gex_AD_OpNB_I32 and gex_AD_OpNBI_I32_NBI together"
   #endif
   #define gex_AD_OpNB_I32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_I32_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_I32_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
   #define gex_AD_OpNBI_I32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_I32_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_I32_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
 #endif
 #if !defined(gex_AD_OpNB_U32) || !defined(gex_AD_OpNBI_U32)
   #if defined(gex_AD_OpNB_U32) || defined(gex_AD_OpNBI_U32)
     #error "Conduit must override gex_AD_OpNB_U32 and gex_AD_OpNBI_U32_NBI together"
   #endif
   #define gex_AD_OpNB_U32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_U32_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_U32_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
   #define gex_AD_OpNBI_U32(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_U32_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_U32_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
 #endif
 #if !defined(gex_AD_OpNB_I64) || !defined(gex_AD_OpNBI_I64)
   #if defined(gex_AD_OpNB_I64) || defined(gex_AD_OpNBI_I64)
     #error "Conduit must override gex_AD_OpNB_I64_NB and gex_AD_OpNBI_I64_NBI together"
   #endif
   #define gex_AD_OpNB_I64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_I64_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_I64_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
   #define gex_AD_OpNBI_I64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_I64_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_I64_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
 #endif
 #if !defined(gex_AD_OpNB_U64) || !defined(gex_AD_OpNBI_U64)
   #if defined(gex_AD_OpNB_U64) || defined(gex_AD_OpNBI_U64)
     #error "Conduit must override gex_AD_OpNB_U64_NB and gex_AD_OpNBI_U64_NBI together"
   #endif
   #define gex_AD_OpNB_U64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_U64_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_U64_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
   #define gex_AD_OpNBI_U64(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_U64_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_U64_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
 #endif
 #if !defined(gex_AD_OpNB_FLT) || !defined(gex_AD_OpNBI_FLT)
   #if defined(gex_AD_OpNB_FLT) || defined(gex_AD_OpNBI_FLT)
     #error "Conduit must override gex_AD_OpNB_FLT_NB and gex_AD_OpNBI_FLT_NBI together"
   #endif
   #define gex_AD_OpNB_FLT(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_FLT_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_FLT_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
   #define gex_AD_OpNBI_FLT(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_FLT_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_FLT_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
 #endif
 #if !defined(gex_AD_OpNB_DBL) || !defined(gex_AD_OpNBI_DBL)
   #if defined(gex_AD_OpNB_DBL) || defined(gex_AD_OpNBI_DBL)
     #error "Conduit must override gex_AD_OpNB_DBL_NB and gex_AD_OpNBI_DBL_NBI together"
   #endif
   #define gex_AD_OpNB_DBL(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_DBL_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_DBL_NB,ad,result_p,rank,addr,opcode,op1,op2,flags)
   #define gex_AD_OpNBI_DBL(ad,result_p,rank,addr,opcode,op1,op2,flags) \
-          GASNETE_AMRATOMIC_FN(gex_dt_DBL_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
+          GASNETE_RATOMIC_FN(gex_dt_DBL_NBI,ad,result_p,rank,addr,opcode,op1,op2,flags)
 #endif
-
-#endif // GASNETE_BUILD_AMRATOMIC
 
 /*---------------------------------------------------------------------------------*/
 //
