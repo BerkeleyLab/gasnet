@@ -117,9 +117,11 @@ void gasneti_AD_Create(
   gasneti_AD_t real_ad = gasneti_alloc_ad(real_tm, dt, ops, flags, 0);
 
   // Algorithm selection:
+#ifdef GASNETI_AD_CREATE_HOOK
   GASNETI_AD_CREATE_HOOK(real_ad, real_tm, dt, ops, flags);
   gasneti_assert(real_ad->_cpusafe >= 0);
   gasneti_assert(real_ad->_fn_tbl != NULL);
+#endif
 
   *ad_p = gasneti_export_ad(real_ad);
   return;

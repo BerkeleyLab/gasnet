@@ -17,9 +17,11 @@
 // changes indicated by comments starting with (###).
 
 
-// If we are using this file, then there is no conduit-specific version
-// (###) Conduits cloing the file must remove (or comment-out) this line!
-#define GASNETE_RATOMIC_AMONLY 1
+// If we are using this file, then there is no conduit-specific version.
+// (###) Conduits cloning the file *must* remove (or comment-out) this define!
+#if GASNETE_BUILD_AMRATOMIC
+  #define GASNETE_RATOMIC_AMONLY 1
+#endif
 
 /* stats needed by the RAtomic reference implementation */
 // (###) Conduits should merge this set of STATS counters with their own
