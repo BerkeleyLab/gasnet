@@ -1927,7 +1927,7 @@ int gex_AD_OpNBI_[DATATYPE](
 
 // These operate similarly to the GASNet-1 prototype gasnet_{put,get}s_* API,
 // but the metadata format is changing slightly in EX.  Notable changes:
-// + The stride arrays change type from (const size_t[]) to (const ssize_t[])
+// + The stride arrays change type from (const size_t[]) to (const ptrdiff_t[])
 // + The 'count[0]' datum moves to a new parameter 'elemsz', and the subsequent
 //   elements 'count[1..stridelevels]' "slide down", meaning 'count' now references
 //   an array with 'stridelevels' entries (down from 'stridelevels+1').
@@ -1956,15 +1956,15 @@ int gex_AD_OpNBI_[DATATYPE](
 
 {gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
         gex_TM_t tm,
-        void *dstaddr, const ssize_t dststrides[],
+        void *dstaddr, const ptrdiff_t dststrides[],
         gex_Rank_t srcrank,
-        void *srcaddr, const ssize_t srcstrides[],
+        void *srcaddr, const ptrdiff_t srcstrides[],
         size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 {gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
         gex_TM_t tm, gex_Rank_t dstrank,
-        void *dstaddr, const ssize_t dststrides[],
-        void *srcaddr, const ssize_t srcstrides[],
+        void *dstaddr, const ptrdiff_t dststrides[],
+        void *srcaddr, const ptrdiff_t srcstrides[],
         size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 

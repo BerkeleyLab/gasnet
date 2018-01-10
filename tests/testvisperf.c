@@ -281,8 +281,8 @@ int main(int argc, char **argv) {
               void **Rilist = NULL;
               gex_Memvec_t *Lvlist = NULL;
               gex_Memvec_t *Rvlist = NULL;
-              ssize_t *Lstrides = NULL;
-              ssize_t *Rstrides = NULL;
+              ptrdiff_t *Lstrides = NULL;
+              ptrdiff_t *Rstrides = NULL;
               size_t *_LRcount = NULL;
               size_t *LRcount = NULL;
               size_t stride = contigsz*(((double)densitysteps)/(densitysteps-di));
@@ -301,8 +301,8 @@ int main(int argc, char **argv) {
                   case TEST_S: {
                     size_t chunkcnt = datasz/contigsz;
                     int dim;
-                    Lstrides = test_malloc(sizeof(size_t)*stridelevels);
-                    Rstrides = test_malloc(sizeof(size_t)*stridelevels);
+                    Lstrides = test_malloc(sizeof(ptrdiff_t)*stridelevels);
+                    Rstrides = test_malloc(sizeof(ptrdiff_t)*stridelevels);
                     _LRcount = test_malloc(sizeof(size_t)*(stridelevels+1));
                     _LRcount[0] = contigsz; // temporary using legacy count format for convenience
                     Lstrides[0] = (localcontig ? contigsz : stride);

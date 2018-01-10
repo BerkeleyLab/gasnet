@@ -573,6 +573,7 @@ void doit(int partner, int *partnerseg) {
   assert_signed(int64_t);
   assert_signed(intptr_t);
   assert_signed(ssize_t);
+  assert_signed(ptrdiff_t);
   assert_unsigned(uint8_t);
   assert_unsigned(uint16_t);
   assert_unsigned(uint32_t);

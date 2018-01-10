@@ -21,18 +21,18 @@ extern void gasneti_vis_progressfn(void);
    but they should at least include all the following fields */
 #ifndef GASNETI_MEMVECLIST_STATS_T
   typedef struct {
-    size_t minsz;
-    size_t maxsz;
-    uintptr_t totalsz;
-    void *minaddr;
-    void *maxaddr;
+    size_t _minsz;
+    size_t _maxsz;
+    uintptr_t _totalsz;
+    void *_minaddr;
+    void *_maxaddr;
   } gasneti_memveclist_stats_t;
 #endif
 
 #ifndef GASNETI_ADDRLIST_STATS_T
   typedef struct {
-    void *minaddr;
-    void *maxaddr;
+    void *_minaddr;
+    void *_maxaddr;
   } gasneti_addrlist_stats_t;
 #endif
 

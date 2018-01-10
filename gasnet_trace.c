@@ -99,19 +99,19 @@ extern size_t gasneti_format_memveclist_bufsz(size_t count) {
   return res;
 }
 extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gex_Memvec_t const *list) {
-  const int bufsz = gasneti_format_memveclist_bufsz(count);
+  const size_t bufsz = gasneti_format_memveclist_bufsz(count);
   char * p = buf;
-  int i, j=0;
-  gasneti_memveclist_stats_t stats = gasnete_memveclist_stats((count), (list));
-  sprintf(p, "%i entries, totalsz=%i, bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+  size_t j=0;
+  gasneti_memveclist_stats_t stats = gasnete_memveclist_stats(count, list);
+  sprintf(p, "%"PRIuSZ" entries, totalsz=%"PRIuSZ", bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
              "list=[",
-              (int)(count), (int)(stats.totalsz),
-              GASNETI_LADDRSTR(stats.minaddr), GASNETI_LADDRSTR(stats.maxaddr));
+              count, stats._totalsz,
+              GASNETI_LADDRSTR(stats._minaddr), GASNETI_LADDRSTR(stats._maxaddr));
   p += strlen(p);
-  for (i=0; i < count; i++) {
+  for (size_t i=0; i < count; i++) {
     j++;
-    sprintf(p, "{"GASNETI_LADDRFMT",%5lu}", 
-      GASNETI_LADDRSTR(list[i].gex_addr), (unsigned long)list[i].gex_len);
+    sprintf(p, "{"GASNETI_LADDRFMT",%5"PRIuSZ"}", 
+      GASNETI_LADDRSTR(list[i].gex_addr), list[i].gex_len);
     if (i < count-1) { 
       strcat(p, ", ");
       if (j % 4 == 0) strcat(p,"\n      ");
@@ -135,14 +135,14 @@ extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
   char * srclist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(srccount));
   gasneti_memveclist_stats_t dststats = gasneti_format_memveclist(dstlist_str, dstcount, dstlist);
   (void) gasneti_format_memveclist(srclist_str, srccount, srclist);
-  sprintf(buf,"(%i data bytes) node=%i\n"
+  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i\n"
               "dst: %s\nsrc: %s",
-              (int)dststats.totalsz, (int)(node),
+              dststats._totalsz, (int)(node),
               dstlist_str, srclist_str);    
   gasneti_assert(strlen(buf) < bufsz);
   gasneti_free(dstlist_str);
   gasneti_free(srclist_str);
-  return dststats.totalsz;
+  return dststats._totalsz;
 }
 
 extern size_t gasneti_format_addrlist_bufsz(size_t count) {
@@ -151,16 +151,16 @@ extern size_t gasneti_format_addrlist_bufsz(size_t count) {
   return res;
 }
 extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count, void * const *list, size_t len) {
-  const int bufsz = gasneti_format_addrlist_bufsz(count);
+  const size_t bufsz = gasneti_format_addrlist_bufsz(count);
   char * p = buf;
-  int i,j=0;
+  size_t j=0;
   gasneti_addrlist_stats_t stats = gasnete_addrlist_stats((count), (list), (len));
-  sprintf(p, "%i entries, totalsz=%i, len=%i, bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+  sprintf(p, "%"PRIuSZ" entries, totalsz=%"PRIuSZ", len=%"PRIuSZ", bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
              "list=[",
-              (int)(count), (int)((count)*(len)), (int)(len),
-              GASNETI_LADDRSTR(stats.minaddr), GASNETI_LADDRSTR(stats.maxaddr));
+              count, count*len, len,
+              GASNETI_LADDRSTR(stats._minaddr), GASNETI_LADDRSTR(stats._maxaddr));
   p += strlen(p);
-  for (i=0; i < count; i++) {
+  for (size_t i=0; i < count; i++) {
     j++;
     sprintf(p, GASNETI_LADDRFMT, GASNETI_LADDRSTR(list[i]));
     if (i < count-1) {
@@ -187,9 +187,9 @@ extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
   size_t totalsz = dstcount * dstlen;
   (void) gasneti_format_addrlist(dstlist_str, dstcount, (void * const *)dstlist, dstlen);
   (void) gasneti_format_addrlist(srclist_str, srccount, (void * const *)srclist, srclen);
-  sprintf(buf,"(%i data bytes) node=%i\n"
+  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i\n"
               "dst: %s\nsrc: %s",
-              (int)totalsz, (int)node,
+              totalsz, (int)node,
               dstlist_str, srclist_str);    
   gasneti_assert(strlen(buf) < bufsz);
   gasneti_free(dstlist_str);
@@ -200,13 +200,12 @@ extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
 extern size_t gasneti_format_strides_bufsz(size_t count) {
   return count*30+10;
 }
-extern void gasneti_format_strides(char *buf, size_t count, const size_t *list) {
+extern void gasneti_format_strides(char *buf, size_t count, const ptrdiff_t *list) {
   const int bufsz = gasneti_format_strides_bufsz(count);
   char * p = buf;
-  int i;
   strcpy(p,"["); p++;
-  for (i=0; i < count; i++) {
-    sprintf(p, "%"PRIuPTR, (uintptr_t)list[i]);
+  for (size_t i=0; i < count; i++) {
+    sprintf(p, "%"PRIdPD, list[i]);
     if (i < count-1) strcat(p, ", ");
     p += strlen(p);
     gasneti_assert(p-buf < bufsz);
@@ -220,44 +219,45 @@ extern size_t gasneti_format_putsgets_bufsz(size_t stridelevels) {
 }
 extern size_t gasneti_format_putsgets(char *buf, void *_pstats, 
                                     gex_Rank_t node,
-                                    void *dstaddr, const size_t dststrides[],
-                                    void *srcaddr, const size_t srcstrides[],
-                                    const size_t count[], size_t stridelevels) {
+                                    void *dstaddr, const ptrdiff_t dststrides[],
+                                    void *srcaddr, const ptrdiff_t srcstrides[],
+                                    size_t elemsz, const size_t count[], size_t stridelevels) {
   gasnete_strided_stats_t *pstats = _pstats;
   gasnete_strided_stats_t stats;
   const int bufsz = gasneti_format_putsgets_bufsz(stridelevels);
   char * srcstrides_str = (char *)gasneti_malloc(gasneti_format_strides_bufsz(stridelevels));
   char * dststrides_str = (char *)gasneti_malloc(gasneti_format_strides_bufsz(stridelevels));
-  char * count_str = (char *)gasneti_malloc(gasneti_format_strides_bufsz(stridelevels+1));
+  char * count_str = (char *)gasneti_malloc(gasneti_format_strides_bufsz(stridelevels));
 
   if (!pstats) pstats = &stats;
-  gasnete_strided_stats(pstats, dststrides, srcstrides, count, stridelevels);
+  gasnete_strided_stats(pstats, dststrides, srcstrides, elemsz, count, stridelevels);
   gasneti_format_strides(srcstrides_str, stridelevels, srcstrides);
   gasneti_format_strides(dststrides_str, stridelevels, dststrides);
-  gasneti_format_strides(count_str, stridelevels+1, count);
-  sprintf(buf,"(%i data bytes) node=%i stridelevels=%i count=%s\n"
-              "dualcontiguity=%i nulldims=%i\n"
+  gasneti_assert(sizeof(ptrdiff_t) == sizeof(size_t));
+  gasneti_format_strides(count_str, stridelevels, (const ptrdiff_t *)count);
+  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i stridelevels=%"PRIuSZ" elemsz=%"PRIuSZ" count=%s\n"
+              "dualcontiguity=%"PRIuSZ" nulldims=%"PRIuSZ"\n"
               "dst: dstaddr="GASNETI_LADDRFMT" dststrides=%s\n"
-              "     extent=%i bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
-              "     contiguity=%i contigsz=%i contigsegments=%i\n"
+              "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+              "     contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ"\n"
               "src: srcaddr="GASNETI_LADDRFMT" srcstrides=%s\n"
-              "     extent=%i bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
-              "     contiguity=%i contigsz=%i contigsegments=%i",
-              (int)pstats->totalsz, (int)(node), (int)(stridelevels), count_str,
-              (int)pstats->dualcontiguity, (int)pstats->nulldims,
-              GASNETI_LADDRSTR(dstaddr), dststrides_str, (int)pstats->dstextent,
-              GASNETI_LADDRSTR(dstaddr), GASNETI_LADDRSTR((((char *)dstaddr)+pstats->dstextent)),
-              (int)pstats->dstcontiguity, (int)pstats->dstcontigsz, (int)pstats->dstsegments,
-              GASNETI_LADDRSTR(srcaddr), srcstrides_str, (int)pstats->srcextent,
-              GASNETI_LADDRSTR(srcaddr), GASNETI_LADDRSTR((((char *)srcaddr)+pstats->srcextent)),
-              (int)pstats->srccontiguity, (int)pstats->srccontigsz, (int)pstats->srcsegments
+              "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+              "     contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ"",
+              pstats->_totalsz, (int)(node), stridelevels, elemsz, count_str,
+              pstats->_dualcontiguity, pstats->_nulldims,
+              GASNETI_LADDRSTR(dstaddr), dststrides_str, pstats->_dstextent,
+              GASNETI_LADDRSTR(dstaddr), GASNETI_LADDRSTR((((char *)dstaddr)+pstats->_dstextent)),
+              pstats->_dstcontiguity, pstats->_dstcontigsz, pstats->_dstsegments,
+              GASNETI_LADDRSTR(srcaddr), srcstrides_str, pstats->_srcextent,
+              GASNETI_LADDRSTR(srcaddr), GASNETI_LADDRSTR((((char *)srcaddr)+pstats->_srcextent)),
+              pstats->_srccontiguity, pstats->_srccontigsz, pstats->_srcsegments
           );
   gasneti_assert(strlen(buf) < bufsz);
 
   gasneti_free(srcstrides_str);
   gasneti_free(dststrides_str);
   gasneti_free(count_str);
-  return pstats->totalsz;
+  return pstats->_totalsz;
 }
 
 /* ------------------------------------------------------------------------------------ */
