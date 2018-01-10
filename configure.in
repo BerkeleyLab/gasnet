@@ -284,7 +284,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                     -Wuninitialized             \
                     -Wshift-negative-value      \
       ; do
-     if test "$2" == "Open64" && test "$warnflag" == "-Wempty-body" ; then 
+     if test "$2" = "Open64" && test "x$warnflag" = "x-Wempty-body" ; then 
       : # Bug 3711: Open64 botches -Wempty-body at link time which is not probed here
      else
       ]GASNET_TRY_[$1]FLAG[([$3$warnflag],
