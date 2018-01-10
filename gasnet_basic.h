@@ -22,15 +22,18 @@
    GASNETI_COMPILER_IS_MPI_CC when CC and MPI_CC present the same ID.
  */
 #if PLATFORM_COMPILER_ID == GASNETI_PLATFORM_COMPILER_ID && \
-    PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_COMPILER_VERSION
+    PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_COMPILER_VERSION && \
+    __STDC_VERSION__ == GASNETI_COMPILER_LANG_LVL
   #define GASNETI_COMPILER_IS_CC 1
 #endif
 #if PLATFORM_COMPILER_ID == GASNETI_PLATFORM_MPI_CC_ID && \
-    PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_MPI_CC_VERSION
+    PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_MPI_CC_VERSION && \
+    __STDC_VERSION__ == GASNETI_MPI_CC_LANG_LVL
   #define GASNETI_COMPILER_IS_MPI_CC 1
 #endif
 #if PLATFORM_COMPILER_ID == GASNETI_PLATFORM_CXX_ID && \
-    PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_CXX_VERSION
+    PLATFORM_COMPILER_VERSION == GASNETI_PLATFORM_CXX_VERSION && \
+    __cplusplus == GASNETI_CXX_LANG_LVL
   #define GASNETI_COMPILER_IS_CXX 1
 #endif
 #if GASNETT_COMPILER_FORCE_MISMATCH // for testing purposes
@@ -73,6 +76,16 @@
 #define GASNETI_COMPILER_HAS_ATTRIBUTE(MACRO_NAME,attrib_token) \
        (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || \
         (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
+
+// GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE: specialized for testing C++11 attributes
+#if defined(__has_cpp_attribute)
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
+#endif
+#define GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(MACRO_NAME,attrib_token) \
+       (GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE_ ## MACRO_NAME) || \
+        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_CXX11_ATTRIBUTE(attrib_token)))
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
@@ -365,6 +378,22 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #endif
 #endif
 
+/* C++11 attributes */
+// The Clang C compiler defines __has_cpp_attribute(), expanding to 0.
+// However, it errors on __has_cpp_attribute(namespage::token) and thus
+// we check for __cplusplus even though that could be seen as redundant.
+#if defined(__cplusplus) && \
+    (GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE) || defined(__has_cpp_attribute))
+  #ifndef   GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+    #define GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH \
+       GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(FALLTHROUGH,fallthrough)
+  #endif
+  #ifndef   GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+    #define GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH \
+       GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(CLANG__FALLTHROUGH,clang::fallthrough)
+  #endif
+#endif
+
 /* GASNETI_WARN_UNUSED_RESULT: warn if function's return value is ignored */
 #if GASNETT_USE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
   #define GASNETI_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
@@ -541,6 +570,10 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
   // Syntax requires the attribute to be attached to a null statement (the semicolon).
   #define GASNETI_FALLTHROUGH __attribute__((__fallthrough__)) ;
+#elif GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+  #define GASNETI_FALLTHROUGH [[fallthrough]] ;
+#elif GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+  #define GASNETI_FALLTHROUGH [[clang::fallthrough]] ;
 #else
   #define GASNETI_FALLTHROUGH
 #endif

@@ -1011,6 +1011,11 @@ AC_DEFUN([GASNET_GET_PLATFORM_ID], [
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[ID],[EXPR])
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[VERSION],[EXPR])
   GASNET_POPVAR(CPPFLAGS)
+  pushdef([version_identifier],ifelse(index([$1],[CXX]),[-1],[__STDC_VERSION__],[__cplusplus]))
+  GASNET_TRY_CACHE_EXTRACT_EXPR($2 for version_identifier, $1_LANG_LVL,
+                                [ ], version_identifier, GASNETI_$1_LANG_LVL)
+  popdef([version_identifier])
+  AC_DEFINE_UNQUOTED(GASNETI_$1_LANG_LVL, $GASNETI_$1_LANG_LVL)
 ])
 
 dnl Try to discover the C compiler's inline modifier
@@ -2936,6 +2941,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
   GASNET_CHECK_ASM_SUPPORT([C++ compiler],[CXX])
   GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
+  GASNET_GET_CXX11_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
   GASNET_CHECK_BUILTINS([GASNETI_HAVE_CXX],[C++ compiler])
 
   GASNET_TRY_CACHE_CHECK(for __VA_ARGS__ support in C++, cxx_va_args, [ GASNET_VA_ARGS_TEST ], [ ], [ AC_DEFINE(GASNETI_CXX_HAS_VA_ARGS) ])
