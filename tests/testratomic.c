@@ -98,11 +98,11 @@ static int failures = 0;
 
 /* Randomized testing of atomic ops */
 #define TEST_RAND_DECL(_tcode, _type, _isint) \
-void test_rand_##_tcode(gex_AD_t ad, int lo, int hi) { \
+void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
   _type mirror = 0;                                           \
   gex_OP_t ops = gex_AD_QueryOps(ad);                         \
   MSG0("Randomized remote atomic ops test for type " #_type   \
-       " and operation set 0x%x", (unsigned int)ops);         \
+       " and operation set 0x%x%s", (unsigned int)ops, msg);  \
   for (int i = 0; i < iters; ++i) {                           \
     _type unused = (_type)TEST_RAND(lo,hi); /* garbage */     \
     _type fetch, x, y;                                        \
@@ -204,7 +204,7 @@ TEST_RAND_DECL(FLT, float,    0)
 TEST_RAND_DECL(DBL, double,   0)
 
 void doit(gex_DT_t dt) {
-  gex_OP_t ops =
+  gex_OP_t all_ops =
         GEX_OP_ADD  | GEX_OP_SUB  | GEX_OP_MULT  |
         GEX_OP_MIN  | GEX_OP_MAX  |
         GEX_OP_INC  | GEX_OP_DEC  |
@@ -214,28 +214,10 @@ void doit(gex_DT_t dt) {
         GEX_OP_SET  | GEX_OP_GET  |
         GEX_OP_SWAP | GEX_OP_CSWAP;
   if ((dt != GEX_DT_FLT) && (dt != GEX_DT_DBL)) {
-    ops |= GEX_OP_AND  | GEX_OP_OR  | GEX_OP_XOR |
-           GEX_OP_FAND | GEX_OP_FOR | GEX_OP_FXOR;
+    all_ops |=
+        GEX_OP_AND  | GEX_OP_OR  | GEX_OP_XOR |
+        GEX_OP_FAND | GEX_OP_FOR | GEX_OP_FXOR;
   }
-
-#if GASNET_CONDUIT_ARIES
-  // Reduce ops to exclude those not available natively on Aries
-  //
-  // TODO: this is a short-term solution and should be replaced with
-  // a more general approach, including command-line options.
-  //
-  // 1) No MULT for any type
-  ops &= ~(GEX_OP_MULT | GEX_OP_FMULT);
-  // 2) No MIN or MAX for the unsigned integer types
-  if ((dt == GEX_DT_U32) || (dt == GEX_DT_U64)) {
-    ops &= ~(GEX_OP_MIN | GEX_OP_FMIN | GEX_OP_MAX | GEX_OP_FMAX);
-  }
-  // 3) No ADD (or its derivatives) for double
-  if (dt == GEX_DT_DBL) {
-    ops &= ~(GEX_OP_ADD | GEX_OP_FADD | GEX_OP_SUB | GEX_OP_FSUB |
-             GEX_OP_INC | GEX_OP_FINC | GEX_OP_DEC | GEX_OP_FDEC);
-  }
-#endif
 
   // Range of random numbers
   // Chosen to exercise as many bits of each type as possible within constraints:
@@ -281,33 +263,64 @@ void doit(gex_DT_t dt) {
   //         SET/GET/FADD
   // TODO: concurrent tests of correctness
 
-  gex_AD_t ad;
-  gex_AD_Create(&ad, myteam, dt, ops, 0);
+  // Randomized testing
+  for (int subtest = 0; subtest < 2; ++subtest) {
+    gex_OP_t ops = 0;
+    const char *msg = "";
+    switch (subtest) {
+      case 0:  // Test all ops legal for the data type
+        ops = all_ops;
+        break;
 
-  BARRIER();
-  switch (dt) {
-    case GEX_DT_U32:
-      test_rand_U32(ad,lo,hi);
-      break;
-    case GEX_DT_I32:
-      test_rand_I32(ad,lo,hi);
-      break;
-    case GEX_DT_U64:
-      test_rand_U64(ad,lo,hi);
-      break;
-    case GEX_DT_I64:
-      test_rand_I64(ad,lo,hi);
-      break;
-    case GEX_DT_FLT:
-      test_rand_FLT(ad,lo,hi);
-      break;
-    case GEX_DT_DBL:
-      test_rand_DBL(ad,lo,hi);
-      break;
+      case 1: // Whitebox testing of conduits with native implementations
+        msg = " (conduit-specialized ops)";
+        ops = all_ops;
+        // This logic reduces "ops" to the conduit's specialized subset
+      #if GASNET_CONDUIT_ARIES
+        // 1) No MULT for any type
+        ops &= ~(GEX_OP_MULT | GEX_OP_FMULT);
+        // 2) No MIN or MAX for the unsigned integer types
+        if ((dt == GEX_DT_U32) || (dt == GEX_DT_U64)) {
+          ops &= ~(GEX_OP_MIN | GEX_OP_FMIN | GEX_OP_MAX | GEX_OP_FMAX);
+        }
+        // 3) No ADD (or its derivatives) for double
+        if (dt == GEX_DT_DBL) {
+          ops &= ~(GEX_OP_ADD | GEX_OP_FADD | GEX_OP_SUB | GEX_OP_FSUB |
+                   GEX_OP_INC | GEX_OP_FINC | GEX_OP_DEC | GEX_OP_FDEC);
+        }
+      #else
+        continue;  // No whitebox testing
+      #endif
+    }
+
+    gex_AD_t ad;
+    gex_AD_Create(&ad, myteam, dt, ops, 0);
+
+    BARRIER();
+    switch (dt) {
+      case GEX_DT_U32:
+        test_rand_U32(ad,lo,hi,msg);
+        break;
+      case GEX_DT_I32:
+        test_rand_I32(ad,lo,hi,msg);
+        break;
+      case GEX_DT_U64:
+        test_rand_U64(ad,lo,hi,msg);
+        break;
+      case GEX_DT_I64:
+        test_rand_I64(ad,lo,hi,msg);
+        break;
+      case GEX_DT_FLT:
+        test_rand_FLT(ad,lo,hi,msg);
+        break;
+      case GEX_DT_DBL:
+        test_rand_DBL(ad,lo,hi,msg);
+        break;
+    }
+    BARRIER();
+
+    gex_AD_Destroy(ad);
   }
-  BARRIER();
-
-  gex_AD_Destroy(ad);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -324,6 +337,8 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
   test_init("testratomic",0,"(iters)");
+
+  MSG0("Running %i iterations of remote atomics tests.\n", iters);
 
   myrank   = gex_TM_QueryRank(myteam);
   numranks = gex_TM_QuerySize(myteam);
