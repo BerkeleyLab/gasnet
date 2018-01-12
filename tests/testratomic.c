@@ -99,7 +99,7 @@ static int failures = 0;
 /* Randomized testing of atomic ops */
 #define TEST_RAND_DECL(_tcode, _type, _isint) \
 void test_rand_##_tcode(gex_AD_t ad, int lo, int hi) { \
-  _type mirror;                                               \
+  _type mirror = 0;                                           \
   gex_OP_t ops = gex_AD_QueryOps(ad);                         \
   MSG0("Randomized remote atomic ops test for type " #_type   \
        " and operation set 0x%x", (unsigned int)ops);         \
