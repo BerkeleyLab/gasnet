@@ -1011,11 +1011,6 @@ AC_DEFUN([GASNET_GET_PLATFORM_ID], [
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[ID],[EXPR])
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[VERSION],[EXPR])
   GASNET_POPVAR(CPPFLAGS)
-  pushdef([version_identifier],ifelse(index([$1],[CXX]),[-1],[__STDC_VERSION__],[__cplusplus]))
-  GASNET_TRY_CACHE_EXTRACT_EXPR($2 for version_identifier, $1_LANG_LVL,
-                                [ ], version_identifier, GASNETI_$1_LANG_LVL)
-  popdef([version_identifier])
-  AC_DEFINE_UNQUOTED(GASNETI_$1_LANG_LVL, $GASNETI_$1_LANG_LVL)
 ])
 
 dnl Try to discover the C compiler's inline modifier
