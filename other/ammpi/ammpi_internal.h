@@ -6,9 +6,12 @@
 #ifndef _AMMPI_INTERNAL_H
 #define _AMMPI_INTERNAL_H
 
-#include <portable_inttypes.h>
 #undef _PORTABLE_PLATFORM_H
 #include <ammpi_portable_platform.h>
+#if !defined(HAVE_C99_FORMAT_SPECIFIERS) && !(defined(__PRISZ_PREFIX) && defined(__PRIPD_PREFIX))
+#define HAVE_C99_FORMAT_SPECIFIERS 1
+#endif
+#include <portable_inttypes.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* AMMPI system configuration parameters */
