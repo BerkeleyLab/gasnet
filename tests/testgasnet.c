@@ -719,7 +719,49 @@ void doit(int partner, int *partnerseg) {
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
-  // TODO-EX: ensure lack of aliasing within groups of flags that are mutually exclusive (eg GEX_FLAG_*_SEG_*)
+  // Ensure lack of aliasing within groups of flags potentially passed togther
+  static gex_Flags_t const flags_rma[] = {
+    GEX_FLAG_IMMEDIATE,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
+    //GEX_FLAG_LC_COPY_YES,
+    //GEX_FLAG_LC_COPY_NO,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_rma);
+  static gex_Flags_t const flags_ad[] = {
+    GEX_FLAG_IMMEDIATE,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
+    GEX_FLAG_AD_MY_RANK,
+    GEX_FLAG_AD_MY_NEIGHBORHOOD,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_ad);
+  static gex_Flags_t const flags_amreg[] = {
+    GEX_FLAG_AM_SHORT,
+    GEX_FLAG_AM_MEDIUM,
+    GEX_FLAG_AM_LONG,
+    // GEX_FLAG_AM_MEDLONG is an intentional alias
+    GEX_FLAG_AM_REQUEST,
+    GEX_FLAG_AM_REPLY,
+    // GEX_FLAG_AM_REQREP is an intentional alias
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_amreg);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
