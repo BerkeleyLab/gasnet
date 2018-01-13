@@ -85,6 +85,42 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
   #endif
 #endif
 
+// Which types may be accessed in cross-mapped segments using Tools.
+// TODO-EX: We don't yet have preprocessor defines for precisely the property we
+//   need here, but the following logic *is* accurate for the current tools code.
+//   We should name the propery and assert it in gasnet_atomic_bits.h, not here.
+#ifndef GASNETE_RATOMIC_PSHMSAFE_32
+  #if GASNETI_ATOMIC32_NOT_SIGNALSAFE
+    #define GASNETE_RATOMIC_PSHMSAFE_32 0
+  #else
+    #define GASNETE_RATOMIC_PSHMSAFE_32 1
+  #endif
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_64
+  #if GASNETI_ATOMIC64_NOT_SIGNALSAFE
+    #define GASNETE_RATOMIC_PSHMSAFE_64 0
+  #else
+    #define GASNETE_RATOMIC_PSHMSAFE_64 1
+  #endif
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_gex_dt_I32
+  #define GASNETE_RATOMIC_PSHMSAFE_gex_dt_I32 GASNETE_RATOMIC_PSHMSAFE_32
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_gex_dt_U32
+  #define GASNETE_RATOMIC_PSHMSAFE_gex_dt_U32 GASNETE_RATOMIC_PSHMSAFE_32
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_gex_dt_I64
+  #define GASNETE_RATOMIC_PSHMSAFE_gex_dt_I64 GASNETE_RATOMIC_PSHMSAFE_64
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_gex_dt_U64
+  #define GASNETE_RATOMIC_PSHMSAFE_gex_dt_U64 GASNETE_RATOMIC_PSHMSAFE_64
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_gex_dt_FLT
+  #define GASNETE_RATOMIC_PSHMSAFE_gex_dt_FLT GASNETE_RATOMIC_PSHMSAFE_32
+#endif
+#ifndef GASNETE_RATOMIC_PSHMSAFE_gex_dt_DBL
+  #define GASNETE_RATOMIC_PSHMSAFE_gex_dt_DBL GASNETE_RATOMIC_PSHMSAFE_64
+#endif
 
 //
 // Macro for applying a 1-argument macro (FN) to each datatype
@@ -425,21 +461,8 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
                                  _opcode, dtcode##_dtype, _flags);       \
         gasneti_AD_t _real_ad = gasneti_import_ad(_ad);                  \
-        if ((GASNETE_RATOMIC_ALWAYS_CPUSAFE##dtcode ||                   \
-                                                  _real_ad->_cpusafe) && \
-            (_tgt_rank == _real_ad->_rank)) {                            \
-            type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,  \
-                                                     _operand1,          \
-                                                     _operand2,          \
-                                                     _opcode);           \
-            if (_opcode & (GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT |    \
-                           GEX_OP_FMIN | GEX_OP_FMAX |                   \
-                           GEX_OP_FINC | GEX_OP_FDEC |                   \
-                           GEX_OP_FAND | GEX_OP_FOR  | GEX_OP_FXOR |     \
-                           GEX_OP_GET  | GEX_OP_SWAP | GEX_OP_CSWAP)) {  \
-                *_result_p = _result;                                    \
-            }                                                            \
-            return retdone;                                              \
+        if (GASNETE_RATOMIC_ALWAYS_CPUSAFE##dtcode || _real_ad->_cpusafe) { \
+          _GASNETE_RATOMIC_DISP_CPUSAFE(dtcode,type,retdone);            \
         }                                                                \
         switch(_opcode) {                                                \
             _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, SET,   N1)        \
@@ -461,6 +484,32 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasneti_unreachable();                                           \
         return retdone;                                                  \
     }
+// TODO-EX: Must pass jobrank to GASNETI_SUPERNODE_*LOCAL() or find TM-based alternative
+// TODO-EX: This logic actually checks for self twice before hitting the network
+#define _GASNETE_RATOMIC_DISP_CPUSAFE(dtcode,type,retdone) do { \
+        if (_tgt_rank == _real_ad->_rank) {                                  \
+            /* Will use tools below */                                       \
+        } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode &&                       \
+                   GASNETI_SUPERNODE_LOCAL(_tgt_rank)) {                     \
+            /* Will use tools below with a translated address */             \
+            _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr);   \
+        } else {                                                             \
+            break; /* Leave enclosing do/while w/o using tools */            \
+        }                                                                    \
+        type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
+                                                 _operand1, _operand2,       \
+                                                 _opcode);                   \
+        if (_GASNETE_RATOMIC_DISP_ISFETCH(_opcode)) {                        \
+            *_result_p = _result;                                            \
+        }                                                                    \
+        return retdone;                                                      \
+    } while (0)
+#define _GASNETE_RATOMIC_DISP_ISFETCH(opcode) \
+    ((opcode) & (GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT | \
+                 GEX_OP_FMIN | GEX_OP_FMAX |                \
+                 GEX_OP_FINC | GEX_OP_FDEC |                \
+                 GEX_OP_FAND | GEX_OP_FOR  | GEX_OP_FXOR  | \
+                 GEX_OP_GET  | GEX_OP_SWAP | GEX_OP_CSWAP))
 #define _GASNETE_RATOMIC_DISP_ARGS(type) \
         (gex_AD_t            _ad,        type             *_result_p,    \
          gex_Rank_t          _tgt_rank,  void             *_tgt_addr,    \

@@ -451,6 +451,7 @@ typedef union {
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node) 
+  #define GASNETI_SUPERNODE_ADDR2LOCAL(node,addr) gasneti_pshm_addr2local(node,addr)
 #else
   #define GASNETI_CHECKPSHM_GET(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT(rt)        ((void)0)
@@ -462,6 +463,7 @@ typedef union {
   #else 
     #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasneti_mynode) 
   #endif
+  #define GASNETI_SUPERNODE_ADDR2LOCAL(node,addr)  (addr)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
