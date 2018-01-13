@@ -2951,7 +2951,8 @@ dnl else, run action-failure
 AC_DEFUN([GASNET_COMPILE_EXAMINE], [
 AC_REQUIRE([AC_OBJEXT])
 GASNET_FUN_BEGIN([$0(...)])
-  cat >conftest.$ac_ext <<EOF dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
+  dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
+  cat >conftest.$ac_ext <<EOF
 #include "confdefs.h"
 $1
 EOF
@@ -2988,7 +2989,8 @@ dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename o
 dnl else, run action-failure
 AC_DEFUN([GASNET_LINK_EXAMINE], [
 GASNET_FUN_BEGIN([$0(...)])
-  cat >conftest.$ac_ext <<EOF dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
+  dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
+  cat >conftest.$ac_ext <<EOF
 #include "confdefs.h"
 $1
 EOF
