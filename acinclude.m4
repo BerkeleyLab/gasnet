@@ -2677,7 +2677,7 @@ if test "$$3" != "GNU" ; then
 else
   dnl GCC has sub-family too
   $2_SUBFAMILY='GNU'
-  GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
+  GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],$2_gcc_version_string,[
       #ifndef __VERSION__
         #define __VERSION__ "unknown"
       #endif
