@@ -706,6 +706,9 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_BOUND,
     GEX_FLAG_PEER_SEG_OFFSET,
 
+    GEX_FLAG_AD_MY_RANK,
+    GEX_FLAG_AD_MY_NEIGHBORHOOD,
+
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,

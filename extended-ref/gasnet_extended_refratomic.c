@@ -179,6 +179,11 @@ void gasnete_ratomic_validate(
       gasneti_fatalerror("gex_AD_Op*() called with a fetching opcode, but result_p==NULL");
     }
 
+    // Flags may provide at most one affinity assertion
+    if (!GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_MY_RANK | GEX_FLAG_AD_MY_NEIGHBORHOOD))) {
+      gasneti_fatalerror("gex_AD_Op*() called with more than one GEX_FLAG_AD_MY_* flag");
+    }
+
     // Address must be in bound segment
     // TODO: remove this restriction?
     gasneti_boundscheck(gasneti_export_tm(real_ad->_tm), tgt_rank, tgt_addr, gasneti_dt_size(datatype));
@@ -200,7 +205,7 @@ void gasnete_ratomic_validate(
         type                operand2,  gex_Flags_t    flags       \
         GASNETI_THREAD_FARG)                                      \
     {                                                             \
-      return prefix##_NB(ad, result_p, tgt_rank, tgt_addr,        \
+      return prefix##_NB(0, ad, result_p, tgt_rank, tgt_addr,     \
                          opcode, operand1, operand2, flags        \
                          GASNETI_THREAD_PASS);                    \
     } \
@@ -211,7 +216,7 @@ void gasnete_ratomic_validate(
         type                operand2,  gex_Flags_t    flags       \
         GASNETI_THREAD_FARG)                                      \
     {                                                             \
-      return prefix##_NBI(ad, result_p, tgt_rank, tgt_addr,       \
+      return prefix##_NBI(0, ad, result_p, tgt_rank, tgt_addr,    \
                          opcode, operand1, operand2, flags        \
                          GASNETI_THREAD_PASS);                    \
     }

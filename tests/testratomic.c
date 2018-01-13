@@ -203,6 +203,52 @@ TEST_RAND_DECL(I64, int64_t,  1)
 TEST_RAND_DECL(FLT, float,    0)
 TEST_RAND_DECL(DBL, double,   0)
 
+
+/* Deterministic testing of AD_MY_* flags */
+#define TEST_FLAGS_DECL(_tcode, _type, _isint) \
+void test_flags_##_tcode(gex_AD_t ad) {                                      \
+  gex_Event_t ev;                                                            \
+  _type result;                                                              \
+  MSG0("Remote atomic ops flags test for type " #_type);                     \
+                                                                             \
+  /* MY_RANK and MY_NEIGHBORHOOD applied to self */                          \
+  ev = gex_AD_OpNB_##_tcode(ad,NULL,myrank,TEST_MYSEG(),GEX_OP_SET,          \
+                            myrank,0,GEX_FLAG_AD_MY_RANK);                   \
+  gex_Event_Wait(ev);                                                        \
+  gex_AD_OpNBI_##_tcode(ad,&result,myrank,TEST_MYSEG(),GEX_OP_FADD,          \
+                       myrank,0,GEX_FLAG_AD_MY_RANK);                        \
+  gex_NBI_Wait(GEX_EC_RMW,0);                                                \
+  assert_always(result == myrank);                                           \
+  ev = gex_AD_OpNB_##_tcode(ad,&result,myrank,TEST_MYSEG(),GEX_OP_FADD,      \
+                            myrank,0,GEX_FLAG_AD_MY_NEIGHBORHOOD);           \
+  gex_Event_Wait(ev);                                                        \
+  assert_always(result == 2*myrank);                                         \
+  BARRIER();                                                                 \
+                                                                             \
+  /* MY_NEIGHBORHOOD applied to not-self-unless-no-other-valid-choice */     \
+  gex_Rank_t nbr_rank;                                                       \
+  void * nbr_addr;                                                           \
+  { /* Find neighbor - possibly self */                                      \
+    gex_NeighborhoodInfo_t *info;                                            \
+    gex_Rank_t info_count, my_info_index;                                    \
+    gex_System_QueryNeighborhoodInfo(&info, &info_count, &my_info_index);    \
+    nbr_rank = info[(my_info_index + 1) % info_count].gex_jobrank;           \
+    nbr_addr = TEST_SEG(nbr_rank);                                           \
+    assert(nbr_addr);                                                        \
+  }                                                                          \
+  gex_AD_OpNBI_##_tcode(ad,&result,nbr_rank,nbr_addr,GEX_OP_FADD,            \
+                        nbr_rank,0,GEX_FLAG_AD_MY_NEIGHBORHOOD);             \
+  gex_NBI_Wait(GEX_EC_RMW,0);                                                \
+  assert_always(result == 3*nbr_rank);                                       \
+}
+TEST_FLAGS_DECL(U32, uint32_t, 1)
+TEST_FLAGS_DECL(I32, int32_t,  1)
+TEST_FLAGS_DECL(U64, uint64_t, 1)
+TEST_FLAGS_DECL(I64, int64_t,  1)
+TEST_FLAGS_DECL(FLT, float,    0)
+TEST_FLAGS_DECL(DBL, double,   0)
+
+
 void doit(gex_DT_t dt) {
   gex_OP_t all_ops =
         GEX_OP_ADD  | GEX_OP_SUB  | GEX_OP_MULT  |
@@ -217,6 +263,36 @@ void doit(gex_DT_t dt) {
     all_ops |=
         GEX_OP_AND  | GEX_OP_OR  | GEX_OP_XOR |
         GEX_OP_FAND | GEX_OP_FOR | GEX_OP_FXOR;
+  }
+
+  // Test of AD-specific flags
+  {
+    gex_AD_t ad;
+    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_FADD, 0);
+
+    BARRIER();
+    switch (dt) {
+      case GEX_DT_U32:
+        test_flags_U32(ad);
+        break;
+      case GEX_DT_I32:
+        test_flags_I32(ad);
+        break;
+      case GEX_DT_U64:
+        test_flags_U64(ad);
+        break;
+      case GEX_DT_I64:
+        test_flags_I64(ad);
+        break;
+      case GEX_DT_FLT:
+        test_flags_FLT(ad);
+        break;
+      case GEX_DT_DBL:
+        test_flags_DBL(ad);
+        break;
+    }
+
+    gex_AD_Destroy(ad);
   }
 
   // Range of random numbers
