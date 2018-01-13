@@ -3028,10 +3028,11 @@ AC_REQUIRE([GASNET_PROG_PERL])
 GASNET_FUN_BEGIN([$0($1,$2,...)])
 AC_CACHE_CHECK($1, cv_prefix[]$2,[
 cv_prefix[]$2=""
+_extractstrembed='"$gasnetextractstr: (-(|" $4 "|)-) $"'
 pushdef([embedcode],[
  #include <stdio.h>
  extern const char *s; 
- const char *s = "$gasnetextractstr: (-(|" $4 "|)-) $";
+ const char *s = $_extractstrembed;
 ])
 pushdef([unpackcode],[
    _extract_prog='BEGIN{$/="\0";} if (m/\$gasnetextractstr: \(-\(\|(.+?)\|\)-\) \$/) { print "[$]1";}' 
