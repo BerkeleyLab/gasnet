@@ -1,6 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/portable_platform.h $
  * Description: Portable platform detection header
- * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2006, Dan Bonachea 
+ * Copyright 2018, The Regents of the University of California
  * Terms of Use: In ADDITION to the license information in license.txt, 
  *  anyone redistributing this header agrees not to change any part of this notice, or
  *  the version handshake in the header versioning section below. 
@@ -15,7 +16,9 @@
  *
  * Developers who clone this header into their own project are HIGHLY encouraged to  
  * contribute any improvements (especially addition of new platforms) back to the 
- * canonical version, for the benefit of the community.
+ * canonical version, for the benefit of the community. 
+ * Contributions and bug reports should be directed to:
+ *   http://gasnet-bugs.lbl.gov or gasnet-staff@lbl.gov
  */
 /* ------------------------------------------------------------------------------------ */
 /* Header versioning: DO NOT CHANGE ANYTHING IN THIS SECTION 
@@ -26,9 +29,9 @@
 /* Publish and enforce version number for the public interface to this header */
 /* YOU ARE NOT PERMITTED TO CHANGE THIS SECTION WITHOUT DIRECT APPROVAL FROM DAN BONACHEA */
 #if _PORTABLE_PLATFORM_H != PLATFORM_HEADER_VERSION \
-     || PLATFORM_HEADER_VERSION < 3
+     || PLATFORM_HEADER_VERSION < 5
 #undef  PLATFORM_HEADER_VERSION 
-#define PLATFORM_HEADER_VERSION 3
+#define PLATFORM_HEADER_VERSION 5
 #undef  _PORTABLE_PLATFORM_H
 #define _PORTABLE_PLATFORM_H PLATFORM_HEADER_VERSION
 /* End Header versioning handshake */
@@ -47,6 +50,8 @@
 #undef PLATFORM_COMPILER_VERSION_EQ
 #undef PLATFORM_COMPILER_VERSION_LE
 #undef PLATFORM_COMPILER_VERSION_LT
+#undef PLATFORM_COMPILER_C_LANGLVL
+#undef PLATFORM_COMPILER_CXX_LANGLVL
 #undef PLATFORM_COMPILER_INTEL
 #undef PLATFORM_COMPILER_INTEL_C
 #undef PLATFORM_COMPILER_INTEL_CXX
@@ -207,6 +212,10 @@
      the provided version components
   PLATFORM_COMPILER_IDSTR:
      a string which uniquely identifies recognized compilers
+  PLATFORM_COMPILER_C_LANGLVL and PLATFORM_COMPILER_CXX_LANGLVL: (in PLATFORM_HEADER_VERSION >= 5)
+     defined to a positive integral value corresponding to the C or C++ (respectively) 
+     language standard to which the current compiler advertises conformance.
+     Otherwise undef (in particular at most one of these is defined in a given compilation).
 */
 
 #if defined(__INTEL_COMPILER)
@@ -601,6 +610,19 @@
   #define PLATFORM_COMPILER_ID (10000+PLATFORM_COMPILER_FAMILYID)
 #else
   #define PLATFORM_COMPILER_ID PLATFORM_COMPILER_FAMILYID
+#endif
+
+/* default language spec conformance detection */
+#if !defined(PLATFORM_COMPILER_C_LANGLVL) && !defined(PLATFORM_COMPILER_CXX_LANGLVL)
+  #if defined(__cplusplus) && (__cplusplus > 0)  /* C++98 or newer */
+    #define PLATFORM_COMPILER_CXX_LANGLVL  __cplusplus
+  #elif defined(__STDC_VERSION__) && (__STDC_VERSION__ > 0)  /* C95 or newer */
+    #define PLATFORM_COMPILER_C_LANGLVL  __STDC_VERSION__
+  #elif defined(__STDC__) && !defined(__cplusplus) && !defined(__STDC_VERSION__) /* C89/C90 */
+    #define PLATFORM_COMPILER_C_LANGLVL  199000L
+  #else 
+    /* unknown - leave both undef */
+  #endif
 #endif
 
 #undef _PLATFORM_COMPILER_STD_STDC
@@ -1041,6 +1063,13 @@ int main(void) {
   PLATFORM_DISPX(COMPILER_VERSION);
   PLATFORM_DISP(COMPILER_VERSION_STR);
   PLATFORM_DISP(COMPILER_IDSTR);
+  #if PLATFORM_COMPILER_C_LANGLVL
+    PLATFORM_DISPI(COMPILER_C_LANGLVL);
+  #elif PLATFORM_COMPILER_CXX_LANGLVL
+    PLATFORM_DISPI(COMPILER_CXX_LANGLVL);
+  #else
+    printf("WARNING: Missing PLATFORM_COMPILER_C(XX)_LANGLVL!");
+  #endif
   PLATFORM_DISP(OS_FAMILYNAME);
   PLATFORM_DISP(ARCH_FAMILYNAME);
   #if PLATFORM_ARCH_32
