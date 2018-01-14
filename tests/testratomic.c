@@ -90,14 +90,14 @@ static int failures = 0;
     prev_fail = 0;                             \
   } while (0)
 
-/* Test an atomic op (fetching and non-fetching variants */
-/* Update the expected value and stores it remotely if the mot recent fetching op failed validation */
-#define TEST_ROP(_tcode, _opcode, _op1, _op2, _newval)  do { \
+/* Test an atomic op (fetching and non-fetching variants)
+ * NC suffix = no change
+ */
+#define TEST_ROP_NC(_tcode, _opcode, _op1, _op2)  do { \
         if (! (_opcode & ops)) break;                 \
         _TEST_ROP(_tcode, NULL, _opcode, _op1, _op2); \
-	_TEST_ROP_MIRROR(_tcode, _newval);            \
   } while (0)
-#define TEST_ROP_FETCH(_tcode, _opcode, _op1, _op2, _newval) do { \
+#define TEST_ROP_FETCH_NC(_tcode, _opcode, _op1, _op2) do { \
     if (! (_opcode & ops)) break;                        \
     _TEST_ROP(_tcode, &fetch, _opcode, _op1, _op2);      \
     prev_fail = (fetch != mirror);                       \
@@ -110,7 +110,18 @@ static int failures = 0;
         once = 1;                                        \
       }                                                  \
     }                                                    \
-    _TEST_ROP_MIRROR(_tcode, _newval);                   \
+  } while (0)
+
+/* As above, but also update the expected value and store
+ * it remotely if the most recent fetching op failed validation
+ */
+#define TEST_ROP(_tcode, _opcode, _op1, _op2, _newval)  do { \
+    TEST_ROP_NC(_tcode, _opcode, _op1, _op2); \
+    if (_opcode & ops) _TEST_ROP_MIRROR(_tcode, _newval); \
+  } while (0)
+#define TEST_ROP_FETCH(_tcode, _opcode, _op1, _op2, _newval)  do { \
+    TEST_ROP_FETCH_NC(_tcode, _opcode, _op1, _op2); \
+    if (_opcode & ops) _TEST_ROP_MIRROR(_tcode, _newval); \
   } while (0)
 
 
@@ -134,11 +145,11 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
     SUBTEST("SET(x)");                                        \
       TEST_ROP(_tcode, GEX_OP_SET, x, unused, x);             \
     SUBTEST("GET(x)");                                        \
-      TEST_ROP_FETCH(_tcode, GEX_OP_GET, unused, unused, mirror); \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
     SUBTEST("SET(0)");                                        \
       TEST_ROP(_tcode, GEX_OP_SET, 0, unused, 0);             \
     SUBTEST("GET(0)");                                        \
-      TEST_ROP_FETCH(_tcode, GEX_OP_GET, unused, unused, mirror); \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
     SUBTEST("FINC()");                                        \
       TEST_ROP_FETCH(_tcode, GEX_OP_FINC, unused, unused, mirror + 1); \
     SUBTEST("INC()");                                         \
@@ -162,17 +173,17 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
     SUBTEST("SWAP(x)");                                       \
       TEST_ROP_FETCH(_tcode, GEX_OP_SWAP, x, unused, x);      \
     SUBTEST("CSWAP(mirror,mirror) - PASS");                   \
-      TEST_ROP_FETCH(_tcode, GEX_OP_CSWAP, mirror, mirror, mirror); \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_CSWAP, mirror, mirror);\
     SUBTEST("CSWAP(mirror+1,0) - FAIL");                      \
-      TEST_ROP_FETCH(_tcode, GEX_OP_CSWAP, mirror+1, 0, mirror); \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_CSWAP, mirror+1, 0);   \
     SUBTEST("CSWAP(mirror,random) - PASS");                   \
       y = (_type)TEST_RAND(lo,hi);                            \
       TEST_ROP_FETCH(_tcode, GEX_OP_CSWAP, mirror, y, y);     \
     SUBTEST("CSWAP(random,random) - FAIL");                   \
       do { y = (_type)TEST_RAND(lo,hi); } while (y == mirror);\
-      TEST_ROP_FETCH(_tcode, GEX_OP_CSWAP, y, y, mirror);     \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_CSWAP, y, y);          \
     SUBTEST("GET(cswap)");                                    \
-      TEST_ROP_FETCH(_tcode, GEX_OP_GET, unused, unused, mirror); \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
     SUBTEST("MIN(random)");                                   \
       y = (_type)TEST_RAND(lo,hi);                            \
       y = TEST_RAND_ONEIN(2) ? y : ((_type)-1) * y;           \
@@ -191,7 +202,7 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
       TEST_ROP_FETCH(_tcode, GEX_OP_FMAX, y, unused, MAX(mirror,y)); \
     TEST_RAND_BITS##_isint(_tcode,_type)                      \
     SUBTEST("GET(final)");                                    \
-      TEST_ROP_FETCH(_tcode, GEX_OP_GET, unused, unused, mirror); \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
   }                                                           \
   if (failures) {                                             \
     MSG("  Total: failures %d for type " #_type, failures);   \
