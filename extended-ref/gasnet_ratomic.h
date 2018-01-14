@@ -402,7 +402,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 // TODO: should honor is-self flag once it is defined
 // TODO: need local memory fences once flags are defined
 // TODO: need trace/stats at this layer or one higher
-// TODO: bypass indirection to table when AM is the only implementation
 //
 // GASNETE_RATOMIC_DISP(dtcode):
 //   Expands to definitions of two inline functions:
