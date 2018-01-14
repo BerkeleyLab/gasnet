@@ -31,7 +31,7 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
     gex_Rank_t         _rank;          \
     gex_DT_t           _dt;            \
     gex_OP_t           _ops;           \
-    int                _cpusafe;       \
+    int                _tools_safe;    \
     gasnete_ratomic_fn_tbl_t _fn_tbl;
   typedef struct { GASNETI_AD_COMMON } *gasneti_AD_t;
   #if GASNET_DEBUG
@@ -460,8 +460,9 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
                                  _opcode, dtcode##_dtype, _flags);       \
         gasneti_AD_t _real_ad = gasneti_import_ad(_ad);                  \
-        if (GASNETE_RATOMIC_ALWAYS_CPUSAFE##dtcode || _real_ad->_cpusafe) { \
-          _GASNETE_RATOMIC_DISP_CPUSAFE(dtcode,type,retdone);            \
+        if (GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE##dtcode ||                 \
+            _real_ad->_tools_safe) {                                     \
+          _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone);         \
         }                                                                \
         switch(_opcode) {                                                \
             _GASNETE_RATOMIC_DISP_CASE1(dtcode, nbnbi, SET,   N1)        \
@@ -485,7 +486,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
     }
 // TODO-EX: Must pass jobrank to GASNETI_SUPERNODE_*LOCAL() or find TM-based alternative
 // TODO-EX: This logic actually checks for self twice before hitting the network
-#define _GASNETE_RATOMIC_DISP_CPUSAFE(dtcode,type,retdone) do { \
+#define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
         if (_const_flags) {                                                  \
             /* These tests are fully resolvable at compile time */           \
             if (_flags & GEX_FLAG_AD_MY_RANK) {                              \

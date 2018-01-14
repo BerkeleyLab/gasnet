@@ -42,7 +42,7 @@ extern gasneti_AD_t gasneti_alloc_ad(
   ad->_dt = dt;
   ad->_ops = ops;
 #if GASNET_DEBUG
-  ad->_cpusafe = -1;
+  ad->_tools_safe = -1;
   ad->_fn_tbl = NULL;
 #endif
 #ifdef GASNETI_AD_ALLOC_EXTRA
@@ -119,7 +119,7 @@ void gasneti_AD_Create(
   // Algorithm selection:
 #ifdef GASNETI_AD_CREATE_HOOK
   GASNETI_AD_CREATE_HOOK(real_ad, real_tm, dt, ops, flags);
-  gasneti_assert(real_ad->_cpusafe >= 0);
+  gasneti_assert(real_ad->_tools_safe >= 0);
   gasneti_assert(real_ad->_fn_tbl != NULL);
 #endif
 
@@ -729,7 +729,7 @@ void gasnete_amratomic_create_hook(
         gex_OP_t                   ops,
         gex_Flags_t                flags)
 {
-    real_ad->_cpusafe = 1;
+    real_ad->_tools_safe = 1;
     #define GASNETE_AMRATOMIC_TBL_CASE(dtcode) \
         case dtcode##_dtype: \
             real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t) &gasnete_amratomic##dtcode##_fn_tbl; \
