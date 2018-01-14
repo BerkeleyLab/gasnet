@@ -39,6 +39,25 @@ static const char* subtest = "N/A";
 static int prev_fail = 0;
 static int failures = 0;
 
+
+// Macros to simplify iteration over types
+#define I32_type  int32_t
+#define I32_isint 1
+#define U32_type  uint32_t
+#define U32_isint 1
+#define I64_type  int64_t
+#define I64_isint 1
+#define U64_type  uint64_t
+#define U64_isint 1
+#define FLT_type  float
+#define FLT_isint 0
+#define DBL_type  double
+#define DBL_isint 0
+#define FORALL_DT(MACRO) \
+  MACRO(I32) MACRO(U32)  \
+  MACRO(I64) MACRO(U64)  \
+  MACRO(FLT) MACRO(DBL)
+
 /* Blocking atomic via either NB or NBI (chosen at random) */
 /* With or without IMMEDIATE (also at random) */
 /* Note that some arguments and variables are hard-coded */
@@ -97,12 +116,16 @@ static int failures = 0;
 
 
 /* Randomized testing of atomic ops */
-#define TEST_RAND_DECL(_tcode, _type, _isint) \
+#define TEST_RAND_DECL(_dtcode) \
+        TEST_RAND_DECL1(_dtcode, _dtcode##_type, _dtcode##_isint)
+#define TEST_RAND_DECL1(_tcode, _type, _isint) \
+        TEST_RAND_DECL2(_tcode, _type, _isint) /* extra pass to expand _isint */
+#define TEST_RAND_DECL2(_tcode, _type, _isint) \
 void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
   _type mirror = 0;                                           \
   gex_OP_t ops = gex_AD_QueryOps(ad);                         \
-  MSG0("Randomized remote atomic ops test for type " #_type   \
-       " and operation set 0x%x%s", (unsigned int)ops, msg);  \
+  MSG0("    Randomized ops test with operation set 0x%x%s",   \
+       (unsigned int)ops, msg);                               \
   for (int i = 0; i < iters; ++i) {                           \
     _type unused = (_type)TEST_RAND(lo,hi); /* garbage */     \
     _type fetch, x, y;                                        \
@@ -196,20 +219,14 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
       y = (_type)TEST_RAND(lo,hi);                            \
       TEST_ROP_FETCH(_tcode, GEX_OP_FXOR, y, unused, mirror ^ y); \
 //
-TEST_RAND_DECL(U32, uint32_t, 1)
-TEST_RAND_DECL(I32, int32_t,  1)
-TEST_RAND_DECL(U64, uint64_t, 1)
-TEST_RAND_DECL(I64, int64_t,  1)
-TEST_RAND_DECL(FLT, float,    0)
-TEST_RAND_DECL(DBL, double,   0)
-
+FORALL_DT(TEST_RAND_DECL)
 
 /* Deterministic testing of AD_MY_* flags */
-#define TEST_FLAGS_DECL(_tcode, _type, _isint) \
+#define TEST_FLAGS_DECL(_tcode) \
 void test_flags_##_tcode(gex_AD_t ad) {                                      \
   gex_Event_t ev;                                                            \
-  _type result;                                                              \
-  MSG0("Remote atomic ops flags test for type " #_type);                     \
+  _tcode##_type result;                                                      \
+  MSG0("    Flags test");                                                    \
                                                                              \
   /* MY_RANK and MY_NEIGHBORHOOD applied to self */                          \
   ev = gex_AD_OpNB_##_tcode(ad,NULL,myrank,TEST_MYSEG(),GEX_OP_SET,          \
@@ -241,12 +258,7 @@ void test_flags_##_tcode(gex_AD_t ad) {                                      \
   gex_NBI_Wait(GEX_EC_RMW,0);                                                \
   assert_always(result == 3*nbr_rank);                                       \
 }
-TEST_FLAGS_DECL(U32, uint32_t, 1)
-TEST_FLAGS_DECL(I32, int32_t,  1)
-TEST_FLAGS_DECL(U64, uint64_t, 1)
-TEST_FLAGS_DECL(I64, int64_t,  1)
-TEST_FLAGS_DECL(FLT, float,    0)
-TEST_FLAGS_DECL(DBL, double,   0)
+FORALL_DT(TEST_FLAGS_DECL)
 
 
 void doit(gex_DT_t dt) {
@@ -265,32 +277,20 @@ void doit(gex_DT_t dt) {
         GEX_OP_FAND | GEX_OP_FOR | GEX_OP_FXOR;
   }
 
+  #define MSG_CASE(dtcode) \
+    case GEX_DT_##dtcode: MSG0("Running remote atomic tests for type " _STRINGIFY(dtcode##_type)); break;
+  switch (dt) { FORALL_DT(MSG_CASE) }
+
   // Test of AD-specific flags
   {
     gex_AD_t ad;
     gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_FADD, 0);
 
     BARRIER();
-    switch (dt) {
-      case GEX_DT_U32:
-        test_flags_U32(ad);
-        break;
-      case GEX_DT_I32:
-        test_flags_I32(ad);
-        break;
-      case GEX_DT_U64:
-        test_flags_U64(ad);
-        break;
-      case GEX_DT_I64:
-        test_flags_I64(ad);
-        break;
-      case GEX_DT_FLT:
-        test_flags_FLT(ad);
-        break;
-      case GEX_DT_DBL:
-        test_flags_DBL(ad);
-        break;
-    }
+
+    #define FLAGS_CASE(dtcode) \
+      case GEX_DT_##dtcode: test_flags_##dtcode(ad); break;
+    switch (dt) { FORALL_DT(FLAGS_CASE) }
 
     gex_AD_Destroy(ad);
   }
@@ -373,26 +373,11 @@ void doit(gex_DT_t dt) {
     gex_AD_Create(&ad, myteam, dt, ops, 0);
 
     BARRIER();
-    switch (dt) {
-      case GEX_DT_U32:
-        test_rand_U32(ad,lo,hi,msg);
-        break;
-      case GEX_DT_I32:
-        test_rand_I32(ad,lo,hi,msg);
-        break;
-      case GEX_DT_U64:
-        test_rand_U64(ad,lo,hi,msg);
-        break;
-      case GEX_DT_I64:
-        test_rand_I64(ad,lo,hi,msg);
-        break;
-      case GEX_DT_FLT:
-        test_rand_FLT(ad,lo,hi,msg);
-        break;
-      case GEX_DT_DBL:
-        test_rand_DBL(ad,lo,hi,msg);
-        break;
-    }
+
+    #define RAND_CASE(dtcode) \
+      case GEX_DT_##dtcode: test_rand_##dtcode(ad,lo,hi,msg); break;
+    switch (dt) { FORALL_DT(RAND_CASE) }
+
     BARRIER();
 
     gex_AD_Destroy(ad);
