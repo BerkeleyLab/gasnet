@@ -493,21 +493,13 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
                 gasneti_assert(_tgt_rank == _real_ad->_rank);                \
                 goto use_tools;                                              \
             }                                                                \
-            if (_flags & GEX_FLAG_AD_MY_NEIGHBORHOOD) {                      \
-                gasneti_assert(GASNETI_SUPERNODE_LOCAL(_tgt_rank));          \
-                _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr);\
-                goto use_tools;                                              \
-            }                                                                \
+            _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_STATIC(dtcode)              \
         }                                                                    \
         if (_tgt_rank == _real_ad->_rank) {                                  \
-            /* Will use tools below */                                       \
-        } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode &&                       \
-                   GASNETI_SUPERNODE_LOCAL(_tgt_rank)) {                     \
-            /* Will use tools below with a translated address */             \
-            _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr);   \
-        } else {                                                             \
-            break; /* Leave enclosing do/while w/o using tools */            \
+            goto use_tools;                                                  \
         }                                                                    \
+        _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_DYNAMIC(dtcode)                 \
+        break; /* Leave enclosing do/while w/o using tools */                \
         use_tools: ((void)0); /* label must precede a statement */           \
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
@@ -517,6 +509,23 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         }                                                                    \
         return retdone;                                                      \
     } while (0)
+#if GASNET_PSHM
+  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_STATIC(dtcode) \
+    if (_flags & GEX_FLAG_AD_MY_NEIGHBORHOOD) {                        \
+        gasneti_assert(GASNETI_SUPERNODE_LOCAL(_tgt_rank));            \
+        _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr); \
+        goto use_tools;                                                \
+    }
+  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_DYNAMIC(dtcode) \
+    else if (GASNETE_RATOMIC_PSHMSAFE##dtcode &&                       \
+             GASNETI_SUPERNODE_LOCAL(_tgt_rank)) {                     \
+        _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr); \
+        goto use_tools;                                                \
+    }
+#else
+  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_STATIC(dtcode)  /*empty*/
+  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_DYNAMIC(dtcode)  /*empty*/
+#endif
 #define _GASNETE_RATOMIC_DISP_ISFETCH(opcode) \
     ((opcode) & (GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT | \
                  GEX_OP_FMIN | GEX_OP_FMAX |                \
