@@ -236,21 +236,23 @@ FORALL_DT(TEST_RAND_DECL)
 #define TEST_FLAGS_DECL(_tcode) \
 void test_flags_##_tcode(gex_AD_t ad) {                                      \
   gex_Event_t ev;                                                            \
-  _tcode##_type result;                                                      \
+  _tcode##_type result, operand;                                             \
+  _tcode##_type unused = 911; /* garbage */                                  \
   MSG0("    Flags test");                                                    \
                                                                              \
   /* MY_RANK and MY_NEIGHBORHOOD applied to self */                          \
+  operand = myrank + 1;                                                      \
   ev = gex_AD_OpNB_##_tcode(ad,NULL,myrank,TEST_MYSEG(),GEX_OP_SET,          \
-                            myrank,0,GEX_FLAG_AD_MY_RANK);                   \
+                            operand,unused,GEX_FLAG_AD_MY_RANK);             \
   gex_Event_Wait(ev);                                                        \
   gex_AD_OpNBI_##_tcode(ad,&result,myrank,TEST_MYSEG(),GEX_OP_FADD,          \
-                       myrank,0,GEX_FLAG_AD_MY_RANK);                        \
+                        operand,unused,GEX_FLAG_AD_MY_RANK);                 \
   gex_NBI_Wait(GEX_EC_RMW,0);                                                \
-  assert_always(result == myrank);                                           \
+  assert_always(result == operand);                                          \
   ev = gex_AD_OpNB_##_tcode(ad,&result,myrank,TEST_MYSEG(),GEX_OP_FADD,      \
-                            myrank,0,GEX_FLAG_AD_MY_NEIGHBORHOOD);           \
+                            operand,unused,GEX_FLAG_AD_MY_NEIGHBORHOOD);     \
   gex_Event_Wait(ev);                                                        \
-  assert_always(result == 2*myrank);                                         \
+  assert_always(result == 2*operand);                                        \
   BARRIER();                                                                 \
                                                                              \
   /* MY_NEIGHBORHOOD applied to not-self-unless-no-other-valid-choice */     \
@@ -262,12 +264,13 @@ void test_flags_##_tcode(gex_AD_t ad) {                                      \
     gex_System_QueryNeighborhoodInfo(&info, &info_count, &my_info_index);    \
     nbr_rank = info[(my_info_index + 1) % info_count].gex_jobrank;           \
     nbr_addr = TEST_SEG(nbr_rank);                                           \
+    operand = nbr_rank + 1;                                                  \
     assert(nbr_addr);                                                        \
   }                                                                          \
   gex_AD_OpNBI_##_tcode(ad,&result,nbr_rank,nbr_addr,GEX_OP_FADD,            \
-                        nbr_rank,0,GEX_FLAG_AD_MY_NEIGHBORHOOD);             \
+                        operand,unused,GEX_FLAG_AD_MY_NEIGHBORHOOD);         \
   gex_NBI_Wait(GEX_EC_RMW,0);                                                \
-  assert_always(result == 3*nbr_rank);                                       \
+  assert_always(result == 3*operand);                                        \
 }
 FORALL_DT(TEST_FLAGS_DECL)
 
