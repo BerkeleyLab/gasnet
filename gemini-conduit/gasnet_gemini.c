@@ -903,11 +903,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
                         NULL, NULL, &DOMAIN_SPECIFIC_VAL(bound_cq_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
   /* create and bind endpoints */
-#if GASNET_DEBUG
-  DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_calloc(gasneti_nodes, sizeof(peer_struct_t));
-#else
   DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
-#endif
   for (i = 0; i < gasneti_nodes; i += 1) {
   #if !GASNETC_BUILD_GNIRATOMIC
     if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
@@ -1151,11 +1147,7 @@ uintptr_t gasnetc_init_messaging(void)
   reply_freelist = reply_pool;
   reply_pool[reply_count - 1].u.next = NULL;
 
-#if GASNET_DEBUG
-  peer_data = gasneti_calloc(gasneti_nodes, sizeof(peer_struct_t));
-#else
   peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
-#endif
 
   /* Get my NIC address */
   if (gasnetc_dev_id == -1) {
@@ -1193,13 +1185,13 @@ uintptr_t gasnetc_init_messaging(void)
         gasneti_assert_always (status == GNI_RC_SUCCESS);
         status = GNI_EpBind(peer_data[i].ep_handle, all_am_exchg[i].nic_addr, i);
         gasneti_assert_always (status == GNI_RC_SUCCESS);
+        peer_data[i].pe = i;
       }
 
       if (!node_is_local(i)) { /* no AMs to self or PSHM-reachable peers */
         peer_struct_t * const peer = &peer_data[i];
         uint8_t *remote_peer_base = all_am_exchg[i].addr + peer_stride * my_mb_index(i) + reply_region_length;
 
-        peer->pe = i;
         peer->event_count = 0;
 
         peer->am_handle = all_am_exchg[i].handle;
