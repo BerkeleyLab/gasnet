@@ -205,7 +205,7 @@ void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
       TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
   }                                                           \
   if (failures) {                                             \
-    MSG("  Total: failures %d for type " #_type, failures);   \
+    MSG("  Total: %d failures for type " #_type, failures);   \
     failures = 0;                                             \
   }                                                           \
 }
