@@ -16,6 +16,32 @@
 #error "Improper use of aries-conduit/gasnet_ratomic_fwd.h"
 #endif
 
+// GNI RMA of naturally aligned 4 and 8 byte values are "tools safe" (free of
+// word-tearing and intermediate values).  So long as the Tools have those same
+// properties, we allow the AM-based atomics to use RMA Put and Get for the
+// atomic SET and GET operations.
+//
+// TODO-EX: SIGNALSAFE is not the precise property we are looking for,
+// though it is accurate for the current tools implementations.
+#if GASNETI_ATOMIC32_NOT_SIGNALSAFE
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_I32 0
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_U32 0
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_FLT 0
+#else
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_I32 1
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_U32 1
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_FLT 1
+#endif
+#if GASNETI_ATOMIC64_NOT_SIGNALSAFE
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_I64 0
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_U64 0
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_DBL 0
+#else
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_I64 1
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_U64 1
+  #define GASNETE_AMRATOMIC_USE_RMA_gex_dt_DBL 1
+#endif
+
 // Build GNI remote atomics by default
 #if defined(GASNETC_BUILD_GNIRATOMIC) && !GASNETC_BUILD_GNIRATOMIC
   #undef GASNETC_BUILD_GNIRATOMIC
