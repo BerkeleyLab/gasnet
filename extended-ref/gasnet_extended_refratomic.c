@@ -697,11 +697,11 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
   } \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_GET (GASNETE_RATOMIC_ARGS_F0(type)) { \
     return gex_RMA_GetNB(gasneti_export_tm(_real_ad->_tm), _result_p,                     \
-                         _tgt_rank, _tgt_addr, sizeof(float), _flags);                    \
+                         _tgt_rank, _tgt_addr, sizeof(type), _flags);                     \
   } \
   static int gasnete_amratomic##dtcode##_NBI_GET (GASNETE_RATOMIC_ARGS_F0(type)) {        \
     return gex_RMA_GetNBI(gasneti_export_tm(_real_ad->_tm), _result_p,                    \
-                          _tgt_rank, _tgt_addr, sizeof(float), _flags);                   \
+                          _tgt_rank, _tgt_addr, sizeof(type), _flags);                    \
   }
 //
 GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFS)
