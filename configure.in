@@ -1010,6 +1010,7 @@ AC_DEFUN([GASNET_GET_PLATFORM_ID], [
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[FAMILYID],[EXPR])
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[ID],[EXPR])
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[VERSION],[EXPR])
+  GASNET_GET_PLATFORM_COMPILER([$1],[$2],GASNETI_C_OR_CXX([$1])[_LANGLVL],[EXPR])
   GASNET_POPVAR(CPPFLAGS)
 ])
 
@@ -2693,20 +2694,27 @@ AC_DEFUN([GASNET_FH_CFLAGS],[
   AC_SUBST(FH_CFLAGS)
 ])
 
-dnl GASNET_ID_OTHER_COMPILER(CCVAR, lang-decr)
+dnl GASNET_ID_OTHER_COMPILER_FAMILY(CCVAR, lang-decr)
 dnl CCVAR is CXX|MPI_CC
-AC_DEFUN([GASNET_ID_OTHER_COMPILER],[
+AC_DEFUN([GASNET_ID_OTHER_COMPILER_FAMILY],[
   pushdef([lowername],translit($1,'A-Z','a-z'))
-  GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
   GASNET_FAMILY_CACHE_CHECK([$2], [$1], gasnet_cv_[]lowername[]_family)
+  popdef([lowername])
+])
+dnl GASNET_ID_OTHER_COMPILER_PLATFORM(CCVAR, lang-decr)
+dnl CCVAR is CXX|MPI_CC
+AC_DEFUN([GASNET_ID_OTHER_COMPILER_PLATFORM],[
+  GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
   mismatch=""
-  if test x"$[$1]_FAMILY" != x"$CC_FAMILY"; then
+  if test -z "$[$1]_FAMILY" || test -z "$CC_FAMILY"; then
+    AC_MSG_ERROR([Internal error in ID_OTHER_COMPILER_PLATFORM($1)])
+  elif test x"$[$1]_FAMILY" != x"$CC_FAMILY"; then
     mismatch="families"
   elif test x"$gasnet_cv_PLATFORM_[$1]_VERSION" != x"$gasnet_cv_PLATFORM_COMPILER_VERSION"; then
     mismatch="version codes"
   fi
   if test -n "$mismatch"; then
-    pushdef([outfmt],[$AWK -F'|' '{ printf("%s\t%s",[$]2,[$]3); }'])
+    pushdef([outfmt],[$AWK -F'|' '{ printf("%-22s\t%s",[$]2,[$]3); }'])
     idstr1=`echo "$gasnet_cv_PLATFORM_COMPILER_IDSTR" | outfmt`
     idstr2=`echo "$gasnet_cv_PLATFORM_[$1]_IDSTR" | outfmt`
     popdef([outfmt])
@@ -2716,7 +2724,6 @@ The compiler $mismatch of \$CC and \$[$1] do not match:
 m4_substr([        ],len([$1]))$1:  $idstr2
 If this is not what you intended, then set \$[$1] to select a different $2 compiler.])
   fi
-  popdef([lowername])
 ])
 
 dnl GASNET_LINKHELPER-*:
@@ -2812,7 +2819,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
 
  if test "$have_cxx" = yes; then
   AC_LANG_CPLUSPLUS
-  GASNET_ID_OTHER_COMPILER([CXX], [C++])
+  GASNET_ID_OTHER_COMPILER_FAMILY([CXX], [C++])
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
   GASNET_UDP_LIBS=""
@@ -2907,6 +2914,8 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     DEVWARN_CXXFLAGS=
   fi
   AC_SUBST(DEVWARN_CXXFLAGS)
+
+  GASNET_ID_OTHER_COMPILER_PLATFORM([CXX], [C++])
 
   # MISC_CXXFLAGS are added to CXXFLAGS here to ensure they are used for the remaining configure tests,
   # but they retain a separate identity post-configure
@@ -3113,7 +3122,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       ])
 
     if test $have_mpi = yes; then
-      GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
+      GASNET_ID_OTHER_COMPILER_FAMILY([MPI_CC], [MPI])
       GASNET_PUSHVAR(CC_FAMILY,"$MPI_CC_FAMILY")
         # we re-detect miscflags for MPI_CC, because it may differ from CC
         GASNET_SET_MISCFLAGS(MPI_CC, [ GASNET_C99_TEST ])
@@ -3124,17 +3133,19 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
           SAFE_MPI_CFLAGS="-O"
         fi
       GASNET_POPVAR(CC_FAMILY)
-    fi
       DEVWARN_MPI_CFLAGS="$DEVWARN_CFLAGS"
       AC_SUBST(DEVWARN_MPI_CFLAGS)
+      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
+      MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
+      CFLAGS="$MPI_CFLAGS" # for platform check
+      GASNET_ID_OTHER_COMPILER_PLATFORM([MPI_CC], [MPI])
+    fi
       GASNET_POPVAR(CC)
       GASNET_POPVAR(CFLAGS)
       GASNET_POPVAR(CPPFLAGS)
       GASNET_POPVAR(MISC_CFLAGS)
       GASNET_POPVAR(MISC_CPPFLAGS)
       GASNET_POPVAR(DEVWARN_CFLAGS)
-      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
-      MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
     else
       GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc=/path/to/mpicc if you want mpi-conduit or require MPI compatibility])
       # Avoid unecessary and potentially confusing probes and their errors/warnings
