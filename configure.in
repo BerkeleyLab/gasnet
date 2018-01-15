@@ -3118,19 +3118,21 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
 
     if test $have_mpi = yes; then
       GASNET_ID_OTHER_COMPILER_FAMILY([MPI_CC], [MPI])
+      if test "$BUILDCONFIG" = "debug" ; then
+        SAFE_MPI_CFLAGS="-g"
+      else
+        SAFE_MPI_CFLAGS="-O"
+      fi
+      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
       GASNET_PUSHVAR(CC_FAMILY,"$MPI_CC_FAMILY")
+      GASNET_PUSHVAR(CC,"$MPI_CC $MPI_CFLAGS") # detect MISC for append to user's flags
         # we re-detect miscflags for MPI_CC, because it may differ from CC
         GASNET_SET_MISCFLAGS(MPI_CC, [ GASNET_C99_TEST ])
-	MPI_MISCFLAGS="$MISC_CFLAGS $MISC_CPPFLAGS"
-        if test "$BUILDCONFIG" = "debug" ; then
-          SAFE_MPI_CFLAGS="-g"
-        else
-          SAFE_MPI_CFLAGS="-O"
-        fi
+        MPI_MISCFLAGS="$MISC_CFLAGS $MISC_CPPFLAGS"
+      GASNET_POPVAR(CC)
       GASNET_POPVAR(CC_FAMILY)
       DEVWARN_MPI_CFLAGS="$DEVWARN_CFLAGS"
       AC_SUBST(DEVWARN_MPI_CFLAGS)
-      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
       MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
       CFLAGS="$MPI_CFLAGS" # for platform check
       GASNET_ID_OTHER_COMPILER_PLATFORM([MPI_CC], [MPI])
@@ -3213,7 +3215,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       fi
       AC_DEFINE_UNQUOTED([GASNETI_MPI_VERSION],[$GASNETI_MPI_VERSION])
 
-      # check MPI_CC for a working C99 environment (enough to parse gasnet.h) -- in case MPI_CFLAGS broke C99 compliance
+      # confirm MPI_CC has a working C99 environment (enough to parse gasnet.h)
       GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
        [ GASNET_C99_TEST ], [], [],
        [ mpi_test_worked=no 
