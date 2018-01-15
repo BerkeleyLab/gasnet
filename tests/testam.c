@@ -23,6 +23,8 @@ int sender, recvr;
 int peer;
 void *peerseg = NULL;
 
+gex_Event_t *lc_opt = GEX_EVENT_NOW;
+
 void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt) {
   if (sender) {
       char nodestr[10];
@@ -142,6 +144,7 @@ gex_AM_Entry_t htable[] = {
 /* ------------------------------------------------------------------------------------ */
 int crossmachinemode = 0;
 int insegment = 1;
+int asynclc = 0;
 int iters=0;
 int pollers=0;
 int i = 0;
@@ -181,6 +184,14 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[arg], "-c")) {
       crossmachinemode = 1;
       ++arg;
+    } else if (!strcmp(argv[arg], "-sync-req")) {
+      asynclc = 0;
+      lc_opt = GEX_EVENT_NOW;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-async-req")) {
+      asynclc = 1;
+      lc_opt = GEX_EVENT_GROUP;
+      ++arg;
     } else if (argv[arg][0] == '-') {
       help = 1;
       ++arg;
@@ -202,11 +213,15 @@ int main(int argc, char **argv) {
                "    buffer is in the GASNet segment or not (default is 'in').\n"
                "  The -p option gives the number of polling threads, specified as\n"
                "    a non-negative integer argument (default is no polling threads).\n"
+               "  The '-sync-req' or '-async-req' option selects synchronous or asynchronous\n"
+               "    local completion of Medium and Long Requests (default is synchronous).\n"
                "  The -c option enables cross-machine pairing (default is nearest neighbor).\n");
 #else
   test_init("testam", 1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the requestor's\n"
                "    buffer is in the GASNet segment or not (default is 'in').\n"
+               "  The '-sync-req' or '-async-req' option selects synchronous or asynchronous\n"
+               "    local completion of Medium and Long Requests (default is synchronous).\n"
                "  The -c option enables cross-machine pairing (default is nearest neighbor).\n");
 #endif
   if (help || argc > arg) test_usage();
@@ -237,9 +252,9 @@ int main(int argc, char **argv) {
     }
   }
 
-  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,GEX_EVENT_NOW,0,0));
+  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,lc_opt,0,0));
   maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,peer,GEX_EVENT_NOW,0,0));
-  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,GEX_EVENT_NOW,0,0));
+  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,lc_opt,0,0));
   maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,peer,GEX_EVENT_NOW,0,0));
 
   recvr = !sender || (peer == mynode);
@@ -249,13 +264,15 @@ int main(int argc, char **argv) {
   BARRIER();
 
   if (mynode == 0) {
-      printf("Running %sAM performance test with %i iterations"
+      printf("Running %i iterations of %s%ssync-LC-Request AM performance with local addresses %sside the segment"
 #if GASNET_PAR
              " and %i extra recvr polling threads"
 #endif
              "...\n",
+             iters,
              (crossmachinemode ? "cross-machine ": ""),
-             iters
+             (asynclc ? "a": ""),
+             (insegment ? "in" : "out")
 #if GASNET_PAR
              ,pollers
 #endif
@@ -388,13 +405,15 @@ void doAMShort(void) {
     if (sender) { /* warm-up */                                                  \
       flag = 0;                                                                  \
       AMREQUEST(myteam, peer, PING_HIDX, myseg,                                  \
-                MAXREQREP DEST, GEX_EVENT_NOW, 0);                            \
+                MAXREQREP DEST, lc_opt, 0);                                      \
       GASNET_BLOCKUNTIL(flag == 1);                                              \
+      if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                    \
       for (i=0; i < iters; i++) {                                                \
         AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg,                        \
-                  MAXREQREP DEST, GEX_EVENT_NOW, 0);                          \
+                  MAXREQREP DEST, lc_opt, 0);                                    \
       }                                                                          \
       GASNET_BLOCKUNTIL(flag == iters+1);                                        \
+      if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                    \
     }                                                                            \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
@@ -410,9 +429,10 @@ void doAMShort(void) {
           flag = -1;                                                             \
           for (i=0; i < iters; i++) {                                            \
             AMREQUEST(myteam, peer, PING_HIDX, myseg,                            \
-                      sz DEST, GEX_EVENT_NOW, 0);                             \
+                      sz DEST, lc_opt, 0);                                       \
             GASNET_BLOCKUNTIL(flag == i);                                        \
           }                                                                      \
+          if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                \
           report(msg,TIME() - start, iters, sz, 1);                              \
         }                                                                        \
         BARRIER();                                                               \
@@ -437,23 +457,24 @@ void doAMShort(void) {
             assert(peer == mynode);                                              \
             for (i=0; i < iters; i++) {                                          \
               int lim = i << 1;                                                  \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, lc_opt, 0);     \
               GASNET_BLOCKUNTIL(flag == lim);                                    \
               lim++;                                                             \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, lc_opt, 0);     \
               GASNET_BLOCKUNTIL(flag == lim);                                    \
             }                                                                    \
           } else if (sender) {                                                   \
             for (i=0; i < iters; i++) {                                          \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, lc_opt, 0);     \
               GASNET_BLOCKUNTIL(flag == i);                                      \
             }                                                                    \
           } else if (recvr) {                                                    \
             for (i=0; i < iters; i++) {                                          \
               GASNET_BLOCKUNTIL(flag == i);                                      \
-              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, lc_opt, 0);     \
             }                                                                    \
           }                                                                      \
+          if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                \
           report(msg,TIME() - start, iters, sz, 1);                              \
         }                                                                        \
         BARRIER();                                                               \
@@ -474,9 +495,10 @@ void doAMShort(void) {
         if (sender) {                                                            \
           int64_t start = TIME();                                                \
           for (i=0; i < iters; i++) {                                            \
-            AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+            AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, lc_opt, 0); \
           }                                                                      \
           if (recvr) GASNET_BLOCKUNTIL(flag == iters);                           \
+          if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                \
           BARRIER();                                                             \
           report(msg,TIME() - start, iters, sz, 0);                              \
         } else {                                                                 \
@@ -501,9 +523,10 @@ void doAMShort(void) {
           int64_t start = TIME();                                                \
           flag = 0;                                                              \
           for (i=0; i < iters; i++) {                                            \
-            AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+            AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg, sz DEST, lc_opt, 0); \
           }                                                                      \
           GASNET_BLOCKUNTIL(flag == iters);                                      \
+          if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                \
           report(msg,TIME() - start, iters, sz, 1);                              \
         }                                                                        \
         BARRIER();                                                               \
@@ -523,9 +546,10 @@ void doAMShort(void) {
         BARRIER();                                                               \
         start = TIME();                                                          \
         for (i=0; i < iters; i++) {                                              \
-          AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GEX_EVENT_NOW, 0); \
+          AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, lc_opt, 0); \
         }                                                                        \
         GASNET_BLOCKUNTIL(flag == iters);                                        \
+        if (asynclc) gex_NBI_Wait(GEX_EC_AM,0);                                  \
         report(msg,TIME() - start, iters, sz, 0);                                \
                                                                                  \
         BARRIER();                                                               \
