@@ -77,12 +77,8 @@ typedef ### gasnetc_handler_t;
 
   /* define these to 1 if your conduit provides V-suffix (va_list) internal AM APIs.
    */
-#if 0
 #define GASNETC_HAVE_AMREQUEST_V 1
-#endif
-#if 0
 #define GASNETC_HAVE_AMREPLY_V 1
-#endif
 
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 /* Need to hook pthread create to ensure collective creation of domains */
