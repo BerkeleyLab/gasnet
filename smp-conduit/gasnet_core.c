@@ -1100,8 +1100,6 @@ static int gasnetc_RequestGeneric(gasneti_category_t category,
                          int dest, gex_AM_Index_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gex_Flags_t flags, int numargs, va_list argptr) {
-  gasneti_AMPoll(); /* ensure progress */
-
 #if GASNET_PSHM
   return gasneti_AMPSHM_RequestGeneric(category, dest, handler, source_addr, nbytes, 
                                       dest_ptr, flags, numargs, argptr); 
@@ -1139,6 +1137,60 @@ static int gasnetc_ReplyGeneric(gasneti_category_t category,
 }
 /* ------------------------------------------------------------------------------------ */
 
+extern int gasnetc_AMRequestMediumV(
+                            gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+    gasneti_leaf_finish(lc_opt); // always locally completed
+    return gasnetc_RequestGeneric(gasneti_Medium,
+                                  rank, handler,
+                                  source_addr, nbytes, 0,
+                                  flags, numargs, argptr);
+}
+
+extern int gasnetc_AMRequestLongV(
+                            gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes, void *dest_addr,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+    gasneti_leaf_finish(lc_opt); // always locally completed
+    return gasnetc_RequestGeneric(gasneti_Long,
+                                  rank, handler,
+                                  source_addr, nbytes, dest_addr,
+                                  flags, numargs, argptr);
+}
+
+extern int gasnetc_AMReplyMediumV(
+                            gex_Token_t token, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+    gasneti_leaf_finish(lc_opt); // always locally completed
+    return gasnetc_ReplyGeneric(gasneti_Medium,
+                                token, handler,
+                                source_addr, nbytes, 0,
+                                flags, numargs, argptr);
+}
+
+extern int gasnetc_AMReplyLongV(
+                            gex_Token_t token, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes, void *dest_addr,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+    gasneti_leaf_finish(lc_opt); // always locally completed
+    return gasnetc_ReplyGeneric(gasneti_Long,
+                                token, handler,
+                                source_addr, nbytes, dest_addr,
+                                flags, numargs, argptr);
+}
+
+/* ------------------------------------------------------------------------------------ */
+
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
                             gex_Rank_t rank,       /* with tm, defines remote context */
@@ -1150,6 +1202,7 @@ extern int gasnetc_AMRequestShortM(
   va_list argptr;
   gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
+  gasneti_AMPoll(); /* ensure progress */
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1175,6 +1228,7 @@ extern int gasnetc_AMRequestMediumM(
   gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
+  gasneti_AMPoll(); /* ensure progress */
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1201,6 +1255,7 @@ extern int gasnetc_AMRequestLongM(
   gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
+  gasneti_AMPoll(); /* ensure progress */
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
