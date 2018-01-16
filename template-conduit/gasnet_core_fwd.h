@@ -66,10 +66,10 @@ typedef ### gasnetc_handler_t;
 
   /* define these to 1 if your conduit provides V-suffix (va_list) internal AM APIs.
    */
-#if ###
+#if 1 (### available by default if following the template)
 #define GASNETC_HAVE_AMREQUEST_V 1
 #endif
-#if ###
+#if 1 (### available by default if following the template)
 #define GASNETC_HAVE_AMREPLY_V 1
 #endif
 
