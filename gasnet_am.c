@@ -318,6 +318,170 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Default implementation of va_list (V-suffixed) AM interfaces in terms of M-suffixed.
+// NOTE: this is NOT a path one should use except to support the default split-phase AMs.
+
+#ifndef gasneti_AMRequestMediumV
+extern int _gasneti_AMRequestMediumV(
+                gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t hidx,
+                /*const*/ void *src_addr, size_t nbytes,
+                gex_Event_t *lc_opt, gex_Flags_t flags GASNETI_THREAD_FARG,
+                int nargs, va_list args)
+{
+  gasneti_assert(gex_AM_MaxArgs() <= 16);
+  gex_AM_Arg_t pargs[16];
+  for (int i = 0; i < nargs; ++i) {
+    pargs[i] = va_arg(args, gex_AM_Arg_t);
+  }
+
+  int rc;
+  switch (nargs) {
+    case  0: rc = gex_AM_RequestMedium0 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags); break;
+    case  1: rc = gex_AM_RequestMedium1 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_RequestMedium2 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_RequestMedium3 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_RequestMedium4 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_RequestMedium5 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_RequestMedium6 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_RequestMedium7 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_RequestMedium8 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_RequestMedium9 (tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_RequestMedium10(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_RequestMedium11(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_RequestMedium12(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_RequestMedium13(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_RequestMedium14(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_RequestMedium15(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_RequestMedium16(tm, rank, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+  }
+
+  return rc;
+}
+#define gasneti_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+       _gasneti_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags GASNETI_THREAD_GET,nargs,args)
+#endif
+
+#ifndef gasneti_AMRequestLongV
+extern int _gasneti_AMRequestLongV(
+                gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t hidx,
+                /*const*/ void *src_addr, size_t nbytes, void *dst_addr,
+                gex_Event_t *lc_opt, gex_Flags_t flags GASNETI_THREAD_FARG,
+                int nargs, va_list args)
+{
+  gasneti_assert(gex_AM_MaxArgs() <= 16);
+  gex_AM_Arg_t pargs[16];
+  for (int i = 0; i < nargs; ++i) {
+    pargs[i] = va_arg(args, gex_AM_Arg_t);
+  }
+
+  int rc;
+  switch (nargs) {
+    case  0: rc = gex_AM_RequestLong0 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags); break;
+    case  1: rc = gex_AM_RequestLong1 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_RequestLong2 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_RequestLong3 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_RequestLong4 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_RequestLong5 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_RequestLong6 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_RequestLong7 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_RequestLong8 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_RequestLong9 (tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_RequestLong10(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_RequestLong11(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_RequestLong12(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_RequestLong13(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_RequestLong14(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_RequestLong15(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_RequestLong16(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+  }
+
+  return rc;
+}
+#define gasneti_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+       _gasneti_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags GASNETI_THREAD_GET,nargs,args)
+#endif
+
+#ifndef gasneti_AMReplyMediumV
+extern int _gasneti_AMReplyMediumV(
+                gex_Token_t token, gex_AM_Index_t hidx,
+                /*const*/ void *src_addr, size_t nbytes,
+                gex_Event_t *lc_opt, gex_Flags_t flags GASNETI_THREAD_FARG,
+                int nargs, va_list args)
+{
+  gasneti_assert(gex_AM_MaxArgs() <= 16);
+  gex_AM_Arg_t pargs[16];
+  for (int i = 0; i < nargs; ++i) {
+    pargs[i] = va_arg(args, gex_AM_Arg_t);
+  }
+
+  int rc;
+  switch (nargs) {
+    case  0: rc = gex_AM_ReplyMedium0 (token, hidx, src_addr, nbytes, lc_opt, flags); break;
+    case  1: rc = gex_AM_ReplyMedium1 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_ReplyMedium2 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_ReplyMedium3 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_ReplyMedium4 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_ReplyMedium5 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_ReplyMedium6 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_ReplyMedium7 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_ReplyMedium8 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_ReplyMedium9 (token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_ReplyMedium10(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_ReplyMedium11(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_ReplyMedium12(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_ReplyMedium13(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_ReplyMedium14(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_ReplyMedium15(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_ReplyMedium16(token, hidx, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+  }
+
+  return rc;
+}
+#define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+       _gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags GASNETI_THREAD_GET,nargs,args)
+#endif
+
+#ifndef gasneti_AMReplyLongV
+extern int _gasneti_AMReplyLongV(
+                gex_Token_t token, gex_AM_Index_t hidx,
+                /*const*/ void *src_addr, size_t nbytes, void *dst_addr,
+                gex_Event_t *lc_opt, gex_Flags_t flags GASNETI_THREAD_FARG,
+                int nargs, va_list args)
+{
+  gasneti_assert(gex_AM_MaxArgs() <= 16);
+  gex_AM_Arg_t pargs[16];
+  for (int i = 0; i < nargs; ++i) {
+    pargs[i] = va_arg(args, gex_AM_Arg_t);
+  }
+
+  int rc;
+  switch (nargs) {
+    case  0: rc = gex_AM_ReplyLong0 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags); break;
+    case  1: rc = gex_AM_ReplyLong1 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0]); break;
+    case  2: rc = gex_AM_ReplyLong2 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1]); break;
+    case  3: rc = gex_AM_ReplyLong3 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
+    case  4: rc = gex_AM_ReplyLong4 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
+    case  5: rc = gex_AM_ReplyLong5 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
+    case  6: rc = gex_AM_ReplyLong6 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
+    case  7: rc = gex_AM_ReplyLong7 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
+    case  8: rc = gex_AM_ReplyLong8 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
+    case  9: rc = gex_AM_ReplyLong9 (token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
+    case 10: rc = gex_AM_ReplyLong10(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
+    case 11: rc = gex_AM_ReplyLong11(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
+    case 12: rc = gex_AM_ReplyLong12(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
+    case 13: rc = gex_AM_ReplyLong13(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
+    case 14: rc = gex_AM_ReplyLong14(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
+    case 15: rc = gex_AM_ReplyLong15(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
+    case 16: rc = gex_AM_ReplyLong16(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
+  }
+
+  return rc;
+}
+#define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+       _gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags GASNETI_THREAD_GET,nargs,args)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 // Default implementation of split-phase AMs in terms of single-phase
 // TODO-EX: this is not a "good" implementation for any conduit
 // TODO-EX: should really have single-phase in terms of the split-phase instead
@@ -343,7 +507,7 @@ gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(
                        int            nargs
                        GASNETI_THREAD_FARG)
 {
-  gasneti_AM_SrcDesc_t sd = gasneti_malloc(sizeof(*sd) + nargs * sizeof(gex_AM_Arg_t));
+  gasneti_AM_SrcDesc_t sd = gasneti_malloc(sizeof(*sd));
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
 #if GASNET_DEBUG
   sd->_thread = GASNETI_MYTHREAD;
@@ -396,11 +560,6 @@ static void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
   gasneti_free(sd);
 }
 #endif // _GEX_AM_SRCDESC_T
-
-#ifndef GASNETI_SD_PARGS
-  // If sd was allocated w/ nargs!=0, then space reserved for args right after sd.
-  #define GASNETI_SD_PARGS(sd) ((gex_AM_Arg_t*)((sd)+1))
-#endif
 
 // Common argument processing
 #if GASNET_DEBUG
@@ -676,44 +835,20 @@ void gasnetc_AM_CommitRequestMediumM(
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
-    va_list argptr;
-    va_start(argptr, sd_arg);
-    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
-    for (int i = 0; i < nargs; ++i) {
-      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
-    }
-    va_end(argptr);
-
     gex_TM_t   tm          = sd->_dest._request._tm;
     gex_Rank_t dest        = sd->_dest._request._rank;
     void *src_addr         = sd->_addr;
     gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
-    gasneti_assert(gex_AM_MaxArgs() <= 16);
-    int rc;
     GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-    switch (nargs) {
-    case  0: rc = gex_AM_RequestMedium0 (tm, dest, handler, src_addr, nbytes, lc_opt, flags); break;
-    case  1: rc = gex_AM_RequestMedium1 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0]); break;
-    case  2: rc = gex_AM_RequestMedium2 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1]); break;
-    case  3: rc = gex_AM_RequestMedium3 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
-    case  4: rc = gex_AM_RequestMedium4 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
-    case  5: rc = gex_AM_RequestMedium5 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
-    case  6: rc = gex_AM_RequestMedium6 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
-    case  7: rc = gex_AM_RequestMedium7 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
-    case  8: rc = gex_AM_RequestMedium8 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
-    case  9: rc = gex_AM_RequestMedium9 (tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
-    case 10: rc = gex_AM_RequestMedium10(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
-    case 11: rc = gex_AM_RequestMedium11(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
-    case 12: rc = gex_AM_RequestMedium12(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
-    case 13: rc = gex_AM_RequestMedium13(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
-    case 14: rc = gex_AM_RequestMedium14(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
-    case 15: rc = gex_AM_RequestMedium15(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
-    case 16: rc = gex_AM_RequestMedium16(tm, dest, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
-    }
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
 
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+    va_end(argptr);
+
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitRequestMediumM
@@ -732,42 +867,17 @@ void gasnetc_AM_CommitReplyMediumM(
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
     
-    va_list argptr;
-    va_start(argptr, sd_arg);
-    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
-    for (int i = 0; i < nargs; ++i) {
-      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
-    }
-    va_end(argptr);
-
     gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
     gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
-    gasneti_assert(gex_AM_MaxArgs() <= 16);
-    int rc;
-    switch (nargs) {
-    case  0: rc = gex_AM_ReplyMedium0 (token, handler, src_addr, nbytes, lc_opt, flags); break;
-    case  1: rc = gex_AM_ReplyMedium1 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0]); break;
-    case  2: rc = gex_AM_ReplyMedium2 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1]); break;
-    case  3: rc = gex_AM_ReplyMedium3 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
-    case  4: rc = gex_AM_ReplyMedium4 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
-    case  5: rc = gex_AM_ReplyMedium5 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
-    case  6: rc = gex_AM_ReplyMedium6 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
-    case  7: rc = gex_AM_ReplyMedium7 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
-    case  8: rc = gex_AM_ReplyMedium8 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
-    case  9: rc = gex_AM_ReplyMedium9 (token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
-    case 10: rc = gex_AM_ReplyMedium10(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
-    case 11: rc = gex_AM_ReplyMedium11(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
-    case 12: rc = gex_AM_ReplyMedium12(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
-    case 13: rc = gex_AM_ReplyMedium13(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
-    case 14: rc = gex_AM_ReplyMedium14(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
-    case 15: rc = gex_AM_ReplyMedium15(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
-    case 16: rc = gex_AM_ReplyMedium16(token, handler, src_addr, nbytes, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
-    }
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+    va_end(argptr);
 
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitReplyMediumM
@@ -788,44 +898,20 @@ void gasnetc_AM_CommitRequestLongM(
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
-    va_list argptr;
-    va_start(argptr, sd_arg);
-    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
-    for (int i = 0; i < nargs; ++i) {
-      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
-    }
-    va_end(argptr);
-
     gex_TM_t   tm          = sd->_dest._request._tm;
     gex_Rank_t dest        = sd->_dest._request._rank;
     void *src_addr         = sd->_addr;
     gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
-    gasneti_assert(gex_AM_MaxArgs() <= 16);
-    int rc;
     GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-    switch (nargs) {
-    case  0: rc = gex_AM_RequestLong0 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags); break;
-    case  1: rc = gex_AM_RequestLong1 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0]); break;
-    case  2: rc = gex_AM_RequestLong2 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1]); break;
-    case  3: rc = gex_AM_RequestLong3 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
-    case  4: rc = gex_AM_RequestLong4 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
-    case  5: rc = gex_AM_RequestLong5 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
-    case  6: rc = gex_AM_RequestLong6 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
-    case  7: rc = gex_AM_RequestLong7 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
-    case  8: rc = gex_AM_RequestLong8 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
-    case  9: rc = gex_AM_RequestLong9 (tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
-    case 10: rc = gex_AM_RequestLong10(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
-    case 11: rc = gex_AM_RequestLong11(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
-    case 12: rc = gex_AM_RequestLong12(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
-    case 13: rc = gex_AM_RequestLong13(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
-    case 14: rc = gex_AM_RequestLong14(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
-    case 15: rc = gex_AM_RequestLong15(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
-    case 16: rc = gex_AM_RequestLong16(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
-    }
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
 
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+    va_end(argptr);
+
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitRequestLongM
@@ -845,42 +931,17 @@ void gasnetc_AM_CommitReplyLongM(
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
     
-    va_list argptr;
-    va_start(argptr, sd_arg);
-    gex_AM_Arg_t *pargs = GASNETI_SD_PARGS(sd);
-    for (int i = 0; i < nargs; ++i) {
-      pargs[i] = va_arg(argptr, gex_AM_Arg_t);
-    }
-    va_end(argptr);
-
     gex_Token_t token      = sd->_dest._reply._token;
     void *src_addr         = sd->_addr;
     gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
     gex_Flags_t flags      = sd->_flags;
 
-    gasneti_assert(gex_AM_MaxArgs() <= 16);
-    int rc;
-    switch (nargs) {
-    case  0: rc = gex_AM_ReplyLong0 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags); break;
-    case  1: rc = gex_AM_ReplyLong1 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0]); break;
-    case  2: rc = gex_AM_ReplyLong2 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1]); break;
-    case  3: rc = gex_AM_ReplyLong3 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2]); break;
-    case  4: rc = gex_AM_ReplyLong4 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3]); break;
-    case  5: rc = gex_AM_ReplyLong5 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4]); break;
-    case  6: rc = gex_AM_ReplyLong6 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5]); break;
-    case  7: rc = gex_AM_ReplyLong7 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6]); break;
-    case  8: rc = gex_AM_ReplyLong8 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7]); break;
-    case  9: rc = gex_AM_ReplyLong9 (token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8]); break;
-    case 10: rc = gex_AM_ReplyLong10(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9]); break;
-    case 11: rc = gex_AM_ReplyLong11(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10]); break;
-    case 12: rc = gex_AM_ReplyLong12(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11]); break;
-    case 13: rc = gex_AM_ReplyLong13(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12]); break;
-    case 14: rc = gex_AM_ReplyLong14(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13]); break;
-    case 15: rc = gex_AM_ReplyLong15(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14]); break;
-    case 16: rc = gex_AM_ReplyLong16(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, pargs[0], pargs[1], pargs[2], pargs[3], pargs[4], pargs[5], pargs[6], pargs[7], pargs[8], pargs[9], pargs[10], pargs[11], pargs[12], pargs[13], pargs[14], pargs[15]); break;
-    }
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+    va_end(argptr);
 
+    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitReplyLongM

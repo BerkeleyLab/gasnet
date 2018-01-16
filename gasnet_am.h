@@ -208,5 +208,48 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
   extern int gasneti_test_sd_poison(void *addr, size_t len);
 #endif
 
+/*
+  INTERNAL Active Message Request/Reply w/ va_list (optional)
+  ===========================================================
+  NOTE:
+    These functions do not TRACE or perform complete argument validation.
+    These Request functions do not AMPoll.
+    Those are the caller's responsibility.
+*/
+
+#if GASNETC_HAVE_AMREQUEST_V
+extern int gasnetc_AMRequestMediumV(
+                gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                void *source_addr, size_t nbytes,
+                gex_Event_t *lc_opt, gex_Flags_t flags,
+                int numargs, va_list argptr GASNETI_THREAD_FARG);
+#define gasneti_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+        gasnetc_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+extern int gasnetc_AMRequestLongV(
+                gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                void *source_addr, size_t nbytes, void *dest_addr,
+                gex_Event_t *lc_opt, gex_Flags_t flags,
+                int numargs, va_list argptr GASNETI_THREAD_FARG);
+#define gasneti_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+        gasnetc_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+#endif
+
+#if GASNETC_HAVE_AMREPLY_V
+extern int gasnetc_AMReplyMediumV(
+                gex_Token_t token, gex_AM_Index_t handler,
+                void *source_addr, size_t nbytes,
+                gex_Event_t *lc_opt, gex_Flags_t flags,
+                int numargs, va_list argptr GASNETI_THREAD_FARG);
+#define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+        gasnetc_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+extern int gasnetc_AMReplyLongV(
+                gex_Token_t token, gex_AM_Index_t handler,
+                void *source_addr, size_t nbytes, void *dest_addr,
+                gex_Event_t *lc_opt, gex_Flags_t flags,
+                int numargs, va_list argptr GASNETI_THREAD_FARG);
+#define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+        gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 #endif
