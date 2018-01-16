@@ -68,11 +68,6 @@ typedef ### gasnetc_handler_t;
 #define GASNETC_TOKEN_CREATE 1
 #endif
 
-  /* define these to 1 if your conduit provides V-suffix (va_list) internal AM APIs.
-   */
-#define GASNETC_HAVE_AMREQUEST_V 1
-#define GASNETC_HAVE_AMREPLY_V 1
-
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
