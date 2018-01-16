@@ -573,6 +573,7 @@ void doit(int partner, int *partnerseg) {
   assert_signed(int64_t);
   assert_signed(intptr_t);
   assert_signed(ssize_t);
+  assert_signed(ptrdiff_t);
   assert_unsigned(uint8_t);
   assert_unsigned(uint16_t);
   assert_unsigned(uint32_t);
@@ -728,7 +729,7 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
   static gex_TI_t const ti_arr[] = { // all flags but _ALL
-          GEX_TI_SRCRANK, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
+          GEX_TI_SRCRANK, GEX_TI_EP, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
       };
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
@@ -763,11 +764,11 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
     GEX_OP_AND,  GEX_OP_OR,   GEX_OP_XOR,
-    GEX_OP_ADD,  GEX_OP_SUB,  /*GEX_OP_MULT [UNIMPLEMENTED],*/
+    GEX_OP_ADD,  GEX_OP_SUB,  GEX_OP_MULT,
     GEX_OP_MIN,  GEX_OP_MAX,
     GEX_OP_INC,  GEX_OP_DEC,
     GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
-    GEX_OP_FADD, GEX_OP_FSUB, /*GEX_OP_FMULT [UNIMPLEMENTED],*/
+    GEX_OP_FADD, GEX_OP_FSUB, GEX_OP_FMULT,
     GEX_OP_FMIN, GEX_OP_FMAX,
     GEX_OP_FINC, GEX_OP_FDEC,
     GEX_OP_SET,  GEX_OP_GET,
@@ -793,10 +794,22 @@ void doit(int partner, int *partnerseg) {
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
-    static volatile structtype S;                                            \
-    static fieldtype volatile v;                                             \
+    static structtype S;                                                     \
+    static fieldtype v;                                                      \
     S.fieldname = v; /* warnings here mean non-compliance */                 \
     v = S.fieldname; /* warnings here mean non-compliance */                 \
+    static fieldtype *p;                                                     \
+    p = &(S.fieldname); /* warnings here mean non-compliance */              \
+    S.fieldname = *p;   /* warnings here mean non-compliance */              \
+    assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
+  } while (0)
+
+  #define assert_field_object(structtype, fieldtype, fieldname)  do {        \
+    static structtype S;                                                     \
+    static fieldtype *p;                                                     \
+    S.fieldname = (fieldtype)0; /* warnings here mean non-compliance */      \
+    p = &(S.fieldname); /* warnings here mean non-compliance */              \
+    S.fieldname = *p;   /* warnings here mean non-compliance */              \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
   } while (0)
 
@@ -819,6 +832,7 @@ void doit(int partner, int *partnerseg) {
   assert_field_pointer(gex_AM_Entry_t, const char *,   gex_name);
 
   assert_field_int(gex_Token_Info_t,     gex_Rank_t,             gex_srcrank, typeisunsigned);
+  assert_field_object(gex_Token_Info_t, gex_EP_t, gex_ep);
   assert_field_pointer(gex_Token_Info_t, const gex_AM_Entry_t *, gex_entry);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);

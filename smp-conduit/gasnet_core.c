@@ -998,7 +998,7 @@ extern gex_TI_t gasnetc_Token_Info(
   return gasnetc_AMPSHM_TokenInfo(token, info, mask);
 #else
   *info = ((gasnetc_token_t *)token)->ti;
-  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
+  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_EP | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 #endif
 }
@@ -1040,6 +1040,7 @@ int gasnetc_ReqRepGeneric(gasneti_category_t category, int isReq,
     real_token.replyIssued = 0;
   #endif
   real_token.ti.gex_srcrank = gasneti_mynode;
+  real_token.ti.gex_ep = gasneti_THUNK_EP;
   real_token.ti.gex_entry = handler_entry;
   real_token.ti.gex_is_req = isReq;
   const gex_Token_t token = (gex_Token_t)&real_token;

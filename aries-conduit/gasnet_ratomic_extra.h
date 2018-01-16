@@ -15,12 +15,4 @@
 #error "gasnet_ratomic_extra.h included erroneously"
 #endif
 
-// Declare the remote atomic "back-end" functions
-#define GASNETE_GNIRATOMIC_DECL(dtcode) GASNETE_RATOMIC_DECL(gasnete_gniratomic, dtcode)
-GASNETE_DT_APPLY(GASNETE_GNIRATOMIC_DECL)
-
-// Define the remote atomic "dispatch" functions
-#define GASNETE_GNIRATOMIC_DISP(dtcode) GASNETE_RATOMIC_DISP(gasnete_gniratomic, dtcode, 0)
-GASNETE_DT_APPLY(GASNETE_GNIRATOMIC_DISP)
-
 #endif // _GASNET_RATOMIC_EXTRA_H

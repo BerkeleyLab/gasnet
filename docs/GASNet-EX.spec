@@ -665,6 +665,9 @@ typedef struct {
     //  of gex_System_QueryJobRank().
     gex_Rank_t                 gex_srcrank;
 
+    // Destination (receiving) endpoint
+    gex_EP_t                   gex_ep;
+
     // Entry describing the currently-running handler corresponding to this token.
     // The referenced gex_AM_Entry_t object resides in library-owned storage,
     // and should not be directly modified by client code.
@@ -688,6 +691,7 @@ typedef [some integer type] gex_TI_t;
 
 // REQUIRED: All implementations must support these queries:
 #define GEX_TI_SRCRANK       ((gex_TI_t)???)
+#define GEX_TI_EP            ((gex_TI_t)???)
 
 // OPTIONAL: Some implementations might not support these queries:
 #define GEX_TI_ENTRY         ((gex_TI_t)???)
@@ -1415,7 +1419,7 @@ typedef [some integer type] gex_DT_t;
 //      Valid for all specified GEX_DT_* types
 //        GEX_OP_ADD   expr = (op0 + op1)
 //        GEX_OP_SUB   expr = (op0 - op1)
-//        GEX_OP_MULT  expr = (op0 * op1) [UNIMPLEMENTED]
+//        GEX_OP_MULT  expr = (op0 * op1)
 //        GEX_OP_MIN   expr = ((op0 < op1) ? op0 : op1)
 //        GEX_OP_MAX   expr = ((op0 > op1) ? op0 : op1)
 //    - Unary Arithmetic Operations
@@ -1923,7 +1927,7 @@ int gex_AD_OpNBI_[DATATYPE](
 
 // These operate similarly to the GASNet-1 prototype gasnet_{put,get}s_* API,
 // but the metadata format is changing slightly in EX.  Notable changes:
-// + The stride arrays change type from (const size_t[]) to (const ssize_t[])
+// + The stride arrays change type from (const size_t[]) to (const ptrdiff_t[])
 // + The 'count[0]' datum moves to a new parameter 'elemsz', and the subsequent
 //   elements 'count[1..stridelevels]' "slide down", meaning 'count' now references
 //   an array with 'stridelevels' entries (down from 'stridelevels+1').
@@ -1952,15 +1956,15 @@ int gex_AD_OpNBI_[DATATYPE](
 
 {gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
         gex_TM_t tm,
-        void *dstaddr, const ssize_t dststrides[],
+        void *dstaddr, const ptrdiff_t dststrides[],
         gex_Rank_t srcrank,
-        void *srcaddr, const ssize_t srcstrides[],
+        void *srcaddr, const ptrdiff_t srcstrides[],
         size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 {gex_Event_t,int} gex_VIS_StridedPut{NB,NBI,Blocking}(
         gex_TM_t tm, gex_Rank_t dstrank,
-        void *dstaddr, const ssize_t dststrides[],
-        void *srcaddr, const ssize_t srcstrides[],
+        void *dstaddr, const ptrdiff_t dststrides[],
+        void *srcaddr, const ptrdiff_t srcstrides[],
         size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 

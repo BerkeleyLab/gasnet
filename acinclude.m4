@@ -190,6 +190,37 @@ popdef([lowername])
 GASNET_FUN_END([$0($1)])
 ])
 
+dnl autoconf before 2.50 lacks AC_INCLUDES_DEFAULT
+AC_DEFUN([GASNET_INCLUDES_DEFAULT],[
+  ifdef([AC_INCLUDES_DEFAULT],[AC_INCLUDES_DEFAULT],[ 
+    dnl provide fallback include default for autoconf 2.13
+    /* this should include only C89 headers containing declarations we may want in configure */
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stddef.h>
+    #include <stdarg.h>
+    #include <string.h>
+    #include <ctype.h>
+    #include <limits.h>
+    #include <signal.h>
+    #include <errno.h>
+    #include <math.h>
+    #include <time.h>
+  ])
+])
+
+AC_DEFUN([myeval],[$1])
+
+dnl force our includes into an existing macro expansion
+define([_GASNET_INSERT_HEADERS],[
+ pushdef([hash],[#])
+ patsubst( [hash] (
+  $1
+ [hash] ), [\(#include <.*$\)], \1 GASNET_INCLUDES_DEFAULT)
+ popdef([hash])
+])
+
+
 ifdef([AC_AUTOCONF_VERSION],[ dnl fix a buggy AC_CHECK_SIZEOF(type *) in AC 2.66
   m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.66], [ 
     m4_copy([AC_CHECK_SIZEOF],[_GASNET_CHECK_SIZEOF])
@@ -211,7 +242,7 @@ AC_DEFUN([GASNET_CHECK_SIZEOF],[
 
   if test "$cross_compiling" = "yes" ; then
     uppername=
-    GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof($1) (binary probe)],uppername,[],[sizeof($1)],uppername)
+    GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof($1) (binary probe)],uppername,[GASNET_INCLUDES_DEFAULT],[sizeof($1)],uppername)
     if test -z "$uppername" ; then # last resort is to use CROSS var
       GASNET_CROSS_VAR(uppername,uppername)
     fi
@@ -226,7 +257,13 @@ AC_DEFUN([GASNET_CHECK_SIZEOF],[
   if test "$2" != "" ; then
     AC_MSG_CHECKING([$2 size:])
   fi
-  AC_CHECK_SIZEOF($1, $uppername) 
+
+  ifdef([AC_INCLUDES_DEFAULT], [
+    AC_CHECK_SIZEOF($1, $uppername)
+  ],[ dnl autoconf 2.13 lacks header support in CHECK_SIZEOF, add ours
+    _GASNET_INSERT_HEADERS([ AC_CHECK_SIZEOF($1, $uppername) ])
+  ])
+
   gasnet_checksizeoftmp_[]lowername="$ac_cv_[]barename"
   GASNET_POPVAR(ac_cv_[]barename)
   ac_cv_[]lowername=$gasnet_checksizeoftmp_[]lowername
@@ -357,14 +394,20 @@ AC_DEFUN([GASNET_SETUP_INTTYPES], [
   GASNET_CHECK_SIZEOF(long, $1)
   GASNET_CHECK_SIZEOF(long long, $1)
   GASNET_CHECK_SIZEOF(void *, $1)
+  GASNET_CHECK_SIZEOF(size_t, $1)
+  GASNET_CHECK_SIZEOF(ptrdiff_t, $1)
 
   GASNET_SETUP_INTTYPES_DUMMY($1) 
  
   GASNET_CHECK_INTTYPES(stdint.h,$1)
   GASNET_CHECK_INTTYPES(inttypes.h,$1)
   GASNET_CHECK_INTTYPES(sys/types.h,$1)
- 
-  [$1]INTTYPES_DEFINES="-D[$1]SIZEOF_CHAR=$[$1]SIZEOF_CHAR -D[$1]SIZEOF_SHORT=$[$1]SIZEOF_SHORT -D[$1]SIZEOF_INT=$[$1]SIZEOF_INT -D[$1]SIZEOF_LONG=$[$1]SIZEOF_LONG -D[$1]SIZEOF_LONG_LONG=$[$1]SIZEOF_LONG_LONG -D[$1]SIZEOF_VOID_P=$[$1]SIZEOF_VOID_P"
+
+  for type in CHAR SHORT INT LONG LONG_LONG VOID_P SIZE_T PTRDIFF_T ; do
+    eval val="\$[$1]SIZEOF_$type"
+    GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]SIZEOF_$type, $val)
+  done
+
   GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]HAVE_STDINT_H)
   GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]COMPLETE_STDINT_H)
   GASNET_APPEND_DEFINE([$1]INTTYPES_DEFINES, [$1]HAVE_INTTYPES_H)
@@ -378,11 +421,16 @@ AC_DEFUN([GASNET_SETUP_INTTYPES], [
 
 
 dnl Appends -Dvar_to_define onto target_var, iff var_to_define is set
-dnl GASNET_APPEND_DEFINE(target_var, var_to_define)
+dnl If value also is provided, adds -Dvar_to_define=value
+dnl GASNET_APPEND_DEFINE(target_var, var_to_define [, value] )
 AC_DEFUN([GASNET_APPEND_DEFINE],[
 GASNET_FUN_BEGIN([$0])
   if test "$[$2]" != ""; then
-    [$1]="$[$1] -D[$2]"
+    ifelse([$3],[],[
+      [$1]="$[$1] -D[$2]"
+    ],[
+      [$1]="$[$1] -D[$2]=$3"
+    ])
   fi
 GASNET_FUN_END([$0])
 ]) 
@@ -1676,7 +1724,7 @@ GASNET_FUN_BEGIN([$0])
 
   GASNET_TRY_CACHE_LINK($2 for __builtin_unreachable, cvprefix[]__builtin_unreachable,
     [ extern int x; int x = 0; ], [
-      if (x) __builtin_unreachable(); 
+      if (x) { __builtin_unreachable(), ((void)0); }  dnl Detect bug 3702
     ], AC_DEFINE([$1]_BUILTIN_UNREACHABLE))
 
   GASNET_TRY_CACHE_LINK($2 for __builtin_expect, cvprefix[]__builtin_expect,
@@ -1773,6 +1821,16 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
             [__attribute__((__cold__)) int dummy(void) { return 1; }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__deprecated__],
             [__attribute__((__deprecated__)) int dummy(void) { return 0; }])
+  GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__fallthrough__],
+            [int dummy(int x) {
+               int result = 0;
+               switch (x) {
+                 case 3: result++;  __attribute__((__fallthrough__));
+                 case 2: result++;  __attribute__((__fallthrough__));
+                 case 1: result++;
+               }
+               return result;
+             }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__format__],
             [#include <stdarg.h>
              __attribute__((__format__ (__printf__, 1, 2)))
@@ -1850,6 +1908,60 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   fi
   popdef([cachevar])
   GASNET_POPVAR(CPPFLAGS)
+])
+
+dnl check whether a given C++11 attribute is available
+dnl GASNET_CHECK_CXX11_ATTRIBUTE(PREFIX, compiler-name, attribute-name, declaration, code)
+dnl Independent of PREFIX the test is run as LANG_CPLUSPLUS
+dnl Caller is responsible for setting of CXX and friends in the MPI_CXX case (if any)
+AC_DEFUN([GASNET_CHECK_CXX11_ATTRIBUTE],[
+  GASNET_FUN_BEGIN([$0($1,$2,$3)])
+  pushdef([uppername],translit(patsubst([$3], [_], []),'a-z:','A-Z_'))
+  pushdef([cachevar],cv_prefix[]translit([$1]_cppattr_[]uppername,'A-Z','a-z'))
+  AC_CACHE_CHECK($2 for C++ attribute [[[[$3]]]], cachevar,
+    GASNET_TRY_COMPILE_WITHWARN(CXX, [$4], [$5], [
+          cachevar='yes'
+      ],[ dnl cachevar="no/warning: $gasnet_cmd_stdout$gasnet_cmd_stderr"
+          cachevar='no/warning'
+      ],[ dnl cachevar="no/error: $gasnet_cmd_stdout$gasnet_cmd_stderr"
+          cachevar='no/error'
+    ])
+  )
+  if test "$cachevar" = yes; then
+      AC_DEFINE($1_CXX11_ATTRIBUTE_[]uppername)
+      AC_DEFINE($1_CXX11_ATTRIBUTE)
+  else
+      AC_DEFINE($1_CXX11_ATTRIBUTE_[]uppername, 0)
+  fi
+  GASNET_FUN_END([$0($1,$2,$3)])
+  popdef([cachevar])
+  popdef([uppername])
+])
+
+dnl GASNET_GET_CXX11_ATTRIBUTES(PREFIX, opt compiler-name)
+dnl Check all C++11 attributes of interest/importance to GASNet
+dnl Caller must setup CXX, CXXFLAGS, etc for MPI_CXX case (if any).
+AC_DEFUN([GASNET_GET_CXX11_ATTRIBUTES],[
+  GASNET_CHECK_CXX11_ATTRIBUTE([$1], [$2], [fallthrough],
+            [int dummy(int x) {
+               int result = 0;
+               switch (x) {
+                 case 3: result++;  [[[[fallthrough]]]];
+                 case 2: result++;  [[[[fallthrough]]]];
+                 case 1: result++;
+               }
+               return result;
+             }])
+  GASNET_CHECK_CXX11_ATTRIBUTE([$1], [$2], [clang::fallthrough],
+            [int dummy(int x) {
+               int result = 0;
+               switch (x) {
+                 case 3: result++;  [[[[clang::fallthrough]]]];
+                 case 2: result++;  [[[[clang::fallthrough]]]];
+                 case 1: result++;
+               }
+               return result;
+             }])
 ])
 
 dnl  Check to see if __thread attribute exists and works
@@ -2565,7 +2677,7 @@ if test "$$3" != "GNU" ; then
 else
   dnl GCC has sub-family too
   $2_SUBFAMILY='GNU'
-  GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
+  GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],$2_gcc_version_string,[
       #ifndef __VERSION__
         #define __VERSION__ "unknown"
       #endif
@@ -2839,9 +2951,12 @@ dnl else, run action-failure
 AC_DEFUN([GASNET_COMPILE_EXAMINE], [
 AC_REQUIRE([AC_OBJEXT])
 GASNET_FUN_BEGIN([$0(...)])
-  cat >conftest.$ac_ext <<"EOF"
+  dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
+  cat >conftest.$ac_ext <<EOF
 #include "confdefs.h"
 $1
+EOF
+  cat >>conftest.$ac_ext <<"EOF"
   int main(void) { 
 $2
   return 0; }
@@ -2874,9 +2989,12 @@ dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename o
 dnl else, run action-failure
 AC_DEFUN([GASNET_LINK_EXAMINE], [
 GASNET_FUN_BEGIN([$0(...)])
-  cat >conftest.$ac_ext <<"EOF"
+  dnl allow variable expansion on headers for AC_INCLUDES_DEFAULT
+  cat >conftest.$ac_ext <<EOF
 #include "confdefs.h"
 $1
+EOF
+  cat >>conftest.$ac_ext <<"EOF"
   int main(void) { 
 $2
   return 0; }
@@ -2910,10 +3028,11 @@ AC_REQUIRE([GASNET_PROG_PERL])
 GASNET_FUN_BEGIN([$0($1,$2,...)])
 AC_CACHE_CHECK($1, cv_prefix[]$2,[
 cv_prefix[]$2=""
+_extractstrembed='"$gasnetextractstr: (-(|" $4 "|)-) $"'
 pushdef([embedcode],[
  #include <stdio.h>
  extern const char *s; 
- const char *s = "$gasnetextractstr: (-(|" $4 "|)-) $";
+ const char *s = $_extractstrembed;
 ])
 pushdef([unpackcode],[
    _extract_prog='BEGIN{$/="\0";} if (m/\$gasnetextractstr: \(-\(\|(.+?)\|\)-\) \$/) { print "[$]1";}' 

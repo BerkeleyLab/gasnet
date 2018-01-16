@@ -41,6 +41,10 @@ extern gasneti_AD_t gasneti_alloc_ad(
   ad->_flags = flags;
   ad->_dt = dt;
   ad->_ops = ops;
+#if GASNET_DEBUG
+  ad->_cpusafe = -1;
+  ad->_fn_tbl = NULL;
+#endif
 #ifdef GASNETI_AD_ALLOC_EXTRA
   GASNETI_AD_ALLOC_EXTRA(ad);
 #endif
@@ -69,7 +73,6 @@ void gasneti_AD_Create(
   // allow conduit-specific extensions (such as additional types or ops).
   // However, this leaves a significant amount of code to be cloned into
   // the conduit.
-  // TODO: refactor if/when we have a conduit-specific type or op?
 
 #if GASNET_DEBUG
   // Verify that call is collective and single-valued
@@ -112,6 +115,14 @@ void gasneti_AD_Create(
 #endif
 
   gasneti_AD_t real_ad = gasneti_alloc_ad(real_tm, dt, ops, flags, 0);
+
+  // Algorithm selection:
+#ifdef GASNETI_AD_CREATE_HOOK
+  GASNETI_AD_CREATE_HOOK(real_ad, real_tm, dt, ops, flags);
+  gasneti_assert(real_ad->_cpusafe >= 0);
+  gasneti_assert(real_ad->_fn_tbl != NULL);
+#endif
+
   *ad_p = gasneti_export_ad(real_ad);
   return;
 }
@@ -173,6 +184,38 @@ void gasnete_ratomic_validate(
     gasneti_boundscheck(gasneti_export_tm(real_ad->_tm), tgt_rank, tgt_addr, gasneti_dt_size(datatype));
 }
 #endif
+
+/*---------------------------------------------------------------------------------*/
+
+//
+// Non-inlined instances of the dispatch functions
+//
+#define GASNETE_RATOMIC_EXTERNS(dtcode) \
+        _GASNETE_RATOMIC_EXTERNS(gasnete_ratomic##dtcode, dtcode##_type)
+#define _GASNETE_RATOMIC_EXTERNS(prefix, type)                     \
+    gex_Event_t prefix##_NB_external(                             \
+        gex_AD_t            ad,        type           *result_p,  \
+        gex_Rank_t          tgt_rank,  void           *tgt_addr,  \
+        gex_OP_t            opcode,    type           operand1,   \
+        type                operand2,  gex_Flags_t    flags       \
+        GASNETI_THREAD_FARG)                                      \
+    {                                                             \
+      return prefix##_NB(ad, result_p, tgt_rank, tgt_addr,        \
+                         opcode, operand1, operand2, flags        \
+                         GASNETI_THREAD_PASS);                    \
+    } \
+    int prefix##_NBI_external(                                    \
+        gex_AD_t            ad,        type           *result_p,  \
+        gex_Rank_t          tgt_rank,  void           *tgt_addr,  \
+        gex_OP_t            opcode,    type           operand1,   \
+        type                operand2,  gex_Flags_t    flags       \
+        GASNETI_THREAD_FARG)                                      \
+    {                                                             \
+      return prefix##_NBI(ad, result_p, tgt_rank, tgt_addr,       \
+                         opcode, operand1, operand2, flags        \
+                         GASNETI_THREAD_PASS);                    \
+    }
+GASNETE_DT_APPLY(GASNETE_RATOMIC_EXTERNS)
 
 /*---------------------------------------------------------------------------------*/
 //
@@ -253,7 +296,7 @@ void gasnete_amratomic_reqh_inner(
         type *ops = (type*) addr;               \
         switch (nbytes / sizeof(type)) {        \
             case 2: op2 = ops[1];               \
-                    /* fall through... */       \
+                    GASNETI_FALLTHROUGH         \
             case 1: op1 = ops[0];               \
         }                                       \
         typesz = sizeof(type)
@@ -335,7 +378,7 @@ gex_Event_t gasnete_amratomic_request_NB(
     gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();
     rop->result_p = result_p;
     rop->iop = NULL;
-    rop->eop = gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);
+    rop->eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
     gex_Event_t result = gasneti_eop_to_event(rop->eop);
     gex_TM_t tm = gasneti_export_tm(ad->_tm);
     int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh),
@@ -374,23 +417,17 @@ int gasnete_amratomic_request_NBI(
 }
 
 //
-// Functions (called by the top-level dispatch functions) which invoke
+// Inline functions (called by the ratomic functions) that invoke
 // the gasnete_amratomic_request_{NB,NBI}() functions, above.
 //
-// This interface is described in gasnet_ratomic.h, with the definition
-// of the GASNETE_RATOMIC_DECL() macro.
-//
-// TODO: S1 and G0 should be mapped to Puts and Gets when doing so
-// is known to be safe/correct
-//
-#define GASNETE_AMRATOMIC_DEFN(dtcode) \
-        _GASNETE_AMRATOMIC_DEFN(gasnete_amratomic##dtcode, dtcode##_dtype, dtcode##_type)
-#define _GASNETE_AMRATOMIC_DEFN(prefix, datatype, type)            \
+#define GASNETE_AMRATOMIC_MID_NB(dtcode) \
+        _GASNETE_AMRATOMIC_MID_NB(gasnete_amratomic##dtcode, dtcode##_dtype, dtcode##_type)
+#define _GASNETE_AMRATOMIC_MID_NB(prefix, datatype, type)         \
+    GASNETI_INLINE(prefix##_NB_N0)                                \
     gex_Event_t prefix##_NB_N0(                                   \
-                gasneti_AD_t         ad,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NB(                      \
@@ -399,12 +436,12 @@ int gasnete_amratomic_request_NBI(
                         NULL, 0, flags                            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NB_N1)                                \
     gex_Event_t prefix##_NB_N1(                                   \
-                gasneti_AD_t         ad,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,                          \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,                        \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NB(                      \
@@ -413,12 +450,12 @@ int gasnete_amratomic_request_NBI(
                         &operand1, sizeof(type), flags            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NB_F0)                                \
     gex_Event_t prefix##_NB_F0(                                   \
-                gasneti_AD_t         ad,                          \
-                type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                type             *result_p,                       \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NB(                      \
@@ -427,13 +464,13 @@ int gasnete_amratomic_request_NBI(
                         NULL, 0, flags                            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NB_F1)                                \
     gex_Event_t prefix##_NB_F1(                                   \
-                gasneti_AD_t         ad,                          \
-                type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,                          \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                type             *result_p,                       \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,                        \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NB(                      \
@@ -442,13 +479,13 @@ int gasnete_amratomic_request_NBI(
                         &operand1, sizeof(type), flags            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NB_F2)                                \
     gex_Event_t prefix##_NB_F2(                                   \
-                gasneti_AD_t         ad,                          \
-                type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,  type        operand2,   \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                type             *result_p,                       \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,  type        operand2, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
         type payload[2];                                          \
@@ -458,51 +495,15 @@ int gasnete_amratomic_request_NBI(
                         result_p, tgt_addr, op_idx, datatype,     \
                         &payload, 2*sizeof(type), flags           \
                         GASNETI_THREAD_PASS);                     \
-    } \
-    gex_Event_t prefix##_NB_S1(                                   \
-                gasneti_AD_t         ad,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,                          \
-                gex_Flags_t flags                                 \
-                GASNETI_THREAD_FARG)                              \
-    {                                                             \
-        const gasneti_op_idx_t op_idx = gasneti_op_idx_SET;       \
-        return gasnete_amratomic_request_NB(                      \
-                        ad, tgt_rank,                             \
-                        NULL, tgt_addr, op_idx, datatype,         \
-                        &operand1, sizeof(type), flags            \
-                        GASNETI_THREAD_PASS);                     \
-    } \
-    gex_Event_t prefix##_NB_G0(                                   \
-                gasneti_AD_t         ad,                          \
-                type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                gex_Flags_t flags                                 \
-                GASNETI_THREAD_FARG)                              \
-    {                                                             \
-        const gasneti_op_idx_t op_idx = gasneti_op_idx_GET;       \
-        return gasnete_amratomic_request_NB(                      \
-                        ad, tgt_rank,                             \
-                        result_p, tgt_addr, op_idx, datatype,     \
-                        NULL, 0, flags                            \
-                        GASNETI_THREAD_PASS);                     \
-    } \
-    gex_Event_t prefix##_NB_external(                             \
-        gex_AD_t            ad,        type           *result_p,  \
-        gex_Rank_t          tgt_rank,  void           *tgt_addr,  \
-        gex_OP_t            opcode,    type           operand1,   \
-        type                operand2,  gex_Flags_t    flags       \
-        GASNETI_THREAD_FARG)                                      \
-    {                                                             \
-      return prefix##_NB(ad, result_p, tgt_rank, tgt_addr,        \
-                         opcode, operand1, operand2, flags        \
-                         GASNETI_THREAD_PASS);                    \
-    } \
+    }
+#define GASNETE_AMRATOMIC_MID_NBI(dtcode) \
+        _GASNETE_AMRATOMIC_MID_NBI(gasnete_amratomic##dtcode, dtcode##_dtype, dtcode##_type)
+#define _GASNETE_AMRATOMIC_MID_NBI(prefix, datatype, type)        \
+    GASNETI_INLINE(prefix##_NBI_N0)                               \
     int prefix##_NBI_N0(                                          \
-                gasneti_AD_t         ad,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NBI(                     \
@@ -511,12 +512,12 @@ int gasnete_amratomic_request_NBI(
                         NULL, 0, flags                            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NBI_N1)                               \
     int prefix##_NBI_N1(                                          \
-                gasneti_AD_t         ad,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,                          \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,                        \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NBI(                     \
@@ -525,12 +526,12 @@ int gasnete_amratomic_request_NBI(
                         &operand1, sizeof(type), flags            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NBI_F0)                               \
     int prefix##_NBI_F0(                                          \
-                gasneti_AD_t         ad,                          \
-                type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                type             *result_p,                       \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NBI(                     \
@@ -539,13 +540,13 @@ int gasnete_amratomic_request_NBI(
                         NULL, 0, flags                            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NBI_F1)                               \
     int prefix##_NBI_F1(                                          \
-                gasneti_AD_t         ad,                          \
-                type           *result_p,                         \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,                          \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                type             *result_p,                       \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,                        \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         return gasnete_amratomic_request_NBI(                     \
@@ -554,13 +555,13 @@ int gasnete_amratomic_request_NBI(
                         &operand1, sizeof(type), flags            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NBI_F2)                               \
     int prefix##_NBI_F2(                                          \
-                gasneti_AD_t         ad,                          \
-                type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                type           operand1,  type        operand2,   \
-                gasneti_op_idx_t op_idx,  gex_Flags_t flags       \
-                GASNETI_THREAD_FARG)                              \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                type             *result_p,                       \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,  type        operand2, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
         type payload[2];                                          \
@@ -571,12 +572,12 @@ int gasnete_amratomic_request_NBI(
                         &payload, 2*sizeof(type), flags           \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NBI_S1)                               \
     int prefix##_NBI_S1(                                          \
                 gasneti_AD_t         ad,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
+                gex_Rank_t     tgt_rank,    void       *tgt_addr, \
                 type           operand1,                          \
-                gex_Flags_t flags                                 \
-                GASNETI_THREAD_FARG)                              \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();\
         rop->result_p = NULL;                                     \
@@ -594,12 +595,12 @@ int gasnete_amratomic_request_NBI(
         }                                                         \
         return imm;                                               \
     } \
+    GASNETI_INLINE(prefix##_NBI_G0)                               \
     int prefix##_NBI_G0(                                          \
                 gasneti_AD_t         ad,                          \
                 type          *result_p,                          \
-                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
-                gex_Flags_t flags                                 \
-                GASNETI_THREAD_FARG)                              \
+                gex_Rank_t     tgt_rank,    void       *tgt_addr, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
     {                                                             \
         gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();\
         rop->result_p = result_p;                                 \
@@ -616,20 +617,126 @@ int gasnete_amratomic_request_NBI(
             gasnete_amratomic_op_free(rop);                       \
         }                                                         \
         return imm;                                               \
-    } \
-    int prefix##_NBI_external(                                    \
-        gex_AD_t            ad,        type           *result_p,  \
-        gex_Rank_t          tgt_rank,  void           *tgt_addr,  \
-        gex_OP_t            opcode,    type           operand1,   \
-        type                operand2,  gex_Flags_t    flags       \
-        GASNETI_THREAD_FARG)                                      \
-    {                                                             \
-      return prefix##_NBI(ad, result_p, tgt_rank, tgt_addr,       \
-                         opcode, operand1, operand2, flags        \
-                         GASNETI_THREAD_PASS);                    \
     }
 //
-GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFN)
+GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NB)
+GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
+
+//
+// Ratomic functions (called by top-level dispatch functions) that then
+// call the functions defined by the GASNETE_AMRATOMIC_MID macro, above.
+//
+#define GASNETE_AMRATOMIC_DEFS(dtcode) \
+        _GASNETE_AMRATOMIC_DEFS1(dtcode, dtcode##_isint)
+// This extra pass expands the "isint" token prior to additional concatenation
+#define _GASNETE_AMRATOMIC_DEFS1(dtcode, isint) \
+        _GASNETE_AMRATOMIC_DEFS2(dtcode, isint)
+#define _GASNETE_AMRATOMIC_DEFS2(dtcode, isint) \
+    _GASNETE_AMRATOMIC_DEFN_INT##isint(dtcode,AND,1) \
+    _GASNETE_AMRATOMIC_DEFN_INT##isint(dtcode,OR,1)  \
+    _GASNETE_AMRATOMIC_DEFN_INT##isint(dtcode,XOR,1) \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,ADD,1)           \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,SUB,1)           \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,MULT,1)          \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,MIN,1)           \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,MAX,1)           \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,INC,0)           \
+    _GASNETE_AMRATOMIC_DEFN2(dtcode,DEC,0)           \
+    _GASNETE_AMRATOMIC_SETGET(dtcode)                \
+    _GASNETE_AMRATOMIC_DEFN1(dtcode,SWAP,F1)         \
+    _GASNETE_AMRATOMIC_DEFN1(dtcode,CSWAP,F2)
+//
+#define _GASNETE_AMRATOMIC_DEFN_INT0(dtcode,opname,nargs) /*empty*/
+#define _GASNETE_AMRATOMIC_DEFN_INT1 _GASNETE_AMRATOMIC_DEFN2
+#define _GASNETE_AMRATOMIC_DEFN2(dtcode,opstem,nargs) \
+        _GASNETE_AMRATOMIC_DEFN1(dtcode,opstem,N##nargs) \
+        _GASNETE_AMRATOMIC_DEFN1(dtcode,F##opstem,F##nargs)
+#define _GASNETE_AMRATOMIC_DEFN1(dtcode,opname,args) \
+        _GASNETE_AMRATOMIC_DEFN1_NB(dtcode,opname,args) \
+        _GASNETE_AMRATOMIC_DEFN1_NBI(dtcode,opname,args)
+#define _GASNETE_AMRATOMIC_DEFN1_NB(dtcode,opname,args) \
+  static gex_Event_t gasnete_amratomic##dtcode##_NB_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) { \
+    return gasnete_amratomic##dtcode##_NB_##args(gasneti_op_idx_##opname,GASNETE_RATOMIC_PASS_##args);     \
+  }
+#define _GASNETE_AMRATOMIC_DEFN1_NBI(dtcode,opname,args) \
+  static int gasnete_amratomic##dtcode##_NBI_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) {     \
+    return gasnete_amratomic##dtcode##_NBI_##args(gasneti_op_idx_##opname,GASNETE_RATOMIC_PASS_##args); \
+  }
+#define _GASNETE_AMRATOMIC_SETGET(dtcode) \
+        _GASNETE_AMRATOMIC_SETGET1(dtcode, GASNETE_AMRATOMIC_USE_RMA##dtcode)
+// This extra pass expands the "use_rma" token prior to additional concatenation
+#define _GASNETE_AMRATOMIC_SETGET1(dtcode, use_rma) \
+        _GASNETE_AMRATOMIC_SETGET2(dtcode, use_rma)
+#define _GASNETE_AMRATOMIC_SETGET2(dtcode, use_rma) \
+        _GASNETE_RATOMIC_SETGET_RMA##use_rma(dtcode)
+#define _GASNETE_RATOMIC_SETGET_RMA0(dtcode) /* Use AM for SET and GET */ \
+  /* NB are same as other ops, but NBI are specialized for distinct gex_EC_t */ \
+  _GASNETE_AMRATOMIC_DEFN1_NB(dtcode,SET,N1) \
+  static int gasnete_amratomic##dtcode##_NBI_SET(GASNETE_RATOMIC_ARGS_N1(dtcode##_type)) {     \
+    return gasnete_amratomic##dtcode##_NBI_S1(GASNETE_RATOMIC_PASS_N1); \
+  } \
+  _GASNETE_AMRATOMIC_DEFN1_NB(dtcode,GET,F0) \
+  static int gasnete_amratomic##dtcode##_NBI_GET(GASNETE_RATOMIC_ARGS_F0(dtcode##_type)) {     \
+    return gasnete_amratomic##dtcode##_NBI_G0(GASNETE_RATOMIC_PASS_F0); \
+  }
+#define _GASNETE_RATOMIC_SETGET_RMA1(dtcode) /* Use RMA for SET and GET */ \
+        _GASNETE_RATOMIC_SETGET_RMA2(dtcode, dtcode##_type, dtcode##_bits)
+// This extra pass expands the "bits" token prior to additional concatenation
+#define _GASNETE_RATOMIC_SETGET_RMA2(dtcode, type, bits) \
+        _GASNETE_RATOMIC_SETGET_RMA3(dtcode, type, bits)
+#define _GASNETE_RATOMIC_SETGET_RMA3(dtcode, type, bits) \
+  static gex_Event_t gasnete_amratomic##dtcode##_NB_SET (GASNETE_RATOMIC_ARGS_N1(type)) { \
+    union { uint##bits##_t uint; type op1; } u; u.op1 = _operand1;                        \
+    return gex_RMA_PutNBVal(gasneti_export_tm(_real_ad->_tm), _tgt_rank, _tgt_addr,       \
+                            u.uint, sizeof(type), _flags);                                \
+  } \
+  static int gasnete_amratomic##dtcode##_NBI_SET (GASNETE_RATOMIC_ARGS_N1(type)) {        \
+    union { uint##bits##_t uint; type op1; } u; u.op1 = _operand1;                        \
+    return gex_RMA_PutNBIVal(gasneti_export_tm(_real_ad->_tm), _tgt_rank, _tgt_addr,      \
+                             u.uint, sizeof(type), _flags);                               \
+  } \
+  static gex_Event_t gasnete_amratomic##dtcode##_NB_GET (GASNETE_RATOMIC_ARGS_F0(type)) { \
+    return gex_RMA_GetNB(gasneti_export_tm(_real_ad->_tm), _result_p,                     \
+                         _tgt_rank, _tgt_addr, sizeof(float), _flags);                    \
+  } \
+  static int gasnete_amratomic##dtcode##_NBI_GET (GASNETE_RATOMIC_ARGS_F0(type)) {        \
+    return gex_RMA_GetNBI(gasneti_export_tm(_real_ad->_tm), _result_p,                    \
+                          _tgt_rank, _tgt_addr, sizeof(float), _flags);                   \
+  }
+//
+GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFS)
+
+//
+// Build the dispatch tables
+//
+#define GASNETE_AMRATOMIC_TBL(dtcode) \
+    gasnete_ratomic##dtcode##_fn_tbl_t gasnete_amratomic##dtcode##_fn_tbl = \
+        GASNETE_RATOMIC_FN_TBL_INIT(gasnete_amratomic##dtcode,dtcode);
+GASNETE_DT_APPLY(GASNETE_AMRATOMIC_TBL)
+
+//
+// Create-hook to install the dispatch tables
+//
+void gasnete_amratomic_create_hook(
+        gasneti_AD_t               real_ad,
+        gasneti_TM_t               real_tm,
+        gex_DT_t                   dt,
+        gex_OP_t                   ops,
+        gex_Flags_t                flags)
+{
+    real_ad->_cpusafe = 1;
+    #define GASNETE_AMRATOMIC_TBL_CASE(dtcode) \
+        case dtcode##_dtype: \
+            real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t) &gasnete_amratomic##dtcode##_fn_tbl; \
+            break;
+    switch (dt) {
+        GASNETE_DT_APPLY(GASNETE_AMRATOMIC_TBL_CASE)
+        default: gasneti_unreachable();
+    }
+    #undef GASNETE_AMRATOMIC_TBL_CASE
+
+    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM", (int)dt, (unsigned int)ops));
+}
 
 #endif // GASNETE_BUILD_AMRATOMIC
 /*---------------------------------------------------------------------------------*/

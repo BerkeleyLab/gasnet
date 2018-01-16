@@ -30,7 +30,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Data movement */
       if (op->team->myrank == args->srcnode) {
@@ -46,13 +46,13 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       } else {
         break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
       
   case 2:	/* Sync data movement */
     if (data->handle != GEX_EVENT_INVALID) {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
     
   case 3:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -116,14 +116,14 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
     if (!gasnete_coll_generic_all_threads(data)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
     
   case 1:       /* Optional IN barrier over the SAME tree */
     if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
         !gasnete_coll_generic_upsync(op, args->srcnode, 0, child_count)) {
       break;
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
     
   case 2:	/* Data movement */
     if (op->team->myrank == args->srcnode) {
@@ -142,7 +142,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
     } else {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
     
   case 3:	/* Sync data movement */
     if (data->handle != GEX_EVENT_INVALID) {
@@ -163,7 +163,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
       }
       
     }
-    data->state = 4;
+    data->state = 4; GASNETI_FALLTHROUGH
     
   case 4:
     /*wait for all the children to respond*/
@@ -172,7 +172,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
         break;
       }
     }
-    data->state = 5;
+    data->state = 5; GASNETI_FALLTHROUGH
     
   case 5:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -224,7 +224,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
     
   case 1:	/* Rendevous w/ root to pass addr */
     if (op->team->myrank == args->srcnode) {
@@ -233,7 +233,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       /* Send our addr to root */
       gasnete_coll_p2p_send_rtr(op, data->p2p, op->team->myrank, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes);
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
     
   case 2:
     if (op->team->myrank == args->srcnode) {
@@ -249,7 +249,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       /* Not all data has arrived yet */
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
     
   case 3:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -298,7 +298,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -318,7 +318,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       } else {
         break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:	/* Complete data movement */
       if (data->handle != GEX_EVENT_INVALID) {
@@ -328,7 +328,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	gasneti_sync_reads();
 	gasnete_coll_local_broadcast(op->team->my_images - 1, p + 1, *p, args->nbytes);
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -372,14 +372,14 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
     if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS)) {
       break;
     }
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
     
   case 1:       /* Optional IN barrier over the SAME tree */
     if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
         !gasnete_coll_generic_upsync(op, args->srcnode, 0, child_count)) {
       break;
     }
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
     
   case 2:	/* Data movement */
     if (op->team->myrank == args->srcnode) {
@@ -401,7 +401,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
     } else {
       break;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
     
   case 3:	/* Sync data movement */
     if (data->handle != GEX_EVENT_INVALID) {
@@ -425,7 +425,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
                                    GASNETE_COLL_MY_1ST_IMAGE(op->team, args->dstlist, op->flags), args->nbytes);
 
     }
-    data->state = 4;
+    data->state = 4; GASNETI_FALLTHROUGH
     
   case 4:
     /*wait for all the children to respond*/
@@ -434,7 +434,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
         break;
       }
     }
-    data->state = 5;
+    data->state = 5; GASNETI_FALLTHROUGH
     
   case 5:	/* Optional OUT barrier */
     if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -482,7 +482,7 @@ static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Rendevous w/ root to pass addr */
       if (op->team->myrank == args->srcnode) {
@@ -495,7 +495,7 @@ static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 				  GASNETE_COLL_MY_1ST_IMAGE(op->team, args->dstlist, op->flags),
 				  GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank == args->srcnode) {
@@ -516,7 +516,7 @@ static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	gasneti_sync_reads();
 	gasnete_coll_local_broadcast(op->team->my_images - 1, p + 1, *p, args->nbytes);
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -562,7 +562,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -581,13 +581,13 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       } else {
 	break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:	/* Sync data movement */
       if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -631,7 +631,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Rendevous w/ root to pass addr */
       if (op->team->myrank == args->srcnode) {
@@ -642,7 +642,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	/* Send our addr to root */
 	gasnete_coll_p2p_send_rtr(op, data->p2p, op->team->myrank, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank == args->srcnode) {
@@ -660,7 +660,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	/* Not all data has arrived yet */
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -708,6 +708,7 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
@@ -731,13 +732,13 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       } else {
 	break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -781,7 +782,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Rendevous w/ root to pass addr */
       if (op->team->myrank == args->srcnode) {
@@ -796,7 +797,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 				   &GASNETE_COLL_MY_1ST_IMAGE(op->team, args->dstlist, op->flags),
 				   GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes, op->team->my_images);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank == args->srcnode) {
@@ -819,7 +820,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	/* Not all data has arrived yet */
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -866,7 +867,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->dstnode) {
@@ -885,13 +886,13 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       } else {
 	  break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:	/* Sync data movement */
       if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -928,7 +929,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Root send addrs */
       if (op->team->myrank == args->dstnode) {
@@ -942,7 +943,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
 				      args->src, args->nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank != args->dstnode) {
@@ -953,7 +954,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	/* Not all data has arrived yet */
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -994,7 +995,7 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:
       if (op->team->myrank == args->dstnode) {
@@ -1015,13 +1016,13 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       } else {
 	break;
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (data->handle != GEX_EVENT_INVALID) {
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -1058,7 +1059,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
-      data->state = 1;
+      data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Root send addrs */
       if (op->team->myrank == args->dstnode) {
@@ -1078,7 +1079,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 				  gasnete_coll_scale_ptr(args->dst, op->team->my_offset, args->nbytes),
 				  &GASNETE_COLL_MY_1ST_IMAGE(op->team, args->srclist, op->flags), args->nbytes);
       }
-      data->state = 2;
+      data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank != args->dstnode) {
@@ -1094,7 +1095,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	/* Not all data has arrived yet */
 	break;
       }
-      data->state = 3;
+      data->state = 3; GASNETI_FALLTHROUGH
 
     case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(op->team, data)) {
@@ -1141,18 +1142,18 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       break;
     }
     
-    data->state = 1;
+    data->state = 1; GASNETI_FALLTHROUGH
     
   case 1: /* send out all the destination addresses addresses*/
     gasnete_coll_p2p_eager_addr_all(op, args->dst, op->team->myrank, 1, op->team);	
-    data->state = 2;
+    data->state = 2; GASNETI_FALLTHROUGH
     
   case 2: /*wait for all addresses to arrive*/
     for(i=0; i<op->team->total_ranks; i++) {
       if(i==op->team->myrank) continue;
       if(!data->p2p->state[i]) return 0;
     }
-    data->state = 3;
+    data->state = 3; GASNETI_FALLTHROUGH
     /*if we go to here that means all addresses are ready*/
   case 3: /* fire off all the nonblocking puts*/
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -1168,17 +1169,17 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
-    data->state = 4;
+    data->state = 4; GASNETI_FALLTHROUGH
   case 4: /* sync all the handles for the puts*/
     if (op->team->total_ranks > 1 && data->handle != GEX_EVENT_INVALID) {
       return 0;
     }
-    data->state=5;
+    data->state = 5; GASNETI_FALLTHROUGH
   case 5: /*final out barrier*/
     if (!gasnete_coll_generic_outsync(op->team, data)) {
       break;
     }
-    data->state = 6;
+    data->state = 6; GASNETI_FALLTHROUGH
   case 6: /*done*/
     gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);

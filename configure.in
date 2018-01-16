@@ -205,6 +205,11 @@ fi
 
 ## discover bit width
 
+dnl Use the results of CHECK_SIZEOF(void *) to select 64-bit mode for some tools
+dnl NOTE: CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
+
 GASNET_CHECK_SIZEOF(void *)
 GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
 AC_SUBST(GASNETI_PTR_BITS)
@@ -265,16 +270,32 @@ dnl GASNET_GET_GNUWARNINGFLAGS(type, family, flagprefix)  type=C or CXX
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
   if test "$enabled_dev_warnings" = "yes" ; then
     # enable additional supported warnings
-        ]GASNET_TRY_[$1]FLAG[([$3-Wall],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wall"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wpointer-arith],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wpointer-arith"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wnested-externs],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wnested-externs"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wwrite-strings],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wwrite-strings"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wmissing-format-attribute"])
+    for warnflag in dnl Traditional GASNet devwarn:
+                    -Wall                       \
+                    -Wpointer-arith             \
+                    -Wnested-externs            \
+                    -Wwrite-strings             \
+                    -Wmissing-format-attribute  \
+                dnl Selected warnings:
+                    -Winit-self                 \
+                dnl -Wextra subset:
+                    -Wclobbered                 \
+                    -Wcast-function-type        \
+                    -Wempty-body                \
+                    -Wignored-qualifiers        \
+                    -Wimplicit-fallthrough      \
+                    -Wmissing-parameter-type    \
+                    -Wold-style-declaration     \
+                    -Wuninitialized             \
+                    -Wshift-negative-value      \
+      ; do
+     if test "$2" = "Open64" && test "x$warnflag" = "x-Wempty-body" ; then 
+      : # Bug 3711: Open64 botches -Wempty-body at link time which is not probed here
+     else
+      ]GASNET_TRY_[$1]FLAG[([$3$warnflag],
+                            [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3$warnflag"])
+     fi
+    done
   fi
 
   case "$2" in
@@ -290,6 +311,14 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                               [[$1]FLAGS="$[$1]FLAGS $3-Wno-strict-aliasing"])
     ;;
   esac
+         # disable -Wformat if unsure we can support it for the printf implementation in use
+         if test -z "$have_c99_format" ; then
+           AC_MSG_ERROR([Internal configure error - Wformat check missing])
+         elif test "$have_c99_format" = 0 ; then # avoid false warnings
+           GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format],
+                               [[$1]FLAGS="$[$1]FLAGS $3-Wno-format"])
+         fi
+
          # disable warnings that should always be off (not supported by our headers)
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused],
                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused"],
@@ -611,6 +640,51 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
   GASNET_POPVAR([$1]FLAGS)
   popdef([ppc64code])
 ])
+
+# Detect features that affect MISCFLAGS
+if test "$cross_compiling" = "yes" && test -z "$gasnet_cv_c99_format" ; then
+  gasnet_cv_c99_format=no # conservatively assume it's unavailable if we can't check
+fi
+GASNET_TRY_CACHE_RUN([for working C99 printf specifiers],c99_format,
+  [ #include <stdio.h>  /* snprintf */
+    #include <string.h> /* strcmp */
+    #include <stddef.h> /* types */
+    #include <errno.h>  /* reporting */
+    char test[[100]];
+    char expect[[100]];
+    int check(void) {
+      ptrdiff_t pd, pdneg;
+      size_t sz = 0xAAAABBBB;
+      strcat(expect, "AAAABBBB");
+      if (sizeof(size_t) >= 8) {
+        sz <<= 16; sz <<= 16;
+        sz += 0xCCCCDDDD;
+        strcat(expect,"CCCCDDDD");
+      }
+      strcat(expect, " 987654321");
+      pd = 987654321;
+      if (sizeof(ptrdiff_t) >= 8) {
+        pd *= 1000000000;
+        pd +=  987654321;
+        strcat(expect, "987654321");
+      }
+      strcat(expect, " -123456789");
+      pdneg = -123456789;
+      int ret = snprintf(test,sizeof(test),"%zX %ti %ti",sz,pd,pdneg);
+      if (ret <= 0) return ret;
+      if (strcmp(test,expect)) return 666;
+      return 0; 
+    } 
+    int main(void) {
+      int ret = check();
+      if (ret) { 
+        printf("got %i(%s): \t'%s'\n",ret,strerror(errno),test); /* for debugging */
+        printf("expected:         \t'%s'\n", expect);
+      }
+      return ret;
+    }
+  ],[ have_c99_format=1 ],[ have_c99_format=0 ])
+AC_DEFINE_UNQUOTED(HAVE_C99_FORMAT_SPECIFIERS,[$have_c99_format])
 
 dnl GASNET_SET_MISCFLAGS(CC|MPI_CC, compliancecode)
 AC_DEFUN([GASNET_SET_MISCFLAGS],[
@@ -2862,6 +2936,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
   GASNET_CHECK_ASM_SUPPORT([C++ compiler],[CXX])
   GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
+  GASNET_GET_CXX11_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
   GASNET_CHECK_BUILTINS([GASNETI_HAVE_CXX],[C++ compiler])
 
   GASNET_TRY_CACHE_CHECK(for __VA_ARGS__ support in C++, cxx_va_args, [ GASNET_VA_ARGS_TEST ], [ ], [ AC_DEFINE(GASNETI_CXX_HAS_VA_ARGS) ])
@@ -4979,10 +5054,6 @@ AC_CHECK_HEADERS(sys/param.h)
 ##  Supporting Command-Line Tools (continued)
 ##
 
-dnl Use the results of AC_CHECK_SIZEOF(void *) to select 64-bit mode for some tools
-dnl NOTE: AC_CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
-dnl     Store full paths, so we find right ones even if users have
-dnl     some other version in their path
 if test x"$BOURNE_SHELL" = x; then
     BOURNE_SHELL="/bin/sh"
 fi

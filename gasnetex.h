@@ -444,6 +444,7 @@ typedef struct {
 /*  struct type used to return info from gex_Token_Info() */
 typedef struct {
     gex_Rank_t                 gex_srcrank;
+    gex_EP_t                   gex_ep;
     const gex_AM_Entry_t      *gex_entry;
     int                        gex_is_req;
     int                        gex_is_long;
@@ -455,7 +456,8 @@ typedef unsigned int gex_TI_t;
 #define GEX_TI_ENTRY         ((gex_TI_t)1<<1)
 #define GEX_TI_IS_REQ        ((gex_TI_t)1<<2)
 #define GEX_TI_IS_LONG       ((gex_TI_t)1<<3)
-#define GEX_TI_ALL          (((gex_TI_t)1<<4) - 1)
+#define GEX_TI_EP            ((gex_TI_t)1<<4)
+#define GEX_TI_ALL          (((gex_TI_t)1<<5) - 1)
 
 // Default implementation
 #ifndef gex_Token_Info
@@ -465,15 +467,6 @@ extern gex_TI_t gex_Token_Info(
                 gex_Token_t         _token,
                 gex_Token_Info_t    *_info,
                 gex_TI_t            _mask);
-
-// GASNet-1 version of gex_AM_Entry_t
-// Visible to GASNet-1 clients and to internal code (for gasnetc_attach in particular)
-#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
-  typedef struct {
-    gex_AM_Index_t index; /*  == 0 for don't care  */
-    void (*fnptr)();    
-  } gasnet_handlerentry_t;
-#endif
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
@@ -688,9 +681,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
 #endif
 
-#if defined(_IN_GASNET_INTERNAL_H) || defined(_INCLUDED_GASNET_H)
-  #define GASNETI_FLAG_INIT_LEGACY           (1U << 31)
-#endif
+#define GASNETI_FLAG_INIT_LEGACY           (1U << 31)
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -861,6 +852,21 @@ GASNETI_END_EXTERNC
 #undef _IN_GASNETEX_H
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+// Separate protection for definitions visible to GASNet-1 clients and to
+// internal code (to provide corresponding thunks), but *not* to EX clients.
+// This allows gasnet.h to be included either before or after gasnetex.h.
+#if !defined(_GASNETEX_LEGACY_H) && (defined(_IN_GASNET_INTERNAL_H) || defined(_INCLUDED_GASNET_H))
+  #define _GASNETEX_LEGACY_H
+
+  // GASNet-1 version of gex_AM_Entry_t
+  typedef struct {
+    gex_AM_Index_t index; /*  == 0 for don't care  */
+    void (*fnptr)();
+  } gasnet_handlerentry_t;
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* intentionally expanded on every include */
 #if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
   #define _GASNET_INTERNAL_IDIOTCHECK

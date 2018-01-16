@@ -628,6 +628,11 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
   if (result & GEX_TI_SRCRANK) {
     gasneti_assert(info->gex_srcrank < gasneti_nodes);
   }
+  if (result & GEX_TI_EP) {
+    // TODO-EX: will need some means to validate in conduit-independent manner
+    // NULL THUNK_TM may occur in bootstrap collectives before ep0 exists
+    gasneti_assert(!gasneti_THUNK_TM || info->gex_ep == gasneti_THUNK_EP);
+  }
   if (result & GEX_TI_ENTRY) {
     gasneti_assert(info->gex_entry);
     gasneti_am_validate(info->gex_entry, 1);
@@ -653,6 +658,9 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
   // For each field not requested or requested but not set: INvalidate
   if (!(result & GEX_TI_SRCRANK)) {
     info->gex_srcrank = GEX_RANK_INVALID;
+  }
+  if (!(result & GEX_TI_EP)) {
+    info->gex_ep = NULL;
   }
   if (!(result & GEX_TI_ENTRY)) {
     info->gex_entry = NULL;

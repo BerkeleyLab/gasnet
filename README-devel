@@ -202,7 +202,7 @@ All GASNet conduit code is required to meet the following coding standards:
    - Do not use zero-length structure fields (aka flexible array member)
    - Do not use compound literals or named struct field initializers
    - Do not use printf format specifiers added in C99, such as: ll,j,z,t,L,lf
-     (Use portable_inttypes.h to get (u)int{64,ptr}_t and PRI[ud]{64,PTR})
+     (Use portable_inttypes.h to get (u)int{64,ptr}_t and PRI[ud]{64,PTR,SZ,PD})
    - Do not use long long types explicitly, or assume that LL suffix constants
      are exactly 64-bit.  If a particular type width is required then use an intW_t 
      fixed-width type declaration and/or cast.
@@ -216,6 +216,14 @@ All GASNet conduit code is required to meet the following coding standards:
     NO:  extern void foo();
     YES: extern void foo(void);
   Compiling with GCC and -Wstrict-prototypes will give you warnings for violations of this rule.
+
+* Switch statements in GASNet code should annotate any instances of "fallthough" with
+  GASNETI_FALLTHROUGH.  Here "fallthrough" is defined as a statement (within a switch)
+  that is followed by "case ...:" or "default:" without an intervening "break".
+  The annotation goes where the "missing break" would otherwise have appeared.
+  Example:
+     switch (i) { case 0: foo(); GASNETI_FALLTHROUGH
+                  case 1: bar(); }
 
 * All code in public header files should be C++98/C++14-compliant to support C++
   GASNet clients.  This means ensuring any macros or inline function code

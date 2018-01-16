@@ -1157,6 +1157,9 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_srcrank = gasnetc_msgsource(token);
   result |= GEX_TI_SRCRANK;
 
+  info->gex_ep = gasneti_THUNK_EP;
+  result |= GEX_TI_EP;
+
   info->gex_entry = real_token->entry;
   result |= GEX_TI_ENTRY;
 

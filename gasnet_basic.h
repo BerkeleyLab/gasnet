@@ -74,6 +74,16 @@
        (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || \
         (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
 
+// GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE: specialized for testing C++11 attributes
+#if defined(__has_cpp_attribute)
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
+#endif
+#define GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(MACRO_NAME,attrib_token) \
+       (GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE_ ## MACRO_NAME) || \
+        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_CXX11_ATTRIBUTE(attrib_token)))
+
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
 //                  or 'otherwise' in the case of a compiler mismatch
@@ -347,6 +357,10 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
     #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED \
        GASNETI_COMPILER_HAS_ATTRIBUTE(DEPRECATED,__deprecated__)
   #endif
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
+    #define GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(FALLTHROUGH,__fallthrough__)
+  #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT \
        GASNETI_COMPILER_HAS_ATTRIBUTE(FORMAT,__format__)
@@ -358,6 +372,22 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG \
        GASNETI_COMPILER_HAS(ATTRIBUTE_FORMAT_FUNCPTR_ARG)
+  #endif
+#endif
+
+/* C++11 attributes */
+// The Clang C compiler defines __has_cpp_attribute(), expanding to 0.
+// However, it errors on __has_cpp_attribute(namespage::token) and thus
+// we check for __cplusplus even though that could be seen as redundant.
+#if defined(__cplusplus) && \
+    (GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE) || defined(__has_cpp_attribute))
+  #ifndef   GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+    #define GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH \
+       GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(FALLTHROUGH,fallthrough)
+  #endif
+  #ifndef   GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+    #define GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH \
+       GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(CLANG__FALLTHROUGH,clang::fallthrough)
   #endif
 #endif
 
@@ -529,6 +559,20 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #define GASNETI_DEPRECATED __attribute__((__deprecated__))
 #else
   #define GASNETI_DEPRECATED
+#endif
+
+/* GASNETI_FALLTHROUGH: annotate a switch case as intentionally lacking "break".
+   Legal only between a statement and subsequent "case" (where "break" normally appears) or label.
+   Not legal (or necessary) between back-to-back cases w/o intervening statements. */
+#if GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
+  // Syntax requires the attribute to be attached to a null statement (the semicolon).
+  #define GASNETI_FALLTHROUGH __attribute__((__fallthrough__)) ;
+#elif GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+  #define GASNETI_FALLTHROUGH [[fallthrough]] ;
+#elif GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+  #define GASNETI_FALLTHROUGH [[clang::fallthrough]] ;
+#else
+  #define GASNETI_FALLTHROUGH
 #endif
 
 /* GASNETI_FORMAT_PRINTF: enable gcc printf format checking of function args */
