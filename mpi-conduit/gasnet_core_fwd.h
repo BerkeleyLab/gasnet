@@ -62,8 +62,8 @@
 
   /* define these to 1 if your conduit provides V-suffix (va_list) internal AM APIs.
    */
-/* #define GASNETC_HAVE_AMREQUEST_V 1 */
-/* #define GASNETC_HAVE_AMREPLY_V 1 */
+#define GASNETC_HAVE_AMREQUEST_V 1
+#define GASNETC_HAVE_AMREPLY_V 1
 
 /* mpi-conduit supports top-level poll throttling */
 #define GASNETC_USING_SUSPEND_RESUME 1
