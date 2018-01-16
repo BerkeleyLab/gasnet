@@ -75,14 +75,18 @@
         (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
 
 // GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE: specialized for testing C++11 attributes
-#if defined(__has_cpp_attribute)
+#if defined(__has_cpp_attribute) && \
+  (!PLATFORM_COMPILER_GNU_CXX || PLATFORM_COMPILER_CXX_LANGLVL >= 201100)
+  // g++ __has_cpp_attribute returns false positives with langlvl < C++11
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) __has_cpp_attribute(x)
 #else
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
 #endif
+// only trust configure results for C++ attrib if current C++ langlvl is >= configure C++ langlvl
 #define GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(MACRO_NAME,attrib_token) \
-       (GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE_ ## MACRO_NAME) || \
-        (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_CXX11_ATTRIBUTE(attrib_token)))
+       ((GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE_ ## MACRO_NAME) && \
+        PLATFORM_COMPILER_CXX_LANGLVL >= GASNETI_PLATFORM_CXX_CXX_LANGLVL) \
+      || (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_CXX11_ATTRIBUTE(attrib_token)))
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)

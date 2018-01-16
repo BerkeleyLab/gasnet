@@ -1,4 +1,4 @@
-// Test program for gasnet_portable_platform.h
+/* Test program for gasnet_portable_platform.h */
 
 #ifdef CONFIG_HEADER
 #include CONFIG_HEADER
@@ -23,10 +23,10 @@ typedef struct {
 typedef entry_t *snap_t;
 
 #define CAPTURE_FULL(key, valstr, valint) { key, valstr, valint }
-#define CAPTURE_TOK(var) CAPTURE_FULL("PLATFORM_"#var, PLATFORM_STRINGIFY(PLATFORM_##var), 0)
-#define CAPTURE_STR(var) CAPTURE_FULL("PLATFORM_"#var, "\""PLATFORM_##var"\"", 0)
-#define CAPTURE_INT(var) CAPTURE_FULL("PLATFORM_"#var, 0, PLATFORM_##var)
-#define CAPTURE_DEF(var) CAPTURE_FULL("IFDEF_PLATFORM_"#var, PLATFORM_STRINGIFY(PLATFORM_##var), 0)
+#define CAPTURE_TOK(var) CAPTURE_FULL("PLATFORM_" #var, PLATFORM_STRINGIFY(PLATFORM_##var), 0)
+#define CAPTURE_STR(var) CAPTURE_FULL("PLATFORM_" #var, "\"" PLATFORM_##var "\"", 0)
+#define CAPTURE_INT(var) CAPTURE_FULL("PLATFORM_" #var, 0, PLATFORM_##var)
+#define CAPTURE_DEF(var) CAPTURE_FULL("IFDEF_PLATFORM_" #var, PLATFORM_STRINGIFY(PLATFORM_##var), 0)
 
 #define CAPTURE_SNAP(id)                  \
   entry_t snap##id[] = {                  \
@@ -36,6 +36,8 @@ typedef entry_t *snap_t;
     CAPTURE_INT(COMPILER_FAMILYID),       \
     CAPTURE_INT(COMPILER_ID),             \
     CAPTURE_INT(COMPILER_VERSION),        \
+    CAPTURE_FULL("PLATFORM_COMPILER_" PLATFORM_STRINGIFY(LANGSLUG) "_LANGLVL",               \
+                             0,  _CONCAT(_CONCAT(PLATFORM_COMPILER_,LANGSLUG),_LANGLVL)),    \
     CAPTURE_STR(COMPILER_VERSION_STR),    \
     CAPTURE_STR(COMPILER_IDSTR),          \
     CAPTURE_FULL("PLATFORM_COMPILER_" PLATFORM_STRINGIFY(PLATFORM_COMPILER_FAMILYNAME),      \
@@ -63,9 +65,9 @@ typedef entry_t *snap_t;
 
 CAPTURE_SNAP(0);
 
-#include <gasnet_portable_platform.h> // test double-include
+#include <gasnet_portable_platform.h> /* test double-include */
 
-#ifdef INJECT_ERROR // for testing this file
+#ifdef INJECT_ERROR /* for testing this file */
 #undef  PLATFORM_COMPILER_ID
 #define PLATFORM_COMPILER_ID 999
 #undef  PLATFORM_COMPILER_IDSTR
@@ -76,8 +78,9 @@ CAPTURE_SNAP(0);
 
 CAPTURE_SNAP(1);
 
-// test for system header interference
-// use the C89 headers that should be safe everywhere
+/* test for system header interference
+ * use the C89 headers that should be safe everywhere
+ */
 #ifndef SKIP_SYS_HEADERS
 #include <assert.h>
 #include <ctype.h>
@@ -100,9 +103,9 @@ CAPTURE_SNAP(1);
 #include <mpi.h>
 #endif
 
-#define PLATFORM_SHOW 1 // enable self-test
+#define PLATFORM_SHOW 1 /* enable self-test */
 #define main platform_show
-#undef _PORTABLE_PLATFORM_H // force a re-include
+#undef _PORTABLE_PLATFORM_H /* force a re-include */
 #include <gasnet_portable_platform.h>
 
 CAPTURE_SNAP(2);
@@ -113,18 +116,19 @@ CAPTURE_SNAP(2);
 int errs = 0;
 int main() {
 
-  // first do the header self-test
+  /* first do the header self-test */
   printf("PLATFORM_SHOW:\n-------------\n");
   platform_show(); 
   printf("\n"); 
  
-  // now look at our own snapshots of output
+ { /* now look at our own snapshots of output */
+  int i,k;
   snap_t snaps[] = { snap0, snap1, snap2 };
   size_t numsnaps = sizeof(snaps)/sizeof(snap_t);
   size_t numkeys = sizeof(snap1)/sizeof(entry_t);
-  for (int i=1; i<numsnaps; i++) {
+  for (i=1; i<numsnaps; i++) {
     snap_t snap = snaps[i];
-    for (int k=0; k < numkeys; k++) {
+    for (k=0; k < numkeys; k++) {
        entry_t *e0 = &snap0[k];
        entry_t *ei = &snap[k];
        errs++;
@@ -139,10 +143,10 @@ int main() {
        } else errs--;
     }
   }
-  for (int i=0; i<numsnaps; i++) {
+  for (i=0; i<numsnaps; i++) {
     snap_t snap = snaps[i];
     printf("Snap %i:\n-------\n",i);
-    for (int k=0; k < numkeys; k++) {
+    for (k=0; k < numkeys; k++) {
        entry_t *e = &snap[k];
        if (e->valstr) {
          if (!strncmp(e->key,"IFDEF_",6)) {
@@ -156,5 +160,6 @@ int main() {
     }
     if (!errs) break;
   }
+ }
   return errs;
 }
