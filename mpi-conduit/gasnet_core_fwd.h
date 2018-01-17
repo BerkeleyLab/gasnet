@@ -60,6 +60,13 @@
 /* #define GASNETC_GET_HANDLER 1 */
 /* #define GASNETC_TOKEN_CREATE 1 */
 
+  /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()
+     include a call to gasneti_AMPoll (or equivalent) for progress.
+     The preferred implementation is to Poll only in the M-suffixed calls
+     and not the V-suffixed calls (and GASNETC_REQUESTV_POLLS undefined).
+   */
+#define GASNETC_REQUESTV_POLLS 1
+
 /* mpi-conduit supports top-level poll throttling */
 #define GASNETC_USING_SUSPEND_RESUME 1
 

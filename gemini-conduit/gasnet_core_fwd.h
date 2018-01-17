@@ -75,6 +75,13 @@ typedef ### gasnetc_handler_t;
 #define GASNETC_TOKEN_CREATE 1
 #endif
 
+  /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()
+     include a call to gasneti_AMPoll (or equivalent) for progress.
+     The preferred implementation is to Poll only in the M-suffixed calls
+     and not the V-suffixed calls (and GASNETC_REQUESTV_POLLS undefined).
+   */
+/* #define GASNETC_REQUESTV_POLLS 1 */
+
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 /* Need to hook pthread create to ensure collective creation of domains */
 typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);

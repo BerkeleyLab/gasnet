@@ -572,6 +572,13 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     size_t limit = gex_AM_MaxRequestMedium(tm,dest,lc_opt,flags,nargs);
     GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
 
+    // Ensure at least one poll upon Request injection (exactly one if possible)
+#if GASNETC_REQUESTV_POLLS
+    // Conduit's Request{Medium,Long}V will AMPoll in Commit
+#else
+    gasneti_AMPoll();
+#endif
+
     return gasneti_prepare_medium_common(
                gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS),
                client_buf, MIN(limit, max_length), lc_opt, flags);
@@ -621,6 +628,13 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     flags &= ~GEX_FLAG_IMMEDIATE;
     size_t limit = gex_AM_MaxRequestLong(tm,dest,lc_opt,flags,nargs);
     GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
+
+    // Ensure at least one poll upon Request injection (exactly one if possible)
+#if GASNETC_REQUESTV_POLLS
+    // Conduit's Request{Medium,Long}V will AMPoll in Commit
+#else
+    gasneti_AMPoll();
+#endif
 
     return gasneti_prepare_long_common(
                gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS),

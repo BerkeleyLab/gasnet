@@ -68,6 +68,13 @@ typedef ### gasnetc_handler_t;
 #define GASNETC_TOKEN_CREATE 1
 #endif
 
+  /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()
+     include a call to gasneti_AMPoll (or equivalent) for progress.
+     The preferred implementation is to Poll only in the M-suffixed calls
+     and not the V-suffixed calls (and GASNETC_REQUESTV_POLLS undefined).
+   */
+/* #define GASNETC_REQUESTV_POLLS 1 */
+
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
