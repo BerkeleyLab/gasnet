@@ -618,12 +618,12 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     #define GASNETI_AM_SRCDESC_MAGIC       GASNETI_MAKE_MAGIC('A','S','D','t')
     #define GASNETI_AM_SRCDESC_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('A','S','D','t')
     gasneti_magic_t      _magic;
-    gasnet_threadinfo_t  _thread;
     int                  _isreq;
     int                  _category; // true type: gasneti_category_t
   #endif
     void *               _addr;
     size_t               _size;
+    gasnet_threadinfo_t  _thread;
     void *               _tofree;
     union {
       struct {
@@ -638,6 +638,14 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
     int                  _nargs;
+  #if GASNET_PSHM
+    struct {
+      void *               _msg;
+      gex_Rank_t           _target; // should be gasneti_pshm_rank_t
+      int                  _loopback;
+      int                  _is_pshm;
+    }                    _pshm;
+  #endif
   #ifdef GASNETI_AM_SRCDESC_EXTRA
     GASNETI_AM_SRCDESC_EXTRA
   #endif

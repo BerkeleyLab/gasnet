@@ -287,6 +287,32 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
   return retval;
 }
 
+int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
+                                        size_t min_length, size_t max_length
+                                        GASNETI_THREAD_FARG);
+void gasnetc_AMPSHM_CommitRequestMedium(gasneti_AM_SrcDesc_t sd,
+                                        gasnetc_handler_t handler, size_t nbytes,
+                                        va_list argptr);
+int gasnetc_AMPSHM_PrepareRequestLong(gasneti_AM_SrcDesc_t sd,
+                                      size_t min_length, size_t max_length,
+                                      void *dest_addr GASNETI_THREAD_FARG);
+void gasnetc_AMPSHM_CommitRequestLong(gasneti_AM_SrcDesc_t sd,
+                                      gasnetc_handler_t handler, size_t nbytes,
+                                      void *dest_addr, va_list argptr);
+
+int gasnetc_AMPSHM_PrepareReplyMedium(gasneti_AM_SrcDesc_t sd,
+                                      size_t min_length, size_t max_length
+                                      GASNETI_THREAD_FARG);
+void gasnetc_AMPSHM_CommitReplyMedium(gasneti_AM_SrcDesc_t sd,
+                                      gasnetc_handler_t handler, size_t nbytes,
+                                      va_list argptr);
+int gasnetc_AMPSHM_PrepareReplyLong(gasneti_AM_SrcDesc_t sd,
+                                    size_t min_length, size_t max_length,
+                                    void *dest_addr GASNETI_THREAD_FARG);
+void gasnetc_AMPSHM_CommitReplyLong(gasneti_AM_SrcDesc_t sd,
+                                    gasnetc_handler_t handler, size_t nbytes,
+                                    void *dest_addr, va_list argptr);
+
 /*******************************************************************************
  * Intra-supernode shared-memory barrier
  *******************************************************************************/

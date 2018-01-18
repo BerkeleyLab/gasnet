@@ -345,9 +345,7 @@ gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(
 {
   gasneti_AM_SrcDesc_t sd = gasneti_malloc(sizeof(*sd));
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
-#if GASNET_DEBUG
   sd->_thread = GASNETI_MYTHREAD;
-#endif
   sd->_nargs     = nargs;
   return sd;
 }
@@ -496,39 +494,10 @@ static void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
   #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
 #endif
 
-GASNETI_INLINE(gasneti_prepare_common)
-gex_AM_SrcDesc_t gasneti_prepare_common(
-                       gasneti_AM_SrcDesc_t sd,
-                       const void           *client_buf,
-                       size_t               length,
-                       gex_Event_t          *lc_opt,
-                       gex_Flags_t          flags)
-{
-    if (client_buf) {
-        sd->_tofree = NULL;
-        sd->_addr   = (/*non-const*/void *)client_buf;
-    } else {
-#if GASNET_DEBUG
-        // Allocate at least one byte because zero-byte allocation
-        // returns NULL which then leads to ambiguity in argument checking.
-        sd->_addr   = gasneti_malloc(MAX(1,length));
-#else
-        sd->_addr   = gasneti_malloc(length);
-#endif
-        sd->_tofree = sd->_addr;
-        gasneti_init_sd_poison(sd->_tofree, length);
-    }
-    sd->_size     = length;
-    sd->_lc_opt   = lc_opt;
-    sd->_flags    = flags;
-    return gasneti_export_srcdesc(sd);
-}
-
 GASNETI_INLINE(gasneti_prepare_medium_common)
-gex_AM_SrcDesc_t gasneti_prepare_medium_common(
+void gasneti_prepare_medium_common(
                        gasneti_AM_SrcDesc_t sd,
                        const void           *client_buf,
-                       size_t               length,
                        gex_Event_t          *lc_opt,
                        gex_Flags_t          flags)
 {
@@ -536,14 +505,16 @@ gex_AM_SrcDesc_t gasneti_prepare_medium_common(
     sd->_category  = (int)gasneti_Medium;
     sd->_dest_addr = NULL;
 #endif
-    return gasneti_prepare_common(sd, client_buf, length, lc_opt, flags);
+    sd->_lc_opt    = lc_opt;
+    sd->_flags     = flags;
+    sd->_tofree    = NULL;
+    sd->_addr      = (/*non-const*/void *)client_buf;
 }
 
 GASNETI_INLINE(gasneti_prepare_long_common)
-gex_AM_SrcDesc_t gasneti_prepare_long_common(
+void gasneti_prepare_long_common(
                        gasneti_AM_SrcDesc_t sd,
                        const void           *client_buf,
-                       size_t               length,
                        void                 *dest_addr,
                        gex_Event_t          *lc_opt,
                        gex_Flags_t          flags)
@@ -552,9 +523,11 @@ gex_AM_SrcDesc_t gasneti_prepare_long_common(
     sd->_category  = (int)gasneti_Long;
 #endif
     sd->_dest_addr = dest_addr;
-    return gasneti_prepare_common(sd, client_buf, length, lc_opt, flags);
+    sd->_lc_opt    = lc_opt;
+    sd->_flags     = flags;
+    sd->_tofree    = NULL;
+    sd->_addr      = (/*non-const*/void *)client_buf;
 }
-
 
 #ifndef gasnetc_AM_PrepareRequestMedium
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
@@ -568,7 +541,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    flags &= ~GEX_FLAG_IMMEDIATE;
     size_t limit = gex_AM_MaxRequestMedium(tm,dest,lc_opt,flags,nargs);
     GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
 
@@ -579,9 +551,32 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     gasneti_AMPoll();
 #endif
 
-    return gasneti_prepare_medium_common(
-               gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS),
-               client_buf, MIN(limit, max_length), lc_opt, flags);
+    gasneti_AM_SrcDesc_t sd = gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS);
+    gasneti_prepare_medium_common(sd, client_buf, lc_opt, flags);
+
+#if GASNET_PSHM
+    int is_pshm = gasneti_pshm_in_supernode(dest);
+    sd->_pshm._is_pshm = is_pshm;
+    if (is_pshm) {
+    #if GASNETC_REQUESTV_POLLS
+        // Will not reach conduit's Request{Medium,Long}V
+        gasneti_AMPoll();
+    #endif
+        int imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, min_length, max_length GASNETI_THREAD_PASS);
+        if (imm) goto out_immediate;
+    } else
+#endif
+    {
+        sd->_size = MIN(limit, max_length);
+        gasneti_prepare_buffer(sd, client_buf);
+    }
+
+    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
+    return gasneti_export_srcdesc(sd);
+
+out_immediate:
+    gasneti_free_srcdesc(sd);
+    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // gasnetc_AM_PrepareRequestMedium
 
@@ -596,7 +591,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    flags &= ~GEX_FLAG_IMMEDIATE;
     // TODO-EX: using limit=LUB here unless conduit has provided an alternative
     // TODO-EX: expect to eventually use gex_Token_MaxReplyMedium()
 #if defined(gasnetc_Token_MaxReplyMedium)
@@ -606,9 +600,28 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 #endif
     GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Medium);
 
-    return gasneti_prepare_medium_common(
-               gasneti_alloc_reply_srcdesc(token, nargs GASNETI_THREAD_PASS),
-               client_buf, MIN(limit, max_length), lc_opt, flags);
+    gasneti_AM_SrcDesc_t sd = gasneti_alloc_reply_srcdesc(token, nargs GASNETI_THREAD_PASS);
+    gasneti_prepare_medium_common(sd, client_buf, lc_opt, flags);
+
+#if GASNET_PSHM
+    int is_pshm = gasnetc_token_is_pshm(token);
+    sd->_pshm._is_pshm = is_pshm;
+    if (is_pshm) {
+        int imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, min_length, max_length GASNETI_THREAD_PASS);
+        if (imm) goto out_immediate;
+    } else
+#endif
+    {
+        sd->_size = MIN(limit, max_length);
+        gasneti_prepare_buffer(sd, client_buf);
+    }
+
+    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
+    return gasneti_export_srcdesc(sd);
+
+out_immediate:
+    gasneti_free_srcdesc(sd);
+    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // gasnetc_AM_PrepareReplyMedium
 
@@ -625,7 +638,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    flags &= ~GEX_FLAG_IMMEDIATE;
     size_t limit = gex_AM_MaxRequestLong(tm,dest,lc_opt,flags,nargs);
     GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
 
@@ -636,9 +648,32 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     gasneti_AMPoll();
 #endif
 
-    return gasneti_prepare_long_common(
-               gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS),
-               client_buf, MIN(limit, max_length), dest_addr, lc_opt, flags);
+    gasneti_AM_SrcDesc_t sd = gasneti_alloc_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS);
+    gasneti_prepare_long_common(sd, client_buf, dest_addr, lc_opt, flags);
+
+#if GASNET_PSHM
+    int is_pshm = gasneti_pshm_in_supernode(dest);
+    sd->_pshm._is_pshm = is_pshm;
+    if (is_pshm) {
+    #if GASNETC_REQUESTV_POLLS
+        // Will not reach conduit's Request{Medium,Long}V
+        gasneti_AMPoll();
+    #endif
+        int imm = gasnetc_AMPSHM_PrepareRequestLong(sd, min_length, max_length, dest_addr GASNETI_THREAD_PASS);
+        if (imm) goto out_immediate;
+    } else
+#endif
+    {
+        sd->_size = MIN(limit, max_length);
+        gasneti_prepare_buffer(sd, client_buf);
+    }
+
+    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
+    return gasneti_export_srcdesc(sd);
+
+out_immediate:
+    gasneti_free_srcdesc(sd);
+    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // gasnetc_AM_PrepareRequestLong
 
@@ -654,7 +689,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    flags &= ~GEX_FLAG_IMMEDIATE;
     // TODO-EX: using limit=LUB here unless conduit has provided an alternative
     // TODO-EX: expect to eventually use gex_Token_MaxReplyLong()
 #if defined(gasnetc_Token_MaxReplyLong)
@@ -664,9 +698,28 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
 #endif
     GASNETI_AMPREPREPLYCOMMON(client_buf, min_length, max_length, limit, lc_opt, nargs, Long);
 
-    return gasneti_prepare_long_common(
-               gasneti_alloc_reply_srcdesc(token, nargs GASNETI_THREAD_PASS),
-               client_buf, MIN(limit, max_length), dest_addr, lc_opt, flags);
+    gasneti_AM_SrcDesc_t sd = gasneti_alloc_reply_srcdesc(token, nargs GASNETI_THREAD_PASS);
+    gasneti_prepare_long_common(sd, client_buf, dest_addr, lc_opt, flags);
+
+#if GASNET_PSHM
+    int is_pshm = gasnetc_token_is_pshm(token);
+    sd->_pshm._is_pshm = is_pshm;
+    if (is_pshm) {
+        int imm = gasnetc_AMPSHM_PrepareReplyLong(sd, min_length, max_length, dest_addr GASNETI_THREAD_PASS);
+        if (imm) goto out_immediate;
+    } else
+#endif
+    {
+        sd->_size = MIN(limit, max_length);
+        gasneti_prepare_buffer(sd, client_buf);
+    }
+
+    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
+    return gasneti_export_srcdesc(sd);
+
+out_immediate:
+    gasneti_free_srcdesc(sd);
+    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // gasnetc_AM_PrepareReplyLong
 
@@ -681,24 +734,30 @@ void gasnetc_AM_CommitRequestMediumM(
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
-    const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
-    gex_TM_t   tm          = sd->_dest._request._tm;
-    gex_Rank_t dest        = sd->_dest._request._rank;
-    void *src_addr         = sd->_addr;
-    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-    gex_Flags_t flags      = sd->_flags;
-
-    GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-
     va_list argptr;
     va_start(argptr, sd_arg);
-    int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+#if GASNET_PSHM
+    if (sd->_pshm._is_pshm) {
+        gasnetc_AMPSHM_CommitRequestMedium(sd, handler, nbytes, argptr);
+    } else
+#endif
+    {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
+
+        gex_TM_t   tm          = sd->_dest._request._tm;
+        gex_Rank_t dest        = sd->_dest._request._rank;
+        void *src_addr         = sd->_addr;
+        gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
+        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        unsigned int nargs     = sd->_nargs;
+
+        int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    }
     va_end(argptr);
 
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitRequestMediumM
@@ -713,21 +772,29 @@ void gasnetc_AM_CommitReplyMediumM(
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
-    const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
-    
-    gex_Token_t token      = sd->_dest._reply._token;
-    void *src_addr         = sd->_addr;
-    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-    gex_Flags_t flags      = sd->_flags;
 
     va_list argptr;
     va_start(argptr, sd_arg);
-    int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+#if GASNET_PSHM
+    if (sd->_pshm._is_pshm) {
+        gasnetc_AMPSHM_CommitReplyMedium(sd, handler, nbytes, argptr);
+    } else
+#endif
+    {   GASNET_POST_THREADINFO(sd->_thread);
+
+        gex_Token_t token      = sd->_dest._reply._token;
+        void *src_addr         = sd->_addr;
+        gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
+        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        unsigned int nargs     = sd->_nargs;
+
+        int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    }
     va_end(argptr);
 
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitReplyMediumM
@@ -744,24 +811,30 @@ void gasnetc_AM_CommitRequestLongM(
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
-    const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
-    gex_TM_t   tm          = sd->_dest._request._tm;
-    gex_Rank_t dest        = sd->_dest._request._rank;
-    void *src_addr         = sd->_addr;
-    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-    gex_Flags_t flags      = sd->_flags;
-
-    GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-
     va_list argptr;
     va_start(argptr, sd_arg);
-    int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+#if GASNET_PSHM
+    if (sd->_pshm._is_pshm) {
+        gasnetc_AMPSHM_CommitRequestLong(sd, handler, nbytes, dest_addr, argptr);
+    } else
+#endif
+    {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
+
+        gex_TM_t   tm          = sd->_dest._request._tm;
+        gex_Rank_t dest        = sd->_dest._request._rank;
+        void *src_addr         = sd->_addr;
+        gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
+        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        unsigned int nargs     = sd->_nargs;
+
+        int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    }
     va_end(argptr);
 
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitRequestLongM
@@ -777,21 +850,29 @@ void gasnetc_AM_CommitReplyLongM(
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
-    const unsigned int nargs = sd->_nargs;
 
     GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
-    
-    gex_Token_t token      = sd->_dest._reply._token;
-    void *src_addr         = sd->_addr;
-    gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-    gex_Flags_t flags      = sd->_flags;
 
     va_list argptr;
     va_start(argptr, sd_arg);
-    int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+#if GASNET_PSHM
+    if (sd->_pshm._is_pshm) {
+        gasnetc_AMPSHM_CommitReplyLong(sd, handler, nbytes, dest_addr, argptr);
+    } else
+#endif
+    {   GASNET_POST_THREADINFO(sd->_thread);
+
+        gex_Token_t token      = sd->_dest._reply._token;
+        void *src_addr         = sd->_addr;
+        gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
+        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        unsigned int nargs     = sd->_nargs;
+
+        int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+        gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    }
     va_end(argptr);
 
-    gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     gasneti_free_srcdesc(sd);
 }
 #endif // gasnetc_AM_CommitReplyLongM
