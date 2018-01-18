@@ -22,7 +22,7 @@ typedef struct {
 } entry_t;
 typedef entry_t *snap_t;
 
-#define CAPTURE_FULL(key, valstr, valint) { key, valstr, valint }
+#define CAPTURE_FULL(key, valstr, valint) { key, valstr, (int)(valint) }
 #define CAPTURE_TOK(var) CAPTURE_FULL("PLATFORM_" #var, PLATFORM_STRINGIFY(PLATFORM_##var), 0)
 #define CAPTURE_STR(var) CAPTURE_FULL("PLATFORM_" #var, "\"" PLATFORM_##var "\"", 0)
 #define CAPTURE_INT(var) CAPTURE_FULL("PLATFORM_" #var, 0, PLATFORM_##var)
@@ -122,7 +122,7 @@ int main() {
   printf("\n"); 
  
  { /* now look at our own snapshots of output */
-  int i,k;
+  size_t i,k;
   snap_t snaps[] = { snap0, snap1, snap2 };
   size_t numsnaps = sizeof(snaps)/sizeof(snap_t);
   size_t numkeys = sizeof(snap1)/sizeof(entry_t);
@@ -133,19 +133,19 @@ int main() {
        entry_t *ei = &snap[k];
        errs++;
        if (strcmp(ei->key, e0->key)) {
-         printf("ERROR: key %i mismatch in snap %i: %s != %s\n", k, i, ei->key, e0->key);
+         printf("ERROR: key %i mismatch in snap %i: %s != %s\n", (int)k, (int)i, ei->key, e0->key);
        } else if (!ei->valstr != !e0->valstr) {
-         printf("ERROR: %s type mismatch in snap %i\n", ei->key, i);
+         printf("ERROR: %s type mismatch in snap %i\n", ei->key, (int)i);
        } else if (ei->valint != e0->valint) {
-         printf("ERROR: %s mismatch in snap %i: %i != %i\n", ei->key, i, ei->valint, e0->valint);
+         printf("ERROR: %s mismatch in snap %i: %i != %i\n", ei->key, (int)i, ei->valint, e0->valint);
        } else if (ei->valstr && strcmp(ei->valstr, e0->valstr)) {
-         printf("ERROR: %s mismatch in snap %i: %s != %s\n", ei->key, i, ei->valstr, e0->valstr);
+         printf("ERROR: %s mismatch in snap %i: %s != %s\n", ei->key, (int)i, ei->valstr, e0->valstr);
        } else errs--;
     }
   }
   for (i=0; i<numsnaps; i++) {
     snap_t snap = snaps[i];
-    printf("Snap %i:\n-------\n",i);
+    printf("Snap %i:\n-------\n",(int)i);
     for (k=0; k < numkeys; k++) {
        entry_t *e = &snap[k];
        if (e->valstr) {

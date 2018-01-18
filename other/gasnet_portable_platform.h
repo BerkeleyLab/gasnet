@@ -1055,8 +1055,8 @@ ARCH_FAMILYNAME = PLATFORM_STRINGIFY(PLATFORM_ARCH_FAMILYNAME)
 ;
 int main(void) {
   #define PLATFORM_DISP(x) printf("PLATFORM_"#x"=%s\n",x)
-  #define PLATFORM_DISPI(x) printf("PLATFORM_"#x"=%i\n",PLATFORM_##x)
-  #define PLATFORM_DISPX(x) printf("PLATFORM_"#x"=0x%x\n",PLATFORM_##x)
+  #define PLATFORM_DISPI(x) printf("PLATFORM_"#x"=%li\n",(long int)PLATFORM_##x)
+  #define PLATFORM_DISPX(x) printf("PLATFORM_"#x"=0x%lx\n",(long int)PLATFORM_##x)
   PLATFORM_DISP(COMPILER_FAMILYNAME);
   PLATFORM_DISP(COMPILER_FAMILYID);
   PLATFORM_DISPI(COMPILER_ID);
