@@ -450,21 +450,39 @@ typedef union {
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
-  #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node) 
-  #define GASNETI_SUPERNODE_ADDR2LOCAL(node,addr) gasneti_pshm_addr2local(node,addr)
 #else
   #define GASNETI_CHECKPSHM_GET(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt)   ((void)0)
   #define GASNETI_CHECKPSHM_GETVAL()       ((void)0)
   #define GASNETI_CHECKPSHM_PUTVAL(rt)     ((void)0)
+#endif
+
+// GASNETI_SUPERNODE_* convenience macros (same semantics w/ and w/o PSHM)
+//    LOCAL(node)                   -> non-zero iff node is in the supernode
+//    LOCAL_ADDR(node,addr)         -> local address if in supernode, undefined otherwise
+//    LOCAL_ADDR_OR_NULL(node,addr) -> local address if in supernode, NULL otherwise
+// TODO-EX:
+//   + Need (tm,rank) in place of node in all three
+//   + LOCAL_ADDR might be made smarter?
+//
+#if GASNET_PSHM
+  #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node)
+  #define GASNETI_SUPERNODE_LOCAL_ADDR(node,addr) gasneti_pshm_addr2local(node,addr)
+#else
   #if GASNET_CONDUIT_SMP
     #define GASNETI_SUPERNODE_LOCAL(node)    (1)
   #else 
     #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasneti_mynode) 
   #endif
-  #define GASNETI_SUPERNODE_ADDR2LOCAL(node,addr)  (addr)
+  #define GASNETI_SUPERNODE_LOCAL_ADDR(node,addr)  (addr)
 #endif
+GASNETI_INLINE(gasneti_supernode_addr_or_null) GASNETI_PURE
+void *gasneti_supernode_addr_or_null(gex_Rank_t _node, void *_addr) {
+  return GASNETI_SUPERNODE_LOCAL(_node) ? GASNETI_SUPERNODE_LOCAL_ADDR(_node,_addr) : NULL;
+}
+GASNETI_PUREP(gasneti_supernode_addr_or_null)
+#define GASNETI_SUPERNODE_LOCAL_ADDR_OR_NULL(node,addr) gasneti_supernode_addr_or_null(node,addr)
 
 /* ------------------------------------------------------------------------------------ */
 

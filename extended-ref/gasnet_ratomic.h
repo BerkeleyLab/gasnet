@@ -455,7 +455,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #define _GASNETE_RATOMIC_DISP2(fname,nbnbi,isint,type,dtcode,rettype,retdone) \
     extern rettype fname##_external(_GASNETE_RATOMIC_DISP_ARGS(type));   \
     GASNETI_ALWAYS_INLINE(fname)                                         \
-    rettype fname(int _const_flags, _GASNETE_RATOMIC_DISP_ARGS(type))    \
+    rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
                                  _opcode, dtcode##_dtype, _flags);       \
@@ -484,23 +484,9 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasneti_unreachable();                                           \
         return retdone;                                                  \
     }
-// TODO-EX: Must pass jobrank to GASNETI_SUPERNODE_*LOCAL() or find TM-based alternative
-// TODO-EX: This logic actually checks for self twice before hitting the network
+// TODO-EX: Must add TM argument to GASNETI_SUPERNODE_LOCAL*()
 #define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
-        if (_const_flags) {                                                  \
-            /* These tests are fully resolvable at compile time */           \
-            if (_flags & GEX_FLAG_AD_MY_RANK) {                              \
-                gasneti_assert(_tgt_rank == _real_ad->_rank);                \
-                goto use_tools;                                              \
-            }                                                                \
-            _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_STATIC(dtcode)              \
-        }                                                                    \
-        if (_tgt_rank == _real_ad->_rank) {                                  \
-            goto use_tools;                                                  \
-        }                                                                    \
-        _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_DYNAMIC(dtcode)                 \
-        break; /* Leave enclosing do/while w/o using tools */                \
-        use_tools: ((void)0); /* label must precede a statement */           \
+        _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode)                            \
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
                                                  _opcode);                   \
@@ -510,21 +496,33 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         return retdone;                                                      \
     } while (0)
 #if GASNET_PSHM
-  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_STATIC(dtcode) \
-    if (_flags & GEX_FLAG_AD_MY_NEIGHBORHOOD) {                        \
-        gasneti_assert(GASNETI_SUPERNODE_LOCAL(_tgt_rank));            \
-        _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr); \
-        goto use_tools;                                                \
-    }
-  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_DYNAMIC(dtcode) \
-    else if (GASNETE_RATOMIC_PSHMSAFE##dtcode &&                       \
-             GASNETI_SUPERNODE_LOCAL(_tgt_rank)) {                     \
-        _tgt_addr = GASNETI_SUPERNODE_ADDR2LOCAL(_tgt_rank,_tgt_addr); \
-        goto use_tools;                                                \
+  #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
+    if (_flags & GEX_FLAG_AD_MY_RANK) {                                  \
+        gasneti_assert(_tgt_rank == _real_ad->_rank);                    \
+        /* Will use tools */                                             \
+    } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode) {                       \
+        if (_flags & GEX_FLAG_AD_MY_NEIGHBORHOOD) {                      \
+            gasneti_assert(GASNETI_SUPERNODE_LOCAL(_tgt_rank));          \
+            _tgt_addr = GASNETI_SUPERNODE_LOCAL_ADDR(_tgt_rank,_tgt_addr);\
+            /* Will use tools */                                         \
+        } else {                                                         \
+            void *_tmp_addr = GASNETI_SUPERNODE_LOCAL_ADDR_OR_NULL(_tgt_rank,_tgt_addr); \
+            if (!_tmp_addr) break; /* Leave enclosing do/while w/o using tools */ \
+            _tgt_addr = (dtcode##_type *)_tmp_addr;                      \
+            /* Will use tools */                                         \
+        }                                                                \
+    } else {                                                             \
+       break; /* Leave enclosing do/while w/o using tools */             \
     }
 #else
-  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_STATIC(dtcode)  /*empty*/
-  #define _GASNETE_RATOMIC_DISP_TOOLS_NEIGHBOR_DYNAMIC(dtcode)  /*empty*/
+  #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
+    if ((_flags & (GEX_FLAG_AD_MY_RANK|GEX_FLAG_AD_MY_NEIGHBORHOOD)) ||  \
+        (_tgt_rank == _real_ad->_rank)) {                                \
+        gasneti_assert(_tgt_rank == _real_ad->_rank);                    \
+        /* Will use tools */                                             \
+    } else {                                                             \
+       break; /* Leave enclosing do/while w/o using tools */             \
+    }
 #endif
 #define _GASNETE_RATOMIC_DISP_ISFETCH(opcode) \
     ((opcode) & (GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT | \

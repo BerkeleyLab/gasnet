@@ -205,7 +205,7 @@ void gasnete_ratomic_validate(
         type                operand2,  gex_Flags_t    flags       \
         GASNETI_THREAD_FARG)                                      \
     {                                                             \
-      return prefix##_NB(0, ad, result_p, tgt_rank, tgt_addr,     \
+      return prefix##_NB(ad, result_p, tgt_rank, tgt_addr,        \
                          opcode, operand1, operand2, flags        \
                          GASNETI_THREAD_PASS);                    \
     } \
@@ -216,7 +216,7 @@ void gasnete_ratomic_validate(
         type                operand2,  gex_Flags_t    flags       \
         GASNETI_THREAD_FARG)                                      \
     {                                                             \
-      return prefix##_NBI(0, ad, result_p, tgt_rank, tgt_addr,    \
+      return prefix##_NBI(ad, result_p, tgt_rank, tgt_addr,       \
                          opcode, operand1, operand2, flags        \
                          GASNETI_THREAD_PASS);                    \
     }
