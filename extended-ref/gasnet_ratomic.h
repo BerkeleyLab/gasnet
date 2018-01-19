@@ -564,10 +564,20 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_DISP)
 // functions, unless the conduit has previously defined overrides.
 //
 
-#define GASNETE_RATOMIC_FN(suffix,ad,result_p,rank,addr,opcode,op1,op2,flags) \
+// GASNETE_RATOMIC_NO_EXTERNAL is a compile-time "kill switch" for the use of
+// gasneti_constant_p() to call an external function for dispatch of gex_AD_Op*
+// when 'op' is non-constant.
+// If defined non-zero then the inline functions will always be used.
+
+#if GASNETE_RATOMIC_NO_EXTERNAL
+  #define GASNETE_RATOMIC_FN(suffix,ad,result_p,rank,addr,opcode,op1,op2,flags) \
+     gasnete_ratomic_##suffix(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET)
+#else
+  #define GASNETE_RATOMIC_FN(suffix,ad,result_p,rank,addr,opcode,op1,op2,flags) \
     (gasneti_constant_p(opcode) \
-     ? gasnete_ratomic_##suffix(gasneti_constant_p(flags),ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET) \
+     ? gasnete_ratomic_##suffix(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET) \
      : gasnete_ratomic_##suffix##_external(ad,result_p,rank,addr,opcode,op1,op2,flags GASNETI_THREAD_GET))
+#endif
 //
 #if !defined(gex_AD_OpNB_I32) || !defined(gex_AD_OpNBI_I32)
   #if defined(gex_AD_OpNB_I32) || defined(gex_AD_OpNBI_I32)
