@@ -456,7 +456,7 @@ void doit(gex_DT_t dt) {
   // + For x in [lo,hi] 2*x*x must be representable exactly in the target type
   //   (because 2*x*x is the max value reached by the series of arithmetic ops)
   int lo, hi;
-  test_static_assert(FLT_RADIX == 2); // May fail on s390!!
+  test_static_assert(FLT_RADIX == 2);
   switch (dt) {
     case GEX_DT_U32:
       hi = (1<<15);
