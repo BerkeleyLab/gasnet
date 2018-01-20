@@ -227,6 +227,17 @@ typedef [some integer type] gex_Flags_t;
 //
 #define GEX_FLAG_AD_MY_RANK          ((gex_Flags_t)???)
 #define GEX_FLAG_AD_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
+//
+// AD_FAVOR_{MY_RANK,MY_NEIGHBORHOOD,REMOTE}
+//
+// This mutually-exclusive group of flags each request that gex_AD_Create()
+// bias its algorithm selection to favor calls with a given locality property
+// for the target locations, and are described in detail in the "Remote Atomic
+// Operations" section.
+//
+#define GEX_FLAG_AD_FAVOR_MY_RANK          ((gex_Flags_t)???)
+#define GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
+#define GEX_FLAG_AD_FAVOR_REMOTE           ((gex_Flags_t)???)
 
 // SEGMENT DISPOSITION
 //
@@ -1603,10 +1614,26 @@ typedef ... gex_AD_t;
 // definitions of gex_OP_t), then the behavior is undefined.
 //
 // The 'flags' argument provides additional control over the created domain.
-//  + GEX_FLAG_AD_FAVOR_*: [UNIMPLEMENTED]
-//    Family of flags (still TBD) to influence the selection of implementation,
-//    for instance to favor performance of access by the process to which the data
-//    has affinity vs access via the network (among other possibilities).
+//  + GEX_FLAG_AD_FAVOR_{MY_RANK,MY_NEIGHBORHOOD,REMOTE}
+//    This family of mutually-exclusive flags are hints to influence the
+//    selection of implementation to favor PERFORMANCE of accesses initiated
+//    for target locations having certain locality properties.  Presence or
+//    absence of these flags will never impact correctness.
+//    - GEX_FLAG_AD_FAVOR_MY_RANK:
+//      Favor calls with the initiating and target endpoint being the same.
+//      (e.g use of GEX_FLAG_AD_MY_RANK would be legal at initiation).
+//    - GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD:
+//      Favor calls with the initiating and target endpoints belonging to
+//      processes in the same "Neighborhood", as defined previously.  (e.g.
+//      use of GEX_FLAG_AD_MY_NEIGHBORHOOD would be legal at initiation).
+//    - GEX_FLAG_AD_FAVOR_REMOTE:
+//      Favor calls with the initiating and target endpoints belonging to
+//      distinct Neighborhoods.
+//   If a call to gex_AD_Create does not include any flag from this group, the
+//   behavior is not required to correspond to any of the behaviors described
+//   above.  A high-quality implementation should examine the composition of
+//   'tm' and when possible favor either RANK (TM with a single member) or
+//   NEIGHBORHOOD (TM with all members in the same Neighborhood).
 //
 // The 'dt', 'ops' and 'flags' arguments must each be equal across all callers
 // (single-valued) or the behavior is undefined.

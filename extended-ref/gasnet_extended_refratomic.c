@@ -109,6 +109,11 @@ void gasneti_AD_Create(
   gasneti_assert(gasneti_op_fp_mask(ops)  || !gasneti_dt_fp(dt));
   gasneti_assert(gasneti_op_int_mask(ops) || !gasneti_dt_int(dt));
 
+  // Does the 'flags' argument include at most one AD_FAVOR_* bit?
+  gasneti_assert(GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_FAVOR_MY_RANK |
+                                             GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD |
+                                             GEX_FLAG_AD_FAVOR_REMOTE)));
+
   // Verify we agree on the size of the FP type, if any
   gasneti_assert((dt != GEX_DT_FLT) || sizeof(float) == 4);
   gasneti_assert((dt != GEX_DT_DBL) || sizeof(double) == 8);

@@ -709,6 +709,10 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_AD_MY_RANK,
     GEX_FLAG_AD_MY_NEIGHBORHOOD,
 
+    GEX_FLAG_AD_FAVOR_MY_RANK,
+    GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_FAVOR_REMOTE,
+
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,
@@ -720,7 +724,7 @@ void doit(int partner, int *partnerseg) {
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
   // Ensure lack of aliasing within groups of flags potentially passed togther
-  static gex_Flags_t const flags_rma[] = {
+  static gex_Flags_t const flags_rma[] = { // gex_RMA_* initiation
     GEX_FLAG_IMMEDIATE,
 
     GEX_FLAG_SELF_SEG_UNKNOWN,
@@ -736,7 +740,13 @@ void doit(int partner, int *partnerseg) {
     //GEX_FLAG_LC_COPY_NO,
   };
   assert_arr_unaliased(gex_Flags_t, flags_rma);
-  static gex_Flags_t const flags_ad[] = {
+  static gex_Flags_t const flags_adc[] = { // gex_AD_Create
+    GEX_FLAG_AD_FAVOR_MY_RANK,
+    GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_FAVOR_REMOTE,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_adc);
+  static gex_Flags_t const flags_ad[] = { // gex_AD_Op* initiation
     GEX_FLAG_IMMEDIATE,
 
     GEX_FLAG_SELF_SEG_UNKNOWN,
@@ -752,7 +762,7 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_AD_MY_NEIGHBORHOOD,
   };
   assert_arr_unaliased(gex_Flags_t, flags_ad);
-  static gex_Flags_t const flags_amreg[] = {
+  static gex_Flags_t const flags_amreg[] = { // gex_EP_RegisterHandlers
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,
