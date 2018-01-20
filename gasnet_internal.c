@@ -948,7 +948,7 @@ extern gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
 void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
 #ifdef GASNETI_SD_FREE_EXTRA
-  GASNETI_TM_FREE_EXTRA(sd);
+  GASNETI_SD_FREE_EXTRA(sd);
 #endif
   gasneti_free(sd->_tofree);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
