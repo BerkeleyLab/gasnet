@@ -485,6 +485,9 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         return retdone;                                                  \
     }
 // TODO-EX: Must add TM argument to GASNETI_SUPERNODE_LOCAL*()
+// Note that _GASNETE_RATOMIC_DISP_TOOLS_SAFE has unusually "flow" in that it
+// EITHER completes the operation synchronously using tools and *returns*
+// OR it continues through to the next statement.
 #define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
         _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode)                            \
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
