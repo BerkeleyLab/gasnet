@@ -1332,7 +1332,8 @@ int gasnetc_local_short_common(int is_req, gex_Token_t token_arg, gex_Rank_t des
 {
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
+  uint64_t notify_word = gc_build_notify(is_req ? gc_notify_request : gc_notify_reply, 0, 0);
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, notify_word, NULL };
   gex_Token_t token = (gex_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   
@@ -1351,7 +1352,8 @@ int gasnetc_local_medium_common(int is_req, gex_Token_t token_arg, gex_Rank_t de
 {
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
+  uint64_t notify_word = gc_build_notify(is_req ? gc_notify_request : gc_notify_reply, 0, 0);
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, notify_word, NULL };
   gex_Token_t token = (gex_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
@@ -1374,7 +1376,9 @@ int gasnetc_local_long_common(int is_req, gex_Token_t token_arg, gex_Rank_t dest
 {
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
   const gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
-  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, 0, NULL };
+  uint64_t notify_word = gc_build_notify(is_req ? gc_notify_request : gc_notify_reply, 0, 0)
+                       | gasnetc_build_am_header(GC_CMD_AM_LONG, 0, 0, 0);
+  gasnetc_token_t the_token = { gasneti_mynode, handler_entry, is_req, notify_word, NULL };
   gex_Token_t token = (gex_Token_t)&the_token; /* RUN macros need an lvalue */
   gex_AM_Arg_t args[GASNETC_MAX_ARGS];
   
