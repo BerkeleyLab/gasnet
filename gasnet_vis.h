@@ -493,7 +493,9 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
     const size_t * const __srcstrides = (srcstrides);                                                   \
     const size_t * const __count = (count);                                                             \
     const size_t __stridelevels = (stridelevels);                                                       \
+    gasneti_assert(__count);                                                                            \
     if_pt (!gasnete_strided_empty(__count[0], __count+1, __stridelevels)) {                             \
+      gasneti_assert(__dststrides); gasneti_assert(__srcstrides);                                       \
       if_pf (__stridelevels > 0 && __dststrides[0] < __count[0])                                        \
           gasneti_fatalerror("dststrides[0](%" PRIuSZ ") < count[0](%" PRIuSZ ") at: %s",               \
                         __dststrides[0],__count[0], gasneti_current_loc);                               \
@@ -742,6 +744,12 @@ int _gex_VIS_IndexedGetNBI(
 
 /*---------------------------------------------------------------------------------*/
 /* Strided */
+
+#ifndef GASNETE_OLD_STRIDED
+#error Internal error: missing GASNETE_OLD_STRIDED defn
+#endif
+
+#if GASNETE_OLD_STRIDED // TODO-EX : remove this
 #ifndef gasnete_puts
   extern gex_Event_t gasnete_puts(
         gasnete_synctype_t _synctype,
@@ -771,29 +779,68 @@ int _gex_VIS_IndexedGetNBI(
 #ifndef GASNETE_STRIDED_BETATHUNK_DIMS
 #define GASNETE_STRIDED_BETATHUNK_DIMS 32
 #endif
-#if GASNET_DEBUG
-// technically strides are permitted to be garbage if any legacy count[i]=0
-#define GASNETE_STRIDED_BETATHUNK_STRIDECHECK                         \
-  if (!gasnete_strided_empty(_elemsz,_count,_stridelevels)) {         \
-    for (size_t _i=0; _i < _stridelevels; _i++) {                     \
-      gasneti_assert(_srcstrides[_i] >= 0);                           \
-      gasneti_assert(_dststrides[_i] >= 0);                           \
-    }                                                                 \
-  }
-#else
-#define GASNETE_STRIDED_BETATHUNK_STRIDECHECK
-#endif
 #define GASNETE_STRIDED_BETATHUNK                                     \
-  GASNETE_STRIDED_BETATHUNK_STRIDECHECK                               \
+  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels); \
   gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));                \
-  const size_t *__srcstrides = (const size_t *)_srcstrides;           \
-  const size_t *__dststrides = (const size_t *)_dststrides;           \
   gasneti_assert(_stridelevels < GASNETE_STRIDED_BETATHUNK_DIMS);     \
   size_t _count_thunk[GASNETE_STRIDED_BETATHUNK_DIMS];                \
   _count_thunk[0] = _elemsz;                                          \
   if (_stridelevels > 0)                                              \
     memcpy(&(_count_thunk[1]),_count,_stridelevels*sizeof(size_t));   \
   _count = _count_thunk;
+#define _gasnete_puts(synctype,tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
+         gasnete_puts(synctype,tm,dstrank,dstaddr,(const size_t *)dststrides,srcaddr,(const size_t *)srcstrides,count,stridelevels,flags GASNETE_THREAD_PASS)
+#define _gasnete_gets(synctype,tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
+         gasnete_gets(synctype,tm,dstaddr,(const size_t *)dststrides,srcrank,srcaddr,(const size_t *)srcstrides,count,stridelevels,flags GASNETE_THREAD_PASS)
+
+#define _GASNETE_STRIDED_COMMON_GET \
+   gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels); \
+   _GASNETE_STRIDED_COMMON
+#define _GASNETE_STRIDED_COMMON_PUT \
+   gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels); \
+   _GASNETE_STRIDED_COMMON
+
+#else // NEW strided code
+
+#ifndef gasnete_puts
+  extern gex_Event_t gasnete_puts(
+        gasnete_synctype_t _synctype,
+        gex_TM_t _tm, gex_Rank_t _dstrank,
+        void *_dstaddr, const ptrdiff_t _dststrides[],
+        void *_srcaddr, const ptrdiff_t _srcstrides[],
+        size_t _elemsz, const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG);
+
+#endif
+#ifndef gasnete_gets
+  extern gex_Event_t gasnete_gets(
+        gasnete_synctype_t _synctype,
+        gex_TM_t _tm,
+        void *_dstaddr, const ptrdiff_t _dststrides[],
+        gex_Rank_t _srcrank,
+        void *_srcaddr, const ptrdiff_t _srcstrides[],
+        size_t _elemsz, const size_t _count[], size_t _stridelevels,
+        gex_Flags_t _flags GASNETE_THREAD_FARG);
+#endif
+// no-ops
+#define GASNETE_STRIDED_BETATHUNK  
+#define _GASNETE_STRIDED_COMMON_GET _GASNETE_STRIDED_COMMON
+#define _GASNETE_STRIDED_COMMON_PUT _GASNETE_STRIDED_COMMON
+#define _gasnete_puts(synctype,tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
+         gasnete_puts(synctype,tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_PASS)
+#define _gasnete_gets(synctype,tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
+         gasnete_gets(synctype,tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_PASS)
+
+#endif // !GASNETE_OLD_STRIDED
+
+#define _GASNETE_STRIDED_COMMON                            \
+  if_pf (_elemsz == 0) return 0;                           \
+  if_pt (_stridelevels != 0) { /* check array validity */  \
+    gasneti_assert(_dststrides);                           \
+    gasneti_assert(_srcstrides);                           \
+    gasneti_assert(_count);                                \
+  }                                                        \
+  GASNETE_STRIDED_BETATHUNK
 
 #if 1 // blocking interfaces removed in EX?
 GASNETI_INLINE(_gex_VIS_StridedPutBlocking)
@@ -803,11 +850,9 @@ int _gex_VIS_StridedPutBlocking(
         void *_srcaddr, const ptrdiff_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels);
   GASNETI_TRACE_PUTS(PUTS_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
-  GASNETE_STRIDED_BETATHUNK
-  return gasnete_puts(gasnete_synctype_b,_tm,_dstrank,_dstaddr,__dststrides,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  _GASNETE_STRIDED_COMMON_PUT
+  return _gasnete_puts(gasnete_synctype_b,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedPutBlocking(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedPutBlocking(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -820,11 +865,9 @@ int _gex_VIS_StridedGetBlocking(
         void *_srcaddr, const ptrdiff_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels);
   GASNETI_TRACE_GETS(GETS_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
-  GASNETE_STRIDED_BETATHUNK
-  return gasnete_gets(gasnete_synctype_b,_tm,_dstaddr,__dststrides,_srcrank,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  _GASNETE_STRIDED_COMMON_GET
+  return _gasnete_gets(gasnete_synctype_b,_tm,_dstaddr,_dststrides,_srcrank,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedGetBlocking(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedGetBlocking(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -837,11 +880,9 @@ gex_Event_t _gex_VIS_StridedPutNB(
         void *_srcaddr, const ptrdiff_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels);
   GASNETI_TRACE_PUTS(PUTS_NB_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
-  GASNETE_STRIDED_BETATHUNK
-  return gasnete_puts(gasnete_synctype_nb,_tm,_dstrank,_dstaddr,__dststrides,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
+  _GASNETE_STRIDED_COMMON_PUT
+  return _gasnete_puts(gasnete_synctype_nb,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags);
 }
 #define gex_VIS_StridedPutNB(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedPutNB(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -854,11 +895,9 @@ gex_Event_t _gex_VIS_StridedGetNB(
         void *_srcaddr, const ptrdiff_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels);
   GASNETI_TRACE_GETS(GETS_NB_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
-  GASNETE_STRIDED_BETATHUNK
-  return gasnete_gets(gasnete_synctype_nb,_tm,_dstaddr,__dststrides,_srcrank,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
+  _GASNETE_STRIDED_COMMON_GET
+  return _gasnete_gets(gasnete_synctype_nb,_tm,_dstaddr,_dststrides,_srcrank,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags);
 }
 #define gex_VIS_StridedGetNB(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedGetNB(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -870,11 +909,9 @@ int _gex_VIS_StridedPutNBI(
         void *_srcaddr, const ptrdiff_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels);
   GASNETI_TRACE_PUTS(PUTS_NBI_BULK,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
-  GASNETE_STRIDED_BETATHUNK
-  return gasnete_puts(gasnete_synctype_nbi,_tm,_dstrank,_dstaddr,__dststrides,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  _GASNETE_STRIDED_COMMON_PUT
+  return _gasnete_puts(gasnete_synctype_nbi,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedPutNBI(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedPutNBI(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
@@ -887,30 +924,37 @@ int _gex_VIS_StridedGetNBI(
         void *_srcaddr, const ptrdiff_t _srcstrides[],
         size_t _elemsz, const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasnete_check_strides(_dststrides, _srcstrides, _elemsz, _count, _stridelevels);
-  gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels);
   GASNETI_TRACE_GETS(GETS_NBI_BULK,_srcrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels);
-  GASNETE_STRIDED_BETATHUNK
-  return gasnete_gets(gasnete_synctype_nbi,_tm,_dstaddr,__dststrides,_srcrank,_srcaddr,__srcstrides,_count,_stridelevels,_flags GASNETE_THREAD_PASS) == GEX_EVENT_NO_OP;
+  _GASNETE_STRIDED_COMMON_GET
+  return _gasnete_gets(gasnete_synctype_nbi,_tm,_dstaddr,_dststrides,_srcrank,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags) == GEX_EVENT_NO_OP;
 }
 #define gex_VIS_StridedGetNBI(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
        _gex_VIS_StridedGetNBI(tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
 
+#undef _gasnete_puts
+#undef _gasnete_gets
+#undef GASNETE_STRIDED_BETATHUNK  
+#undef _GASNETE_STRIDED_COMMON
+#undef _GASNETE_STRIDED_COMMON_GET
+#undef _GASNETE_STRIDED_COMMON_PUT
+
 /*---------------------------------------------------------------------------------*/
 // g2ex Strided wrappers
 // These translate the Strided metadata from legacy to EX format
+
+#define _GASNETE_G2EX_STRIDED_COMMON() \
+  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t)); \
+  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels)
 
 GASNETI_INLINE(_gasnet_puts_bulk)
 void _gasnet_puts_bulk(
         gex_TM_t _tm, gex_Rank_t _dstrank,
         void *_dstaddr, const size_t _dststrides[],
         void *_srcaddr, const size_t _srcstrides[],
-        const size_t _count[], size_t _stridelevels,
-        gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));
-  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
-  _gex_VIS_StridedPutBlocking(_tm,_dstrank,_dstaddr,(ptrdiff_t*)_dststrides,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+        const size_t _count[], size_t _stridelevels
+        GASNETE_THREAD_FARG) {
+  _GASNETE_G2EX_STRIDED_COMMON();
+  _gex_VIS_StridedPutBlocking(_tm,_dstrank,_dstaddr,(ptrdiff_t*)_dststrides,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,0 GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_gets_bulk)
 void _gasnet_gets_bulk(
@@ -918,24 +962,20 @@ void _gasnet_gets_bulk(
         void *_dstaddr, const size_t _dststrides[],
         gex_Rank_t _srcrank,
         void *_srcaddr, const size_t _srcstrides[],
-        const size_t _count[], size_t _stridelevels,
-        gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));
-  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
-  _gex_VIS_StridedGetBlocking(_tm,_dstaddr,(ptrdiff_t*)_dststrides,_srcrank,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+        const size_t _count[], size_t _stridelevels
+        GASNETE_THREAD_FARG) {
+  _GASNETE_G2EX_STRIDED_COMMON();
+  _gex_VIS_StridedGetBlocking(_tm,_dstaddr,(ptrdiff_t*)_dststrides,_srcrank,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,0 GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_puts_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gasnet_puts_nb_bulk(
         gex_TM_t _tm, gex_Rank_t _dstrank,
         void *_dstaddr, const size_t _dststrides[],
         void *_srcaddr, const size_t _srcstrides[],
-        const size_t _count[], size_t _stridelevels,
-        gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));
-  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
-  return _gex_VIS_StridedPutNB(_tm,_dstrank,_dstaddr,(ptrdiff_t*)_dststrides,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+        const size_t _count[], size_t _stridelevels
+        GASNETE_THREAD_FARG) {
+  _GASNETE_G2EX_STRIDED_COMMON();
+  return _gex_VIS_StridedPutNB(_tm,_dstrank,_dstaddr,(ptrdiff_t*)_dststrides,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,0 GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_gets_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gasnet_gets_nb_bulk(
@@ -943,24 +983,20 @@ gex_Event_t _gasnet_gets_nb_bulk(
         void *_dstaddr, const size_t _dststrides[],
         gex_Rank_t _srcrank,
         void *_srcaddr, const size_t _srcstrides[],
-        const size_t _count[], size_t _stridelevels,
-        gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));
-  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
-  return _gex_VIS_StridedGetNB(_tm,_dstaddr,(ptrdiff_t*)_dststrides,_srcrank,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+        const size_t _count[], size_t _stridelevels
+        GASNETE_THREAD_FARG) {
+  _GASNETE_G2EX_STRIDED_COMMON();
+  return _gex_VIS_StridedGetNB(_tm,_dstaddr,(ptrdiff_t*)_dststrides,_srcrank,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,0 GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_puts_nbi_bulk)
 void _gasnet_puts_nbi_bulk(
         gex_TM_t _tm, gex_Rank_t _dstrank,
         void *_dstaddr, const size_t _dststrides[],
         void *_srcaddr, const size_t _srcstrides[],
-        const size_t _count[], size_t _stridelevels,
-        gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));
-  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
-  _gex_VIS_StridedPutNBI(_tm,_dstrank,_dstaddr,(ptrdiff_t*)_dststrides,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+        const size_t _count[], size_t _stridelevels
+        GASNETE_THREAD_FARG) {
+  _GASNETE_G2EX_STRIDED_COMMON();
+  _gex_VIS_StridedPutNBI(_tm,_dstrank,_dstaddr,(ptrdiff_t*)_dststrides,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,0 GASNETE_THREAD_PASS);
 }
 GASNETI_INLINE(_gasnet_gets_nbi_bulk)
 void _gasnet_gets_nbi_bulk(
@@ -968,12 +1004,10 @@ void _gasnet_gets_nbi_bulk(
         void *_dstaddr, const size_t _dststrides[],
         gex_Rank_t _srcrank,
         void *_srcaddr, const size_t _srcstrides[],
-        const size_t _count[], size_t _stridelevels,
-        gex_Flags_t _flags GASNETE_THREAD_FARG) {
-  gasneti_assert(!(_flags & GEX_FLAG_IMMEDIATE));
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t));
-  gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels);
-  _gex_VIS_StridedGetNBI(_tm,_dstaddr,(ptrdiff_t*)_dststrides,_srcrank,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,_flags GASNETE_THREAD_PASS);
+        const size_t _count[], size_t _stridelevels
+        GASNETE_THREAD_FARG) {
+  _GASNETE_G2EX_STRIDED_COMMON();
+  _gex_VIS_StridedGetNBI(_tm,_dstaddr,(ptrdiff_t*)_dststrides,_srcrank,_srcaddr,(ptrdiff_t*)_srcstrides,_count[0],_count+1,_stridelevels,0 GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

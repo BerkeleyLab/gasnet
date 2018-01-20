@@ -8,6 +8,10 @@
   #error This file not meant to be compiled directly - included by gasnet_extended_refvis.c
 #endif
 
+#if !defined(GASNETE_OLD_STRIDED) || GASNETE_OLD_STRIDED
+#error Internal error: wrong GASNETE_OLD_STRIDED defn
+#endif
+
 /* Clang can be picky */
 #if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
   #pragma clang diagnostic push

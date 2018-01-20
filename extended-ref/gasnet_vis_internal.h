@@ -98,16 +98,16 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_RETURN_VOLATILE(eop, synctype) do {            \
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
-        gex_Event_t h = gasneti_eop_to_event(eop);              \
+        gex_Event_t h = gasneti_eop_to_event(eop);                   \
         gasnete_wait(h GASNETI_THREAD_PASS);                         \
-        return GEX_EVENT_INVALID;                                \
+        return GEX_EVENT_INVALID;                                    \
       }                                                              \
       case gasnete_synctype_nb:                                      \
-        return gasneti_eop_to_event(eop);                           \
+        return gasneti_eop_to_event(eop);                            \
       case gasnete_synctype_nbi:                                     \
-        return GEX_EVENT_INVALID;                                \
-      default: gasneti_fatalerror("bad synctype");                   \
-        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */ \
+        return GEX_EVENT_INVALID;                                    \
+      default: gasneti_unreachable();                                \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */     \
     }                                                                \
 } while (0)
 
@@ -122,8 +122,6 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
   } while (0)
 #else
 #define GASNETE_ERROR_NO_EOP_INTERFACE() gasneti_fatalerror("Tried to invoke GASNETE_VISOP_SIGNAL without GASNETI_HAVE_EOP_INTERFACE at %s:%i",__FILE__,__LINE__)
-#define GASNETE_VISOP_SIGNAL(visop, isget) GASNETE_ERROR_NO_EOP_INTERFACE()
-#define GASNETE_VISOP_SIGNAL(visop, isget) GASNETE_ERROR_NO_EOP_INTERFACE()
 #define GASNETE_VISOP_SIGNAL(visop, isget) GASNETE_ERROR_NO_EOP_INTERFACE()
 #endif
 
@@ -148,23 +146,23 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate event */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
-    if (islocal) return GEX_EVENT_INVALID;                                        \
+    if (islocal) return GEX_EVENT_INVALID;                                            \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);               \
+        return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);                   \
       case gasnete_synctype_b:                                                        \
         gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS) GASNETE_THREAD_PASS); \
-        return GEX_EVENT_INVALID;                                                 \
+        return GEX_EVENT_INVALID;                                                     \
       case gasnete_synctype_nbi:                                                      \
-        return GEX_EVENT_INVALID;                                                 \
-      default: gasneti_fatalerror("bad synctype");                                    \
-        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */                  \
+        return GEX_EVENT_INVALID;                                                     \
+      default: gasneti_unreachable();                                                 \
+        return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */                      \
     }                                                                                 \
   } while(0)
 
 #define GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(NULL/*team*/, dstnode, dstaddr, nbytes);    \
+    gasneti_boundscheck_allowoutseg(gasneti_THUNK_TM, dstnode, dstaddr, nbytes);    \
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_put_nbi(gasneti_THUNK_TM, (dstnode), (dstaddr), (srcaddr), (nbytes), \
@@ -173,7 +171,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(NULL/*team*/, srcnode, srcaddr, nbytes);    \
+    gasneti_boundscheck_allowoutseg(gasneti_THUNK_TM, srcnode, srcaddr, nbytes);    \
     gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_get_nbi(gasneti_THUNK_TM, (dstaddr), (srcnode), (srcaddr), (nbytes), \

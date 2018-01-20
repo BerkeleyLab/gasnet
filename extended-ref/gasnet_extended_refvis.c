@@ -57,7 +57,11 @@ extern void gasnete_vis_init(void) {
 
 #include "gasnet_vis_indexed.c"
 
+#if GASNETE_OLD_STRIDED
+#include "gasnet_vis_oldstrided.c"
+#else
 #include "gasnet_vis_strided.c"
+#endif
 
 #undef GASNETI_GASNET_EXTENDED_REFVIS_C
 
