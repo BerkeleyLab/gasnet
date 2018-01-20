@@ -101,6 +101,7 @@ typedef struct _gasnete_thread_cleanup {
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
+  void *gasneti_req_sd, *gasneti_rep_sd;  /* two pointers for NP-AM */        \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
                                                                               \

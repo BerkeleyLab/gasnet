@@ -327,6 +327,7 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
   const gasneti_AM_SrcDesc_t _real_srcdesc = GASNETI_IMPORT_POINTER(gasneti_AM_SrcDesc_t,_srcdesc);
   GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
+  gasneti_assert(!_real_srcdesc || (_real_srcdesc->_thread == gasnete_mythread()));
   return _real_srcdesc;
 }
 #endif
@@ -338,15 +339,14 @@ gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
 }
 #endif
 
-GASNETI_INLINE(gasneti_alloc_srcdesc)
-gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(
-                       int            nargs
-                       GASNETI_THREAD_FARG)
+static gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(int isreq GASNETI_THREAD_FARG)
 {
   gasneti_AM_SrcDesc_t sd = gasneti_malloc(sizeof(*sd));
-  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Yes, we start "BAD"
   sd->_thread = GASNETI_MYTHREAD;
-  sd->_nargs     = nargs;
+#if GASNET_DEBUG
+  sd->_isreq  = isreq;
+#endif
   return sd;
 }
 
@@ -356,15 +356,19 @@ static gasneti_AM_SrcDesc_t gasneti_alloc_request_srcdesc(
                        int            nargs
                        GASNETI_THREAD_FARG)
 {
-  gasneti_AM_SrcDesc_t sd = gasneti_alloc_srcdesc(nargs GASNETI_THREAD_PASS);
+  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
+  gasneti_AM_SrcDesc_t sd = mythread_ptrs[3]; // 4th pointer
+  if_pf (!sd) { sd = mythread_ptrs[3] = gasneti_alloc_srcdesc(1 GASNETI_THREAD_PASS); }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
+
+  sd->_nargs               = nargs;
   sd->_dest._request._tm   = tm;
   sd->_dest._request._rank = rank;
-#if GASNET_DEBUG
-  sd->_isreq  = 1;
-#endif
 #ifdef GASNETI_SD_ALLOC_REQ_EXTRA
   GASNETI_SD_ALLOC_REQ_EXTRA(sd);
 #endif
+
+  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
   return sd;
 }
 
@@ -373,14 +377,18 @@ static gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
                        int            nargs
                        GASNETI_THREAD_FARG)
 {
-  gasneti_AM_SrcDesc_t sd = gasneti_alloc_srcdesc(nargs GASNETI_THREAD_PASS);
+  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
+  gasneti_AM_SrcDesc_t sd = mythread_ptrs[4]; // 5th pointer
+  if_pf (!sd) { sd = mythread_ptrs[4] = gasneti_alloc_srcdesc(0 GASNETI_THREAD_PASS); }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
+
+  sd->_nargs              = nargs;
   sd->_dest._reply._token = token;
-#if GASNET_DEBUG
-  sd->_isreq  = 0;
-#endif
 #ifdef GASNETI_SD_ALLOC_REP_EXTRA
   GASNETI_SD_ALLOC_REP_EXTRA(sd);
 #endif
+
+  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
   return sd;
 }
 
@@ -391,7 +399,6 @@ static void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
 #endif
   gasneti_free(sd->_tofree);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
-  gasneti_free(sd);
 }
 #endif // _GEX_AM_SRCDESC_T
 
