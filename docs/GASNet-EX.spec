@@ -2001,25 +2001,29 @@ int gex_AD_OpNBI_[DATATYPE](
 // Note that 'elemsz' need not match the "native" element size of the underlying
 // datastructure, it just needs to indicate a size of contiguous data chunks
 // (eg, it could be the length of an entire row of doubles stored contiguously).
-// These interface changes will enable a future release of the Strided interface
-// to expose more generalized data movement (specifically, transpose and reflection).
+// These interface changes enable the Strided interface to support more generalized
+// strided data movements (specifically, transpose and reflection).
 //
-// The CURRENT release preserves metadata preconditions analogous to those
-// in the GASNet-1 prototype, with 'count[0]' replaced by 'elemsz' - ie:
-// For stridelevels == 0:
+// Degenerate cases:
+//
+// * If elemsz == 0:
+//   the operation is a no-op and all other arguments are ignored
+// * If stridelevels == 0:
 //   the operation is a contiguous copy of elemsz bytes, and the 
 //   srcstrides, dststrides, count arguments are all ignored
-// For stridelevels == 1, the following preconditions must hold:
-//   srcstrides[0] >= elemsz
-//   (and analogously for dststrides)
-// For stridelevels > 1, the following preconditions must hold: 
-//   srcstrides[0] >= elemsz AND 
-//   srcstrides[1] >= (elemsz * count[0]) AND
-//   ForAll i in [2..stridelevels) :
-//     srcstrides[i] >= (count[i - 1] * srcstrides[i - 1])
-//   (and analogously for dststrides)
-// 
-// These restrictions will be loosened in an upcoming release. [UNIMPLEMENTED]
+// * If any entry in count[0..stridelevels-1] == 0:
+//   the operation is a no-op and tm, rank, srcaddr, dstaddr are ignored
+//   ({src,dst}strides must still reference valid arrays)
+//
+// Restrictions:
+//
+// * If any destination location overlaps a source location or another destination
+//   location, the result is undefined. Source locations are permitted to overlap
+//   with each other.
+//
+// * Metadata array inputs must remain valid and unchanged until after synchronization
+//   of operation completion (this restriction may eventually be loosened)
+//
 
 {gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
         gex_TM_t tm,
