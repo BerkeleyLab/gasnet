@@ -274,6 +274,101 @@ void test_flags_##_tcode(gex_AD_t ad) {                                      \
 }
 FORALL_DT(TEST_FLAGS_DECL)
 
+/* (F)ADD/(F)INC race test */
+#define TEST_CNTR_DECL(_tcode) \
+void test_cntr_##_tcode(gex_AD_t ad, int max_goal) {                         \
+  MSG0("    Central-counter concurrent updates test (FADD/ADD/FINC/INC)");   \
+  _tcode##_type unused = 911; /* garbage */                                  \
+  int goal = MIN(iters, max_goal);                                           \
+  int my_share = (goal / numranks) + ((myrank < (goal % numranks)) ? 1 : 0); \
+  if (!myrank) {                                                             \
+    gex_Event_Wait(gex_AD_OpNB_##_tcode(ad,NULL,0,TEST_MYSEG(),GEX_OP_SET,   \
+                                        0,unused,GEX_FLAG_AD_MY_RANK));      \
+  }                                                                          \
+  BARRIER();                                                                 \
+  _tcode##_type result;                                                      \
+  { /* Next line intentionally shadows two globals */                        \
+    gex_Rank_t peer = 0;  void * peerseg = TEST_SEG(0);                      \
+    _tcode##_type prev_result = 0;                                           \
+    int remain = my_share;                                                   \
+    while (remain) {                                                         \
+      if (TEST_RAND_ONEIN(20)) { /* Mix in an occasional GET */              \
+        _TEST_ROP(_tcode, &result, GEX_OP_GET, unused, unused);              \
+      } else if (TEST_RAND_ONEIN(2)) {                                       \
+        /* (F)ADD with a small (possibly 0) random increment */              \
+        const int max_incr = 4;                                              \
+        int incr = (remain < max_incr) ? 1 : TEST_RAND(0, max_incr);         \
+        remain -= incr;                                                      \
+        if (TEST_RAND_ONEIN(2)) {                                            \
+          _TEST_ROP(_tcode, &result, GEX_OP_FADD, incr, unused);             \
+        } else {                                                             \
+          _TEST_ROP(_tcode, NULL, GEX_OP_ADD, incr, unused);                 \
+          continue; /* skip checks of monotonicity and range */              \
+        }                                                                    \
+      } else {                                                               \
+        /* (F)INC */                                                         \
+        remain -= 1;                                                         \
+        if (TEST_RAND_ONEIN(2)) {                                            \
+          _TEST_ROP(_tcode, &result, GEX_OP_FINC, unused, unused);           \
+        } else {                                                             \
+          _TEST_ROP(_tcode, NULL, GEX_OP_INC, unused, unused);               \
+          continue; /* skip checks of monotonicity and range */              \
+        }                                                                    \
+      }                                                                      \
+      assert_always(!prev_result || result >= prev_result);                  \
+      assert_always(result < goal);                                          \
+      prev_result = result;                                                  \
+    }                                                                        \
+  }                                                                          \
+  BARRIER();                                                                 \
+  if (!myrank) {                                                             \
+    gex_Event_Wait(gex_AD_OpNB_##_tcode(ad,&result,0,TEST_MYSEG(),GEX_OP_GET,\
+                                        unused,unused,GEX_FLAG_AD_MY_RANK)); \
+    assert_always(result == goal);                                           \
+  }                                                                          \
+}
+FORALL_DT(TEST_CNTR_DECL)
+
+/* CSWAP race test */
+#define TEST_CSWAP_DECL(_tcode) \
+void test_cswap_##_tcode(gex_AD_t ad, int max_goal) {                        \
+  MSG0("    Central-counter concurrent updates test (CSWAP)");               \
+  _tcode##_type unused = 911; /* garbage */                                  \
+  int goal = MIN(iters, max_goal);                                           \
+  int my_share = (goal / numranks) + ((myrank < (goal % numranks)) ? 1 : 0); \
+  if (!myrank) {                                                             \
+    gex_Event_Wait(gex_AD_OpNB_##_tcode(ad,NULL,0,TEST_MYSEG(),GEX_OP_SET,   \
+                                        0,unused,GEX_FLAG_AD_MY_RANK));      \
+  }                                                                          \
+  BARRIER();                                                                 \
+  _tcode##_type result;                                                      \
+  { /* Next line intentionally shadows two globals */                        \
+    gex_Rank_t peer = 0;  void * peerseg = TEST_SEG(0);                      \
+    _tcode##_type oldval = 0;                                                \
+    int remain = my_share;                                                   \
+    while (remain) {                                                         \
+      int swapped;                                                           \
+      if (TEST_RAND_ONEIN(20)) { /* Mix in an occasional GET */              \
+        _TEST_ROP(_tcode, &result, GEX_OP_GET, unused, unused);              \
+        swapped = 0;                                                         \
+      } else {                                                               \
+        _TEST_ROP(_tcode, &result, GEX_OP_CSWAP, oldval, oldval+1);          \
+        swapped = (oldval == result) ? 1 : 0;                                \
+      }                                                                      \
+      assert_always(!oldval || result >= oldval);                            \
+      assert_always(result < goal);                                          \
+      oldval = result + swapped;                                             \
+      remain -= swapped;                                                     \
+    }                                                                        \
+  }                                                                          \
+  BARRIER();                                                                 \
+  if (!myrank) {                                                             \
+    gex_Event_Wait(gex_AD_OpNB_##_tcode(ad,&result,0,TEST_MYSEG(),GEX_OP_GET,\
+                                        unused,unused,GEX_FLAG_AD_MY_RANK)); \
+    assert_always(result == goal);                                           \
+  }                                                                          \
+}
+FORALL_DT(TEST_CSWAP_DECL)
 
 void doit(gex_DT_t dt) {
   gex_OP_t all_ops =
@@ -305,6 +400,52 @@ void doit(gex_DT_t dt) {
     #define FLAGS_CASE(dtcode) \
       case GEX_DT_##dtcode: test_flags_##dtcode(ad); break;
     switch (dt) { FORALL_DT(FLAGS_CASE) }
+
+    gex_AD_Destroy(ad);
+  }
+
+  // Max "goal" for "cntr" and "cswap" tests
+  // Must be an 'int' which can be represented exactly in the tested datatype
+  int max_goal;
+  switch (dt) {
+    case GEX_DT_U32: case GEX_DT_I32:
+    case GEX_DT_U64: case GEX_DT_I64:
+      max_goal = INT_MAX;
+      break;
+    case GEX_DT_FLT:
+      max_goal = (int) MIN((uint64_t)INT_MAX, ((uint64_t)1 << (FLT_MANT_DIG-1)));
+      break;
+    case GEX_DT_DBL:
+      max_goal = (int) MIN((uint64_t)INT_MAX, ((uint64_t)1 << (DBL_MANT_DIG-1)));
+      break;
+  }
+
+  // Test of contended (F)ADD/(F)INC (central counter)
+  {
+    gex_AD_t ad;
+    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_GET  |
+                                   GEX_OP_ADD | GEX_OP_FADD |
+                                   GEX_OP_INC | GEX_OP_FINC, 0);
+
+    BARRIER();
+
+    #define CNTR_CASE(dtcode)   \
+      case GEX_DT_##dtcode: test_cntr_##dtcode(ad, max_goal); break;
+    switch (dt) { FORALL_DT(CNTR_CASE) }
+
+    gex_AD_Destroy(ad);
+  }
+
+  // Test of contended CSWAP (central counter)
+  {
+    gex_AD_t ad;
+    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_GET | GEX_OP_CSWAP, 0);
+
+    BARRIER();
+
+    #define CSWAP_CASE(dtcode)   \
+      case GEX_DT_##dtcode: test_cswap_##dtcode(ad,max_goal); break;
+    switch (dt) { FORALL_DT(CSWAP_CASE) }
 
     gex_AD_Destroy(ad);
   }
@@ -351,7 +492,7 @@ void doit(gex_DT_t dt) {
   //         SET/GET/CSWAP (universal)
   //         SET/GET/CSWAP/SWAP (MCS locks and Nemesis queues)
   //         SET/GET/FADD
-  // TODO: concurrent tests of correctness
+  // TODO: concurrent tests of correctness of more ops
 
   // Randomized testing
   for (int subtest = 0; subtest < 2; ++subtest) {
@@ -407,18 +548,25 @@ int main(int argc, char **argv) {
   if (argc > arg) { iters = atoi(argv[arg]); ++arg; }
   if (!iters) iters = 1000;
 
-  TEST_SRAND((int)TIME());
+  unsigned int seedoffset = 0;
+  if (argc > arg) { seedoffset = atoi(argv[arg]); ++arg; }
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
-  test_init("testratomic",0,"(iters)");
-
-  MSG0("Running %i iterations of remote atomics tests.\n", iters);
+  test_init("testratomic",0,"(iters) (seed0)");
 
   myrank   = gex_TM_QueryRank(myteam);
   numranks = gex_TM_QuerySize(myteam);
   peer = (myrank + 1) % numranks;
   peerseg = TEST_SEG(peer);
+
+  if (seedoffset == 0) {
+    seedoffset = (((unsigned int)TIME()) & 0xFFFF);
+    TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
+  }
+  TEST_SRAND(myrank+seedoffset);
+
+  MSG("Running %i iterations of remote atomics tests (seed = %u).\n", iters, myrank+seedoffset);
 
   doit(GEX_DT_U32);
   doit(GEX_DT_I32);
