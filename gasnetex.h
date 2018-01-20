@@ -668,6 +668,9 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GEX_FLAG_PEER_SEG_BOUND         (1U <<  7)
 #define GEX_FLAG_PEER_SEG_OFFSET        (1U <<  8)
 
+#define GEX_FLAG_AD_MY_RANK             (1U <<  9)
+#define GEX_FLAG_AD_MY_NEIGHBORHOOD     (1U << 10)
+
 #define GEX_FLAG_AM_SHORT               (1U <<  0)
 #define GEX_FLAG_AM_MEDIUM              (1U <<  1)
 #define GEX_FLAG_AM_LONG                (1U <<  2)

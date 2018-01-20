@@ -218,6 +218,15 @@ typedef [some integer type] gex_Flags_t;
 // specification
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// AD_MY_{RANK,NEIGHBORHOOD}
+//
+// This mutually-exclusive pair of flags each assert a locality property of
+// the target of a remote atomic operation, and are described in detail in
+// the "Remote Atomic Operations" section.
+//
+#define GEX_FLAG_AD_MY_RANK          ((gex_Flags_t)???)
+#define GEX_FLAG_AD_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
 
 // SEGMENT DISPOSITION
 //
@@ -1838,6 +1847,16 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //       to obtain the necessary resources.  The NBI calls return a non-zero
 //       value (only) in this "no op" case, while the NB calls will return
 //       GEX_EVENT_NO_OP.
+//     - At most one flag from the following mutually-exclusive group:
+//       - GEX_FLAG_AD_MY_RANK: asserts that the initiating endpoint and target
+//         endpoint are the same endpoint.  This may allow the implementation to
+//         perform the operation more efficiently.
+//         The precise definition of the assertion is:
+//           (tgt_rank == gex_TM_QueryRank(gex_AD_QueryTM(ad))).
+//       - GEX_FLAG_AD_MY_NEIGHBORHOOD: asserts that the target EP belongs to
+//         a process within the "Neighborhood" (defined earlier in this
+//         document) of the calling process.  This may allow the
+//         implementation to perform the operation more efficiently.
 //     - [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: 'result_p' is to be
 //       interpreted as an offset relative to the bound segment of the
 //       initiating endpoint (instead of as a virtual address).

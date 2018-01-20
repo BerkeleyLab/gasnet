@@ -42,7 +42,7 @@ extern gasneti_AD_t gasneti_alloc_ad(
   ad->_dt = dt;
   ad->_ops = ops;
 #if GASNET_DEBUG
-  ad->_cpusafe = -1;
+  ad->_tools_safe = -1;
   ad->_fn_tbl = NULL;
 #endif
 #ifdef GASNETI_AD_ALLOC_EXTRA
@@ -119,7 +119,7 @@ void gasneti_AD_Create(
   // Algorithm selection:
 #ifdef GASNETI_AD_CREATE_HOOK
   GASNETI_AD_CREATE_HOOK(real_ad, real_tm, dt, ops, flags);
-  gasneti_assert(real_ad->_cpusafe >= 0);
+  gasneti_assert(real_ad->_tools_safe >= 0);
   gasneti_assert(real_ad->_fn_tbl != NULL);
 #endif
 
@@ -177,6 +177,11 @@ void gasnete_ratomic_validate(
     // Fetching ops must have non-NULL result_p
     if (gasneti_op_fetch(opcode) && !result_p) {
       gasneti_fatalerror("gex_AD_Op*() called with a fetching opcode, but result_p==NULL");
+    }
+
+    // Flags may provide at most one affinity assertion
+    if (!GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_MY_RANK | GEX_FLAG_AD_MY_NEIGHBORHOOD))) {
+      gasneti_fatalerror("gex_AD_Op*() called with more than one GEX_FLAG_AD_MY_* flag");
     }
 
     // Address must be in bound segment
@@ -697,11 +702,11 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
   } \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_GET (GASNETE_RATOMIC_ARGS_F0(type)) { \
     return gex_RMA_GetNB(gasneti_export_tm(_real_ad->_tm), _result_p,                     \
-                         _tgt_rank, _tgt_addr, sizeof(float), _flags);                    \
+                         _tgt_rank, _tgt_addr, sizeof(type), _flags);                     \
   } \
   static int gasnete_amratomic##dtcode##_NBI_GET (GASNETE_RATOMIC_ARGS_F0(type)) {        \
     return gex_RMA_GetNBI(gasneti_export_tm(_real_ad->_tm), _result_p,                    \
-                          _tgt_rank, _tgt_addr, sizeof(float), _flags);                   \
+                          _tgt_rank, _tgt_addr, sizeof(type), _flags);                    \
   }
 //
 GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFS)
@@ -724,7 +729,7 @@ void gasnete_amratomic_create_hook(
         gex_OP_t                   ops,
         gex_Flags_t                flags)
 {
-    real_ad->_cpusafe = 1;
+    real_ad->_tools_safe = 1;
     #define GASNETE_AMRATOMIC_TBL_CASE(dtcode) \
         case dtcode##_dtype: \
             real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t) &gasnete_amratomic##dtcode##_fn_tbl; \
