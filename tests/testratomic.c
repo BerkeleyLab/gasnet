@@ -406,7 +406,7 @@ void doit(gex_DT_t dt) {
 
   // Max "goal" for "cntr" and "cswap" tests
   // Must be an 'int' which can be represented exactly in the tested datatype
-  int max_goal;
+  int max_goal = 0;
   switch (dt) {
     case GEX_DT_U32: case GEX_DT_I32:
     case GEX_DT_U64: case GEX_DT_I64:
@@ -455,7 +455,8 @@ void doit(gex_DT_t dt) {
   // + lo and hi must be integers valid for use with TEST_RAND
   // + For x in [lo,hi] 2*x*x must be representable exactly in the target type
   //   (because 2*x*x is the max value reached by the series of arithmetic ops)
-  int lo, hi;
+  int lo = 0;
+  int hi = 0;
   test_static_assert(FLT_RADIX == 2);
   switch (dt) {
     case GEX_DT_U32:
