@@ -807,6 +807,13 @@ extern size_t gasneti_format_putsgets(char *_buf, void *_pstats,
                                     void *_srcaddr, const ptrdiff_t _srcstrides[],
                                     size_t _elemsz, const size_t _count[], size_t _stridelevels);
 
+// Prints a *set* of values to a caller-provided buffer.
+// Call with NULL buffer returns required length.
+extern size_t gasneti_format_dt(char *_buf, gex_DT_t _dt);
+extern size_t gasneti_format_op(char *_buf, gex_OP_t _op);
+extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
+
+
 #if GASNETI_STATS_OR_TRACE
   #define BUILD_ENUM(type,name,desc) GASNETI_STAT_##name,
   typedef enum {

@@ -261,6 +261,65 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* Enum/mask trace formatting - these are legal even without STATS/TRACE */
+
+// Returns number of bytes written (or "would have been" for buf == NULL), including the '\0'.
+// For val==0 the output is "(empty)"
+// For val containing bits not named in the input, the output is "(invalid)"
+static size_t
+gasneti_format_mask(char *buf, uint64_t val, int count, const char **names, const char *prefix) {
+  gasneti_assert(count < 64);
+  if (!val) {
+    const char *answer = "(empty)";
+    if (buf) strcpy(buf, answer);
+    return (1 + strlen(answer));
+  } 
+  if (val & ~(((uint64_t)1 << count) - 1)) {
+    const char *answer = "(invalid)";
+    if (buf) strcpy(buf, answer);
+    return (1 + strlen(answer));
+  }
+  
+  size_t prefixlen = strlen(prefix);
+  size_t rc = 1;
+  if (buf) buf[0] = '\0';
+  for (int i = 0; i < count; ++i) {
+    uint64_t mask = (uint64_t)1 << i;
+    if (! (val & mask)) continue;
+    const char *name = names[i];
+    if (buf) {
+      if (rc != 1) strcat(buf, "|");
+      strcat(buf, prefix);
+      strcat(buf, name);
+    }
+    rc += (rc==1?0:1) + prefixlen + strlen(name);
+  }
+  if (buf) gasneti_assert(rc == 1+strlen(buf));
+  return rc;
+}
+
+size_t gasneti_format_dt(char *buf, gex_DT_t dt) {
+  static const char* names[] = {"I32", "U32", "I64", "U64", "FLT", "DBL"};
+  return gasneti_format_mask(buf,dt,sizeof(names)/sizeof(char *),names,"GEX_DT_");
+}
+
+size_t gasneti_format_op(char *buf, gex_OP_t op) {
+  static const char* names[] = {
+    "AND",  "OR",   "XOR",  "ADD",  "SUB",  "MULT",
+    "MIN",  "MAX",  "INC",  "DEC",
+    "FAND", "FOR",  "FXOR", "FADD", "FSUB", "FMULT",
+    "FMIN", "FMAX", "FINC", "FDEC",
+    "SET",  "GET",  "SWAP", "CSWAP"
+  };
+  return gasneti_format_mask(buf,op,sizeof(names)/sizeof(char *),names,"GEX_OP_");
+}
+
+size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
+  static const char* names[] = { "SRCRANK", "ENTRY", "IS_REQ", "IS_LONG", "EP" };
+  return gasneti_format_mask(buf,ti,sizeof(names)/sizeof(char *),names,"GEX_TI_");
+}
+
+/* ------------------------------------------------------------------------------------ */
 
 /* line number control */
 #if GASNET_SRCLINES
