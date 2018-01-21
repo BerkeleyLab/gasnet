@@ -209,22 +209,19 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 #endif
 
 #ifndef _GEX_AM_SRCDESC_T
-// Allocate a buffer IFF client_buf is NULL
+// Allocate a buffer (use IFF client_buf is NULL)
 GASNETI_INLINE(gasneti_prepare_buffer)
-void gasneti_prepare_buffer(
-                       gasneti_AM_SrcDesc_t sd,
-                       const void           *client_buf)
+void gasneti_prepare_buffer(gasneti_AM_SrcDesc_t sd)
 {
-    if (! client_buf) {
-        size_t size = sd->_size;
+    gasneti_assert(! sd->_addr);
+    size_t size = sd->_size;
 #if GASNET_DEBUG
-        // Allocate at least one byte because zero-byte allocation
-        // returns NULL which then leads to ambiguity in argument checking.
-        if (!size) size = 1;
+    // Allocate at least one byte because zero-byte allocation
+    // returns NULL which then leads to ambiguity in argument checking.
+    if (!size) size = 1;
 #endif
-        sd->_addr   = gasneti_malloc(size);
-        sd->_tofree = sd->_addr;
-    }
+    sd->_addr   = gasneti_malloc(size);
+    sd->_tofree = sd->_addr;
 }
 #endif // _GEX_AM_SRCDESC_T
 

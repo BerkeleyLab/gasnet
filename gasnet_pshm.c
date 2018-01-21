@@ -1475,7 +1475,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
     sd->_addr = gasneti_pshm_addr2local(dest, dest_addr);
 #endif
   } else {
-    gasneti_prepare_buffer(sd, NULL);
+    gasneti_prepare_buffer(sd);
   }
 
   return 0;

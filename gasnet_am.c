@@ -574,8 +574,13 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     } else
 #endif
     {
+    #ifdef GASNETC_AM_PREPARE_REQ_MEDIUM
+        int imm = GASNETC_AM_PREPARE_REQ_MEDIUM(sd, min_length, max_length);
+        if (imm) goto out_immediate;
+    #else
         sd->_size = MIN(limit, max_length);
-        gasneti_prepare_buffer(sd, client_buf);
+        if (!client_buf) gasneti_prepare_buffer(sd);
+    #endif
     }
 
     if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
@@ -619,8 +624,13 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     } else
 #endif
     {
+    #ifdef GASNETC_AM_PREPARE_REP_MEDIUM
+        int imm = GASNETC_AM_PREPARE_REP_MEDIUM(sd, min_length, max_length);
+        if (imm) goto out_immediate;
+    #else
         sd->_size = MIN(limit, max_length);
-        gasneti_prepare_buffer(sd, client_buf);
+        if (!client_buf) gasneti_prepare_buffer(sd);
+    #endif
     }
 
     if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
@@ -671,8 +681,13 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     } else
 #endif
     {
+    #ifdef GASNETC_AM_PREPARE_REQ_LONG
+        int imm = GASNETC_AM_PREPARE_REQ_LONG(sd, min_length, max_length, dest_addr);
+        if (imm) goto out_immediate;
+    #else
         sd->_size = MIN(limit, max_length);
-        gasneti_prepare_buffer(sd, client_buf);
+        if (!client_buf) gasneti_prepare_buffer(sd);
+    #endif
     }
 
     if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
@@ -717,8 +732,13 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     } else
 #endif
     {
+    #ifdef GASNETC_AM_PREPARE_REP_LONG
+        int imm = GASNETC_AM_PREPARE_REP_LONG(sd, min_length, max_length, dest_addr);
+        if (imm) goto out_immediate;
+    #else
         sd->_size = MIN(limit, max_length);
-        gasneti_prepare_buffer(sd, client_buf);
+        if (!client_buf) gasneti_prepare_buffer(sd);
+    #endif
     }
 
     if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
@@ -752,7 +772,9 @@ void gasnetc_AM_CommitRequestMediumM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-
+    #ifdef GASNETC_AM_COMMIT_REQ_MEDIUM
+        GASNETC_AM_COMMIT_REQ_MEDIUM(sd, handler, nbytes, argptr);
+    #else
         gex_TM_t   tm          = sd->_dest._request._tm;
         gex_Rank_t dest        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
@@ -762,6 +784,7 @@ void gasnetc_AM_CommitRequestMediumM(
 
         int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    #endif
     }
     va_end(argptr);
 
@@ -790,7 +813,9 @@ void gasnetc_AM_CommitReplyMediumM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(sd->_thread);
-
+    #ifdef GASNETC_AM_COMMIT_REP_MEDIUM
+        GASNETC_AM_COMMIT_REP_MEDIUM(sd, handler, nbytes, argptr);
+    #else
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
@@ -799,6 +824,7 @@ void gasnetc_AM_CommitReplyMediumM(
 
         int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    #endif
     }
     va_end(argptr);
 
@@ -829,7 +855,9 @@ void gasnetc_AM_CommitRequestLongM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-
+    #ifdef GASNETC_AM_COMMIT_REQ_LONG
+        GASNETC_AM_COMMIT_REQ_LONG(sd, handler, dest_addr, nbytes, argptr);
+    #else
         gex_TM_t   tm          = sd->_dest._request._tm;
         gex_Rank_t dest        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
@@ -839,6 +867,7 @@ void gasnetc_AM_CommitRequestLongM(
 
         int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    #endif
     }
     va_end(argptr);
 
@@ -868,7 +897,9 @@ void gasnetc_AM_CommitReplyLongM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(sd->_thread);
-
+    #ifdef GASNETC_AM_COMMIT_REP_LONG
+        GASNETC_AM_COMMIT_REP_LONG(sd, handler, dest_addr, nbytes, argptr);
+    #else
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
@@ -877,6 +908,7 @@ void gasnetc_AM_CommitReplyLongM(
 
         int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
+    #endif
     }
     va_end(argptr);
 
