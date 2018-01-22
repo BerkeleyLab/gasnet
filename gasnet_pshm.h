@@ -281,9 +281,9 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
   gasneti_assert(gasnetc_token_is_pshm(token));
   gex_Rank_t sourceid = gasneti_AMPSHM_msgsource(token);
   gasneti_assert(gasneti_pshm_in_supernode(sourceid));
-  gasnetc_token_reply(token);
   retval = gasnetc_AMPSHM_ReqRepGeneric(category, 0, sourceid, handler, source_addr, 
                                         nbytes, dest_addr, flags, numargs, argptr);
+  if (!retval) gasnetc_token_reply(token);
   return retval;
 }
 
