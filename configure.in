@@ -1330,10 +1330,14 @@ AC_SUBST(SYS_HEADER_BLD)
 AC_SUBST(SYS_HEADER_INST)
 
 # Find the appropriate OS suffix for executables
-case "$target_os" in
-  cygwin*)    EXESUFFIX='.exe' ;;
-  *)          EXESUFFIX='' ;;
-esac
+if test "${ac_cv_exeext+set}" = set && test "$ac_cv_exeext" != no; then
+  EXESUFFIX=$ac_cv_exeext
+else
+  case "$target_os" in
+    cygwin*)    EXESUFFIX='.exe' ;;
+    *)          EXESUFFIX='' ;;
+  esac
+fi
 AC_SUBST(EXESUFFIX)
 AM_CONDITIONAL(HAVE_EXESUFFIX, test -n "$EXESUFFIX")
 
