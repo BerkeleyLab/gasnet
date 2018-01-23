@@ -12,15 +12,18 @@
 #error Internal error: wrong GASNETE_OLD_STRIDED defn
 #endif
 
+/*---------------------------------------------------------------------------------*/
+/* *** GASNet-EX Strided Implementation *** */
+/*---------------------------------------------------------------------------------*/
+
+#if _DISABLED_STUFF_
+
 /* Clang can be picky */
 #if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wconstant-logical-operand"
 #endif
 
-/*---------------------------------------------------------------------------------*/
-/* ***  Strided *** */
-/*---------------------------------------------------------------------------------*/
 /* helper macros */
 /* increment the values in init[0..(limit-contiglevel)] by incval contiguous chunks, 
    using provided count[0..stridelevels-1], contiglevel and limit
@@ -1190,22 +1193,262 @@ gex_Event_t gasnete_gets_ref_indexed(gasnete_strided_stats_t const *stats, gasne
     return retval; 
   }
 }
+#if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
+  #pragma clang diagnostic pop
+#endif
+
+#endif  // DISABLED
+/*---------------------------------------------------------------------------------*/
+// returns the size of the bounding box containing all the elements in memory, and optionally the baseptr
+GASNETI_INLINE(gasnete_smd_querybounds)
+size_t gasnete_smd_querybounds(gasneti_vis_smd_t const *smd, int rside, const void **baseptr) {
+  uint8_t *lo = (uint8_t*)smd->addr[rside]; // low and high element addresses
+  uint8_t *hi = lo;
+  for (size_t d = 0; d < smd->stridelevels; d++) {
+     ptrdiff_t const stride = smd->dim[d].stride[rside];
+     size_t const count = smd->dim[d].count;     
+     if (stride >= 0) hi += stride * (count - 1);
+     else             lo += stride * (count - 1);
+  }
+  if (baseptr) *baseptr = lo;
+  return hi - lo + smd->elemsz; // adjust for length of last element
+}
+
+// Allocate a strided op and perform metadata normalization
+// returns NULL for degenerate empty operation
+GASNETI_INLINE(gasnete_build_strided_op)
+gasneti_strided_op_t *gasnete_build_strided_op(
+    int isput, // for tracing
+    void * const selfaddr, const ptrdiff_t selfstrides[],
+    void * const peeraddr, const ptrdiff_t peerstrides[],
+    const size_t elemsz, const size_t count[], const size_t stridelevels
+  ) {
+  gasneti_assert(elemsz > 0);
+  gasneti_assert(stridelevels > 0);
+  gasneti_assert(selfstrides && peerstrides && count);
+  gasneti_assert(selfaddr && peeraddr);
+  size_t scratch_offset = offsetof(gasneti_strided_op_t, smd.dim[stridelevels]);
+  size_t sopsz = scratch_offset + 
+                 3*stridelevels*MAX(sizeof(ptrdiff_t),sizeof(size_t)); // TODO-EX: this may need to grow
+  gasneti_strided_op_t * const sop = gasneti_malloc(sopsz);
+  sop->scratch = (uint8_t*)sop + scratch_offset;
+  sop->bouncebuf = NULL;
+
+  gasneti_vis_smd_t * const smd = &(sop->smd);
+  smd->elemsz = elemsz;
+  smd->addr[SMD_SELF] = selfaddr;
+  smd->addr[SMD_PEER] = peeraddr;
+
+  // SMD normalization pass 1: 
+  // ------------------------
+  // populate SMD
+  // handle empty count degeneracy
+  // remove null dimensions
+  // perform stride inversion to normalize peer stride
+  size_t opt_stridelevels = stridelevels;
+  gasneti_vis_smd_dim_t *outdim = &(smd->dim[0]);
+  ptrdiff_t last_peerstride = -1;
+  int is_sorted = 1;
+  for (size_t d = 0; d < stridelevels; d++) {
+    size_t const cnt = count[d];
+    if_pf (cnt == 0) { // degenerate no-op
+      gasneti_free(sop);
+      return NULL;
+    } else if_pf (cnt == 1) { // null dimension
+      GASNETI_TRACE_PRINTF(D,("STRIDED_OPT: Null dimension removed"));
+      opt_stridelevels--; // remove it
+    } else {
+      outdim->count = cnt;
+      ptrdiff_t selfstride = selfstrides[d];
+      ptrdiff_t peerstride = peerstrides[d];
+      if (peerstride < 0) { // invert stride
+        GASNETI_TRACE_PRINTF(D,("STRIDED_OPT: Stride inversion"));
+        smd->addr[SMD_SELF] = (uint8_t*)smd->addr[SMD_SELF] + selfstride * (cnt-1);
+        smd->addr[SMD_PEER] = (uint8_t*)smd->addr[SMD_PEER] + peerstride * (cnt-1);
+        peerstride = -peerstride;
+        selfstride = -selfstride;
+      }
+      outdim->stride[SMD_SELF] = selfstride;
+      outdim->stride[SMD_PEER] = peerstride;
+      is_sorted &= (peerstride >= last_peerstride);
+      last_peerstride = peerstride;
+      outdim++;
+    }
+  }
+  smd->stridelevels = opt_stridelevels;
+
+  if_pf (opt_stridelevels == 0) goto out_sop; // degenerate contiguity
+
+  // SMD normalization pass 2
+  // ------------------------
+  // sort dimensions by ascending peer stride
+  // use a simple N^2 in-place selection sort, expected to perform best for small stridelevels
+  // TODO-EX: Replace with an NlogN library sort for larger stridelevels
+  if (!is_sorted) {
+    for (size_t i=0; i < opt_stridelevels-1; i++) {
+      ptrdiff_t minstride = smd->dim[i].stride[SMD_PEER];
+      size_t mindim = i;
+      for (size_t j=i+1; j < opt_stridelevels; j++) { 
+        ptrdiff_t const stride = smd->dim[j].stride[SMD_PEER];
+        if (stride < minstride) { minstride = stride; mindim = j; }
+      }
+      if (mindim != i) { // swap
+        gasneti_vis_smd_dim_t const tmp = smd->dim[i]; 
+        smd->dim[i] = smd->dim[mindim];
+        smd->dim[mindim] = tmp;
+      }
+    }
+    GASNETI_TRACE_PRINTF(D,("STRIDED_OPT: Stride sort"));
+  }
+
+  // SMD normalization pass 3
+  // ------------------------
+  // Fold trailing dual-contiguous dimensions into elemsz
+  {
+    size_t opt_elemsz = elemsz;
+    gasneti_vis_smd_dim_t *indim = &(smd->dim[0]);
+    gasneti_vis_smd_dim_t *outdim = indim;
+    size_t const in_stridelevels = opt_stridelevels;
+    size_t d;
+    for (d = 0; d < in_stridelevels; d++) {
+      if ( indim->stride[SMD_SELF] == opt_elemsz &&
+           indim->stride[SMD_PEER] == opt_elemsz) {
+        GASNETI_TRACE_PRINTF(D,("STRIDED_OPT: Dualcontig dimension folded into elemsz"));
+        opt_elemsz *= indim->count;
+        opt_stridelevels--;
+        indim++;
+      } else break;
+    }
+    if (indim != outdim) {
+      for ( ; d < in_stridelevels; d++) {
+        *outdim++ = *indim++;
+      }
+      gasneti_assert(outdim == &(smd->dim[opt_stridelevels]));
+      smd->elemsz = opt_elemsz;
+      smd->stridelevels = opt_stridelevels;
+    } else gasneti_assert(opt_stridelevels == in_stridelevels);
+  }
+
+  if_pf (opt_stridelevels == 0) goto out_sop; // degenerate contiguity
+
+  // SMD normalization pass 4
+  // ------------------------
+  // Perform dimensional folding to combine trivial inner dimensions
+  {
+    gasneti_vis_smd_dim_t *lodim = &(smd->dim[0]);
+    gasneti_vis_smd_dim_t *hidim = lodim + 1;
+    size_t const in_stridelevels = opt_stridelevels;
+    for (size_t d = in_stridelevels-1; d; d--) {
+      size_t const locnt = lodim->count;
+      if ( hidim->stride[SMD_SELF] == lodim->stride[SMD_SELF] * locnt &&
+           hidim->stride[SMD_PEER] == lodim->stride[SMD_PEER] * locnt ) {
+        GASNETI_TRACE_PRINTF(D,("STRIDED_OPT: Combined trivial inner dimension"));
+        lodim->count = locnt * hidim->count;
+        opt_stridelevels--;
+      } else {
+        lodim++;
+        if (lodim != hidim) {
+          *lodim = *hidim;
+        }
+      }
+      hidim++;
+    }
+    gasneti_assert(lodim == &(smd->dim[opt_stridelevels-1]));
+    if (opt_stridelevels != in_stridelevels) smd->stridelevels = opt_stridelevels;
+  }
+
+out_sop:
+  #if GASNET_DEBUG || GASNET_TRACE  // trace and sanity check the resulting sop
+  {
+    gasneti_assert(opt_stridelevels == sop->smd.stridelevels);
+    size_t const opt_elemsz = sop->smd.elemsz;
+    ptrdiff_t * const opt_strides[2] = { sop->scratch, (ptrdiff_t*)sop->scratch + opt_stridelevels };
+    size_t * const opt_count = (size_t*)(opt_strides[1] + opt_stridelevels);
+    int change = (opt_elemsz != elemsz) || (opt_stridelevels != stridelevels) ||
+                 (sop->smd.addr[SMD_SELF] != selfaddr) ||
+                 (sop->smd.addr[SMD_PEER] != peeraddr);
+    gasneti_vis_smd_dim_t const * dim = &(sop->smd.dim[0]);
+    for (size_t d = 0; d < opt_stridelevels; d++) {
+      opt_strides[SMD_PEER][d] = dim->stride[SMD_PEER];
+      opt_strides[SMD_SELF][d] = dim->stride[SMD_SELF];
+      opt_count[d] = dim->count;
+      change |= (opt_strides[SMD_PEER][d] != peerstrides[d]);
+      change |= (opt_strides[SMD_SELF][d] != selfstrides[d]);
+      change |= (opt_count[d] != count[d]);
+      dim++;
+    }
+    #if GASNET_TRACE
+    if (change && GASNETI_TRACE_ENABLED(D)) { // trace the optimized metadata
+      char *str = gasneti_malloc(gasneti_format_putsgets_bufsz(opt_stridelevels));
+      int dstid = (isput?SMD_PEER:SMD_SELF);
+      int srcid = (isput?SMD_SELF:SMD_PEER);
+      gasneti_format_putsgets(str,NULL,(gex_Rank_t)-1,
+                              sop->smd.addr[dstid],opt_strides[dstid],
+                              sop->smd.addr[srcid],opt_strides[srcid],
+                              opt_elemsz,opt_count,opt_stridelevels);
+      GASNETI_TRACE_PRINTF(D,("%s: %s",(isput?"PUTS_OPT":"GETS_OPT"),str));
+      gasneti_free(str);
+    }
+    #endif
+    #if GASNET_DEBUG
+    { // sanity check our strided metadata optimizations
+      // data size
+      size_t const opt_totalsz = gasnete_strided_datasize(opt_elemsz, opt_count, opt_stridelevels);
+      size_t const totalsz = gasnete_strided_datasize(elemsz, count, stridelevels);
+      gasneti_assert(opt_totalsz == totalsz);
+      // self bounds
+      void const *selfbase = selfaddr; 
+      size_t const selflen = gasnete_strided_bounds(selfstrides, elemsz, count, stridelevels, &selfbase);
+      void const *opt_selfbase; 
+      size_t const opt_selflen = gasnete_smd_querybounds(&(sop->smd), SMD_SELF, &opt_selfbase);
+      gasneti_assert(selflen == opt_selflen && selfbase == opt_selfbase);
+      // peer bounds
+      void const *peerbase = peeraddr; 
+      size_t const peerlen = gasnete_strided_bounds(peerstrides, elemsz, count, stridelevels, &peerbase);
+      void const *opt_peerbase; 
+      size_t const opt_peerlen = gasnete_smd_querybounds(&(sop->smd), SMD_PEER, &opt_peerbase);
+      gasneti_assert(peerlen == opt_peerlen && peerbase == opt_peerbase);
+    }
+    #endif
+  }
+  #endif // DEBUG || TRACE
+
+  return sop;
+}
 /*---------------------------------------------------------------------------------*/
 /* top-level gasnet_puts_* entry point */
 #ifndef GASNETE_PUTS_OVERRIDE
 extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
-                                   gex_TM_t tm, gex_Rank_t dstnode,
-                                   void *dstaddr, const size_t dststrides[],
-                                   void *srcaddr, const size_t srcstrides[],
-                                   const size_t count[], size_t stridelevels,
+                                   gex_TM_t tm, gex_Rank_t rank,
+                                   void *dstaddr, const ptrdiff_t dststrides[],
+                                   void *srcaddr, const ptrdiff_t srcstrides[],
+                                   size_t elemsz, const size_t count[], size_t stridelevels,
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasnete_strided_stats_t stats;
   gasneti_assert(gasnete_vis_isinit);
-  gasneti_assert(!flags); // TODO-EX
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX
   // TODO-EX: Team support
-  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
   /* catch silly degenerate cases */
+  gasneti_assert(elemsz > 0); // this degenerate case handled in public header
+  gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
+  gasneti_strided_op_t * const sop = 
+    gasnete_build_strided_op(1, srcaddr, srcstrides, dstaddr, dststrides, 
+                             elemsz, count, stridelevels);
+  if_pf (!sop) return GEX_EVENT_INVALID; // degenerate count[i] == 0, for some i
+  #if GASNET_DEBUG // Bounds check - currently only handle SEG_BOUND
+    if (!(flags & (GEX_FLAG_PEER_SEG_UNKNOWN|GEX_FLAG_PEER_SEG_SOME))) {
+      const void *base; 
+      size_t len = gasnete_smd_querybounds(&(sop->smd), SMD_PEER, &base);
+      gasneti_boundscheck(tm, rank, base, len);
+    }
+  #endif
+  if (GASNETI_SUPERNODE_LOCAL(rank) || // shared memory
+      sop->smd.stridelevels == 0) {    // folded to fully contiguous
+     return GEX_EVENT_INVALID; // use indiv put/get
+  }
+
+  gasneti_free(sop);
+#if 0
   if_pf (stats._totalsz == 0) /* empty */
     return GEX_EVENT_INVALID;
   if (GASNETI_SUPERNODE_LOCAL(dstnode) || /* purely local */ 
@@ -1239,6 +1482,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   #endif
   GASNETE_PUTS_SELECTOR(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasneti_fatalerror("failure in GASNETE_PUTS_SELECTOR - should never reach here");
+#endif
   return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 #endif
@@ -1246,17 +1490,36 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
 #ifndef GASNETE_GETS_OVERRIDE
 extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
                                    gex_TM_t tm,
-                                   void *dstaddr, const size_t dststrides[],
-                                   gex_Rank_t srcnode,
-                                   void *srcaddr, const size_t srcstrides[],
-                                   const size_t count[], size_t stridelevels,
+                                   void *dstaddr, const ptrdiff_t dststrides[],
+                                   gex_Rank_t rank,
+                                   void *srcaddr, const ptrdiff_t srcstrides[],
+                                   size_t elemsz, const size_t count[], size_t stridelevels,
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasnete_strided_stats_t stats;
   gasneti_assert(gasnete_vis_isinit);
-  gasneti_assert(!flags); // TODO-EX
+  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX
   // TODO-EX: Team support
-  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
+
   /* catch silly degenerate cases */
+  gasneti_assert(elemsz > 0); // this degenerate case handled in public header
+  gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
+  gasneti_strided_op_t * const sop = 
+    gasnete_build_strided_op(0, dstaddr, dststrides, srcaddr, srcstrides, 
+                             elemsz, count, stridelevels);
+  if_pf (!sop) return GEX_EVENT_INVALID; // degenerate count[i] == 0, for some i
+  #if GASNET_DEBUG // Bounds check - currently only handle SEG_BOUND
+    if (!(flags & (GEX_FLAG_PEER_SEG_UNKNOWN|GEX_FLAG_PEER_SEG_SOME))) {
+      const void *base;
+      size_t len = gasnete_smd_querybounds(&(sop->smd), SMD_PEER, &base);
+      gasneti_boundscheck(tm, rank, base, len);
+    }
+  #endif
+  if (GASNETI_SUPERNODE_LOCAL(rank) || // shared memory
+      sop->smd.stridelevels == 0) {    // folded to fully contiguous
+     return GEX_EVENT_INVALID; // use indiv put/get
+  }
+
+  gasneti_free(sop);
+#if 0
   if_pf (stats._totalsz == 0) /* empty */
     return GEX_EVENT_INVALID;
   if (GASNETI_SUPERNODE_LOCAL(srcnode) || /* purely local */ 
@@ -1290,12 +1553,9 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   #endif
   GASNETE_GETS_SELECTOR(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);
   gasneti_fatalerror("failure in GASNETE_GETS_SELECTOR - should never reach here");
+#endif
   return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */
 }
 #endif
 /*---------------------------------------------------------------------------------*/
-
-#if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
-  #pragma clang diagnostic pop
-#endif
 

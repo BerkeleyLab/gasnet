@@ -28,6 +28,39 @@ typedef struct gasneti_vis_op_S {
   gex_Event_t event;
 } gasneti_vis_op_t;
 
+
+#define SMD_SELF  0
+#define SMD_PEER 1
+// gasneti_vis_smd_t represents complete information about a strided transfer
+// in a format convenient for applying transformations
+typedef struct {
+  size_t    count;     // dimensional extent
+  ptrdiff_t stride[2]; // dimensional stride in bytes, [0]=self [1]=peer
+} gasneti_vis_smd_dim_t;
+
+typedef struct {
+#if 0 // maybe
+  gex_TM_t tm;
+  gex_Rank_t peer;
+  gex_Flags_t flags;
+  gasnete_synctype_t synctype;
+#endif
+  size_t stridelevels;          // dimensional cardinality
+  size_t elemsz;                // dualcontigsz
+  void  *addr[2];               // base addresses [0]=self [1]=peer
+  gasneti_vis_smd_dim_t dim[1]; // per-dimension metadata,
+                                // actually [stridelevels] entries (flexible array member)
+} gasneti_vis_smd_t;
+
+// gasneti_strided_op_t "is a" gasneti_vis_op_t that represents a strided operation in flight
+// the embedded metadata may have been optimized/transformed relative to user's input
+typedef struct {
+  gasneti_vis_op_t visop; // must be first
+  void *bouncebuf;        // separate subobject to free on destruction, otherwise NULL
+  void *scratch;          // scratch space at the end of this object
+  gasneti_vis_smd_t smd;  // variable-length strided metadata, must be last!
+} gasneti_strided_op_t;
+
 /* per-thread state for VIS */
 typedef struct {
   gasneti_vis_op_t *active_ops;

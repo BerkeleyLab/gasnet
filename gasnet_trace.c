@@ -256,6 +256,11 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   size_t const totalsz = gasnete_strided_datasize(elemsz, count, stridelevels);
  #endif
 
+  void const *dstbase = dstaddr;
+  size_t const dstextent = gasnete_strided_bounds(dststrides, elemsz, count, stridelevels, &dstbase);
+  void const *srcbase = srcaddr;
+  size_t const srcextent = gasnete_strided_bounds(srcstrides, elemsz, count, stridelevels, &srcbase);
+
   gasneti_format_strides(srcstrides_str, stridelevels, srcstrides);
   gasneti_format_strides(dststrides_str, stridelevels, dststrides);
   gasneti_assert(sizeof(ptrdiff_t) == sizeof(size_t));
@@ -265,13 +270,13 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
               "dualcontiguity=%"PRIuSZ" nulldims=%"PRIuSZ"\n"
            #endif
               "dst: dstaddr="GASNETI_LADDRFMT" dststrides=%s\n"
-           #if GASNETI_TRACE_STRIDED_STATS
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+           #if GASNETI_TRACE_STRIDED_STATS
               "     contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ"\n"
            #endif
               "src: srcaddr="GASNETI_LADDRFMT" srcstrides=%s\n"
-           #if GASNETI_TRACE_STRIDED_STATS
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+           #if GASNETI_TRACE_STRIDED_STATS
               "     contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ""
            #endif
            ,
@@ -280,14 +285,14 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
               pstats->_dualcontiguity, pstats->_nulldims,
            #endif
               GASNETI_LADDRSTR(dstaddr), dststrides_str, 
+              dstextent, GASNETI_LADDRSTR(dstbase), GASNETI_LADDRSTR((uint8_t *)dstbase+dstextent-1),
            #if GASNETI_TRACE_STRIDED_STATS
-              pstats->_dstextent, GASNETI_LADDRSTR(dstaddr), GASNETI_LADDRSTR((((char *)dstaddr)+pstats->_dstextent)),
               pstats->_dstcontiguity, pstats->_dstcontigsz, pstats->_dstsegments,
            #endif
-              GASNETI_LADDRSTR(srcaddr), srcstrides_str 
+              GASNETI_LADDRSTR(srcaddr), srcstrides_str,
+              srcextent, GASNETI_LADDRSTR(srcbase), GASNETI_LADDRSTR((uint8_t *)srcbase+srcextent-1)
            #if GASNETI_TRACE_STRIDED_STATS
               ,
-              pstats->_srcextent, GASNETI_LADDRSTR(srcaddr), GASNETI_LADDRSTR((((char *)srcaddr)+pstats->_srcextent)),
               pstats->_srccontiguity, pstats->_srccontigsz, pstats->_srcsegments
            #endif
           );
