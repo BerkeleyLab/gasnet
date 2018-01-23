@@ -483,7 +483,7 @@ static void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
       if (sd->_tofree) {                                                                                 \
-        if (gasneti_test_sd_poison(sd->_tofree, sd->_size))                                              \
+        if (gasneti_test_sd_poison(sd->_tofree, nbytes))                                                 \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \

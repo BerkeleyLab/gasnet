@@ -575,6 +575,16 @@ void gasneti_free_tm(gasneti_TM_t tm)
 
 #if GASNET_DEBUG
   // Verify that client did actually write to gasnet-allocated buffer
+  //
+  // gasneti_init_sd_poison(addr, len) - write a "canary"
+  //   For (len >= gasneti_sd_init_len) writes a "canary" value (also of length
+  //   gasneti_sd_init_len) to addr.
+  // gasneti_test_sd_poison(addr, len) - test a "canary"
+  //   For (len >= gasneti_sd_init_len) looks for the same "canary" value,
+  //   returning non-zero if it is present.
+  // Note that 'len' at "test" may be less than the one given at "init",
+  // as is permitted for the nbytes values passed to Prepare/Commit.
+
   static uint64_t gasneti_memalloc_envint(const char *name, const char *deflt);
   static void gasneti_memalloc_valset(void *p, size_t len, uint64_t val);
   static const void *gasneti_memalloc_valcmp(const void *p, size_t len, uint64_t val);
