@@ -991,6 +991,14 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* common logic for Negotiated Payload AMs */
+
+#if GASNET_DEBUG
+  extern void gasneti_init_sd_poison(void *addr, size_t len);
+  extern int gasneti_test_sd_poison(void *addr, size_t len);
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
 extern uint32_t gasneti_gethostid(void);

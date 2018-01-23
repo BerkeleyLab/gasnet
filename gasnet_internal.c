@@ -878,6 +878,43 @@ void gasneti_free_tm(gasneti_TM_t tm)
 
 
 /* ------------------------------------------------------------------------------------ */
+
+#if GASNET_DEBUG
+  // Verify that client did actually write to gasnet-allocated buffer
+  static uint64_t gasneti_memalloc_envint(const char *name, const char *deflt);
+  static void gasneti_memalloc_valset(void *p, size_t len, uint64_t val);
+  static const void *gasneti_memalloc_valcmp(const void *p, size_t len, uint64_t val);
+
+  static int gasneti_sd_init_enabled = 1;
+  static uint64_t gasneti_sd_init_val = 0; // Value used to initialize gasnet-allocated SrcDesc buffers
+  static size_t gasneti_sd_init_len = 128; // Max length to init at Prepare, and min to check at Commit
+
+  extern void gasneti_init_sd_poison(void *addr, size_t len) {
+    if (!gasneti_sd_init_enabled) return;
+    static int isinit = 0;
+    if_pf (!isinit) {
+      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+      gasneti_mutex_lock(&lock);
+        if (!isinit) {
+          gasneti_sd_init_enabled = gasneti_getenv_yesno_withdefault("GASNET_SD_INIT",1);
+          gasneti_sd_init_val = gasneti_memalloc_envint("GASNET_SD_INITVAL","NAN");
+          gasneti_sd_init_len = MAX((int64_t)1,gasneti_getenv_int_withdefault("GASNET_SD_INITLEN",128,0));
+          isinit = 1;
+        }
+      gasneti_mutex_unlock(&lock);
+      if (!gasneti_sd_init_enabled) return;
+    } else gasneti_sync_reads();
+    if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
+  }
+
+  extern int gasneti_test_sd_poison(void *addr, size_t len) { // return non-zero if still poison
+    return gasneti_sd_init_enabled &&
+           (len >= gasneti_sd_init_len) &&
+           !gasneti_memalloc_valcmp(addr, gasneti_sd_init_len, gasneti_sd_init_val);
+  }
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 // Default implementation of split-phase AMs in terms of single-phase
 // TODO-EX: this is not a "good" implementation for any conduit
 // TODO-EX: should really have single-phase in terms of the split-phase instead
@@ -962,41 +999,8 @@ static void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
   #define GASNETI_SD_PARGS(sd) ((gex_AM_Arg_t*)((sd)+1))
 #endif
 
+// Common argument processing
 #if GASNET_DEBUG
-  // Verify that client did actually write to gasnet-allocated buffer
-  static uint64_t gasneti_memalloc_envint(const char *name, const char *deflt);
-  static void gasneti_memalloc_valset(void *p, size_t len, uint64_t val);
-  static const void *gasneti_memalloc_valcmp(const void *p, size_t len, uint64_t val);
-
-  static int gasneti_sd_init_enabled = 1;
-  static uint64_t gasneti_sd_init_val = 0; // Value used to initialize gasnet-allocated SrcDesc buffers
-  static size_t gasneti_sd_init_len = 128; // Max length to init at Prepare, and min to check at Commit
-
-  static void gasneti_init_sd_poison(void *addr, size_t len) {
-    if (!gasneti_sd_init_enabled) return;
-    static int isinit = 0;
-    if_pf (!isinit) {
-      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-      gasneti_mutex_lock(&lock);
-        if (!isinit) {
-          gasneti_sd_init_enabled = gasneti_getenv_yesno_withdefault("GASNET_SD_INIT",1);
-          gasneti_sd_init_val = gasneti_memalloc_envint("GASNET_SD_INITVAL","NAN");
-          gasneti_sd_init_len = MAX((int64_t)1,gasneti_getenv_int_withdefault("GASNET_SD_INITLEN",128,0));
-          isinit = 1;
-        }
-      gasneti_mutex_unlock(&lock);
-      if (!gasneti_sd_init_enabled) return;
-    } else gasneti_sync_reads();
-    if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
-  }
-
-  static int gasneti_test_sd_poison(void *addr, size_t len) { // return non-zero if still poison
-    return gasneti_sd_init_enabled &&
-           (len >= gasneti_sd_init_len) &&
-           !gasneti_memalloc_valcmp(addr, gasneti_sd_init_len, gasneti_sd_init_val);
-  }
-
-  // Common argument processing
   // TODO-EX: tracing should probably occur here as well
   #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
     do {                                                                                                 \
