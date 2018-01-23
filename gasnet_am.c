@@ -318,9 +318,21 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-// Default implementation of split-phase AMs in terms of single-phase
-// TODO-EX: this is not a "good" implementation for any conduit
-// TODO-EX: should really have single-phase in terms of the split-phase instead
+// Implementation of Negotiated-Payload AMs
+//
+// For conduit's without specialization of NP-AM, this provides the entire
+// default implementation, using malloc() to obtain gasnet-owned buffers (if
+// any) at Prepare and using gasneti_AM{Request,Reply}{Medium,Long}V() to
+// perform the AM injection at Commit.
+//
+// TODO-EX: This default is not a "good" implementation for any conduit.
+// TODO-EX: Native conduits should provide their own negotiated-payload and
+//          ideally implement it and fixed-payload in terms of a common base.
+// TODO-EX: This default's use of GEX_EVENT_NOW for gasnet-owned buffers could
+//          be replaced with &event, *if* a progress function (or dependent
+//          operation) were available to reap them and free buffers.  However,
+//          that is only fruitful with a conduit which can provide asynchronous
+//          local completion other than by copying the payload.
 
 #ifndef _GEX_AM_SRCDESC_T
 #ifndef gasneti_import_srcdesc
