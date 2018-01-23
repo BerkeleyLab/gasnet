@@ -912,7 +912,7 @@ gasneti_AM_SrcDesc_t gasneti_alloc_srcdesc(
   return sd;
 }
 
-extern gasneti_AM_SrcDesc_t gasneti_alloc_request_srcdesc(
+static gasneti_AM_SrcDesc_t gasneti_alloc_request_srcdesc(
                        gex_TM_t       tm,
                        gex_Rank_t     rank,
                        int            nargs
@@ -930,7 +930,7 @@ extern gasneti_AM_SrcDesc_t gasneti_alloc_request_srcdesc(
   return sd;
 }
 
-extern gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
+static gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
                        gex_Token_t    token,
                        int            nargs
                        GASNETI_THREAD_FARG)
@@ -946,7 +946,7 @@ extern gasneti_AM_SrcDesc_t gasneti_alloc_reply_srcdesc(
   return sd;
 }
 
-void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
+static void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
 #ifdef GASNETI_SD_FREE_EXTRA
   GASNETI_SD_FREE_EXTRA(sd);
@@ -988,6 +988,12 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
       if (!gasneti_sd_init_enabled) return;
     } else gasneti_sync_reads();
     if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
+  }
+
+  static int gasneti_test_sd_poison(void *addr, size_t len) { // return non-zero if still poison
+    return gasneti_sd_init_enabled &&
+           (len >= gasneti_sd_init_len) &&
+           !gasneti_memalloc_valcmp(addr, gasneti_sd_init_len, gasneti_sd_init_val);
   }
 
   // Common argument processing
@@ -1070,8 +1076,7 @@ void gasneti_free_srcdesc(gasneti_AM_SrcDesc_t sd)
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
       if (sd->_tofree) {                                                                                 \
-        if (gasneti_sd_init_enabled && (sd->_size >= gasneti_sd_init_len) &&                             \
-            !gasneti_memalloc_valcmp(sd->_tofree, gasneti_sd_init_len, gasneti_sd_init_val))             \
+        if (gasneti_test_sd_poison(sd->_tofree, sd->_size))                                              \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \
