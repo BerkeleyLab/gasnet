@@ -671,6 +671,9 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GEX_FLAG_AD_MY_RANK             (1U <<  9)
 #define GEX_FLAG_AD_MY_NEIGHBORHOOD     (1U << 10)
 
+#define GEX_FLAG_AD_ACQ                 (1U << 11)
+#define GEX_FLAG_AD_REL                 (1U << 12)
+
 #define GEX_FLAG_AD_FAVOR_MY_RANK          (1U <<  0)
 #define GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD  (1U <<  1)
 #define GEX_FLAG_AD_FAVOR_REMOTE           (1U <<  2)

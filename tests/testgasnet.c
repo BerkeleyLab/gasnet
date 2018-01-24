@@ -731,6 +731,9 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_AD_MY_RANK,
     GEX_FLAG_AD_MY_NEIGHBORHOOD,
 
+    GEX_FLAG_AD_ACQ,
+    GEX_FLAG_AD_REL,
+
     GEX_FLAG_AD_FAVOR_MY_RANK,
     GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
     GEX_FLAG_AD_FAVOR_REMOTE,
@@ -782,6 +785,9 @@ void doit(int partner, int *partnerseg) {
 
     GEX_FLAG_AD_MY_RANK,
     GEX_FLAG_AD_MY_NEIGHBORHOOD,
+
+    GEX_FLAG_AD_ACQ,
+    GEX_FLAG_AD_REL,
   };
   assert_arr_unaliased(gex_Flags_t, flags_ad);
   static gex_Flags_t const flags_amreg[] = { // gex_EP_RegisterHandlers

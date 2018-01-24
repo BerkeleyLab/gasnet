@@ -248,8 +248,8 @@ typedef [some integer type] gex_Flags_t;
 // section.  It is permitted to include zero, one, or both of these flags
 // when calling gex_AD_Op*().
 //
-#define GEX_FLAG_AD_ACQ          ((gex_Flags_t)???)
-#define GEX_FLAG_AD_REL          ((gex_Flags_t)???)
+#define GEX_FLAG_AD_ACQ          ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_AD_REL          ((gex_Flags_t)???) [UNIMPLEMENTED]
 
 // SEGMENT DISPOSITION
 //
