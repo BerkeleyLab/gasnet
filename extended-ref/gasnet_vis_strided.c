@@ -1234,10 +1234,10 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
   gasneti_fatalerror("failure in GASNETE_GETS_SELECTOR - should never reach here");
   return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
+#endif
+/*---------------------------------------------------------------------------------*/
 
 #if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
   #pragma clang diagnostic pop
 #endif
 
-#endif
-/*---------------------------------------------------------------------------------*/
