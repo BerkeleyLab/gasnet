@@ -332,7 +332,7 @@ void gasnete_amratomic_reqh_inner(
     #define GASNETE_AMRATOMIC_REQH_CASE(dtcode) \
         case dtcode##_dtype: {                                                \
             GASNETE_AMRATOMIC_REQH_OPS(dtcode##_type);                        \
-            result.u##dtcode = gasnete_ratomicfn##dtcode(tgt,op1,op2,opcode); \
+            result.u##dtcode = gasnete_ratomicfn##dtcode(tgt,op1,op2,opcode,0);\
             break;                                                            \
         }
 
