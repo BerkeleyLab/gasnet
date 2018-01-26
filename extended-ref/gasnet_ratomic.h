@@ -437,7 +437,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 // Define of a full family of "dispatch" functions that together
 // constitute the default implementation of remote atomics.
 //
-// TODO: need local memory fences once flags are defined
 // TODO: need trace/stats at this layer or one higher
 //
 // GASNETE_RATOMIC_DISP(dtcode):
@@ -495,9 +494,11 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 // OR it continues through to the next statement.
 #define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
         _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode)                            \
+        const int _fences = ((_flags & GEX_FLAG_AD_ACQ) ? GASNETI_ATOMIC_ACQ : 0) \
+                          | ((_flags & GEX_FLAG_AD_REL) ? GASNETI_ATOMIC_REL : 0);\
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
-                                                 _opcode, 0);                \
+                                                 _opcode, _fences);          \
         if (_GASNETE_RATOMIC_DISP_ISFETCH(_opcode)) {                        \
             *_result_p = _result;                                            \
         }                                                                    \

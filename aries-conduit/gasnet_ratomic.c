@@ -26,6 +26,20 @@
 // mappings used for SET and GET.  In particular why is GET not FOR(0)?
 //
 
+// Notes on implementation of GEX_FLAG_AD_{REL,ACQ}
+//
+// RELEASE:
+// We beleive that injection of a GNI-level operation must include at least one
+// release fence.  Additionally we must obtain a "gpd" from a gasneti_lifo_t,
+// which in a multi-threaded build includes a full rel/acq on both x86-64 and
+// arm64.
+//
+// ACQUIRE:
+// The CQ handling in GNI requires an acquire fence for signaling between the
+// NIC/driver, which is sufficient for a single-threaded build.  In the case of
+// a multi-threaded build, the conduit's processing of the CQ includes a full
+// mutex lock/unlock.
+
 #include <gasnet_gemini.h>
 #include <gasnet_ratomic_internal.h>
 
