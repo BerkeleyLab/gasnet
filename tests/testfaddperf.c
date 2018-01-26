@@ -32,6 +32,7 @@ static int myproc;
 static int numprocs;
 static int peerproc = -1;
 static int iamsender = 0;
+static int hotspotmode = 0;
 
 static void* myseg;
 static void* peerseg;
@@ -140,8 +141,11 @@ void _tcode##fadd_tput_test()                                                  \
                                   GEX_OP_FADD, i&15, 9999, 0);                 \
         }                                                                      \
         gex_NBI_Wait(GEX_EC_RMW, 0);                                           \
+        if (hotspotmode) BARRIER();                                            \
         end = TIME();                                                          \
         update_stat(&st, (end - begin), iters);                                \
+    } else {                                                                   \
+        if (hotspotmode) BARRIER();                                            \
     }                                                                          \
                                                                                \
     BARRIER();                                                                 \
@@ -191,7 +195,6 @@ int main(int argc, char **argv)
     int firstlastmode = 0;
     int fullduplexmode = 0;
     int crossmachinemode = 0;
-    int hotspotmode = 0;
     int skipwarmup = 0;
     int help = 0;
 
