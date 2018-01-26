@@ -3077,12 +3077,14 @@ pushdef([unpackcode],[
    _extract_prog='BEGIN{$/="\$";} if (m/^gasnetextractexpr: ([[ -]]) (.+?) \$/) { map($val=($val<<4)+($_-0x40),unpack("C8",[$]2)); print "-" if ([$]1 eq "-"); print $val;}' 
    cv_prefix[]$2=`$PERL -ne "$_extract_prog" $GASNET_EXAMINE_BIN`
 ])
+dnl Do not remove the "static" from the decl of "p" in GASNET_{COMPILE,LINK}_EXAMINE calls below.
+dnl It prevents (at least) Apple Clang 9.0.0 LTO from optimizing out the char array!
  GASNET_COMPILE_EXAMINE([$3
-   embedcode ],[ char *p = s; while (*p) printf("%c",*(p++)); ],
+   embedcode ],[ static char *p = s; while (*p) printf("%c",*(p++)); ],
    [ unpackcode ],[GASNET_MSG_ERROR(Failed while compile extracting $4)])
 if test -z "$cv_prefix[]$2" ; then
  GASNET_LINK_EXAMINE([$3
-   embedcode ],[ char *p = s; while (*p) printf("%c",*(p++)); ],
+   embedcode ],[ static char *p = s; while (*p) printf("%c",*(p++)); ],
    [ unpackcode ],[GASNET_MSG_ERROR(Failed while link extracting $4)])
 fi
 popdef([unpackcode])
