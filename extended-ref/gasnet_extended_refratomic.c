@@ -159,8 +159,6 @@ void gasnete_ratomic_validate(
 {
     gasneti_AD_t real_ad = gasneti_import_ad(ad);
 
-    // TODO: should print (at least numerical value of) invalid arguents
-
     // Rank must be valid (redundant, but clearer than a later failure)
     if (tgt_rank >= real_ad->_tm->_size) {
       gasneti_fatalerror("gex_AD_Op*() called with invalid target rank");
@@ -168,20 +166,35 @@ void gasnete_ratomic_validate(
 
     // Datatype must match AD
     if (datatype != real_ad->_dt) {
-      gasneti_fatalerror("gex_AD_Op*() called with data type not matching the AD");
+      char *str1 = gasneti_malloc(gasneti_format_dt(NULL, datatype));
+      char *str2 = gasneti_malloc(gasneti_format_dt(NULL, real_ad->_dt));
+      gasneti_format_dt(str1, datatype);
+      gasneti_format_dt(str2, real_ad->_dt);
+      gasneti_fatalerror("gex_AD_Op*() called with data type 0x%x (%s), not matching the AD (%s)",
+                         (unsigned int)datatype, str1, str2);
     }
 
     // Opcode must be exactly 1 bit and valid for AD
     if (! gasneti_op_valid(opcode)) {
-      gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode");
+      char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
+      gasneti_format_op(str1, opcode);
+      gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode 0x%x (%s)",
+                         (unsigned int)opcode, str1);
     }
     if (! (opcode & real_ad->_ops)) {
-      gasneti_fatalerror("gex_AD_Op*() called with an opcode not valid for the AD");
+      char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
+      char *str2 = gasneti_malloc(gasneti_format_op(NULL, real_ad->_ops));
+      gasneti_format_op(str1, opcode);
+      gasneti_format_op(str2, real_ad->_ops);
+      gasneti_fatalerror("gex_AD_Op*() called with an opcode 0x%x (%s) not valid for the AD (%s)",
+                         (unsigned int)opcode, str1, str2);
     }
 
     // Fetching ops must have non-NULL result_p
     if (gasneti_op_fetch(opcode) && !result_p) {
-      gasneti_fatalerror("gex_AD_Op*() called with a fetching opcode, but result_p==NULL");
+      char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
+      gasneti_format_op(str1, opcode);
+      gasneti_fatalerror("gex_AD_Op*() called with fetching opcode %s, but result_p==NULL", str1);
     }
 
     // Flags may provide at most one affinity assertion
