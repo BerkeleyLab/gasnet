@@ -1461,7 +1461,7 @@ typedef [some integer type] gex_DT_t;
 //    - Binary Arithmetic Operations
 //        GEX_OP_FADD
 //        GEX_OP_FSUB
-//        GEX_OP_FMULT [UNIMPLEMENTED]
+//        GEX_OP_FMULT
 //        GEX_OP_FMIN
 //        GEX_OP_FMAX
 //    - Unary Arithmetic Operations
@@ -1927,7 +1927,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
 
 // For the CURRENT release, all 'flags' arguments must be zero.
-// A future revision offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
+// A future revision will offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
 
 // NOTE: This interface does not yet offer local completion indication - all client-owned
 // buffers (ie payload buffers and metadata arrays) passed to the non-blocking initiation 
