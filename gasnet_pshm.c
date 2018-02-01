@@ -1464,6 +1464,9 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   }
   sd->_pshm._msg = msg;
 
+  // Debug check
+  if (! isReq) gasnetc_token_reply(sd->_dest._reply._token);
+
   // Outputs for the client
   sd->_size = size;
   if (sd->_addr) {
@@ -1494,8 +1497,6 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 
   void *msg = sd->_pshm._msg;
   const int nargs = sd->_nargs;
-
-  if (! isReq) gasnetc_token_reply(sd->_dest._reply._token);
 
   /* Fill in message header */
   PSHM_FILL_AM_HEADER(msg, category, handler, nargs, argptr);
