@@ -6,6 +6,8 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_am.h>
+
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
 #endif

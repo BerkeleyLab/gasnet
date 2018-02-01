@@ -9,6 +9,7 @@
 #if GASNET_PSHM /* Otherwise file is empty */
 
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
+#include <gasnet_am.h> /* for gasneti_prepare_buffer() */
 
 #include <sys/types.h>
 #include <signal.h>

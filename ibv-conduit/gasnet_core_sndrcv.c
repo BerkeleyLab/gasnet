@@ -5,6 +5,7 @@
  */
 
 #include <gasnet_internal.h>
+#include <gasnet_am.h>
 #include <gasnet_ibv.h>
 
 #include <errno.h>

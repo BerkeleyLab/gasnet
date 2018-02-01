@@ -6,6 +6,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_am.h>
 
 #include <ammpi_spmd.h>
 
