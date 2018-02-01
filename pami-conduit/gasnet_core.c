@@ -1392,7 +1392,7 @@ extern int gasnetc_AMRequestShortM(
     gasnetc_put_request_credit();
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return retval;
 }
 
 extern int gasnetc_AMRequestMediumM(
