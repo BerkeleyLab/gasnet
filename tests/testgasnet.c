@@ -580,7 +580,7 @@ void doit(int partner, int *partnerseg) {
         } while (val == prev);                    \
       }                                           \
       size_t sz = format_fn(NULL, val);           \
-      char *buf = test_malloc(sz);                \
+      char *buf = (char*) test_malloc(sz);        \
       size_t rc = format_fn(buf, val);            \
       assert_always(rc <= sz);                    \
       assert_always(strlen(buf) < sz);            \
