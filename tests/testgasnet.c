@@ -208,6 +208,8 @@ int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
+  TEST_SRAND(((unsigned int)TIME()) & 0xFFFF);
+
   gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, clientname, &argc, &argv, clientflags));
@@ -566,6 +568,26 @@ void doit(int partner, int *partnerseg) {
     assert_always((some & ~allval) == 0);        \
   } while (0)
 
+  // Format one random mask of each possible popcount() including 0
+  #define test_format(type,array,format_fn) do { \
+    const int elems = sizeof(array)/sizeof(type); \
+    type val = 0;                                 \
+    for (int i = 0; i <= elems; ++i) {            \
+      if (i) {                                    \
+        type prev = val;                          \
+        do {                                      \
+          val |= array[TEST_RAND(0,elems-1)];     \
+        } while (val == prev);                    \
+      }                                           \
+      size_t sz = format_fn(NULL, val);           \
+      char *buf = test_malloc(sz);                \
+      size_t rc = format_fn(buf, val);            \
+      assert_always(rc <= sz);                    \
+      assert_always(strlen(buf) < sz);            \
+      test_free(buf);                             \
+    }                                             \
+  } while (0)
+
   /* sanity check macros and system types */
   assert_signed(int8_t);
   assert_signed(int16_t);
@@ -791,6 +813,7 @@ void doit(int partner, int *partnerseg) {
   // in particular, each flag needs at least one unique bit
   assert_arr_unaliased(gex_TI_t, ti_arr);
   assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
+  test_format(gex_TI_t, ti_arr, gasnett_format_ti);
 
   gex_RMA_Value_t val = 0;
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
@@ -815,6 +838,7 @@ void doit(int partner, int *partnerseg) {
     GEX_DT_FLT, GEX_DT_DBL
   };
   assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
+  test_format(gex_DT_t, datatypes_arr, gasnett_format_dt);
 
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
@@ -830,6 +854,7 @@ void doit(int partner, int *partnerseg) {
     GEX_OP_SWAP, GEX_OP_CSWAP
   };
   assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
+  test_format(gex_OP_t, ops_arr, gasnett_format_op);
 
   #define typeissigned   <
   #define typeisunsigned >
