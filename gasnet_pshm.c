@@ -9,7 +9,7 @@
 #if GASNET_PSHM /* Otherwise file is empty */
 
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
-#include <gasnet_am.h> /* for gasneti_prepare_buffer() */
+#include <gasnet_am.h> /* for gasneti_prepare_alloc_buffer() */
 
 #include <sys/types.h>
 #include <signal.h>
@@ -1475,7 +1475,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
     sd->_addr = gasneti_pshm_addr2local(dest, dest_addr);
 #endif
   } else {
-    gasneti_prepare_buffer(sd);
+    gasneti_prepare_alloc_buffer(sd);
   }
 
   return 0;

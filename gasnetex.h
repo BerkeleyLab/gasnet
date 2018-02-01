@@ -613,7 +613,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GEX_AM_SRCDESC_NO_OP ((gex_AM_SrcDesc_t)(uintptr_t)0)
 
 #ifndef _GASNETI_AM_SRCDESC_T
-  typedef struct {
+  typedef struct gasneti_AM_SrcDesc {
   #if GASNET_DEBUG
     #define GASNETI_AM_SRCDESC_MAGIC       GASNETI_MAKE_MAGIC('A','S','D','t')
     #define GASNETI_AM_SRCDESC_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('A','S','D','t')

@@ -101,9 +101,12 @@ typedef struct _gasnete_thread_cleanup {
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
-  void *gasneti_req_sd, *gasneti_rep_sd;  /* two pointers for NP-AM */        \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
+                                                                              \
+  /* Negotiated Payload */                                                    \
+  gasneti_AM_SrcDesc_t gasneti_rep_sd, gasneti_req_sd;                        \
+  struct gasneti_AM_SrcDesc gasneti_sds[2];                                   \
                                                                               \
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
   int thread_cleanup_delay;
