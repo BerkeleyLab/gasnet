@@ -1920,7 +1920,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // APIs in this section are provided by gasnet_vis.h
 
 // This API is an updated and expanded version of the VIS prototype offered
-// in GASNet-1, which is documented here: http://gasnet.lbl.gov/upc_memcpy_gasnet-2.0.pdf
+// in GASNet-1, which is documented here: http://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
 
 // For NB variants, return type for all functions in this section is gex_Event_t.
 // For NBI/Blocking variants, the return type is int which is non-zero *only* in the
