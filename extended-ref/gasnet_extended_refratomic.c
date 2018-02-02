@@ -691,8 +691,8 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
 #define _GASNETE_AMRATOMIC_SETGET1(dtcode, use_rma) \
         _GASNETE_AMRATOMIC_SETGET2(dtcode, use_rma)
 #define _GASNETE_AMRATOMIC_SETGET2(dtcode, use_rma) \
-        _GASNETE_RATOMIC_SETGET_RMA##use_rma(dtcode)
-#define _GASNETE_RATOMIC_SETGET_RMA0(dtcode) /* Use AM for SET and GET */ \
+        _GASNETE_AMRATOMIC_SETGET_RMA##use_rma(dtcode)
+#define _GASNETE_AMRATOMIC_SETGET_RMA0(dtcode) /* Use AM for SET and GET */ \
   /* NB are same as other ops, but NBI are specialized for distinct gex_EC_t */ \
   _GASNETE_AMRATOMIC_DEFN1_NB(dtcode,SET,N1) \
   static int gasnete_amratomic##dtcode##_NBI_SET(GASNETE_RATOMIC_ARGS_N1(dtcode##_type)) {     \
@@ -702,12 +702,12 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
   static int gasnete_amratomic##dtcode##_NBI_GET(GASNETE_RATOMIC_ARGS_F0(dtcode##_type)) {     \
     return gasnete_amratomic##dtcode##_NBI_G0(GASNETE_RATOMIC_PASS_F0); \
   }
-#define _GASNETE_RATOMIC_SETGET_RMA1(dtcode) /* Use RMA for SET and GET */ \
-        _GASNETE_RATOMIC_SETGET_RMA2(dtcode, dtcode##_type, dtcode##_bits)
+#define _GASNETE_AMRATOMIC_SETGET_RMA1(dtcode) /* Use RMA for SET and GET */ \
+        _GASNETE_AMRATOMIC_SETGET_RMA2(dtcode, dtcode##_type, dtcode##_bits)
 // This extra pass expands the "bits" token prior to additional concatenation
-#define _GASNETE_RATOMIC_SETGET_RMA2(dtcode, type, bits) \
-        _GASNETE_RATOMIC_SETGET_RMA3(dtcode, type, bits)
-#define _GASNETE_RATOMIC_SETGET_RMA3(dtcode, type, bits) \
+#define _GASNETE_AMRATOMIC_SETGET_RMA2(dtcode, type, bits) \
+        _GASNETE_AMRATOMIC_SETGET_RMA3(dtcode, type, bits)
+#define _GASNETE_AMRATOMIC_SETGET_RMA3(dtcode, type, bits) \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_SET (GASNETE_RATOMIC_ARGS_N1(type)) { \
     union { uint##bits##_t uint; type op1; } u; u.op1 = _operand1;                        \
     return gex_RMA_PutNBVal(gasneti_export_tm(_real_ad->_tm), _tgt_rank, _tgt_addr,       \
