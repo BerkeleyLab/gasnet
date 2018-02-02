@@ -244,9 +244,12 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_EXTERNS)
 //
 // AM-based Implementation
 // Built unless GASNETE_BUILD_AMRATOMIC is defined to 0
+// If GASNETE_BUILD_AMRATOMIC_STUBS is 1, then we build stubs that fatalerror
 //
 
 #if GASNETE_BUILD_AMRATOMIC
+
+#if ! GASNETE_BUILD_AMRATOMIC_STUBS
 
 //
 // Pool of small structs describing an in-flight remote atomic
@@ -729,6 +732,60 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
 //
 GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFS)
 
+#else // GASNETE_BUILD_AMRATOMIC_STUBS.  So define stubs that fatalerror
+
+#define GASNETE_AMRATOMIC_STUBS(dtcode) \
+        _GASNETE_AMRATOMIC_STUBS1(dtcode, dtcode##_isint)
+// This extra pass expands the "isint" token prior to additional concatenation
+#define _GASNETE_AMRATOMIC_STUBS1(dtcode, isint) \
+        _GASNETE_AMRATOMIC_STUBS2(dtcode, isint)
+#define _GASNETE_AMRATOMIC_STUBS2(dtcode, isint) \
+    _GASNETE_AMRATOMIC_STUB_INT##isint(dtcode,AND,1) \
+    _GASNETE_AMRATOMIC_STUB_INT##isint(dtcode,OR,1)  \
+    _GASNETE_AMRATOMIC_STUB_INT##isint(dtcode,XOR,1) \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,ADD,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,SUB,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,MULT,1)          \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,MIN,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,MAX,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,INC,0)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,DEC,0)           \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,SET,N1)          \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,GET,F0)          \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,SWAP,F1)         \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,CSWAP,F2)
+//
+#define _GASNETE_AMRATOMIC_STUB_INT0(dtcode,opname,nargs) /*empty*/
+#define _GASNETE_AMRATOMIC_STUB_INT1 _GASNETE_AMRATOMIC_STUB2
+#define _GASNETE_AMRATOMIC_STUB2(dtcode,opstem,nargs) \
+        _GASNETE_AMRATOMIC_STUB1(dtcode,opstem,N##nargs) \
+        _GASNETE_AMRATOMIC_STUB1(dtcode,F##opstem,F##nargs)
+#define _GASNETE_AMRATOMIC_STUB1(dtcode,opname,args) \
+        _GASNETE_AMRATOMIC_STUB1_NB(dtcode,opname,args) \
+        _GASNETE_AMRATOMIC_STUB1_NBI(dtcode,opname,args)
+#define _GASNETE_AMRATOMIC_STUB1_NB(dtcode,opname,args) \
+  static gex_Event_t gasnete_amratomic##dtcode##_NB_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) { \
+    gasneti_fatalerror("gex_AD_OpNB_" dtcode##_suff "() is not implemented on this platform.\n"    \
+                       "Please see Bug 3727 under Known Problems in GASNet's smp-conduit README."); \
+    return GEX_EVENT_INVALID; \
+  }
+#define _GASNETE_AMRATOMIC_STUB1_NBI(dtcode,opname,args) \
+  static int gasnete_amratomic##dtcode##_NBI_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) { \
+    gasneti_fatalerror("gex_AD_OpNBI_" dtcode##_suff "() is not implemented on this platform.\n"    \
+                       "Please see Bug 3727 under Known Problems in GASNet's smp-conduit README.");  \
+    return 0; \
+  }
+#define _gex_dt_I32_suff "I32"
+#define _gex_dt_U32_suff "U32"
+#define _gex_dt_I64_suff "I64"
+#define _gex_dt_U64_suff "U64"
+#define _gex_dt_FLT_suff "FLT"
+#define _gex_dt_DBL_suff "DBL"
+//
+GASNETE_DT_APPLY(GASNETE_AMRATOMIC_STUBS)
+
+#endif
+
 //
 // Build the dispatch tables
 //
@@ -758,7 +815,11 @@ void gasnete_amratomic_create_hook(
     }
     #undef GASNETE_AMRATOMIC_TBL_CASE
 
+#if GASNETE_BUILD_AMRATOMIC_STUBS
+    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM_stubs", (int)dt, (unsigned int)ops));
+#else
     GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM", (int)dt, (unsigned int)ops));
+#endif
 }
 
 #endif // GASNETE_BUILD_AMRATOMIC

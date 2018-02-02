@@ -12,15 +12,6 @@ static gex_EP_t      myep;
 static gex_TM_t      myteam;
 static gex_Segment_t mysegment;
 
-#if GASNET_CONDUIT_SMP
-int main(int argc, char **argv) {
-  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testratomic", &argc, &argv, 0));
-  MSG0("WARNING: smp-conduit does not support remote atomics");
-  gasnet_exit(0);
-  return 0;
-}
-#else
-
 #include <gasnet_ratomic.h>
 
 #include <stdint.h>
@@ -581,5 +572,3 @@ int main(int argc, char **argv) {
   gasnet_exit(0);
   return 0;
 }
-
-#endif // ! SMP conduit

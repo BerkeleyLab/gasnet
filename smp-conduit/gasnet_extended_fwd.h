@@ -20,9 +20,7 @@
 #define GASNETI_DISABLE_REFERENCE_EOP 1
 #define GASNETI_DISABLE_EOP_INTERFACE 1
 
-#define GASNETE_BUILD_AMRATOMIC 0
-#define GASNETI_RATOMIC_STATS(CNT,VAL,TIME) /* unused */
-#define gex_AD_Create gex_SMP_CONDUIT_DOES_NOT_IMPLEMENT_REMOTE_ATOMICS
+#define GASNETE_BUILD_AMRATOMIC_STUBS 1 // RAtomics via GASNet-Tools only, never AMs
 
   /* if conduit-internal threads may call the Extended API and/or they may run
      progress functions, then define GASNETE_CONDUIT_THREADS_USING_TD to the
