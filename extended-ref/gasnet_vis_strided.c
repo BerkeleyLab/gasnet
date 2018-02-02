@@ -18,9 +18,10 @@
 /* ***  Strided *** */
 /*---------------------------------------------------------------------------------*/
 /* helper macros */
-/* increment the values in init[] by incval chunks, 
-   using provided count[], contiglevel and limit
+/* increment the values in init[0..(limit-contiglevel)] by incval contiguous chunks, 
+   using provided count[0..stridelevels-1], contiglevel and limit
    when contiglevel=i, chunks are assumed to have size count[i]*count[i-1]*...*count[0]
+   (ie count[0..contiglevel] are ignored)
 */
 #define GASNETE_STRIDED_VECTOR_INC(init, incval, count, contiglevel, limit) do { \
     size_t const _contiglevel = (contiglevel);                                   \
@@ -743,6 +744,22 @@ gasnet_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, ga
   GASNETI_TRACE_EVENT(C, PUTS_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype, 0);
 
+  // temporary storage:
+  // local init[stridelevels] |  packet data
+  //
+  // packet data:
+  //   packet_init[stridelevels] - cloned from local init[] during packing
+  //   count[stridelevels+1] - copied from user count[]
+  //   remote_strides[stridelevels] - copied from user dststrides[]
+  //   packed data, to fill up to MaxMedium()
+  //     packetchunks complete chunks of dualcontigsz granularity: MIN(srccontigsz,dstcontigsz)
+  //     no partial chunks
+  //
+  // AM Request args:
+  //   &access_region_iop, dstaddr, stridelevels, dualcontiguity, packetchunks
+  //
+  // Each request handler unpacks into destination and sends a reply to markdone(1) the iop
+  //
   { size_t * const init = gasneti_malloc(stridelevels*sizeof(size_t) + gasnet_AMMaxMedium());
     size_t * const packetbase = init + stridelevels;
     size_t * const packetinit = packetbase;
@@ -854,6 +871,37 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
   gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, GETS_AMPIPELINE);
 
+  // visop storage:
+  //   table count[stridelevels+1] - copied from user count[]
+  //   table local_strides[stridelevels] - copied from user dststrides[]
+  //   table init x [packetcnt]:
+  //     packet_init[stridelevels] - cloned from local init[] during packetization
+  //   Request packet data
+  //
+  // Request packet data:
+  //   packet_init[stridelevels] - cloned from table init[] during packetization
+  //   count[stridelevels+1] - copied from user count[]
+  //   remote_strides[stridelevels] - copied from user srcstrides[]
+  //
+  // AM Request args:
+  //   &visop, srcaddr, stridelevels, dualcontiguity, packetchunks, packetidx
+  //
+  // Packetization partitions data to fit replies into MaxMedium():
+  //   packetchunks complete chunks of dualcontigsz granularity: MIN(srccontigsz,dstcontigsz)
+  //   no partial chunks
+  //   table inits are computed using full stridelevels dimensions
+  //
+  // Each request handler mallocs MaxMedium() temporary storage, 
+  //   packs source data there, sends and then frees.
+  //
+  // AM Reply args:
+  //   &visop, packetidx, dualcontiguity, packetchunks
+  //   Payload is just raw packed data
+  //
+  // Reply handler retrieves count[], local_strides[] and packet_init[] from visop
+  //   and uses it to unpack data into destination
+  //   weakatomic dec-and-test on visop->packetcnt to VISOP_SIGNAL
+  //
   { size_t const chunksz = stats->dualcontigsz;
     size_t const adjchunksz = stats->dualcontigsz/count[0];
     size_t const totalchunks = MAX(stats->srcsegments,stats->dstsegments);
