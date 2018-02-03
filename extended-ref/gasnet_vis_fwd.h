@@ -66,6 +66,10 @@ extern void gasneti_vis_progressfn(void);
         CNT(C, GETS_REF_VECTOR, cnt)         \
         CNT(C, PUTS_REF_INDEXED, cnt)        \
         CNT(C, GETS_REF_INDEXED, cnt)        \
+        CNT(C, PUTS_DEGENERATE, cnt)         \
+        CNT(C, GETS_DEGENERATE, cnt)         \
+        CNT(C, PUTS_NBRHD, cnt)              \
+        CNT(C, GETS_NBRHD, cnt)              \
 
 #endif
 

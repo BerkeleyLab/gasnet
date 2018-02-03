@@ -211,6 +211,53 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
                          0 GASNETE_THREAD_PASS);                                \
   } while (0)
 
+// Put/get for degenerate case, where this single op represents the entire operation
+// Casts from int -> gex_Event_t in NBI/Blocking cases are valid because they only
+// care about zero versus non-zero.
+
+#define GASNETE_PUT_DEGEN(retval, synctype, tm, rank, dstaddr, srcaddr, nbytes, flags) do { \
+    gasneti_assert((nbytes) > 0);                                                   \
+    gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes));             \
+    switch (synctype) {                                                             \
+      case gasnete_synctype_nb:                                                     \
+        (retval) = gasnete_put_nb ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
+                         GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
+        break;                                                                      \
+      case gasnete_synctype_nbi:                                                    \
+        (retval) = (gex_Event_t)(intptr_t)                                          \
+                   gasnete_put_nbi((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
+                         GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
+        break;                                                                      \
+      case gasnete_synctype_b:                                                      \
+        (retval) = (gex_Event_t)(intptr_t)                                          \
+                   gasnete_put    ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
+                                          (flags) GASNETE_THREAD_PASS);             \
+        break;                                                                      \
+      default: gasneti_unreachable();                                               \
+    }                                                                               \
+  } while (0)
+
+#define GASNETE_GET_DEGEN(retval, synctype, tm, dstaddr, rank, srcaddr, nbytes, flags) do { \
+    gasneti_assert((nbytes) > 0);                                                   \
+    gasneti_boundscheck_allowoutseg((tm), (rank), (srcaddr), (nbytes));             \
+    switch (synctype) {                                                             \
+      case gasnete_synctype_nb:                                                     \
+        (retval) = gasnete_get_nb ((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
+                                          (flags) GASNETE_THREAD_PASS);             \
+        break;                                                                      \
+      case gasnete_synctype_nbi:                                                    \
+        (retval) = (gex_Event_t)(intptr_t)                                          \
+                   gasnete_get_nbi((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
+                                          (flags) GASNETE_THREAD_PASS);             \
+        break;                                                                      \
+      case gasnete_synctype_b:                                                      \
+        (retval) = (gex_Event_t)(intptr_t)                                          \
+                   gasnete_get    ((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
+                                          (flags) GASNETE_THREAD_PASS);             \
+        break;                                                                      \
+      default: gasneti_unreachable();                                               \
+    }                                                                               \
+  } while (0)
 
 /*---------------------------------------------------------------------------------*/
 /* packing/unpacking helpers */
@@ -261,6 +308,17 @@ extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
 #define GASNETE_METAMACRO_DESC6(fn) fn##_INT(6,5) GASNETE_METAMACRO_DESC5(fn) 
 #define GASNETE_METAMACRO_DESC7(fn) fn##_INT(7,6) GASNETE_METAMACRO_DESC6(fn) 
 #define GASNETE_METAMACRO_DESC8(fn) fn##_INT(8,7) GASNETE_METAMACRO_DESC7(fn) 
+
+// Extended variant that also threads three arbitrary arguments though the expansion chain
+#define GASNETE_METAMACRO3_ASC0(fn,a1,a2,a3) fn##_BASE(a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC1(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC0(fn,a1,a2,a3) fn##_INT(1,0,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC2(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC1(fn,a1,a2,a3) fn##_INT(2,1,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC3(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC2(fn,a1,a2,a3) fn##_INT(3,2,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC4(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC3(fn,a1,a2,a3) fn##_INT(4,3,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC5(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC4(fn,a1,a2,a3) fn##_INT(5,4,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC6(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC5(fn,a1,a2,a3) fn##_INT(6,5,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC7(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC6(fn,a1,a2,a3) fn##_INT(7,6,a1,a2,a3)
+#define GASNETE_METAMACRO3_ASC8(fn,a1,a2,a3) GASNETE_METAMACRO3_ASC7(fn,a1,a2,a3) fn##_INT(8,7,a1,a2,a3)
 
 /*---------------------------------------------------------------------------------*/
 

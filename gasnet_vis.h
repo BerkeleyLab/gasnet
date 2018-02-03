@@ -814,12 +814,12 @@ int _gex_VIS_IndexedGetNBI(
 #define _gasnete_gets(synctype,tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
          gasnete_gets(synctype,tm,dstaddr,(const size_t *)dststrides,srcrank,srcaddr,(const size_t *)srcstrides,count,stridelevels,flags GASNETE_THREAD_PASS)
 
-#define _GASNETE_STRIDED_COMMON_GET \
+#define _GASNETE_STRIDED_COMMON_GET(degencontigop) \
    gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels); \
-   _GASNETE_STRIDED_COMMON
-#define _GASNETE_STRIDED_COMMON_PUT \
+   _GASNETE_STRIDED_COMMON(degencontigop, GETS_DEGENERATE)
+#define _GASNETE_STRIDED_COMMON_PUT(degencontigop) \
    gasnete_boundscheck_strided(_tm, _dstrank, _dstaddr, _dststrides, _elemsz, _count, _stridelevels); \
-   _GASNETE_STRIDED_COMMON
+   _GASNETE_STRIDED_COMMON(degencontigop, PUTS_DEGENERATE)
 
 #else // NEW strided code
 
@@ -845,8 +845,8 @@ int _gex_VIS_IndexedGetNBI(
 #endif
 // no-ops
 #define GASNETE_STRIDED_BETATHUNK  
-#define _GASNETE_STRIDED_COMMON_GET _GASNETE_STRIDED_COMMON
-#define _GASNETE_STRIDED_COMMON_PUT _GASNETE_STRIDED_COMMON
+#define _GASNETE_STRIDED_COMMON_GET(degencontigop) _GASNETE_STRIDED_COMMON(degencontigop, GETS_DEGENERATE)
+#define _GASNETE_STRIDED_COMMON_PUT(degencontigop) _GASNETE_STRIDED_COMMON(degencontigop, PUTS_DEGENERATE)
 #define _gasnete_puts(synctype,tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
          gasnete_puts(synctype,tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_PASS)
 #define _gasnete_gets(synctype,tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
@@ -854,9 +854,12 @@ int _gex_VIS_IndexedGetNBI(
 
 #endif // !GASNETE_OLD_STRIDED
 
-#define _GASNETE_STRIDED_COMMON(degencontigop)             \
-  if_pf (_elemsz == 0) return 0;                           \
-  if_pf (_stridelevels == 0) {                             \
+#define _GASNETE_STRIDED_COMMON(degencontigop,degentoken)  \
+  if_pf (_elemsz == 0) {                                   \
+    GASNETI_TRACE_EVENT(C, degentoken);                    \
+    return 0;                                              \
+  } else if_pf (_stridelevels == 0) {                      \
+    GASNETI_TRACE_EVENT(C, degentoken);                    \
     return degencontigop;                                  \
   } else { /* check array validity */                      \
     gasneti_assert(_dststrides);                           \
