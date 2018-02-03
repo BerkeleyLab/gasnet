@@ -453,8 +453,9 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         _GASNETE_RATOMIC_DISP2(prefix##_NB, _gex_nb, isint, type, dtcode, gex_Event_t, GEX_EVENT_INVALID) \
         _GASNETE_RATOMIC_DISP2(prefix##_NBI, _gex_nbi, isint, type, dtcode, int, 0)
 #define _GASNETE_RATOMIC_DISP2(fname,nbnbi,isint,type,dtcode,rettype,retdone) \
-    extern rettype fname##_external(_GASNETE_RATOMIC_DISP_ARGS(type));   \
-    GASNETI_ALWAYS_INLINE(fname)                                         \
+    extern rettype fname##_external(_GASNETE_RATOMIC_DISP_ARGS(type))    \
+                                      _GASNETE_RATOMIC_DISP_WARN##nbnbi; \
+    GASNETI_ALWAYS_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi       \
     rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
@@ -484,6 +485,8 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasneti_unreachable();                                           \
         return retdone;                                                  \
     }
+#define _GASNETE_RATOMIC_DISP_WARN_gex_nb  GASNETI_WARN_UNUSED_RESULT
+#define _GASNETE_RATOMIC_DISP_WARN_gex_nbi /*empty*/
 // TODO-EX: Must add TM argument to GASNETI_SUPERNODE_LOCAL*()
 // Note that _GASNETE_RATOMIC_DISP_TOOLS_SAFE has unusually "flow" in that it
 // EITHER completes the operation synchronously using tools and *returns*
