@@ -316,8 +316,11 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 
          # disable warnings that should always be off (not supported by our headers)
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused],
-                             [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused"],
-         [ # -Wno-unused meta disable failed, try to disable the problematic sub-options individually
+         [ [$1]FLAGS="$[$1]FLAGS $3-Wno-unused"
+           # -Wno-unused unfortunately disables unused-result, which we want to preserve
+           GASNET_TRY_[$1]FLAG([$3-Wunused-result],
+                               [[$1]FLAGS="$[$1]FLAGS $3-Wunused-result"])
+         ], [ # -Wno-unused meta disable failed, try to disable the problematic sub-options individually
            GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused-function],
                                [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused-function"])
            GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused-value],
