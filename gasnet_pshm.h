@@ -288,27 +288,55 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
 }
 
 int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
-                                        size_t min_length, size_t max_length
+                                        gex_TM_t             tm,
+                                        gex_Rank_t           dest,
+                                        const void          *client_buf,
+                                        size_t               min_length,
+                                        size_t               max_length,
+                                        gex_Event_t         *lc_opt,
+                                        gex_Flags_t          flags,
+                                        unsigned int         nargs
                                         GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         gasnetc_handler_t handler, size_t nbytes,
                                         va_list argptr);
 int gasnetc_AMPSHM_PrepareRequestLong(gasneti_AM_SrcDesc_t sd,
-                                      size_t min_length, size_t max_length,
-                                      void *dest_addr GASNETI_THREAD_FARG);
+                                      gex_TM_t             tm,
+                                      gex_Rank_t           dest,
+                                      const void          *client_buf,
+                                      size_t               min_length,
+                                      size_t               max_length,
+                                      void                *dest_addr,
+                                      gex_Event_t         *lc_opt,
+                                      gex_Flags_t          flags,
+                                      unsigned int         nargs
+                                      GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitRequestLong(gasneti_AM_SrcDesc_t sd,
                                       gasnetc_handler_t handler, size_t nbytes,
                                       void *dest_addr, va_list argptr);
 
 int gasnetc_AMPSHM_PrepareReplyMedium(gasneti_AM_SrcDesc_t sd,
-                                      size_t min_length, size_t max_length
+                                      gex_Token_t          token,
+                                      const void          *client_buf,
+                                      size_t               min_length,
+                                      size_t               max_length,
+                                      gex_Event_t         *lc_opt,
+                                      gex_Flags_t          flags,
+                                      unsigned int         nargs
                                       GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitReplyMedium(gasneti_AM_SrcDesc_t sd,
                                       gasnetc_handler_t handler, size_t nbytes,
                                       va_list argptr);
 int gasnetc_AMPSHM_PrepareReplyLong(gasneti_AM_SrcDesc_t sd,
-                                    size_t min_length, size_t max_length,
-                                    void *dest_addr GASNETI_THREAD_FARG);
+                                    gex_Token_t          token,
+                                    const void          *client_buf,
+                                    size_t               min_length,
+                                    size_t               max_length,
+                                    void                *dest_addr,
+                                    gex_Event_t         *lc_opt,
+                                    gex_Flags_t          flags,
+                                    unsigned int         nargs
+                                    GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitReplyLong(gasneti_AM_SrcDesc_t sd,
                                     gasnetc_handler_t handler, size_t nbytes,
                                     void *dest_addr, va_list argptr);

@@ -213,7 +213,6 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 GASNETI_INLINE(gasneti_prepare_alloc_buffer)
 void gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
 {
-    gasneti_assert(! sd->_addr);
     size_t size = sd->_size;
 #if GASNET_DEBUG
     // Allocate at least one byte because zero-byte allocation

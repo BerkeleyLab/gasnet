@@ -642,6 +642,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     struct {
       void *               _msg;
       gex_Rank_t           _target; // should be gasneti_pshm_rank_t
+      gex_Rank_t           _dest;
       int                  _loopback;
       int                  _is_pshm;
     }                    _pshm;

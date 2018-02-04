@@ -369,51 +369,28 @@ static gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
   return sd;
 }
 
-static gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(
-                       gex_TM_t       tm,
-                       gex_Rank_t     rank,
-                       int            nargs
-                       GASNETI_THREAD_FARG)
+static gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
   gasneti_AM_SrcDesc_t sd = GASNETI_MYTHREAD->gasneti_req_sd;
   if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
-
-  sd->_nargs               = nargs;
-  sd->_dest._request._tm   = tm;
-  sd->_dest._request._rank = rank;
-#ifdef GASNETI_SD_ALLOC_REQ_EXTRA
-  GASNETI_SD_ALLOC_REQ_EXTRA(sd);
-#endif
-
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+  sd->_tofree = NULL;
   return sd;
 }
 
-static gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(
-                       gex_Token_t    token,
-                       int            nargs
-                       GASNETI_THREAD_FARG)
+static gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
   gasneti_AM_SrcDesc_t sd = GASNETI_MYTHREAD->gasneti_rep_sd;
   if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
-
-  sd->_nargs              = nargs;
-  sd->_dest._reply._token = token;
-#ifdef GASNETI_SD_ALLOC_REP_EXTRA
-  GASNETI_SD_ALLOC_REP_EXTRA(sd);
-#endif
-
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+  sd->_tofree = NULL;
   return sd;
 }
 
 static void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
-#ifdef GASNETI_SD_FREE_EXTRA
-  GASNETI_SD_FREE_EXTRA(sd);
-#endif
   gasneti_free(sd->_tofree);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
 }
@@ -459,17 +436,23 @@ static void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
                            _STRINGIFY(cat) "() (%"PRIuPTR" > %"PRIuPTR")",                               \
                            _reqrep, _reqrep, (uintptr_t)min_length, (uintptr_t)limit);                   \
     } while(0)
-  #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min_len,max_len,lc_opt,flags,nargs,cat) \
+  #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                                   \
+      sd->_category  = (int)gasneti_##cat;                                                 \
+      sd->_dest_addr = dest_addr;                                                          \
+      sd->_nargs     = nargs;                                                              \
       size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,flags,nargs);                   \
       if (dest >= gex_TM_QuerySize(tm))                                                    \
         gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
                            "destination rank out-of-range (%lu >= %lu)",                   \
                            (unsigned long)dest, (unsigned long)gex_TM_QuerySize(tm));      \
-        _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,1,cat);             \
+      _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,1,cat);             \
     } while(0)
-  #define GASNETI_AMPREPREPLYCOMMON(token,cbuf,min_len,max_len,lc_opt,flags,nargs,cat) \
+  #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                               \
+      sd->_category  = (int)gasneti_##cat;                                             \
+      sd->_dest_addr = dest_addr;                                                      \
+      sd->_nargs     = nargs;                                                          \
       size_t limit = gasnetc_Token_MaxReply##cat(token,lc_opt,flags,nargs);            \
       _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,0,cat);           \
     } while(0)
@@ -516,45 +499,60 @@ static void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
                   _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
 #else
   #define gasneti_init_sd_poison(a,l) ((void)0)
-  #define GASNETI_AMPREPREQUESTCOMMON(tm,dest,cbuf,min,max,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_AMPREPREPLYCOMMON(token,cbuf,minlen,maxlen,lc_opt,flags,nargs,cat) ((void)0)
+  #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
+  #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
   #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
   #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
 #endif
 
-GASNETI_INLINE(gasneti_prepare_medium_common)
-void gasneti_prepare_medium_common(
+GASNETI_ALWAYS_INLINE(gasneti_prepare_common)
+void gasneti_prepare_common(
                        gasneti_AM_SrcDesc_t sd,
-                       const void           *client_buf,
-                       gex_Event_t          *lc_opt,
-                       gex_Flags_t          flags)
+                       const void          *client_buf,
+                       size_t               size,
+                       gex_Event_t         *lc_opt,
+                       gex_Flags_t          flags,
+                       unsigned int         nargs)
 {
-#if GASNET_DEBUG
-    sd->_category  = (int)gasneti_Medium;
-    sd->_dest_addr = NULL;
-#endif
-    sd->_lc_opt    = lc_opt;
-    sd->_flags     = flags;
-    sd->_tofree    = NULL;
-    sd->_addr      = (/*non-const*/void *)client_buf;
+    sd->_lc_opt = lc_opt;
+    sd->_flags  = flags;
+    sd->_nargs  = nargs;
+    sd->_size   = size;
+    if (client_buf) {
+        sd->_addr = (/*non-const*/void *)client_buf;
+    } else {
+        gasneti_prepare_alloc_buffer(sd);
+    }
 }
 
-GASNETI_INLINE(gasneti_prepare_long_common)
-void gasneti_prepare_long_common(
+GASNETI_ALWAYS_INLINE(gasneti_prepare_request_common)
+void gasneti_prepare_request_common(
                        gasneti_AM_SrcDesc_t sd,
-                       const void           *client_buf,
-                       void                 *dest_addr,
-                       gex_Event_t          *lc_opt,
-                       gex_Flags_t          flags)
+                       gex_TM_t             tm,
+                       gex_Rank_t           dest,
+                       const void          *client_buf,
+                       size_t               size,
+                       gex_Event_t         *lc_opt,
+                       gex_Flags_t          flags,
+                       unsigned int         nargs)
 {
-#if GASNET_DEBUG
-    sd->_category  = (int)gasneti_Long;
-#endif
-    sd->_dest_addr = dest_addr;
-    sd->_lc_opt    = lc_opt;
-    sd->_flags     = flags;
-    sd->_tofree    = NULL;
-    sd->_addr      = (/*non-const*/void *)client_buf;
+    sd->_dest._request._tm   = tm;
+    sd->_dest._request._rank = dest;
+    gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
+}
+
+GASNETI_ALWAYS_INLINE(gasneti_prepare_reply_common)
+void gasneti_prepare_reply_common(
+                       gasneti_AM_SrcDesc_t sd,
+                       gex_Token_t          token,
+                       const void          *client_buf,
+                       size_t               size,
+                       gex_Event_t         *lc_opt,
+                       gex_Flags_t          flags,
+                       unsigned int         nargs)
+{
+    sd->_dest._reply._token = token;
+    gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
 }
 
 #ifndef gasnetc_AM_PrepareRequestMedium
@@ -569,7 +567,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf,min_length,max_length,lc_opt,flags,nargs,Medium);
+    gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
     // Ensure at least one poll upon Request injection (exactly one if possible)
 #if GASNETC_REQUESTV_POLLS
@@ -577,9 +576,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 #else
     gasneti_AMPoll();
 #endif
-
-    gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS);
-    gasneti_prepare_medium_common(sd, client_buf, lc_opt, flags);
 
 #if GASNET_PSHM
     int is_pshm = gasneti_pshm_in_supernode(dest);
@@ -589,7 +585,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         // Will not reach conduit's Request{Medium,Long}V
         gasneti_AMPoll();
     #endif
-        int imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, min_length, max_length GASNETI_THREAD_PASS);
+        int imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, tm, dest, client_buf, min_length, max_length,
+                                                      lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
     } else
 #endif
@@ -599,8 +596,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         if (imm) goto out_immediate;
     #else
         size_t limit = gex_AM_MaxRequestMedium(tm, dest, lc_opt, flags, nargs);
-        sd->_size = MIN(limit, max_length);
-        if (!client_buf) gasneti_prepare_alloc_buffer(sd);
+        size_t size = MIN(max_length, limit);
+        gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
     #endif
     }
 
@@ -624,16 +621,15 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    GASNETI_AMPREPREPLYCOMMON(token,client_buf,min_length,max_length,lc_opt,flags,nargs,Medium);
-
-    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(token, nargs GASNETI_THREAD_PASS);
-    gasneti_prepare_medium_common(sd, client_buf, lc_opt, flags);
+    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
 #if GASNET_PSHM
     int is_pshm = gasnetc_token_is_pshm(token);
     sd->_pshm._is_pshm = is_pshm;
     if (is_pshm) {
-        int imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, min_length, max_length GASNETI_THREAD_PASS);
+        int imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, min_length, max_length,
+                                                      lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
     } else
 #endif
@@ -643,8 +639,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         if (imm) goto out_immediate;
     #else
         size_t limit = gasnetc_Token_MaxReplyMedium(token, lc_opt, flags, nargs);
-        sd->_size = MIN(limit, max_length);
-        if (!client_buf) gasneti_prepare_alloc_buffer(sd);
+        size_t size = MIN(max_length, limit);
+        gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
     #endif
     }
 
@@ -670,7 +666,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    GASNETI_AMPREPREQUESTCOMMON(tm,dest,client_buf,min_length,max_length,lc_opt,flags,nargs,Long);
+    gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
     // Ensure at least one poll upon Request injection (exactly one if possible)
 #if GASNETC_REQUESTV_POLLS
@@ -678,9 +675,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
 #else
     gasneti_AMPoll();
 #endif
-
-    gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(tm, dest, nargs GASNETI_THREAD_PASS);
-    gasneti_prepare_long_common(sd, client_buf, dest_addr, lc_opt, flags);
 
 #if GASNET_PSHM
     int is_pshm = gasneti_pshm_in_supernode(dest);
@@ -690,7 +684,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         // Will not reach conduit's Request{Medium,Long}V
         gasneti_AMPoll();
     #endif
-        int imm = gasnetc_AMPSHM_PrepareRequestLong(sd, min_length, max_length, dest_addr GASNETI_THREAD_PASS);
+        int imm = gasnetc_AMPSHM_PrepareRequestLong(sd, tm, dest, client_buf, min_length, max_length,
+                                                    dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
     } else
 #endif
@@ -700,8 +695,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         if (imm) goto out_immediate;
     #else
         size_t limit = gex_AM_MaxRequestLong(tm, dest, lc_opt, flags, nargs);
-        sd->_size = MIN(limit, max_length);
-        if (!client_buf) gasneti_prepare_alloc_buffer(sd);
+        size_t size = MIN(max_length, limit);
+        gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
+        sd->_dest_addr = dest_addr;
     #endif
     }
 
@@ -726,16 +722,15 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    GASNETI_AMPREPREPLYCOMMON(token,client_buf,min_length,max_length,lc_opt,flags,nargs,Long);
-
-    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(token, nargs GASNETI_THREAD_PASS);
-    gasneti_prepare_long_common(sd, client_buf, dest_addr, lc_opt, flags);
+    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
 #if GASNET_PSHM
     int is_pshm = gasnetc_token_is_pshm(token);
     sd->_pshm._is_pshm = is_pshm;
     if (is_pshm) {
-        int imm = gasnetc_AMPSHM_PrepareReplyLong(sd, min_length, max_length, dest_addr GASNETI_THREAD_PASS);
+        int imm = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, min_length, max_length,
+                                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
     } else
 #endif
@@ -745,8 +740,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
         if (imm) goto out_immediate;
     #else
         size_t limit = gasnetc_Token_MaxReplyLong(token, lc_opt, flags, nargs);
-        sd->_size = MIN(limit, max_length);
-        if (!client_buf) gasneti_prepare_alloc_buffer(sd);
+        size_t size = MIN(max_length, limit);
+        gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
+        sd->_dest_addr = dest_addr;
     #endif
     }
 
