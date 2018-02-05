@@ -152,9 +152,11 @@ typedef ... gex_Event_t;
 // - GEX_EVENT_INVALID
 //   + result for already-completed operation
 //   + synonymous with GASNET_INVALID_HANDLE
+//   + guaranteed to be zero
 // - GEX_EVENT_NO_OP
 //   + result for a failed communication attempt (eg immediate-mode
 //     injection that encountered backpressure)
+//   + guaranteed to be non-zero
 //   + Erroneous to pass this value to test/wait operations
 #define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
 #define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)???)
