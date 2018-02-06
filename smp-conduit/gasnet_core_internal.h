@@ -12,11 +12,10 @@
 typedef struct {
   gex_Token_Info_t ti;
 #if GASNET_DEBUG
-  int8_t   isReq; 
   int8_t   handlerRunning; 
   int8_t   replyIssued;    
 #endif
-} gasnetc_token_t;
+} gasnetc_nbrhd_token_t;
 
 typedef struct {
   uint8_t  requestBuf[GASNETC_MAX_MEDIUM];
