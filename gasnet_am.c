@@ -352,7 +352,7 @@ gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
 }
 #endif
 
-static gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
+gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
 {
   gasneti_assert(isreq == !!isreq); // 0 or 1
   gasneti_AM_SrcDesc_t sd = &(GASNETI_MYTHREAD->gasneti_sds[isreq]);
@@ -369,9 +369,12 @@ static gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
   return sd;
 }
 
-static gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
+// Get the thread-specfic SD for Requests, initializing on first call
+GASNETI_INLINE(gasneti_init_request_srcdesc)
+gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  gasneti_AM_SrcDesc_t sd = GASNETI_MYTHREAD->gasneti_req_sd;
+  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
+  gasneti_AM_SrcDesc_t sd = mythread_ptrs[4]; // 5th pointer
   if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
@@ -379,9 +382,12 @@ static gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALO
   return sd;
 }
 
-static gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
+// Get the thread-specfic SD for Replies, initializing on first call
+GASNETI_INLINE(gasneti_init_reply_srcdesc)
+gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  gasneti_AM_SrcDesc_t sd = GASNETI_MYTHREAD->gasneti_rep_sd;
+  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
+  gasneti_AM_SrcDesc_t sd = mythread_ptrs[3]; // 4th pointer
   if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
@@ -389,7 +395,9 @@ static gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE
   return sd;
 }
 
-static void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
+// Return a thread-specfic SD to its "inactive" state
+GASNETI_INLINE(gasneti_reset_srcdesc)
+void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
   gasneti_free(sd->_tofree);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
