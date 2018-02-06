@@ -459,6 +459,28 @@ extern int gasnetc_AMReplyLongV(
 
 /* ------------------------------------------------------------------------------------ */
 
+/* Defaults if gasnet_core_fwd.h doesn't #define these preprocessor tokens */
+#ifndef GASNETC_MAX_ARGS_LOOP
+  // Conduit must define GASNETC_MAX_ARGS_LOOP if gex_AM_MaxArgs() is not a compile time constant
+  #define GASNETC_MAX_ARGS_LOOP   (gex_AM_MaxArgs())
+#endif
+#ifndef GASNETC_MAX_MEDIUM_LOOP
+  /* Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants.
+   * If using this default, the conduit must ensure that _max_AM*Medium() for a PSHM
+   * peer do not exceed the larger of the two _lub_ values.  Alternatively, the
+   * conduit should define GASNETC_MAX_MEDIUM_LOOP to the appropriate bound instead.
+   */
+  #define GASNETC_MAX_MEDIUM_LOOP MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
+#endif
+#ifndef GASNETC_GET_HANDLER
+  /* Assumes conduit has gasnetc_handler[] as in template-conduit */
+  // TODO-EX: gasnetc_handler to be replaced w/ per-endpoint data when defined
+  #define gasnetc_get_hentry(_ep,_index) (&gasnetc_handler[(_index)])
+  #define gasnetc_get_handler(_ep,_index,_field) (gasnetc_get_hentry((_ep),(_index))->gex_##_field)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
 
 #if GASNET_CONDUIT_SMP
@@ -496,8 +518,7 @@ void *gasnetc_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
     void *buf = gasneti_lifo_pop(&gasnetc_loopback_medium_pool);
     if_pf (NULL == buf) {
       /* Grow the free pool with buffers sized and aligned for the largest Medium */
-      const size_t sz = MAX(gex_AM_LUBRequestMedium(), gex_AM_LUBReplyMedium());
-      buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, sz);
+      buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, GASNETC_MAX_MEDIUM_LOOP);
       gasneti_leak_aligned(buf);
     }
     return buf;
@@ -518,9 +539,44 @@ typedef struct {
 #endif
 } gasnetc_nbrhd_token_t;
 
-// Conduit must define GASNETC_MAX_ARGS_LOOP if gex_AM_MaxArgs() is not a compile time constant
-#ifndef GASNETC_MAX_ARGS_LOOP
-  #define GASNETC_MAX_ARGS_LOOP   (gex_AM_MaxArgs())
+GASNETI_INLINE(gasnetc_nbrhd_token_init)
+gex_Token_t gasnetc_nbrhd_token_init(
+                        gasnetc_nbrhd_token_t *real_token,
+                        gex_Rank_t src,
+                        gex_AM_Entry_t *entry,
+                        int isReq)
+{
+    gasneti_assert(!((uintptr_t)real_token & 1));
+    gasneti_assert(GASNETI_SUPERNODE_LOCAL(src));
+  #if !PLATFORM_COMPILER_PGI // Bug 3587
+    // generic msgsource() requires srcrank first
+    gasneti_assert(!offsetof(gasnetc_nbrhd_token_t,ti.gex_srcrank));
+  #endif
+    real_token->ti.gex_srcrank = src;
+    real_token->ti.gex_ep = gasneti_THUNK_EP;
+    real_token->ti.gex_entry = entry;
+    real_token->ti.gex_is_req = isReq;
+  #if GASNET_DEBUG
+    real_token->handlerRunning = 1;
+    real_token->replyIssued = 0;
+  #endif
+    return (gex_Token_t)(1|(uintptr_t)real_token);
+}
+
+#ifdef GASNETC_ENTERING_HANDLER_HOOK
+  #define GASNETC_NBRHD_ENTERING_HANDLER_HOOK GASNETC_ENTERING_HANDLER_HOOK
+#else
+  /* extern void enterHook(int cat, int isReq, int handlerId, gex_Token_t *token,
+   *                       void *buf, size_t nbytes, int numargs, gex_AM_Arg_t *args);
+   */
+  #define GASNETC_NBRHD_ENTERING_HANDLER_HOOK(cat,isReq,handlerId,token,buf,nbytes,numargs,args) ((void)0)
+#endif
+#ifdef GASNETC_LEAVING_HANDLER_HOOK
+  #define GASNETC_NBRHD_LEAVING_HANDLER_HOOK GASNETC_LEAVING_HANDLER_HOOK
+#else
+  /* extern void leaveHook(int cat, int isReq);
+   */
+  #define GASNETC_NBRHD_LEAVING_HANDLER_HOOK(cat,isReq) ((void)0)
 #endif
 
 GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
@@ -530,19 +586,12 @@ int gasnetc_loopback_ReqRepGeneric(
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gex_Flags_t flags, int numargs, va_list argptr) {
   gex_AM_Arg_t pargs[GASNETC_MAX_ARGS_LOOP];
-  gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
+  gex_EP_t ep = NULL; // TODO-EX: get true value
+  gex_AM_Entry_t *handler_entry = gasnetc_get_hentry(ep, handler);
   gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
 
   gasnetc_nbrhd_token_t real_token;
-  #if GASNET_DEBUG
-    real_token.handlerRunning = 1;
-    real_token.replyIssued = 0;
-  #endif
-  real_token.ti.gex_srcrank = gasneti_mynode;
-  real_token.ti.gex_ep = gasneti_THUNK_EP;
-  real_token.ti.gex_entry = handler_entry;
-  real_token.ti.gex_is_req = isReq;
-  const gex_Token_t token = (gex_Token_t)&real_token;
+  const gex_Token_t token = gasnetc_nbrhd_token_init(&real_token, gasneti_mynode, handler_entry, isReq);
 
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_LOOP);
   gasneti_amtbl_check(handler_entry, numargs, category, isReq);
@@ -557,6 +606,7 @@ int gasnetc_loopback_ReqRepGeneric(
     case gasneti_Short:
       { 
         real_token.ti.gex_is_long = 0;
+        GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,NULL,0,numargs,pargs);
         GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,pargs,numargs);
       }
     break;
@@ -567,6 +617,7 @@ int gasnetc_loopback_ReqRepGeneric(
         memcpy(buf, source_addr, nbytes);
 
         real_token.ti.gex_is_long = 0;
+        GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,buf,nbytes,numargs,pargs);
         GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
         gasnetc_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_GET);
       }
@@ -576,6 +627,7 @@ int gasnetc_loopback_ReqRepGeneric(
         if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
 
         real_token.ti.gex_is_long = 1;
+        GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,dest_ptr,nbytes,numargs,pargs);
         GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,dest_ptr,nbytes);
       }
     break;
@@ -584,6 +636,7 @@ int gasnetc_loopback_ReqRepGeneric(
   #if GASNET_DEBUG  
     real_token.handlerRunning = 0;
   #endif
+  GASNETC_NBRHD_LEAVING_HANDLER_HOOK(category,isReq);
   return GASNET_OK;
 }
 
@@ -615,7 +668,7 @@ int gasnetc_nbrhd_ReplyGeneric(
                                      dest_ptr, flags, numargs, argptr); 
 #else
   #if GASNET_DEBUG  
-    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)token;
+    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token);
 
     gasneti_assert(real_token->handlerRunning);
     gasneti_assert(!real_token->replyIssued);

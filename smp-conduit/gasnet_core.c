@@ -993,14 +993,9 @@ extern gex_TI_t gasnetc_Token_Info(
   gasneti_assert(token);
   gasneti_assert(info);
 
-#if GASNET_PSHM
-  gasneti_assert(gasnetc_token_is_pshm(token));
-  return gasnetc_AMPSHM_TokenInfo(token, info, mask);
-#else
-  *info = ((gasnetc_nbrhd_token_t *)token)->ti;
+  *info = ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)token))->ti;
   gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_EP | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
-#endif
 }
 
 #if GASNET_PSHM 
