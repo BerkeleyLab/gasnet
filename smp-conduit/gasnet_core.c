@@ -985,19 +985,6 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern gex_TI_t gasnetc_Token_Info(
-                gex_Token_t         token,
-                gex_Token_Info_t    *info,
-                gex_TI_t            mask)
-{
-  gasneti_assert(token);
-  gasneti_assert(info);
-
-  *info = ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)token))->ti;
-  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_EP | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
-  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
-}
-
 #if GASNET_PSHM 
 extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   GASNETI_CHECKATTACH();

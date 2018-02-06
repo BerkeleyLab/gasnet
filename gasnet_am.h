@@ -563,6 +563,11 @@ gex_Token_t gasnetc_nbrhd_token_init(
     return (gex_Token_t)(1|(uintptr_t)real_token);
 }
 
+extern gex_TI_t gasnetc_nbrhd_Token_Info(
+                gex_Token_t         token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask);
+
 #ifdef GASNETC_ENTERING_HANDLER_HOOK
   #define GASNETC_NBRHD_ENTERING_HANDLER_HOOK GASNETC_ENTERING_HANDLER_HOOK
 #else

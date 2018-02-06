@@ -86,4 +86,7 @@
   extern void gasnetc_fatalsignal_cleanup_callback(int sig);
 #endif
 
+// Always loopback (self or PSHM)
+#define gex_Token_Info gasnetc_nbrhd_Token_Info
+
 #endif

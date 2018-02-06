@@ -108,10 +108,8 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
           (gasneti_assert(gasnetc_token_is_pshm(tok)), \
            *(gex_Rank_t*)(1^(uintptr_t)(tok)))
 
-  extern gex_TI_t gasnetc_AMPSHM_TokenInfo(
-                gex_Token_t         token,
-                gex_Token_Info_t    *info,
-                gex_TI_t            mask);
+  // TODO-EX: remove this indirection
+  #define gasnetc_AMPSHM_TokenInfo gasnetc_nbrhd_Token_Info
 
   #if GASNET_DEBUG
     extern void gasnetc_token_reply(gex_Token_t token);

@@ -683,3 +683,16 @@ void gasnetc_AM_CommitReplyLongM(
 /* ------------------------------------------------------------------------------------ */
 
 gasneti_lifo_head_t gasnetc_loopback_medium_pool = GASNETI_LIFO_INITIALIZER;
+
+extern gex_TI_t gasnetc_nbrhd_Token_Info(
+                gex_Token_t         token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
+
+  *info = ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)token))->ti;
+  gex_TI_t result = GEX_TI_SRCRANK | GEX_TI_EP | GEX_TI_ENTRY | GEX_TI_IS_REQ | GEX_TI_IS_LONG;
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
+}
