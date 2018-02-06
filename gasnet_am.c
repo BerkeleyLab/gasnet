@@ -522,6 +522,7 @@ void gasneti_prepare_common(
         sd->_addr = (/*non-const*/void *)client_buf;
     } else {
         gasneti_prepare_alloc_buffer(sd);
+        gasneti_init_sd_poison(sd->_addr, size);
     }
 }
 
@@ -570,21 +571,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
-    // Ensure at least one poll upon Request injection (exactly one if possible)
-#if GASNETC_REQUESTV_POLLS
-    // Conduit's Request{Medium,Long}V will AMPoll in Commit
-#else
-    gasneti_AMPoll();
-#endif
-
 #if GASNET_PSHM
-    int is_pshm = gasneti_pshm_in_supernode(dest);
-    sd->_pshm._is_pshm = is_pshm;
-    if (is_pshm) {
-    #if GASNETC_REQUESTV_POLLS
-        // Will not reach conduit's Request{Medium,Long}V
-        gasneti_AMPoll();
-    #endif
+    if (GASNETI_IS_AMPSHM_PREPARE_REQ(sd, tm, dest)) {
+        gasneti_AMPoll(); // Ensure at least one poll upon Request injection
         int imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, tm, dest, client_buf, min_length, max_length,
                                                       lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
@@ -595,13 +584,18 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         int imm = GASNETC_AM_PREPARE_REQ_MEDIUM(sd, min_length, max_length);
         if (imm) goto out_immediate;
     #else
+        // Ensure at least one poll upon Request injection (exactly one if possible)
+        #if GASNETC_REQUESTV_POLLS
+            // Conduit's Request{Medium,Long}V will AMPoll in Commit
+        #else
+            gasneti_AMPoll();
+        #endif
         size_t limit = gex_AM_MaxRequestMedium(tm, dest, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);
         gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
     #endif
     }
 
-    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -625,9 +619,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
 #if GASNET_PSHM
-    int is_pshm = gasnetc_token_is_pshm(token);
-    sd->_pshm._is_pshm = is_pshm;
-    if (is_pshm) {
+    if (GASNETI_IS_AMPSHM_PREPARE_REP(sd, token)) {
         int imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, min_length, max_length,
                                                       lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
@@ -644,7 +636,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     #endif
     }
 
-    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -669,21 +660,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
-    // Ensure at least one poll upon Request injection (exactly one if possible)
-#if GASNETC_REQUESTV_POLLS
-    // Conduit's Request{Medium,Long}V will AMPoll in Commit
-#else
-    gasneti_AMPoll();
-#endif
-
 #if GASNET_PSHM
-    int is_pshm = gasneti_pshm_in_supernode(dest);
-    sd->_pshm._is_pshm = is_pshm;
-    if (is_pshm) {
-    #if GASNETC_REQUESTV_POLLS
-        // Will not reach conduit's Request{Medium,Long}V
-        gasneti_AMPoll();
-    #endif
+    if (GASNETI_IS_AMPSHM_PREPARE_REQ(sd, tm, dest)) {
+        gasneti_AMPoll(); // Ensure at least one poll upon Request injection
         int imm = gasnetc_AMPSHM_PrepareRequestLong(sd, tm, dest, client_buf, min_length, max_length,
                                                     dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
@@ -694,6 +673,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         int imm = GASNETC_AM_PREPARE_REQ_LONG(sd, min_length, max_length, dest_addr);
         if (imm) goto out_immediate;
     #else
+        // Ensure at least one poll upon Request injection (exactly one if possible)
+        #if GASNETC_REQUESTV_POLLS
+            // Conduit's Request{Medium,Long}V will AMPoll in Commit
+        #else
+            gasneti_AMPoll();
+        #endif
         size_t limit = gex_AM_MaxRequestLong(tm, dest, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);
         gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
@@ -701,7 +686,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     #endif
     }
 
-    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -726,9 +710,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
 #if GASNET_PSHM
-    int is_pshm = gasnetc_token_is_pshm(token);
-    sd->_pshm._is_pshm = is_pshm;
-    if (is_pshm) {
+    if (GASNETI_IS_AMPSHM_PREPARE_REP(sd, token)) {
         int imm = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, min_length, max_length,
                                                   dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) goto out_immediate;
@@ -746,7 +728,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     #endif
     }
 
-    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -772,7 +753,7 @@ void gasnetc_AM_CommitRequestMediumM(
     va_list argptr;
     va_start(argptr, sd_arg);
 #if GASNET_PSHM
-    if (sd->_pshm._is_pshm) {
+    if (GASNETI_IS_AMPSHM_COMMIT(sd)) {
         gasnetc_AMPSHM_CommitRequestMedium(sd, handler, nbytes, argptr);
     } else
 #endif
@@ -813,7 +794,7 @@ void gasnetc_AM_CommitReplyMediumM(
     va_list argptr;
     va_start(argptr, sd_arg);
 #if GASNET_PSHM
-    if (sd->_pshm._is_pshm) {
+    if (GASNETI_IS_AMPSHM_COMMIT(sd)) {
         gasnetc_AMPSHM_CommitReplyMedium(sd, handler, nbytes, argptr);
     } else
 #endif
@@ -855,7 +836,7 @@ void gasnetc_AM_CommitRequestLongM(
     va_list argptr;
     va_start(argptr, sd_arg);
 #if GASNET_PSHM
-    if (sd->_pshm._is_pshm) {
+    if (GASNETI_IS_AMPSHM_COMMIT(sd)) {
         gasnetc_AMPSHM_CommitRequestLong(sd, handler, nbytes, dest_addr, argptr);
     } else
 #endif
@@ -897,7 +878,7 @@ void gasnetc_AM_CommitReplyLongM(
     va_list argptr;
     va_start(argptr, sd_arg);
 #if GASNET_PSHM
-    if (sd->_pshm._is_pshm) {
+    if (GASNETI_IS_AMPSHM_COMMIT(sd)) {
         gasnetc_AMPSHM_CommitReplyLong(sd, handler, nbytes, dest_addr, argptr);
     } else
 #endif

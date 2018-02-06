@@ -1486,6 +1486,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
     gasneti_prepare_alloc_buffer(sd);
   }
 
+  if (! client_buf) gasneti_init_sd_poison(sd->_addr, size);
   return 0;
 }
 

@@ -287,6 +287,13 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
   return retval;
 }
 
+#define GASNETI_IS_AMPSHM_PREPARE_REQ(sd,tm,dest) \
+    (0 != ((sd)->_pshm._is_pshm = gasneti_pshm_in_supernode(dest)))
+#define GASNETI_IS_AMPSHM_PREPARE_REP(sd,token) \
+    (0 != ((sd)->_pshm._is_pshm = gasnetc_token_is_pshm(token)))
+#define GASNETI_IS_AMPSHM_COMMIT(sd) \
+    ((sd)->_pshm._is_pshm)
+
 int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         gex_TM_t             tm,
                                         gex_Rank_t           dest,
