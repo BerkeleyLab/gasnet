@@ -167,20 +167,22 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 // Macros for building local atomic RMW operations using (strong) atomics
 // TODO: generalize to weak atomic too?
 //
-// GASNETE_RATOMIC_CAS(output, tgt, dtcode, op1, operator)
+// GASNETE_RATOMIC_CAS(output, tgt, dtcode, op3, operator, fences)
 //   Use appropriate fixed-width CAS to apply an operator to the given data type
 //
 // Ex1:
-//   GASNETE_RATOMIC_CAS(x, tgt, _gex_dt_I32, op1, GASNETE_RATOMIC_CAS_OP_MULT)
+//   GASNETE_RATOMIC_CAS(x, tgt, _gex_dt_I32, op1, GASNETE_RATOMIC_CAS_OP_MULT, 0)
 //   Atomically performs { x = *tgt; *tgt = *tgt * op1; } on values of type int32_t
 //
 // Ex2:
-//   GASNETE_RATOMIC_CAS(x, tgt, _gex_dt_DBL, op1, GASNETE_RATOMIC_CAS_OP_MAX)
+//   GASNETE_RATOMIC_CAS(x, tgt, _gex_dt_DBL, op1, GASNETE_RATOMIC_CAS_OP_MAX, 0)
 //   Atomically performs { x = *tgt; *tgt = MAX(*tgt, op1); } on values of type double
 //
 // Care is taken to evaluate 'output', 'tgt' and 'op1' exactly once.
 // All operations are "fetching" (writing to an output variable).
 // INC (DEC) are available indirectly using ADD (SUB) with an 'op1' of 1.
+//
+// The 'fences' argument is 0 or an OR of GASNETI_ATOMIC_* flags.
 //
 // Operators:
 #define GASNETE_RATOMIC_CAS_OP_ADD(a,b)  (a + b)
@@ -192,31 +194,31 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 #define GASNETE_RATOMIC_CAS_OP_MIN(a,b)  MIN(a, b)
 #define GASNETE_RATOMIC_CAS_OP_MAX(a,b)  MAX(a, b)
 //
-#define GASNETE_RATOMIC_CAS(output, tgt, dtcode, op1, operator) \
-        _GASNETE_RATOMIC_CAS1(output, tgt, dtcode##_type, dtcode##_bits, op1, dtcode##_isint, operator)
+#define GASNETE_RATOMIC_CAS(output, tgt, dtcode, op1, operator, fences) \
+        _GASNETE_RATOMIC_CAS1(output, tgt, dtcode##_type, dtcode##_bits, op1, dtcode##_isint, operator, fences)
 // This extra pass expands the "bits" and "isint" tokens prior to additional concatenation
-#define _GASNETE_RATOMIC_CAS1(output, tgt, type, bits, op1, isint, operator) \
-        _GASNETE_RATOMIC_CAS2(output, tgt, type, bits, op1, isint, operator)
-#define _GASNETE_RATOMIC_CAS2(output, tgt, type, bits, op1, isint, operator) \
-        _GASNETE_RATOMIC_CAS3##isint(output, tgt, type, bits, op1, operator)
-#define _GASNETE_RATOMIC_CAS31(output, tgt, type, bits, op1, operator) do { /* integer DTs */ \
+#define _GASNETE_RATOMIC_CAS1(output, tgt, type, bits, op1, isint, operator, fences) \
+        _GASNETE_RATOMIC_CAS2(output, tgt, type, bits, op1, isint, operator, fences)
+#define _GASNETE_RATOMIC_CAS2(output, tgt, type, bits, op1, isint, operator, fences) \
+        _GASNETE_RATOMIC_CAS3##isint(output, tgt, type, bits, op1, operator, fences)
+#define _GASNETE_RATOMIC_CAS31(output, tgt, type, bits, op1, operator, fences) do { /* integer DTs */ \
         type const _op1 = (op1);                                                     \
         gasneti_atomic##bits##_t *_tgt = (gasneti_atomic##bits##_t*)(tgt);           \
         type _newval, _oldval;                                                       \
         do {                                                                         \
             _oldval = gasneti_atomic##bits##_read(_tgt, 0);                          \
             _newval = operator(_oldval, _op1);                                       \
-        } while (! gasneti_atomic##bits##_compare_and_swap(_tgt,_oldval,_newval,0)); \
+        } while (! gasneti_atomic##bits##_compare_and_swap(_tgt,_oldval,_newval,fences)); \
         (output) = _oldval;                                                          \
     } while (0);
-#define _GASNETE_RATOMIC_CAS30(output, tgt, type, bits, op1, operator) do { /* FP DTs */ \
+#define _GASNETE_RATOMIC_CAS30(output, tgt, type, bits, op1, operator, fences) do { /* FP DTs */ \
         type const _op1 = (op1);                                                     \
         gasneti_atomic##bits##_t *_tgt = (gasneti_atomic##bits##_t*)(tgt);           \
         union { type _fp; uint##bits##_t _ui; } _newval, _oldval;                    \
         do {                                                                         \
             _oldval._ui = gasneti_atomic##bits##_read(_tgt, 0);                      \
             _newval._fp = operator(_oldval._fp, _op1);                               \
-        } while (! gasneti_atomic##bits##_compare_and_swap(_tgt, _oldval._ui, _newval._ui, 0)); \
+        } while (! gasneti_atomic##bits##_compare_and_swap(_tgt,_oldval._ui,_newval._ui,fences)); \
         (output) = _oldval._fp;                                                      \
     } while (0);
 
@@ -240,7 +242,7 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
         _GASNETE_RATOMIC_FN_DEFN2(fname, dtcode, type, bits, isint)
 #define _GASNETE_RATOMIC_FN_DEFN2(fname, dtcode, type, bits, isint) \
   GASNETI_INLINE(fname)                                                         \
-  type fname(type *_tgt_addr, type _operand1, type _operand2, gex_OP_t _opcode) \
+  type fname(type *_tgt_addr, type _operand1, type _operand2, gex_OP_t _opcode, int _fences) \
   { type _result;                                                               \
     gasneti_atomic##bits##_t *_ratgt = (gasneti_atomic##bits##_t *)(_tgt_addr); \
     typedef union { type _ratype; uint##bits##_t _raui; } _raunion;             \
@@ -257,19 +259,19 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 // Big SWitch cases for integer types (isint == 1)
 #define _GASNETE_RATOMIC_FN_SW1(dtcode,type,bits) \
       case GEX_OP_SET:                                                           \
-        gasneti_atomic##bits##_set(_ratgt, _operand1, 0);                        \
+        gasneti_atomic##bits##_set(_ratgt, _operand1, _fences);                  \
         _result = 0; /* Sigh. Just to silence warnings */                        \
         break;                                                                   \
       case GEX_OP_GET:                                                           \
-        _result = gasneti_atomic##bits##_read(_ratgt, 0);                        \
+        _result = gasneti_atomic##bits##_read(_ratgt, _fences);                  \
         break;                                                                   \
       case GEX_OP_SWAP:                                                          \
-        _result = gasneti_atomic##bits##_swap(_ratgt, _operand1, 0);             \
+        _result = gasneti_atomic##bits##_swap(_ratgt, _operand1, _fences);       \
         break;                                                                   \
       case GEX_OP_CSWAP: {                                                       \
         type _ratmp = _operand1;                                                 \
         do {                                                                     \
-          if (gasneti_atomic##bits##_compare_and_swap(_ratgt, _ratmp, _operand2, 0)) { \
+          if (gasneti_atomic##bits##_compare_and_swap(_ratgt, _ratmp, _operand2, _fences)) { \
             break;                                                               \
           }                                                                      \
           _ratmp = gasneti_atomic##bits##_read(_ratgt, 0);                       \
@@ -280,12 +282,12 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
       case GEX_OP_INC: case GEX_OP_FINC:                                         \
         _operand1 = 1; GASNETI_FALLTHROUGH /* to ADD */                          \
       case GEX_OP_ADD: case GEX_OP_FADD:                                         \
-        _result = gasneti_atomic##bits##_add(_ratgt, _operand1, 0) - _operand1;  \
+        _result = gasneti_atomic##bits##_add(_ratgt, _operand1, _fences) - _operand1;  \
         break;                                                                   \
       case GEX_OP_DEC: case GEX_OP_FDEC:                                         \
         _operand1 = 1; GASNETI_FALLTHROUGH /* to SUB */                          \
       case GEX_OP_SUB: case GEX_OP_FSUB:                                         \
-        _result = gasneti_atomic##bits##_subtract(_ratgt, _operand1, 0) + _operand1; \
+        _result = gasneti_atomic##bits##_subtract(_ratgt, _operand1, _fences) + _operand1; \
         break;                                                                   \
       _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, AND);                                 \
       _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, OR);                                  \
@@ -294,19 +296,19 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 #define _GASNETE_RATOMIC_FN_SW0(dtcode,type,bits) \
       case GEX_OP_SET: {                                                         \
         _raunion _ratmp; _ratmp._ratype = _operand1;                             \
-        gasneti_atomic##bits##_set(_ratgt, _ratmp._raui, 0);                     \
+        gasneti_atomic##bits##_set(_ratgt, _ratmp._raui, _fences);               \
         _result = 0; /* Sigh. Just to silence warnings */                        \
         break;                                                                   \
       }                                                                          \
       case GEX_OP_GET: {                                                         \
         _raunion _ratmp;                                                         \
-        _ratmp._raui = gasneti_atomic##bits##_read(_ratgt, 0);                   \
+        _ratmp._raui = gasneti_atomic##bits##_read(_ratgt, _fences);             \
         _result = _ratmp._ratype;                                                \
         break;                                                                   \
       }                                                                          \
       case GEX_OP_SWAP: {                                                        \
         _raunion _ratmp; _ratmp._ratype = _operand1;                             \
-        _ratmp._raui = gasneti_atomic##bits##_swap(_ratgt, _ratmp._raui, 0);     \
+        _ratmp._raui = gasneti_atomic##bits##_swap(_ratgt, _ratmp._raui, _fences); \
         _result = _ratmp._ratype;                                                \
         break;                                                                   \
       }                                                                          \
@@ -314,7 +316,7 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
         _raunion _raold; _raold._ratype = _operand1;                             \
         _raunion _ranew; _ranew._ratype = _operand2;                             \
         do {                                                                     \
-          if (gasneti_atomic##bits##_compare_and_swap(_ratgt, _raold._raui, _ranew._raui, 0)) { \
+          if (gasneti_atomic##bits##_compare_and_swap(_ratgt, _raold._raui, _ranew._raui, _fences)) { \
             break;                                                               \
           }                                                                      \
           _raold._raui = gasneti_atomic##bits##_read(_ratgt, 0);                 \
@@ -331,7 +333,7 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 // Case for a CAS-based operation (both fetching and non-fetching)
 #define _GASNETE_RATOMIC_FN_CAS_CASE(dtcode, opname) \
       case GEX_OP_##opname: case GEX_OP_F##opname: \
-        GASNETE_RATOMIC_CAS(_result,_ratgt,dtcode,_operand1,GASNETE_RATOMIC_CAS_OP_##opname); \
+        GASNETE_RATOMIC_CAS(_result,_ratgt,dtcode,_operand1,GASNETE_RATOMIC_CAS_OP_##opname,_fences); \
         break;
 // Work-around for bug 3697
 #if PLATFORM_COMPILER_SUN
@@ -435,7 +437,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 // Define of a full family of "dispatch" functions that together
 // constitute the default implementation of remote atomics.
 //
-// TODO: need local memory fences once flags are defined
 // TODO: need trace/stats at this layer or one higher
 //
 // GASNETE_RATOMIC_DISP(dtcode):
@@ -453,8 +454,9 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         _GASNETE_RATOMIC_DISP2(prefix##_NB, _gex_nb, isint, type, dtcode, gex_Event_t, GEX_EVENT_INVALID) \
         _GASNETE_RATOMIC_DISP2(prefix##_NBI, _gex_nbi, isint, type, dtcode, int, 0)
 #define _GASNETE_RATOMIC_DISP2(fname,nbnbi,isint,type,dtcode,rettype,retdone) \
-    extern rettype fname##_external(_GASNETE_RATOMIC_DISP_ARGS(type));   \
-    GASNETI_ALWAYS_INLINE(fname)                                         \
+    extern rettype fname##_external(_GASNETE_RATOMIC_DISP_ARGS(type))    \
+                                      _GASNETE_RATOMIC_DISP_WARN##nbnbi; \
+    GASNETI_ALWAYS_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi       \
     rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
@@ -484,15 +486,19 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasneti_unreachable();                                           \
         return retdone;                                                  \
     }
+#define _GASNETE_RATOMIC_DISP_WARN_gex_nb  GASNETI_WARN_UNUSED_RESULT
+#define _GASNETE_RATOMIC_DISP_WARN_gex_nbi /*empty*/
 // TODO-EX: Must add TM argument to GASNETI_SUPERNODE_LOCAL*()
 // Note that _GASNETE_RATOMIC_DISP_TOOLS_SAFE has unusually "flow" in that it
 // EITHER completes the operation synchronously using tools and *returns*
 // OR it continues through to the next statement.
 #define _GASNETE_RATOMIC_DISP_TOOLS_SAFE(dtcode,type,retdone) do { \
         _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode)                            \
+        const int _fences = ((_flags & GEX_FLAG_AD_ACQ) ? GASNETI_ATOMIC_ACQ : 0) \
+                          | ((_flags & GEX_FLAG_AD_REL) ? GASNETI_ATOMIC_REL : 0);\
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
-                                                 _opcode);                   \
+                                                 _opcode, _fences);          \
         if (_GASNETE_RATOMIC_DISP_ISFETCH(_opcode)) {                        \
             *_result_p = _result;                                            \
         }                                                                    \

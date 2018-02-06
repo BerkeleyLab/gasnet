@@ -247,6 +247,32 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_EXTERNS)
 // If GASNETE_BUILD_AMRATOMIC_STUBS is 1, then we build stubs that fatalerror
 //
 
+// Notes on implementation of GEX_FLAG_AD_{REL,ACQ}
+//
+// The reference implementation of Remote Atomics has two portions.
+//
+// One is used for target ranks meeting "MY_RANK" and "MY_NEIGHBORHOOD"
+// conditions (with possible datatype constraints).  This implementation
+// performs all atomic operations synchronously using GASNet-Tools, which
+// provides the necessary support for REL and ACQ fences.
+//
+// The second is the AM-based code below.  The remainder of this note is an
+// effort to explain how GEX_FLAG_AD_{REL,ACQ} are implemented.  The short
+// version is that both fences are *unconditionally* present in the
+// implementation and so the flags are ignored with no loss of correctness.
+//
+// RELEASE:
+// We believe that all current AM implementations include at least one release
+// fence on the path to AM injection.
+//
+// ACQUIRE:
+// We believe that all current AM implementations include at least one acquire
+// fence on the path to reception of the AM Reply, which is sufficient in a
+// single-threaded build.  In the case of a multi-threaded build, the
+// implementation of all GASNet-EX synchronization calls (both on gex_Event_t
+// and NBI) include an acquire fence if the set of operations synchronized
+// could potentially include a RMW or GET operation.
+
 #if GASNETE_BUILD_AMRATOMIC
 
 #if ! GASNETE_BUILD_AMRATOMIC_STUBS
@@ -332,7 +358,7 @@ void gasnete_amratomic_reqh_inner(
     #define GASNETE_AMRATOMIC_REQH_CASE(dtcode) \
         case dtcode##_dtype: {                                                \
             GASNETE_AMRATOMIC_REQH_OPS(dtcode##_type);                        \
-            result.u##dtcode = gasnete_ratomicfn##dtcode(tgt,op1,op2,opcode); \
+            result.u##dtcode = gasnete_ratomicfn##dtcode(tgt,op1,op2,opcode,0);\
             break;                                                            \
         }
 
