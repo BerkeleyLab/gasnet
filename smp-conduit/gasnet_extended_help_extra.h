@@ -190,4 +190,17 @@ gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, size_t nb
 }
 #define gasnete_get_val gasnete_get_val
 
+/*
+  Blocking Get and Put
+  ====================
+*/
+
+// Get trivially identical to synced nb (need gasneti_sync_reads())
+#define gasnete_get(dest,rank,src,nbytes_and_TI) \
+        gasnete_syncnb_one(gasnete_get_nb_bulk(dest,rank,src,nbytes_and_TI))
+
+// Put trivially identical to nbi (w/o any need to sync_reads)
+#define gasnete_put(rank,dest,src,nbytes_and_TI) \
+        gasnete_put_nbi_bulk(rank,dest,src,nbytes_and_TI)
+
 #endif
