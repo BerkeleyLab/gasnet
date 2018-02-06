@@ -38,8 +38,10 @@
 /* As described in bug 3373, ibv_reg_mem() on Solaris only works with SYSV */
 #if GASNETI_PSHM_ENABLED && !(PLATFORM_OS_SOLARIS && !GASNETI_PSHM_SYSV)
   #define GASNET_PSHM 1
-  #define GASNETC_MAX_MEDIUM_PSHM GASNETC_BUFSZ
 #endif
+
+// PSHM and loopback support need to know largest Medium if larger than MAX(LUB{Request,Reply}Medium)
+#define GASNETC_MAX_MEDIUM_LOOP GASNETC_BUFSZ
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
