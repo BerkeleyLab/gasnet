@@ -57,15 +57,12 @@
 #define GASNETC_AMREGISTER 1
 #endif
 
-  /* define these to 1 if your conduit supports PSHM, but cannot use the
+  /* define this to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
 #if 0
 #define GASNETC_GET_HANDLER 1
 typedef ### gasnetc_handler_t;
-#endif
-#if 0
-#define GASNETC_TOKEN_CREATE 1
 #endif
 
   /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()

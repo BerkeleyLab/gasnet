@@ -217,8 +217,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
                 : NULL;
 }
 
-#ifndef GASNETC_TOKEN_CREATE
-  #if GASNET_DEBUG
+#if GASNET_DEBUG
     extern void gasnetc_token_reply(gex_Token_t token) {
       gasnetc_nbrhd_token_t *my_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token);
       gasneti_assert(!((uintptr_t)my_token & 1));
@@ -227,7 +226,6 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       gasneti_assert(!my_token->replyIssued);
       my_token->replyIssued = 1;
     }
-  #endif
 #endif
 
 
