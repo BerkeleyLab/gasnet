@@ -368,201 +368,7 @@ gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
   }
   return sd;
 }
-
-// Get the thread-specfic SD for Requests, initializing on first call
-GASNETI_INLINE(gasneti_init_request_srcdesc)
-gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
-{
-  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
-  gasneti_AM_SrcDesc_t sd = mythread_ptrs[4]; // 5th pointer
-  if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
-  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
-  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
-  sd->_tofree = NULL;
-  return sd;
-}
-
-// Get the thread-specfic SD for Replies, initializing on first call
-GASNETI_INLINE(gasneti_init_reply_srcdesc)
-gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
-{
-  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
-  gasneti_AM_SrcDesc_t sd = mythread_ptrs[3]; // 4th pointer
-  if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
-  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
-  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
-  sd->_tofree = NULL;
-  return sd;
-}
-
-// Return a thread-specfic SD to its "inactive" state
-GASNETI_INLINE(gasneti_reset_srcdesc)
-void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
-{
-  gasneti_free(sd->_tofree);
-  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
-}
 #endif // _GEX_AM_SRCDESC_T
-
-// Common argument processing
-#if GASNET_DEBUG
-  // TODO-EX: tracing should probably occur here as well
-  #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
-    do {                                                                                                 \
-      const char *_reqrep = is_req ? "Request" : "Reply";                                                \
-      if (cbuf == NULL) {                                                                                \
-        if (lc_opt != NULL)                                                                              \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                     \
-                             "only NULL is a valid lc_opt value when client_buf is NULL", _reqrep);      \
-      } else if (lc_opt == NULL) {                                                                       \
-        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": lc_opt must be non-NULL "               \
-                           "when client_buf is non-NULL", _reqrep);                                      \
-      } else if (is_req) {                                                                               \
-        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW) && (lc_opt != GEX_EVENT_GROUP))\
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
-                             "GEX_EVENT_NOW and GEX_EVENT_GROUP are valid lc_opt values "                \
-                             "when client_buf is non-NULL", _reqrep);                                    \
-      } else {                                                                                           \
-        if (!gasneti_leaf_is_pointer(lc_opt) && (lc_opt != GEX_EVENT_NOW))                               \
-          gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": only pointer-to-event, "              \
-                             "and GEX_EVENT_NOW are valid lc_opt values "                                \
-                             "when client_buf is non-NULL", _reqrep);                                    \
-      }                                                                                                  \
-      if (lc_opt && gasneti_leaf_is_pointer(lc_opt)) {                                                   \
-        *lc_opt = GEX_EVENT_NO_OP;                                                                       \
-      }                                                                                                  \
-      if (nargs > gex_AM_MaxArgs())                                                                      \
-        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
-                           "numargs larger than gex_AM_MaxArgs() (%u > %u)",                             \
-                           _reqrep, (unsigned int)nargs, (unsigned int)gex_AM_MaxArgs());                \
-      if (min_length > max_length)                                                                       \
-        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
-                           "min_length larger than max_length (%"PRIuPTR" > %"PRIuPTR")",                \
-                           _reqrep, (uintptr_t)min_length, (uintptr_t)max_length);                       \
-      if (min_length > limit)                                                                            \
-        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": min_length larger than gex_AM_Max%s"    \
-                           _STRINGIFY(cat) "() (%"PRIuPTR" > %"PRIuPTR")",                               \
-                           _reqrep, _reqrep, (uintptr_t)min_length, (uintptr_t)limit);                   \
-    } while(0)
-  #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
-    do {                                                                                   \
-      sd->_category  = (int)gasneti_##cat;                                                 \
-      sd->_dest_addr = dest_addr;                                                          \
-      sd->_nargs     = nargs;                                                              \
-      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,flags,nargs);                   \
-      if (dest >= gex_TM_QuerySize(tm))                                                    \
-        gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
-                           "destination rank out-of-range (%lu >= %lu)",                   \
-                           (unsigned long)dest, (unsigned long)gex_TM_QuerySize(tm));      \
-      _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,1,cat);             \
-    } while(0)
-  #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
-    do {                                                                               \
-      sd->_category  = (int)gasneti_##cat;                                             \
-      sd->_dest_addr = dest_addr;                                                      \
-      sd->_nargs     = nargs;                                                          \
-      size_t limit = gasnetc_Token_MaxReply##cat(token,lc_opt,flags,nargs);            \
-      _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,0,cat);           \
-    } while(0)
-
-  #define _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,is_req,cat) \
-    do {                                                                                                 \
-      const char *_reqrep = is_req ? "Request" : "Reply";                                                \
-      if (!sd)                                                                                           \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "passed invalid gex_AM_SrcDesc (GEX_AM_SRCDESC_NO_OP == 0)", _reqrep, nargs); \
-      if (sd->_thread != gasnete_mythread())                                                             \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "return from Prepare passed to Commit in a different thread", _reqrep, nargs);\
-      if (sd->_isreq != is_req)                                                                          \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "paired with incompatible Prepare (%s)",                                      \
-                           _reqrep, nargs, (sd->_isreq?"Request":"Reply"));                              \
-      if (sd->_category != (int)gasneti_##cat)                                                           \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "paired with incompatible Prepare (%s)",                                      \
-                           _reqrep, nargs, (sd->_category==(int)gasneti_Long?"Long":"Medium"));          \
-      if (sd->_nargs != nargs)                                                                           \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "paired with incompatible Prepare (nargs = %d)",                              \
-                           _reqrep, nargs, sd->_nargs);                                                  \
-      if (sd->_size < nbytes)                                                                            \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "nbytes larger than returned from Prepare (%"PRIuPTR" > %"PRIuPTR")",         \
-                           _reqrep, nargs, (uintptr_t)nbytes, (uintptr_t)sd->_size);                     \
-      if ((sd->_dest_addr != NULL) &&                                                                    \
-          !((dest_addr == sd->_dest_addr) || ((dest_addr == NULL) && (nbytes == 0))))                    \
-        gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
-                           "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
-      if (sd->_tofree) {                                                                                 \
-        if (gasneti_test_sd_poison(sd->_tofree, nbytes))                                                 \
-          gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
-                             "client did not write to the GASNet-provided buffer",                       \
-                             _reqrep, nargs);                                                            \
-      }                                                                                                  \
-    } while(0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
-#else
-  #define gasneti_init_sd_poison(a,l) ((void)0)
-  #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
-#endif
-
-GASNETI_ALWAYS_INLINE(gasneti_prepare_common)
-void gasneti_prepare_common(
-                       gasneti_AM_SrcDesc_t sd,
-                       const void          *client_buf,
-                       size_t               size,
-                       gex_Event_t         *lc_opt,
-                       gex_Flags_t          flags,
-                       unsigned int         nargs)
-{
-    sd->_lc_opt = lc_opt;
-    sd->_flags  = flags;
-    sd->_nargs  = nargs;
-    sd->_size   = size;
-    if (client_buf) {
-        sd->_addr = (/*non-const*/void *)client_buf;
-    } else {
-        gasneti_prepare_alloc_buffer(sd);
-        gasneti_init_sd_poison(sd->_addr, size);
-    }
-}
-
-GASNETI_ALWAYS_INLINE(gasneti_prepare_request_common)
-void gasneti_prepare_request_common(
-                       gasneti_AM_SrcDesc_t sd,
-                       gex_TM_t             tm,
-                       gex_Rank_t           dest,
-                       const void          *client_buf,
-                       size_t               size,
-                       gex_Event_t         *lc_opt,
-                       gex_Flags_t          flags,
-                       unsigned int         nargs)
-{
-    sd->_dest._request._tm   = tm;
-    sd->_dest._request._rank = dest;
-    gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
-}
-
-GASNETI_ALWAYS_INLINE(gasneti_prepare_reply_common)
-void gasneti_prepare_reply_common(
-                       gasneti_AM_SrcDesc_t sd,
-                       gex_Token_t          token,
-                       const void          *client_buf,
-                       size_t               size,
-                       gex_Event_t         *lc_opt,
-                       gex_Flags_t          flags,
-                       unsigned int         nargs)
-{
-    sd->_dest._reply._token = token;
-    gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
-}
 
 #ifndef gasnetc_AM_PrepareRequestMedium
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
@@ -588,10 +394,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     } else
 #endif
     {
-    #ifdef GASNETC_AM_PREPARE_REQ_MEDIUM
-        int imm = GASNETC_AM_PREPARE_REQ_MEDIUM(sd, min_length, max_length);
-        if (imm) goto out_immediate;
-    #else
         // Ensure at least one poll upon Request injection (exactly one if possible)
         #if GASNETC_REQUESTV_POLLS
             // Conduit's Request{Medium,Long}V will AMPoll in Commit
@@ -601,7 +403,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         size_t limit = gex_AM_MaxRequestMedium(tm, dest, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);
         gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
-    #endif
     }
 
     return gasneti_export_srcdesc(sd);
@@ -634,14 +435,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     } else
 #endif
     {
-    #ifdef GASNETC_AM_PREPARE_REP_MEDIUM
-        int imm = GASNETC_AM_PREPARE_REP_MEDIUM(sd, min_length, max_length);
-        if (imm) goto out_immediate;
-    #else
         size_t limit = gasnetc_Token_MaxReplyMedium(token, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
-    #endif
     }
 
     return gasneti_export_srcdesc(sd);
@@ -677,10 +473,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     } else
 #endif
     {
-    #ifdef GASNETC_AM_PREPARE_REQ_LONG
-        int imm = GASNETC_AM_PREPARE_REQ_LONG(sd, min_length, max_length, dest_addr);
-        if (imm) goto out_immediate;
-    #else
         // Ensure at least one poll upon Request injection (exactly one if possible)
         #if GASNETC_REQUESTV_POLLS
             // Conduit's Request{Medium,Long}V will AMPoll in Commit
@@ -691,7 +483,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         size_t size = MIN(max_length, limit);
         gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
-    #endif
     }
 
     return gasneti_export_srcdesc(sd);
@@ -725,15 +516,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     } else
 #endif
     {
-    #ifdef GASNETC_AM_PREPARE_REP_LONG
-        int imm = GASNETC_AM_PREPARE_REP_LONG(sd, min_length, max_length, dest_addr);
-        if (imm) goto out_immediate;
-    #else
         size_t limit = gasnetc_Token_MaxReplyLong(token, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
-    #endif
     }
 
     return gasneti_export_srcdesc(sd);
@@ -766,9 +552,6 @@ void gasnetc_AM_CommitRequestMediumM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-    #ifdef GASNETC_AM_COMMIT_REQ_MEDIUM
-        GASNETC_AM_COMMIT_REQ_MEDIUM(sd, handler, nbytes, argptr);
-    #else
         gex_TM_t   tm          = sd->_dest._request._tm;
         gex_Rank_t dest        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
@@ -778,7 +561,6 @@ void gasnetc_AM_CommitRequestMediumM(
 
         int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
-    #endif
     }
     va_end(argptr);
 
@@ -807,9 +589,6 @@ void gasnetc_AM_CommitReplyMediumM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(sd->_thread);
-    #ifdef GASNETC_AM_COMMIT_REP_MEDIUM
-        GASNETC_AM_COMMIT_REP_MEDIUM(sd, handler, nbytes, argptr);
-    #else
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
@@ -818,7 +597,6 @@ void gasnetc_AM_CommitReplyMediumM(
 
         int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
-    #endif
     }
     va_end(argptr);
 
@@ -849,9 +627,6 @@ void gasnetc_AM_CommitRequestLongM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
-    #ifdef GASNETC_AM_COMMIT_REQ_LONG
-        GASNETC_AM_COMMIT_REQ_LONG(sd, handler, dest_addr, nbytes, argptr);
-    #else
         gex_TM_t   tm          = sd->_dest._request._tm;
         gex_Rank_t dest        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
@@ -861,7 +636,6 @@ void gasnetc_AM_CommitRequestLongM(
 
         int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
-    #endif
     }
     va_end(argptr);
 
@@ -891,9 +665,6 @@ void gasnetc_AM_CommitReplyLongM(
     } else
 #endif
     {   GASNET_POST_THREADINFO(sd->_thread);
-    #ifdef GASNETC_AM_COMMIT_REP_LONG
-        GASNETC_AM_COMMIT_REP_LONG(sd, handler, dest_addr, nbytes, argptr);
-    #else
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
@@ -902,7 +673,6 @@ void gasnetc_AM_CommitReplyLongM(
 
         int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
-    #endif
     }
     va_end(argptr);
 
