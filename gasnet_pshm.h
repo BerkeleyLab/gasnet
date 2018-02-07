@@ -85,13 +85,10 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
 #ifndef GASNETC_GET_HANDLER
   #define gasnetc_handler_t gex_AM_Index_t
 #endif
-#if 1 // (was GASNETC_TOKEN_CREATE) - TODO-EX: this will move to gasnet_am.h
-  #define gasnetc_token_is_pshm(tok) ((uintptr_t)(tok)&1)
 
-  // TODO-EX: remove this indirection
+// TODO-EX: remove these indirections when conduits no longer use them:
+  #define gasnetc_token_is_pshm gasnetc_token_in_nbrhd
   #define gasnetc_AMPSHM_TokenInfo gasnetc_nbrhd_Token_Info
-#endif
-
 
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_pshmnet_t.
@@ -223,7 +220,7 @@ extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
 
 /* Generic AM handler for PSHMnet.
  * Divert your conduit's regular AM requests to this function if a call to
- * gasneti_pshm_in_supernode(dest) is nonzero */ 
+ * gasnetc_dest_in_nbrhd(tm,rank) is nonzero */
 extern
 int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
                                   gasnetc_handler_t handler, void *source_addr, size_t nbytes,
@@ -231,16 +228,16 @@ int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
 
 /* Generic AM handler for PSHMnet.
  * Divert your conduit's regular AM replies to this function if a call to
- * gasneti_pshm_in_supernode(dest) or gasnetc_token_is_pshm(token) is nonzero */ 
+ * gasnetc_dest_in_nbrhd(tm,rank) or gasnetc_token_in_nbrhd(token) is nonzero */
 int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
                                 gasnetc_handler_t handler, void *source_addr, 
                                 size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr);
 
 #define GASNETI_IS_AMPSHM_PREPARE_REQ(sd,tm,dest) \
-    (0 != ((sd)->_pshm._is_pshm = gasneti_pshm_in_supernode(dest)))
+    (0 != ((sd)->_pshm._is_pshm = GASNETI_SUPERNODE_LOCAL(dest)))
 #define GASNETI_IS_AMPSHM_PREPARE_REP(sd,token) \
-    (0 != ((sd)->_pshm._is_pshm = gasnetc_token_is_pshm(token)))
+    (0 != ((sd)->_pshm._is_pshm = gasnetc_token_in_nbrhd(token)))
 #define GASNETI_IS_AMPSHM_COMMIT(sd) \
     ((sd)->_pshm._is_pshm)
 

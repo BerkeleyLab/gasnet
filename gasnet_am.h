@@ -539,6 +539,9 @@ typedef struct {
 #endif
 } gasnetc_nbrhd_token_t;
 
+#define gasnetc_dest_in_nbrhd(tm,rank) GASNETI_SUPERNODE_LOCAL(rank)
+#define gasnetc_token_in_nbrhd(tok) ((uintptr_t)(tok)&1)
+
 GASNETI_INLINE(gasnetc_nbrhd_token_init)
 gex_Token_t gasnetc_nbrhd_token_init(
                         gasnetc_nbrhd_token_t *real_token,
