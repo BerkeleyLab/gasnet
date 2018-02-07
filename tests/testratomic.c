@@ -397,7 +397,8 @@ void _test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) {  \
   BARRIER();                                                              \
   for (unsigned int i = 0; i < limit; ++i) {                              \
     const _tcode##_type expect = ((_tcode##_type)step) * (i + 1);         \
-    _tcode##_type readX, readY;                                           \
+    _tcode##_type readX = 0;                                              \
+    _tcode##_type readY = 0;                                              \
     /* CONSUMER: First OP uses ACQ */                                     \
     while (1) {                                                           \
       _TEST_RING_CONSUME_##_op(_tcode);                                   \
