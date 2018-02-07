@@ -609,7 +609,7 @@ void gasnete_gniratomic_create_hook(
 {
     // Check for cases that should favor AM over NIC
     if (! (flags & GEX_FLAG_AD_FAVOR_REMOTE)) {
-        if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD)) {
+        if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NBRHD)) {
             // Client's flags favor AM-based atomics
             goto use_am;
         } else if (real_tm->_size == 1) {

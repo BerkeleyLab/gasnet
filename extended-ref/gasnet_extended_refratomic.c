@@ -111,7 +111,7 @@ void gasneti_AD_Create(
 
   // Does the 'flags' argument include at most one AD_FAVOR_* bit?
   gasneti_assert(GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_FAVOR_MY_RANK |
-                                             GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD |
+                                             GEX_FLAG_AD_FAVOR_MY_NBRHD |
                                              GEX_FLAG_AD_FAVOR_REMOTE)));
 
   // Verify we agree on the size of the FP type, if any
@@ -198,7 +198,7 @@ void gasnete_ratomic_validate(
     }
 
     // Flags may provide at most one affinity assertion
-    if (!GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_MY_RANK | GEX_FLAG_AD_MY_NEIGHBORHOOD))) {
+    if (!GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_MY_RANK | GEX_FLAG_AD_MY_NBRHD))) {
       gasneti_fatalerror("gex_AD_Op*() called with more than one GEX_FLAG_AD_MY_* flag");
     }
 
@@ -251,7 +251,7 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_EXTERNS)
 //
 // The reference implementation of Remote Atomics has two portions.
 //
-// One is used for target ranks meeting "MY_RANK" and "MY_NEIGHBORHOOD"
+// One is used for target ranks meeting "MY_RANK" and "MY_NBRHD"
 // conditions (with possible datatype constraints).  This implementation
 // performs all atomic operations synchronously using GASNet-Tools, which
 // provides the necessary support for REL and ACQ fences.

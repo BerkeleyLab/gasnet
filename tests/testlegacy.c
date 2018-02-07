@@ -364,9 +364,9 @@ void doit(int partner, int *partnerseg) {
     assert_always(mysupernode_size >= 1);
     assert_always(mysupernode_rank != GEX_RANK_INVALID);
 
-    gex_NeighborhoodInfo_t *neighbor_array;
+    gex_NbrhdInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
-    gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
+    gex_System_QueryNbrhdInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
     assert_always(neighbor_size == mysupernode_size);
     assert_always(neighbor_rank == mysupernode_rank);
     for (gasnet_node_t i = 0; i < mysupernode_size; ++i) {

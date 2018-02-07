@@ -246,7 +246,7 @@ void test_flags_##_tcode(gex_AD_t ad) {                                      \
   _tcode##_type unused = 911; /* garbage */                                  \
   MSG0("    Flags test");                                                    \
                                                                              \
-  /* MY_RANK and MY_NEIGHBORHOOD applied to self */                          \
+  /* MY_RANK and MY_NBRHD applied to self */                                 \
   operand = myrank + 1;                                                      \
   ev = gex_AD_OpNB_##_tcode(ad,NULL,myrank,TEST_MYSEG(),GEX_OP_SET,          \
                             operand,unused,GEX_FLAG_AD_MY_RANK);             \
@@ -256,17 +256,17 @@ void test_flags_##_tcode(gex_AD_t ad) {                                      \
   gex_NBI_Wait(GEX_EC_RMW,0);                                                \
   assert_always(result == operand);                                          \
   ev = gex_AD_OpNB_##_tcode(ad,&result,myrank,TEST_MYSEG(),GEX_OP_FADD,      \
-                            operand,unused,GEX_FLAG_AD_MY_NEIGHBORHOOD);     \
+                            operand,unused,GEX_FLAG_AD_MY_NBRHD);            \
   gex_Event_Wait(ev);                                                        \
   assert_always(result == 2*operand);                                        \
   BARRIER();                                                                 \
                                                                              \
-  /* MY_NEIGHBORHOOD applied to not-self-unless-no-other-valid-choice */     \
+  /* MY_NBRHD applied to not-self-unless-no-other-valid-choice */            \
   void * nbr_addr = TEST_SEG(neighbor);                                      \
   assert(nbr_addr);                                                          \
   operand = neighbor + 1;                                                    \
   gex_AD_OpNBI_##_tcode(ad,&result,neighbor,nbr_addr,GEX_OP_FADD,            \
-                        operand,unused,GEX_FLAG_AD_MY_NEIGHBORHOOD);         \
+                        operand,unused,GEX_FLAG_AD_MY_NBRHD);                \
   gex_NBI_Wait(GEX_EC_RMW,0);                                                \
   assert_always(result == 3*operand);                                        \
 }
@@ -373,7 +373,7 @@ FORALL_DT(TEST_CSWAP_DECL)
 void _test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) {  \
   MSG0("    Producer/consumer %s ring test (" #_op ")",                   \
        (nbrhd ? "multiple" : "single"));                                  \
-  const gex_Flags_t flags = nbrhd ? GEX_FLAG_AD_MY_NEIGHBORHOOD : 0;      \
+  const gex_Flags_t flags = nbrhd ? GEX_FLAG_AD_MY_NBRHD : 0;             \
   const gex_Rank_t tgt = nbrhd ? neighbor : peer;                         \
   const int wrap = (tgt <= myrank);                                       \
   _tcode##_type *myX = (_tcode##_type *)TEST_MYSEG();                     \
@@ -740,8 +740,8 @@ int main(int argc, char **argv) {
   peerseg = TEST_SEG(peer);
 
   {
-    gex_NeighborhoodInfo_t *info;
-    gex_System_QueryNeighborhoodInfo(&info, &nbrhdsize, &nbrhdrank);
+    gex_NbrhdInfo_t *info;
+    gex_System_QueryNbrhdInfo(&info, &nbrhdsize, &nbrhdrank);
     neighbor = info[(nbrhdrank + 1) % nbrhdsize].gex_jobrank;
   }
 
