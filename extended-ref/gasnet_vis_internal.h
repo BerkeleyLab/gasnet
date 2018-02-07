@@ -28,28 +28,40 @@ typedef struct gasneti_vis_op_S {
   gex_Event_t event;
 } gasneti_vis_op_t;
 
-
 #define SMD_SELF  0
 #define SMD_PEER 1
-// gasneti_vis_smd_t represents complete information about a strided transfer
-// in a format convenient for applying transformations
+// gasneti_vis_smd_dim_t represents the meta data parameters for a particular dimension
 typedef struct {
   size_t    count;     // dimensional extent
   ptrdiff_t stride[2]; // dimensional stride in bytes, [0]=self [1]=peer
 } gasneti_vis_smd_dim_t;
 
+// gasneti_vis_smd_t represents complete information about a strided transfer
+// in a format convenient for applying transformations
 typedef struct {
-#if 0 // maybe
-  gex_TM_t tm;
-  gex_Rank_t peer;
-  gex_Flags_t flags;
-  gasnete_synctype_t synctype;
-#endif
+  // -----------------------------------------------------------------------
+  // post-analysis stats:
+  #if GASNET_DEBUG
+    int have_stats;             // true iff the fields in this section are valid
+  #endif
+  size_t totalsz;               // the total bytes of data in the transfer
+  size_t elemcnt;               // number of elements in the transfer, aka dual-lcontig_segments
+                                // Note that post-optimization the following properties hold:
+                                //   dual-lcontig_sz == elemsz
+                                //   dual-lcontig_dims == 0
+  size_t lcontig_dims[2];       // highest stridelevel with linear contiguity in this region
+                                // eg. zero if only the bottom level is linear contiguous,
+                                // and stridelevels if the entire region is linear contiguous
+  size_t lcontig_sz[2];         // size of the linear contiguous segments in this region
+  size_t lcontig_segments[2];   // number of linear contiguous segments in this region
+  // -----------------------------------------------------------------------
+  // normative metadata:
   size_t stridelevels;          // dimensional cardinality
-  size_t elemsz;                // dualcontigsz
+  size_t elemsz;                // dual-lcontig_sz (post-optimization)
   void  *addr[2];               // base addresses [0]=self [1]=peer
   gasneti_vis_smd_dim_t dim[1]; // per-dimension metadata,
                                 // actually [stridelevels] entries (flexible array member)
+  // DO NOT PUT ANYTHING HERE
 } gasneti_vis_smd_t;
 
 // gasneti_strided_op_t "is a" gasneti_vis_op_t that represents a strided operation in flight
@@ -59,6 +71,7 @@ typedef struct {
   void *bouncebuf;        // separate subobject to free on destruction, otherwise NULL
   void *scratch;          // scratch space at the end of this object
   gasneti_vis_smd_t smd;  // variable-length strided metadata, must be last!
+  // DO NOT PUT ANYTHING HERE
 } gasneti_strided_op_t;
 
 /* per-thread state for VIS */

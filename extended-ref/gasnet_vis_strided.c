@@ -1501,10 +1501,9 @@ out_sop:
     #if GASNET_TRACE
     if (change && GASNETI_TRACE_ENABLED(D)) { // trace the optimized metadata
       char *str = gasneti_malloc(gasneti_format_putsgets_bufsz(opt_stridelevels));
-      int dstid = (isput?SMD_PEER:SMD_SELF);
       int srcid = (isput?SMD_SELF:SMD_PEER);
       gasneti_format_putsgets(str,NULL,(gex_Rank_t)-1,
-                              sop->smd.addr[dstid],opt_strides[dstid],
+                              sop->smd.addr[!srcid],opt_strides[!srcid],
                               sop->smd.addr[srcid],opt_strides[srcid],
                               opt_elemsz,opt_count,opt_stridelevels);
       GASNETI_TRACE_PRINTF(D,("%s: %s",(isput?"PUTS_OPT":"GETS_OPT"),str));
@@ -1529,12 +1528,84 @@ out_sop:
       void const *opt_peerbase; 
       size_t const opt_peerlen = gasnete_smd_querybounds(&(sop->smd), SMD_PEER, &opt_peerbase);
       gasneti_assert(peerlen == opt_peerlen && peerbase == opt_peerbase);
+
+      smd->have_stats = 0;
     }
     #endif
   }
   #endif // DEBUG || TRACE
 
   return sop;
+}
+/*---------------------------------------------------------------------------------*/
+GASNETI_INLINE(gasnete_analyze_smd)
+void gasnete_analyze_smd(gasneti_vis_smd_t * const smd,
+                         int isput) { // for tracing
+  gasneti_assert(!smd->have_stats);
+  gasneti_assert(smd->stridelevels > 0 && smd->elemsz > 0);
+  size_t const stridelevels = smd->stridelevels;
+  size_t const elemsz = smd->elemsz;
+
+  size_t elemcnt = 1;
+  size_t lcontigsz = elemsz;
+  int brkSMD_SELF = 0, brkSMD_PEER = 0;
+
+  gasneti_vis_smd_dim_t const * dim = smd->dim;
+  for (size_t d = 0; d < stridelevels; d++) {
+    size_t const cnt = dim->count;
+
+    #define DIMANAL(side)                                     \
+      if (brk##side) {                                        \
+        smd->lcontig_segments[side] *= cnt;                   \
+      } else {                                                \
+        if (dim->stride[side] == (ptrdiff_t)lcontigsz) {      \
+          /* linear contiguous dimension */                   \
+        } else {                                              \
+          brk##side = 1;                                      \
+          smd->lcontig_dims[side] = d;                        \
+          smd->lcontig_sz[side] = lcontigsz;                  \
+          smd->lcontig_segments[side] = cnt;                  \
+        }                                                     \
+      }
+    DIMANAL(SMD_SELF); DIMANAL(SMD_PEER);
+    #undef DIMANAL
+
+    elemcnt *= cnt; 
+    lcontigsz *= cnt;
+    dim++;
+  }
+  smd->totalsz = lcontigsz;
+  smd->elemcnt = elemcnt;
+  #define DIMTAIL(side)                                      \
+    if (!brk##side) { /* fully lcontig */                    \
+      smd->lcontig_dims[side] = stridelevels;                \
+      smd->lcontig_sz[side] = lcontigsz;                     \
+      smd->lcontig_segments[side] = 1;                       \
+    }
+  DIMTAIL(SMD_SELF); DIMTAIL(SMD_PEER);
+  #undef DIMTAIL
+  #if GASNET_DEBUG
+    smd->have_stats = 1;
+  #endif
+  if (GASNETI_TRACE_ENABLED(D)) {
+    int srcid = (isput ? SMD_SELF : SMD_PEER);
+    GASNETI_TRACE_PRINTF(D,("%s: totalsz=%"PRIuSZ" elemcnt=%"PRIuSZ"\n"
+                            "dst: contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ"\n"
+                            "src: contiguity=%"PRIuSZ" contigsz=%"PRIuSZ" contigsegments=%"PRIuSZ,
+                            (isput?"PUTS_OPT":"GETS_OPT"), smd->totalsz, smd->elemcnt,
+                            smd->lcontig_dims[!srcid], smd->lcontig_sz[!srcid], smd->lcontig_segments[!srcid],
+                            smd->lcontig_dims[srcid],  smd->lcontig_sz[srcid],  smd->lcontig_segments[srcid]
+                       ));
+  }
+  gasneti_assert(smd->totalsz == smd->elemsz * smd->elemcnt);
+  #define DIMASSERT(side)                                    \
+    gasneti_assert(smd->lcontig_dims[side] <= stridelevels); \
+    gasneti_assert(smd->lcontig_segments[side] * smd->lcontig_sz[side] == smd->totalsz);
+  DIMASSERT(SMD_SELF); DIMASSERT(SMD_PEER);
+  #undef DIMASSERT
+  // normalization properties of the stride optimizer:
+  gasneti_assert(elemsz == MIN(smd->lcontig_sz[SMD_SELF],smd->lcontig_sz[SMD_PEER]));
+  gasneti_assert(MIN(smd->lcontig_dims[SMD_SELF],smd->lcontig_dims[SMD_PEER]) == 0);
 }
 /*---------------------------------------------------------------------------------*/
 /* top-level gasnet_puts_* entry point */
@@ -1569,7 +1640,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   
   gex_Event_t result;
   void *peeraddr;
-  if_pf (sop->smd.stridelevels == 0) {
+  if_pf (smd->stridelevels == 0) {
     // folded to fully contiguous
     GASNETI_TRACE_EVENT(C, PUTS_DEGENERATE);
     GASNETE_PUT_DEGEN(result, synctype, tm, rank, smd->addr[SMD_PEER], smd->addr[SMD_SELF], smd->elemsz, flags);
@@ -1579,9 +1650,12 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
     gasnete_strided_memcpy(peeraddr, smd->addr[SMD_SELF], smd->stridelevels, smd->elemsz, smd->dim, SMD_SELF);
     result = GEX_EVENT_INVALID;
   } else {
+    gasnete_analyze_smd(&(sop->smd), 1);
+    gasneti_vis_smd_t const * const smd = &(sop->smd); // intentional shadow for const
     result = gasnete_puts_ref_indiv(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
   }
 
+  gasneti_free(sop->bouncebuf);
   gasneti_free(sop);
   return result;
 #if 0
@@ -1647,7 +1721,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
 
   gex_Event_t result;
   void *peeraddr;
-  if_pf (sop->smd.stridelevels == 0) {
+  if_pf (smd->stridelevels == 0) {
     // folded to fully contiguous
     GASNETI_TRACE_EVENT(C, GETS_DEGENERATE);
     GASNETE_GET_DEGEN(result, synctype, tm, smd->addr[SMD_SELF], rank, smd->addr[SMD_PEER], smd->elemsz, flags);
@@ -1657,9 +1731,12 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
     gasnete_strided_memcpy(smd->addr[SMD_SELF], peeraddr, smd->stridelevels, smd->elemsz, smd->dim, SMD_PEER);
     result = GEX_EVENT_INVALID;
   } else {
+    gasnete_analyze_smd(&(sop->smd), 0);
+    gasneti_vis_smd_t const * const smd = &(sop->smd); // intentional shadow for const
     result = gasnete_gets_ref_indiv(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
   }
 
+  gasneti_free(sop->bouncebuf);
   gasneti_free(sop);
   return result;
 #if 0
