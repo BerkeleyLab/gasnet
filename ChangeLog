@@ -1,5 +1,37 @@
 GASNet-EX ChangeLog
 -------------------
+PENDING: GASNet-EX 2018.3.0 Integration release
+
+* Integration release of the GASNet-EX system.
+  This archive represents a work-in-progress focused on "hardening" the features
+  added by the previous quarter's release, and has been well-tested against the
+  concurrent release of UPC++.
+  Many additional new features are coming soon, and are not yet reflected in this
+  archive. All new interfaces are subject to change without notice.
+
+  Feedback or questions on any matters related to the EX project are
+  welcomed at: gasnet-devel@lbl.gov
+
+* GASNet-EX Spec v0.4:
+  - Renamed gex_System_QueryNeighborhoodInfo() and associated
+    types and constants to gex_System_QueryNbrhdInfo() and similar.
+
+* Major new features implemented in this release:
+  -
+
+* Notable bugs fixed in this release:
+  -
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
 ----------------------------------------------------------------------
 12-20-2017: GASNet-EX 2017.12.0 Beta release
 
