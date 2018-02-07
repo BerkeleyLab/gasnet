@@ -386,7 +386,7 @@ void _test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) {  \
   /* Take steps to test widest possible range... */                       \
   uint64_t step = max_val / (limit + 1);                                  \
   /* ... subject to a constraint that low half cannot be zero */          \
-  step -= (step & (((uint64_t)1)<<(4*sizeof(step)))-1) ? 0 : 1;           \
+  step -= (step & ((((uint64_t)1)<<(4*sizeof(step)))-1)) ? 0 : 1;         \
   /* start at 0, except first rank in each ring will start at 1 */        \
   { const _tcode##_type init = step * (nbrhd ? !nbrhdrank : !myrank);     \
     gex_Event_Wait(gex_AD_OpNB_##_tcode(ad,NULL,myrank,myX,GEX_OP_SET,    \
