@@ -78,13 +78,7 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *     The 'field' will be one of the following literals
  *       nargs, flags, fnptr, cdata, name
  *     For use ONLY by gasnet_pshm.[ch]
- *   gasnetc_handler_t
- *     Type (via typdef or #define) used for handlers instead of gex_AM_Index_t
- *
  */
-#ifndef GASNETC_GET_HANDLER
-  #define gasnetc_handler_t gex_AM_Index_t
-#endif
 
 // TODO-EX: remove these indirections when conduits no longer use them:
   #define gasnetc_token_is_pshm gasnetc_token_in_nbrhd
@@ -223,14 +217,14 @@ extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
  * gasnetc_dest_in_nbrhd(tm,rank) is nonzero */
 extern
 int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
-                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes,
+                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
                                   void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr);
 
 /* Generic AM handler for PSHMnet.
  * Divert your conduit's regular AM replies to this function if a call to
  * gasnetc_dest_in_nbrhd(tm,rank) or gasnetc_token_in_nbrhd(token) is nonzero */
 int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
-                                gasnetc_handler_t handler, void *source_addr, 
+                                gex_AM_Index_t handler, void *source_addr, 
                                 size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr);
 
@@ -252,7 +246,7 @@ int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         unsigned int         nargs
                                         GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitRequestMedium(gasneti_AM_SrcDesc_t sd,
-                                        gasnetc_handler_t handler, size_t nbytes,
+                                        gex_AM_Index_t handler, size_t nbytes,
                                         va_list argptr);
 int gasnetc_AMPSHM_PrepareRequestLong(gasneti_AM_SrcDesc_t sd,
                                       gex_TM_t             tm,
@@ -266,7 +260,7 @@ int gasnetc_AMPSHM_PrepareRequestLong(gasneti_AM_SrcDesc_t sd,
                                       unsigned int         nargs
                                       GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitRequestLong(gasneti_AM_SrcDesc_t sd,
-                                      gasnetc_handler_t handler, size_t nbytes,
+                                      gex_AM_Index_t handler, size_t nbytes,
                                       void *dest_addr, va_list argptr);
 
 int gasnetc_AMPSHM_PrepareReplyMedium(gasneti_AM_SrcDesc_t sd,
@@ -279,7 +273,7 @@ int gasnetc_AMPSHM_PrepareReplyMedium(gasneti_AM_SrcDesc_t sd,
                                       unsigned int         nargs
                                       GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitReplyMedium(gasneti_AM_SrcDesc_t sd,
-                                      gasnetc_handler_t handler, size_t nbytes,
+                                      gex_AM_Index_t handler, size_t nbytes,
                                       va_list argptr);
 int gasnetc_AMPSHM_PrepareReplyLong(gasneti_AM_SrcDesc_t sd,
                                     gex_Token_t          token,
@@ -292,7 +286,7 @@ int gasnetc_AMPSHM_PrepareReplyLong(gasneti_AM_SrcDesc_t sd,
                                     unsigned int         nargs
                                     GASNETI_THREAD_FARG);
 void gasnetc_AMPSHM_CommitReplyLong(gasneti_AM_SrcDesc_t sd,
-                                    gasnetc_handler_t handler, size_t nbytes,
+                                    gex_AM_Index_t handler, size_t nbytes,
                                     void *dest_addr, va_list argptr);
 
 /*******************************************************************************

@@ -71,7 +71,6 @@
    */
 #if 0
 #define GASNETC_GET_HANDLER 1
-typedef ### gasnetc_handler_t;
 #endif
 
   /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()

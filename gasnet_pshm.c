@@ -255,10 +255,10 @@ gex_Rank_t *gasneti_pshm_firsts = NULL;
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */
 
 typedef struct {
+  gex_Rank_t source;
+  gex_AM_Index_t handler_id;
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
-  gasnetc_handler_t handler_id;
-  gex_Rank_t source;
   gex_AM_Arg_t args[GASNETC_MAX_ARGS_LOOP];
 } gasneti_AMPSHM_msg_t;
 typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
@@ -1099,7 +1099,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #if GASNET_DEBUG
 static void gasneti_AMPSHM_amtbl_check(
                 gex_EP_t ep,
-                gasnetc_handler_t   index,
+                gex_AM_Index_t      index,
                 uint8_t             nargs,
                 int                 category,
                 int                 isReq)
@@ -1129,7 +1129,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   size_t msgsz;
   gasneti_pshm_rank_t from;
   int category;
-  gasnetc_handler_t handler_id;
+  gex_AM_Index_t handler_id;
   gex_AM_Fn_t handler_fn;
   int numargs;
   gex_AM_Arg_t *args;
@@ -1297,7 +1297,7 @@ gex_Rank_t gasnetc_ampshm_msgsource(gex_Token_t token) {
 
 GASNETI_INLINE(gasnetc_ampshm_loopback)
 void gasnetc_ampshm_loopback(void *msg, int category, int isReq,
-                             gasnetc_handler_t handler, size_t nbytes,
+                             gex_AM_Index_t handler, size_t nbytes,
                              void *dest_addr, int numargs, va_list argptr)
 {
     gasnetc_nbrhd_token_t my_token;
@@ -1415,7 +1415,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
 GASNETI_INLINE(ampshm_comit)
 void ampshm_commit(gasneti_AM_SrcDesc_t sd,
                    const int isReq, const int category,
-                   gasnetc_handler_t handler, size_t nbytes,
+                   gex_AM_Index_t handler, size_t nbytes,
                    void *dest_addr, va_list argptr)
 {
   // Sanity checks:
@@ -1464,7 +1464,7 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 
 GASNETI_INLINE(gasnetc_AMPSHM_ReqRepGeneric)
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
-                                 gasnetc_handler_t handler, void *source_addr, size_t nbytes,
+                                 gex_AM_Index_t handler, void *source_addr, size_t nbytes,
                                  void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr)
 {
   if (dest == gasneti_mynode) {
@@ -1516,7 +1516,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
 }
 
 int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
-                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes,
+                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
                                   void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr)
 {
   gasneti_assert(gasneti_pshm_in_supernode(dest));
@@ -1525,7 +1525,7 @@ int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
 }
 
 int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
-                                gasnetc_handler_t handler, void *source_addr, 
+                                gex_AM_Index_t handler, void *source_addr, 
                                 size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr) 
 {
@@ -1613,7 +1613,7 @@ int gasnetc_AMPSHM_PrepareReplyLong(
 
 void gasnetc_AMPSHM_CommitRequestMedium(
                 gasneti_AM_SrcDesc_t sd,
-                gasnetc_handler_t handler,
+                gex_AM_Index_t handler,
                 size_t nbytes, va_list argptr)
 {
   ampshm_commit(sd, 1, gasneti_Medium, handler, nbytes, NULL, argptr);
@@ -1621,7 +1621,7 @@ void gasnetc_AMPSHM_CommitRequestMedium(
 
 void gasnetc_AMPSHM_CommitReplyMedium(
                 gasneti_AM_SrcDesc_t sd,
-                gasnetc_handler_t handler,
+                gex_AM_Index_t handler,
                 size_t nbytes, va_list argptr)
 {
   ampshm_commit(sd, 0, gasneti_Medium, handler, nbytes, NULL, argptr);
@@ -1629,7 +1629,7 @@ void gasnetc_AMPSHM_CommitReplyMedium(
 
 void gasnetc_AMPSHM_CommitRequestLong(
                 gasneti_AM_SrcDesc_t sd,
-                gasnetc_handler_t handler,
+                gex_AM_Index_t handler,
                 size_t nbytes, void *dest_addr, va_list argptr)
 {
   ampshm_commit(sd, 1, gasneti_Long, handler, nbytes, dest_addr, argptr);
@@ -1637,7 +1637,7 @@ void gasnetc_AMPSHM_CommitRequestLong(
 
 void gasnetc_AMPSHM_CommitReplyLong(
                 gasneti_AM_SrcDesc_t sd,
-                gasnetc_handler_t handler,
+                gex_AM_Index_t handler,
                 size_t nbytes, void *dest_addr, va_list argptr)
 {
   ampshm_commit(sd, 0, gasneti_Long, handler, nbytes, dest_addr, argptr);
