@@ -10,14 +10,6 @@
 #include <gasnet_internal.h>
 
 typedef struct {
-  gex_Token_Info_t ti;
-#if GASNET_DEBUG
-  int8_t   handlerRunning; 
-  int8_t   replyIssued;    
-#endif
-} gasnetc_nbrhd_token_t;
-
-typedef struct {
   uint8_t  requestBuf[GASNETC_MAX_MEDIUM];
   uint8_t  replyBuf[GASNETC_MAX_MEDIUM];
 } gasnetc_threadinfo_t;

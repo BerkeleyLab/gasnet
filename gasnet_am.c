@@ -681,3 +681,5 @@ void gasnetc_AM_CommitReplyLongM(
 #endif // gasnetc_AM_CommitReplyLongM
 
 /* ------------------------------------------------------------------------------------ */
+
+gasneti_lifo_head_t gasnetc_loopback_medium_pool = GASNETI_LIFO_INITIALIZER;

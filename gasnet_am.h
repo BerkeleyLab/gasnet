@@ -458,4 +458,178 @@ extern int gasnetc_AMReplyLongV(
         gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
+
+#include <gasnet_core_internal.h> /* for gasnetc_handler[] */
+
+#if GASNET_CONDUIT_SMP
+// TODO-EX: remove or generalize this for other conduits?
+
+extern void gasnetc_smp_cleanup_threaddata(void *_td);
+
+GASNETI_INLINE(gasnetc_loopback_alloc_medium_buffer)
+void *gasnetc_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
+        void **corethreadinfo = gasnetc_mythread();
+        uint8_t *buf = NULL;
+        gasneti_assert(corethreadinfo);
+        if (!*corethreadinfo) { /* ensure 8-byte alignment of medium payload */
+          *corethreadinfo = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT,sizeof(gasnetc_threadinfo_t));
+          gasnete_register_threadcleanup(gasnetc_smp_cleanup_threaddata, corethreadinfo);
+        }
+        if (isReq) buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->requestBuf;
+        else       buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->replyBuf;
+        return buf;
+}
+
+#define gasnetc_loopback_free_medium_buffer(buf, isReq_and_TI) ((void)0)
+
+#else // GASNET_CONDUIT_SMP
+
+/* Loopback AMs use buffers from this free pool.
+ * Worst case this pool grows to two per threads (one request and one reply).
+ * TODO: per-thread buffers (as in smp-conduit) would remove contention, but
+ * requires modifying the conduit-specific code for threaddata.
+ */
+extern gasneti_lifo_head_t gasnetc_loopback_medium_pool;
+
+GASNETI_INLINE(gasnetc_loopback_alloc_medium_buffer)
+void *gasnetc_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
+    void *buf = gasneti_lifo_pop(&gasnetc_loopback_medium_pool);
+    if_pf (NULL == buf) {
+      /* Grow the free pool with buffers sized and aligned for the largest Medium */
+      const size_t sz = MAX(gex_AM_LUBRequestMedium(), gex_AM_LUBReplyMedium());
+      buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, sz);
+      gasneti_leak_aligned(buf);
+    }
+    return buf;
+}
+
+#define gasnetc_loopback_free_medium_buffer(buf, isReq_and_TI) \
+    gasneti_lifo_push(&gasnetc_loopback_medium_pool, buf)
+
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+
+typedef struct {
+  gex_Token_Info_t ti;
+#if GASNET_DEBUG
+  int8_t   handlerRunning; 
+  int8_t   replyIssued;    
+#endif
+} gasnetc_nbrhd_token_t;
+
+// Conduit must define GASNETC_MAX_ARGS_LOOP if gex_AM_MaxArgs() is not a compile time constant
+#ifndef GASNETC_MAX_ARGS_LOOP
+  #define GASNETC_MAX_ARGS_LOOP   (gex_AM_MaxArgs())
+#endif
+
+GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
+int gasnetc_loopback_ReqRepGeneric(
+                         int isReq, gasneti_category_t category,
+                         gex_AM_Index_t handler,
+                         void *source_addr, int nbytes, void *dest_ptr, 
+                         gex_Flags_t flags, int numargs, va_list argptr) {
+  gex_AM_Arg_t pargs[GASNETC_MAX_ARGS_LOOP];
+  gex_AM_Entry_t *handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
+  gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
+
+  gasnetc_nbrhd_token_t real_token;
+  #if GASNET_DEBUG
+    real_token.handlerRunning = 1;
+    real_token.replyIssued = 0;
+  #endif
+  real_token.ti.gex_srcrank = gasneti_mynode;
+  real_token.ti.gex_ep = gasneti_THUNK_EP;
+  real_token.ti.gex_entry = handler_entry;
+  real_token.ti.gex_is_req = isReq;
+  const gex_Token_t token = (gex_Token_t)&real_token;
+
+  gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_LOOP);
+  gasneti_amtbl_check(handler_entry, numargs, category, isReq);
+
+  { int i;
+    for(i=0; i < numargs; i++) {
+      pargs[i] = (gex_AM_Arg_t)va_arg(argptr, int);
+    }
+  }
+
+  switch (category) {
+    case gasneti_Short:
+      { 
+        real_token.ti.gex_is_long = 0;
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,pargs,numargs);
+      }
+    break;
+    case gasneti_Medium:
+      { 
+        GASNET_BEGIN_FUNCTION();
+        uint8_t *buf = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_GET);
+        memcpy(buf, source_addr, nbytes);
+
+        real_token.ti.gex_is_long = 0;
+        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
+        gasnetc_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_GET);
+      }
+    break;
+    case gasneti_Long:
+      { 
+        if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
+
+        real_token.ti.gex_is_long = 1;
+        GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,dest_ptr,nbytes);
+      }
+    break;
+    default: gasneti_fatalerror("bad AM category");
+  }
+  #if GASNET_DEBUG  
+    real_token.handlerRunning = 0;
+  #endif
+  return GASNET_OK;
+}
+
+GASNETI_INLINE(gasnetc_nbrhd_RequestGeneric)
+int gasnetc_nbrhd_RequestGeneric(
+                         gasneti_category_t category,
+                         int dest, gex_AM_Index_t handler, 
+                         void *source_addr, int nbytes, void *dest_ptr, 
+                         gex_Flags_t flags, int numargs, va_list argptr) {
+#if GASNET_PSHM
+  return gasneti_AMPSHM_RequestGeneric(category, dest, handler, source_addr, nbytes, 
+                                      dest_ptr, flags, numargs, argptr); 
+#else
+  return gasnetc_loopback_ReqRepGeneric(
+                               1, category, handler,
+                               source_addr, nbytes, dest_ptr, 
+                               flags, numargs, argptr); 
+#endif
+}
+
+GASNETI_INLINE(gasnetc_nbrhd_ReplyGeneric)
+int gasnetc_nbrhd_ReplyGeneric(
+                         gasneti_category_t category,
+                         gex_Token_t token, gex_AM_Index_t handler,
+                         void *source_addr, int nbytes, void *dest_ptr, 
+                         gex_Flags_t flags, int numargs, va_list argptr) {
+#if GASNET_PSHM
+  return gasneti_AMPSHM_ReplyGeneric(category, token, handler, source_addr, nbytes, 
+                                     dest_ptr, flags, numargs, argptr); 
+#else
+  #if GASNET_DEBUG  
+    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)token;
+
+    gasneti_assert(real_token->handlerRunning);
+    gasneti_assert(!real_token->replyIssued);
+    gasneti_assert(real_token->ti.gex_is_req);
+    real_token->replyIssued = 1;
+  #endif
+  
+  return gasnetc_loopback_ReqRepGeneric(
+                                 0, category, handler,
+                                 source_addr, nbytes, dest_ptr, 
+                                 flags, numargs, argptr); 
+#endif
+}
+
+/* ------------------------------------------------------------------------------------ */
+
 #endif
