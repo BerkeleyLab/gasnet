@@ -228,13 +228,6 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
                                 size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
                                 va_list argptr);
 
-#define GASNETI_IS_AMPSHM_PREPARE_REQ(sd,tm,dest) \
-    (0 != ((sd)->_pshm._is_pshm = GASNETI_SUPERNODE_LOCAL(dest)))
-#define GASNETI_IS_AMPSHM_PREPARE_REP(sd,token) \
-    (0 != ((sd)->_pshm._is_pshm = gasnetc_token_in_nbrhd(token)))
-#define GASNETI_IS_AMPSHM_COMMIT(sd) \
-    ((sd)->_pshm._is_pshm)
-
 int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         gex_TM_t             tm,
                                         gex_Rank_t           dest,

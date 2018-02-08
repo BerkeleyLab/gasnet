@@ -800,5 +800,117 @@ void gasnetc_loopback_Commit(
 }
 
 /* ------------------------------------------------------------------------------------ */
+// NP-AM for "nbrhd" (PSHM and loopback)
+
+#if GASNET_PSHM
+  #define _GASNETC_IS_NBRHD_FIELD _pshm._is_pshm
+#else
+  #define _GASNETC_IS_NBRHD_FIELD _loopback
+#endif
+#define GASNETC_IS_NBRHD_PREPARE_REQ(sd,tm,dest) \
+    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_dest_in_nbrhd(tm,dest)))
+#define GASNETC_IS_NBRHD_PREPARE_REP(sd,token) \
+    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_token_in_nbrhd(token)))
+#define GASNETC_IS_NBRHD_COMMIT(sd) \
+    ((sd)->_GASNETC_IS_NBRHD_FIELD)
+
+GASNETI_INLINE(gasnetc_nbrhd_PrepareRequest)
+int gasnetc_nbrhd_PrepareRequest(
+                        gasneti_AM_SrcDesc_t sd,
+                        gasneti_category_t   category,
+                        gex_TM_t             tm,
+                        gex_Rank_t           dest,
+                        const void          *client_buf,
+                        size_t               min_length,
+                        size_t               max_length,
+                        void                *dest_addr,
+                        gex_Event_t         *lc_opt,
+                        gex_Flags_t          flags,
+                        unsigned int         nargs
+                        GASNETI_THREAD_FARG)
+{
+  gasneti_assert(gasnetc_dest_in_nbrhd(tm,dest));
+#if GASNET_PSHM
+  if (category == gasneti_Medium) {
+    return gasnetc_AMPSHM_PrepareRequestMedium(sd, tm, dest, client_buf, min_length, max_length,
+                                               lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  } else {
+    return gasnetc_AMPSHM_PrepareRequestLong(sd, tm, dest, client_buf, min_length, max_length,
+                                             dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  }
+#else
+  return gasnetc_loopback_Prepare(sd, 1, category, client_buf, min_length, max_length,
+                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+#endif
+}
+
+GASNETI_INLINE(gasnetc_nbrhd_CommitRequest)
+void gasnetc_nbrhd_CommitRequest(
+                        gasneti_AM_SrcDesc_t sd,
+                        gasneti_category_t   category,
+                        gex_AM_Index_t       handler,
+                        size_t               nbytes,
+                        void                *dest_addr,
+                        va_list              argptr)
+{
+#if GASNET_PSHM
+  if (category == gasneti_Medium) {
+    gasnetc_AMPSHM_CommitRequestMedium(sd, handler, nbytes, argptr);
+  } else {
+    gasnetc_AMPSHM_CommitRequestLong(sd, handler, nbytes, dest_addr, argptr);
+  }
+#else
+  gasnetc_loopback_Commit(sd, 1, category, handler, nbytes, dest_addr, argptr);
+#endif
+}
+
+GASNETI_INLINE(gasnetc_nbrhd_PrepareReply)
+int gasnetc_nbrhd_PrepareReply(
+                        gasneti_AM_SrcDesc_t sd,
+                        gasneti_category_t   category,
+                        gex_Token_t          token,
+                        const void          *client_buf,
+                        size_t               min_length,
+                        size_t               max_length,
+                        void                *dest_addr,
+                        gex_Event_t         *lc_opt,
+                        gex_Flags_t          flags,
+                        unsigned int         nargs
+                        GASNETI_THREAD_FARG)
+{
+  gasneti_assert(gasnetc_token_in_nbrhd(token));
+#if GASNET_PSHM
+  if (category == gasneti_Medium) {
+    return gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, min_length, max_length,
+                                             lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  } else {
+    return gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, min_length, max_length,
+                                           dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  }
+#else
+  return gasnetc_loopback_Prepare(sd, 0, category, client_buf, min_length, max_length,
+                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+#endif
+}
+
+GASNETI_INLINE(gasnetc_nbrhd_CommitReply)
+void gasnetc_nbrhd_CommitReply(
+                        gasneti_AM_SrcDesc_t sd,
+                        gasneti_category_t   category,
+                        gex_AM_Index_t       handler,
+                        size_t               nbytes,
+                        void                *dest_addr,
+                        va_list              argptr)
+{
+#if GASNET_PSHM
+  if (category == gasneti_Medium) {
+    gasnetc_AMPSHM_CommitReplyMedium(sd, handler, nbytes, argptr);
+  } else {
+    gasnetc_AMPSHM_CommitReplyLong(sd, handler, nbytes, dest_addr, argptr);
+  }
+#else
+  gasnetc_loopback_Commit(sd, 0, category, handler, nbytes, dest_addr, argptr);
+#endif
+}
 
 #endif
