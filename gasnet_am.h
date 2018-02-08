@@ -533,6 +533,7 @@ void *gasnetc_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Types and macros common to loopback and PSHM
 
 typedef struct {
   gex_Token_Info_t ti;
@@ -589,6 +590,9 @@ extern gex_TI_t gasnetc_nbrhd_Token_Info(
    */
   #define GASNETC_NBRHD_LEAVING_HANDLER_HOOK(cat,isReq) ((void)0)
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+// Code shared by loopback FP and NP
 
 GASNETI_INLINE(gasnetc_loopback_prepare_inner)
 int gasnetc_loopback_prepare_inner(
@@ -693,6 +697,9 @@ void gasnetc_loopback_commit_inner(
   }
 }
 
+/* ------------------------------------------------------------------------------------ */
+// FP-AM for loopback
+
 GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
 int gasnetc_loopback_ReqRepGeneric(
                          int isReq, gasneti_category_t category,
@@ -711,6 +718,9 @@ int gasnetc_loopback_ReqRepGeneric(
 
   return GASNET_OK;
 }
+
+/* ------------------------------------------------------------------------------------ */
+// FP-AM for "nbrhd" (PSHM and loopback)
 
 GASNETI_INLINE(gasnetc_nbrhd_RequestGeneric)
 int gasnetc_nbrhd_RequestGeneric(
