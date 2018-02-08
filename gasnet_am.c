@@ -221,7 +221,7 @@ extern int gasneti_amtbl_init(gex_AM_Entry_t *output) {
   return GASNET_OK;
 }
 
-#if GASNET_DEBUG
+#if GASNET_DEBUG && !defined(gasneti_amtbl_check)
 // Validate call to a handler
 extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
                                 gasneti_category_t category, int isReq) {

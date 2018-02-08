@@ -1096,32 +1096,6 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #define GASNETI_AMPSHM_MAX_REQUEST_PER_POLL 10
 
 /* ------------------------------------------------------------------------------------ */
-#if GASNET_DEBUG
-static void gasneti_AMPSHM_amtbl_check(
-                gex_EP_t ep,
-                gex_AM_Index_t      index,
-                uint8_t             nargs,
-                int                 category,
-                int                 isReq)
-{
-  #ifndef GASNETC_GET_HANDLER
-    // Conduit uses default implementation of handlerentry table
-    gasneti_amtbl_check(gasnetc_get_hentry(ep,index), nargs, category, isReq); // TODO-EX: EP-specific table
-  #else
-    // Must construct a handlerentry table entry
-    gex_AM_Entry_t entry;
-    entry.gex_nargs = gasnetc_get_handler(ep, index, nargs);
-    entry.gex_flags = gasnetc_get_handler(ep, index, flags);
-    entry.gex_fnptr = gasnetc_get_handler(ep, index, fnptr);
-    entry.gex_cdata = gasnetc_get_handler(ep, index, cdata);
-    entry.gex_name  = gasnetc_get_handler(ep, index, name);
-    gasneti_amtbl_check(&entry, nargs, category, isReq);
-  #endif
-}
-#else
-  #define gasneti_AMPSHM_amtbl_check(ep, id, nargs, category, isReq) ((void)0)
-#endif
-/* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
 int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 {
@@ -1153,7 +1127,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   numargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
   args = GASNETI_AMPSHM_MSG_ARGS(msg);
 
-  gasneti_AMPSHM_amtbl_check(ep, handler_id, numargs, category, isReq);
+  gasneti_amtbl_check(entry, numargs, category, isReq);
 
   switch (category) {
     case gasneti_Short:
@@ -1306,7 +1280,7 @@ void gasnetc_ampshm_loopback(void *msg, int category, int isReq,
     gex_Token_t token = gasnetc_nbrhd_token_init(&my_token,gasneti_mynode,entry,isReq);
     gex_AM_Fn_t handler_fn = entry->gex_fnptr;
     gex_AM_Arg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
-    gasneti_AMPSHM_amtbl_check(ep, handler, numargs, category, isReq);
+    gasneti_amtbl_check(entry, numargs, category, isReq);
     switch (category) {
       case gasneti_Short:
         GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,NULL,0,numargs,args);
