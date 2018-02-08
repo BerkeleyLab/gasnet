@@ -472,6 +472,10 @@ extern int gasnetc_AMReplyLongV(
    */
   #define GASNETC_MAX_MEDIUM_LOOP MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
 #endif
+#ifndef GASNETC_MAX_LONG_LOOP
+  // Same assumptions and usage as GASNETC_MAX_MEDIUM_LOOP, above, but for Long
+  #define GASNETC_MAX_LONG_LOOP MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
+#endif
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
   // TODO-EX: gasnetc_handler to be replaced w/ per-endpoint data when defined
@@ -587,12 +591,71 @@ extern gex_TI_t gasnetc_nbrhd_Token_Info(
   #define GASNETC_NBRHD_LEAVING_HANDLER_HOOK(cat,isReq) ((void)0)
 #endif
 
-GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
-int gasnetc_loopback_ReqRepGeneric(
-                         int isReq, gasneti_category_t category,
-                         gex_AM_Index_t handler,
-                         void *source_addr, int nbytes, void *dest_ptr, 
-                         gex_Flags_t flags, int numargs, va_list argptr) {
+GASNETI_INLINE(gasnetc_loopback_prepare_inner)
+int gasnetc_loopback_prepare_inner(
+                        gasneti_AM_SrcDesc_t sd, const int isFixed,
+                        const int isReq, const gasneti_category_t category,
+                        const void *client_buf,
+                        size_t min_length, size_t max_length,
+                        void *dest_addr, gex_Event_t *lc_opt,
+                        gex_Flags_t flags, unsigned int nargs
+                        GASNETI_THREAD_FARG)
+{
+  sd->_nargs = nargs;
+  if (category == gasneti_Medium) {
+    sd->_tofree = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
+  }
+
+  if (isFixed) {
+    sd->_addr = (/*non-const*/void *)client_buf;
+  } else {
+    size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
+    sd->_size = MIN(limit, max_length);
+
+    if (client_buf) {
+      sd->_addr = (/*non-const*/void *)client_buf;
+      gasneti_leaf_finish(lc_opt);
+    } else if (category == gasneti_Medium) {
+      sd->_addr = sd->_tofree;
+    } else {
+      gasneti_prepare_alloc_buffer(sd);
+    }
+
+    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
+  }
+
+  return 0;
+}
+
+GASNETI_INLINE(gasnetc_loopback_commit_inner)
+void gasnetc_loopback_commit_inner(
+                        gasneti_AM_SrcDesc_t sd, const int isFixed,
+                        const int isReq, const gasneti_category_t category,
+                        gex_AM_Index_t handler, size_t nbytes,
+                        void *dest_addr, va_list argptr
+                        GASNETI_THREAD_FARG)
+{
+  const unsigned int numargs = sd->_nargs;
+
+  // Stage payload to final location, buf
+  void *buf;
+  switch (category) {
+    case gasneti_Short:
+        buf = NULL;
+        break;
+    case gasneti_Medium:
+        buf = sd->_tofree;
+        if (isFixed || (buf != sd->_addr)) memcpy(buf, sd->_addr, nbytes);
+        if (!isFixed) sd->_tofree = NULL; // wip - move to a distinct field to avoid need to zero it
+        break;
+    case gasneti_Long:
+        buf = dest_addr;
+        if_pt (buf != sd->_addr) memcpy(buf, sd->_addr, nbytes);
+        break;
+    default:
+        gasneti_unreachable();
+  }
+
   gex_AM_Arg_t pargs[GASNETC_MAX_ARGS_LOOP];
   gex_EP_t ep = NULL; // TODO-EX: get true value
   gex_AM_Entry_t *handler_entry = gasnetc_get_hentry(ep, handler);
@@ -600,51 +663,56 @@ int gasnetc_loopback_ReqRepGeneric(
 
   gasnetc_nbrhd_token_t real_token;
   const gex_Token_t token = gasnetc_nbrhd_token_init(&real_token, gasneti_mynode, handler_entry, isReq);
+  real_token.ti.gex_is_long = (category == gasneti_Long);
 
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_LOOP);
   gasneti_amtbl_check(handler_entry, numargs, category, isReq);
 
-  { int i;
-    for(i=0; i < numargs; i++) {
-      pargs[i] = (gex_AM_Arg_t)va_arg(argptr, int);
-    }
+  for (int i = 0; i < numargs; i++) {
+    pargs[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
   }
 
+  GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,buf,nbytes,numargs,pargs);
   switch (category) {
     case gasneti_Short:
-      { 
-        real_token.ti.gex_is_long = 0;
-        GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,NULL,0,numargs,pargs);
         GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,pargs,numargs);
-      }
-    break;
+        break;
     case gasneti_Medium:
-      { 
-        GASNET_BEGIN_FUNCTION();
-        uint8_t *buf = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_GET);
-        memcpy(buf, source_addr, nbytes);
-
-        real_token.ti.gex_is_long = 0;
-        GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,buf,nbytes,numargs,pargs);
         GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
-        gasnetc_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_GET);
-      }
-    break;
+        break;
     case gasneti_Long:
-      { 
-        if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
-
-        real_token.ti.gex_is_long = 1;
-        GASNETC_NBRHD_ENTERING_HANDLER_HOOK(category,isReq,handler,token,dest_ptr,nbytes,numargs,pargs);
-        GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,dest_ptr,nbytes);
-      }
-    break;
-    default: gasneti_fatalerror("bad AM category");
+        GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
+        break;
+    default:
+        gasneti_unreachable();
   }
+  GASNETC_NBRHD_LEAVING_HANDLER_HOOK(category,isReq);
+
   #if GASNET_DEBUG  
     real_token.handlerRunning = 0;
   #endif
-  GASNETC_NBRHD_LEAVING_HANDLER_HOOK(category,isReq);
+
+  if (category == gasneti_Medium) {
+    gasnetc_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_PASS);
+  }
+}
+
+GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
+int gasnetc_loopback_ReqRepGeneric(
+                         int isReq, gasneti_category_t category,
+                         gex_AM_Index_t handler,
+                         void *source_addr, int nbytes, void *dest_addr, 
+                         gex_Flags_t flags, int numargs, va_list argptr)
+{
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: THREAD_FARG
+  struct gasneti_AM_SrcDesc the_sd;
+
+  gasnetc_loopback_prepare_inner(&the_sd, 1, isReq, category, source_addr, 0, 0,
+                                 dest_addr, NULL, flags, numargs GASNETI_THREAD_GET);
+
+  gasnetc_loopback_commit_inner(&the_sd, 1, isReq, category, handler, nbytes,
+                                dest_addr, argptr GASNETI_THREAD_GET);
+
   return GASNET_OK;
 }
 
@@ -689,6 +757,38 @@ int gasnetc_nbrhd_ReplyGeneric(
                                  source_addr, nbytes, dest_ptr, 
                                  flags, numargs, argptr); 
 #endif
+}
+
+/* ------------------------------------------------------------------------------------ */
+// NP-AM for loopback (note lack of any destination arguments)
+
+GASNETI_INLINE(gasnetc_loopback_Prepare)
+int gasnetc_loopback_Prepare(
+                        gasneti_AM_SrcDesc_t sd,
+                        const int isReq, const gasneti_category_t category,
+                        const void *client_buf,
+                        size_t min_length, size_t max_length,
+                        void *dest_addr, gex_Event_t *lc_opt,
+                        gex_Flags_t flags, unsigned int nargs
+                        GASNETI_THREAD_FARG)
+{
+  return gasnetc_loopback_prepare_inner(
+                        sd, 0, isReq, category, client_buf,
+                        min_length, max_length, dest_addr, lc_opt,
+                        flags, nargs GASNETI_THREAD_PASS);
+}
+
+GASNETI_INLINE(gasnetc_loopback_Commit)
+void gasnetc_loopback_Commit(
+                        gasneti_AM_SrcDesc_t sd,
+                        const int isReq, const gasneti_category_t category,
+                        gex_AM_Index_t handler, size_t nbytes,
+                        void *dest_addr, va_list argptr)
+{
+  GASNET_POST_THREADINFO(sd->_thread);
+  gasnetc_loopback_commit_inner(
+                        sd, 0, isReq, category, handler, nbytes,
+                        dest_addr, argptr GASNETI_THREAD_GET);
 }
 
 /* ------------------------------------------------------------------------------------ */
