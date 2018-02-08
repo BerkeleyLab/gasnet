@@ -996,64 +996,6 @@ void gasnetc_smp_cleanup_threaddata(void *_td) {
 
 /* ------------------------------------------------------------------------------------ */
 
-extern int gasnetc_AMRequestMediumV(
-                            gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
-                            void *source_addr, size_t nbytes,
-                            gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
-{
-    gasneti_leaf_finish(lc_opt); // always locally completed
-    return gasnetc_nbrhd_RequestGeneric(
-                                  gasneti_Medium,
-                                  rank, handler,
-                                  source_addr, nbytes, 0,
-                                  flags, numargs, argptr);
-}
-
-extern int gasnetc_AMRequestLongV(
-                            gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
-                            void *source_addr, size_t nbytes, void *dest_addr,
-                            gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
-{
-    gasneti_leaf_finish(lc_opt); // always locally completed
-    return gasnetc_nbrhd_RequestGeneric(
-                                  gasneti_Long,
-                                  rank, handler,
-                                  source_addr, nbytes, dest_addr,
-                                  flags, numargs, argptr);
-}
-
-extern int gasnetc_AMReplyMediumV(
-                            gex_Token_t token, gex_AM_Index_t handler,
-                            void *source_addr, size_t nbytes,
-                            gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
-{
-    gasneti_leaf_finish(lc_opt); // always locally completed
-    return gasnetc_nbrhd_ReplyGeneric(
-                                gasneti_Medium,
-                                token, handler,
-                                source_addr, nbytes, 0,
-                                flags, numargs, argptr);
-}
-
-extern int gasnetc_AMReplyLongV(
-                            gex_Token_t token, gex_AM_Index_t handler,
-                            void *source_addr, size_t nbytes, void *dest_addr,
-                            gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
-{
-    gasneti_leaf_finish(lc_opt); // always locally completed
-    return gasnetc_nbrhd_ReplyGeneric(
-                                gasneti_Long,
-                                token, handler,
-                                source_addr, nbytes, dest_addr,
-                                flags, numargs, argptr);
-}
-
-/* ------------------------------------------------------------------------------------ */
-
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
                             gex_Rank_t rank,       /* with tm, defines remote context */

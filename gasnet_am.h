@@ -431,30 +431,38 @@ extern int gasnetc_AMRequestMediumV(
                 void *source_addr, size_t nbytes,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
                 int numargs, va_list argptr GASNETI_THREAD_FARG);
+#ifndef gasneti_AMRequestMediumV
 #define gasneti_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
         gasnetc_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+#endif
 extern int gasnetc_AMRequestLongV(
                 gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes, void *dest_addr,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
                 int numargs, va_list argptr GASNETI_THREAD_FARG);
+#ifndef gasneti_AMRequestLongV
 #define gasneti_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
         gasnetc_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+#endif
 
 extern int gasnetc_AMReplyMediumV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
                 int numargs, va_list argptr GASNETI_THREAD_FARG);
+#ifndef gasneti_AMReplyMediumV
 #define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
         gasnetc_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+#endif
 extern int gasnetc_AMReplyLongV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes, void *dest_addr,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
                 int numargs, va_list argptr GASNETI_THREAD_FARG);
+#ifndef gasneti_AMReplyLongV
 #define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
         gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 

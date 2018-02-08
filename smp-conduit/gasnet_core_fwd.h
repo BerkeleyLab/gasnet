@@ -85,7 +85,20 @@
   extern void gasnetc_fatalsignal_cleanup_callback(int sig);
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+
 // Always loopback (self or PSHM)
 #define gex_Token_Info gasnetc_nbrhd_Token_Info
+
+// V-suffixed routines are unreachable since "nbrhd" Prepare/Commit
+// do all the work for Negotiated Payload AMs
+#define gasneti_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
+#define gasneti_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
+#define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
+#define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
 
 #endif
