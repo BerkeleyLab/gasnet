@@ -420,6 +420,14 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   if (!strcmp(info->fabric_attr->prov_name, "psm2")){
 	  high_perf_prov = 1;
       using_psm_provider = 1;
+      /* In libfabric v1.6, the psm2 provider transitioned to using separate
+       * psm2 endpoints for each ofi endpoint, whereas in the past all communication
+       * was multiplexed over a single psm2 endpoint. Setting this variable ensures
+       * that unnecessary connections between remote endpoints which never communicate
+       * are not made, which can cause slow tear-down. */
+      if ((FI_MAJOR_VERSION == 1 && FI_MINOR_VERSION >= 6) || FI_MAJOR_VERSION > 1) {
+	      setenv("FI_PSM2_LAZY_CONN", "1", 1);
+      }
   }
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
@@ -679,10 +687,6 @@ void gasnetc_ofi_exit(void)
     gasneti_free_aligned(receive_region_start);
   #endif
 
-  if(fi_close(&gasnetc_ofi_rdma_mrfd->fid)!=FI_SUCCESS) {
-    gasneti_fatalerror("close mrfd failed\n");
-  }
-
   if(fi_close(&gasnetc_ofi_reply_epfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close am reply epfd failed\n");
   }
@@ -693,6 +697,10 @@ void gasnetc_ofi_exit(void)
 
   if(fi_close(&gasnetc_ofi_rdma_epfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close rdma epfd failed\n");
+  }
+
+  if(fi_close(&gasnetc_ofi_rdma_mrfd->fid)!=FI_SUCCESS) {
+    gasneti_fatalerror("close mrfd failed\n");
   }
 
   if(fi_close(&gasnetc_ofi_tx_cqfd->fid)!=FI_SUCCESS) {
