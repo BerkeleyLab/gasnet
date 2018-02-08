@@ -405,6 +405,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
     }
 
+    gasneti_init_sd_poison(sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -440,6 +441,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
     }
 
+    gasneti_init_sd_poison(sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -485,6 +487,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         sd->_dest_addr = dest_addr;
     }
 
+    gasneti_init_sd_poison(sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
@@ -522,6 +525,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
         sd->_dest_addr = dest_addr;
     }
 
+    gasneti_init_sd_poison(sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:

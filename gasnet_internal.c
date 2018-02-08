@@ -576,9 +576,9 @@ void gasneti_free_tm(gasneti_TM_t tm)
 #if GASNET_DEBUG
   // Verify that client did actually write to gasnet-allocated buffer
   //
-  // gasneti_init_sd_poison(addr, len) - write a "canary"
-  //   For (len >= gasneti_sd_init_len) writes a "canary" value (also of length
-  //   gasneti_sd_init_len) to addr.
+  // gasneti_init_sd_poison(sd) - write a "canary"
+  //   For (sd->_size >= gasneti_sd_init_len) writes a "canary" value (also of length
+  //   gasneti_sd_init_len) to sd->_addr if (and only if) the buffer is gasnet-owned
   // gasneti_test_sd_poison(addr, len) - test a "canary"
   //   For (len >= gasneti_sd_init_len) looks for the same "canary" value,
   //   returning non-zero if it is present.
@@ -593,8 +593,9 @@ void gasneti_free_tm(gasneti_TM_t tm)
   static uint64_t gasneti_sd_init_val = 0; // Value used to initialize gasnet-allocated SrcDesc buffers
   static size_t gasneti_sd_init_len = 128; // Max length to init at Prepare, and min to check at Commit
 
-  extern void gasneti_init_sd_poison(void *addr, size_t len) {
+  extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd) {
     if (!gasneti_sd_init_enabled) return;
+    if (sd->_addr != sd->_gex_buf) return;
     static int isinit = 0;
     if_pf (!isinit) {
       static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
@@ -608,7 +609,8 @@ void gasneti_free_tm(gasneti_TM_t tm)
       gasneti_mutex_unlock(&lock);
       if (!gasneti_sd_init_enabled) return;
     } else gasneti_sync_reads();
-    if (len >= gasneti_sd_init_len) gasneti_memalloc_valset(addr, gasneti_sd_init_len, gasneti_sd_init_val);
+    if (sd->_size < gasneti_sd_init_len) return;
+    gasneti_memalloc_valset(sd->_addr, gasneti_sd_init_len, gasneti_sd_init_val);
   }
 
   extern int gasneti_test_sd_poison(void *addr, size_t len) { // return non-zero if still poison

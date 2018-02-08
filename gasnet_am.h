@@ -206,7 +206,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 // Common argument processing
 // TODO-EX: tracing should probably occur here as well
 #if GASNET_DEBUG
-  extern void gasneti_init_sd_poison(void *addr, size_t len);
+  extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd);
   extern int gasneti_test_sd_poison(void *addr, size_t len);
 
   #define _GASNETI_CHECK_PREPARE(cbuf, min_length, max_length, limit, lc_opt, nargs, is_req, cat) \
@@ -296,8 +296,8 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
           !((dest_addr == sd->_dest_addr) || ((dest_addr == NULL) && (nbytes == 0))))                    \
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "dest_addr does not match the value passed to Prepare", _reqrep, nargs);      \
-      if (sd->_tofree) {                                                                                 \
-        if (gasneti_test_sd_poison(sd->_tofree, nbytes))                                                 \
+      if (sd->_gex_buf) {                                                                                \
+        if (gasneti_test_sd_poison(sd->_gex_buf, nbytes))                                                \
           gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                    \
                              "client did not write to the GASNet-provided buffer",                       \
                              _reqrep, nargs);                                                            \
@@ -308,7 +308,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
   #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
                   _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
 #else
-  #define gasneti_init_sd_poison(a,l) ((void)0)
+  #define gasneti_init_sd_poison(sd) ((void)0)
   #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
   #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
   #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
@@ -326,8 +326,7 @@ void gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
     // returns NULL which then leads to ambiguity in argument checking.
     if (!size) size = 1;
 #endif
-    sd->_addr   = gasneti_malloc(size);
-    sd->_tofree = sd->_addr;
+    sd->_gex_buf = sd->_tofree = sd->_addr = gasneti_malloc(size);
 }
 
 extern gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG);
@@ -341,7 +340,7 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
   if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
-  sd->_tofree = NULL;
+  sd->_gex_buf = sd->_tofree = NULL;
   return sd;
 }
 
@@ -354,11 +353,12 @@ gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
   if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
-  sd->_tofree = NULL;
+  sd->_gex_buf = sd->_tofree = NULL;
   return sd;
 }
 
 // Return a thread-specfic SD to its "inactive" state
+// Will free sd->_tofree
 GASNETI_INLINE(gasneti_reset_srcdesc)
 void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
@@ -383,7 +383,6 @@ void gasneti_prepare_common(
         sd->_addr = (/*non-const*/void *)client_buf;
     } else {
         gasneti_prepare_alloc_buffer(sd);
-        gasneti_init_sd_poison(sd->_addr, size);
     }
 }
 
@@ -603,7 +602,7 @@ int gasnetc_loopback_prepare_inner(
 {
   sd->_nargs = nargs;
   if (category == gasneti_Medium) {
-    sd->_tofree = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
+    sd->_gex_buf = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
   }
 
   if (isFixed) {
@@ -616,12 +615,10 @@ int gasnetc_loopback_prepare_inner(
       sd->_addr = (/*non-const*/void *)client_buf;
       gasneti_leaf_finish(lc_opt);
     } else if (category == gasneti_Medium) {
-      sd->_addr = sd->_tofree;
+      sd->_addr = sd->_gex_buf;
     } else {
       gasneti_prepare_alloc_buffer(sd);
     }
-
-    if (! client_buf) gasneti_init_sd_poison(sd->_addr, sd->_size);
   }
 
   return 0;
@@ -644,9 +641,8 @@ void gasnetc_loopback_commit_inner(
         buf = NULL;
         break;
     case gasneti_Medium:
-        buf = sd->_tofree;
+        buf = sd->_gex_buf;
         if (isFixed || (buf != sd->_addr)) memcpy(buf, sd->_addr, nbytes);
-        if (!isFixed) sd->_tofree = NULL; // wip - move to a distinct field to avoid need to zero it
         break;
     case gasneti_Long:
         buf = dest_addr;
@@ -772,6 +768,7 @@ int gasnetc_loopback_Prepare(
                         gex_Flags_t flags, unsigned int nargs
                         GASNETI_THREAD_FARG)
 {
+  gasneti_assert(sd->_loopback);
   return gasnetc_loopback_prepare_inner(
                         sd, 0, isReq, category, client_buf,
                         min_length, max_length, dest_addr, lc_opt,
@@ -786,6 +783,7 @@ void gasnetc_loopback_Commit(
                         void *dest_addr, va_list argptr)
 {
   GASNET_POST_THREADINFO(sd->_thread);
+  gasneti_assert(sd->_loopback);
   gasnetc_loopback_commit_inner(
                         sd, 0, isReq, category, handler, nbytes,
                         dest_addr, argptr GASNETI_THREAD_GET);

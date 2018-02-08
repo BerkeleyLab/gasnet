@@ -1275,7 +1275,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   // Pass-off if loopback
   // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
   int loopback = (dest == gasneti_mynode);
-  sd->_pshm._loopback = loopback;
+  sd->_loopback = loopback;
   if (loopback) {
     return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,min_length,max_length,
                                     dest_addr,lc_opt,flags,nargs GASNETI_THREAD_PASS);
@@ -1299,7 +1299,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   if (!msg) return 1;
 
   // Outputs consumed by commit
-  sd->_pshm._msg = msg;
+  sd->_void_p = msg;
   sd->_pshm._target = target;
   sd->_pshm._dest = dest;
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = nargs;
@@ -1313,16 +1313,11 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
     sd->_addr = (/*non-const*/void *)client_buf;
     gasneti_leaf_finish(lc_opt);
   } else if (category == gasneti_Medium) {
-    sd->_addr = GASNETI_AMPSHM_MSG_MED_DATA(msg);
-#if 0  // This would be cool if we could resolve the potential alising of client's source data
-  } else if (dest_addr) {
-    sd->_addr = gasneti_pshm_addr2local(dest, dest_addr);
-#endif
+    sd->_gex_buf = sd->_addr = GASNETI_AMPSHM_MSG_MED_DATA(msg);
   } else {
     gasneti_prepare_alloc_buffer(sd);
   }
 
-  if (! client_buf) gasneti_init_sd_poison(sd->_addr, size);
   return 0;
 }
 
@@ -1339,11 +1334,11 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 
   // Pass-off if loopback
   // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
-  if (sd->_pshm._loopback) {
+  if (sd->_loopback) {
     return gasnetc_loopback_Commit(sd,isReq,category,handler,nbytes,dest_addr,argptr);
   }
 
-  void *msg = sd->_pshm._msg;
+  void *msg = sd->_void_p;
 
   /* Fill in message header */
   const int nargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);

@@ -624,7 +624,8 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     void *               _addr;
     size_t               _size;
     gasnet_threadinfo_t  _thread;
-    void *               _tofree;
+    void *               _tofree; // passed to gasneti_free() when sd reset
+    void *               _gex_buf; // gasnet-owned buffer, if any
     union {
       struct {
         gex_TM_t             _tm;
@@ -635,15 +636,15 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
       }                    _reply;
     }                    _dest;
     void *               _dest_addr; // Long only
+    void *               _void_p; // PSHM and conduit-independent pointer
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
     int                  _nargs;
+    int                  _loopback;
   #if GASNET_PSHM
     struct {
-      void *               _msg;
       gex_Rank_t           _target; // should be gasneti_pshm_rank_t
       gex_Rank_t           _dest;
-      int                  _loopback;
       int                  _is_pshm;
     }                    _pshm;
   #endif
