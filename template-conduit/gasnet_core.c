@@ -466,13 +466,11 @@ extern gex_TI_t gasnetc_Token_Info(
   gasneti_assert(token);
   gasneti_assert(info);
 
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let the PSHM code
-   * have a chance to recognize the token first, as shown here. */
-  if (gasnetc_token_is_pshm(token)) {
-    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if (gasnetc_token_in_nbrhd(token)) {
+    return gasnetc_nbrhd_Token_Info(token, info, mask);
   }
-#endif
 
   /* (###) Recommended implementation is to set all supported fields without
    * testing bits in 'mask'.  The exception to this would be for fields that
@@ -521,15 +519,13 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the dest first. */
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Short, rank, handler,
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+    retval = gasneti_nbrhd_RequestGeneric( gasneti_Short, rank, handler,
                                            0, 0, 0,
-                                           flags, numargs, argptr);
-  } else
-#endif
-  {
+                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -563,15 +559,14 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the dest first. */
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Medium, rank, handler,
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasneti_nbrhd_RequestGeneric( gasneti_Medium, rank, handler,
                                            source_addr, nbytes, 0,
-                                           flags, numargs, argptr);
-  } else
-#endif
-  {
+                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -616,15 +611,14 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the dest first. */
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, rank, handler,
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasneti_nbrhd_RequestGeneric( gasneti_Long, rank, handler,
                                            source_addr, nbytes, dest_addr,
-                                           flags, numargs, argptr);
-  } else
-#endif
-  {
+                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -669,15 +663,13 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the token first. */
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    retval = gasneti_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
                                          0, 0, 0,
                                          flags, numargs, argptr);
-  } else
-#endif
-  { 
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -708,15 +700,14 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the token first. */
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasneti_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
                                          source_addr, nbytes, 0,
                                          flags, numargs, argptr);
-  } else
-#endif
-  {
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */
@@ -758,15 +749,14 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the token first. */
-  if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
+  /* (###) If your conduit is using the default support for AMs within
+   * a Neighborhood (including loopback) then this hook is necessary.
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasneti_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
                                          source_addr, nbytes, dest_addr,
                                          flags, numargs, argptr);
-  } else
-#endif
-  {
+  } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
      */

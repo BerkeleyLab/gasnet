@@ -729,6 +729,7 @@ int gasnetc_loopback_ReqRepGeneric(
 
 /* ------------------------------------------------------------------------------------ */
 // FP-AM for "nbrhd" (PSHM and loopback)
+// NOTE: except for IMMEDIATE no-op case, always synchronous LC
 
 GASNETI_INLINE(gasnetc_nbrhd_RequestGeneric)
 int gasnetc_nbrhd_RequestGeneric(
