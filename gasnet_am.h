@@ -735,7 +735,8 @@ int gasnetc_nbrhd_RequestGeneric(
                          gasneti_category_t category,
                          int dest, gex_AM_Index_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
-                         gex_Flags_t flags, int numargs, va_list argptr) {
+                         gex_Flags_t flags, int numargs, va_list argptr
+                         GASNETI_THREAD_FARG) {
 #if GASNET_PSHM
   return gasneti_AMPSHM_RequestGeneric(category, dest, handler, source_addr, nbytes, 
                                       dest_ptr, flags, numargs, argptr); 

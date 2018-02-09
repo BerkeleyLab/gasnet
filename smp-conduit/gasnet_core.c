@@ -1015,7 +1015,8 @@ extern int gasnetc_AMRequestShortM(
                                   gasneti_Short,
                                   rank, handler, 
                                   0, 0, 0,
-                                  flags, numargs, argptr);
+                                  flags, numargs, argptr
+                                  GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
 }
@@ -1042,7 +1043,8 @@ extern int gasnetc_AMRequestMediumM(
                                   gasneti_Medium,
                                   rank, handler, 
                                   source_addr, nbytes, 0,
-                                  flags, numargs, argptr);
+                                  flags, numargs, argptr
+                                  GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
 }
@@ -1070,7 +1072,8 @@ extern int gasnetc_AMRequestLongM(
                                   gasneti_Long,
                                   rank, handler, 
                                   source_addr, nbytes, dest_addr,
-                                  flags, numargs, argptr);
+                                  flags, numargs, argptr
+                                  GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
 }
