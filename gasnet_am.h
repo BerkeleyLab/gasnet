@@ -599,6 +599,23 @@ extern gex_TI_t gasnetc_nbrhd_Token_Info(
   #define GASNETC_NBRHD_LEAVING_HANDLER_HOOK(cat,isReq) ((void)0)
 #endif
 
+#if GASNET_DEBUG
+  #define gasnetc_token_pre_reply_checks(token) do { \
+    gasneti_assert(gasnetc_token_in_nbrhd(token));                                     \
+    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token); \
+    gasneti_assert(real_token);                                                        \
+    gasneti_assert(real_token->ti.gex_is_req);                                         \
+    gasneti_assert(!real_token->replyIssued);                                          \
+  } while (0)
+  #define gasnetc_token_post_reply_checks(token, retval) do { \
+    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token); \
+    real_token->replyIssued = !retval;                                                 \
+  } while (0)
+#else
+  #define gasnetc_token_pre_reply_checks(token) ((void)0)
+  #define gasnetc_token_post_reply_checks(token,retval) ((void)0)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 // Code shared by loopback FP and NP
 
@@ -768,37 +785,32 @@ int gasnetc_nbrhd_ReplyGeneric(
                          gex_Token_t token, gex_AM_Index_t handler,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gex_Flags_t flags, int numargs, va_list argptr) {
+  gasnetc_token_pre_reply_checks(token);
+  int retval;
 #if GASNET_PSHM
   switch(category) {
     case gasneti_Short:
-        return gasneti_AMPSHM_ReplyShort(token, handler, flags, numargs, argptr);
+        retval = gasneti_AMPSHM_ReplyShort(token, handler, flags, numargs, argptr);
         break;
     case gasneti_Medium:
-        return gasneti_AMPSHM_ReplyMedium(token, handler, source_addr, nbytes,
+        retval = gasneti_AMPSHM_ReplyMedium(token, handler, source_addr, nbytes,
                                           flags, numargs, argptr);
         break;
     case gasneti_Long:
-        return gasneti_AMPSHM_ReplyLong(token, handler, source_addr, nbytes, dest_ptr,
+        retval = gasneti_AMPSHM_ReplyLong(token, handler, source_addr, nbytes, dest_ptr,
                                         flags, numargs, argptr);
         break;
     default:
         gasneti_unreachable();
   }
 #else
-  #if GASNET_DEBUG  
-    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token);
-
-    gasneti_assert(real_token->handlerRunning);
-    gasneti_assert(!real_token->replyIssued);
-    gasneti_assert(real_token->ti.gex_is_req);
-    real_token->replyIssued = 1;
-  #endif
-  
-  return gasnetc_loopback_ReqRepGeneric(
+  retval = gasnetc_loopback_ReqRepGeneric(
                                  0, category, handler,
                                  source_addr, nbytes, dest_ptr, 
                                  flags, numargs, argptr); 
 #endif
+  gasnetc_token_post_reply_checks(token, retval);
+  return retval;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -914,19 +926,22 @@ int gasnetc_nbrhd_PrepareReply(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(gasnetc_token_in_nbrhd(token));
+  gasnetc_token_pre_reply_checks(token);
+  int retval;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    return gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, min_length, max_length,
+    retval = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, min_length, max_length,
                                              lc_opt, flags, nargs GASNETI_THREAD_PASS);
   } else {
-    return gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, min_length, max_length,
+    retval = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, min_length, max_length,
                                            dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
   }
 #else
-  return gasnetc_loopback_Prepare(sd, 0, category, client_buf, min_length, max_length,
+  retval = gasnetc_loopback_Prepare(sd, 0, category, client_buf, min_length, max_length,
                                   dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 #endif
+  gasnetc_token_post_reply_checks(token, retval);
+  return retval;
 }
 
 GASNETI_INLINE(gasnetc_nbrhd_CommitReply)

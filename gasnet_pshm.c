@@ -217,24 +217,6 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
                 : NULL;
 }
 
-#if GASNET_DEBUG
-  void gasnetc_token_pre_reply(gex_Token_t token) {
-    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token);
-    gasneti_assert(!((uintptr_t)real_token & 1));
-    gasneti_assert(real_token);
-    gasneti_assert(real_token->ti.gex_is_req);
-    gasneti_assert(!real_token->replyIssued);
-    gasneti_assert(gasneti_pshm_in_supernode(real_token->ti.gex_srcrank));
-  }
-  void gasnetc_token_post_reply(gex_Token_t token) {
-    gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token);
-    real_token->replyIssued = 1;
-  }
-#else
-  #define gasnetc_token_pre_reply(tok) ((void)0)
-  #define gasnetc_token_post_reply(tok) ((void)0)
-#endif
-
 
 /*******************************************************************************
  * PSHM global variables:
@@ -1281,9 +1263,6 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
                                     dest_addr,lc_opt,flags,nargs GASNETI_THREAD_PASS);
   }
 
-  // Check for multiple reply in DEBUG build
-  if (! isReq) gasnetc_token_pre_reply(sd->_dest._reply._token);
-
   // Determine PSHM peer
   gasneti_assert(gasneti_pshm_in_supernode(dest));
   gasneti_pshm_rank_t target = gasneti_pshm_local_rank(dest);
@@ -1303,9 +1282,6 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   sd->_pshm._target = target;
   sd->_pshm._dest = dest;
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = nargs;
-
-  // Prevent multiple reply in DEBUG build
-  if (! isReq) gasnetc_token_post_reply(sd->_dest._reply._token);
 
   // Outputs for the client
   sd->_size = size;
@@ -1456,39 +1432,27 @@ int gasneti_AMPSHM_RequestLong(gex_Rank_t dest, gex_AM_Index_t handler,
 int gasneti_AMPSHM_ReplyShort(gex_Token_t token, gex_AM_Index_t handler,
                               gex_Flags_t flags, int numargs, va_list argptr)
 {
-  int retval;
-  gasnetc_token_pre_reply(token);
   gex_Rank_t sourceid = gasnetc_ampshm_msgsource(token);
-  retval = gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 0, sourceid, handler, NULL,
+  return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 0, sourceid, handler, NULL,
                                         0, NULL, flags, numargs, argptr);
-  if (!retval) gasnetc_token_post_reply(token);
-  return retval;
 }
 
 int gasneti_AMPSHM_ReplyMedium(gex_Token_t token, gex_AM_Index_t handler,
                                void *source_addr, size_t nbytes,
                                gex_Flags_t flags, int numargs, va_list argptr)
 {
-  int retval;
-  gasnetc_token_pre_reply(token);
   gex_Rank_t sourceid = gasnetc_ampshm_msgsource(token);
-  retval = gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 0, sourceid, handler, source_addr,
+  return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 0, sourceid, handler, source_addr,
                                         nbytes, NULL, flags, numargs, argptr);
-  if (!retval) gasnetc_token_post_reply(token);
-  return retval;
 }
 
 int gasneti_AMPSHM_ReplyLong(gex_Token_t token, gex_AM_Index_t handler,
                              void *source_addr, size_t nbytes, void *dest_addr,
                              gex_Flags_t flags, int numargs, va_list argptr)
 {
-  int retval;
-  gasnetc_token_pre_reply(token);
   gex_Rank_t sourceid = gasnetc_ampshm_msgsource(token);
-  retval = gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 0, sourceid, handler, source_addr,
+  return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 0, sourceid, handler, source_addr,
                                         nbytes, dest_addr, flags, numargs, argptr);
-  if (!retval) gasnetc_token_post_reply(token);
-  return retval;
 }
 
 
