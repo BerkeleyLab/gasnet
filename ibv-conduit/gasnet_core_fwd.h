@@ -147,4 +147,10 @@ extern void gasnetc_amrdma_balance(void);
 #define GASNETC_PROGRESSFNS_LIST(FN) \
   FN(gasnetc_pf_amrdma, COUNTED, gasnetc_amrdma_balance)
 
+/* ------------------------------------------------------------------------------------ */
+/* handler table access for PSHM (temporary global impl until PSHM can pass actual ep) */
+#define GASNETC_GET_HANDLER 1
+#define gasnetc_get_hentry(_ep,_index) (&gasnetc_ep0->_amtbl[(_index)])
+#define gasnetc_get_handler(_ep,_index,_field) (gasnetc_get_hentry((_ep),(_index))->gex_##_field)
+
 #endif

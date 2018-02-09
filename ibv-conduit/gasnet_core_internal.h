@@ -99,12 +99,6 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
-/* handler table access for PSHM (temporary global impl until PSHM can pass actual ep) */
-#define GASNETC_GET_HANDLER
-#define gasnetc_get_hentry(_ep,_index) (&gasnetc_ep0->_amtbl[(_index)])
-#define gasnetc_get_handler(_ep,_index,_field) (gasnetc_get_hentry((_ep),(_index))->gex_##_field)
-
-/* ------------------------------------------------------------------------------------ */
 /* Configure gasnet_event_internal.h and gasnet_event.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
