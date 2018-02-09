@@ -212,21 +212,30 @@ void gasneti_pshmnet_recv_release(gasneti_pshmnet_t *vnet, void *buf);
  * PSHM network (i.e. gasneti_reply_pshmnet).  */
 extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
 
-/* Generic AM handler for PSHMnet.
- * Divert your conduit's regular AM requests to this function if a call to
- * gasnetc_dest_in_nbrhd(tm,rank) is nonzero */
-extern
-int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
-                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
-                                  void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr);
 
-/* Generic AM handler for PSHMnet.
- * Divert your conduit's regular AM replies to this function if a call to
- * gasnetc_dest_in_nbrhd(tm,rank) or gasnetc_token_in_nbrhd(token) is nonzero */
-int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
-                                gex_AM_Index_t handler, void *source_addr, 
-                                size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
-                                va_list argptr);
+extern int gasneti_AMPSHM_RequestShort(
+                        gex_Rank_t dest, gex_AM_Index_t handler,
+                        gex_Flags_t flags, int numargs, va_list argptr);
+extern int gasneti_AMPSHM_RequestMedium(
+                        gex_Rank_t dest, gex_AM_Index_t handler,
+                        void *source_addr, size_t nbytes,
+                        gex_Flags_t flags, int numargs, va_list argptr);
+extern int gasneti_AMPSHM_RequestLong(
+                        gex_Rank_t dest, gex_AM_Index_t handler,
+                        void *source_addr, size_t nbytes, void *dest_addr,
+                        gex_Flags_t flags, int numargs, va_list argptr);
+
+extern int gasneti_AMPSHM_ReplyShort(
+                        gex_Token_t token, gex_AM_Index_t handler,
+                        gex_Flags_t flags, int numargs, va_list argptr);
+extern int gasneti_AMPSHM_ReplyMedium(
+                        gex_Token_t token, gex_AM_Index_t handler,
+                        void *source_addr, size_t nbytes,
+                        gex_Flags_t flags, int numargs, va_list argptr);
+extern int gasneti_AMPSHM_ReplyLong(
+                        gex_Token_t token, gex_AM_Index_t handler,
+                        void *source_addr, size_t nbytes, void *dest_addr,
+                        gex_Flags_t flags, int numargs, va_list argptr);
 
 int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         gex_TM_t             tm,

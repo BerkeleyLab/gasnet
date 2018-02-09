@@ -1368,11 +1368,6 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
   gasneti_pshmnet_deliver_send_buffer(vnet, msg, 0 /*msgsz unused*/, sd->_pshm._target);
 }
 
-//
-// AM Request/Reply external interface
-// TODO-EX: GASNETI_THREAD_FARG
-//
-
 GASNETI_INLINE(gasnetc_AMPSHM_ReqRepGeneric)
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
@@ -1426,24 +1421,71 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
   return GASNET_OK;
 }
 
-int gasneti_AMPSHM_RequestGeneric(int category, gex_Rank_t dest,
-                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
-                                  void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr)
+
+//
+// AM Request/Reply external interface
+// TODO-EX: GASNETI_THREAD_FARG
+//
+
+int gasneti_AMPSHM_RequestShort(gex_Rank_t dest, gex_AM_Index_t handler,
+                                gex_Flags_t flags, int numargs, va_list argptr)
 {
   gasneti_assert(gasneti_pshm_in_supernode(dest));
-  return gasnetc_AMPSHM_ReqRepGeneric(category, 1, dest, handler, source_addr,
+  return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 1, dest, handler, NULL,
+                                      0, NULL, flags, numargs, argptr);
+}
+
+int gasneti_AMPSHM_RequestMedium(gex_Rank_t dest, gex_AM_Index_t handler,
+                                 void *source_addr, size_t nbytes,
+                                 gex_Flags_t flags, int numargs, va_list argptr)
+{
+  gasneti_assert(gasneti_pshm_in_supernode(dest));
+  return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 1, dest, handler, source_addr,
+                                      nbytes, NULL, flags, numargs, argptr);
+}
+
+int gasneti_AMPSHM_RequestLong(gex_Rank_t dest, gex_AM_Index_t handler,
+                               void *source_addr, size_t nbytes, void *dest_addr,
+                               gex_Flags_t flags, int numargs, va_list argptr)
+{
+  gasneti_assert(gasneti_pshm_in_supernode(dest));
+  return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 1, dest, handler, source_addr,
                                       nbytes, dest_addr, flags, numargs, argptr);
 }
 
-int gasneti_AMPSHM_ReplyGeneric(int category, gex_Token_t token,
-                                gex_AM_Index_t handler, void *source_addr, 
-                                size_t nbytes, void *dest_addr, gex_Flags_t flags, int numargs,
-                                va_list argptr) 
+int gasneti_AMPSHM_ReplyShort(gex_Token_t token, gex_AM_Index_t handler,
+                              gex_Flags_t flags, int numargs, va_list argptr)
 {
   int retval;
   gasnetc_token_pre_reply(token);
   gex_Rank_t sourceid = gasnetc_ampshm_msgsource(token);
-  retval = gasnetc_AMPSHM_ReqRepGeneric(category, 0, sourceid, handler, source_addr, 
+  retval = gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 0, sourceid, handler, NULL,
+                                        0, NULL, flags, numargs, argptr);
+  if (!retval) gasnetc_token_post_reply(token);
+  return retval;
+}
+
+int gasneti_AMPSHM_ReplyMedium(gex_Token_t token, gex_AM_Index_t handler,
+                               void *source_addr, size_t nbytes,
+                               gex_Flags_t flags, int numargs, va_list argptr)
+{
+  int retval;
+  gasnetc_token_pre_reply(token);
+  gex_Rank_t sourceid = gasnetc_ampshm_msgsource(token);
+  retval = gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 0, sourceid, handler, source_addr,
+                                        nbytes, NULL, flags, numargs, argptr);
+  if (!retval) gasnetc_token_post_reply(token);
+  return retval;
+}
+
+int gasneti_AMPSHM_ReplyLong(gex_Token_t token, gex_AM_Index_t handler,
+                             void *source_addr, size_t nbytes, void *dest_addr,
+                             gex_Flags_t flags, int numargs, va_list argptr)
+{
+  int retval;
+  gasnetc_token_pre_reply(token);
+  gex_Rank_t sourceid = gasnetc_ampshm_msgsource(token);
+  retval = gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 0, sourceid, handler, source_addr,
                                         nbytes, dest_addr, flags, numargs, argptr);
   if (!retval) gasnetc_token_post_reply(token);
   return retval;

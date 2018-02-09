@@ -739,8 +739,21 @@ int gasnetc_nbrhd_RequestGeneric(
                          gex_Flags_t flags, int numargs, va_list argptr
                          GASNETI_THREAD_FARG) {
 #if GASNET_PSHM
-  return gasneti_AMPSHM_RequestGeneric(category, dest, handler, source_addr, nbytes, 
-                                      dest_ptr, flags, numargs, argptr); 
+  switch(category) {
+    case gasneti_Short:
+        return gasneti_AMPSHM_RequestShort(dest, handler, flags, numargs, argptr);
+        break;
+    case gasneti_Medium:
+        return gasneti_AMPSHM_RequestMedium(dest, handler, source_addr, nbytes,
+                                            flags, numargs, argptr);
+        break;
+    case gasneti_Long:
+        return gasneti_AMPSHM_RequestLong(dest, handler, source_addr, nbytes, dest_ptr,
+                                          flags, numargs, argptr);
+        break;
+    default:
+        gasneti_unreachable();
+  }
 #else
   return gasnetc_loopback_ReqRepGeneric(
                                1, category, handler,
@@ -756,8 +769,21 @@ int gasnetc_nbrhd_ReplyGeneric(
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gex_Flags_t flags, int numargs, va_list argptr) {
 #if GASNET_PSHM
-  return gasneti_AMPSHM_ReplyGeneric(category, token, handler, source_addr, nbytes, 
-                                     dest_ptr, flags, numargs, argptr); 
+  switch(category) {
+    case gasneti_Short:
+        return gasneti_AMPSHM_ReplyShort(token, handler, flags, numargs, argptr);
+        break;
+    case gasneti_Medium:
+        return gasneti_AMPSHM_ReplyMedium(token, handler, source_addr, nbytes,
+                                          flags, numargs, argptr);
+        break;
+    case gasneti_Long:
+        return gasneti_AMPSHM_ReplyLong(token, handler, source_addr, nbytes, dest_ptr,
+                                        flags, numargs, argptr);
+        break;
+    default:
+        gasneti_unreachable();
+  }
 #else
   #if GASNET_DEBUG  
     gasnetc_nbrhd_token_t *real_token = (gasnetc_nbrhd_token_t *)(1^(uintptr_t)token);
