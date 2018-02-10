@@ -58,10 +58,15 @@ extern void gasnete_vis_init(void) {
 #include "gasnet_vis_indexed.c"
 
 #if GASNETE_OLD_STRIDED
+#define GASNETE_STRIDED_VERSION 1.0
 #include "gasnet_vis_oldstrided.c"
 #else
+#define GASNETE_STRIDED_VERSION 2.0
 #include "gasnet_vis_strided.c"
 #endif
+GASNETI_IDENT(gasneti_IdentString_StridedVersion,  "$GASNetStridedVersion: " _STRINGIFY(GASNETE_STRIDED_VERSION)" $");
+GASNETI_IDENT(gasneti_IdentString_StridedLoopDims, "$GASNetStridedLoopingDims: "_STRINGIFY(GASNETE_LOOPING_DIMS)" $");
+GASNETI_IDENT(gasneti_IdentString_StridedDirDims,  "$GASNetStridedDirectDims: " _STRINGIFY(GASNETE_DIRECT_DIMS)" $");
 
 #undef GASNETI_GASNET_EXTENDED_REFVIS_C
 
