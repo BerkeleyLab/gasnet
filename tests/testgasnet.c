@@ -26,6 +26,7 @@ test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit0(int partner, int *partnerseg);
 void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
@@ -350,7 +351,6 @@ gex_AM_Entry_t sizecheck_handlers[] = { // deliberately registered as don't-care
 };
 
 void doit(int partner, int *partnerseg) {
-  int success = 1;
   BARRIER();
 
   // check predefined object constants
@@ -714,6 +714,12 @@ void doit(int partner, int *partnerseg) {
     gex_Event_Wait(rc);
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit0(partner, partnerseg);
+}
+void doit0(int partner, int *partnerseg) {
+#endif
+
   /* misc type tests */
   assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
@@ -925,7 +931,7 @@ void doit(int partner, int *partnerseg) {
 
   assert_field_constint(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
-  if (success) MSG("*** passed object test!!");
+  MSG("*** passed object test!!");
 
 #ifndef TESTGASNET_NO_SPLIT
   doit1(partner, partnerseg);
