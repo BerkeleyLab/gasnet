@@ -455,11 +455,10 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
 
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts of the dualcontiguity size */
-gex_Event_t gasnete_puts_ref_indiv(gasneti_strided_op_t * const sop, 
+gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDIV);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
@@ -478,11 +477,10 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_strided_op_t * const sop,
 }
 
 /* reference version that uses individual gets of the dualcontiguity size */
-gex_Event_t gasnete_gets_ref_indiv(gasneti_strided_op_t * const sop, 
+gex_Event_t gasnete_gets_ref_indiv(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   GASNETI_TRACE_EVENT(C, GETS_REF_INDIV);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
@@ -1112,11 +1110,10 @@ static void *gasnete_convert_strided_to_memvec(gasneti_vis_smd_t * const smd,
 }
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses vector interface */
-gex_Event_t gasnete_puts_ref_vector(gasneti_strided_op_t * const sop, 
+gex_Event_t gasnete_puts_ref_vector(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   GASNETI_TRACE_EVENT(C, PUTS_REF_VECTOR);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
@@ -1135,11 +1132,10 @@ gex_Event_t gasnete_puts_ref_vector(gasneti_strided_op_t * const sop,
   return retval; 
 }
 /* reference version that uses vector interface */
-gex_Event_t gasnete_gets_ref_vector(gasneti_strided_op_t * const sop, 
+gex_Event_t gasnete_gets_ref_vector(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   GASNETI_TRACE_EVENT(C, GETS_REF_VECTOR);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
@@ -1215,11 +1211,10 @@ static void *gasnete_convert_strided_to_addrlist(gasneti_vis_smd_t * const smd,
 }
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses indexed interface */
-gex_Event_t gasnete_puts_ref_indexed(gasneti_strided_op_t * const sop, 
+gex_Event_t gasnete_puts_ref_indexed(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDEXED);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
@@ -1238,11 +1233,10 @@ gex_Event_t gasnete_puts_ref_indexed(gasneti_strided_op_t * const sop,
   return retval; 
 }
 /* reference version that uses indexed interface */
-gex_Event_t gasnete_gets_ref_indexed(gasneti_strided_op_t * const sop, 
+gex_Event_t gasnete_gets_ref_indexed(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   GASNETI_TRACE_EVENT(C, GETS_REF_INDEXED);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
@@ -1278,10 +1272,15 @@ size_t gasnete_smd_querybounds(gasneti_vis_smd_t const *smd, int rside, const vo
   return hi - lo + smd->elemsz; // adjust for length of last element
 }
 
+#define SMD_SZ(stridelevels) \
+  offsetof(gasneti_vis_smd_t, dim[stridelevels]) + \
+  3*stridelevels*MAX(sizeof(ptrdiff_t),sizeof(size_t)) // TODO-EX: this may need to grow
+
 // Allocate a strided op and perform metadata normalization
-// returns NULL for degenerate empty operation
-GASNETI_INLINE(gasnete_build_strided_op)
-gasneti_strided_op_t *gasnete_build_strided_op(
+// returns 0 for degenerate empty operation
+GASNETI_INLINE(gasnete_build_smd)
+int gasnete_build_smd(
+    gasneti_vis_smd_t * const smd,
     int isput, // for tracing
     void * const selfaddr, const ptrdiff_t selfstrides[],
     void * const peeraddr, const ptrdiff_t peerstrides[],
@@ -1291,14 +1290,7 @@ gasneti_strided_op_t *gasnete_build_strided_op(
   gasneti_assert(stridelevels > 0);
   gasneti_assert(selfstrides && peerstrides && count);
   gasneti_assert(selfaddr && peeraddr);
-  size_t scratch_offset = offsetof(gasneti_strided_op_t, smd.dim[stridelevels]);
-  size_t sopsz = scratch_offset + 
-                 3*stridelevels*MAX(sizeof(ptrdiff_t),sizeof(size_t)); // TODO-EX: this may need to grow
-  gasneti_strided_op_t * const sop = gasneti_malloc(sopsz);
-  sop->scratch = (uint8_t*)sop + scratch_offset;
-  sop->bouncebuf = NULL;
 
-  gasneti_vis_smd_t * const smd = &(sop->smd);
   smd->elemsz = elemsz;
   smd->addr[SMD_SELF] = selfaddr;
   smd->addr[SMD_PEER] = peeraddr;
@@ -1316,8 +1308,7 @@ gasneti_strided_op_t *gasnete_build_strided_op(
   for (size_t d = 0; d < stridelevels; d++) {
     size_t const cnt = count[d];
     if_pf (cnt == 0) { // degenerate no-op
-      gasneti_free(sop);
-      return NULL;
+      return 0;
     } else if_pf (cnt == 1) { // null dimension
       GASNETI_TRACE_PRINTF(D,("STRIDED_OPT: Null dimension removed"));
       opt_stridelevels--; // remove it
@@ -1341,7 +1332,7 @@ gasneti_strided_op_t *gasnete_build_strided_op(
   }
   smd->stridelevels = opt_stridelevels;
 
-  if_pf (opt_stridelevels == 0) goto out_sop; // degenerate contiguity
+  if_pf (opt_stridelevels == 0) goto out; // degenerate contiguity
 
   // SMD normalization pass 2
   // ------------------------
@@ -1393,7 +1384,7 @@ gasneti_strided_op_t *gasnete_build_strided_op(
     } else gasneti_assert(opt_stridelevels == in_stridelevels);
   }
 
-  if_pf (opt_stridelevels == 0) goto out_sop; // degenerate contiguity
+  if_pf (opt_stridelevels == 0) goto out; // degenerate contiguity
 
   // SMD normalization pass 4
   // ------------------------
@@ -1421,17 +1412,18 @@ gasneti_strided_op_t *gasnete_build_strided_op(
     if (opt_stridelevels != in_stridelevels) smd->stridelevels = opt_stridelevels;
   }
 
-out_sop:
-  #if GASNET_DEBUG || GASNET_TRACE  // trace and sanity check the resulting sop
+out:
+  #if GASNET_DEBUG || GASNET_TRACE  // trace and sanity check the resulting smd
   {
-    gasneti_assert(opt_stridelevels == sop->smd.stridelevels);
-    size_t const opt_elemsz = sop->smd.elemsz;
-    ptrdiff_t * const opt_strides[2] = { sop->scratch, (ptrdiff_t*)sop->scratch + opt_stridelevels };
+    gasneti_assert(opt_stridelevels == smd->stridelevels);
+    size_t const opt_elemsz = smd->elemsz;
+    ptrdiff_t *scratch = (ptrdiff_t *)&smd->dim[stridelevels];
+    ptrdiff_t * const opt_strides[2] = { scratch, scratch + opt_stridelevels };
     size_t * const opt_count = (size_t*)(opt_strides[1] + opt_stridelevels);
     int change = (opt_elemsz != elemsz) || (opt_stridelevels != stridelevels) ||
-                 (sop->smd.addr[SMD_SELF] != selfaddr) ||
-                 (sop->smd.addr[SMD_PEER] != peeraddr);
-    gasneti_vis_smd_dim_t const * dim = &(sop->smd.dim[0]);
+                 (smd->addr[SMD_SELF] != selfaddr) ||
+                 (smd->addr[SMD_PEER] != peeraddr);
+    gasneti_vis_smd_dim_t const * dim = &(smd->dim[0]);
     for (size_t d = 0; d < opt_stridelevels; d++) {
       opt_strides[SMD_PEER][d] = dim->stride[SMD_PEER];
       opt_strides[SMD_SELF][d] = dim->stride[SMD_SELF];
@@ -1446,8 +1438,8 @@ out_sop:
       char *str = gasneti_malloc(gasneti_format_putsgets_bufsz(opt_stridelevels));
       int srcid = (isput?SMD_SELF:SMD_PEER);
       gasneti_format_putsgets(str,NULL,(gex_Rank_t)-1,
-                              sop->smd.addr[!srcid],opt_strides[!srcid],
-                              sop->smd.addr[srcid],opt_strides[srcid],
+                              smd->addr[!srcid],opt_strides[!srcid],
+                              smd->addr[srcid],opt_strides[srcid],
                               opt_elemsz,opt_count,opt_stridelevels);
       GASNETI_TRACE_PRINTF(D,("%s: %s",(isput?"PUTS_OPT":"GETS_OPT"),str));
       gasneti_free(str);
@@ -1463,13 +1455,13 @@ out_sop:
       void const *selfbase = selfaddr; 
       size_t const selflen = gasnete_strided_bounds(selfstrides, elemsz, count, stridelevels, &selfbase);
       void const *opt_selfbase; 
-      size_t const opt_selflen = gasnete_smd_querybounds(&(sop->smd), SMD_SELF, &opt_selfbase);
+      size_t const opt_selflen = gasnete_smd_querybounds(smd, SMD_SELF, &opt_selfbase);
       gasneti_assert(selflen == opt_selflen && selfbase == opt_selfbase);
       // peer bounds
       void const *peerbase = peeraddr; 
       size_t const peerlen = gasnete_strided_bounds(peerstrides, elemsz, count, stridelevels, &peerbase);
       void const *opt_peerbase; 
-      size_t const opt_peerlen = gasnete_smd_querybounds(&(sop->smd), SMD_PEER, &opt_peerbase);
+      size_t const opt_peerlen = gasnete_smd_querybounds(smd, SMD_PEER, &opt_peerbase);
       gasneti_assert(peerlen == opt_peerlen && peerbase == opt_peerbase);
 
       smd->have_stats = 0;
@@ -1478,7 +1470,7 @@ out_sop:
   }
   #endif // DEBUG || TRACE
 
-  return sop;
+  return 1;
 }
 /*---------------------------------------------------------------------------------*/
 GASNETI_INLINE(gasnete_analyze_smd)
@@ -1560,19 +1552,25 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
                                    size_t elemsz, const size_t count[], size_t stridelevels,
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
-
-  /* catch silly degenerate cases */
   gasneti_assert(elemsz > 0); // this degenerate case handled in public header
   gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
-  gasneti_strided_op_t * const sop = 
-    gasnete_build_strided_op(1, srcaddr, srcstrides, dstaddr, dststrides, 
+
+  gex_Event_t result;
+  union {
+    gasneti_vis_smd_t _smd;
+    char _buf[SMD_SZ(GASNETE_DIRECT_DIMS)];
+  } _smd_buf;
+  gasneti_vis_smd_t * const smd = (GASNETT_PREDICT_TRUE(stridelevels <= GASNETE_DIRECT_DIMS) ? 
+                                   &_smd_buf._smd : gasneti_malloc(SMD_SZ(stridelevels)));
+  
+  int ret = gasnete_build_smd(smd, 1, srcaddr, srcstrides, dstaddr, dststrides, 
                              elemsz, count, stridelevels);
-  if_pf (!sop) { // degenerate count[i] == 0, for some i
+  if_pf (!ret) { // degenerate count[i] == 0, for some i
     GASNETI_TRACE_EVENT(C, PUTS_DEGENERATE);
-    return GEX_EVENT_INVALID; 
+    result = GEX_EVENT_INVALID; 
+    goto out;
   }
 
-  gasneti_vis_smd_t const * const smd = &(sop->smd);
   #if GASNET_DEBUG // Bounds check - currently only handle SEG_BOUND
     if (!(flags & (GEX_FLAG_PEER_SEG_UNKNOWN|GEX_FLAG_PEER_SEG_SOME))) {
       const void *base; 
@@ -1581,7 +1579,6 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
     }
   #endif
   
-  gex_Event_t result;
   void *peeraddr;
   if_pf (smd->stridelevels == 0) {
     // folded to fully contiguous
@@ -1593,22 +1590,21 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
     gasnete_strided_memcpy(peeraddr, smd->addr[SMD_SELF], smd->stridelevels, smd->elemsz, smd->dim, SMD_SELF);
     result = GEX_EVENT_INVALID;
   } else {
-    gasnete_analyze_smd(&(sop->smd), 1);
-    gasneti_vis_smd_t const * const smd = &(sop->smd); // intentional shadow for const
+    gasnete_analyze_smd(smd, 1);
     #if GASNETE_USE_AMPIPELINE
       if (smd->elemsz > gasnete_vis_maxchunk)
-        result = gasnete_puts_ref_indiv(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
+        result = gasnete_puts_ref_indiv(smd, synctype, tm, rank, flags GASNETE_THREAD_PASS);
       else
     #endif
     #if 1
-        result = gasnete_puts_ref_indexed(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
+        result = gasnete_puts_ref_indexed(smd, synctype, tm, rank, flags GASNETE_THREAD_PASS);
     #else
-        result = gasnete_puts_ref_vector(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
+        result = gasnete_puts_ref_vector(smd, synctype, tm, rank, flags GASNETE_THREAD_PASS);
     #endif
   }
 
-  gasneti_free(sop->bouncebuf);
-  gasneti_free(sop);
+out:
+  if_pf (stridelevels > GASNETE_DIRECT_DIMS) gasneti_free(smd); 
   return result;
 #if 0
   /* select algorithm */
@@ -1650,19 +1646,25 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
                                    size_t elemsz, const size_t count[], size_t stridelevels,
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
-
-  /* catch silly degenerate cases */
   gasneti_assert(elemsz > 0); // this degenerate case handled in public header
   gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
-  gasneti_strided_op_t * const sop = 
-    gasnete_build_strided_op(0, dstaddr, dststrides, srcaddr, srcstrides, 
+
+  gex_Event_t result;
+  union {
+    gasneti_vis_smd_t _smd;
+    char _buf[SMD_SZ(GASNETE_DIRECT_DIMS)];
+  } _smd_buf;
+  gasneti_vis_smd_t * const smd = (GASNETT_PREDICT_TRUE(stridelevels <= GASNETE_DIRECT_DIMS) ? 
+                                   &_smd_buf._smd : gasneti_malloc(SMD_SZ(stridelevels)));
+  
+  int ret = gasnete_build_smd(smd, 0, dstaddr, dststrides, srcaddr, srcstrides, 
                              elemsz, count, stridelevels);
-  if_pf (!sop) { // degenerate count[i] == 0, for some i
-    GASNETI_TRACE_EVENT(C, GETS_DEGENERATE);
-    return GEX_EVENT_INVALID; 
+  if_pf (!ret) { // degenerate count[i] == 0, for some i
+    GASNETI_TRACE_EVENT(C, PUTS_DEGENERATE);
+    result = GEX_EVENT_INVALID; 
+    goto out;
   }
 
-  gasneti_vis_smd_t const * const smd = &(sop->smd);
   #if GASNET_DEBUG // Bounds check - currently only handle SEG_BOUND
     if (!(flags & (GEX_FLAG_PEER_SEG_UNKNOWN|GEX_FLAG_PEER_SEG_SOME))) {
       const void *base;
@@ -1671,7 +1673,6 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
     }
   #endif
 
-  gex_Event_t result;
   void *peeraddr;
   if_pf (smd->stridelevels == 0) {
     // folded to fully contiguous
@@ -1683,22 +1684,21 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
     gasnete_strided_memcpy(smd->addr[SMD_SELF], peeraddr, smd->stridelevels, smd->elemsz, smd->dim, SMD_PEER);
     result = GEX_EVENT_INVALID;
   } else {
-    gasnete_analyze_smd(&(sop->smd), 0);
-    gasneti_vis_smd_t const * const smd = &(sop->smd); // intentional shadow for const
+    gasnete_analyze_smd(smd, 0);
     #if GASNETE_USE_AMPIPELINE
       if (smd->elemsz > gasnete_vis_maxchunk)
-        result = gasnete_gets_ref_indiv(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
+        result = gasnete_gets_ref_indiv(smd, synctype, tm, rank, flags GASNETE_THREAD_PASS);
       else
     #endif
     #if 1
-        result = gasnete_gets_ref_indexed(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
+        result = gasnete_gets_ref_indexed(smd, synctype, tm, rank, flags GASNETE_THREAD_PASS);
     #else
-        result = gasnete_gets_ref_vector(sop, synctype, tm, rank, flags GASNETE_THREAD_PASS);
+        result = gasnete_gets_ref_vector(smd, synctype, tm, rank, flags GASNETE_THREAD_PASS);
     #endif
   }
 
-  gasneti_free(sop->bouncebuf);
-  gasneti_free(sop);
+out:
+  if_pf (stridelevels > GASNETE_DIRECT_DIMS) gasneti_free(smd); 
   return result;
 #if 0
   /* select algorithm */
