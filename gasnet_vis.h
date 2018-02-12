@@ -468,15 +468,21 @@ void gasnete_strided_stats(gasnete_strided_stats_t *_result,
       if_pf (__stridelevels > 0 && __srcstrides[0] < (ptrdiff_t)__elemsz)                               \
           gasneti_fatalerror("srcstrides[0](%" PRIdPD ") < elemsz(%" PRIuSZ ") at: %s",                 \
                         __srcstrides[0],__elemsz, gasneti_current_loc);                                 \
+      if_pf (__stridelevels > 1 && __dststrides[1] < (ptrdiff_t)(__count[0]*__elemsz))                  \
+          gasneti_fatalerror("dststrides[1](%" PRIdPD ") < count[0](%" PRIuSZ ") * elemsz(%" PRIuSZ ") at: %s", \
+                        __dststrides[1],__count[0],__elemsz, gasneti_current_loc);                      \
+      if_pf (__stridelevels > 1 && __srcstrides[1] < (ptrdiff_t)(__count[0]*__elemsz))                  \
+          gasneti_fatalerror("srcstrides[1](%" PRIdPD ") < count[0](%" PRIuSZ ") * elemsz(%" PRIuSZ ") at: %s", \
+                        __srcstrides[1],__count[0],__elemsz, gasneti_current_loc);                      \
       for (size_t _i = 2; _i < __stridelevels; _i++) {                                                  \
         if_pf (__dststrides[_i] < (ptrdiff_t)(__count[_i-1] * __dststrides[_i-1]))                      \
           gasneti_fatalerror("dststrides[%" PRIuSZ "](%" PRIdPD ") < "                                  \
                   "(count[%" PRIuSZ "](%" PRIuSZ ") * dststrides[%" PRIuSZ "](%" PRIdPD ")) at: %s",    \
-                     _i,__dststrides[_i], _i-1,__count[_i]-1, _i-1,__dststrides[_i-1], gasneti_current_loc); \
+                     _i,__dststrides[_i], _i-1,__count[_i-1], _i-1,__dststrides[_i-1], gasneti_current_loc); \
         if_pf (__srcstrides[_i] < (ptrdiff_t)(__count[_i-1] * __srcstrides[_i-1]))                      \
           gasneti_fatalerror("srcstrides[%" PRIuSZ "](%" PRIdPD ") < "                                  \
                   "(count[%" PRIuSZ "](%" PRIuSZ ") * srcstrides[%" PRIuSZ "](%" PRIdPD ")) at: %s",    \
-                     _i,__srcstrides[_i], _i-1,__count[_i]-1, _i-1,__srcstrides[_i-1], gasneti_current_loc); \
+                     _i,__srcstrides[_i], _i-1,__count[_i-1], _i-1,__srcstrides[_i-1], gasneti_current_loc); \
       }                                                                                                 \
     }                                                                                                   \
   } while (0)
