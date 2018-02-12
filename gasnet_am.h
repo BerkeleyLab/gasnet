@@ -751,21 +751,23 @@ int gasnetc_loopback_ReqRepGeneric(
 GASNETI_INLINE(gasnetc_nbrhd_RequestGeneric)
 int gasnetc_nbrhd_RequestGeneric(
                          gasneti_category_t category,
-                         int dest, gex_AM_Index_t handler, 
+                         gex_TM_t tm, gex_Rank_t dest, gex_AM_Index_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gex_Flags_t flags, int numargs, va_list argptr
                          GASNETI_THREAD_FARG) {
+  // TODO-EX: real team support
+  gex_Rank_t jobrank = dest;
 #if GASNET_PSHM
   switch(category) {
     case gasneti_Short:
-        return gasneti_AMPSHM_RequestShort(dest, handler, flags, numargs, argptr);
+        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr);
         break;
     case gasneti_Medium:
-        return gasneti_AMPSHM_RequestMedium(dest, handler, source_addr, nbytes,
+        return gasneti_AMPSHM_RequestMedium(jobrank, handler, source_addr, nbytes,
                                             flags, numargs, argptr);
         break;
     case gasneti_Long:
-        return gasneti_AMPSHM_RequestLong(dest, handler, source_addr, nbytes, dest_ptr,
+        return gasneti_AMPSHM_RequestLong(jobrank, handler, source_addr, nbytes, dest_ptr,
                                           flags, numargs, argptr);
         break;
     default:

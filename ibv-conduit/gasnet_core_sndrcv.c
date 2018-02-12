@@ -4413,7 +4413,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   gasnetc_EP_t ep = gasnetc_ep0;
   va_start(argptr, numargs);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, gasneti_THUNK_TM, rank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_GET);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
@@ -4445,7 +4445,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   gasnetc_EP_t ep = gasnetc_ep0;
   va_start(argptr, numargs);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, gasneti_THUNK_TM, rank, handler,
                                             source_addr, nbytes, NULL,
                                             0, numargs, argptr GASNETI_THREAD_GET);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
@@ -4528,7 +4528,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
   gasneti_assert(ep == gasnetc_ep0);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, tm, rank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_GET);
   } else {
@@ -4551,7 +4551,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gasneti_assert(ep == gasnetc_ep0);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, tm, rank, handler,
                                             source_addr, nbytes, NULL,
                                             flags, numargs, argptr GASNETI_THREAD_GET);
   } else {
@@ -4613,7 +4613,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gasneti_assert(ep == gasnetc_ep0);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Long, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Long, tm, rank, handler,
                                             source_addr, nbytes, dest_addr,
                                             flags, numargs, argptr GASNETI_THREAD_GET);
   } else {

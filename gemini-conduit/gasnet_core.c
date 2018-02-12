@@ -1401,7 +1401,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t dest, gex_AM_Index_t handler
 {
   int retval = 1; // assume IMMEDIATE fails
   if_pt (gasnetc_dest_in_nbrhd(tm, dest)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, dest, handler,
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, tm, dest, handler,
                                           NULL, 0, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1425,7 +1425,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t dest, gex_AM_Index_t handler
   int retval = 1; // assume IMMEDIATE fails
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   if_pt (gasnetc_dest_in_nbrhd(tm, dest)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, dest, handler,
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, dest, handler,
                                           source_addr, nbytes, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1449,7 +1449,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t dest, gex_AM_Index_t handler
   int retval = 1; // assume IMMEDIATE fails
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   if_pt (gasnetc_dest_in_nbrhd(tm, dest)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, dest, handler,
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, tm, dest, handler,
                                           source_addr, nbytes, dest_addr,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {

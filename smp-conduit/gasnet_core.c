@@ -1013,7 +1013,7 @@ extern int gasnetc_AMRequestShortM(
     /*  call the generic requestor */
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Short,
-                                  rank, handler, 
+                                  tm, rank, handler, 
                                   0, 0, 0,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);
@@ -1041,7 +1041,7 @@ extern int gasnetc_AMRequestMediumM(
     /*  call the generic requestor */
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Medium,
-                                  rank, handler, 
+                                  tm, rank, handler, 
                                   source_addr, nbytes, 0,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);
@@ -1070,7 +1070,7 @@ extern int gasnetc_AMRequestLongM(
     /*  call the generic requestor */
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Long,
-                                  rank, handler, 
+                                  tm, rank, handler, 
                                   source_addr, nbytes, dest_addr,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);

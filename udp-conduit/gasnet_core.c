@@ -814,7 +814,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
 {
   int retval;
   if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, tm, rank, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -853,7 +853,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   gasneti_leaf_finish(lc_opt); // always locally completed
   if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, tm, rank, handler,
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -906,7 +906,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   gasneti_leaf_finish(lc_opt); // always locally completed
   if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
-      retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, rank, handler,
+      retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, tm, rank, handler,
                                              source_addr, nbytes, dest_addr,
                                              flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
