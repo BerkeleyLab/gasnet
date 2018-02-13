@@ -637,14 +637,18 @@ int gasnetc_loopback_prepare_inner(
   if (isFixed) {
     sd->_addr = (/*non-const*/void *)client_buf;
   } else {
-    size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
-    sd->_size = MIN(limit, max_length);
+    const size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
+    const size_t size = MIN(limit, max_length);
+    sd->_size = size;
 
     if (client_buf) {
       sd->_addr = (/*non-const*/void *)client_buf;
       gasneti_leaf_finish(lc_opt);
     } else if (category == gasneti_Medium) {
       sd->_addr = sd->_gex_buf;
+    } else if (size <= GASNETC_MAX_MEDIUM_LOOP) {
+      // Long can use medium buffer at less cost than calling malloc
+      sd->_addr = sd->_gex_buf = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
     } else {
       gasneti_prepare_alloc_buffer(sd);
     }
@@ -719,6 +723,9 @@ void gasnetc_loopback_commit_inner(
 
   if (category == gasneti_Medium) {
     gasnetc_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_PASS);
+  } else if(!isFixed && sd->_gex_buf && (sd->_size <= GASNETC_MAX_MEDIUM_LOOP)) {
+    gasneti_assert(category == gasneti_Long);
+    gasnetc_loopback_free_medium_buffer(sd->_gex_buf, isReq GASNETI_THREAD_PASS);
   }
 }
 

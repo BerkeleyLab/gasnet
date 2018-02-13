@@ -379,6 +379,9 @@ typedef struct {
 #define GASNETI_PSHMNET_MAX_PAYLOAD \
     (GASNETI_PSHMNET_ALLOC_MAXSZ - offsetof(gasneti_pshmnet_allocator_block_t, payload.data))
 
+#define GASNETI_PSHMNET_MIN_PAYLOAD \
+    (GASNETI_PSHMNET_PAGESIZE - offsetof(gasneti_pshmnet_allocator_block_t, payload.data))
+
 size_t gasneti_pshmnet_max_payload(void) {
   return GASNETI_PSHMNET_MAX_PAYLOAD;
 }
@@ -1074,6 +1077,11 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #define GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) (((gasneti_AMPSHM_longmsg_t*)msg)->numbytes)
 #define GASNETI_AMPSHM_MSG_LONG_DATA(msg)     (((gasneti_AMPSHM_longmsg_t*)msg)->longdata)
 
+// Free space after the long header
+#define GASNETI_AMPSHM_MSG_LONG_INLINE        (GASNETI_PSHMNET_MIN_PAYLOAD - \
+                                               sizeof(gasneti_AMPSHM_longmsg_t))
+#define GASNETI_AMPSHM_MSG_LONG_TMP(msg)      ((uint8_t*)((gasneti_AMPSHM_longmsg_t*)msg + 1))
+
 #define GASNETI_AMPSHM_MAX_REPLY_PER_POLL 10
 #define GASNETI_AMPSHM_MAX_REQUEST_PER_POLL 10
 
@@ -1245,11 +1253,15 @@ int ampshm_prepare_inner(
 
   // Determine the xfer size
   size_t size;
+  int inline_long = 0;
   if (isFixed) {
     size = max_length;
+  } else if (category == gasneti_Medium) {
+    size = MIN(max_length, GASNETC_MAX_MEDIUM_LOOP);
   } else {
-    size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
-    size = MIN(max_length, limit);
+    size = MIN(max_length, GASNETC_MAX_LONG_LOOP);
+    // For small enough Long use the free space after the header to avoid malloc/free
+    inline_long = (size <= GASNETI_AMPSHM_MSG_LONG_INLINE);
   }
 
   // Allocate our buffer (honoring IMMEDIATE)
@@ -1274,6 +1286,8 @@ int ampshm_prepare_inner(
     gasneti_leaf_finish(lc_opt);
   } else if (category == gasneti_Medium) {
     sd->_gex_buf = sd->_addr = GASNETI_AMPSHM_MSG_MED_DATA(msg);
+  } else if (inline_long) {
+    sd->_gex_buf = sd->_addr = GASNETI_AMPSHM_MSG_LONG_TMP(msg);
   } else {
     gasneti_prepare_alloc_buffer(sd);
   }
