@@ -1224,24 +1224,9 @@ gex_Rank_t gasnetc_ampshm_msgsource(gex_Token_t token) {
     return ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)token))->ti.gex_srcrank;
 }
 
-// Fill in a message header (category-independent portions)
-#define PSHM_FILL_AM_HEADER(_msg, _cat, _hidx, _nargs, _argptr) do { \
-    GASNETI_AMPSHM_MSG_CATEGORY(_msg)  = (_cat);                     \
-    GASNETI_AMPSHM_MSG_HANDLERID(_msg) = (_hidx);                    \
-    GASNETI_AMPSHM_MSG_NUMARGS(_msg)   = (_nargs);                   \
-    GASNETI_AMPSHM_MSG_SOURCE(_msg)    = gasneti_mynode;             \
-    for (int i = 0; i < (_nargs); i++) {                             \
-      GASNETI_AMPSHM_MSG_ARGS(_msg)[i] =                             \
-                    (gex_AM_Arg_t)va_arg((_argptr), gex_AM_Arg_t);   \
-    }                                                                \
-    /* Detect truncation if our field widths were too small */       \
-    gasneti_assert( GASNETI_AMPSHM_MSG_CATEGORY(msg) == (_cat)  );   \
-    gasneti_assert( GASNETI_AMPSHM_MSG_NUMARGS(msg) == (_nargs) );   \
-  } while (0)
-
-
-GASNETI_INLINE(ampshm_prepare)
-int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
+GASNETI_INLINE(ampshm_prepare_inner)
+int ampshm_prepare_inner(
+                   gasneti_AM_SrcDesc_t sd, const int isFixed,
                    const int isReq, const int category,
                    gex_Rank_t dest, const void *client_buf,
                    size_t min_length, size_t max_length,
@@ -1250,26 +1235,22 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
                    GASNETI_THREAD_FARG)
 {
   // Sanity checks:
-  gasneti_assert((category == gasneti_Medium) || (category == gasneti_Long));
+  gasneti_assert(isFixed || (category == gasneti_Medium) || (category == gasneti_Long));
   gasneti_assert(!dest_addr || (category == gasneti_Long));
   gasneti_assert(sd);
-
-  // Pass-off if loopback
-  // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
-  int loopback = (dest == gasneti_mynode);
-  sd->_loopback = loopback;
-  if (loopback) {
-    return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,min_length,max_length,
-                                    dest_addr,lc_opt,flags,nargs GASNETI_THREAD_PASS);
-  }
 
   // Determine PSHM peer
   gasneti_assert(gasneti_pshm_in_supernode(dest));
   gasneti_pshm_rank_t target = gasneti_pshm_local_rank(dest);
 
   // Determine the xfer size
-  const size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
-  const size_t size = MIN(max_length, limit);
+  size_t size;
+  if (isFixed) {
+    size = max_length;
+  } else {
+    size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
+    size = MIN(max_length, limit);
+  }
 
   // Allocate our buffer (honoring IMMEDIATE)
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
@@ -1282,10 +1263,13 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   sd->_pshm._target = target;
   sd->_pshm._dest = dest;
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = nargs;
+  gasneti_assert( GASNETI_AMPSHM_MSG_NUMARGS(msg) == nargs ); // truncated?
 
   // Outputs for the client
   sd->_size = size;
-  if (client_buf) {
+  if (isFixed) {
+    sd->_addr = (/*non-const*/void *)client_buf;
+  } else if (client_buf) {
     sd->_addr = (/*non-const*/void *)client_buf;
     gasneti_leaf_finish(lc_opt);
   } else if (category == gasneti_Medium) {
@@ -1297,46 +1281,52 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   return 0;
 }
 
-GASNETI_INLINE(ampshm_comit)
-void ampshm_commit(gasneti_AM_SrcDesc_t sd,
+GASNETI_INLINE(ampshm_comit_inner)
+void ampshm_commit_inner(
+                   gasneti_AM_SrcDesc_t sd, const int isFixed,
                    const int isReq, const int category,
                    gex_AM_Index_t handler, size_t nbytes,
                    void *dest_addr, va_list argptr)
 {
   // Sanity checks:
-  gasneti_assert((category == gasneti_Medium) || (category == gasneti_Long));
+  gasneti_assert(isFixed || (category == gasneti_Medium) || (category == gasneti_Long));
   gasneti_assert(!dest_addr || (category == gasneti_Long));
   gasneti_assert(sd);
-
-  // Pass-off if loopback
-  // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
-  if (sd->_loopback) {
-    return gasnetc_loopback_Commit(sd,isReq,category,handler,nbytes,dest_addr,argptr);
-  }
 
   void *msg = sd->_void_p;
 
   /* Fill in message header */
+  GASNETI_AMPSHM_MSG_CATEGORY(msg)  = category;
+  gasneti_assert( GASNETI_AMPSHM_MSG_CATEGORY(msg) == category); // truncated?
+  GASNETI_AMPSHM_MSG_HANDLERID(msg) = handler;
+  GASNETI_AMPSHM_MSG_SOURCE(msg)    = gasneti_mynode;
   const int nargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
-  PSHM_FILL_AM_HEADER(msg, category, handler, nargs, argptr);
+  for (int i = 0; i < nargs; i++) {
+    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gex_AM_Arg_t)va_arg(argptr, gex_AM_Arg_t);
+  }
 
-  /* Copy message payload, if needed */
-  const void *source_addr = sd->_addr;
-  if (category == gasneti_Medium) {
-      void *data = GASNETI_AMPSHM_MSG_MED_DATA(msg);
-      if (data != source_addr) {
-        memcpy(data, source_addr, nbytes);
-      }
-      GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) = nbytes;
-      gasneti_assert( GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) == nbytes );
-  } else {
-      void *local_dest_addr = gasneti_pshm_addr2local(sd->_pshm._dest, dest_addr);
-
-      GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr;
-      GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
-      gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes );
-      /* deliver_msg call, below, contains write flush, so don't need here */
-      memcpy(local_dest_addr, source_addr, nbytes);
+  // Stage payload to final location
+  switch (category) {
+    case gasneti_Short:
+        /* Nothing to do */
+        break;
+    case gasneti_Medium: {
+        GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) = nbytes;
+        gasneti_assert( GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) == nbytes ); // truncated?
+        void *data = GASNETI_AMPSHM_MSG_MED_DATA(msg);
+        if (isFixed || (data != sd->_addr)) memcpy(data, sd->_addr, nbytes);
+        break;
+    }
+    case gasneti_Long: {
+        GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr;
+        GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
+        gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes ); // truncated?
+        void *data = gasneti_pshm_addr2local(sd->_pshm._dest, dest_addr);
+        memcpy(data, sd->_addr, nbytes);
+        break;
+    }
+    default:
+        gasneti_unreachable();
   }
 
   /* Deliver message */
@@ -1344,6 +1334,7 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
   gasneti_pshmnet_deliver_send_buffer(vnet, msg, 0 /*msgsz unused*/, sd->_pshm._target);
 }
 
+// TODO-EX: THREAD_FARG
 GASNETI_INLINE(gasnetc_AMPSHM_ReqRepGeneric)
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
@@ -1356,47 +1347,56 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
                          flags, numargs, argptr);
   }
 
-  gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
-  gasneti_pshm_rank_t target = gasneti_pshm_local_rank(dest);
-  void *msg;
+  struct gasneti_AM_SrcDesc the_sd;
 
-  gasneti_assert(vnet != NULL);
-  gasneti_assert(target < gasneti_pshm_nodes);
+  int imm = ampshm_prepare_inner(
+                &the_sd, 1, isReq, category, dest, source_addr, 0, nbytes,
+                dest_addr, NULL, flags, numargs GASNETI_THREAD_GET);
+  if (imm) return imm;
 
-  /* Allocate message buffer */
-  msg = ampshm_buf_alloc(vnet, category, isReq, target, nbytes, flags GASNETI_THREAD_GET);
-  gasneti_assert(msg || (flags & GEX_FLAG_IMMEDIATE));
-  if (!msg) return 1;
+  ampshm_commit_inner(&the_sd, 1, isReq, category, handler, nbytes, dest_addr, argptr);
 
-  /* Fill in message header */
-  PSHM_FILL_AM_HEADER(msg, category, handler, numargs, argptr);
-
-  /* Copy message payload, if any */
-  switch (category) {
-    case gasneti_Short:
-      break;
-    case gasneti_Medium:
-      GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) = nbytes;
-      gasneti_assert( GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) == nbytes ); /* truncation check */
-      memcpy(GASNETI_AMPSHM_MSG_MED_DATA(msg), source_addr, nbytes);
-      break;
-    case gasneti_Long: {
-      void *local_dest_addr = gasneti_pshm_addr2local(dest, dest_addr);
-
-      GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr;
-      GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
-      gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes ); /* truncation check */
-      /* deliver_msg call, below, contains write flush, so don't need here */
-      memcpy(local_dest_addr, source_addr, nbytes);
-      break;
-    }
-  }
-
-  /* Deliver message */
-  gasneti_pshmnet_deliver_send_buffer(vnet, msg, 0 /*msgsz unused*/, target);
   return GASNET_OK;
 }
 
+GASNETI_INLINE(ampshm_prepare)
+int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
+                   const int isReq, const int category,
+                   gex_Rank_t dest, const void *client_buf,
+                   size_t min_length, size_t max_length,
+                   void *dest_addr, gex_Event_t *lc_opt,
+                   gex_Flags_t flags, unsigned int nargs
+                   GASNETI_THREAD_FARG)
+{
+  // Check for loopback
+  // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
+  int loopback = (dest == gasneti_mynode);
+  sd->_loopback = loopback;
+  if (loopback) {
+    return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,min_length,max_length,
+                                    dest_addr,lc_opt,flags,nargs GASNETI_THREAD_PASS);
+  }
+
+  return ampshm_prepare_inner(
+                sd, 0, isReq, category, dest, client_buf, min_length, max_length,
+                dest_addr, lc_opt, flags, nargs GASNETI_THREAD_GET);
+}
+
+GASNETI_INLINE(ampshm_comit)
+void ampshm_commit(gasneti_AM_SrcDesc_t sd,
+                   const int isReq, const int category,
+                   gex_AM_Index_t handler, size_t nbytes,
+                   void *dest_addr, va_list argptr)
+{
+  // Check for loopback
+  // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
+  if (sd->_loopback) {
+    gasnetc_loopback_Commit(sd,isReq,category,handler,nbytes,dest_addr,argptr);
+    return;
+  }
+
+  ampshm_commit_inner(sd, 0, isReq, category, handler, nbytes, dest_addr, argptr);
+}
 
 //
 // AM Request/Reply external interface
