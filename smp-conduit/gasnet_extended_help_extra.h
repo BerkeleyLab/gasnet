@@ -201,4 +201,17 @@ gex_RMA_Value_t gasnete_get_val(
 }
 #define gasnete_get_val gasnete_get_val
 
+/*
+  Blocking Get and Put
+  ====================
+*/
+
+// Get trivially identical to synced nb (need gasneti_sync_reads())
+#define gasnete_get(tm,dest,rank,src,nbytes,flags_and_TI) \
+        gasnete_syncnb_one(gasnete_get_nb(tm,dest,rank,src,nbytes,flags_and_TI) GASNETI_THREAD_GET)
+
+// Put identical to nbi (w/o any need to sync_reads) except for lack of lc_opt argument
+#define gasnete_put(tm,rank,dest,src,nbytes,flags_and_TI) \
+        gasnete_put_nbi(tm,rank,dest,src,nbytes,GEX_EVENT_NOW,flags_and_TI)
+
 #endif

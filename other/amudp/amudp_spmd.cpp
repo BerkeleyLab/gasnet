@@ -1212,7 +1212,7 @@ pollentry:
 
     if (!AMUDP_SilentMode) {
       char temp[80];
-      tag_t tag;
+      tag_t tag = 0;
       AM_GetTag(AMUDP_SPMDEndpoint, &tag);
       AMUDP_Info("Slave %i/%i starting (tag=%s)...", 
         AMUDP_SPMDMyProc(), AMUDP_SPMDNumProcs(), AMUDP_tagStr(tag, temp));

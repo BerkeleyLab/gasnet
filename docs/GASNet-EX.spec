@@ -152,9 +152,11 @@ typedef ... gex_Event_t;
 // - GEX_EVENT_INVALID
 //   + result for already-completed operation
 //   + synonymous with GASNET_INVALID_HANDLE
+//   + guaranteed to be zero
 // - GEX_EVENT_NO_OP
 //   + result for a failed communication attempt (eg immediate-mode
 //     injection that encountered backpressure)
+//   + guaranteed to be non-zero
 //   + Erroneous to pass this value to test/wait operations
 #define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
 #define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)???)
@@ -218,6 +220,36 @@ typedef [some integer type] gex_Flags_t;
 // specification
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
+//
+// AD_MY_{RANK,NEIGHBORHOOD}
+//
+// This mutually-exclusive pair of flags each assert a locality property of
+// the target of a remote atomic operation, and are described in detail in
+// the "Remote Atomic Operations" section.
+//
+#define GEX_FLAG_AD_MY_RANK          ((gex_Flags_t)???)
+#define GEX_FLAG_AD_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
+//
+// AD_FAVOR_{MY_RANK,MY_NEIGHBORHOOD,REMOTE}
+//
+// This mutually-exclusive group of flags each request that gex_AD_Create()
+// bias its algorithm selection to favor calls with a given locality property
+// for the target locations, and are described in detail in the "Remote Atomic
+// Operations" section.
+//
+#define GEX_FLAG_AD_FAVOR_MY_RANK          ((gex_Flags_t)???)
+#define GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
+#define GEX_FLAG_AD_FAVOR_REMOTE           ((gex_Flags_t)???)
+//
+// AD_{ACQ,REL}
+//
+// This pair of flags requests memory fencing behaviors for remote atomic
+// operations, and are described in detail in the "Remote Atomic Operations"
+// section.  It is permitted to include zero, one, or both of these flags
+// when calling gex_AD_Op*().
+//
+#define GEX_FLAG_AD_ACQ          ((gex_Flags_t)???)
+#define GEX_FLAG_AD_REL          ((gex_Flags_t)???)
 
 // SEGMENT DISPOSITION
 //
@@ -1441,7 +1473,7 @@ typedef [some integer type] gex_DT_t;
 //    - Binary Arithmetic Operations
 //        GEX_OP_FADD
 //        GEX_OP_FSUB
-//        GEX_OP_FMULT [UNIMPLEMENTED]
+//        GEX_OP_FMULT
 //        GEX_OP_FMIN
 //        GEX_OP_FMAX
 //    - Unary Arithmetic Operations
@@ -1563,18 +1595,14 @@ typedef [some integer type] gex_OP_t;
 //   different atomic domain; and completing all other GASNet data-movement
 //   operations (RMA, Collective, etc.) before a transition to atomic access.
 //
-// + Memory Ordering/Fencing/Consistency [INCOMPLETE / OPEN ISSUE]
+// + Memory Ordering/Fencing/Consistency
 //
-//   It is the intent of this specification to include flags to demand memory
-//   ordering fences (such as for Acquire and Release) when initiating an atomic
-//   operation.  However, these semantics have not yet been defined.  We
-//   expect that the resolution to this open issue will involve the definition
-//   of additional GEX_FLAG_* values, and will not invalidate any interface
-//   defined in this current specification.
-//
-//   FOR *THIS* RELEASE we advise use of the GASNet-Tools APIs to introduce
-//   memory ordering fences where they may be required for correctness.
-//   See "Memory barriers" in README-tools.
+//   By default calls to the gex_AD_Op*() APIs are not guaranteed to be ordered
+//   with respect to other memory accesses.  However, one can request Acquire
+//   or Release fencing through the use of 'flags' as described in more detail
+//   with the description of gex_AD_Op*().  The definitions given below for
+//   Acquire and Release are intended to be compatible with the same concepts
+//   in the C11 and C++ language specifications for atomic operations.
 
 // Opaque type for Atomic Domain
 typedef ... gex_AD_t;
@@ -1594,10 +1622,26 @@ typedef ... gex_AD_t;
 // definitions of gex_OP_t), then the behavior is undefined.
 //
 // The 'flags' argument provides additional control over the created domain.
-//  + GEX_FLAG_AD_FAVOR_*: [UNIMPLEMENTED]
-//    Family of flags (still TBD) to influence the selection of implementation,
-//    for instance to favor performance of access by the process to which the data
-//    has affinity vs access via the network (among other possibilities).
+//  + GEX_FLAG_AD_FAVOR_{MY_RANK,MY_NEIGHBORHOOD,REMOTE}
+//    This family of mutually-exclusive flags are hints to influence the
+//    selection of implementation to favor PERFORMANCE of accesses initiated
+//    for target locations having certain locality properties.  Presence or
+//    absence of these flags will never impact correctness.
+//    - GEX_FLAG_AD_FAVOR_MY_RANK:
+//      Favor calls with the initiating and target endpoint being the same.
+//      (e.g use of GEX_FLAG_AD_MY_RANK would be legal at initiation).
+//    - GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD:
+//      Favor calls with the initiating and target endpoints belonging to
+//      processes in the same "Neighborhood", as defined previously.  (e.g.
+//      use of GEX_FLAG_AD_MY_NEIGHBORHOOD would be legal at initiation).
+//    - GEX_FLAG_AD_FAVOR_REMOTE:
+//      Favor calls with the initiating and target endpoints belonging to
+//      distinct Neighborhoods.
+//   If a call to gex_AD_Create does not include any flag from this group, the
+//   behavior is not required to correspond to any of the behaviors described
+//   above.  A high-quality implementation should examine the composition of
+//   'tm' and when possible favor either RANK (TM with a single member) or
+//   NEIGHBORHOOD (TM with all members in the same Neighborhood).
 //
 // The 'dt', 'ops' and 'flags' arguments must each be equal across all callers
 // (single-valued) or the behavior is undefined.
@@ -1838,6 +1882,29 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //       to obtain the necessary resources.  The NBI calls return a non-zero
 //       value (only) in this "no op" case, while the NB calls will return
 //       GEX_EVENT_NO_OP.
+//     - At most one flag from the following mutually-exclusive group:
+//       - GEX_FLAG_AD_MY_RANK: asserts that the initiating endpoint and target
+//         endpoint are the same endpoint.  This may allow the implementation to
+//         perform the operation more efficiently.
+//         The precise definition of the assertion is:
+//           (tgt_rank == gex_TM_QueryRank(gex_AD_QueryTM(ad))).
+//       - GEX_FLAG_AD_MY_NEIGHBORHOOD: asserts that the target EP belongs to
+//         a process within the "Neighborhood" (defined earlier in this
+//         document) of the calling process.  This may allow the
+//         implementation to perform the operation more efficiently.
+//     - GEX_FLAG_AD_REL: this atomic operation shall perform a "release".
+//       Within the thread that initiates this operation, reads or writes
+//       issued before the initiation call shall not be reordered after that
+//       call.  Additionally, this includes accesses to memory by any GASNet
+//       operations synchronized by that thread before initiation.  However,
+//       there is no ordering with respect to other GASNet operations.
+//     - GEX_FLAG_AD_ACQ: this atomic operation shall perform an "acquire".
+//       Within the thread that synchronizes this operation, reads or writes
+//       issued after the synchronization call shall not be reordered before
+//       that call.  Additionally, this includes accesses to memory by any
+//       GASNet operations initiated by that thread after synchronization.
+//       However, there is no ordering with respect to other GASNet
+//       operations.
 //     - [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: 'result_p' is to be
 //       interpreted as an offset relative to the bound segment of the
 //       initiating endpoint (instead of as a virtual address).
@@ -1874,14 +1941,14 @@ int gex_AD_OpNBI_[DATATYPE](
 // APIs in this section are provided by gasnet_vis.h
 
 // This API is an updated and expanded version of the VIS prototype offered
-// in GASNet-1, which is documented here: http://gasnet.lbl.gov/upc_memcpy_gasnet-2.0.pdf
+// in GASNet-1, which is documented here: http://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
 
 // For NB variants, return type for all functions in this section is gex_Event_t.
 // For NBI/Blocking variants, the return type is int which is non-zero *only* in the
 // "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
 
 // For the CURRENT release, all 'flags' arguments must be zero.
-// A future revision offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
+// A future revision will offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
 
 // NOTE: This interface does not yet offer local completion indication - all client-owned
 // buffers (ie payload buffers and metadata arrays) passed to the non-blocking initiation 

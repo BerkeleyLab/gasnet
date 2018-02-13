@@ -26,6 +26,7 @@ test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit0(int partner, int *partnerseg);
 void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
@@ -208,6 +209,8 @@ int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
+  TEST_SRAND(((unsigned int)TIME()) & 0xFFFF);
+
   gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, clientname, &argc, &argv, clientflags));
@@ -348,7 +351,6 @@ gex_AM_Entry_t sizecheck_handlers[] = { // deliberately registered as don't-care
 };
 
 void doit(int partner, int *partnerseg) {
-  int success = 1;
   BARRIER();
 
   // check predefined object constants
@@ -566,6 +568,26 @@ void doit(int partner, int *partnerseg) {
     assert_always((some & ~allval) == 0);        \
   } while (0)
 
+  // Format one random mask of each possible popcount() including 0
+  #define test_format(type,array,format_fn) do { \
+    const int elems = sizeof(array)/sizeof(type); \
+    type val = 0;                                 \
+    for (int i = 0; i <= elems; ++i) {            \
+      if (i) {                                    \
+        type prev = val;                          \
+        do {                                      \
+          val |= array[TEST_RAND(0,elems-1)];     \
+        } while (val == prev);                    \
+      }                                           \
+      size_t sz = format_fn(NULL, val);           \
+      char *buf = (char*) test_malloc(sz);        \
+      size_t rc = format_fn(buf, val);            \
+      assert_always(rc <= sz);                    \
+      assert_always(strlen(buf) < sz);            \
+      test_free(buf);                             \
+    }                                             \
+  } while (0)
+
   /* sanity check macros and system types */
   assert_signed(int8_t);
   assert_signed(int16_t);
@@ -692,6 +714,12 @@ void doit(int partner, int *partnerseg) {
     gex_Event_Wait(rc);
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit0(partner, partnerseg);
+}
+void doit0(int partner, int *partnerseg) {
+#endif
+
   /* misc type tests */
   assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
@@ -706,6 +734,16 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_BOUND,
     GEX_FLAG_PEER_SEG_OFFSET,
 
+    GEX_FLAG_AD_MY_RANK,
+    GEX_FLAG_AD_MY_NEIGHBORHOOD,
+
+    GEX_FLAG_AD_ACQ,
+    GEX_FLAG_AD_REL,
+
+    GEX_FLAG_AD_FAVOR_MY_RANK,
+    GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_FAVOR_REMOTE,
+
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,
@@ -716,7 +754,58 @@ void doit(int partner, int *partnerseg) {
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
-  // TODO-EX: ensure lack of aliasing within groups of flags that are mutually exclusive (eg GEX_FLAG_*_SEG_*)
+  // Ensure lack of aliasing within groups of flags potentially passed togther
+  static gex_Flags_t const flags_rma[] = { // gex_RMA_* initiation
+    GEX_FLAG_IMMEDIATE,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
+    //GEX_FLAG_LC_COPY_YES,
+    //GEX_FLAG_LC_COPY_NO,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_rma);
+  static gex_Flags_t const flags_adc[] = { // gex_AD_Create
+    GEX_FLAG_AD_FAVOR_MY_RANK,
+    GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_FAVOR_REMOTE,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_adc);
+  static gex_Flags_t const flags_ad[] = { // gex_AD_Op* initiation
+    GEX_FLAG_IMMEDIATE,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
+    GEX_FLAG_AD_MY_RANK,
+    GEX_FLAG_AD_MY_NEIGHBORHOOD,
+
+    GEX_FLAG_AD_ACQ,
+    GEX_FLAG_AD_REL,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_ad);
+  static gex_Flags_t const flags_amreg[] = { // gex_EP_RegisterHandlers
+    GEX_FLAG_AM_SHORT,
+    GEX_FLAG_AM_MEDIUM,
+    GEX_FLAG_AM_LONG,
+    // GEX_FLAG_AM_MEDLONG is an intentional alias
+    GEX_FLAG_AM_REQUEST,
+    GEX_FLAG_AM_REPLY,
+    // GEX_FLAG_AM_REQREP is an intentional alias
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_amreg);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
@@ -736,6 +825,7 @@ void doit(int partner, int *partnerseg) {
   // in particular, each flag needs at least one unique bit
   assert_arr_unaliased(gex_TI_t, ti_arr);
   assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
+  test_format(gex_TI_t, ti_arr, gasnett_format_ti);
 
   gex_RMA_Value_t val = 0;
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
@@ -760,6 +850,7 @@ void doit(int partner, int *partnerseg) {
     GEX_DT_FLT, GEX_DT_DBL
   };
   assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
+  test_format(gex_DT_t, datatypes_arr, gasnett_format_dt);
 
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
@@ -775,6 +866,7 @@ void doit(int partner, int *partnerseg) {
     GEX_OP_SWAP, GEX_OP_CSWAP
   };
   assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
+  test_format(gex_OP_t, ops_arr, gasnett_format_op);
 
   #define typeissigned   <
   #define typeisunsigned >
@@ -839,7 +931,7 @@ void doit(int partner, int *partnerseg) {
 
   assert_field_constint(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
-  if (success) MSG("*** passed object test!!");
+  MSG("*** passed object test!!");
 
 #ifndef TESTGASNET_NO_SPLIT
   doit1(partner, partnerseg);

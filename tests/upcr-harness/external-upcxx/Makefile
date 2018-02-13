@@ -1,7 +1,7 @@
 UPCXX_GIT_REPO   ?= berkeleylab/upcxx
 UPCXX_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
-UPCXX_BACKEND    ?= gasnet1_seq
+UPCXX_BACKEND    ?= gasnet_seq
 UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst-$(UPCXX_BACKEND)
 UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
@@ -73,7 +73,7 @@ endif
 RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
         $(GASNET_VARS) \
-        DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) \
+        DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) ASSERT=$(ASSERT) \
 	GASNET="$(NOBS_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb PAGER=cat 
 DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && \
@@ -173,11 +173,11 @@ _upcxx: force
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 _upcxx-inst-SEQ:
-	$(MAKE) upcxx-inst-gasnet1_seq UPCXX_BACKEND=gasnet1_seq 2>&1 | tee -a $(LOGFILE)
+	$(MAKE) upcxx-inst-gasnet_seq UPCXX_BACKEND=gasnet_seq 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 _upcxx-inst-PAR:
-	$(MAKE) upcxx-inst-gasnetex_par UPCXX_BACKEND=gasnetex_par 2>&1 | tee -a $(LOGFILE)
+	$(MAKE) upcxx-inst-gasnet_par UPCXX_BACKEND=gasnet_par 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 upcxx-inst-$(UPCXX_BACKEND): upcxx-built
@@ -206,12 +206,12 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 
 # Pattern rule builds any named test with a corresponding cpp in test directory
 %-seq %-par :: %.cpp force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; set -x ; \
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; set -x ; \
 	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)'
 
 # Pattern rule builds example/prog-guide tests
 %-seq %-par :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet1_seq ;; *-par) UPCXX_BACKEND=gasnetex_par ;; esac; \
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
 	 if test -n "$(UPCXX_USE_META)"; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	else set -x ; \

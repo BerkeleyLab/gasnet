@@ -26,6 +26,20 @@
 // mappings used for SET and GET.  In particular why is GET not FOR(0)?
 //
 
+// Notes on implementation of GEX_FLAG_AD_{REL,ACQ}
+//
+// RELEASE:
+// We beleive that injection of a GNI-level operation must include at least one
+// release fence.  Additionally we must obtain a "gpd" from a gasneti_lifo_t,
+// which in a multi-threaded build includes a full rel/acq on both x86-64 and
+// arm64.
+//
+// ACQUIRE:
+// The CQ handling in GNI requires an acquire fence for signaling between the
+// NIC/driver, which is sufficient for a single-threaded build.  In the case of
+// a multi-threaded build, the conduit's processing of the CQ includes a full
+// mutex lock/unlock.
+
 #include <gasnet_gemini.h>
 #include <gasnet_ratomic_internal.h>
 
@@ -593,6 +607,34 @@ void gasnete_gniratomic_create_hook(
         gex_OP_t                   ops,
         gex_Flags_t                flags)
 {
+    // Check for cases that should favor AM over NIC
+    if (! (flags & GEX_FLAG_AD_FAVOR_REMOTE)) {
+        if (flags & (GEX_FLAG_AD_FAVOR_MY_RANK | GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD)) {
+            // Client's flags favor AM-based atomics
+            goto use_am;
+        } else if (real_tm->_size == 1) {
+            // Singleton team case favors AM-based
+            goto use_am;
+        }
+    #if GASNET_PSHM
+        // TODO-EX: this closed form does not generalize for multi-EP nor TM_Split
+        else if (gasneti_mysupernode.node_count == gasneti_nodes) {
+	    // Single-neighborhood case favors AM-based *if* the datatype is
+	    // "tools safe" (and thus not actually using AM).  Otherwise, we
+	    // will assume that the NIC is a better option since it does not
+	    // rely on target attentiveness.
+            #define GASNETE_GNIRATOMIC_TOOLS_CASE(dtcode) \
+                case dtcode##_dtype:                    \
+                    if (GASNETE_RATOMIC_PSHMSAFE##dtcode) goto use_am; \
+                    break;
+            switch (dt) {
+                GASNETE_DT_APPLY(GASNETE_GNIRATOMIC_TOOLS_CASE)
+                default: gasneti_unreachable();
+            }
+        }
+    #endif
+    }
+
     #define GASNETE_GNIRATOMIC_TBL_CASE(dtcode) \
         case dtcode##_dtype:                    \
             if (ops & GASNETE_GNIRATOMIC_BADOPS##dtcode) goto use_am; \
@@ -604,8 +646,8 @@ void gasnete_gniratomic_create_hook(
     }
     #undef GASNETE_GNIRATOMIC_TBL_CASE
 
-    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> GNI", (int)dt, (unsigned int)ops));
-    real_ad->_cpusafe = 0;
+    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> Aries", (int)dt, (unsigned int)ops));
+    real_ad->_tools_safe = 0;
     return;
 
 use_am:

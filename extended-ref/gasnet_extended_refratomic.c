@@ -42,7 +42,7 @@ extern gasneti_AD_t gasneti_alloc_ad(
   ad->_dt = dt;
   ad->_ops = ops;
 #if GASNET_DEBUG
-  ad->_cpusafe = -1;
+  ad->_tools_safe = -1;
   ad->_fn_tbl = NULL;
 #endif
 #ifdef GASNETI_AD_ALLOC_EXTRA
@@ -109,6 +109,11 @@ void gasneti_AD_Create(
   gasneti_assert(gasneti_op_fp_mask(ops)  || !gasneti_dt_fp(dt));
   gasneti_assert(gasneti_op_int_mask(ops) || !gasneti_dt_int(dt));
 
+  // Does the 'flags' argument include at most one AD_FAVOR_* bit?
+  gasneti_assert(GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_FAVOR_MY_RANK |
+                                             GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD |
+                                             GEX_FLAG_AD_FAVOR_REMOTE)));
+
   // Verify we agree on the size of the FP type, if any
   gasneti_assert((dt != GEX_DT_FLT) || sizeof(float) == 4);
   gasneti_assert((dt != GEX_DT_DBL) || sizeof(double) == 8);
@@ -119,7 +124,7 @@ void gasneti_AD_Create(
   // Algorithm selection:
 #ifdef GASNETI_AD_CREATE_HOOK
   GASNETI_AD_CREATE_HOOK(real_ad, real_tm, dt, ops, flags);
-  gasneti_assert(real_ad->_cpusafe >= 0);
+  gasneti_assert(real_ad->_tools_safe >= 0);
   gasneti_assert(real_ad->_fn_tbl != NULL);
 #endif
 
@@ -154,8 +159,6 @@ void gasnete_ratomic_validate(
 {
     gasneti_AD_t real_ad = gasneti_import_ad(ad);
 
-    // TODO: should print (at least numerical value of) invalid arguents
-
     // Rank must be valid (redundant, but clearer than a later failure)
     if (tgt_rank >= real_ad->_tm->_size) {
       gasneti_fatalerror("gex_AD_Op*() called with invalid target rank");
@@ -163,20 +166,40 @@ void gasnete_ratomic_validate(
 
     // Datatype must match AD
     if (datatype != real_ad->_dt) {
-      gasneti_fatalerror("gex_AD_Op*() called with data type not matching the AD");
+      char *str1 = gasneti_malloc(gasneti_format_dt(NULL, datatype));
+      char *str2 = gasneti_malloc(gasneti_format_dt(NULL, real_ad->_dt));
+      gasneti_format_dt(str1, datatype);
+      gasneti_format_dt(str2, real_ad->_dt);
+      gasneti_fatalerror("gex_AD_Op*() called with data type 0x%x (%s), not matching the AD (%s)",
+                         (unsigned int)datatype, str1, str2);
     }
 
     // Opcode must be exactly 1 bit and valid for AD
     if (! gasneti_op_valid(opcode)) {
-      gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode");
+      char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
+      gasneti_format_op(str1, opcode);
+      gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode 0x%x (%s)",
+                         (unsigned int)opcode, str1);
     }
     if (! (opcode & real_ad->_ops)) {
-      gasneti_fatalerror("gex_AD_Op*() called with an opcode not valid for the AD");
+      char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
+      char *str2 = gasneti_malloc(gasneti_format_op(NULL, real_ad->_ops));
+      gasneti_format_op(str1, opcode);
+      gasneti_format_op(str2, real_ad->_ops);
+      gasneti_fatalerror("gex_AD_Op*() called with an opcode 0x%x (%s) not valid for the AD (%s)",
+                         (unsigned int)opcode, str1, str2);
     }
 
     // Fetching ops must have non-NULL result_p
     if (gasneti_op_fetch(opcode) && !result_p) {
-      gasneti_fatalerror("gex_AD_Op*() called with a fetching opcode, but result_p==NULL");
+      char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
+      gasneti_format_op(str1, opcode);
+      gasneti_fatalerror("gex_AD_Op*() called with fetching opcode %s, but result_p==NULL", str1);
+    }
+
+    // Flags may provide at most one affinity assertion
+    if (!GASNETI_POWEROFTWO(flags & (GEX_FLAG_AD_MY_RANK | GEX_FLAG_AD_MY_NEIGHBORHOOD))) {
+      gasneti_fatalerror("gex_AD_Op*() called with more than one GEX_FLAG_AD_MY_* flag");
     }
 
     // Address must be in bound segment
@@ -221,9 +244,38 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_EXTERNS)
 //
 // AM-based Implementation
 // Built unless GASNETE_BUILD_AMRATOMIC is defined to 0
+// If GASNETE_BUILD_AMRATOMIC_STUBS is 1, then we build stubs that fatalerror
 //
 
+// Notes on implementation of GEX_FLAG_AD_{REL,ACQ}
+//
+// The reference implementation of Remote Atomics has two portions.
+//
+// One is used for target ranks meeting "MY_RANK" and "MY_NEIGHBORHOOD"
+// conditions (with possible datatype constraints).  This implementation
+// performs all atomic operations synchronously using GASNet-Tools, which
+// provides the necessary support for REL and ACQ fences.
+//
+// The second is the AM-based code below.  The remainder of this note is an
+// effort to explain how GEX_FLAG_AD_{REL,ACQ} are implemented.  The short
+// version is that both fences are *unconditionally* present in the
+// implementation and so the flags are ignored with no loss of correctness.
+//
+// RELEASE:
+// We believe that all current AM implementations include at least one release
+// fence on the path to AM injection.
+//
+// ACQUIRE:
+// We believe that all current AM implementations include at least one acquire
+// fence on the path to reception of the AM Reply, which is sufficient in a
+// single-threaded build.  In the case of a multi-threaded build, the
+// implementation of all GASNet-EX synchronization calls (both on gex_Event_t
+// and NBI) include an acquire fence if the set of operations synchronized
+// could potentially include a RMW or GET operation.
+
 #if GASNETE_BUILD_AMRATOMIC
+
+#if ! GASNETE_BUILD_AMRATOMIC_STUBS
 
 //
 // Pool of small structs describing an in-flight remote atomic
@@ -306,7 +358,7 @@ void gasnete_amratomic_reqh_inner(
     #define GASNETE_AMRATOMIC_REQH_CASE(dtcode) \
         case dtcode##_dtype: {                                                \
             GASNETE_AMRATOMIC_REQH_OPS(dtcode##_type);                        \
-            result.u##dtcode = gasnete_ratomicfn##dtcode(tgt,op1,op2,opcode); \
+            result.u##dtcode = gasnete_ratomicfn##dtcode(tgt,op1,op2,opcode,0);\
             break;                                                            \
         }
 
@@ -668,8 +720,8 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
 #define _GASNETE_AMRATOMIC_SETGET1(dtcode, use_rma) \
         _GASNETE_AMRATOMIC_SETGET2(dtcode, use_rma)
 #define _GASNETE_AMRATOMIC_SETGET2(dtcode, use_rma) \
-        _GASNETE_RATOMIC_SETGET_RMA##use_rma(dtcode)
-#define _GASNETE_RATOMIC_SETGET_RMA0(dtcode) /* Use AM for SET and GET */ \
+        _GASNETE_AMRATOMIC_SETGET_RMA##use_rma(dtcode)
+#define _GASNETE_AMRATOMIC_SETGET_RMA0(dtcode) /* Use AM for SET and GET */ \
   /* NB are same as other ops, but NBI are specialized for distinct gex_EC_t */ \
   _GASNETE_AMRATOMIC_DEFN1_NB(dtcode,SET,N1) \
   static int gasnete_amratomic##dtcode##_NBI_SET(GASNETE_RATOMIC_ARGS_N1(dtcode##_type)) {     \
@@ -679,12 +731,12 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
   static int gasnete_amratomic##dtcode##_NBI_GET(GASNETE_RATOMIC_ARGS_F0(dtcode##_type)) {     \
     return gasnete_amratomic##dtcode##_NBI_G0(GASNETE_RATOMIC_PASS_F0); \
   }
-#define _GASNETE_RATOMIC_SETGET_RMA1(dtcode) /* Use RMA for SET and GET */ \
-        _GASNETE_RATOMIC_SETGET_RMA2(dtcode, dtcode##_type, dtcode##_bits)
+#define _GASNETE_AMRATOMIC_SETGET_RMA1(dtcode) /* Use RMA for SET and GET */ \
+        _GASNETE_AMRATOMIC_SETGET_RMA2(dtcode, dtcode##_type, dtcode##_bits)
 // This extra pass expands the "bits" token prior to additional concatenation
-#define _GASNETE_RATOMIC_SETGET_RMA2(dtcode, type, bits) \
-        _GASNETE_RATOMIC_SETGET_RMA3(dtcode, type, bits)
-#define _GASNETE_RATOMIC_SETGET_RMA3(dtcode, type, bits) \
+#define _GASNETE_AMRATOMIC_SETGET_RMA2(dtcode, type, bits) \
+        _GASNETE_AMRATOMIC_SETGET_RMA3(dtcode, type, bits)
+#define _GASNETE_AMRATOMIC_SETGET_RMA3(dtcode, type, bits) \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_SET (GASNETE_RATOMIC_ARGS_N1(type)) { \
     union { uint##bits##_t uint; type op1; } u; u.op1 = _operand1;                        \
     return gex_RMA_PutNBVal(gasneti_export_tm(_real_ad->_tm), _tgt_rank, _tgt_addr,       \
@@ -697,14 +749,68 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
   } \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_GET (GASNETE_RATOMIC_ARGS_F0(type)) { \
     return gex_RMA_GetNB(gasneti_export_tm(_real_ad->_tm), _result_p,                     \
-                         _tgt_rank, _tgt_addr, sizeof(float), _flags);                    \
+                         _tgt_rank, _tgt_addr, sizeof(type), _flags);                     \
   } \
   static int gasnete_amratomic##dtcode##_NBI_GET (GASNETE_RATOMIC_ARGS_F0(type)) {        \
     return gex_RMA_GetNBI(gasneti_export_tm(_real_ad->_tm), _result_p,                    \
-                          _tgt_rank, _tgt_addr, sizeof(float), _flags);                   \
+                          _tgt_rank, _tgt_addr, sizeof(type), _flags);                    \
   }
 //
 GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFS)
+
+#else // GASNETE_BUILD_AMRATOMIC_STUBS.  So define stubs that fatalerror
+
+#define GASNETE_AMRATOMIC_STUBS(dtcode) \
+        _GASNETE_AMRATOMIC_STUBS1(dtcode, dtcode##_isint)
+// This extra pass expands the "isint" token prior to additional concatenation
+#define _GASNETE_AMRATOMIC_STUBS1(dtcode, isint) \
+        _GASNETE_AMRATOMIC_STUBS2(dtcode, isint)
+#define _GASNETE_AMRATOMIC_STUBS2(dtcode, isint) \
+    _GASNETE_AMRATOMIC_STUB_INT##isint(dtcode,AND,1) \
+    _GASNETE_AMRATOMIC_STUB_INT##isint(dtcode,OR,1)  \
+    _GASNETE_AMRATOMIC_STUB_INT##isint(dtcode,XOR,1) \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,ADD,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,SUB,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,MULT,1)          \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,MIN,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,MAX,1)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,INC,0)           \
+    _GASNETE_AMRATOMIC_STUB2(dtcode,DEC,0)           \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,SET,N1)          \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,GET,F0)          \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,SWAP,F1)         \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,CSWAP,F2)
+//
+#define _GASNETE_AMRATOMIC_STUB_INT0(dtcode,opname,nargs) /*empty*/
+#define _GASNETE_AMRATOMIC_STUB_INT1 _GASNETE_AMRATOMIC_STUB2
+#define _GASNETE_AMRATOMIC_STUB2(dtcode,opstem,nargs) \
+        _GASNETE_AMRATOMIC_STUB1(dtcode,opstem,N##nargs) \
+        _GASNETE_AMRATOMIC_STUB1(dtcode,F##opstem,F##nargs)
+#define _GASNETE_AMRATOMIC_STUB1(dtcode,opname,args) \
+        _GASNETE_AMRATOMIC_STUB1_NB(dtcode,opname,args) \
+        _GASNETE_AMRATOMIC_STUB1_NBI(dtcode,opname,args)
+#define _GASNETE_AMRATOMIC_STUB1_NB(dtcode,opname,args) \
+  static gex_Event_t gasnete_amratomic##dtcode##_NB_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) { \
+    gasneti_fatalerror("gex_AD_OpNB_" dtcode##_suff "() is not implemented on this platform.\n"    \
+                       "Please see Bug 3727 under Known Problems in GASNet's smp-conduit README."); \
+    return GEX_EVENT_INVALID; \
+  }
+#define _GASNETE_AMRATOMIC_STUB1_NBI(dtcode,opname,args) \
+  static int gasnete_amratomic##dtcode##_NBI_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) { \
+    gasneti_fatalerror("gex_AD_OpNBI_" dtcode##_suff "() is not implemented on this platform.\n"    \
+                       "Please see Bug 3727 under Known Problems in GASNet's smp-conduit README.");  \
+    return 0; \
+  }
+#define _gex_dt_I32_suff "I32"
+#define _gex_dt_U32_suff "U32"
+#define _gex_dt_I64_suff "I64"
+#define _gex_dt_U64_suff "U64"
+#define _gex_dt_FLT_suff "FLT"
+#define _gex_dt_DBL_suff "DBL"
+//
+GASNETE_DT_APPLY(GASNETE_AMRATOMIC_STUBS)
+
+#endif
 
 //
 // Build the dispatch tables
@@ -724,7 +830,7 @@ void gasnete_amratomic_create_hook(
         gex_OP_t                   ops,
         gex_Flags_t                flags)
 {
-    real_ad->_cpusafe = 1;
+    real_ad->_tools_safe = 1;
     #define GASNETE_AMRATOMIC_TBL_CASE(dtcode) \
         case dtcode##_dtype: \
             real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t) &gasnete_amratomic##dtcode##_fn_tbl; \
@@ -735,7 +841,11 @@ void gasnete_amratomic_create_hook(
     }
     #undef GASNETE_AMRATOMIC_TBL_CASE
 
+#if GASNETE_BUILD_AMRATOMIC_STUBS
+    GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM_stubs", (int)dt, (unsigned int)ops));
+#else
     GASNETI_TRACE_PRINTF(C,("gex_AD_Create(dt=%d, ops=0x%x) -> AM", (int)dt, (unsigned int)ops));
+#endif
 }
 
 #endif // GASNETE_BUILD_AMRATOMIC

@@ -38,13 +38,13 @@
 
 //
 // Assert that all atomics implementations possible in the current build
-// are unconditionally "cpusafe" (for each type independently).  The
-// term "cpusafe" here means that concurrent access via GASNet-Tools
+// are unconditionally "tools safe" (for each type independently).  The
+// term "tools safe" here means that concurrent access via GASNet-Tools
 // will produce correct results.
 //
-// Each token GASNETE_RATOMIC_ALWAYS_CPUSAFE##dtcode should be 0 or 1:
-//  0: Honor _real_ad->_cpusafe (testing each instance dynamically)
-//  1: Ignore _real_ad->_cpusafe, assuming it is 1 (saves 1 branch)
+// Each token GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE##dtcode should be 0 or 1:
+//  0: Honor _real_ad->_tools_safe (testing each instance dynamically)
+//  1: Ignore _real_ad->_tools_safe, assuming it is 1 (saves 1 branch)
 // Consumed by the GASNETE_RATOMIC_DISP() macro.
 //
 // (###) Conduits cloning this file must update these to be accurate.
@@ -54,11 +54,11 @@
 // HOWEVER, that is almost never a safe determination to make, since
 // Tools may use mutexes, etc.   TL;DR: use 0 for offloadable types.
 //
-#define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_I32 1
-#define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_U32 1
-#define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_I64 1
-#define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_U64 1
-#define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_FLT 1
-#define GASNETE_RATOMIC_ALWAYS_CPUSAFE_gex_dt_DBL 1
+#define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_I32 1
+#define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_U32 1
+#define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_I64 1
+#define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_U64 1
+#define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_FLT 1
+#define GASNETE_RATOMIC_ALWAYS_TOOLS_SAFE_gex_dt_DBL 1
 
 #endif // _GASNET_RATOMIC_FWD_H
