@@ -5,9 +5,11 @@
  */
 
 #include <gasnetex.h>
+
+int numnode = 0;
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR ((uintptr_t)maxsz)
+  #define TEST_SEGSZ_EXPR (((numnode&1)?2:1)*(uintptr_t)maxsz)
 #endif
 #include <test.h>
 
@@ -17,11 +19,11 @@ static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
 int mynode = 0;
-int numnode = 0;
 void *myseg = NULL;
 int sender, recvr;
 int peer;
-void *peerseg = NULL;
+void *request_addr = NULL;
+void *reply_addr = NULL;
 
 gex_Event_t *lc_opt = GEX_EVENT_NOW;
 
@@ -82,7 +84,7 @@ void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg, GEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, reply_addr, GEX_EVENT_NOW, 0);
 }
 
 void pong_longhandler(gex_Token_t token, void *buf, size_t nbytes) {
@@ -106,7 +108,7 @@ void pong_medhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg, GEX_EVENT_NOW, 0);
+  gex_AM_ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, reply_addr, GEX_EVENT_NOW, 0);
 }
 
 void pong_longhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
@@ -259,7 +261,9 @@ int main(int argc, char **argv) {
 
   recvr = !sender || (peer == mynode);
 
-  peerseg = TEST_SEG(peer);
+  // Long Request and Reply (distinct for loopback)
+  reply_addr = TEST_SEG(peer);
+  request_addr = (peer == mynode) ? (void*)(maxsz + (uintptr_t) reply_addr) : reply_addr;
 
   BARRIER();
 
@@ -561,7 +565,7 @@ void doAMShort(void) {
   } while (0)
 
   #define MEDDEST
-  #define LONGDEST , peerseg
+  #define LONGDEST , request_addr
 /* ------------------------------------------------------------------------------------ */
 void doAMMed(void) {
   GASNET_BEGIN_FUNCTION();
