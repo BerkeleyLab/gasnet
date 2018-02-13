@@ -675,11 +675,11 @@ void gasnetc_loopback_commit_inner(
         break;
     case gasneti_Medium:
         buf = sd->_gex_buf;
-        if (isFixed || (buf != sd->_addr)) memcpy(buf, sd->_addr, nbytes);
+        if (isFixed || (buf != sd->_addr)) GASNETE_MEMCPY_SAFE_EMPTY(buf, sd->_addr, nbytes);
         break;
     case gasneti_Long:
         buf = dest_addr;
-        if_pt (buf != sd->_addr) memcpy(buf, sd->_addr, nbytes);
+        GASNETE_MEMCPY_SAFE_EMPTY(buf, sd->_addr, nbytes);
         break;
     default:
         gasneti_unreachable();

@@ -1328,7 +1328,7 @@ void ampshm_commit_inner(
         GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) = nbytes;
         gasneti_assert( GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) == nbytes ); // truncated?
         void *data = GASNETI_AMPSHM_MSG_MED_DATA(msg);
-        if (isFixed || (data != sd->_addr)) memcpy(data, sd->_addr, nbytes);
+        if (isFixed || (data != sd->_addr)) GASNETE_MEMCPY_SAFE_EMPTY(data, sd->_addr, nbytes);
         break;
     }
     case gasneti_Long: {
@@ -1336,7 +1336,7 @@ void ampshm_commit_inner(
         GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
         gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes ); // truncated?
         void *data = gasneti_pshm_addr2local(sd->_pshm._dest, dest_addr);
-        memcpy(data, sd->_addr, nbytes);
+        GASNETE_MEMCPY_SAFE_EMPTY(data, sd->_addr, nbytes);
         break;
     }
     default:
