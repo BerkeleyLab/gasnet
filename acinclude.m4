@@ -2681,8 +2681,8 @@ else
       #ifndef __VERSION__
         #define __VERSION__ "unknown"
       #endif
-    ],[__VERSION__],[_gasnet_gcc_version_string])
-  case "$_gasnet_gcc_version_string" in
+    ],[__VERSION__],[_gasnet_$2_gcc_version_string])
+  case "$_gasnet_$2_gcc_version_string" in
     *gccfss*) $2_SUBFAMILY='GCCFSS';;
     *) GASNET_IFDEF(__APPLE_CC__, [$2_SUBFAMILY='APPLE'])
        GASNET_IFDEF(__NVCC__, [$2_SUBFAMILY='NVIDIA'])
