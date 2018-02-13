@@ -473,7 +473,7 @@ int main(int argc, char **argv)
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
     /* get SPMD info (needed for segment size) */
-    myproc = gex_tm_queryrank(myteam);
+    myproc = gex_TM_QueryRank(myteam);
     numprocs = gex_TM_QuerySize(myteam);
 
     #ifdef GASNET_SEGMENT_EVERYTHING
