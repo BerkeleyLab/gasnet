@@ -5,18 +5,19 @@
  */
 
 #include <gasnet.h>
+int numnode = 0;
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR ((uintptr_t)maxsz)
+  #define TEST_SEGSZ_EXPR (((numnode&1)?2:1)*(uintptr_t)maxsz)
 #endif
 #include <test.h>
 
 int mynode = 0;
-int numnode = 0;
 void *myseg = NULL;
 int sender, recvr;
 int peer;
-void *peerseg = NULL;
+void *request_addr = NULL;
+void *reply_addr = NULL;
 
 void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt) {
   if (sender) {
@@ -79,7 +80,7 @@ void pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg));
+  GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler, buf, nbytes, reply_addr));
 }
 
 void pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
@@ -103,7 +104,7 @@ void pong_medhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg));
+  GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, reply_addr));
 }
 
 void pong_longhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
@@ -237,7 +238,9 @@ int main(int argc, char **argv) {
 
   recvr = !sender || (peer == mynode);
 
-  peerseg = TEST_SEG(peer);
+  // Long Request and Reply (distinct for loopback)
+  reply_addr = TEST_SEG(peer);
+  request_addr = (peer == mynode) ? (void*)(maxsz + (uintptr_t) reply_addr) : reply_addr;
 
   BARRIER();
 
@@ -529,7 +532,7 @@ void doAMShort(void) {
   } while (0)
 
   #define MEDDEST
-  #define LONGDEST , peerseg
+  #define LONGDEST , request_addr
 /* ------------------------------------------------------------------------------------ */
 void doAMMed(void) {
   GASNET_BEGIN_FUNCTION();
