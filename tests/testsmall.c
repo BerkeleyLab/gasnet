@@ -7,9 +7,10 @@
  * Terms of use are as specified in license.txt
  */
 
+int numprocs;
 int maxsz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR (2*MAX(PAGESZ,(uintptr_t)maxsz))
+  #define TEST_SEGSZ_EXPR (2*(uintptr_t)alignup(maxsz,PAGESZ))
 #endif
 #include "test.h"
 
@@ -33,7 +34,6 @@ gex_AM_Entry_t handler_table[2];
 int insegment = 0;
 
 int myproc;
-int numprocs;
 int peerproc = -1;
 int iamsender = 0;
 int unitsMB = 0;
@@ -42,7 +42,6 @@ int dogets = 1;
 
 void *tgtmem;
 char *msgbuf;
-char *ackbuf;
 
 #define init_stat \
   GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _init_stat
@@ -103,7 +102,6 @@ void roundtrip_test(int iters, int nbytes)
 	init_stat(&st, nbytes);
 	
 	memset(msgbuf, 1, nbytes);
-	memset(ackbuf, 0, nbytes);
 
 	BARRIER();
 	
@@ -130,7 +128,7 @@ void roundtrip_test(int iters, int nbytes)
 		/* measure the round-trip time of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gex_RMA_GetBlocking(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
+			gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -153,7 +151,6 @@ void oneway_test(int iters, int nbytes)
 	init_stat(&st, nbytes);
 	
 	memset(msgbuf, 1, nbytes);
-	memset(ackbuf, 0, nbytes);
 
 	BARRIER();
 	
@@ -180,7 +177,7 @@ void oneway_test(int iters, int nbytes)
 		/* measure the throughput of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gex_RMA_GetBlocking(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
+			gex_RMA_GetBlocking(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -204,7 +201,6 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	init_stat(&st, nbytes);
 	
 	memset(msgbuf, 1, nbytes);
-	memset(ackbuf, 0, nbytes);
 
 	BARRIER();
 	
@@ -233,7 +229,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gex_RMA_GetNBI(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
+			gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
 			gex_NBI_Wait(GEX_EC_GET,0);
 		}
 		end = TIME();
@@ -258,7 +254,6 @@ void oneway_nbi_test(int iters, int nbytes)
 	init_stat(&st, nbytes);
 	
 	memset(msgbuf, 1, nbytes);
-	memset(ackbuf, 0, nbytes);
 
 	BARRIER();
 	
@@ -286,7 +281,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gex_RMA_GetNBI(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
+	 		gex_RMA_GetNBI(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
 		}
 		gex_NBI_Wait(GEX_EC_GET,0);
 		end = TIME();
@@ -312,7 +307,6 @@ void roundtrip_nb_test(int iters, int nbytes)
 	init_stat(&st, nbytes);
 	
 	memset(msgbuf, 1, nbytes);
-	memset(ackbuf, 0, nbytes);
 
 	BARRIER();
 	
@@ -340,7 +334,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			hdlget = gex_RMA_GetNB(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
+			hdlget = gex_RMA_GetNB(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
 			gex_Event_Wait(hdlget);
 		}
 		end = TIME();
@@ -369,7 +363,6 @@ void oneway_nb_test(int iters, int nbytes)
 	events = (gex_Event_t*) test_malloc(sizeof(gex_Event_t) * iters);
 	
 	memset(msgbuf, 1, nbytes);
-	memset(ackbuf, 0, nbytes);
 
 	BARRIER();
 	
@@ -479,6 +472,10 @@ int main(int argc, char **argv)
     if (!maxsz) maxsz = 2048; /* 2 KB default */
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
+    /* get SPMD info (needed for segment size) */
+    myproc = gex_tm_queryrank(myteam);
+    numprocs = gex_TM_QuerySize(myteam);
+
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ/2) { MSG("maxsz must be <= %"PRIuPTR" on GASNET_SEGMENT_EVERYTHING", (uintptr_t)(TEST_SEGSZ/2)); gasnet_exit(1); }
     #endif
@@ -502,10 +499,6 @@ int main(int argc, char **argv)
       ERR("maxsz must be >= %i\n",min_payload);
       test_usage();
     }
-
-    /* get SPMD info */
-    myproc = gex_TM_QueryRank(myteam);
-    numprocs = gex_TM_QuerySize(myteam);
 
     if (!firstlastmode) {
       /* Only allow 1 or even number for numprocs */
@@ -537,7 +530,7 @@ int main(int argc, char **argv)
 
     
     myseg = TEST_SEG(myproc);
-    tgtmem = TEST_SEG(peerproc);
+    tgtmem = (void*)(alignup(maxsz,PAGESZ) + (uintptr_t)TEST_SEG(peerproc));
 
         if (insegment) {
 	    msgbuf = (void *) myseg;
@@ -545,9 +538,7 @@ int main(int argc, char **argv)
 	    alloc = (void *) test_calloc((maxsz+PAGESZ)*2,1); /* calloc prevents valgrind warnings */
             msgbuf = (void *) alignup(((uintptr_t)alloc), PAGESZ); /* ensure page alignment of base */
         }
-        ackbuf = msgbuf + PAGESZ;
         assert(((uintptr_t)msgbuf) % PAGESZ == 0);
-        assert(((uintptr_t)ackbuf) % PAGESZ == 0);
         if (myproc == 0) 
           MSG("Running %i iterations of %s%s%snon-bulk put/get with local addresses %sside the segment for sizes: %i...%i\n", 
           iters, 
