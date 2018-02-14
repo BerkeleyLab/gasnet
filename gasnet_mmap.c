@@ -1767,16 +1767,16 @@ extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries
 //
 // TODO: Could improve "safety" by not exposing addr of critical internal data
 // TODO: Could reduce memory use if array lived in shared memory
-extern void gex_System_QueryNeighborhoodInfo(
-            gex_NeighborhoodInfo_t **info_p,
+extern void gex_System_QueryNbrhdInfo(
+            gex_NbrhdInfo_t        **info_p,
             gex_Rank_t             *info_count_p,
             gex_Rank_t             *my_info_index_p)
 {
   GASNETI_CHECKINIT();
 #if GASNET_PSHM
   if (info_p) {
-    gasneti_assert(sizeof(gex_NeighborhoodInfo_t) == sizeof(gex_Rank_t));
-    *info_p = (gex_NeighborhoodInfo_t *) gasneti_mysupernode.nodes;
+    gasneti_assert(sizeof(gex_NbrhdInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_NbrhdInfo_t *) gasneti_mysupernode.nodes;
   }
   if (info_count_p) {
     *info_count_p = gasneti_mysupernode.node_count;
@@ -1786,8 +1786,8 @@ extern void gex_System_QueryNeighborhoodInfo(
   }
 #else
   if (info_p) {
-    gasneti_assert(sizeof(gex_NeighborhoodInfo_t) == sizeof(gex_Rank_t));
-    *info_p = (gex_NeighborhoodInfo_t *) &gasneti_mynode;
+    gasneti_assert(sizeof(gex_NbrhdInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_NbrhdInfo_t *) &gasneti_mynode;
   }
   if (info_count_p) {
     *info_count_p = 1;

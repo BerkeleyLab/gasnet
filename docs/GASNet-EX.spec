@@ -221,16 +221,16 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_LC_COPY_YES ((gex_Flags_t)???) [UNIMPLEMENTED]
 #define GEX_FLAG_LC_COPY_NO  ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
-// AD_MY_{RANK,NEIGHBORHOOD}
+// AD_MY_{RANK,NBRHD}
 //
 // This mutually-exclusive pair of flags each assert a locality property of
 // the target of a remote atomic operation, and are described in detail in
 // the "Remote Atomic Operations" section.
 //
 #define GEX_FLAG_AD_MY_RANK          ((gex_Flags_t)???)
-#define GEX_FLAG_AD_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
+#define GEX_FLAG_AD_MY_NBRHD         ((gex_Flags_t)???)
 //
-// AD_FAVOR_{MY_RANK,MY_NEIGHBORHOOD,REMOTE}
+// AD_FAVOR_{MY_RANK,MY_NBRHD,REMOTE}
 //
 // This mutually-exclusive group of flags each request that gex_AD_Create()
 // bias its algorithm selection to favor calls with a given locality property
@@ -238,7 +238,7 @@ typedef [some integer type] gex_Flags_t;
 // Operations" section.
 //
 #define GEX_FLAG_AD_FAVOR_MY_RANK          ((gex_Flags_t)???)
-#define GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD  ((gex_Flags_t)???)
+#define GEX_FLAG_AD_FAVOR_MY_NBRHD         ((gex_Flags_t)???)
 #define GEX_FLAG_AD_FAVOR_REMOTE           ((gex_Flags_t)???)
 //
 // AD_{ACQ,REL}
@@ -1333,14 +1333,14 @@ gex_Event_t gex_Event_QueryLeaf(
 //
 // Neighborhood: [EXPERIMENTAL]
 // A "neighborhood" is defined as a set of GEX processes that can share
-// memory via the GASNet PSHM feature.
+// memory via the GASNet PSHM feature, and is abbreviated to Nbrhd.
 //
 
 // Const-qualified struct type for describing a member of a neighborhood
 typedef const struct {
     gex_Rank_t gex_jobrank; // the Job Rank (as defined above)
     // Reserved for future expansion and/or internal-use fields
-} gex_NeighborhoodInfo_t;
+} gex_NbrhdInfo_t;
 
 // Query information about the neighborhood of the calling process.
 //
@@ -1349,7 +1349,7 @@ typedef const struct {
 //
 // info_p:
 //        Receives the address of an array with elements of type
-//        gex_NeighborhoodInfo_t (defined above), which includes one entry
+//        gex_NbrhdInfo_t (defined above), which includes one entry
 //        for each process in the neighborhood of the calling process.
 //        Entries are sorted by increasing gex_jobrank.
 //        The storage of this array is owned by GASNet and must not be
@@ -1366,8 +1366,8 @@ typedef const struct {
 //        (*info_p)[*my_info_index_p].gex_jobrank == gex_System_QueryJobRank()
 //
 // Semantics in a resilient build will be defined in a later release.
-extern void gex_System_QueryNeighborhoodInfo(
-            gex_NeighborhoodInfo_t **info_p,
+extern void gex_System_QueryNbrhdInfo(
+            gex_NbrhdInfo_t        **info_p,
             gex_Rank_t             *info_count_p,
             gex_Rank_t             *my_info_index_p);
 
@@ -1622,7 +1622,7 @@ typedef ... gex_AD_t;
 // definitions of gex_OP_t), then the behavior is undefined.
 //
 // The 'flags' argument provides additional control over the created domain.
-//  + GEX_FLAG_AD_FAVOR_{MY_RANK,MY_NEIGHBORHOOD,REMOTE}
+//  + GEX_FLAG_AD_FAVOR_{MY_RANK,MY_NBRHD,REMOTE}
 //    This family of mutually-exclusive flags are hints to influence the
 //    selection of implementation to favor PERFORMANCE of accesses initiated
 //    for target locations having certain locality properties.  Presence or
@@ -1630,10 +1630,10 @@ typedef ... gex_AD_t;
 //    - GEX_FLAG_AD_FAVOR_MY_RANK:
 //      Favor calls with the initiating and target endpoint being the same.
 //      (e.g use of GEX_FLAG_AD_MY_RANK would be legal at initiation).
-//    - GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD:
+//    - GEX_FLAG_AD_FAVOR_MY_NBRHD:
 //      Favor calls with the initiating and target endpoints belonging to
 //      processes in the same "Neighborhood", as defined previously.  (e.g.
-//      use of GEX_FLAG_AD_MY_NEIGHBORHOOD would be legal at initiation).
+//      use of GEX_FLAG_AD_MY_NBRHD would be legal at initiation).
 //    - GEX_FLAG_AD_FAVOR_REMOTE:
 //      Favor calls with the initiating and target endpoints belonging to
 //      distinct Neighborhoods.
@@ -1641,7 +1641,7 @@ typedef ... gex_AD_t;
 //   behavior is not required to correspond to any of the behaviors described
 //   above.  A high-quality implementation should examine the composition of
 //   'tm' and when possible favor either RANK (TM with a single member) or
-//   NEIGHBORHOOD (TM with all members in the same Neighborhood).
+//   NBRHD (TM with all members in the same Neighborhood).
 //
 // The 'dt', 'ops' and 'flags' arguments must each be equal across all callers
 // (single-valued) or the behavior is undefined.
@@ -1888,7 +1888,7 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //         perform the operation more efficiently.
 //         The precise definition of the assertion is:
 //           (tgt_rank == gex_TM_QueryRank(gex_AD_QueryTM(ad))).
-//       - GEX_FLAG_AD_MY_NEIGHBORHOOD: asserts that the target EP belongs to
+//       - GEX_FLAG_AD_MY_NBRHD: asserts that the target EP belongs to
 //         a process within the "Neighborhood" (defined earlier in this
 //         document) of the calling process.  This may allow the
 //         implementation to perform the operation more efficiently.

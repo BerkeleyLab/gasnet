@@ -510,7 +510,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         gasneti_assert(_tgt_rank == _real_ad->_rank);                    \
         /* Will use tools */                                             \
     } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode) {                       \
-        if (_flags & GEX_FLAG_AD_MY_NEIGHBORHOOD) {                      \
+        if (_flags & GEX_FLAG_AD_MY_NBRHD) {                             \
             gasneti_assert(GASNETI_SUPERNODE_LOCAL(_tgt_rank));          \
             _tgt_addr = GASNETI_SUPERNODE_LOCAL_ADDR(_tgt_rank,_tgt_addr);\
             /* Will use tools */                                         \
@@ -525,7 +525,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
     }
 #else
   #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
-    if ((_flags & (GEX_FLAG_AD_MY_RANK|GEX_FLAG_AD_MY_NEIGHBORHOOD)) ||  \
+    if ((_flags & (GEX_FLAG_AD_MY_RANK|GEX_FLAG_AD_MY_NBRHD)) ||         \
         (_tgt_rank == _real_ad->_rank)) {                                \
         gasneti_assert(_tgt_rank == _real_ad->_rank);                    \
         /* Will use tools */                                             \
