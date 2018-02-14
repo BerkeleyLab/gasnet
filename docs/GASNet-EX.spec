@@ -1936,7 +1936,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // End of section describing APIs provided by gasnet_ratomic.h
 //----------------------------------------------------------------------
 //
-// Vector/Indexed/Strided (VIS) [EXPERIMENTAL]
+// Vector/Indexed/Strided (VIS)
 //
 // APIs in this section are provided by gasnet_vis.h
 
