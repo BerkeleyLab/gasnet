@@ -1504,7 +1504,7 @@ typedef [some integer type] gex_OP_t;
 
 //----------------------------------------------------------------------
 //
-// Remote Atomic Operations [EXPERIMENTAL]
+// Remote Atomic Operations
 // APIs in this section are provided by gasnet_ratomic.h
 //
 
