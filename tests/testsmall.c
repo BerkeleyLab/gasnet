@@ -123,7 +123,7 @@ void roundtrip_test(int iters, int nbytes)
 		/* measure the round-trip time of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get(tgtmem, peerproc, tgtmem, nbytes);
+	 		gasnet_get(msgbuf, peerproc, tgtmem, nbytes);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -172,7 +172,7 @@ void oneway_test(int iters, int nbytes)
 		/* measure the throughput of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get(tgtmem, peerproc, tgtmem, nbytes);
+	 		gasnet_get(msgbuf, peerproc, tgtmem, nbytes);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -224,7 +224,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_nbi(tgtmem, peerproc, tgtmem, nbytes);
+	 		gasnet_get_nbi(msgbuf, peerproc, tgtmem, nbytes);
 			gasnet_wait_syncnbi_gets();
 		}
 		end = TIME();
@@ -276,7 +276,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_nbi(tgtmem, peerproc, tgtmem, nbytes);
+	 		gasnet_get_nbi(msgbuf, peerproc, tgtmem, nbytes);
 		}
 		gasnet_wait_syncnbi_gets();
 		end = TIME();
@@ -329,7 +329,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		hdlget = gasnet_get_nb(tgtmem, peerproc, tgtmem, nbytes);
+	 		hdlget = gasnet_get_nb(msgbuf, peerproc, tgtmem, nbytes);
 			gasnet_wait_syncnb(hdlget);
 		}
 		end = TIME();
