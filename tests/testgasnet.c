@@ -469,9 +469,9 @@ void doit(int partner, int *partnerseg) {
 #endif
 
   {
-    gex_NeighborhoodInfo_t *neighbor_array;
+    gex_NbrhdInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
-    gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
+    gex_System_QueryNbrhdInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
 
     assert_always(neighbor_array != NULL);
     assert_always((neighbor_size > 0) && (neighbor_size <= gex_System_QueryJobSize()));
@@ -735,13 +735,13 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_OFFSET,
 
     GEX_FLAG_AD_MY_RANK,
-    GEX_FLAG_AD_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_MY_NBRHD,
 
     GEX_FLAG_AD_ACQ,
     GEX_FLAG_AD_REL,
 
     GEX_FLAG_AD_FAVOR_MY_RANK,
-    GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_FAVOR_MY_NBRHD,
     GEX_FLAG_AD_FAVOR_REMOTE,
 
     GEX_FLAG_AM_SHORT,
@@ -773,7 +773,7 @@ void doit0(int partner, int *partnerseg) {
   assert_arr_unaliased(gex_Flags_t, flags_rma);
   static gex_Flags_t const flags_adc[] = { // gex_AD_Create
     GEX_FLAG_AD_FAVOR_MY_RANK,
-    GEX_FLAG_AD_FAVOR_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_FAVOR_MY_NBRHD,
     GEX_FLAG_AD_FAVOR_REMOTE,
   };
   assert_arr_unaliased(gex_Flags_t, flags_adc);
@@ -790,7 +790,7 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_OFFSET,
 
     GEX_FLAG_AD_MY_RANK,
-    GEX_FLAG_AD_MY_NEIGHBORHOOD,
+    GEX_FLAG_AD_MY_NBRHD,
 
     GEX_FLAG_AD_ACQ,
     GEX_FLAG_AD_REL,
@@ -929,7 +929,7 @@ void doit0(int partner, int *partnerseg) {
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
-  assert_field_constint(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
+  assert_field_constint(gex_NbrhdInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
   MSG("*** passed object test!!");
 
