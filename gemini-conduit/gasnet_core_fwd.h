@@ -80,8 +80,8 @@
      your conduit must provide the V-suffixed functions for any of these that
      are not defined.
    */
-/* #define GASNETC_HAVE_NP_REQ_MEDIUM 1 */
-/* #define GASNETC_HAVE_NP_REP_MEDIUM 1 */
+#define GASNETC_HAVE_NP_REQ_MEDIUM 1
+#define GASNETC_HAVE_NP_REP_MEDIUM 1
 /* #define GASNETC_HAVE_NP_REQ_LONG 1 */
 /* #define GASNETC_HAVE_NP_REP_LONG 1 */
 

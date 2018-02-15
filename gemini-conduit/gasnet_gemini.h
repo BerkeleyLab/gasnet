@@ -318,6 +318,7 @@ struct gasnetc_post_descriptor {
   #define gpd_amo_result pd.sync_flag_value
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
+  #define gpd_am_length  pd.length
   #define gpd_am_peer    pd.first_operand
   #define gpd_put_lc     pd.second_operand
   #define gpd_amo_len    pd.length
@@ -439,6 +440,11 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest
                                                                  size_t length,
                                                                  gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG);
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor_np(gex_Rank_t dest,
+                                                                    size_t min_length,
+                                                                    size_t max_length,
+                                                                    gex_Flags_t flags
+                                                                    GASNETI_THREAD_FARG);
 
 /* Some common GPD idioms */
 
