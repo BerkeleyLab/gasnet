@@ -675,6 +675,7 @@ typedef struct {
   size_t dstvolume; /* in bytes */
   void *srcaddr;
   void *dstaddr;
+  void *contigaddr;
   size_t *srcextents; /* in elems */
   size_t *dstextents; /* in elems */
   size_t *dim_map; /* dim_map[dst_dim] == src_dim */
@@ -685,6 +686,8 @@ typedef struct {
   size_t *count; 
   size_t    *verify_count;
   ptrdiff_t *verify_srcstrides;
+  void  *verify_srcaddr;
+  void  *verify_contigaddr;
   size_t stridelevels;
   size_t elemsz;
 } test_xpose_desc;
@@ -700,7 +703,7 @@ void _verify_xpose_desc(test_xpose_desc const *xd, const char *file, int line) {
   uint8_t *srchi = srclo; 
   uint8_t *dstlo = xd->dstaddr;
   uint8_t *dsthi = dstlo; 
-  uint8_t *clo = xd->srcaddr; // could use real pointer here, doesn't really matter
+  uint8_t *clo = xd->contigaddr;
   uint8_t *chi = clo; 
   int shuffled = (xd->dim_map == NULL);
   if (shuffled) {
@@ -711,7 +714,7 @@ void _verify_xpose_desc(test_xpose_desc const *xd, const char *file, int line) {
     assert(!xd->verify_count && !xd->verify_srcstrides);
   }
   for (size_t i = 0; i < xd->stridelevels; i++) {
-    if (!shuffled) {
+    if (!shuffled){
       assert_always(xd->rev_map[xd->dim_map[i]] == i);
       assert_always(xd->dim_map[xd->rev_map[i]] == i);
       assert_always(xd->contigstrides[i] == sz);
@@ -839,17 +842,23 @@ test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr,
     xd->contigstrides[i] = (ptrdiff_t)xd->totalsz;
     xd->totalsz *= xd->count[i];
   }
+  xd->contigaddr = ((VEC_T*)contigaddr) + TEST_RAND(0, (elemlen*vecs_per_elem)-(xd->totalsz/VEC_SZ));
+  xd->verify_contigaddr = xd->contigaddr;
 
   #if !DISABLE_INVERSION
-  if (TEST_RAND_ONEIN(2)) { // invert some src dimensions
-    for (size_t i = 0; i < dim; i++) {
-      if (TEST_RAND_ONEIN(2)) { // flip!
-        xd->srcaddr = (uint8_t*)xd->srcaddr + xd->srcstrides[i]*(ptrdiff_t)(xd->count[i]-1);
-        xd->srcstrides[i] = -xd->srcstrides[i];
+    #define INVERT_STRIDE(d, addr, strides, count) do {              \
+        addr = (uint8_t*)addr + strides[d]*(ptrdiff_t)(count[d]-1);  \
+        strides[d] = -strides[d];                                    \
+    } while (0)
+    if (TEST_RAND_ONEIN(2)) { // invert some src dimensions
+      for (size_t i = 0; i < dim; i++) {
+        if (TEST_RAND_ONEIN(2)) { // flip!
+          INVERT_STRIDE(i, xd->srcaddr, xd->srcstrides, xd->count);
+        }
       }
     }
-  }
   #endif
+  xd->verify_srcaddr = xd->srcaddr;
 
   #if !DISABLE_SHUFFLE
   if (TEST_RAND_ONEIN(8)) { /* shuffle dimensions on all sides */
@@ -880,6 +889,17 @@ test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr,
       xd->rev_map = NULL;
       #undef SWAP_ENTRY
      }
+     #if !DISABLE_INVERSION
+       if (TEST_RAND_ONEIN(2)) { // invert some dimensions all around
+         for (size_t i = 0; i < dim; i++) {
+           if (TEST_RAND_ONEIN(2)) { // flip!
+             INVERT_STRIDE(i, xd->srcaddr, xd->srcstrides, xd->count);
+             INVERT_STRIDE(i, xd->dstaddr, xd->dststrides, xd->count);
+             INVERT_STRIDE(i, xd->contigaddr, xd->contigstrides, xd->count);
+           }
+         }
+       }
+     #endif
   } else {
     xd->verify_count = NULL;
     xd->verify_srcstrides = NULL;
@@ -891,13 +911,13 @@ test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr,
   return xd;
 }
 
-void _verify_xpose_desc_data_both(test_xpose_desc *desc, void *result, 
+void _verify_xpose_desc_data_both(test_xpose_desc *desc,
                             gex_Rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   size_t const dim = desc->stridelevels;
   size_t * const count = (desc->verify_count ? desc->verify_count : desc->count);
   ptrdiff_t * const srcstrides = (desc->verify_srcstrides ? desc->verify_srcstrides : desc->srcstrides);
-  VEC_T const *resultp = result;
+  VEC_T const *resultp = desc->verify_contigaddr;
   ptrdiff_t srcoffset = 0; /* in bytes */
   size_t curdim = 0;
   size_t const vecs_per_elem = desc->elemsz / VEC_SZ;
@@ -916,7 +936,7 @@ void _verify_xpose_desc_data_both(test_xpose_desc *desc, void *result,
     ptrdiff_t srcboffset = srcoffset + v*VEC_SZ;
     ptrdiff_t srcvoffset = srcboffset/VEC_SZ;
     assert(srcvoffset * VEC_SZ == srcboffset);
-    VEC_T *srcptr = ((VEC_T*)desc->srcaddr) + srcvoffset;
+    VEC_T *srcptr = ((VEC_T*)desc->verify_srcaddr) + srcvoffset;
     ptrdiff_t areavoffset = srcptr - areaptr;
     if (areaptr == NULL) /* local src */
       srcval = *srcptr;
@@ -976,12 +996,12 @@ void _verify_xpose_desc_data_both(test_xpose_desc *desc, void *result,
   test_free(idx);
 }
 
-#define verify_xpose_desc_data(desc,result,context) do {                                             \
-  if (verify) _verify_xpose_desc_data_both((desc),(result),mynode,NULL,(context),__FILE__,__LINE__); \
+#define verify_xpose_desc_data(desc,context) do {                                             \
+  if (verify) _verify_xpose_desc_data_both((desc),mynode,NULL,(context),__FILE__,__LINE__); \
 } while (0)
 
-#define verify_xpose_desc_data_remote(desc,result,node,areaptr,context) do {                              \
-  if (verify) _verify_xpose_desc_data_both((desc),(result),(node),(areaptr),(context),__FILE__,__LINE__); \
+#define verify_xpose_desc_data_remote(desc,node,areaptr,context) do {                              \
+  if (verify) _verify_xpose_desc_data_both((desc),(node),(areaptr),(context),__FILE__,__LINE__); \
 } while (0)
 
 /* ------------------------------------------------------------------------------------ */
@@ -1289,12 +1309,11 @@ void doit(int iters, int runtests) {
         void *tmparea = TEST_RAND_PICK(my_heap_write1_area, my_seg_write1_area);
 
         test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
-        VEC_T *tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ); // randomized tmpbuf position
 
         // pull strided peer data to contig local area
-        gex_VIS_StridedGetBlocking(myteam, tmpbuf, desc->contigstrides, partner, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+        gex_VIS_StridedGetBlocking(myteam, desc->contigaddr, desc->contigstrides, partner, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0);
         verify_xpose_desc(desc);
-        verify_xpose_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking transpose test");
+        verify_xpose_desc_data_remote(desc, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking transpose test");
         test_free(desc);
       }
 
@@ -1304,15 +1323,14 @@ void doit(int iters, int runtests) {
         void *tmparea = TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area);
 
         test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
-        VEC_T *tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ); // randomized tmpbuf position
 
         // push strided local data to strided peer segment
         TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, desc->dststrides, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0),desc->totalsz);
         verify_xpose_desc(desc);
         // pull it back to contiguous local tmp
-        TIMED_GET(gex_VIS_StridedGetBlocking(myteam, tmpbuf, desc->contigstrides, partner, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0),desc->totalsz);
+        TIMED_GET(gex_VIS_StridedGetBlocking(myteam, desc->contigaddr, desc->contigstrides, partner, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0),desc->totalsz);
         verify_xpose_desc(desc);
-        verify_xpose_desc_data(desc, tmpbuf, "gex_VIS_Strided{Put,Get}Blocking transpose test");
+        verify_xpose_desc_data(desc, "gex_VIS_Strided{Put,Get}Blocking transpose test");
         test_free(desc);
       }
 
@@ -1322,19 +1340,18 @@ void doit(int iters, int runtests) {
         void *tmparea = my_seg_write2_area;
 
         test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
-        VEC_T *tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ); // randomized tmpbuf position
 
         // pull strided peer data to strided local area
         gex_VIS_StridedGetBlocking(myteam, desc->dstaddr, desc->dststrides, partner, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0);
         verify_xpose_desc(desc);
         if ((segeverything || dstarea == my_seg_write1_area) && 
             TEST_RAND_PICK(0,1)) { // loopback get: strided local data to contiguous local tmp
-          gex_VIS_StridedGetBlocking(myteam, tmpbuf, desc->contigstrides, mynode, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+          gex_VIS_StridedGetBlocking(myteam, desc->contigaddr, desc->contigstrides, mynode, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0);
         } else { // loopback put: strided local data to contiguous local tmp
-          gex_VIS_StridedPutBlocking(myteam, mynode, tmpbuf, desc->contigstrides, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+          gex_VIS_StridedPutBlocking(myteam, mynode, desc->contigaddr, desc->contigstrides, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0);
         }
         verify_xpose_desc(desc);
-        verify_xpose_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking/pack transpose test");
+        verify_xpose_desc_data_remote(desc, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking/pack transpose test");
         test_free(desc);
       }
       TEST_PROGRESS_BAR(iter, iters);
