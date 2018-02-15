@@ -683,6 +683,8 @@ typedef struct {
   ptrdiff_t *dststrides; /* in bytes */
   ptrdiff_t *contigstrides; /* in bytes */
   size_t *count; 
+  size_t    *verify_count;
+  ptrdiff_t *verify_srcstrides;
   size_t stridelevels;
   size_t elemsz;
 } test_xpose_desc;
@@ -700,15 +702,27 @@ void _verify_xpose_desc(test_xpose_desc const *xd, const char *file, int line) {
   uint8_t *dsthi = dstlo; 
   uint8_t *clo = xd->srcaddr; // could use real pointer here, doesn't really matter
   uint8_t *chi = clo; 
+  int shuffled = (xd->dim_map == NULL);
+  if (shuffled) {
+    assert(!xd->dim_map && !xd->rev_map);
+    assert(xd->verify_count && xd->verify_srcstrides);
+  } else {
+    assert(xd->dim_map && xd->rev_map);
+    assert(!xd->verify_count && !xd->verify_srcstrides);
+  }
   for (size_t i = 0; i < xd->stridelevels; i++) {
-    assert_always(xd->rev_map[xd->dim_map[i]] == i);
-    assert_always(xd->dim_map[xd->rev_map[i]] == i);
-    assert_always(xd->contigstrides[i] == sz);
+    if (!shuffled) {
+      assert_always(xd->rev_map[xd->dim_map[i]] == i);
+      assert_always(xd->dim_map[xd->rev_map[i]] == i);
+      assert_always(xd->contigstrides[i] == sz);
+    }
     sz *= xd->count[i];
     assert_always(xd->count[i] <= xd->dstextents[i]);
-    assert_always(xd->count[i] <= xd->srcextents[xd->dim_map[i]]);
-    assert_always(labs(xd->srcstrides[xd->rev_map[i]]) == srcvol);
-    assert_always(labs(xd->dststrides[i]) == dstvol);
+    if (!shuffled) {
+      assert_always(xd->count[i] <= xd->srcextents[xd->dim_map[i]]);
+      assert_always(labs(xd->srcstrides[xd->rev_map[i]]) == srcvol);
+      assert_always(labs(xd->dststrides[i]) == dstvol);
+    }
     srcvol *= xd->srcextents[i];
     dstvol *= xd->dstextents[i];
     if (xd->srcstrides[i] >= 0) srchi += xd->srcstrides[i] * ((ptrdiff_t)xd->count[i] - 1);
@@ -741,7 +755,7 @@ void _verify_xpose_desc(test_xpose_desc const *xd, const char *file, int line) {
  */
 test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr, size_t elemlen) {
   size_t dim = TEST_RAND(2, TEST_RAND(2, max_stridedim));
-  size_t sz = sizeof(test_xpose_desc)+8*dim*MAX(sizeof(ptrdiff_t),sizeof(size_t));
+  size_t sz = sizeof(test_xpose_desc)+10*dim*MAX(sizeof(ptrdiff_t),sizeof(size_t));
   test_xpose_desc *xd = test_malloc(sz);
   xd->_descsz = sz;
   xd->stridelevels = dim;
@@ -756,6 +770,8 @@ test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr,
   xd->dstextents =    xd->srcextents+dim;
   xd->dim_map =       xd->dstextents+dim;
   xd->rev_map =       xd->dim_map+dim;
+  xd->verify_count =  xd->rev_map+dim;
+  xd->verify_srcstrides = (ptrdiff_t*)xd->verify_count+dim;
 
   size_t volume = TEST_RAND(elemlen*7/8, elemlen); /* in elem */
   size_t srcmax = 0;
@@ -835,12 +851,17 @@ test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr,
   }
   #endif
 
-  #if 0 && !DISABLE_SHUFFLE
+  #if !DISABLE_SHUFFLE
   if (TEST_RAND_ONEIN(8)) { /* shuffle dimensions on all sides */
-    // this unfortunately does not work with current verification method
-    // The problem is verification traverses the source values element-wise 
-    // according to the transformed srcstrides, but still uses a linear 
-    // traversal for the contig side.
+    // Swapping dimensions on both sides does not affect the semantics of a transfer,
+    // it just permutes the canonical order in which elements are visited.
+    // Verification uses a fixed linear element-wise traversal for the contig side, 
+    // (ie we don't permute the order of the linear verification traversal)
+    // so it needs to also traverse the source values element-wise in their original
+    // un-permuted order, hence we preserve the unpermuted srcstrides/count for verification.
+    memcpy(xd->verify_count,xd->count,sizeof(size_t)*dim);
+    memcpy(xd->verify_srcstrides,xd->srcstrides,sizeof(ptrdiff_t)*dim);
+
     for (size_t a = 0; a < dim-1; a++) {
       size_t const b = TEST_RAND(a+1,dim-1);
       assert(a != b); assert(a < dim-1); assert(b <= dim-1);
@@ -853,10 +874,15 @@ test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr,
       SWAP_ENTRY(xd->count, size_t);
       SWAP_ENTRY(xd->srcextents, size_t);
       SWAP_ENTRY(xd->dstextents, size_t);
+      // dim_map would need more significant fixup to remain correct post-shuffle, 
+      // and we no longer really need it at this point
       xd->dim_map = NULL;
       xd->rev_map = NULL;
       #undef SWAP_ENTRY
      }
+  } else {
+    xd->verify_count = NULL;
+    xd->verify_srcstrides = NULL;
   }
   #endif
 
@@ -869,9 +895,8 @@ void _verify_xpose_desc_data_both(test_xpose_desc *desc, void *result,
                             gex_Rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   size_t const dim = desc->stridelevels;
-  size_t * const count = desc->count;
-  ptrdiff_t * const srcstrides = desc->srcstrides;
-  /* ptrdiff_t * const dststrides = desc->dststrides; */
+  size_t * const count = (desc->verify_count ? desc->verify_count : desc->count);
+  ptrdiff_t * const srcstrides = (desc->verify_srcstrides ? desc->verify_srcstrides : desc->srcstrides);
   VEC_T const *resultp = result;
   ptrdiff_t srcoffset = 0; /* in bytes */
   size_t curdim = 0;
@@ -902,7 +927,8 @@ void _verify_xpose_desc_data_both(test_xpose_desc *desc, void *result,
       char idxstr[255];
       PRINT_VECTOR(idxstr, idx, dim);
       char dimstr[255];
-      PRINT_VECTOR(dimstr, desc->dim_map, dim);
+      if (desc->dim_map) PRINT_VECTOR(dimstr, desc->dim_map, dim);
+      else strcpy(dimstr,"(shuffled)");
       ERR("mismatch at element %s.%i\n"
           "  srcboffset= 0x%lx (%li)\n"
           "  srcvoffset= 0x%lx (%li)\n"
