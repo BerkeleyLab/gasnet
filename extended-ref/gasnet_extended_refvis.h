@@ -39,12 +39,6 @@
   #define GASNETE_LOOPING_DIMS 8
 #endif
 
-#if PLATFORM_COMPILER_CRAY && GASNETE_LOOPING_DIMS > 4
-  /* avoid bugs in Cray C compiler */
-  #undef GASNETE_LOOPING_DIMS
-  #define GASNETE_LOOPING_DIMS 4  
-#endif
-
 /* GASNETE_DIRECT_DIMS: second level of strided performance:
   number of non-trivial striding dimensions to support using statically allocated metadata 
   (only affects the operation of requests with non-trivial dimensions > GASNETE_LOOPING_DIMS)
