@@ -552,6 +552,20 @@ extern int gasnetc_AMRequestShortM(
   return retval;
 }
 
+#if !GASNETC_HAVE_NP_REQ_MEDIUM // (###)
+
+// This provides a template implementing the following two external functions:
+//     int gasnetc_AMRequestMediumV()
+//     int gasnetc_AMRequestMediumM()
+//
+// In this example both are in terms of a common inline function:
+//     int gasnetc_AMRequestMedium()
+// but that is not a requirement.
+//
+// This approach is suitable if your client does not wish to implement the
+// Prepare and Commit required to provide a conduit-specialized implementation
+// of Negotiated-Payload AMs.
+
 GASNETI_INLINE(gasnetc_AMRequestMedium)
 int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
@@ -603,6 +617,168 @@ extern int gasnetc_AMRequestMediumM(
   va_end(argptr);
   return retval;
 }
+
+#else // GASNETC_HAVE_NP_REQ_MEDIUM
+
+// This provides a template implementing the following three external functions:
+//     int gasnetc_AMRequestMediumM()
+//     int gasnetc_AM_PrepareRequestMedium()
+//     void gasnetc_AM_CommitRequestMediumM()
+//
+// In this example all three are in terms of two inline functions:
+//     int gasnetc_prepare_req_medium()
+//     void gasnetc_commit_req_medium()
+// but that is not a requirement.
+//
+// This example provides a specialized implementation of Negotiated-Payload
+// RequestMedium (by providing gasnetc_AM_PrepareRequestMedium() and
+// gasnetc_AM_CommitRequestMediumM()) and one must
+//    #define GASNETC_HAVE_NP_REQ_MEDIUM 1
+// in the conduit's gasnet_core_fwd.h to disable (conflicting) definitions in
+// the reference implementation.
+
+GASNETI_INLINE(gasnetc_prepare_req_medium)
+int gasnetc_prepare_req_medium(
+                       gasneti_AM_SrcDesc_t    sd,
+                       const int               isFixed,
+                       gex_TM_t                tm,
+                       gex_Rank_t              dest,
+                       const void             *client_buf,
+                       size_t                  min_length,
+                       size_t                  max_length,
+                       gex_Event_t            *lc_opt,
+                       gex_Flags_t             flags,
+                       unsigned int            nargs
+                       GASNETI_THREAD_FARG)
+{
+  // (###) Add code here to allocate resources (possibly unsuccessfully, if
+  // flags includes GEX_FLAG_IMMEDIATE) for a Medium Request, storing arguments
+  // in either the conduit-specific header or in the 'sd'.
+
+  // No provisions are needed for communication within the neighborhood,
+  // since this function is only called in the non-nbrhd case.
+
+  // In this example:
+  // + isFixed is 0 when called from gasnetc_AM_PrepareRequestMedium, and
+  //   all other arguments are passed unchanged
+  // + isFixed is 1 when called from gasnetc_AMRequestMediumM, and
+  //   - client_buf is the source_buf argument to gasnetc_AMRequestMediumM
+  //   - min_length is unused
+  //   - max_length is the nbytes argument to gasnetc_AMRequestMediumM
+
+  return 0; // or 1 if GEX_FLAG_IMMEDIATE passed and resource(s) unavailable
+}
+
+GASNETI_INLINE(gasnetc_commit_req_medium)
+void gasnetc_commit_req_medium(
+                       gasneti_AM_SrcDesc_t    sd,
+                       const int               isFixed,
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       va_list                 argptr)
+{
+  // (###) Add code here to initiate a Medium Request using the union of the
+  // arguments, and the values stored in 'sd' by the preceding call to
+  // gasnetc_prepare_req_medium() or in locations referenced by 'sd'.
+
+  // No provisions are needed for communication within the neighborhood,
+  // since this function is only called in the non-nbrhd case.
+}
+
+extern int gasnetc_AMRequestMediumM(
+                    gex_TM_t tm,                      /* local context */
+                    gex_Rank_t dest,                  /* with tm, defines remote context */
+                    gex_AM_Index_t handler,           /* index into destination ep's handler table */
+                    void *source_addr, size_t nbytes, /* data payload */
+                    gex_Event_t *lc_opt,              /* local completion of payload */
+                    gex_Flags_t flags
+                    GASNETI_THREAD_FARG,
+                    int numargs, ...) {
+  GASNETI_COMMON_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  gasneti_AMPoll(); /* poll at least once, to assure forward progress */
+
+  va_list argptr;
+  va_start(argptr, numargs);
+
+  int retval;
+  if_pt (gasnetc_dest_in_nbrhd(tm, dest)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, dest, handler,
+                                          source_addr, nbytes, NULL,
+                                          flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
+    struct gasneti_AM_SrcDesc the_sd;
+    retval = gasnetc_prepare_req_medium(&the_sd,1,tm,dest,source_addr,0,nbytes,
+                                        lc_opt,flags,numargs GASNETI_THREAD_PASS);
+    if (!retval) {
+      gasnetc_commit_req_medium(&the_sd,1,handler,nbytes,argptr);
+    }
+  }
+
+  va_end(argptr);
+  return retval;
+}
+
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
+                       gex_TM_t           tm,
+                       gex_Rank_t         dest,
+                       const void        *client_buf,
+                       size_t             min_length,
+                       size_t             max_length,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+
+    gasneti_AMPoll(); // Ensure at least one poll upon Request injection
+
+    int imm;
+    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
+        imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
+                                           client_buf, min_length, max_length,
+                                           NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    } else {
+        imm = gasnetc_prepare_req_medium(sd,0,tm,dest,client_buf,min_length,max_length,
+                                         lc_opt,flags,nargs GASNETI_THREAD_PASS);
+    }
+
+    if (imm) {
+        gasneti_reset_srcdesc(sd);
+        return GEX_AM_SRCDESC_NO_OP;
+    }
+
+    gasneti_init_sd_poison(sd);
+    return gasneti_export_srcdesc(sd);
+}
+
+extern void gasnetc_AM_CommitRequestMediumM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes
+                       GASNETI_THREAD_FARG,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
+
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    if (GASNETC_IS_NBRHD_COMMIT(sd)) {
+        gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
+    } else {
+        gasnetc_commit_req_medium(sd,handler,nbytes,argptr);
+    }
+    va_end(argptr);
+
+    gasneti_reset_srcdesc(sd);
+}
+#endif // GASNETC_HAVE_NP_REQ_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMRequestLong)
 int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
@@ -693,6 +869,13 @@ extern int gasnetc_AMReplyShortM(
   return retval;
 }
 
+#if !GASNETC_HAVE_NP_REP_MEDIUM // (###)
+
+// This provides a template implementing the following two external functions:
+//     int gasnetc_AMReplyMediumV()
+//     int gasnetc_AMReplyMediumM()
+// See comments preceding gasnetc_AMRequestMedium() for more information.
+
 GASNETI_INLINE(gasnetc_AMReplyMedium)
 int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
@@ -741,6 +924,150 @@ extern int gasnetc_AMReplyMediumM(
   va_end(argptr);
   return retval;
 }
+
+#else // GASNETC_HAVE_NP_REP_MEDIUM
+
+// This provides a template implementing the following three external functions:
+//     int gasnetc_AMReplyMediumM()
+//     int gasnetc_AM_PrepareReplyMedium()
+//     void gasnetc_AM_CommitReplyMediumM()
+// See comments with GASNETC_HAVE_NP_REQ_MEDIUM for more information.
+
+GASNETI_INLINE(gasnetc_prepare_rep_medium)
+int gasnetc_prepare_rep_medium(
+                       gasneti_AM_SrcDesc_t    sd,
+                       const int               isFixed,
+                       gex_Token_t             token,
+                       const void             *client_buf,
+                       size_t                  min_length,
+                       size_t                  max_length,
+                       gex_Event_t            *lc_opt,
+                       gex_Flags_t             flags,
+                       unsigned int            nargs
+                       GASNETI_THREAD_FARG)
+{
+  // (###) Add code here to allocate resources (possibly unsuccessfully, if
+  // flags includes GEX_FLAG_IMMEDIATE) for a Medium Reply, storing arguments
+  // in either the conduit-specific header or in the 'sd'.
+
+  // No provisions are needed for communication within the neighborhood,
+  // since this function is only called in the non-nbrhd case.
+
+  // In this example:
+  // + isFixed is 0 when called from gasnetc_AM_PrepareReplyMedium, and
+  //   all other arguments are passed unchanged
+  // + isFixed is 1 when called from gasnetc_AMReplyMediumM, and
+  //   - client_buf is the source_buf argument to gasnetc_AMReplyMediumM
+  //   - min_length is unused
+  //   - max_length is the nbytes argument to gasnetc_AMReplyMediumM
+
+  return 0; // or 1 if GEX_FLAG_IMMEDIATE passed and resource(s) unavailable
+}
+
+GASNETI_INLINE(gasnetc_commit_rep_medium)
+void gasnetc_commit_rep_medium(
+                       gasneti_AM_SrcDesc_t    sd,
+                       const int               isFixed,
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       va_list                 argptr)
+{
+  // (###) Add code here to initiate a Medium Reply using the union of the
+  // arguments, and the values stored in 'sd' by the preceding call to
+  // gasnetc_prepare_req_medium() or in locations referenced by 'sd'.
+
+  // No provisions are needed for communication within the neighborhood,
+  // since this function is only called in the non-nbrhd case.
+}
+
+extern int gasnetc_AMReplyMediumM(
+                    gex_Token_t token,                /* token provided on handler entry */
+                    gex_AM_Index_t handler,           /* index into destination ep's handler table */
+                    void *source_addr, size_t nbytes, /* data payload */
+                    gex_Event_t *lc_opt,              /* local completion of payload */
+                    gex_Flags_t flags,
+                    int numargs, ...) {
+  GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
+
+  va_list argptr;
+  va_start(argptr, numargs);
+
+  int retval;
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasnetc_nbrhd_ReplyGeneric(gasneti_Medium, token, handler,
+                                        source_addr, nbytes, NULL,
+                                        flags, numargs, argptr);
+  } else {
+    struct gasneti_AM_SrcDesc the_sd;
+    retval = gasnetc_prepare_rep_medium(&the_sd,1,token,source_addr,0,nbytes,
+                                        lc_opt,flags,numargs GASNETI_THREAD_GET);
+    if (!retval) {
+      gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,argptr);
+    }
+  }
+
+  va_end(argptr);
+  return retval;
+}
+
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
+                       gex_Token_t        token,
+                       const void        *client_buf,
+                       size_t             min_length,
+                       size_t             max_length,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+
+    int imm;
+    if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
+        imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
+                                         client_buf, min_length, max_length,
+                                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    } else {
+        imm = gasnetc_prepare_rep_medium(sd,0,token,client_buf,min_length,max_length,
+                                        lc_opt,flags,nargs GASNETI_THREAD_PASS);
+    }
+
+    if (imm) {
+        gasneti_reset_srcdesc(sd);
+        return GEX_AM_SRCDESC_NO_OP;
+    }
+
+    gasneti_init_sd_poison(sd);
+    return gasneti_export_srcdesc(sd);
+}
+
+extern void gasnetc_AM_CommitReplyMediumM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
+
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    if (GASNETC_IS_NBRHD_COMMIT(sd)) {
+        gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
+    } else {
+        gasnetc_commit_rep_medium(sd,0,handler,nbytes,argptr);
+    }
+    va_end(argptr);
+
+    gasneti_reset_srcdesc(sd);
+}
+
+#endif // GASNETC_HAVE_NP_REP_MEDIUM
 
 GASNETI_INLINE(gasnetc_AMReplyLong)
 int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
