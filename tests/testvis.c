@@ -1043,6 +1043,7 @@ typedef struct {
   test_addr_list *itmp;
   test_strided_desc *sdesc;
   VEC_T *stmpbuf;
+  test_xpose_desc *xdesc;
 } test_op;
 
 #define TIME_DECL()                               \
@@ -1379,7 +1380,13 @@ void doit(int iters, int runtests) {
         VEC_T *op_my_heap_write2_area = my_heap_write2_area + opareasz*i;
         VEC_T *op_partner_seg_remotewrite_area = partner_seg_remotewrite_area + opareasz*i;
 
-        switch (TEST_RAND(1,3)) {
+        int last_case = 4;
+        if (max_stridedim < 2) last_case = 3;
+        #if GASNETE_OLD_STRIDED // TODO-EX : remove this
+          last_case = 3;
+        #endif
+        
+        switch (TEST_RAND(1,last_case)) {
           case 1: {
             ops[i].vsrc = rand_memvec_list(TEST_RAND_PICK(my_heap_read_area, my_seg_read_area), areasz, 1);
             ops[i].vdst = rand_memvec_list(op_partner_seg_remotewrite_area, opareasz, 0);
@@ -1426,6 +1433,20 @@ void doit(int iters, int runtests) {
             verify_strided_desc(ops[i].sdesc);
             break;
           }
+          case 4: {
+            void *srcarea = TEST_RAND_PICK(my_heap_read_area, my_seg_read_area);
+            void *dstarea = op_partner_seg_remotewrite_area;
+            void *tmparea = TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area);
+
+            ops[i].xdesc = rand_xpose_desc(srcarea, dstarea, tmparea, opareasz);
+
+            if (TEST_RAND_ONEIN(2)) 
+              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
+            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
+
+            verify_xpose_desc(ops[i].xdesc);
+            break;
+          }
         }
       }
 
@@ -1453,15 +1474,23 @@ void doit(int iters, int runtests) {
 
           verify_addr_list(ops[i].itmp);
           verify_addr_list(ops[i].idst);
-        } else {
-          assert(ops[i].sdesc != NULL);
+        } else if (ops[i].sdesc != NULL) {
 
           if (TEST_RAND_ONEIN(2)) 
             events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
           else gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
 
           verify_strided_desc(ops[i].sdesc);
+        } else {
+          assert(ops[i].xdesc != NULL);
+
+          if (TEST_RAND_ONEIN(2)) 
+            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
+          else gex_VIS_StridedGetNBI(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
+
+          verify_xpose_desc(ops[i].xdesc);
         }
+
       }
 
       /* sync */
@@ -1491,10 +1520,15 @@ void doit(int iters, int runtests) {
           test_free(ops[i].isrc);
           test_free(ops[i].idst);
           test_free(ops[i].itmp);
-        } else {
+        } else if (ops[i].sdesc) {
           assert(ops[i].sdesc != NULL && ops[i].stmpbuf != NULL);
 
           verify_strided_desc_data(ops[i].sdesc, ops[i].stmpbuf, "gasnet_puts_bulk/gasnet_gets_bulk test");
+
+          test_free(ops[i].sdesc);
+        } else {
+          assert(ops[i].xdesc);
+          verify_xpose_desc_data(ops[i].xdesc, "gasnet_puts_bulk/gasnet_gets_bulk test");
 
           test_free(ops[i].sdesc);
         }
