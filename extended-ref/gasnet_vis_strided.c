@@ -14,7 +14,40 @@
 
 /*---------------------------------------------------------------------------------*/
 /* *** GASNet-EX Strided Implementation *** */
-/*---------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------*
+
+  High-level Design of the GEX Strided Implementation, v2.0:
+  
+  0. Trace user inputs and assert argument validity (trace/debug only)
+  1. Handle trivial degeneracy in header
+     a. elemsz == 0 : empty
+     b. stridelevels == 0 : dual linear contiguity (gex_RMA_Put/Get)
+  -- Library boundary --
+  2. Perform stride optimization/normalization: 3/4-pass, sl starts at stridelevels and shrinks
+     PASS 1: Copy/convert user metadata to internal format, remove null dimensions, and
+             perform stride inversion to make peer strides non-negative: O(sl)
+     PASS 2(opt): Sort strides by peer stride: O(1) if already sorted, O(sl^2) otherwise
+     PASS 3: Fold trailing duallcontig dimensions into elemsz: O(sl)
+     PASS 4: Fold together trivial inner dimensions: O(sl)
+     Trace optimized metadata, if it changed (trace only)
+  3. Perform bounds check (debug only)
+  4. Handle emergent degeneracy
+     a. count[i] == 0 : empty
+     b. stridelevels == 0 : dual linear contiguity (gasnete_{put,get})
+  5. Handle NBRHD locality
+     a. hoisted address translation and memcpy loop
+  6. Perform stride analysis: 1-pass
+     a. Compute contiguity parameters for each side O(sl)
+  7. Select non-trivial algorithm (logic allows conduit override)
+     - dual linear contiguity > MAX_CHUNK => indiv put/get (gasnete_{put,get})
+     - peer linear contiguity > MAX_CHUNK => remote contig (gasnete_{put,get})
+     - (off by default) Ref Indexed // TODO-EX: Currently stop here
+     - (off by default) Ref Vector 
+     - if metadata + MIN_CHUNKS*elemsz fits in MaxMedium => AM Pipeline 
+     - otherwise, indiv put/get
+  8. Perform non-trivial algorithm
+
+ *---------------------------------------------------------------------------------*/
 
 /* Clang can be picky */
 #if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_GE(2,8,0)
