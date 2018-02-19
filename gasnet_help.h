@@ -1044,6 +1044,21 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 #define                gex_AM_ReplyLong(token,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
         GASNETI_AMVA(ReplyLong,__VA_ARGS__)(token,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
 
+/* Similarly provide argument-counting convenience wrappers for gex_AM_Commit{Request,Reply}{Medium,Long}, 
+ * with the same pre-requisites as above (compiler must support C99 __VA_ARGS__).
+ *
+ * Similarly to above, the implementation includes the last non-variadic argument (nbytes or dest_addr)
+ * within the __VA_ARGS__, for the same reasons.
+ */
+#define gex_AM_CommitRequestMedium(sd,hidx,...) \
+        GASNETI_AMVA(CommitRequestMedium,__VA_ARGS__)(sd,hidx,__VA_ARGS__)
+#define gex_AM_CommitReplyMedium(sd,hidx,...) \
+        GASNETI_AMVA(CommitReplyMedium,__VA_ARGS__)(sd,hidx,__VA_ARGS__)
+#define gex_AM_CommitRequestLong(sd,hidx,nbytes,...) \
+        GASNETI_AMVA(CommitRequestLong,__VA_ARGS__)(sd,hidx,nbytes,__VA_ARGS__)
+#define gex_AM_CommitReplyLong(sd,hidx,nbytes,...) \
+        GASNETI_AMVA(CommitReplyLong,__VA_ARGS__)(sd,hidx,nbytes,__VA_ARGS__)
+
 #endif
 /* ------------------------------------------------------------------------------------ */
 
