@@ -361,6 +361,9 @@ gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
 #if GASNET_DEBUG
   sd->_isreq  = isreq;
 #endif
+  // Code in gasnet_am.h finds the structs by pointers at known offsets:
+  gasneti_assert((void**)(&GASNETI_MYTHREAD->gasneti_req_sd) == ((void**)GASNETI_MYTHREAD)+4);
+  gasneti_assert((void**)(&GASNETI_MYTHREAD->gasneti_rep_sd) == ((void**)GASNETI_MYTHREAD)+3);
   if (isreq) {
      GASNETI_MYTHREAD->gasneti_req_sd = sd;
   } else {
