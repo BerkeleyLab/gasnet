@@ -250,7 +250,9 @@ GASNET_GNI_BTE_MULTI_CHANNEL
 
 GASNET_PHYSMEM_MAX
   If set, this parameter is used to determine the maximum amount of memory
-  the conduit may pin.  This limits how large the GASNet segment can be.
+  the conduit may pin per compute node (each process on a given compute node is
+  allocated an equal share of this limit, assuming PSHM is enabled as per
+  default).  This indirectly limits how large the GASNet segment can be.
   The value may specify either a relative or absolute size.  If the value
   parses as a floating-point value less than 1.0 (including fractions such
   as "5/8"), then this is taken as a fraction of the (estimated) physical
