@@ -604,7 +604,8 @@ extern void gasneti_amtbl_check(const gex_AM_Entry_t *entry, int nargs,
     char fnaddr[32];
     const char *fnname = entry->gex_name;
     if (!fnname) {
-      (void) snprintf(fnaddr, sizeof(fnaddr), "%p", (void*) entry->gex_fnptr);
+      (void) snprintf(fnaddr, sizeof(fnaddr), "%p", 
+                     *(void**)&entry->gex_fnptr); // level of indirection avoids -pedantic warning
       fnname = fnaddr;
     }
     gasneti_fatalerror("AM handler %d (%s) %s", entry->gex_index, fnname, msg);
