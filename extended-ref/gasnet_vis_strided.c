@@ -731,8 +731,8 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
 #endif // DISABLED
 /*---------------------------------------------------------------------------------*/
 /* Pipelined AM gather-scatter put */
-#ifndef GASNETE_PUTS_AMPIPELINE_SELECTOR
-#if GASNETE_USE_AMPIPELINE
+#if GASNETE_USE_AMPIPELINE && !defined(GASNETE_PUTS_AMPIPELINE)
+#define GASNETE_PUTS_AMPIPELINE 1
 #define GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) gex_AM_MaxRequestMedium((tm),(rank),GEX_EVENT_NOW,0,HARGS(5,7)) 
 #define GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels) ((stridelevels)*(2*sizeof(size_t)+sizeof(ptrdiff_t)))
 #define GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) \
@@ -891,17 +891,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
   #endif
   GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
 }
-  #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
-    if (gasnete_vis_use_ampipe &&                                                  \
-        smd->elemsz <= gasnete_vis_maxchunk &&                                     \
-        (ptrdiff_t)smd->elemsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
-      RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
-#else
-  #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
-#endif
-#endif
 /* ------------------------------------------------------------------------------------ */
-#if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
 void gasnete_puts_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
@@ -934,11 +924,22 @@ void gasnete_puts_AMPipeline_reqh_inner(gex_Token_t token,
 MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7, 
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1),      a2,a3,a4),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3), a4,a5,a6));
+#endif // GASNETE_PUTS_AMPIPELINE
+#ifndef GASNETE_PUTS_AMPIPELINE_SELECTOR
+  #if GASNETE_PUTS_AMPIPELINE
+    #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
+      if (gasnete_vis_use_ampipe &&                                                  \
+          smd->elemsz <= gasnete_vis_maxchunk &&                                     \
+        (ptrdiff_t)smd->elemsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
+      RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
+  #else
+    #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
+  #endif
 #endif
 /*---------------------------------------------------------------------------------*/
 /* Pipelined AM gather-scatter get */
-#ifndef GASNETE_GETS_AMPIPELINE_SELECTOR
-#if GASNETE_USE_AMPIPELINE
+#if GASNETE_USE_AMPIPELINE && !defined(GASNETE_GETS_AMPIPELINE)
+#define GASNETE_GETS_AMPIPELINE 1
 #define GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels)         ((stridelevels)*(sizeof(size_t)+sizeof(ptrdiff_t)))
 #define GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)             gex_AM_MaxRequestMedium((tm),(rank),GEX_EVENT_NOW,0,HARGS(6,9))
 
@@ -1057,18 +1058,7 @@ gex_Event_t gasnete_gets_AMPipeline(gasneti_vis_smd_t * const smd,
   gasnete_wait(am_aop GASNETE_THREAD_PASS); // TODO-EX: could delay this until a progress function
   GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
 }
-  #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
-    if (gasnete_vis_use_ampipe &&                                                  \
-        smd->elemsz <= gasnete_vis_maxchunk &&                                   \
-        (ptrdiff_t)smd->elemsz <= GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) && \
-        GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
-      RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
-#else
-  #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
-#endif
-#endif
 /* ------------------------------------------------------------------------------------ */
-#if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_gets_AMPipeline_reqh_inner)
 void gasnete_gets_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
@@ -1167,6 +1157,18 @@ void gasnete_gets_AMPipeline_reph_inner(gex_Token_t token,
 MEDIUM_HANDLER(gasnete_gets_AMPipeline_reph,2,3, 
               (token,addr,nbytes, UNPACK(a0),      a1),
               (token,addr,nbytes, UNPACK2(a0, a1), a2));
+#endif // GASNETE_GETS_AMPIPELINE
+#ifndef GASNETE_GETS_AMPIPELINE_SELECTOR
+  #if GASNETE_GETS_AMPIPELINE
+    #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
+      if (gasnete_vis_use_ampipe &&                                                  \
+          smd->elemsz <= gasnete_vis_maxchunk &&                                     \
+        (ptrdiff_t)smd->elemsz <= GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) && \
+        GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
+      RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
+  #else
+    #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
+  #endif
 #endif
 /*---------------------------------------------------------------------------------*/
 /* convert strided metadata to memvec metadata for the equivalent operation */
