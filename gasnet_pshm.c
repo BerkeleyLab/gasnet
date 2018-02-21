@@ -241,7 +241,7 @@ typedef struct {
   gex_AM_Index_t handler_id;
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
-  gex_AM_Arg_t args[GASNETC_MAX_ARGS_LOOP];
+  gex_AM_Arg_t args[GASNETC_MAX_ARGS_NBRHD];
 } gasneti_AMPSHM_msg_t;
 typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
@@ -252,7 +252,7 @@ typedef struct {
 #else
   uint32_t numbytes;
 #endif
-  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_LOOP]; /* Is 2, 4 or 8-byte aligned */
+  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_NBRHD]; /* Is 2, 4 or 8-byte aligned */
 } gasneti_AMPSHM_medmsg_t;
 
 typedef struct {
@@ -1194,7 +1194,7 @@ static void * ampshm_buf_alloc(
         msgsz = sizeof(gasneti_AMPSHM_shortmsg_t);
         break;
       case gasneti_Medium:
-        msgsz = sizeof(gasneti_AMPSHM_medmsg_t) - (GASNETC_MAX_MEDIUM_LOOP - nbytes);
+        msgsz = sizeof(gasneti_AMPSHM_medmsg_t) - (GASNETC_MAX_MEDIUM_NBRHD - nbytes);
         break;
       case gasneti_Long:
         msgsz = sizeof(gasneti_AMPSHM_longmsg_t);
@@ -1257,9 +1257,9 @@ int ampshm_prepare_inner(
   if (isFixed) {
     size = max_length;
   } else if (category == gasneti_Medium) {
-    size = MIN(max_length, GASNETC_MAX_MEDIUM_LOOP);
+    size = MIN(max_length, GASNETC_MAX_MEDIUM_NBRHD);
   } else {
-    size = MIN(max_length, GASNETC_MAX_LONG_LOOP);
+    size = MIN(max_length, GASNETC_MAX_LONG_NBRHD);
     // For small enough Long use the free space after the header to avoid malloc/free
     inline_long = (size <= GASNETI_AMPSHM_MSG_LONG_INLINE);
   }

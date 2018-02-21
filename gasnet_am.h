@@ -466,23 +466,35 @@ extern int gasnetc_AMReplyLongV(
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Defaults if gasnet_core_fwd.h doesn't #define these preprocessor tokens */
-#ifndef GASNETC_MAX_ARGS_LOOP
-  // Conduit must define GASNETC_MAX_ARGS_LOOP if gex_AM_MaxArgs() is not a compile time constant
-  #define GASNETC_MAX_ARGS_LOOP   (gex_AM_MaxArgs())
+// GASNETC_MAX_{ARGS,MEDIUM,LONG}_NBRHD
+// These are compile-time constants used by the "neighborhood" AM support,
+// which includes "loopback" (same-process) and "AMPSHM" (shared-memory).
+// As described below, these defaults are not suitable for all conduits.
+
+#ifndef GASNETC_MAX_ARGS_NBRHD
+  // Assumes gex_AM_MaxArgs() is a compile time constant.
+  // If not, the conduit must define GASNETC_MAX_ARGS_NBRHD to a compile-time
+  // constant in its gasnet_core_fwd.h.
+  // The value may be a conservative upper-bound if the real value cannot be
+  // known until run time (at the cost of wasted memory).
+  #define GASNETC_MAX_ARGS_NBRHD   (gex_AM_MaxArgs())
 #endif
-#ifndef GASNETC_MAX_MEDIUM_LOOP
-  /* Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants.
-   * If using this default, the conduit must ensure that _max_AM*Medium() for a PSHM
-   * peer do not exceed the larger of the two _lub_ values.  Alternatively, the
-   * conduit should define GASNETC_MAX_MEDIUM_LOOP to the appropriate bound instead.
-   */
-  #define GASNETC_MAX_MEDIUM_LOOP MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
+#ifndef GASNETC_MAX_MEDIUM_NBRHD
+  // Assumes gex_AM_LUB{Request,Reply}Medium() expand to compile-time constants
+  // AND that the LUB is the *greatest* upper-bound.  If either property is not
+  // true for a given conduit, then it must define GASNETC_MAX_MEDIUM_NBRHD to
+  // an appropriate compile-time constant bound in its gasnet_core_fwd.h.
+  // The value may be a conservative upper-bound if the real value cannot be
+  // known until run time (at the cost of wasted memory).
+  #define GASNETC_MAX_MEDIUM_NBRHD MAX(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())
 #endif
-#ifndef GASNETC_MAX_LONG_LOOP
-  // Same assumptions and usage as GASNETC_MAX_MEDIUM_LOOP, above, but for Long
-  #define GASNETC_MAX_LONG_LOOP MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
+#ifndef GASNETC_MAX_LONG_NBRHD
+  // Same assumptions and usage as GASNETC_MAX_MEDIUM_NBRHD, above, but for Long.
+  #define GASNETC_MAX_LONG_NBRHD MAX(gex_AM_LUBRequestLong(),gex_AM_LUBReplyLong())
 #endif
+
+// GASNETC_GET_HANDLER provides a conduit with the means to control how the
+// neighborhood AM support accesses the AM handler table.
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
   // TODO-EX: gasnetc_handler to be replaced w/ per-endpoint data when defined
@@ -491,6 +503,7 @@ extern int gasnetc_AMReplyLongV(
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Buffer management for loopback (same-process) Medium AMs
 
 #include <gasnet_core_internal.h> /* for gasnetc_handler[] */
 
@@ -529,7 +542,7 @@ void *gasnetc_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
     void *buf = gasneti_lifo_pop(&gasnetc_loopback_medium_pool);
     if_pf (NULL == buf) {
       /* Grow the free pool with buffers sized and aligned for the largest Medium */
-      buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, GASNETC_MAX_MEDIUM_LOOP);
+      buf = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT, GASNETC_MAX_MEDIUM_NBRHD);
       gasneti_leak_aligned(buf);
     }
     return buf;
@@ -617,7 +630,7 @@ extern gex_TI_t gasnetc_nbrhd_Token_Info(
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-// Code shared by loopback FP and NP
+// Code shared by loopback (same-process) FP and NP
 
 GASNETI_INLINE(gasnetc_loopback_prepare_inner)
 int gasnetc_loopback_prepare_inner(
@@ -637,7 +650,7 @@ int gasnetc_loopback_prepare_inner(
   if (isFixed) {
     sd->_addr = (/*non-const*/void *)client_buf;
   } else {
-    const size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_LOOP : GASNETC_MAX_MEDIUM_LOOP;
+    const size_t limit = (category == gasneti_Long) ? GASNETC_MAX_LONG_NBRHD : GASNETC_MAX_MEDIUM_NBRHD;
     const size_t size = MIN(limit, max_length);
     sd->_size = size;
 
@@ -646,7 +659,7 @@ int gasnetc_loopback_prepare_inner(
       gasneti_leaf_finish(lc_opt);
     } else if (category == gasneti_Medium) {
       sd->_addr = sd->_gex_buf;
-    } else if (size <= GASNETC_MAX_MEDIUM_LOOP) {
+    } else if (size <= GASNETC_MAX_MEDIUM_NBRHD) {
       // Long can use medium buffer at less cost than calling malloc
       sd->_addr = sd->_gex_buf = gasnetc_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
     } else {
@@ -685,7 +698,7 @@ void gasnetc_loopback_commit_inner(
         gasneti_unreachable();
   }
 
-  gex_AM_Arg_t pargs[GASNETC_MAX_ARGS_LOOP];
+  gex_AM_Arg_t pargs[GASNETC_MAX_ARGS_NBRHD];
   gex_EP_t ep = NULL; // TODO-EX: get true value
   gex_AM_Entry_t *handler_entry = gasnetc_get_hentry(ep, handler);
   gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
@@ -694,7 +707,7 @@ void gasnetc_loopback_commit_inner(
   const gex_Token_t token = gasnetc_nbrhd_token_init(&real_token, gasneti_mynode, handler_entry, isReq);
   real_token.ti.gex_is_long = (category == gasneti_Long);
 
-  gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_LOOP);
+  gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_NBRHD);
   gasneti_amtbl_check(handler_entry, numargs, category, isReq);
 
   for (int i = 0; i < numargs; i++) {
@@ -723,14 +736,14 @@ void gasnetc_loopback_commit_inner(
 
   if (category == gasneti_Medium) {
     gasnetc_loopback_free_medium_buffer(buf, isReq GASNETI_THREAD_PASS);
-  } else if(!isFixed && sd->_gex_buf && (sd->_size <= GASNETC_MAX_MEDIUM_LOOP)) {
+  } else if(!isFixed && sd->_gex_buf && (sd->_size <= GASNETC_MAX_MEDIUM_NBRHD)) {
     gasneti_assert(category == gasneti_Long);
     gasnetc_loopback_free_medium_buffer(sd->_gex_buf, isReq GASNETI_THREAD_PASS);
   }
 }
 
 /* ------------------------------------------------------------------------------------ */
-// FP-AM for loopback
+// FP-AM for loopback (same-process)
 
 GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
 int gasnetc_loopback_ReqRepGeneric(
@@ -823,7 +836,7 @@ int gasnetc_nbrhd_ReplyGeneric(
 }
 
 /* ------------------------------------------------------------------------------------ */
-// NP-AM for loopback (note lack of any destination arguments)
+// NP-AM for loopback (same-process, thus lacking destination arguments)
 
 GASNETI_INLINE(gasnetc_loopback_Prepare)
 int gasnetc_loopback_Prepare(

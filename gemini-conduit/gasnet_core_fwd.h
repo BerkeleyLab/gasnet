@@ -34,7 +34,7 @@
 #endif
 
 // PSHM and loopback support need to know largest Medium if larger than MAX(LUB{Request,Reply}Medium)
-#define GASNETC_MAX_MEDIUM_LOOP GASNETC_MAX_MEDIUM(0)
+#define GASNETC_MAX_MEDIUM_NBRHD GASNETC_MAX_MEDIUM(0)
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
