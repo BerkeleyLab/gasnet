@@ -1174,6 +1174,7 @@ void doit(int iters, int runtests) {
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(v);
   }
@@ -1239,6 +1240,7 @@ void doit(int iters, int runtests) {
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(i);
   }
@@ -1294,6 +1296,7 @@ void doit(int iters, int runtests) {
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(s);
   }
@@ -1357,6 +1360,7 @@ void doit(int iters, int runtests) {
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(x);
   }
@@ -1537,6 +1541,7 @@ void doit(int iters, int runtests) {
       test_free(ops);
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
   }
   /*---------------------------------------------------------------------------------*/
