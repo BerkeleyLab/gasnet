@@ -4857,8 +4857,10 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
 
   /* ensure progress */
-  gasnetc_poll_rcv();
-  GASNETI_PROGRESSFNS_RUN();
+  if (GASNETC_IMMEDIATE_WOULD_POLL(flags)) {
+    gasnetc_poll_rcv();
+    GASNETI_PROGRESSFNS_RUN();
+  }
 
   va_list argptr;
   va_start(argptr, numargs);
@@ -4889,8 +4891,10 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
 
   /* ensure progress */
-  gasnetc_poll_rcv();
-  GASNETI_PROGRESSFNS_RUN();
+  if (GASNETC_IMMEDIATE_WOULD_POLL(flags)) {
+    gasnetc_poll_rcv();
+    GASNETI_PROGRESSFNS_RUN();
+  }
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -4922,8 +4926,10 @@ extern int gasnetc_AMRequestLongM(
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
 
   /* ensure progress */
-  gasnetc_poll_rcv();
-  GASNETI_PROGRESSFNS_RUN();
+  if (GASNETC_IMMEDIATE_WOULD_POLL(flags)) {
+    gasnetc_poll_rcv();
+    GASNETI_PROGRESSFNS_RUN();
+  }
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */

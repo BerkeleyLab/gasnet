@@ -1262,7 +1262,7 @@ extern int gasnetc_AMRequestShortM(
                 int numargs, ...)
 {
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
-  gasneti_AMPoll();
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1361,7 +1361,7 @@ extern int gasnetc_AMRequestMediumM(
                 int numargs, ...)
 {
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_AMPoll();
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1456,7 +1456,7 @@ extern int gasnetc_AMRequestLongM(
                 int numargs, ...)
 {
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_AMPoll();
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */

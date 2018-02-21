@@ -1007,7 +1007,7 @@ extern int gasnetc_AMRequestShortM(
   va_list argptr;
   gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
-  gasneti_AMPoll(); /* ensure progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1035,7 +1035,7 @@ extern int gasnetc_AMRequestMediumM(
   gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
-  gasneti_AMPoll(); /* ensure progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1064,7 +1064,7 @@ extern int gasnetc_AMRequestLongM(
   gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX: only IMMEDIATE implemented
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
-  gasneti_AMPoll(); /* ensure progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */

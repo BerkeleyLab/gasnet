@@ -389,7 +389,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
-        gasneti_AMPoll(); // Ensure at least one poll upon Request injection
+        GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
         int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
                                                client_buf, min_length, max_length,
                                                NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
@@ -399,7 +399,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         #if GASNETC_REQUESTV_POLLS
             // Conduit's Request{Medium,Long}V will AMPoll in Commit
         #else
-            gasneti_AMPoll();
+            GASNETC_IMMEDIATE_MAYBE_POLL(flags);
         #endif
         size_t limit = gex_AM_MaxRequestMedium(tm, dest, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);
@@ -466,7 +466,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
-        gasneti_AMPoll(); // Ensure at least one poll upon Request injection
+        GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
         int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, tm, dest,
                                                client_buf, min_length, max_length,
                                                dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
@@ -476,7 +476,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         #if GASNETC_REQUESTV_POLLS
             // Conduit's Request{Medium,Long}V will AMPoll in Commit
         #else
-            gasneti_AMPoll();
+            GASNETC_IMMEDIATE_MAYBE_POLL(flags);
         #endif
         size_t limit = gex_AM_MaxRequestLong(tm, dest, lc_opt, flags, nargs);
         size_t size = MIN(max_length, limit);

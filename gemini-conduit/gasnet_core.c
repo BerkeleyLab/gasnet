@@ -1566,7 +1566,7 @@ extern int gasnetc_AMRequestShortM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTSHORT(tm,dest,handler,flags,numargs);
-  gasneti_AMPoll(); /* poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs);
@@ -1585,7 +1585,7 @@ extern int gasnetc_AMRequestMediumM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_AMPoll(); /* poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   gasneti_leaf_finish(lc_opt); // lack of gather-send prevents async local completion
 
@@ -1624,7 +1624,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
-    gasneti_AMPoll(); // Ensure at least one poll upon Request injection
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
 
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
@@ -1690,7 +1690,7 @@ extern int gasnetc_AMRequestLongM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_AMPoll(); /* poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs);
