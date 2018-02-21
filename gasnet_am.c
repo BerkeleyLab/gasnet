@@ -386,7 +386,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
@@ -427,7 +427,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
 
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
@@ -463,7 +463,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
+    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
@@ -506,7 +506,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_AMPREPREPLYCOMMON(sd,token,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,min_length,max_length,dest_addr,lc_opt,flags,nargs,Long);
 
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Long, token,
@@ -541,7 +541,7 @@ void gasnetc_AM_CommitRequestMediumM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -575,7 +575,7 @@ void gasnetc_AM_CommitReplyMediumM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -610,7 +610,7 @@ void gasnetc_AM_CommitRequestLongM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -645,7 +645,7 @@ void gasnetc_AM_CommitReplyLongM(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs_arg,Long);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,Long);
 
     va_list argptr;
     va_start(argptr, sd_arg);

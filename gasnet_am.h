@@ -246,7 +246,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                            _STRINGIFY(cat) "() (%"PRIuPTR" > %"PRIuPTR")",                               \
                            _reqrep, _reqrep, (uintptr_t)min_length, (uintptr_t)limit);                   \
     } while(0)
-  #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
+  #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                                   \
       sd->_category  = (int)gasneti_##cat;                                                 \
       sd->_dest_addr = dest_addr;                                                          \
@@ -258,7 +258,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                            (unsigned long)dest, (unsigned long)gex_TM_QuerySize(tm));      \
       _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,1,cat);             \
     } while(0)
-  #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
+  #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,min_len,max_len,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                               \
       sd->_category  = (int)gasneti_##cat;                                             \
       sd->_dest_addr = dest_addr;                                                      \
@@ -303,16 +303,16 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                              _reqrep, nargs);                                                            \
       }                                                                                                  \
     } while(0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
+  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) \
                   _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) \
+  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) \
                   _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
 #else
   #define gasneti_init_sd_poison(sd) ((void)0)
-  #define GASNETI_AMPREPREQUESTCOMMON(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_AMPREPREPLYCOMMON(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREQUESTCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
-  #define GASNETI_AMCOMMITREPLYCOMMON(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
+  #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
+  #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
+  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
+  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
 #endif
 
 #ifndef _GEX_AM_SRCDESC_T
