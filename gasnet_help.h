@@ -738,6 +738,11 @@ typedef void (*gasneti_progressfn_t)(void);
   #endif
   #define gasneti_AMPoll() _gasneti_AMPoll(GASNETI_THREAD_GET_ALONE)
 #endif
+
+// Should poll when GEX_FLAG_IMMEDIATE bit set? (undefined or 1)
+#if defined(GASNETC_IMMEDIATE_AMPOLLS) && (GASNETC_IMMEDIATE_AMPOLLS != 1)
+  #error GASNETC_IMMEDIATE_AMPOLLS must be 1 or undefined
+#endif
   
 /* Blocking functions
  * Note the _rmb at the end loop of each is required to ensure that subsequent

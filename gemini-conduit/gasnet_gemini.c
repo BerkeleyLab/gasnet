@@ -19,12 +19,6 @@
 #define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 
-// Should IMMEDIATE flag poll for AM recvs? (1 or undefined)
-#ifdef GASNETC_IMMEDIATE_AMPOLLS
-#undef GASNETC_IMMEDIATE_AMPOLLS
-#define GASNETC_IMMEDIATE_AMPOLLS 1
-#endif
-
 // How many times to retry a Post which fails with GNI_RC_ERROR_RESOURCE
 // TODO: Should this be an env var?
 #ifndef GASNETC_RESOURCE_RETRIES

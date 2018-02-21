@@ -25,12 +25,6 @@
   #define GASNETC_MAX_FH	(GASNETC_SND_SG + 1)
 #endif
 
-// Should IMMEDIATE flag poll for AM recvs? (1 or undefined)
-#ifdef GASNETC_IMMEDIATE_AMPOLLS
-#undef GASNETC_IMMEDIATE_AMPOLLS
-#define GASNETC_IMMEDIATE_AMPOLLS 1
-#endif
-
 /* If running w/ threads (locks) we want to coalesce calls to
      gasnetc_lifo_push(&gasnetc_bbuf_freelist,*)
    and
