@@ -151,6 +151,8 @@ typedef void (*AMUDP_postHandlerCallback_t)(amudp_category_t cat, int isReq);
 extern int AMUDP_SetHandlerCallbacks(ep_t ep, AMUDP_preHandlerCallback_t preHandlerCallback, 
                                               AMUDP_postHandlerCallback_t postHandlerCallback);
 
+extern int AMUDP_SPMDHandleControlTraffic(int *controlMessagesServiced);
+
 /* ------------------------------------------------------------------------------------ */
 /* AM-2 Entry Points */
 
