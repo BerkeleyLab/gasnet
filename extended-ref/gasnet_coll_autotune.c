@@ -2320,7 +2320,7 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
   /*the tuning loop will set the loc_best_param_list with the appropriate parameters so we just have to copy it out and return it*/
   *num_params = gasnet_coll_get_num_params(team, op, *best_algidx);
   *best_param = gasneti_malloc(sizeof(uint32_t)*gasnet_coll_get_num_params(team, op, *best_algidx));
-  GASNETE_FAST_UNALIGNED_MEMCPY(*best_param, loc_best_param_list, sizeof(uint32_t)*(*num_params));
+  GASNETE_MEMCPY_SAFE_EMPTY(*best_param, loc_best_param_list, sizeof(uint32_t)*(*num_params));
   *best_tree = gasneti_calloc(strlen(loc_best_tree)+1,sizeof(char));
   strcpy(*best_tree, loc_best_tree);
   gasneti_free(loc_best_tree);
@@ -2606,7 +2606,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
       temp->flags = flags;
       temp->fn_idx = best_algidx;
       temp->num_params = num_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY(temp->param_list, param_list, sizeof(uint32_t)*num_params);
+      GASNETE_MEMCPY_SAFE_EMPTY(temp->param_list, param_list, sizeof(uint32_t)*num_params);
       if(strlen(temp_tree_str) > 0) {
         gasneti_assert(strlen(temp_tree_str)<(GASNETE_COLL_MAX_TREE_TYPE_STRLEN-1));
         strcpy(best_tree, temp_tree_str);
