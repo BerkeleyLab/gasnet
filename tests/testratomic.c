@@ -138,7 +138,7 @@ static gex_Rank_t nbrhdrank; // rank in the neighborhood
 #define TEST_RAND_DECL1(_tcode, _type, _isint) \
         TEST_RAND_DECL2(_tcode, _type, _isint) /* extra pass to expand _isint */
 #define TEST_RAND_DECL2(_tcode, _type, _isint) \
-void test_rand_##_tcode(gex_AD_t ad, int lo, int hi, const char *msg) {\
+void test_rand_##_tcode(gex_AD_t ad, int64_t lo, int64_t hi, const char *msg) {\
   _type mirror = 0;                                           \
   gex_OP_t ops = gex_AD_QueryOps(ad);                         \
   MSG0("    Randomized ops test with operation set 0x%x%s",   \
@@ -630,28 +630,39 @@ void doit(gex_DT_t dt) {
 
   // Range of random numbers
   // Chosen to exercise as many bits of each type as possible within constraints:
-  // + lo and hi must be integers valid for use with TEST_RAND
+  // + lo and hi must be int64_t (valid for use with TEST_RAND)
   // + For x in [lo,hi] 2*x*x must be representable exactly in the target type
   //   (because 2*x*x is the max value reached by the series of arithmetic ops)
-  int lo = 0;
-  int hi = 0;
+  int64_t lo = 0;
+  int64_t hi = 0;
   test_static_assert(FLT_RADIX == 2);
+
+  // check that 2*hi*hi does not overflow, but same for hi+1 does
+  #define CHECK_LIMIT(type,hi) do {           \
+      assert( (type)(2*hi*hi) > hi );         \
+      assert( (type)(2*(hi+1)*(hi+1)) < hi ); \
+    } while (0)
+
   switch (dt) {
     case GEX_DT_U32:
-      hi = (1<<15);
+      hi = 0xB504; // floor(sqrt((2^32-1)/2))
       lo = 0;
+      CHECK_LIMIT(uint32_t,hi);
       break;
     case GEX_DT_I32:
       hi = (1<<15) - 1;
       lo = -hi;
+      CHECK_LIMIT(int32_t,hi);
       break;
     case GEX_DT_U64:
-      hi = (1U<<31) - 2; // could be larger by +2 if not using TEST_RAND
+      hi = 0xB504F333ull; // floor(sqrt((2^64-1)/2))
       lo = 0;
+      CHECK_LIMIT(uint64_t,hi);
       break;
     case GEX_DT_I64:
-      hi = (1U<<30) - 1; // could be larger by *2 if not using TEST_RAND
+      hi = (1U<<31) - 1;
       lo = -hi;
+      CHECK_LIMIT(int64_t,hi);
       break;
     case GEX_DT_FLT:
       hi = 1 << (FLT_MANT_DIG / 2);
