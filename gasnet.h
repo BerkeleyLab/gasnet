@@ -537,17 +537,17 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
 
 // dedicated g2ex wrappers translate the Strided metadata from legacy to EX format
 #define gasnet_puts_bulk(dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-       _gasnet_puts_bulk(gasneti_thunk_tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels,0 GASNETE_THREAD_GET)
+       _gasnet_puts_bulk(gasneti_thunk_tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 #define gasnet_gets_bulk(dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels) \
-       _gasnet_gets_bulk(gasneti_thunk_tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels,0 GASNETE_THREAD_GET)
+       _gasnet_gets_bulk(gasneti_thunk_tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 #define gasnet_puts_nb_bulk(dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-       _gasnet_puts_nb_bulk(gasneti_thunk_tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels,0 GASNETE_THREAD_GET)
+       _gasnet_puts_nb_bulk(gasneti_thunk_tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 #define gasnet_gets_nb_bulk(dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels) \
-       _gasnet_gets_nb_bulk(gasneti_thunk_tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels,0 GASNETE_THREAD_GET)
+       _gasnet_gets_nb_bulk(gasneti_thunk_tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 #define gasnet_puts_nbi_bulk(dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-       _gasnet_puts_nbi_bulk(gasneti_thunk_tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels,0 GASNETE_THREAD_GET)
+       _gasnet_puts_nbi_bulk(gasneti_thunk_tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 #define gasnet_gets_nbi_bulk(dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels) \
-       _gasnet_gets_nbi_bulk(gasneti_thunk_tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels,0 GASNETE_THREAD_GET)
+       _gasnet_gets_nbi_bulk(gasneti_thunk_tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN

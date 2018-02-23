@@ -104,9 +104,17 @@
   MEDIUM_HANDLER_DECL(gasnete_puti_AMPipeline_reqh,5,6);
   MEDIUM_HANDLER_DECL(gasnete_geti_AMPipeline_reqh,5,6);
   MEDIUM_HANDLER_DECL(gasnete_geti_AMPipeline_reph,2,3);
+#if GASNETE_OLD_STRIDED
   MEDIUM_HANDLER_DECL(gasnete_puts_AMPipeline_reqh,5,7);
   MEDIUM_HANDLER_DECL(gasnete_gets_AMPipeline_reqh,6,8);
   MEDIUM_HANDLER_DECL(gasnete_gets_AMPipeline_reph,4,5);
+  #define GASNETE_STRIDED_HANDLERS() \
+    gasneti_handler_tableentry_with_bits(gasnete_puts_AMPipeline_reqh,5,7,REQUEST,MEDIUM,0),   \
+    gasneti_handler_tableentry_with_bits(gasnete_gets_AMPipeline_reqh,6,8,REQUEST,MEDIUM,0),   \
+    gasneti_handler_tableentry_with_bits(gasnete_gets_AMPipeline_reph,4,5,REPLY,MEDIUM,0),
+#else
+  #define GASNETE_STRIDED_HANDLERS() 
+#endif
 
   #define GASNETE_VIS_AMPIPELINE_HANDLERS()                               \
     gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reqh,2,3,REQUEST,MEDIUM,0),   \
@@ -116,9 +124,7 @@
     gasneti_handler_tableentry_with_bits(gasnete_puti_AMPipeline_reqh,5,6,REQUEST,MEDIUM,0),   \
     gasneti_handler_tableentry_with_bits(gasnete_geti_AMPipeline_reqh,5,6,REQUEST,MEDIUM,0),   \
     gasneti_handler_tableentry_with_bits(gasnete_geti_AMPipeline_reph,2,3,REPLY,MEDIUM,0),   \
-    gasneti_handler_tableentry_with_bits(gasnete_puts_AMPipeline_reqh,5,7,REQUEST,MEDIUM,0),   \
-    gasneti_handler_tableentry_with_bits(gasnete_gets_AMPipeline_reqh,6,8,REQUEST,MEDIUM,0),   \
-    gasneti_handler_tableentry_with_bits(gasnete_gets_AMPipeline_reph,4,5,REPLY,MEDIUM,0),
+    GASNETE_STRIDED_HANDLERS()
 #else
   #define GASNETE_VIS_AMPIPELINE_HANDLERS()
 #endif
