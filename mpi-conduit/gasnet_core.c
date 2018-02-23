@@ -703,7 +703,14 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
   AMLOCK();
+  static int cntr;
+  // In single-nbrhd case never need to poll the network for client AMs.
+  // However, we'll still AM_Poll() every 256th call for orderly exit handling.
+  if ((gasneti_mysupernode.grp_count > 1) || !(0xff & cntr++)) {
     GASNETI_AM_SAFE_NORETURN(retval, AM_Poll(gasnetc_bundle));
+  } else {
+    retval = 0;
+  }
   AMUNLOCK();
   if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   else return GASNET_OK;
