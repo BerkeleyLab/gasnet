@@ -1321,6 +1321,8 @@ void gasnetc_format_long(gasnetc_post_descriptor_t *gpd,
 /*------------------- medium negotiated-payload ------------------ */
 // Common to Request and Reply
 
+// After sd, next 2 params (isFixed, isReq) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_prepare_medium)
 int gasnetc_prepare_medium(
                        gasneti_AM_SrcDesc_t    sd,
@@ -1380,6 +1382,8 @@ int gasnetc_prepare_medium(
   return 0;
 }
 
+// After sd, next 2 params (isFixed, isReq) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_commit_medium)
 void gasnetc_commit_medium(
                        gasneti_AM_SrcDesc_t    sd,

@@ -1232,6 +1232,8 @@ gex_Rank_t gasnetc_ampshm_msgsource(gex_Token_t token) {
     return ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)token))->ti.gex_srcrank;
 }
 
+// After sd, next 3 params (isFixed, isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(ampshm_prepare_inner)
 int ampshm_prepare_inner(
                    gasneti_AM_SrcDesc_t sd, const int isFixed,
@@ -1295,6 +1297,8 @@ int ampshm_prepare_inner(
   return 0;
 }
 
+// After sd, next 3 params (isFixed, isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(ampshm_comit_inner)
 void ampshm_commit_inner(
                    gasneti_AM_SrcDesc_t sd, const int isFixed,
@@ -1348,6 +1352,8 @@ void ampshm_commit_inner(
   gasneti_pshmnet_deliver_send_buffer(vnet, msg, 0 /*msgsz unused*/, sd->_pshm._target);
 }
 
+// First 1 params (category, isReq) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 // TODO-EX: THREAD_FARG
 GASNETI_INLINE(gasnetc_AMPSHM_ReqRepGeneric)
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
@@ -1373,6 +1379,8 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t dest,
   return GASNET_OK;
 }
 
+// After sd, next 2 params (isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(ampshm_prepare)
 int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
                    const int isReq, const int category,
@@ -1396,6 +1404,8 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
                 dest_addr, lc_opt, flags, nargs GASNETI_THREAD_GET);
 }
 
+// After sd, next 2 params (isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(ampshm_comit)
 void ampshm_commit(gasneti_AM_SrcDesc_t sd,
                    const int isReq, const int category,

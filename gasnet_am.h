@@ -632,6 +632,8 @@ extern gex_TI_t gasnetc_nbrhd_Token_Info(
 /* ------------------------------------------------------------------------------------ */
 // Code shared by loopback (same-process) FP and NP
 
+// After sd, next 3 params (isFixed, isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_loopback_prepare_inner)
 int gasnetc_loopback_prepare_inner(
                         gasneti_AM_SrcDesc_t sd, const int isFixed,
@@ -670,6 +672,8 @@ int gasnetc_loopback_prepare_inner(
   return 0;
 }
 
+// After sd, next 3 params (isFixed, isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_loopback_commit_inner)
 void gasnetc_loopback_commit_inner(
                         gasneti_AM_SrcDesc_t sd, const int isFixed,
@@ -745,6 +749,8 @@ void gasnetc_loopback_commit_inner(
 /* ------------------------------------------------------------------------------------ */
 // FP-AM for loopback (same-process)
 
+// First 2 params (isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_loopback_ReqRepGeneric)
 int gasnetc_loopback_ReqRepGeneric(
                          int isReq, gasneti_category_t category,
@@ -768,6 +774,8 @@ int gasnetc_loopback_ReqRepGeneric(
 // FP-AM for "nbrhd" (PSHM and loopback)
 // NOTE: except for IMMEDIATE no-op case, always synchronous LC
 
+// Parameter 'category' will be a manifest constant
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_RequestGeneric)
 int gasnetc_nbrhd_RequestGeneric(
                          gasneti_category_t category,
@@ -801,6 +809,8 @@ int gasnetc_nbrhd_RequestGeneric(
 #endif
 }
 
+// Parameter 'category' will be a manifest constant
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_ReplyGeneric)
 int gasnetc_nbrhd_ReplyGeneric(
                          gasneti_category_t category,
@@ -838,6 +848,8 @@ int gasnetc_nbrhd_ReplyGeneric(
 /* ------------------------------------------------------------------------------------ */
 // NP-AM for loopback (same-process, thus lacking destination arguments)
 
+// After sd, next 2 params (isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_loopback_Prepare)
 int gasnetc_loopback_Prepare(
                         gasneti_AM_SrcDesc_t sd,
@@ -855,6 +867,8 @@ int gasnetc_loopback_Prepare(
                         flags, nargs GASNETI_THREAD_PASS);
 }
 
+// After sd, next 2 params (isReq, category) will be manifest constants
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_loopback_Commit)
 void gasnetc_loopback_Commit(
                         gasneti_AM_SrcDesc_t sd,
@@ -884,6 +898,8 @@ void gasnetc_loopback_Commit(
 #define GASNETC_IS_NBRHD_COMMIT(sd) \
     ((sd)->_GASNETC_IS_NBRHD_FIELD)
 
+// Parameter 'category' will be a manifest constant
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareRequest)
 int gasnetc_nbrhd_PrepareRequest(
                         gasneti_AM_SrcDesc_t sd,
@@ -914,6 +930,8 @@ int gasnetc_nbrhd_PrepareRequest(
 #endif
 }
 
+// Parameter 'category' will be a manifest constant
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_CommitRequest)
 void gasnetc_nbrhd_CommitRequest(
                         gasneti_AM_SrcDesc_t sd,
@@ -934,6 +952,8 @@ void gasnetc_nbrhd_CommitRequest(
 #endif
 }
 
+// Parameter 'category' will be a manifest constant
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareReply)
 int gasnetc_nbrhd_PrepareReply(
                         gasneti_AM_SrcDesc_t sd,
@@ -966,6 +986,8 @@ int gasnetc_nbrhd_PrepareReply(
   return retval;
 }
 
+// Parameter 'category' will be a manifest constant
+// which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_CommitReply)
 void gasnetc_nbrhd_CommitReply(
                         gasneti_AM_SrcDesc_t sd,
