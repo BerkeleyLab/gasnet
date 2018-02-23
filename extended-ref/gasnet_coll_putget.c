@@ -3124,7 +3124,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
           } 
         } 
 #else
-        GASNETE_FAST_UNALIGNED_MEMCPY(gasnete_coll_scale_ptr(args->dst,1,args->nbytes),
+        GASNETI_MEMCPY_SAFE_EMPTY(    gasnete_coll_scale_ptr(args->dst,1,args->nbytes),
                                       scratchspace,
                                       args->nbytes*(op->team->total_ranks-1));
 
