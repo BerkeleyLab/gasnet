@@ -636,7 +636,14 @@ extern int gasnetc_AMPoll(void) {
   gasneti_AMPSHMPoll(0);
 #endif
   AMLOCK();
+  // In single-supernode case never need to poll the network for client AMs.
+  // However, we'll still check for control traffic for orderly exit handling.
+  if (gasneti_mysupernode.grp_count > 1) {
     GASNETI_AM_SAFE_NORETURN(retval,AM_Poll(gasnetc_bundle));
+  } else {
+    // TODO-EX: a lock-free peek would allow elimination of a lock cycle
+    GASNETI_AM_SAFE_NORETURN(retval,AMUDP_SPMDHandleControlTraffic(NULL));
+  }
   AMUNLOCK();
   if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   else return GASNET_OK;
@@ -658,6 +665,7 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
+    gasneti_AMPoll(); /* poll at least once, to assure forward progress */
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler,
                                            0, 0, 0,
                                            numargs, argptr);
@@ -686,6 +694,7 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
+    gasneti_AMPoll(); /* poll at least once, to assure forward progress */
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler,
                                            source_addr, nbytes, 0,
                                            numargs, argptr);
@@ -718,6 +727,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
+      gasneti_AMPoll(); /* poll at least once, to assure forward progress */
       retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
                                              source_addr, nbytes, dest_addr,
                                              numargs, argptr);

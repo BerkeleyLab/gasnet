@@ -742,7 +742,6 @@ extern void AMUDP_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
 //------------------------------------------------------------------------------------
 /* SPMD control information that has to be shared */
 extern SOCKET AMUDP_SPMDControlSocket; /* SPMD TCP control socket */
-extern int AMUDP_SPMDHandleControlTraffic(int *controlMessagesServiced);
 extern int AMUDP_SPMDSpawnRunning; /* true while spawn is active */
 extern int AMUDP_SPMDRedirectStdsockets; /* true if stdin/stdout/stderr should be redirected */
 extern int AMUDP_SPMDwakeupOnControlActivity; /* true if waitForEndpointActivity should return on control socket activity */
