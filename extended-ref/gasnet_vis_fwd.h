@@ -76,7 +76,7 @@ extern void gasneti_vis_progressfn(void);
 // control use of the old or new strided implementation
 // must be set consistently at library and app build time
 #ifndef GASNETE_OLD_STRIDED
-#define GASNETE_OLD_STRIDED 1
+#define GASNETE_OLD_STRIDED 0
 #endif
 
 #endif
