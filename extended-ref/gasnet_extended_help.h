@@ -281,8 +281,8 @@ typedef union {
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
 // TODO-EX: remove these if/when all uses are updated
-#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETE_MEMCPY(d,s,n)
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETE_MEMCPY_SAFE_IDENTICAL(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETI_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETI_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
@@ -413,20 +413,20 @@ typedef union {
 #if GASNET_PSHM
   #define GASNETI_CHECKPSHM_GET(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
+      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
       gasnete_loopbackget_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       gasneti_leaf_finish(lc_opt);            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)

@@ -429,7 +429,7 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes);
-    GASNETE_FAST_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
