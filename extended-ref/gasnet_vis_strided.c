@@ -616,48 +616,6 @@ void gasnete_strided_unpack_all(void *addr, const size_t strides[],
 #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
 /*---------------------------------------------------------------------------------*/
-/* strided partial packing */
-#define _GASNETE_STRIDED_PACKPARTIAL_INNER(_contiglevel,_limit) {                                    \
-  size_t const contiglevel = (_contiglevel);                                                         \
-  size_t const limit = (_limit);                                                                     \
-  size_t const contigsz = (contiglevel == 0 ? count[0] : count[contiglevel]*strides[contiglevel-1]); \
-  uint8_t *ploc = buf;                                                                               \
-  /* macro interface */                                                                              \
-  void *srcaddr = *addr;                                                                             \
-  size_t const * const srcstrides = strides;                                                         \
-  GASNETE_STRIDED_HELPER_DECLARE_NODST;                                                              \
-  GASNETE_STRIDED_HELPER_DECLARE_PARTIAL(numchunks,init,addr_already_offset,update_addr_init);       \
-  GASNETE_STRIDED_HELPER(limit,contiglevel);                                                         \
-  if (update_addr_init) *addr = srcaddr;                                                             \
-  return ploc;                                                                                       \
-}
-/* if addr_already_offset is nonzero, the code assumes srcaddr/dstaddr already reference the first chunk,
-    otherwise, the srcaddr/dstaddr values are offset based on init to reach the first chunk
-   iff update_addr_init is nonzero, then srcaddr/dstaddr/init are updated on exit to point to the next unused chunk
- */
-#define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(ploc, psrc, contigsz);   \
-  ploc += contigsz;                                      \
-} while (0)
-void *gasnete_strided_pack_partial(void **addr, const size_t strides[],
-                              const size_t count[], size_t __contiglevel, size_t __limit, 
-                              size_t numchunks, size_t init[], 
-                              int addr_already_offset, int update_addr_init,
-                              void *buf) _GASNETE_STRIDED_PACKPARTIAL_INNER(__contiglevel, __limit)
-#undef GASNETE_STRIDED_HELPER_LOOPBODY
-
-#define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(psrc, ploc, contigsz);   \
-  ploc += contigsz;                                      \
-} while (0)
-void *gasnete_strided_unpack_partial(void **addr, const size_t strides[],
-                              const size_t count[], size_t __contiglevel, size_t __limit, 
-                              size_t numchunks, size_t init[], 
-                              int addr_already_offset, int update_addr_init,
-                              void *buf) _GASNETE_STRIDED_PACKPARTIAL_INNER(__contiglevel, __limit)
-#undef GASNETE_STRIDED_HELPER_LOOPBODY
-
-/*---------------------------------------------------------------------------------*/
 /* simple gather put, remotely contiguous */
 #ifndef GASNETE_PUTS_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
