@@ -1177,7 +1177,7 @@ void doit(int iters, int runtests) {
     BARRIER();
     checkmem();
     TIME_OUTPUT(v);
-  }
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_INDEXED) { 
@@ -1243,7 +1243,7 @@ void doit(int iters, int runtests) {
     BARRIER();
     checkmem();
     TIME_OUTPUT(i);
-  }
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_STRIDED) { 
@@ -1299,7 +1299,7 @@ void doit(int iters, int runtests) {
     BARRIER();
     checkmem();
     TIME_OUTPUT(s);
-  }
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if ((runtests & RUN_TRANSPOSE) && max_stridedim >= 2) { 
@@ -1363,7 +1363,7 @@ void doit(int iters, int runtests) {
     BARRIER();
     checkmem();
     TIME_OUTPUT(x);
-  }
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_NB) { 
@@ -1543,7 +1543,7 @@ void doit(int iters, int runtests) {
     }
     BARRIER();
     checkmem();
-  }
+  } else BARRIER();
   /*---------------------------------------------------------------------------------*/
   BARRIER();
 }
