@@ -80,10 +80,6 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *     For use ONLY by gasnet_pshm.[ch]
  */
 
-// TODO-EX: remove these indirections when conduits no longer use them:
-  #define gasnetc_token_is_pshm gasnetc_token_in_nbrhd
-  #define gasnetc_AMPSHM_TokenInfo gasnetc_nbrhd_Token_Info
-
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_pshmnet_t.
  * - Takes the number of nodes in the gasnet supernode.
