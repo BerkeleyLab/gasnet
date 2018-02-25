@@ -21,7 +21,7 @@
   0. Trace user inputs and assert argument validity (trace/debug only)
   1. Handle trivial degeneracy in header
      a. elemsz == 0 : empty
-     b. stridelevels == 0 : dual linear contiguity (gex_RMA_Put/Get)
+     b. stridelevels == 0 : dual linear contiguity (_gex_RMA_Put/Get)
   -- Library boundary --
   2. Perform stride optimization/normalization: 3/4-pass, sl starts at stridelevels and shrinks
      PASS 1: Copy/convert user metadata to internal format, remove null dimensions, and
@@ -33,7 +33,7 @@
   3. Perform bounds check (debug only)
   4. Handle emergent degeneracy
      a. count[i] == 0 : empty
-     b. stridelevels == 0 : dual linear contiguity (gasnete_{put,get})
+     b. stridelevels == 0 : dual linear contiguity (_gex_RMA_Put/Get)
   5. Handle NBRHD locality
      a. hoisted address translation and memcpy loop
   6. Perform stride analysis: 1-pass

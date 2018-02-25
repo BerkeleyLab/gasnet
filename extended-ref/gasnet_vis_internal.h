@@ -227,23 +227,24 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 // Put/get for degenerate case, where this single op represents the entire operation
 // Casts from int -> gex_Event_t in NBI/Blocking cases are valid because they only
 // care about zero versus non-zero.
+// NOTE: cannot use gasnete_* variants here, as they are currently non-functional on smp/nopshm
 
 #define GASNETE_PUT_DEGEN(retval, synctype, tm, rank, dstaddr, srcaddr, nbytes, flags) do { \
     gasneti_assert((nbytes) > 0);                                                   \
     gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes));             \
     switch (synctype) {                                                             \
       case gasnete_synctype_nb:                                                     \
-        (retval) = gasnete_put_nb ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
+        (retval) = _gex_RMA_PutNB ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
                          GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
         break;                                                                      \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
-                   gasnete_put_nbi((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
+                   _gex_RMA_PutNBI((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
                          GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \
         (retval) = (gex_Event_t)(intptr_t)                                          \
-                   gasnete_put    ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
+              _gex_RMA_PutBlocking((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
                                           (flags) GASNETE_THREAD_PASS);             \
         break;                                                                      \
       default: gasneti_unreachable();                                               \
@@ -255,17 +256,17 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_boundscheck_allowoutseg((tm), (rank), (srcaddr), (nbytes));             \
     switch (synctype) {                                                             \
       case gasnete_synctype_nb:                                                     \
-        (retval) = gasnete_get_nb ((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
+        (retval) = _gex_RMA_GetNB ((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
                                           (flags) GASNETE_THREAD_PASS);             \
         break;                                                                      \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
-                   gasnete_get_nbi((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
+                   _gex_RMA_GetNBI((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
                                           (flags) GASNETE_THREAD_PASS);             \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \
         (retval) = (gex_Event_t)(intptr_t)                                          \
-                   gasnete_get    ((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
+              _gex_RMA_GetBlocking((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
                                           (flags) GASNETE_THREAD_PASS);             \
         break;                                                                      \
       default: gasneti_unreachable();                                               \
