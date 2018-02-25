@@ -214,14 +214,14 @@ extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
 
 
 extern int gasneti_AMPSHM_RequestShort(
-                        gex_Rank_t dest, gex_AM_Index_t handler,
+                        gex_Rank_t jobrank, gex_AM_Index_t handler,
                         gex_Flags_t flags, int numargs, va_list argptr);
 extern int gasneti_AMPSHM_RequestMedium(
-                        gex_Rank_t dest, gex_AM_Index_t handler,
+                        gex_Rank_t jobrank, gex_AM_Index_t handler,
                         void *source_addr, size_t nbytes,
                         gex_Flags_t flags, int numargs, va_list argptr);
 extern int gasneti_AMPSHM_RequestLong(
-                        gex_Rank_t dest, gex_AM_Index_t handler,
+                        gex_Rank_t jobrank, gex_AM_Index_t handler,
                         void *source_addr, size_t nbytes, void *dest_addr,
                         gex_Flags_t flags, int numargs, va_list argptr);
 

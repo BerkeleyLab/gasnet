@@ -634,7 +634,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
       struct {
         gex_Token_t          _token;
       }                    _reply;
-    }                    _dest;
+    }                    _dest; // (tm,rank) or token, as passed to Prepare
     void *               _dest_addr; // Long only
     void *               _void_p; // PSHM and conduit-independent pointer
     gex_Event_t *        _lc_opt;
@@ -643,8 +643,8 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     int                  _loopback;
   #if GASNET_PSHM
     struct {
-      gex_Rank_t           _target; // should be gasneti_pshm_rank_t
-      gex_Rank_t           _dest;
+      gex_Rank_t           _pshmrank; // should be gasneti_pshm_rank_t
+      gex_Rank_t           _jobrank;
       int                  _is_pshm;
     }                    _pshm;
   #endif
