@@ -682,7 +682,7 @@ void gasnetc_loopback_commit_inner(
                         void *dest_addr, va_list argptr
                         GASNETI_THREAD_FARG)
 {
-  const unsigned int numargs = sd->_nargs;
+  const int numargs = sd->_nargs;
 
   // Stage payload to final location, buf
   void *buf;
