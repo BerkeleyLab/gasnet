@@ -98,6 +98,7 @@ static unsigned int num_cqe;
 static uint32_t notify_ring_mask; /* ring size minus 1 */
 static unsigned int am_slotsz;
 static unsigned int am_slot_bits;
+static unsigned int am_maxcredit;
 
 static int have_auxseg = 0;
 static int have_segment = 0;
@@ -952,7 +953,6 @@ uintptr_t gasnetc_init_messaging(void)
   size_t request_region_length;
   size_t reply_region_length;
   size_t peer_stride;
-  int am_maxcredit;
   int notify_ring_size;
   int reply_count;
 
@@ -1736,7 +1736,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
   size_t length;
   if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
     unsigned int slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
-    gasneti_assert(slots <= 32);  // <= (am_maxcredit/2), but that's not visible here
+    gasneti_assert(slots <= am_maxcredit/2);
     mask = (((uint64_t)1 << slots) - 1);
 
     BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
@@ -1822,6 +1822,10 @@ gasnetc_alloc_request_post_descriptor(
   return request_post_descriptor_inner(dest, 1, 0, length, flags GASNETI_THREAD_PASS);
 }
 
+#if GASNETC_NP_MEDXL // NP Medium beyond MaxMedium - disabled by default
+static gasneti_lifo_head_t medxl_descriptor_pool = GASNETI_LIFO_INITIALIZER;
+#endif
+
 gasnetc_post_descriptor_t *
 gasnetc_alloc_request_post_descriptor_np(
                         gex_Rank_t dest,
@@ -1830,7 +1834,23 @@ gasnetc_alloc_request_post_descriptor_np(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
+#if GASNETC_NP_MEDXL
+  gasnetc_post_descriptor_t *gpd =
+    request_post_descriptor_inner(dest, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
+  if (gpd && (gpd->pd.length > GASNETC_MSG_MAXSIZE)) {
+    // We have a "extra large" landing zone on the peer, but the gpd has a
+    // source buffer of at most GASNETC_MSG_MAXSIZE.  We need an alternate.
+    void *buf = gasneti_lifo_pop(&medxl_descriptor_pool);
+    if_pf (! buf) buf = gasneti_malloc(am_maxcredit << am_slot_bits);
+    gpd->pd.local_addr = (uint64_t) buf;
+    gpd->gpd_flags |= GC_POST_UNPREPARE;
+  }
+  return gpd;
+#else
+  // TODO-EX: cannot negotiate larger than MaxMedium until/unless reply_pool is over-sized too
+  max_length = MIN(max_length, GASNETC_MSG_MAXSIZE);
   return request_post_descriptor_inner(dest, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
+#endif
 }
 
 /* Choice to inline or not is left to the compiler */
@@ -2199,6 +2219,11 @@ again:
       } else if (gpd_flags & GC_POST_UNBOUNCE) {
         gasnetc_free_bounce_buffer(gpd);
       }
+    #if GASNETC_NP_MEDXL
+      else if (gpd_flags & GC_POST_UNPREPARE) {
+        gasneti_lifo_push(&medxl_descriptor_pool, (void *) gpd->pd.local_addr);
+      }
+    #endif
 
       if (!(gpd_flags & GC_POST_KEEP_GPD)) {
         gasnetc_free_post_descriptor(gpd);

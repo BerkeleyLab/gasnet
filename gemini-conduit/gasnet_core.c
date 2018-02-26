@@ -1349,9 +1349,6 @@ int gasnetc_prepare_medium(
             ? gasnetc_alloc_request_post_descriptor(dest, head_len + nbytes, flags GASNETI_THREAD_PASS)
             : gasnetc_alloc_reply_post_descriptor(token, head_len + nbytes, flags);
   } else if (isReq) {
-  #if 1 // TODO-EX: cannot negotiate larger than MaxMedium until/unless reply_pool is over-sized too
-    max_length = MIN(max_length, GASNETC_MAX_MEDIUM(nargs));
-  #endif
     // Call the "negotiating" variant of the buffer allocator
     gpd = gasnetc_alloc_request_post_descriptor_np(dest,
                                                    head_len + min_length,
