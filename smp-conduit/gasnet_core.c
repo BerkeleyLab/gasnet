@@ -102,8 +102,7 @@ static struct gasnetc_exit_data {
   volatile sig_atomic_t pid_tbl[1]; /* Variable length */
 } *gasnetc_exit_data = NULL;
 #define GASNETC_EXIT_DATA_SZ \
-    (offsetof(struct gasnetc_exit_data, pid_tbl[0]) + \
-     gasneti_nodes * sizeof(gasnetc_exit_data->pid_tbl[0]))
+    gasneti_offsetof(struct gasnetc_exit_data, pid_tbl[gasneti_nodes])
 
 #ifdef GASNETC_USE_SOCKETPAIR
   #include <sys/socket.h>

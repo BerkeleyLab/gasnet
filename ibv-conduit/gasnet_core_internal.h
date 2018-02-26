@@ -7,8 +7,6 @@
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
 
-#include <stddef.h>	/* for offsetof() */
-
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <firehose.h>
@@ -159,8 +157,7 @@ typedef enum {
 
 /* ------------------------------------------------------------------------------------ */
 
-#define GASNETC_ARGSEND_AUX(s,nargs) \
-	(offsetof(s,args)+((nargs)*sizeof(gasnet_handlerarg_t)))
+#define GASNETC_ARGSEND_AUX(s,nargs) gasneti_offsetof(s,args[nargs])
 
 typedef struct {
 #if GASNETI_STATS_OR_TRACE
