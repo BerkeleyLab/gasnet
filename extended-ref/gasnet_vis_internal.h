@@ -293,6 +293,21 @@ extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
                               size_t count, size_t len, gex_Memvec_t const *list);
 
 /*---------------------------------------------------------------------------------*/
+// AM helpers
+#if PLATFORM_ARCH_32
+#define HARGS(c32,c64) c32
+#else
+#define HARGS(c32,c64) c64
+#endif
+// GASNETE_VIS_NPAM:
+// 0 = Use FP AM
+// 1 = Use NP AM with a fixed-payload-size algorithm
+// 2 = Use NP AM with a negotiated-payload size
+#ifndef GASNETE_VIS_NPAM
+#define GASNETE_VIS_NPAM 1
+#endif
+
+/*---------------------------------------------------------------------------------*/
 /* GASNETE_METAMACRO_ASC/DESC##maxval(fn) is a meta-macro that iteratively expands the fn_INT(x,y) macro 
    with ascending or descending integer arguments. The base case (value zero) is expanded as fn_BASE().
    maxval must be an integer in the range 0..GASNETE_METAMACRO_DEPTH_MAX
