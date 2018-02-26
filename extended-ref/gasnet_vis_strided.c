@@ -1273,7 +1273,7 @@ size_t gasnete_smd_querybounds(gasneti_vis_smd_t const *smd, int rside, const vo
 }
 
 #define SMD_SZ(stridelevels) \
-  offsetof(gasneti_vis_smd_t, dim[stridelevels]) + \
+  gasneti_offsetof(gasneti_vis_smd_t, dim[stridelevels]) + \
   3*stridelevels*MAX(sizeof(ptrdiff_t),sizeof(size_t)) // TODO-EX: this may need to grow
 
 // Allocate a strided op and perform metadata normalization

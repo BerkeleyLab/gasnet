@@ -7,8 +7,6 @@
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
 
-#include <stddef.h>	/* for offsetof() */
-
 #include <gasnet_internal.h>
 #include <firehose.h>
 
@@ -172,8 +170,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 
 /* ------------------------------------------------------------------------------------ */
 
-#define GASNETC_ARGSEND_AUX(s,nargs) \
-	(offsetof(s,args)+((nargs)*sizeof(gex_AM_Arg_t)))
+#define GASNETC_ARGSEND_AUX(s,nargs) gasneti_offsetof(s,args[nargs])
 
 typedef struct {
 #if GASNETI_STATS_OR_TRACE
