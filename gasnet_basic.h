@@ -184,6 +184,12 @@
 
 #include <stddef.h> /* get standard types, esp size_t */
 
+// gasneti_offsetof is our version of C's offsetof() that allows field arguments 
+// containing non-constant expressions. If the member_field_expr contains only
+// constant expressions then the result is a constant, otherwise it is non-constant.
+// Some compilers (eg XLC) complain about using stddef.h offsetof() for this purpose
+#define gasneti_offsetof(type, member_field_expr) ((size_t)(uintptr_t)&(((type *)NULL)->member_field_expr))
+
 /* splitting and reassembling 64-bit quantities */
 #define GASNETI_MAKEWORD(hi,lo) ((((uint64_t)(hi)) << 32) | (((uint64_t)(lo)) & 0xFFFFFFFF))
 #define GASNETI_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
