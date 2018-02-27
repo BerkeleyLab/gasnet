@@ -101,8 +101,12 @@ typedef struct _gasnete_thread_cleanup {
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
+  gasneti_AM_SrcDesc_t gasneti_rep_sd, gasneti_req_sd; /* ptrs for NP-AM */   \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
+                                                                              \
+  /* Negotiated Payload data */                                               \
+  struct gasneti_AM_SrcDesc gasneti_sds[2];                                   \
                                                                               \
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
   int thread_cleanup_delay;
@@ -276,22 +280,56 @@ typedef union {
 } while(0)
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
-#define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-
-/* Wrapper around GASNETE_FAST_UNALIGNED_MEMCPY which becomes a no-op if src == dst */
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dest, src, nbytes) do { \
-    void *_dest = (dest);                                           \
-    const void *_src = (src);                                       \
-    if_pt (_dest != _src)                                           \
-        GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
-  } while (0)
+// TODO-EX: remove these if/when all uses are updated
+#define GASNETE_FAST_MEMCPY(d,s,n)                 GASNETE_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETE_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETE_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* TODO-EX: these should replace the alignment-aware versions */
-#define GASNETE_FAST_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-#define GASNETE_FAST_MEMCPY_CHECK(dest, src, nbytes) do {             \
-    void *_dest = (dest);                                             \
-    const void *_src = (src);                                         \
-    if_pt (_dest != _src) GASNETE_FAST_MEMCPY(_dest, _src, (nbytes)); \
+// + GASNETE_MEMCPY (and legacy alias GASNETE_FAST_MEMCPY)
+//     Arguments must match POSIX constraints:
+//       Zero value of nbytes is permitted
+//       Both pointers must be valid (even for !nbytes)
+//       If nbytes non-zero src and dst ranges must not overlap
+//     This is the least costly option and should be used whenever the
+//     call site can be guaranteed to meet these requirements.
+// + GASNETE_MEMCPY_SAFE_EMPTY
+//     Omits memcpy() (thus ignoring pointers entirely) IFF !nbytes
+// + GASNETE_MEMCPY_SAFE_IDENTICAL
+//     Omits memcpy() IFF (src == dst)
+// + GASNETE_MEMCPY_SAFE
+//     Omits memcpy() IFF (!nbytes || src == dst)
+//     This is the most costly option.
+//     Use any of the versions above when possible.
+#define GASNETE_MEMCPY(dst,src,nbytes) do {                \
+    static uint8_t _fm_dummy;                              \
+    uint8_t *_fm_d = (uint8_t*) (dst);                     \
+    uint8_t *_fm_s = (uint8_t*) (src);                     \
+    size_t   _fm_n =   (size_t) (nbytes);                  \
+    gasneti_assume(_fm_s && _fm_d);                        \
+    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_s, 1)); \
+    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_d, 1)); \
+    gasneti_assume(!_fm_n || (_fm_s >= _fm_d+_fm_n)        \
+                          || (_fm_d >= _fm_s+_fm_n));      \
+    (void) memcpy(_fm_d, _fm_s, _fm_n);                    \
+  } while (0)
+#define GASNETE_MEMCPY_SAFE_IDENTICAL(dst,src,nbytes) do { \
+    uint8_t *_fmc_d = (uint8_t*) (dst);                    \
+    uint8_t *_fmc_s = (uint8_t*) (src);                    \
+    if_pt (_fmc_d != _fmc_s)                               \
+        GASNETE_MEMCPY(_fmc_d, _fmc_s, (nbytes));          \
+  } while (0)
+#define GASNETE_MEMCPY_SAFE_EMPTY(dst,src,nbytes) do {     \
+    size_t _fmse_n = (size_t) (nbytes);                    \
+    if_pt (_fmse_n)                                        \
+        GASNETE_MEMCPY((dst), (src), _fmse_n);             \
+  } while (0)
+#define GASNETE_MEMCPY_SAFE(dst,src,nbytes) do {           \
+    size_t _fms_n = (size_t) (nbytes);                     \
+    uint8_t *_fms_d = (uint8_t*) (dst);                    \
+    uint8_t *_fms_s = (uint8_t*) (src);                    \
+    if_pt (_fms_n && _fms_d != _fms_s)                     \
+        GASNETE_MEMCPY(_fms_d, _fms_s, _fms_n);            \
   } while (0)
 
 /* given the address of a gex_RMA_Value_t object and the number of

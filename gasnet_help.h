@@ -738,7 +738,23 @@ typedef void (*gasneti_progressfn_t)(void);
   #endif
   #define gasneti_AMPoll() _gasneti_AMPoll(GASNETI_THREAD_GET_ALONE)
 #endif
-  
+
+// Should poll when GEX_FLAG_IMMEDIATE bit set? (undefined or 1)
+#if defined(GASNETC_IMMEDIATE_AMPOLLS) && (GASNETC_IMMEDIATE_AMPOLLS != 1)
+  #error GASNETC_IMMEDIATE_AMPOLLS must be 1 or undefined
+#endif
+
+// Convenience test
+#if GASNETC_IMMEDIATE_AMPOLLS
+  #define GASNETC_IMMEDIATE_WOULD_POLL(flag) 1
+#else
+  #define GASNETC_IMMEDIATE_WOULD_POLL(flag) (!((flag)&GEX_FLAG_IMMEDIATE))
+#endif
+
+// Convenience conditional poll
+#define GASNETC_IMMEDIATE_MAYBE_POLL(flag) \
+    do { if (GASNETC_IMMEDIATE_WOULD_POLL(flag)) gasneti_AMPoll(); } while (0)
+
 /* Blocking functions
  * Note the _rmb at the end loop of each is required to ensure that subsequent
  * reads will not observe values that were prefeteched or are otherwise out

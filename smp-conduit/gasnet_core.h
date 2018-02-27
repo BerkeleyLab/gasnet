@@ -125,6 +125,8 @@ typedef struct {
 #define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   gex_AM_LUBReplyMedium()
 #define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   gex_AM_LUBRequestLong()
 #define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     gex_AM_LUBReplyLong()
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   gex_AM_LUBReplyMedium()
+#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     gex_AM_LUBReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*

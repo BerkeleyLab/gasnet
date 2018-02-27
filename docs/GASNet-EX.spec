@@ -904,9 +904,10 @@ int gex_AM_ReplyShort[M](
 //
 // The return from the Prepare call provides the client with an address and a
 // length.  The length is in the range defined by the minimum and maximum
-// lengths.  The address will be either the client_buf (if non_NULL) or
-// it may be a GASNet-owned buffer of the indicated length, suitably aligned
-// to hold any data type.
+// lengths.  When the client_buf argument is non-NULL, the address provided by
+// the return will be exactly that value.  Otherwise the address will be a
+// GASNet-owned buffer of the indicated length, suitably aligned to hold any
+// data type.
 //
 // It is important to note that passing NULL for the client_buf argument to
 // a Prepare call requires GASNet to allocate buffer space of size no
@@ -951,9 +952,9 @@ typedef ... gex_AM_SrcDesc_t;
 
 // Query the address component of a gex_AM_SrcDesc_t
 //
-// Will either be identical to the 'client_buf' passed
-// to the Prepare call, or will be GASNet-owned memory
-// suitably aligned to hold any data type.
+// Will be identical to the 'client_buf' passed to the Prepare call if that
+// value was non-NULL, and otherwise will be GASNet-owned memory suitably
+// aligned to hold any data type.
 void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
 
 // Query the length component of a gex_AM_SrcDesc_t

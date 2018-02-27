@@ -613,18 +613,19 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GEX_AM_SRCDESC_NO_OP ((gex_AM_SrcDesc_t)(uintptr_t)0)
 
 #ifndef _GASNETI_AM_SRCDESC_T
-  typedef struct {
+  typedef struct gasneti_AM_SrcDesc {
   #if GASNET_DEBUG
     #define GASNETI_AM_SRCDESC_MAGIC       GASNETI_MAKE_MAGIC('A','S','D','t')
     #define GASNETI_AM_SRCDESC_BAD_MAGIC   GASNETI_MAKE_BAD_MAGIC('A','S','D','t')
     gasneti_magic_t      _magic;
-    gasnet_threadinfo_t  _thread;
     int                  _isreq;
     int                  _category; // true type: gasneti_category_t
   #endif
     void *               _addr;
     size_t               _size;
-    void *               _tofree;
+    gasnet_threadinfo_t  _thread;
+    void *               _tofree; // passed to gasneti_free() when sd reset
+    void *               _gex_buf; // gasnet-owned buffer, if any
     union {
       struct {
         gex_TM_t             _tm;
@@ -633,11 +634,20 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
       struct {
         gex_Token_t          _token;
       }                    _reply;
-    }                    _dest;
+    }                    _dest; // (tm,rank) or token, as passed to Prepare
     void *               _dest_addr; // Long only
+    void *               _void_p; // PSHM and conduit-independent pointer
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
     int                  _nargs;
+    int                  _loopback;
+  #if GASNET_PSHM
+    struct {
+      gex_Rank_t           _pshmrank; // should be gasneti_pshm_rank_t
+      gex_Rank_t           _jobrank;
+      int                  _is_pshm;
+    }                    _pshm;
+  #endif
   #ifdef GASNETI_AM_SRCDESC_EXTRA
     GASNETI_AM_SRCDESC_EXTRA
   #endif

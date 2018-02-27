@@ -6,6 +6,8 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_am.h>
+
 #include <gasnet_event_internal.h> // access to eop and iop
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
