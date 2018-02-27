@@ -275,15 +275,9 @@ typedef union {
 } while(0)
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
-#define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-
-/* Wrapper around GASNETE_FAST_UNALIGNED_MEMCPY which becomes a no-op if src == dst */
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dest, src, nbytes) do { \
-    void *_dest = (dest);                                           \
-    const void *_src = (src);                                       \
-    if_pt (_dest != _src)                                           \
-        GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
-  } while (0)
+// TODO-EX: remove these if/when all uses are updated
+#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETI_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETI_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* given the address of a gasnet_register_value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
