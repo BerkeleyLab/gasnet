@@ -1025,31 +1025,31 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 //     Use any of the versions above when possible.
 #define GASNETI_MEMCPY(dst,src,nbytes) do {                \
     static uint8_t _fm_dummy;                              \
-    uint8_t *_fm_d = (uint8_t*) (dst);                     \
-    uint8_t *_fm_s = (uint8_t*) (src);                     \
-    size_t   _fm_n =   (size_t) (nbytes);                  \
+    void       *_fm_d = (dst);                             \
+    void const *_fm_s = (src);                             \
+    size_t      _fm_n = (nbytes);                          \
     gasneti_assume(_fm_s && _fm_d);                        \
     gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_s, 1)); \
     gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_d, 1)); \
-    gasneti_assume(!_fm_n || (_fm_s >= _fm_d+_fm_n)        \
-                          || (_fm_d >= _fm_s+_fm_n));      \
+    gasneti_assume(!_fm_n || ((uintptr_t)_fm_s >= (uintptr_t)_fm_d+_fm_n)   \
+                          || ((uintptr_t)_fm_d >= (uintptr_t)_fm_s+_fm_n)); \
     (void) memcpy(_fm_d, _fm_s, _fm_n);                    \
   } while (0)
 #define GASNETI_MEMCPY_SAFE_IDENTICAL(dst,src,nbytes) do { \
-    uint8_t *_fmc_d = (uint8_t*) (dst);                    \
-    uint8_t *_fmc_s = (uint8_t*) (src);                    \
+    void       *_fmc_d = (dst);                            \
+    void const *_fmc_s = (src);                            \
     if_pt (_fmc_d != _fmc_s)                               \
         GASNETI_MEMCPY(_fmc_d, _fmc_s, (nbytes));          \
   } while (0)
 #define GASNETI_MEMCPY_SAFE_EMPTY(dst,src,nbytes) do {     \
-    size_t _fmse_n = (size_t) (nbytes);                    \
+    size_t _fmse_n = (nbytes);                             \
     if_pt (_fmse_n)                                        \
         GASNETI_MEMCPY((dst), (src), _fmse_n);             \
   } while (0)
 #define GASNETI_MEMCPY_SAFE(dst,src,nbytes) do {           \
-    size_t _fms_n = (size_t) (nbytes);                     \
-    uint8_t *_fms_d = (uint8_t*) (dst);                    \
-    uint8_t *_fms_s = (uint8_t*) (src);                    \
+    void       *_fms_d = (dst);                            \
+    void const *_fms_s = (src);                            \
+    size_t      _fms_n = (nbytes);                         \
     if_pt (_fms_n && _fms_d != _fms_s)                     \
         GASNETI_MEMCPY(_fms_d, _fms_s, _fms_n);            \
   } while (0)
