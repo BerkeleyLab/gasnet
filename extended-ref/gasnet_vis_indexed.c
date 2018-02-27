@@ -501,7 +501,7 @@ MEDIUM_HANDLER(gasnete_geti_AMPipeline_reph,2,3,
         _idx2++;                                                             \
         _off2 = 0;                                                           \
         _off1 += _rem2;                                                      \
-      } else { /* _rem1 == _rem2 */                                          \
+      } else { gasneti_assert(_rem1 == _rem2);                               \
         action(_p1, _p2, _rem1);                                             \
         _idx1++; _idx2++;                                                    \
         _off1 = 0; _off2 = 0;                                                \
@@ -634,6 +634,7 @@ extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   gasneti_assert(dstcount*dstlen > 0);
   gasneti_assert(srccount*srclen > 0);
+  gasneti_assert(dstcount > 1 || srccount > 1);
   gasneti_assert(dstcount*dstlen == srccount*srclen);
   gasneti_assert(dstlist); gasneti_assert(srclist);
   gasneti_assert(!flags); // TODO-EX
@@ -685,6 +686,7 @@ extern gex_Event_t gasnete_geti(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   gasneti_assert(dstcount*dstlen > 0);
   gasneti_assert(srccount*srclen > 0);
+  gasneti_assert(dstcount > 1 || srccount > 1);
   gasneti_assert(dstcount*dstlen == srccount*srclen);
   gasneti_assert(dstlist); gasneti_assert(srclist);
   gasneti_assert(!flags); // TODO-EX

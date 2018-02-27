@@ -183,6 +183,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /*---------------------------------------------------------------------------------*/
 /* ***  Individual put/get helpers *** */
 /*---------------------------------------------------------------------------------*/
+// TODO-EX: rework these after removing GASNETE_OLD_STRIDED
 /* helper for vis functions implemented atop other GASNet operations
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype, islocal) do {    \
