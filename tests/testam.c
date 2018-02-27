@@ -292,6 +292,7 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[arg], "-async-req")) {
       asynclc = 1;
       lc_opt = GEX_EVENT_GROUP;
+      ++arg;
     } else if (!strcmp(argv[arg], "-fp")) {
       use_np = 0;
       ++arg;
