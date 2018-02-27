@@ -404,7 +404,7 @@ void *doit(void *id) {
       size_t sz = all_sizes[sz_idx];
       if (dosizesync) BARRIER(); /* optional barrier, to synchronize tests at each payload size across nodes */
       
-      MSG0("payload = %i",sz);
+      MSG0("payload = %"PRIuSZ,sz);
 
       for (int iter = 0; iter < iters; iter++) {
         int chunkidx;
