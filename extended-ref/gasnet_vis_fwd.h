@@ -46,6 +46,10 @@ extern void gasneti_vis_progressfn(void);
         CNT(C, GETV_AMPIPELINE, cnt)         \
         CNT(C, PUTV_REF_INDIV, cnt)          \
         CNT(C, GETV_REF_INDIV, cnt)          \
+        CNT(C, PUTV_DEGENERATE, cnt)         \
+        CNT(C, GETV_DEGENERATE, cnt)         \
+        CNT(C, PUTV_NBRHD, cnt)              \
+        CNT(C, GETV_NBRHD, cnt)              \
                                              \
         CNT(C, PUTI_GATHER, cnt)             \
         CNT(C, GETI_SCATTER, cnt)            \
