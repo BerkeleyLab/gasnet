@@ -281,56 +281,8 @@ typedef union {
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
 // TODO-EX: remove these if/when all uses are updated
-#define GASNETE_FAST_MEMCPY(d,s,n)                 GASNETE_MEMCPY(d,s,n)
-#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETE_MEMCPY(d,s,n)
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETE_MEMCPY_SAFE_IDENTICAL(d,s,n)
-
-/* TODO-EX: these should replace the alignment-aware versions */
-// + GASNETE_MEMCPY (and legacy alias GASNETE_FAST_MEMCPY)
-//     Arguments must match POSIX constraints:
-//       Zero value of nbytes is permitted
-//       Both pointers must be valid (even for !nbytes)
-//       If nbytes non-zero src and dst ranges must not overlap
-//     This is the least costly option and should be used whenever the
-//     call site can be guaranteed to meet these requirements.
-// + GASNETE_MEMCPY_SAFE_EMPTY
-//     Omits memcpy() (thus ignoring pointers entirely) IFF !nbytes
-// + GASNETE_MEMCPY_SAFE_IDENTICAL
-//     Omits memcpy() IFF (src == dst)
-// + GASNETE_MEMCPY_SAFE
-//     Omits memcpy() IFF (!nbytes || src == dst)
-//     This is the most costly option.
-//     Use any of the versions above when possible.
-#define GASNETE_MEMCPY(dst,src,nbytes) do {                \
-    static uint8_t _fm_dummy;                              \
-    uint8_t *_fm_d = (uint8_t*) (dst);                     \
-    uint8_t *_fm_s = (uint8_t*) (src);                     \
-    size_t   _fm_n =   (size_t) (nbytes);                  \
-    gasneti_assume(_fm_s && _fm_d);                        \
-    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_s, 1)); \
-    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_d, 1)); \
-    gasneti_assume(!_fm_n || (_fm_s >= _fm_d+_fm_n)        \
-                          || (_fm_d >= _fm_s+_fm_n));      \
-    (void) memcpy(_fm_d, _fm_s, _fm_n);                    \
-  } while (0)
-#define GASNETE_MEMCPY_SAFE_IDENTICAL(dst,src,nbytes) do { \
-    uint8_t *_fmc_d = (uint8_t*) (dst);                    \
-    uint8_t *_fmc_s = (uint8_t*) (src);                    \
-    if_pt (_fmc_d != _fmc_s)                               \
-        GASNETE_MEMCPY(_fmc_d, _fmc_s, (nbytes));          \
-  } while (0)
-#define GASNETE_MEMCPY_SAFE_EMPTY(dst,src,nbytes) do {     \
-    size_t _fmse_n = (size_t) (nbytes);                    \
-    if_pt (_fmse_n)                                        \
-        GASNETE_MEMCPY((dst), (src), _fmse_n);             \
-  } while (0)
-#define GASNETE_MEMCPY_SAFE(dst,src,nbytes) do {           \
-    size_t _fms_n = (size_t) (nbytes);                     \
-    uint8_t *_fms_d = (uint8_t*) (dst);                    \
-    uint8_t *_fms_s = (uint8_t*) (src);                    \
-    if_pt (_fms_n && _fms_d != _fms_s)                     \
-        GASNETE_MEMCPY(_fms_d, _fms_s, _fms_n);            \
-  } while (0)
+#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETI_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETI_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
@@ -461,20 +413,20 @@ typedef union {
 #if GASNET_PSHM
   #define GASNETI_CHECKPSHM_GET(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
+      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
       gasnete_loopbackget_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       gasneti_leaf_finish(lc_opt);            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)

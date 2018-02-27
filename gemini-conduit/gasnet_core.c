@@ -1293,7 +1293,7 @@ void gasnetc_format_medium(gasnetc_post_descriptor_t *gpd,
   
   if (do_copy) {
     void *data = (void*)((uintptr_t)m + GASNETC_HEADLEN(medium, numargs));
-    GASNETE_MEMCPY_SAFE_EMPTY(data, source_addr, nbytes);
+    GASNETI_MEMCPY_SAFE_EMPTY(data, source_addr, nbytes);
   }
 }
 
@@ -1552,7 +1552,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t dest, gex_AM_Index_t handler
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
 
     if (is_packed) {
-      GASNETE_MEMCPY_SAFE_EMPTY((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
+      GASNETI_MEMCPY_SAFE_EMPTY((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
     } else {
       /* Poll for the RDMA completion */
       gasnetc_wait_long_payload(initiated, &completed GASNETC_DIDX_PASS);
@@ -1765,7 +1765,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
 
     if (is_packed) {
-      GASNETE_MEMCPY_SAFE_EMPTY((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
+      GASNETI_MEMCPY_SAFE_EMPTY((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
     } else {    
       /* Poll for the RDMA completion */
       gasnetc_wait_long_payload(initiated, &completed GASNETC_DIDX_PASS);
