@@ -2113,7 +2113,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
     op->scratch_op_freed = 0;
 #endif
     op->num_coll_params = num_params;
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(op->param_list, param_list, sizeof(uint32_t)*num_params);
+    GASNETI_MEMCPY_SAFE_EMPTY(op->param_list, param_list, sizeof(uint32_t)*num_params);
     op->tree_info = tree_info;
     /* Submit the op via aggregation filter */
     handle = gasnete_coll_op_submit(op, handle GASNETE_THREAD_PASS);

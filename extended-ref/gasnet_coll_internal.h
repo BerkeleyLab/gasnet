@@ -653,8 +653,8 @@ GASNETI_INLINE(gasnete_coll_local_rotate_left)
 void gasnete_coll_local_rotate_left(void *dst, const void *src, size_t elem_size, size_t num_elem, int rotation_amt) {
   gasneti_sync_reads();
   gasneti_assert(rotation_amt >= 0);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, gasnete_coll_scale_ptr(src, elem_size, rotation_amt), (num_elem-rotation_amt)*elem_size);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dst, elem_size, num_elem-rotation_amt), src, (rotation_amt)*elem_size);
+  GASNETI_MEMCPY_SAFE_EMPTY(dst, gasnete_coll_scale_ptr(src, elem_size, rotation_amt), (num_elem-rotation_amt)*elem_size);
+  GASNETI_MEMCPY_SAFE_EMPTY(gasnete_coll_scale_ptr(dst, elem_size, num_elem-rotation_amt), src, (rotation_amt)*elem_size);
   gasneti_sync_writes();
 }
 GASNETI_INLINE(gasnete_coll_local_rotate_right)
@@ -662,8 +662,8 @@ void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_siz
   /*make sure we can read the data*/
   gasneti_sync_reads();
   gasneti_assert(rotation_amt >= 0);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dst, elem_size, rotation_amt), src,(num_elem-rotation_amt)*elem_size);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, gasnete_coll_scale_ptr(src, elem_size, num_elem-rotation_amt), (rotation_amt)*elem_size);
+  GASNETI_MEMCPY_SAFE_EMPTY(gasnete_coll_scale_ptr(dst, elem_size, rotation_amt), src,(num_elem-rotation_amt)*elem_size);
+  GASNETI_MEMCPY_SAFE_EMPTY(dst, gasnete_coll_scale_ptr(src, elem_size, num_elem-rotation_amt), (rotation_amt)*elem_size);
   gasneti_sync_writes();
 }
 
