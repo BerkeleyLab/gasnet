@@ -801,6 +801,7 @@ int gasnetc_nbrhd_RequestGeneric(
     default:
         gasneti_unreachable();
   }
+  return 0;
 #else
   return gasnetc_loopback_ReqRepGeneric(
                                1, category, handler,
