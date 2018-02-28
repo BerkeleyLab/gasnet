@@ -804,7 +804,8 @@ int _gex_VIS_IndexedGetNBI(
 /* Strided */
 
 #if GASNETE_OLD_STRIDED // TODO-EX : remove this
-#ifndef gasnete_puts
+#define gasnete_puts gasnete_puts_oldstrided
+#define gasnete_gets gasnete_gets_oldstrided
   extern gex_Event_t gasnete_puts(
         gasnete_synctype_t _synctype,
         gex_TM_t _tm, gex_Rank_t _dstrank,
@@ -813,8 +814,6 @@ int _gex_VIS_IndexedGetNBI(
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG);
 
-#endif
-#ifndef gasnete_gets
   extern gex_Event_t gasnete_gets(
         gasnete_synctype_t _synctype,
         gex_TM_t _tm,
@@ -823,7 +822,6 @@ int _gex_VIS_IndexedGetNBI(
         void *_srcaddr, const size_t _srcstrides[],
         const size_t _count[], size_t _stridelevels,
         gex_Flags_t _flags GASNETE_THREAD_FARG);
-#endif
 
 // This is a TEMPORARY thunk for the purposes of the 12/17 beta release
 // Emulates the new strided metadata format (with non-transpositional preconditions)

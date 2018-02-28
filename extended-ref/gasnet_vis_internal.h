@@ -187,6 +187,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /* helper for vis functions implemented atop other GASNet operations
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype, islocal) do {    \
+  if (islocal) GASNETE_ASSERT_OLD_STRIDED();               \
   if (synctype != gasnete_synctype_nbi && !islocal)        \
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
