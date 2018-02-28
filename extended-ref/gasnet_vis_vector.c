@@ -274,7 +274,7 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(gex_Memvec_t)+nbytes);
     gex_Memvec_t * const savedlst = (gex_Memvec_t *)(visop + 1);
     void * const packedbuf = savedlst + dstcount;
-    memcpy(savedlst, dstlist, dstcount*sizeof(gex_Memvec_t));
+    GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(gex_Memvec_t));
     visop->type = GASNETI_VIS_CAT_GETV_SCATTER;
     visop->count = dstcount;
     visop->event = gasnete_get_nb(gasneti_THUNK_TM, packedbuf, srcnode, srclist[0].gex_addr, nbytes, 0 GASNETE_THREAD_PASS);
@@ -472,7 +472,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
     gasneti_assert(packetcnt == (gex_AM_Arg_t)packetcnt);
     visop->addr = localpt;
-    memcpy(savedlst, dstlist, dstcount*sizeof(gex_Memvec_t));
+    GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(gex_Memvec_t));
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
     eop = visop->eop; /* visop may disappear once the last AM is launched */
 
@@ -675,11 +675,11 @@ void gasnete_vector_memcpy(gex_Rank_t jobrank, int isput,
   ptrdiff_t const offset = refptr - rawptr;
   
   if (isput) {    
-    #define ACTION(p1,p2,len) GASNETE_MEMCPY((uint8_t*)p1+offset,p2,len)
+    #define ACTION(p1,p2,len) GASNETI_MEMCPY((uint8_t*)p1+offset,p2,len)
     GASNETE_VECTOR_HELPER(dstcount, dstlist, srccount, srclist, ACTION);
     #undef ACTION
   } else {
-    #define ACTION(p1,p2,len) GASNETE_MEMCPY(p1,(uint8_t*)p2+offset,len)
+    #define ACTION(p1,p2,len) GASNETI_MEMCPY(p1,(uint8_t*)p2+offset,len)
     GASNETE_VECTOR_HELPER(dstcount, dstlist, srccount, srclist, ACTION);
     #undef ACTION
   }

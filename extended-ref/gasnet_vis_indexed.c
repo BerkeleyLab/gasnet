@@ -250,7 +250,7 @@ gex_Event_t gasnete_geti_scatter(gasnete_synctype_t synctype,
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(void *)+nbytes);
     void * * const savedlst = (void * *)(visop + 1);
     void * const packedbuf = (void *)(savedlst + dstcount);
-    memcpy(savedlst, dstlist, dstcount*sizeof(void *));
+    GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(void *));
     visop->type = GASNETI_VIS_CAT_GETI_SCATTER;
     visop->count = dstcount;
     visop->len = dstlen;
@@ -296,7 +296,7 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
       size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
       uint8_t *end;
       /* fill packet with remote metadata */
-      memcpy(packedbuf, &dstlist[rpacket->firstidx], rnum*sizeof(void *));
+      GASNETI_MEMCPY(packedbuf, &dstlist[rpacket->firstidx], rnum*sizeof(void *));
       /* gather data payload from sourcelist into packet */
       end = gasnete_addrlist_pack(lnum, &srclist[lpacket->firstidx], srclen, &packedbuf[rnum], 
                                   lpacket->firstoffset, lpacket->lastlen);
@@ -375,7 +375,7 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
     gasneti_assert(packetcnt == (gex_AM_Arg_t)packetcnt);
     visop->len = dstlen;
     visop->addr = localpt;
-    memcpy(savedlst, dstlist, dstcount*sizeof(void *));
+    GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(void *));
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
     eop = visop->eop; /* visop may disappear once the last AM is launched */
 
@@ -383,7 +383,7 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
       gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
       size_t const rnum = rpacket->lastidx - rpacket->firstidx + 1;
       /* fill packet with remote metadata */
-      memcpy(packedbuf, &srclist[rpacket->firstidx], rnum*sizeof(void *));
+      GASNETI_MEMCPY(packedbuf, &srclist[rpacket->firstidx], rnum*sizeof(void *));
 
       /* send AM(visop) from packedbuf */
       gex_AM_RequestMedium(gasneti_THUNK_TM, srcnode, gasneti_handleridx(gasnete_geti_AMPipeline_reqh),
@@ -524,13 +524,13 @@ void gasnete_indexed_memcpy(gex_Rank_t jobrank, int isput,
   if (isput) {
     uint8_t *refptr = GASNETI_SUPERNODE_LOCAL_ADDR(jobrank,dstlist[0]); 
     ptrdiff_t const offset = refptr - (uint8_t*)dstlist[0];
-    #define ACTION(p1,p2,len) GASNETE_MEMCPY((uint8_t*)p1+offset,p2,len)
+    #define ACTION(p1,p2,len) GASNETI_MEMCPY((uint8_t*)p1+offset,p2,len)
     GASNETE_INDEXED_HELPER(dstcount, dstlist, dstlen, srccount, srclist, srclen, ACTION);
     #undef ACTION
   } else {
     uint8_t *refptr = GASNETI_SUPERNODE_LOCAL_ADDR(jobrank,srclist[0]); 
     ptrdiff_t const offset = refptr - (uint8_t*)srclist[0];
-    #define ACTION(p1,p2,len) GASNETE_MEMCPY(p1,(uint8_t*)p2+offset,len)
+    #define ACTION(p1,p2,len) GASNETI_MEMCPY(p1,(uint8_t*)p2+offset,len)
     GASNETE_INDEXED_HELPER(dstcount, dstlist, dstlen, srccount, srclist, srclen, ACTION);
     #undef ACTION
   }
