@@ -320,7 +320,7 @@ void gasnete_coll_scratch_reconfigure(gasnete_coll_scratch_status_t *stat,
     /* set the new config and the information about who weill send to me*/
     config->numpeers = req->num_in_peers;
     config->peers = gasneti_malloc(sizeof(gasnet_node_t)*config->numpeers);
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(config->peers, req->in_peers, sizeof(gasnet_node_t)*config->numpeers);
+    GASNETI_MEMCPY_SAFE_EMPTY(config->peers, req->in_peers, sizeof(gasnet_node_t)*config->numpeers);
   }
 }
 
