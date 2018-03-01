@@ -730,7 +730,7 @@ extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
   gasneti_assert(dstcount > 0); gasneti_assert(srccount > 0);
   gasneti_assert(dstcount > 1 || srccount > 1);
   gasneti_assert(dstlist); gasneti_assert(srclist);
-  gasneti_assert(!flags); // TODO-EX
+  flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
   // TODO-EX: Team support
 
   if (GASNETI_SUPERNODE_LOCAL(dstnode)) { /* purely local */
@@ -764,7 +764,7 @@ extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
   gasneti_assert(dstcount > 0); gasneti_assert(srccount > 0);
   gasneti_assert(dstcount > 1 || srccount > 1);
   gasneti_assert(dstlist); gasneti_assert(srclist);
-  gasneti_assert(!flags); // TODO-EX
+  flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
   // TODO-EX: Team support
 
   if (GASNETI_SUPERNODE_LOCAL(srcnode)) { /* purely local */

@@ -841,9 +841,11 @@ int _gex_VIS_IndexedGetNBI(
     memcpy(&(_count_thunk[1]),_count,_stridelevels*sizeof(size_t));   \
   _count = _count_thunk;
 #define _gasnete_puts(synctype,tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
-         gasnete_puts(synctype,tm,dstrank,dstaddr,(const size_t *)dststrides,srcaddr,(const size_t *)srcstrides,count,stridelevels,flags GASNETE_THREAD_PASS)
+         gasnete_puts(synctype,tm,dstrank,dstaddr,(const size_t *)dststrides,srcaddr,(const size_t *)srcstrides, \
+                      count,stridelevels,(flags&~GEX_FLAG_IMMEDIATE) GASNETE_THREAD_PASS)
 #define _gasnete_gets(synctype,tm,dstaddr,dststrides,srcrank,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
-         gasnete_gets(synctype,tm,dstaddr,(const size_t *)dststrides,srcrank,srcaddr,(const size_t *)srcstrides,count,stridelevels,flags GASNETE_THREAD_PASS)
+         gasnete_gets(synctype,tm,dstaddr,(const size_t *)dststrides,srcrank,srcaddr,(const size_t *)srcstrides, \
+                      count,stridelevels,(flags&~GEX_FLAG_IMMEDIATE) GASNETE_THREAD_PASS)
 
 #define _GASNETE_STRIDED_COMMON_GET(degencontigop) \
    gasnete_boundscheck_strided(_tm, _srcrank, _srcaddr, _srcstrides, _elemsz, _count, _stridelevels); \

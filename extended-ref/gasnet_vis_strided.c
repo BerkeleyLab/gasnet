@@ -473,7 +473,6 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX
   // TODO-EX: Team support
   GASNETE_START_NBIREGION(synctype, 0);
 
@@ -495,7 +494,6 @@ gex_Event_t gasnete_gets_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX
   // TODO-EX: Team support
   GASNETE_START_NBIREGION(synctype, 0);
 
@@ -1631,6 +1629,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   gasneti_assert(elemsz > 0); // this degenerate case handled in public header
   gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
+  flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
 
   union {
     gasneti_vis_smd_t _smd;
@@ -1726,6 +1725,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   gasneti_assert(elemsz > 0); // this degenerate case handled in public header
   gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
+  flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
 
   union {
     gasneti_vis_smd_t _smd;
