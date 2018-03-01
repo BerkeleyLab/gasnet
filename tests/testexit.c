@@ -214,7 +214,6 @@ int main(int argc, char **argv) {
     }
   }
   test_init_early("testexit",0,usagestr);
-  MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
