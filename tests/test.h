@@ -1067,6 +1067,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
         testname, (int)TEST_PROCS, GASNET_CONFIG_STRING,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
+    fflush(NULL);
     assert(_test_nodeinfo == NULL);
     /* must use malloc here, pre-attach if "early" */
     _test_nodeinfo = (gasnet_nodeinfo_t *)malloc(TEST_PROCS*sizeof(gasnet_nodeinfo_t));
@@ -1074,14 +1075,10 @@ static void _test_init(const char *testname, int reports_performance, int early,
     if (!early) {
       TEST_SEG(TEST_MYPROC); /* ensure we got the segment requested */
       BARRIER();
-    #if GASNET_PSHM || 1 /* supernode info still of intested when PSHM not used */
-      MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[TEST_MYPROC].supernode, (int)getpid());
-    #else
-      MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
-    #endif
-      fflush(NULL);
-      BARRIER();
-    }
+    } else gasnett_nsleep(250000);
+    MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[TEST_MYPROC].supernode, (int)getpid());
+    fflush(NULL);
+    if (!early) BARRIER();
   #else
     MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
           testname, GASNETT_CONFIG_STRING,
