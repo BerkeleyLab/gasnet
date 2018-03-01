@@ -313,13 +313,14 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   }
   GASNETE_START_NBIREGION(synctype, 0);
 
-  { gex_Memvec_t * const packedbuf = gasneti_malloc(gex_AM_LUBRequestMedium());
+  size_t maxpacket = gex_AM_MaxRequestMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(2,3));
+  { gex_Memvec_t * const packedbuf = gasneti_malloc(maxpacket);
     gasnete_packetdesc_t *remotept;
     gasnete_packetdesc_t *localpt;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_memvec(dstcount, dstlist, srccount, srclist,
                                                 &remotept, &localpt,
-                                                gex_AM_LUBRequestMedium(), // TODO-EX: Use _max_ version for target
+                                                maxpacket,
                                                 1);
     gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
@@ -372,7 +373,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
         }
         gasneti_assert(datalen > 0); 
         gasneti_assert(packetlen == rnum*sizeof(gex_Memvec_t)+datalen);
-        gasneti_assert(packetlen <= gex_AM_LUBRequestMedium());
+        gasneti_assert(packetlen <= maxpacket);
       #endif
 
       /* send AM(rnum, iop) from packedbuf */
@@ -404,8 +405,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gex_Token_t token,
   gex_Memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
   uint8_t * const end = gasnete_memvec_unpack_noempty(rnum, rlist, data, 0, (size_t)-1);
-  gasneti_assert(end - (uint8_t *)addr <= gex_AM_LUBRequestMedium());
-  gasneti_sync_writes();
+  gasneti_assert(end - (uint8_t *)addr == nbytes);
   /* TODO: coalesce acknowledgements - need a per-rank, per-op seqnum & packetcnt */
   gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
 }
