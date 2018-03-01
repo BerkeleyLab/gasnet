@@ -469,17 +469,15 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  // TODO-EX: Team support
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDIV);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  // TODO-EX: Team support
   GASNETE_START_NBIREGION(synctype, 0);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-      GASNETE_PUT_INDIV(0, rank, p2, p1, elemsz)
+      GASNETE_PUT_INDIV(tm, rank, p2, p1, elemsz)
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
@@ -491,17 +489,15 @@ gex_Event_t gasnete_gets_ref_indiv(gasneti_vis_smd_t * const smd,
                                    gasnete_synctype_t const synctype, 
                                    gex_TM_t const tm, gex_Rank_t const rank, 
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
-  // TODO-EX: Team support
   GASNETI_TRACE_EVENT(C, GETS_REF_INDIV);
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  // TODO-EX: Team support
   GASNETE_START_NBIREGION(synctype, 0);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-      GASNETE_GET_INDIV(0, p1, rank, p2, elemsz)
+      GASNETE_GET_INDIV(tm, rank, p1, p2, elemsz)
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
