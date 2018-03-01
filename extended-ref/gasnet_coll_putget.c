@@ -339,7 +339,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
                                           args->src, args->nbytes, 0, 1);
           
         }
-        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
         
