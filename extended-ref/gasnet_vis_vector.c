@@ -230,9 +230,11 @@ size_t gasnete_packetize_memvec(size_t remotecount, gex_Memvec_t const remotelis
 #ifndef GASNETE_PUTV_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
-                                   gex_Rank_t rank,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
+  // TODO-EX: Team support
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
   size_t const nbytes = dstlist[0].gex_len;
   gasneti_assert(dstcount == 1 && srccount > 1); /* only supports gather put */
@@ -249,11 +251,11 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
-  #define GASNETE_PUTV_GATHER_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist) \
-    if (gasnete_vis_use_remotecontig && dstcount == 1 && srccount > 1)                                                     \
-      return gasnete_putv_gather(synctype,rank,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
+  #define GASNETE_PUTV_GATHER_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) \
+    if (gasnete_vis_use_remotecontig && dstcount == 1 && srccount > 1)                           \
+      return gasnete_putv_gather(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_PASS)
 #else
-  #define GASNETE_PUTV_GATHER_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist) ((void)0)
+  #define GASNETE_PUTV_GATHER_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) ((void)0)
 #endif
 #endif
 
@@ -261,9 +263,11 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
 #ifndef GASNETE_GETV_SCATTER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   gex_Rank_t rank,
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
+  // TODO-EX: Team support
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
   size_t const nbytes = srclist[0].gex_len;
   gasneti_assert(srccount == 1 && dstcount > 1); /* only supports scatter get */
@@ -282,11 +286,11 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
-  #define GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist) \
-    if (gasnete_vis_use_remotecontig && srccount == 1 && dstcount > 1)                                                      \
-      return gasnete_getv_scatter(synctype,dstcount,dstlist,rank,srccount,srclist GASNETE_THREAD_PASS)
+  #define GASNETE_GETV_SCATTER_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) \
+    if (gasnete_vis_use_remotecontig && srccount == 1 && dstcount > 1)                            \
+      return gasnete_getv_scatter(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_PASS)
 #else
-  #define GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist) ((void)0)
+  #define GASNETE_GETV_SCATTER_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) ((void)0)
 #endif
 #endif
 /*---------------------------------------------------------------------------------*/
@@ -294,9 +298,11 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
 #ifndef GASNETE_PUTV_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
 gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
-                                   gex_Rank_t rank,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
+  // TODO-EX: Team support
   gasneti_assert(srccount >= 1);
   gasneti_assert(dstcount > 1); /* supports scatter put */
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
@@ -384,11 +390,11 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
     GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
   }
 }
-  #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist) \
-    if (gasnete_vis_use_ampipe && dstcount > 1)                                                \
-      return gasnete_putv_AMPipeline(synctype,rank,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
+  #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) \
+    if (gasnete_vis_use_ampipe && dstcount > 1)                                                      \
+      return gasnete_putv_AMPipeline(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_PASS)
 #else
-  #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist) ((void)0)
+  #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) ((void)0)
 #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -435,9 +441,11 @@ void gasnete_getv_AMPipeline_visop_signal(gasneti_vis_op_t * const visop) {
 }
 
 gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   gex_Rank_t rank,
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
+  // TODO-EX: Team support
   gasneti_assert(dstcount >= 1);
   gasneti_assert(srccount > 1); /* supports gather get */
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
@@ -529,11 +537,11 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
   }
 }
-  #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist) \
-    if (gasnete_vis_use_ampipe && srccount > 1)                                                \
-      return gasnete_getv_AMPipeline(synctype,dstcount,dstlist,rank,srccount,srclist GASNETE_THREAD_PASS)
+  #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) \
+    if (gasnete_vis_use_ampipe && srccount > 1)                                                      \
+      return gasnete_getv_AMPipeline(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_PASS)
 #else
-  #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist) ((void)0)
+  #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) ((void)0)
 #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -687,9 +695,11 @@ void gasnete_vector_memcpy(gex_Rank_t jobrank, int isput,
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
 gex_Event_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
-                                   gex_Rank_t rank,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
+  // TODO-EX: Team support
   GASNETI_TRACE_EVENT(C, PUTV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
@@ -704,9 +714,11 @@ gex_Event_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
 
 /* reference version that uses individual gets */
 gex_Event_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   gex_Rank_t rank,
-                                   size_t srccount, gex_Memvec_t const srclist[] GASNETE_THREAD_FARG) {
+                                   size_t srccount, gex_Memvec_t const srclist[],
+                                   gex_Flags_t flags GASNETE_THREAD_FARG) {
+  // TODO-EX: Team support
   GASNETI_TRACE_EVENT(C, GETV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
@@ -722,7 +734,7 @@ gex_Event_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
 /* top-level gasnet_putv_* entry point */
 #ifndef GASNETE_PUTV_OVERRIDE
 extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
-                                   gex_TM_t tm, gex_Rank_t rank,
+                                   gex_TM_t const tm, gex_Rank_t const rank,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
                                    size_t srccount, gex_Memvec_t const srclist[],
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
@@ -731,7 +743,6 @@ extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
   gasneti_assert(dstcount > 1 || srccount > 1);
   gasneti_assert(dstlist); gasneti_assert(srclist);
   flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
-  // TODO-EX: Team support
 
   if (GASNETI_SUPERNODE_LOCAL(rank)) { /* purely local */
     GASNETI_TRACE_EVENT(C, PUTV_NBRHD);
@@ -743,21 +754,21 @@ extern gex_Event_t gasnete_putv(gasnete_synctype_t synctype,
 
   /* select algorithm */
   #ifndef GASNETE_PUTV_SELECTOR
-    #define GASNETE_PUTV_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist)   \
-      GASNETE_PUTV_GATHER_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist); \
-      GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist); \
-      return gasnete_putv_ref_indiv(synctype,rank,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
+    #define GASNETE_PUTV_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags)       \
+      GASNETE_PUTV_GATHER_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags);     \
+      GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags); \
+      return gasnete_putv_ref_indiv(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_PASS)
   #endif
-  GASNETE_PUTV_SELECTOR(synctype,rank,dstcount,dstlist,srccount,srclist);
+  GASNETE_PUTV_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags);
   gasneti_fatalerror("failure in GASNETE_PUTV_SELECTOR - should never reach here");
 }
 #endif
 /* top-level gasnet_getv_* entry point */
 #ifndef GASNETE_GETV_OVERRIDE
 extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
-                                   gex_TM_t tm,
+                                   gex_TM_t const tm,
                                    size_t dstcount, gex_Memvec_t const dstlist[], 
-                                   gex_Rank_t rank,
+                                   gex_Rank_t const rank,
                                    size_t srccount, gex_Memvec_t const srclist[],
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
@@ -765,7 +776,6 @@ extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
   gasneti_assert(dstcount > 1 || srccount > 1);
   gasneti_assert(dstlist); gasneti_assert(srclist);
   flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
-  // TODO-EX: Team support
 
   if (GASNETI_SUPERNODE_LOCAL(rank)) { /* purely local */
     GASNETI_TRACE_EVENT(C, GETV_NBRHD);
@@ -777,12 +787,12 @@ extern gex_Event_t gasnete_getv(gasnete_synctype_t synctype,
 
   /* select algorithm */
   #ifndef GASNETE_GETV_SELECTOR
-    #define GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist)    \
-      GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist); \
-      GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist); \
-      return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,rank,srccount,srclist GASNETE_THREAD_PASS)
+    #define GASNETE_GETV_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags)       \
+      GASNETE_GETV_SCATTER_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags);    \
+      GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags); \
+      return gasnete_getv_ref_indiv(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_PASS)
   #endif
-  GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,rank,srccount,srclist);
+  GASNETE_GETV_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags);
   gasneti_fatalerror("failure in GASNETE_GETV_SELECTOR - should never reach here");
 }
 #endif
