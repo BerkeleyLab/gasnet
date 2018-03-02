@@ -297,6 +297,9 @@ int main(int argc, char **argv) {
                 gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,2));
   max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
+  if (!domed)  max_payload = MIN(max_payload, maxlong);
+  if (!dolong) max_payload = MIN(max_payload, maxmed);
+
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
   test_init("testcore2",0,"[options] (iters) (max_payload) (depth)\n"
@@ -386,15 +389,16 @@ void *doit(void *id) {
     size_t max1 = MIN(max_payload, MIN(maxmed, maxlong));
     size_t max2 = MIN(max_payload, MAX(maxmed, maxlong));
     int i = 0;
+    size_t save_sz = 1;
     for (size_t sz = 1; sz <= max_payload; ) {
       all_sizes[i++] = sz;
       assert(i <= num_sz);
       /* double sz each time, but make sure to also exactly hit MaxMedium, MaxLong and max payload */
-      size_t next_sz = sz * 2;
+      size_t next_sz = save_sz * 2;
       if      (sz < max1        && next_sz > max1)        sz = max1;
       else if (sz < max2        && next_sz > max2)        sz = max2;
       else if (sz < max_payload && next_sz > max_payload) sz = max_payload;
-      else sz = next_sz;
+      else { sz = save_sz = next_sz; }
     }
     num_sz = i;
   }
