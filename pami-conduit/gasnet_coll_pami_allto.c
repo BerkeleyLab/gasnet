@@ -30,7 +30,7 @@ gasnete_coll_pami_alltovi(const gasnet_team_handle_t team,
         const uint8_t *stmp = src;
         uint8_t *dtmp = (uint8_t*) sndbuf + nbytes * td->my_local_image;
         for (i = 0; i < team->total_images; ++i) {
-            GASNETE_FAST_UNALIGNED_MEMCPY(dtmp, stmp, nbytes);
+            GASNETI_MEMCPY(dtmp, stmp, nbytes);
             stmp += nbytes;
             dtmp += local_len;
         }
@@ -80,7 +80,7 @@ gasnete_coll_pami_alltovi(const gasnet_team_handle_t team,
             const uint8_t *stmp = (uint8_t*) rcvbuf
                                            + td->my_local_image * len
                                            + team->pami.displs[i];
-            GASNETE_FAST_UNALIGNED_MEMCPY(dtmp, stmp, len);
+            GASNETI_MEMCPY(dtmp, stmp, len);
             dtmp += len;
         }
     }

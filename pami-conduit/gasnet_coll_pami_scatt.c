@@ -65,7 +65,7 @@ gasnete_coll_pami_scattvi(const gasnet_team_handle_t team, void *dst,
         gasneti_waitwhile(NULL == team->pami.tmp_addr);
     }
 
-    GASNETE_FAST_UNALIGNED_MEMCPY(dst,
+    GASNETI_MEMCPY               (dst,
                                   gasnete_coll_scale_ptr(team->pami.tmp_addr,
                                                          td->my_local_image,
                                                          nbytes),
