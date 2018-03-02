@@ -21,6 +21,15 @@
 #include <gasnet_coll_team.h>
 #include <smp-collectives/smp_coll.h>
 
+// Upon implementing GASNETI_MEMCPY() (with assertions), it was discovered
+// that the collectives have been using GASNETE_FAST_UNALIGNED_MEMCPY() in
+// at least some places where GASNETE_FAST_UNALIGNED_MEMCPY_CHECK() should
+// have been used instead (to allow for src == dst for in-place collectives).
+//
+// TODO: audit/update the individual calls to GASNETE_FAST_UNALIGNED_MEMCPY
+#undef GASNETE_FAST_UNALIGNED_MEMCPY
+#define GASNETE_FAST_UNALIGNED_MEMCPY GASNETI_MEMCPY_SAFE_IDENTICAL
+
 #define GASNETI_COLL_FN_HEADER(FNNAME) 
 /*---------------------------------------------------------------------------------*/
 /* ***  Macros and Constants *** */
