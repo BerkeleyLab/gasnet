@@ -141,8 +141,11 @@ int main(int argc, char **argv) {
     } else break;
   }
 
-  if (argc > arg) { iters = atoi(argv[arg]); arg++; }
-  if (!iters) iters = 1000;
+  const char *iterstr = "0.1"; // default iters
+  if (argc > arg) { 
+    iterstr = argv[arg];
+    arg++; 
+  }
   if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
   if (min_contig && max_contig && min_contig > max_contig) { ERR("min_contig > max_contig"); help = 1; }
   if (min_payload && max_payload && min_payload > max_payload) { ERR("min_payload > max_payload"); help = 1; }
@@ -227,9 +230,12 @@ int main(int argc, char **argv) {
   }
   assert(((uintptr_t)Lbase) % PAGESZ == 0);
 
+  if (strchr(iterstr,'.')) TEST_ASI_INIT(iterstr);
+  else iters = atoi(iterstr); 
+
   if (myproc == 0) {
-    MSG0("Running %i iterations of %s%s%snon-contiguous put/get%s%s\n local data %s-segment for sizes: %i...%i\n", 
-    iters, 
+    MSG0("Running %s iterations of %s%s%snon-contiguous put/get%s%s\n local data %s-segment for sizes: %i...%i\n", 
+    iterstr, 
     (firstlastmode ? "first/last " : ""),
     (fullduplexmode ? "full-duplex ": ""),
     (crossmachinemode ? "cross-machine ": ""),
@@ -254,6 +260,7 @@ int main(int argc, char **argv) {
         for (contigsz = min_contig; contigsz <= max_contig; contigsz *= contigfactor) {
           int di;
           size_t lastdatasz = 0;
+          TEST_ASI_NEW_TEST();
           if (contigsz > max_payload) continue;
           if (!myproc) {
             printf("\n%c: %s %s CONTIGSZ = %i\n", TEST_SECTION_NAME(),
@@ -356,9 +363,11 @@ int main(int argc, char **argv) {
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();
               if (iamsender) { 
+                TEST_ASI_BEGIN(name,iters,datasz,MIN(di,TEST_ASI_BANKS-1));
   	        begin = gasnett_ticks_now();
                 DOIT(iters);
 	        end = gasnett_ticks_now();
+                TEST_ASI_END(name,iters);
               }
               BARRIER();
               if (iamsender) { 

@@ -273,6 +273,97 @@ static char test_sections[255];
   #define TIME() gasnett_ticks_to_us(gasnett_ticks_now()) 
 #endif
 
+#define test_ns_to_ticks(_ns) \
+ (gasnett_tick_t)((_ns)*((double)(1<<30))/gasnett_ticks_to_ns(1<<30))
+
+/* ------------------------------------------------------------------------------------ */
+// Auto-scaling Iteration support
+// Macros to support scaling the iterations of a test to meet a target running time
+// For macro usage example, see testvisperf.c
+// For operational details, build with MANUAL_DEFINES=-DTEST_ASI_DEBUG
+#ifndef TEST_ASI_DEBUG
+#define TEST_ASI_DEBUG 0
+#endif
+#ifndef TEST_ASI_BANKS
+#define TEST_ASI_BANKS 10
+#endif
+#ifndef TEST_ASI_MININTERVAL
+#define TEST_ASI_MININTERVAL  0.001  // min acceptable interval, in seconds
+#endif
+static gasnett_tick_t _test_asi_interval = 0; // min interval and enable
+static gasnett_tick_t _test_asi_begin = 0;
+static size_t _test_asi_iters[TEST_ASI_BANKS];
+static size_t _test_asi_sz[TEST_ASI_BANKS];
+static size_t _test_asi_retry;
+static int _test_asi_bank;
+
+// init the ASI subsystem, with a string specifying the target time interval for each test
+#define TEST_ASI_INIT(interval_str) do {                   \
+  const char *_str = (interval_str);                       \
+  if (!_str || !*_str) _str = "1.0";                       \
+  double _time = atof(_str);                               \
+  _time = MAX(_time, TEST_ASI_MININTERVAL);                \
+  _test_asi_interval = test_ns_to_ticks(_time*1.0e9);      \
+  assert_always(labs((long)(_time*1000 -  /* within 10ms */\
+    gasnett_ticks_to_ns(_test_asi_interval)/1.0e6)) < 10); \
+  if (TEST_ASI_DEBUG)                                      \
+    MSG0(" ASI: test interval: %0.3f sec",_time);          \
+} while (0)
+
+// inform ASI we are starting a new test so wipe timing state
+#define TEST_ASI_NEW_TEST() do {                     \
+  memset(_test_asi_sz,0,sizeof(_test_asi_sz));       \
+  memset(_test_asi_iters,0,sizeof(_test_asi_iters)); \
+} while (0)
+
+// begin a timed region, with a label name and size "cost", computes iters
+// test can optionally use up to TEST_ASI_BANKS separate banks of iter/size state
+// Call this BEFORE test's own begin timer 
+#define TEST_ASI_BEGIN(name,iters,size,bank) do {                 \
+  if (_test_asi_interval) {                                       \
+    size_t _new_sz = (size);                                      \
+    int _bank = (bank);                                           \
+    assert(_bank < TEST_ASI_BANKS);                               \
+    assert(_new_sz > 0);                                          \
+    _test_asi_retry = 0;                                          \
+    if (!_test_asi_sz[_bank]) { /* first use this test */         \
+      _test_asi_iters[_bank] = 1; /* slow start and warmup */     \
+      _test_asi_sz[_bank] = _new_sz;                              \
+    } else if (_new_sz != _test_asi_sz[_bank]) { /* scale */      \
+      _test_asi_iters[_bank] *=                                   \
+                    ((double) _test_asi_sz[_bank] / _new_sz );    \
+      _test_asi_iters[_bank] = MAX(1,_test_asi_iters[_bank]);     \
+      _test_asi_sz[_bank] = _new_sz;                              \
+    }                                                             \
+    _TEST_ASI_##name:                                             \
+    assert(_test_asi_iters[_bank] > 0);                           \
+    (iters) = _test_asi_iters[_bank];                             \
+    _test_asi_bank = _bank;                                       \
+    _test_asi_begin = gasnett_ticks_now();                        \
+  }                                                               \
+} while (0)
+// end a timed region, may increase iters and branch back to the named label
+// call this AFTER test's own end timer 
+#define TEST_ASI_END(name,iters) do {                             \
+  if (_test_asi_interval) {                                       \
+    assert(_test_asi_begin);                                      \
+    gasnett_tick_t _int = gasnett_ticks_now() - _test_asi_begin;  \
+    _test_asi_begin = 0;                                          \
+    if (_int < _test_asi_interval) { /* too fast, retry */        \
+      _test_asi_iters[_test_asi_bank] *= 2;                       \
+      _test_asi_retry++;                                          \
+      goto _TEST_ASI_##name;                                      \
+    }                                                             \
+    if (TEST_ASI_DEBUG)                                           \
+      MSG(" ASI: retries=%d  final iters=%i  final time=%0.3fs",  \
+        (int)_test_asi_retry,(int)_test_asi_iters[_test_asi_bank],\
+        (double)gasnett_ticks_to_ns(_int)/1.0e9);                 \
+    if (_int > 3*_test_asi_interval) { /* too slow, reset next */ \
+      _test_asi_sz[_test_asi_bank] = 0;                           \
+    }                                                             \
+  }                                                               \
+} while (0)
+
 /* ------------------------------------------------------------------------------------ */
 /* memory management */
 
