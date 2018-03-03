@@ -1389,20 +1389,23 @@ void doit(int iters, int runtests) {
         #if GASNETE_OLD_STRIDED // TODO-EX : remove this
           last_case = 3;
         #endif
-        
+        gex_Flags_t flags = TEST_RAND_PICK(0,GEX_FLAG_IMMEDIATE); 
+        int fail;
         switch (TEST_RAND(1,last_case)) {
           case 1: {
             ops[i].vsrc = rand_memvec_list(TEST_RAND_PICK(my_heap_read_area, my_seg_read_area), areasz, 1);
             ops[i].vdst = rand_memvec_list(op_partner_seg_remotewrite_area, opareasz, 0);
             trim_memvec_list(ops[i].vsrc, ops[i].vdst);
             ops[i].vtmp = buildcontig_memvec_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].vdst->totalsz/VEC_SZ, opareasz);
-
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_VectorPutNB(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, 0);
-            else gex_VIS_VectorPutNBI(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, 0);
-
+            
+            reputv: 
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_VectorPutNB(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_VectorPutNBI(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, flags);
             verify_memvec_list(ops[i].vsrc);
             verify_memvec_list(ops[i].vdst);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputv; }
             break;
           }
           case 2: {
@@ -1414,12 +1417,14 @@ void doit(int iters, int runtests) {
             trim_addr_list(ops[i].isrc, ops[i].idst);
             ops[i].itmp = buildcontig_addr_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].idst->totalsz/VEC_SZ, opareasz);
 
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_IndexedPutNB(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, 0);
-            else gex_VIS_IndexedPutNBI(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, 0);
-
+            reputi:
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_IndexedPutNB(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_IndexedPutNBI(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, flags);
             verify_addr_list(ops[i].isrc);
             verify_addr_list(ops[i].idst);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputi; }
             break;
           }
           case 3: {
@@ -1430,11 +1435,13 @@ void doit(int iters, int runtests) {
             ops[i].sdesc = rand_strided_desc(srcarea, dstarea, tmparea, opareasz);
             ops[i].stmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,opareasz - ops[i].sdesc->totalsz/VEC_SZ);
 
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-
+            reputs:
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
             verify_strided_desc(ops[i].sdesc);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputs; }
             break;
           }
           case 4: {
@@ -1444,11 +1451,13 @@ void doit(int iters, int runtests) {
 
             ops[i].xdesc = rand_xpose_desc(srcarea, dstarea, tmparea, opareasz);
 
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
-            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
-
+            reputx:
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_StridedPutNBI(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
             verify_xpose_desc(ops[i].xdesc);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputx; }
             break;
           }
         }
@@ -1460,39 +1469,49 @@ void doit(int iters, int runtests) {
 
       /* gets */
       for(i=0; i < numops; i++) {
+        gex_Flags_t flags = TEST_RAND_PICK(0,GEX_FLAG_IMMEDIATE); 
+        int fail;
         if (ops[i].vsrc != NULL) {
           assert(ops[i].vdst != NULL && ops[i].vtmp != NULL);
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_VectorGetNB(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, 0);
-          else gex_VIS_VectorGetNBI(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, 0);
-
+          regetv:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_VectorGetNB(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_VectorGetNBI(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, flags);
           verify_memvec_list(ops[i].vtmp);
           verify_memvec_list(ops[i].vdst);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regetv; }
         } else if (ops[i].isrc != NULL) {
           assert(ops[i].idst != NULL && ops[i].itmp != NULL);
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_IndexedGetNB(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, 0);
-          else gex_VIS_IndexedGetNBI(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, 0);
-
+          regeti:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_IndexedGetNB(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_IndexedGetNBI(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, flags);
           verify_addr_list(ops[i].itmp);
           verify_addr_list(ops[i].idst);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regeti; }
         } else if (ops[i].sdesc != NULL) {
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-          else gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-
+          regets:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
           verify_strided_desc(ops[i].sdesc);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regets; }
         } else {
           assert(ops[i].xdesc != NULL);
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
-          else gex_VIS_StridedGetNBI(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, 0);
-
+          regetx:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_StridedGetNB(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_StridedGetNBI(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
           verify_xpose_desc(ops[i].xdesc);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regetx; }
         }
 
       }

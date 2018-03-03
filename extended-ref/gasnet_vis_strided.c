@@ -473,13 +473,11 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX
-  // TODO-EX: Team support
   GASNETE_START_NBIREGION(synctype, 0);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-      GASNETE_PUT_INDIV(0, rank, p2, p1, elemsz)
+      GASNETE_PUT_INDIV(tm, rank, p2, p1, elemsz)
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
@@ -495,13 +493,11 @@ gex_Event_t gasnete_gets_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  gasneti_assert(!(flags & ~GEX_FLAG_IMMEDIATE)); // TODO-EX
-  // TODO-EX: Team support
   GASNETE_START_NBIREGION(synctype, 0);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-      GASNETE_GET_INDIV(0, p1, rank, p2, elemsz)
+      GASNETE_GET_INDIV(tm, rank, p1, p2, elemsz)
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
@@ -518,7 +514,7 @@ void gasnete_strided_memcpy(void * dstbase, void * srcbase,
   #define SITER_SRC_STRIDE(idx) sdim[idx].stride[srcside]
   #define SITER_DST_STRIDE(idx) sdim[idx].stride[!srcside]
   #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-    GASNETE_FAST_UNALIGNED_MEMCPY(p1, p2, elemsz)
+    GASNETI_MEMCPY(p1, p2, elemsz)
 
     GASNETE_2STRIDED_HELPER(stridelevels, SITER_SDIM_COUNT(sdim),
                             dstbase, SITER_DST_STRIDE,
@@ -539,7 +535,7 @@ void gasnete_partialpack_memcpy(void * dstbase, void * srcbase,
   #define SITER_SRC_STRIDE(idx) sdim[idx].stride[srcside]
   #define SITER_DST_STRIDE(idx) sdim[idx].stride[!srcside]
   #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-    do { GASNETE_FAST_UNALIGNED_MEMCPY(p1, p2, elemsz); invchunks++; } while (0)
+    do { GASNETI_MEMCPY(p1, p2, elemsz); invchunks++; } while (0)
 
   size_t total_chunks = 1;
   for (size_t d = 0; d < stridelevels; d++)
@@ -598,7 +594,7 @@ void gasnete_partialpack_memcpy(void * dstbase, void * srcbase,
 }
 
 #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(ploc, psrc, contigsz);   \
+  GASNETI_MEMCPY(ploc, psrc, contigsz);                  \
   ploc += contigsz;                                      \
 } while (0)
 void gasnete_strided_pack_all(void *addr, const size_t strides[],
@@ -607,7 +603,7 @@ void gasnete_strided_pack_all(void *addr, const size_t strides[],
 #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
 #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(psrc, ploc, contigsz);   \
+  GASNETI_MEMCPY(psrc, ploc, contigsz);                  \
   ploc += contigsz;                                      \
 } while (0)
 void gasnete_strided_unpack_all(void *addr, const size_t strides[],
@@ -668,8 +664,8 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
     size_t * const savedstrides = (size_t *)(visop + 1);
     size_t * const savedcount = savedstrides + stridelevels;
     void * const packedbuf = (void *)(savedcount + stridelevels + 1);
-    memcpy(savedstrides, dststrides, stridelevels*sizeof(size_t));
-    memcpy(savedcount, count, (stridelevels+1)*sizeof(size_t));
+    GASNETI_MEMCPY(savedstrides, dststrides, stridelevels*sizeof(size_t));
+    GASNETI_MEMCPY(savedcount, count, (stridelevels+1)*sizeof(size_t));
     visop->type = GASNETI_VIS_CAT_GETS_SCATTER;
     visop->addr = dstaddr;
     visop->len = stridelevels;
@@ -780,7 +776,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
       size_t const packetchunks = MIN(chunksperpacket, remaining);
     #endif
     #if GASNETE_VIS_NPAM == 0
-      memcpy(packetinit, init, stridelevels*sizeof(size_t));
+      GASNETI_MEMCPY(packetinit, init, stridelevels*sizeof(size_t));
     #elif GASNETE_VIS_NPAM == 1
       #define min_length maxpacket
       #define max_length maxpacket
@@ -794,7 +790,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
       gex_AM_SrcDesc_t sd = gex_AM_PrepareRequestMedium(tm, rank, NULL, min_length, max_length, NULL, 0, HARGS(5,7));
       void * const packetbase = gex_AM_SrcDescAddr(sd);
       gasneti_assert(gex_AM_SrcDescSize(sd) >= min_length);
-      memcpy(packetbase, header, headersz);
+      GASNETI_MEMCPY(packetbase, header, headersz);
       void * const packedbuf = (uint8_t*)packetbase + headersz;
       #undef min_length
       #undef max_length
@@ -809,14 +805,14 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
     size_t nbytes;
     if (smd->lcontig_dims[SMD_SELF] == stridelevels) { // source is contiguous
       nbytes = packetchunks*chunksz;
-      memcpy(packedbuf, srcaddr, nbytes);
+      GASNETI_MEMCPY(packedbuf, srcaddr, nbytes);
       srcaddr = ((uint8_t *)srcaddr) + nbytes;
       nbytes += headersz;
       if (remaining) GASNETE_STRIDED_VECTOR_INC(init, packetchunks, SITER_SDIM_COUNT(sdim), stridelevels);
     } else { // gather data payload from source into packet
       uint8_t *pbuf = packedbuf;
       #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2) do { \
-        GASNETE_FAST_UNALIGNED_MEMCPY(pbuf, p1, chunksz); pbuf += chunksz; \
+        GASNETI_MEMCPY(pbuf, p1, chunksz); pbuf += chunksz; \
       } while (0)
         GASNETE_STRIDED_HELPER_DECLARE_PARTIAL(packetchunks, init, 1, remaining);
         GASNETE_1STRIDED_HELPER(stridelevels, SITER_SDIM_COUNT(sdim),
@@ -868,7 +864,7 @@ void gasnete_puts_AMPipeline_reqh_inner(gex_Token_t token,
   uint8_t const * psrc = packedbuf;
   gasneti_assert(psrc - (uint8_t*)addr + packetchunks * chunksz == nbytes);
   #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2) do { \
-     GASNETE_FAST_UNALIGNED_MEMCPY(p1, psrc, chunksz); psrc += chunksz; \
+     GASNETI_MEMCPY(p1, psrc, chunksz); psrc += chunksz; \
   } while (0)
     GASNETE_STRIDED_HELPER_DECLARE_PARTIAL(packetchunks, packetinit, 0, 0);
     GASNETE_1STRIDED_HELPER(stridelevels, SITER_ARRAY(packetcount),
@@ -1052,7 +1048,7 @@ void gasnete_gets_AMPipeline_reqh_inner(gex_Token_t token,
   // gather data payload from source into packet
   uint8_t *pbuf = packedbuf;
   #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2) do { \
-     GASNETE_FAST_UNALIGNED_MEMCPY(pbuf, p1, chunksz); pbuf += chunksz; \
+     GASNETI_MEMCPY(pbuf, p1, chunksz); pbuf += chunksz; \
   } while (0)
       GASNETE_STRIDED_HELPER_DECLARE_PARTIAL(packetchunks, packetinit, 0, 0);
       GASNETE_1STRIDED_HELPER(stridelevels, SITER_ARRAY(packetcount),
@@ -1097,7 +1093,7 @@ void gasnete_gets_AMPipeline_reph_inner(gex_Token_t token,
   uint8_t * psrc = packedbuf;
   gasneti_assert(psrc - (uint8_t*)addr + packetchunks * chunksz == nbytes);
   #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2) do { \
-     GASNETE_FAST_UNALIGNED_MEMCPY(p1, psrc, chunksz); psrc += chunksz; \
+     GASNETI_MEMCPY(p1, psrc, chunksz); psrc += chunksz; \
   } while (0)
     GASNETE_STRIDED_HELPER_DECLARE_PARTIAL(packetchunks, init, 0, 0);
     GASNETE_1STRIDED_HELPER(stridelevels, SITER_ARRAY(count),
@@ -1631,6 +1627,7 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   gasneti_assert(elemsz > 0); // this degenerate case handled in public header
   gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
+  flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
 
   union {
     gasneti_vis_smd_t _smd;
@@ -1726,6 +1723,7 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   gasneti_assert(gasnete_vis_isinit);
   gasneti_assert(elemsz > 0); // this degenerate case handled in public header
   gasneti_assert(stridelevels > 0); // this degenerate case handled in public header
+  flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
 
   union {
     gasneti_vis_smd_t _smd;

@@ -183,9 +183,11 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /*---------------------------------------------------------------------------------*/
 /* ***  Individual put/get helpers *** */
 /*---------------------------------------------------------------------------------*/
+// TODO-EX: rework these after removing GASNETE_OLD_STRIDED
 /* helper for vis functions implemented atop other GASNet operations
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype, islocal) do {    \
+  if (islocal) GASNETE_ASSERT_OLD_STRIDED();               \
   if (synctype != gasnete_synctype_nbi && !islocal)        \
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
@@ -206,7 +208,8 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     }                                                                                 \
   } while(0)
 
-#define GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
+#if GASNETE_OLD_STRIDED
+#define GASNETE_PUT_INDIV_OLD(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
     gasneti_boundscheck_allowoutseg(gasneti_THUNK_TM, dstnode, dstaddr, nbytes);    \
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
@@ -215,13 +218,27 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
                          GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
-#define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
+#define GASNETE_GET_INDIV_OLD(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
     gasneti_boundscheck_allowoutseg(gasneti_THUNK_TM, srcnode, srcaddr, nbytes);    \
     gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_get_nbi(gasneti_THUNK_TM, (dstaddr), (srcnode), (srcaddr), (nbytes), \
                          0 GASNETE_THREAD_PASS);                                \
+  } while (0)
+#endif
+#define GASNETE_PUT_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
+    gasneti_assert((nbytes) > 0);                                       \
+    gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes)); \
+    gasnete_put_nbi((tm), (rank), (dstaddr), (srcaddr), (nbytes),       \
+                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);       \
+  } while (0)
+
+#define GASNETE_GET_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
+    gasneti_assert((nbytes) > 0);                                       \
+    gasneti_boundscheck_allowoutseg((tm), (rank), (srcaddr), (nbytes)); \
+    gasnete_get_nbi((tm), (dstaddr), (rank), (srcaddr), (nbytes),       \
+                         0 GASNETE_THREAD_PASS);                        \
   } while (0)
 
 // Put/get for degenerate case, where this single op represents the entire operation

@@ -187,11 +187,11 @@ extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
   size_t totalsz = dstcount * dstlen;
   (void) gasneti_format_addrlist(dstlist_str, dstcount, (void * const *)dstlist, dstlen);
   (void) gasneti_format_addrlist(srclist_str, srccount, (void * const *)srclist, srclen);
-  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i\n"
+  size_t len = snprintf(buf,bufsz,"(%"PRIuSZ" data bytes) node=%i\n"
               "dst: %s\nsrc: %s",
               totalsz, (int)node,
               dstlist_str, srclist_str);    
-  gasneti_assert(strlen(buf) < bufsz);
+  gasneti_assert(len < bufsz);
   gasneti_free(dstlist_str);
   gasneti_free(srclist_str);
   return totalsz;

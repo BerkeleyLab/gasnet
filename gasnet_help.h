@@ -992,7 +992,7 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 // + Relies on dense array of nodeinfo even though only supernode-local are non-zero
 // + Was designed for single segment and even auxseg is currently a hack
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
-void *gasneti_pshm_addr2local(gex_Rank_t node, void *addr) {
+void *gasneti_pshm_addr2local(gex_Rank_t node, const void *addr) {
 #if 1 // TODO-EX: this is a hack!
   // Properties of unsigned subtraction make the following oblivous to order of client vs aux segment
   if_pf (((uintptr_t)addr - (uintptr_t)gasneti_seginfo[node].addr) >= gasneti_seginfo[node].size)
