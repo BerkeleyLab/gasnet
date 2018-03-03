@@ -723,7 +723,7 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	data->private_data = gasnete_coll_scale_ptr(*(void **)data->p2p->data,
 					       op->team->my_offset,
 					       args->nbytes);
-	data->handle = gasnete_geti(gasnete_synctype_nb, gasneti_THUNK_TM,
+	data->handle = _gex_VIS_IndexedGetNB(gasneti_THUNK_TM,
 				    op->team->my_images,
 				    &GASNETE_COLL_MY_1ST_IMAGE(op->team, args->dstlist, op->flags), args->nbytes,
 				    GASNETE_COLL_REL2ACT(op->team, args->srcnode), 1, &(data->private_data),
@@ -1007,7 +1007,7 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
 	gasneti_sync_reads();
 	data->private_data = gasnete_coll_scale_ptr(*(void **)data->p2p->data, op->team->my_offset, args->nbytes);
-	data->handle = gasnete_puti(gasnete_synctype_nb, gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
+	data->handle = _gex_VIS_IndexedPutNB(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
 				    1, &(data->private_data), args->nbytes * op->team->my_images,
 				    op->team->my_images,
 				    &GASNETE_COLL_MY_1ST_IMAGE(op->team, args->srclist, op->flags),

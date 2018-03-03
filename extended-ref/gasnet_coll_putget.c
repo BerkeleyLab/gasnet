@@ -2064,7 +2064,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       } else {
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->private_data = gasnete_coll_scale_ptr(args->src, op->team->my_offset, args->nbytes),
-        data->handle = gasnete_geti(gasnete_synctype_nb, gasneti_THUNK_TM, op->team->my_images,
+        data->handle = _gex_VIS_IndexedGetNB(gasneti_THUNK_TM, op->team->my_images,
                                     &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0), args->nbytes,
                                     GASNETE_COLL_REL2ACT(op->team, args->srcnode), 1, &(data->private_data),
                                     op->team->my_images * args->nbytes,0/*flags*/ GASNETE_THREAD_PASS);
@@ -2139,7 +2139,6 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         data->private_data = srclist;
         
         /* Queue PUTIs in an NBI access region */
-        /* XXX: is gasnete_puti(gasnete_synctype_nbi,...) correct non-tracing variant of puti ? */
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           void **q;
@@ -2154,7 +2153,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             size_t count = op->team->all_images[i];
             size_t len = count * nbytes;
             *q = (void *)src_addr;
-            gasnete_puti(gasnete_synctype_nbi, gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes, 1, q, len,0/*flags*/ GASNETE_THREAD_PASS);
+            _gex_VIS_IndexedPutNBI(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes, 1, q, len,0/*flags*/ GASNETE_THREAD_PASS);
             src_addr += len;
             p += count;
             ++q;
@@ -2167,7 +2166,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             size_t count = op->team->all_images[i];
             size_t len = count * nbytes;
             *q = (void *)src_addr;
-            gasnete_puti(gasnete_synctype_nbi, gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes, 1, q, len,0/*flags*/ GASNETE_THREAD_PASS);
+            _gex_VIS_IndexedPutNBI(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes, 1, q, len,0/*flags*/ GASNETE_THREAD_PASS);
             src_addr += len;
             p += count;
             ++q;
@@ -3412,7 +3411,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             size_t count = op->team->all_images[i];
             size_t len = count * nbytes;
             *q = (void *)dst_addr;
-            gasnete_geti(gasnete_synctype_nbi, gasneti_THUNK_TM, 1, q, len, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes,0/*flags*/ GASNETE_THREAD_PASS);
+            _gex_VIS_IndexedGetNBI(gasneti_THUNK_TM, 1, q, len, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes,0/*flags*/ GASNETE_THREAD_PASS);
             dst_addr += len;
             p += count;
             ++q;
@@ -3426,7 +3425,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             size_t count = op->team->all_images[i];
             size_t len = count * nbytes;
             *q = (void *)dst_addr;
-            gasnete_geti(gasnete_synctype_nbi, gasneti_THUNK_TM, 1, q, len, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes,0/*flags*/ GASNETE_THREAD_PASS);
+            _gex_VIS_IndexedGetNBI(gasneti_THUNK_TM, 1, q, len, GASNETE_COLL_REL2ACT(op->team, i), count, p, nbytes,0/*flags*/ GASNETE_THREAD_PASS);
             dst_addr += len;
             p += count;
             ++q;
@@ -3498,7 +3497,7 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->private_data = gasnete_coll_scale_ptr(args->dst, op->team->my_offset, args->nbytes);
         /* use a vis operation to stride through all the local data*/
-        data->handle = gasnete_puti(gasnete_synctype_nb, gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
+        data->handle = _gex_VIS_IndexedPutNB(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
                                     1, &(data->private_data), op->team->my_images * args->nbytes,
                                     op->team->my_images, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, 0),
                                     args->nbytes,0/*flags*/ GASNETE_THREAD_PASS);
