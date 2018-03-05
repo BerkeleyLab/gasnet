@@ -271,84 +271,86 @@
     va_end(_argptr);                                                \
   } while(0)
 
-#define GASNETI_TRACE_AMSHORT(name,dest,handler,numargs) do {                        \
+#define GASNETI_TRACE_AMSHORT(name,dest,handler,flags,numargs) do {                  \
   _GASNETI_TRACE_GATHERARGS(numargs);                                                \
   _GASNETI_STAT_EVENT(A,name);                                                       \
-  GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i args:%s",(int)dest,handler,argstr)); \
+  GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i flags=0x%x args:%s",            \
+    (int)dest,handler,flags,argstr));                                                \
 } while(0)
 
-#define GASNETI_TRACE_AMMEDIUM(name,dest,handler,source_addr,nbytes,numargs) do {                         \
+#define GASNETI_TRACE_AMMEDIUM(name,dest,handler,source_addr,nbytes,flags,numargs) do {                   \
   _GASNETI_TRACE_GATHERARGS(numargs);                                                                     \
   _GASNETI_STAT_EVENT(A,name);                                                                            \
-  GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT" nbytes=%" PRIuSZ " args:%s", \
-    (int)dest,handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,argstr));                              \
+  GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT                       \
+                                " nbytes=%" PRIuSZ " flags=0x%x args:%s",                                 \
+    (int)dest,handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,flags,argstr));                        \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));            \
 } while(0)
 
-#define GASNETI_TRACE_AMLONG(name,dest,handler,source_addr,nbytes,dest_addr,numargs) do {      \
+#define GASNETI_TRACE_AMLONG(name,dest,handler,source_addr,nbytes,dest_addr,flags,numargs) do {\
   _GASNETI_TRACE_GATHERARGS(numargs);                                                          \
   _GASNETI_STAT_EVENT(A,name);                                                                 \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT            \
-                                " nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" args:%s",   \
+                                " nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" flags=0x%x args:%s",   \
     (int)dest,handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,                            \
-    GASNETI_LADDRSTR(dest_addr),argstr));                                                      \
+    GASNETI_LADDRSTR(dest_addr),flags,argstr));                                                \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes))); \
 } while(0)
 
 #if GASNET_TRACE
-  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,numargs) \
-          GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,numargs)
-  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) do {         \
-          gex_Token_Info_t info;                                       \
-          gex_Token_Info(token, &info, GEX_TI_SRCRANK);              \
+  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs) \
+          GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,flags,numargs)
+  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs) do {         \
+          gex_Token_Info_t info;                                         \
+          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                  \
           gex_Rank_t temp = info.gex_srcrank;                            \
-          GASNETI_TRACE_AMSHORT(AMREPLY_SHORT,temp,handler,numargs);     \
+          GASNETI_TRACE_AMSHORT(AMREPLY_SHORT,temp,handler,flags,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_SHORT: Reply token: %s",      \
                             gasneti_formatdata(&token, sizeof(token)))); \
   } while(0)
 
-  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,numargs) \
-          GASNETI_TRACE_AMMEDIUM(AMREQUEST_MEDIUM,dest,handler,source_addr,nbytes,numargs)
-  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) do {      \
-          gex_Token_Info_t info;                                                        \
-          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                               \
+  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,flags,numargs) \
+          GASNETI_TRACE_AMMEDIUM(AMREQUEST_MEDIUM,dest,handler,source_addr,nbytes,flags,numargs)
+  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs) do {      \
+          gex_Token_Info_t info;                                                          \
+          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                   \
           gex_Rank_t temp = info.gex_srcrank;                                             \
-          GASNETI_TRACE_AMMEDIUM(AMREPLY_MEDIUM,temp,handler,source_addr,nbytes,numargs); \
+          GASNETI_TRACE_AMMEDIUM(AMREPLY_MEDIUM,temp,handler,source_addr,nbytes,flags,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_MEDIUM: Reply token: %s",                      \
                             gasneti_formatdata(&token, sizeof(token))));                  \
   } while(0)
 
-  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,numargs) \
-          GASNETI_TRACE_AMLONG(AMREQUEST_LONG,dest,handler,source_addr,nbytes,dest_addr,numargs)
-  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) do {    \
-          gex_Token_Info_t info;                                                              \
-          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                     \
+  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,flags,numargs) \
+          GASNETI_TRACE_AMLONG(AMREQUEST_LONG,dest,handler,source_addr,nbytes,dest_addr,flags,numargs)
+  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs) do {    \
+          gex_Token_Info_t info;                                                                \
+          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                         \
           gex_Rank_t temp = info.gex_srcrank;                                                   \
-          GASNETI_TRACE_AMLONG(AMREPLY_LONG,temp,handler,source_addr,nbytes,dest_addr,numargs); \
+          GASNETI_TRACE_AMLONG(AMREPLY_LONG,temp,handler,source_addr,nbytes,dest_addr,flags,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_LONG: Reply token: %s",                              \
                             gasneti_formatdata(&token, sizeof(token))));                        \
   } while(0)
 
 #elif GASNET_STATS
-  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,numargs) \
+  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREQUEST_SHORT)
-  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) \
+  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREPLY_SHORT)
-  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,numargs) \
+  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREQUEST_MEDIUM)
-  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) \
+  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREPLY_MEDIUM)
-  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,numargs) \
+  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREQUEST_LONG)
-  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) \
+  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREPLY_LONG)
 #else
-  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,numargs)                                ((void)0)
-  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs)                                    ((void)0)
-  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,numargs)            ((void)0)
-  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs)                ((void)0)
-  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,numargs)    ((void)0)
-  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs)        ((void)0)
+  #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs)                                ((void)0)
+  #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs)                                    ((void)0)
+  #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,flags,numargs)            ((void)0)
+  #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs)                ((void)0)
+  #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,flags,numargs)    ((void)0)
+  #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs)        ((void)0)
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* AM Handler tracing */

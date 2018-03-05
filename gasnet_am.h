@@ -18,7 +18,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));              \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));               \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());               \
-    GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,numargs);                     \
+    GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,flags,numargs);               \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
 #define GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
@@ -26,7 +26,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                    \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                     \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                     \
-    GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,numargs);       \
+    GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,flags,numargs); \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
     gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;  \
     GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,_lc_opt_or_null,flags,numargs)),\
@@ -39,7 +39,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                            \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                             \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                             \
-    GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,numargs);       \
+    GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,flags,numargs); \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
     gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;          \
     GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,_lc_opt_or_null,flags,numargs)),\
@@ -51,13 +51,13 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));  \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));   \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());   \
-    GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);             \
+    GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs);       \
   } while (0)
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                   \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                    \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                    \
-    GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);          \
+    GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs);    \
     gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt; \
     GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyMedium(token,_lc_opt_or_null,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                 \
@@ -69,7 +69,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                           \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                            \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                            \
-    GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs);          \
+    GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs);    \
     gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;         \
     GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyLong(token,_lc_opt_or_null,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                         \
