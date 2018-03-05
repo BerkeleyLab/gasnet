@@ -628,7 +628,7 @@ void doit(int partner, int *partnerseg) {
     firsttime = 0;
     BARRIER();
   }
-  /* verify Max >= LUB */
+  /* verify Max >= LUB and is non-increasing as args grows */
   amsz_t lub;
   memset(&lub,-1,sizeof(lub));
   assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
@@ -644,6 +644,18 @@ void doit(int partner, int *partnerseg) {
         for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
           #define GET_MAX(cat) do {                                                              \
             size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);            \
+            if (args) {                                                                          \
+              size_t more_args = val;                                                            \
+              for (int j = args-1; j > 0; --j) {                                                 \
+                size_t less_args = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], j);     \
+                if (less_args < more_args) {                                                     \
+                  MSG("*** ERROR - FAILED MAX ARGS MONOTONICITY TEST! "                          \
+                      "args=%i rank=%i lci=%i flagsi=%i", j,(int)r,lci,flagsi);                  \
+                  break;                                                                         \
+                }                                                                                \
+                more_args = less_args;                                                           \
+              }                                                                                  \
+            }                                                                                    \
             max.cat[lci][flagsi] = val;                                                          \
             lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
             size_t lubval = gex_AM_LUB##cat();                                                   \
