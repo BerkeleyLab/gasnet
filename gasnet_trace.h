@@ -755,7 +755,6 @@ extern void gasneti_trace_finish(void);
         CNT(A, AMREQUEST_SHORT, cnt)                      \
         CNT(A, AMREQUEST_MEDIUM, cnt)                     \
         CNT(A, AMREQUEST_LONG, cnt)                       \
-        CNT(A, AMREQUEST_LONGASYNC, cnt)                  \
         CNT(A, AMREPLY_SHORT, cnt)                        \
         CNT(A, AMREPLY_MEDIUM, cnt)                       \
         CNT(A, AMREPLY_LONG, cnt)                         \
