@@ -1239,7 +1239,7 @@ int ampshm_prepare_inner(
                    gasneti_AM_SrcDesc_t sd, const int isFixed,
                    const int isReq, const int category,
                    gex_Rank_t jobrank, const void *client_buf,
-                   size_t min_length, size_t max_length,
+                   size_t least_payload, size_t most_payload,
                    void *dest_addr, gex_Event_t *lc_opt,
                    gex_Flags_t flags, unsigned int nargs
                    GASNETI_THREAD_FARG)
@@ -1257,11 +1257,11 @@ int ampshm_prepare_inner(
   size_t size;
   int inline_long = 0;
   if (isFixed) {
-    size = max_length;
+    size = most_payload;
   } else if (category == gasneti_Medium) {
-    size = MIN(max_length, GASNETC_MAX_MEDIUM_NBRHD);
+    size = MIN(most_payload, GASNETC_MAX_MEDIUM_NBRHD);
   } else {
-    size = MIN(max_length, GASNETC_MAX_LONG_NBRHD);
+    size = MIN(most_payload, GASNETC_MAX_LONG_NBRHD);
     // For small enough Long use the free space after the header to avoid malloc/free
     inline_long = (size <= GASNETI_AMPSHM_MSG_LONG_INLINE);
   }
@@ -1385,7 +1385,7 @@ GASNETI_INLINE(ampshm_prepare)
 int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
                    const int isReq, const int category,
                    gex_Rank_t jobrank, const void *client_buf,
-                   size_t min_length, size_t max_length,
+                   size_t least_payload, size_t most_payload,
                    void *dest_addr, gex_Event_t *lc_opt,
                    gex_Flags_t flags, unsigned int nargs
                    GASNETI_THREAD_FARG)
@@ -1395,12 +1395,12 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   int loopback = (jobrank == gasneti_mynode);
   sd->_loopback = loopback;
   if (loopback) {
-    return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,min_length,max_length,
+    return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,least_payload,most_payload,
                                     dest_addr,lc_opt,flags,nargs GASNETI_THREAD_PASS);
   }
 
   return ampshm_prepare_inner(
-                sd, 0, isReq, category, jobrank, client_buf, min_length, max_length,
+                sd, 0, isReq, category, jobrank, client_buf, least_payload, most_payload,
                 dest_addr, lc_opt, flags, nargs GASNETI_THREAD_GET);
 }
 
@@ -1489,15 +1489,15 @@ int gasnetc_AMPSHM_PrepareRequestMedium(
                         gex_TM_t             tm, // TODO-EX: ignored!
                         gex_Rank_t           dest,
                         const void          *client_buf,
-                        size_t               min_length,
-                        size_t               max_length,
+                        size_t               least_payload,
+                        size_t               most_payload,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
   gex_Rank_t jobrank = dest;
-  return ampshm_prepare(sd, 1, gasneti_Medium, jobrank, client_buf, min_length, max_length,
+  return ampshm_prepare(sd, 1, gasneti_Medium, jobrank, client_buf, least_payload, most_payload,
                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
 
@@ -1505,8 +1505,8 @@ int gasnetc_AMPSHM_PrepareReplyMedium(
                         gasneti_AM_SrcDesc_t sd,
                         gex_Token_t          token,
                         const void          *client_buf,
-                        size_t               min_length,
-                        size_t               max_length,
+                        size_t               least_payload,
+                        size_t               most_payload,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
                         unsigned int         nargs
@@ -1516,7 +1516,7 @@ int gasnetc_AMPSHM_PrepareReplyMedium(
   sd->_dest._reply._token = token;
 #endif
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
-  return ampshm_prepare(sd, 0, gasneti_Medium, jobrank, client_buf, min_length, max_length,
+  return ampshm_prepare(sd, 0, gasneti_Medium, jobrank, client_buf, least_payload, most_payload,
                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
 
@@ -1525,8 +1525,8 @@ int gasnetc_AMPSHM_PrepareRequestLong(
                         gex_TM_t             tm, // TODO-EX: ignored!
                         gex_Rank_t           dest,
                         const void          *client_buf,
-                        size_t               min_length,
-                        size_t               max_length,
+                        size_t               least_payload,
+                        size_t               most_payload,
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
@@ -1534,7 +1534,7 @@ int gasnetc_AMPSHM_PrepareRequestLong(
                         GASNETI_THREAD_FARG)
 {
   gex_Rank_t jobrank = dest;
-  return ampshm_prepare(sd, 1, gasneti_Long, jobrank, client_buf, min_length, max_length,
+  return ampshm_prepare(sd, 1, gasneti_Long, jobrank, client_buf, least_payload, most_payload,
                         dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
 
@@ -1542,8 +1542,8 @@ int gasnetc_AMPSHM_PrepareReplyLong(
                         gasneti_AM_SrcDesc_t sd,
                         gex_Token_t          token,
                         const void          *client_buf,
-                        size_t               min_length,
-                        size_t               max_length,
+                        size_t               least_payload,
+                        size_t               most_payload,
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
@@ -1554,7 +1554,7 @@ int gasnetc_AMPSHM_PrepareReplyLong(
   sd->_dest._reply._token = token;
 #endif
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
-  return ampshm_prepare(sd, 0, gasneti_Long, jobrank, client_buf, min_length, max_length,
+  return ampshm_prepare(sd, 0, gasneti_Long, jobrank, client_buf, least_payload, most_payload,
                         dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
 
