@@ -734,6 +734,9 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_BOUND,
     GEX_FLAG_PEER_SEG_OFFSET,
 
+    GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+    GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
+
     GEX_FLAG_AD_MY_RANK,
     GEX_FLAG_AD_MY_NBRHD,
 
@@ -771,6 +774,11 @@ void doit0(int partner, int *partnerseg) {
     //GEX_FLAG_LC_COPY_NO,
   };
   assert_arr_unaliased(gex_Flags_t, flags_rma);
+  static gex_Flags_t const flags_ammax[] = { // gex_AM_Max* prepare-specific
+    GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+    GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_ammax);
   static gex_Flags_t const flags_adc[] = { // gex_AD_Create
     GEX_FLAG_AD_FAVOR_MY_RANK,
     GEX_FLAG_AD_FAVOR_MY_NBRHD,

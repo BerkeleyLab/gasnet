@@ -15,13 +15,17 @@
 
 #define GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs) do {      \
     GASNETI_CHECKATTACH();                                                     \
-    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());             \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));              \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));               \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());               \
     GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,numargs);                     \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
 #define GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                           \
-    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                   \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                    \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                     \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                     \
     GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
     GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,numargs)),\
@@ -31,21 +35,27 @@
   } while (0)
 #define GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
-    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                           \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                            \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                             \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                             \
     GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,numargs);       \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
-    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,numargs)),  \
-                       BAD_ARG,"nbytes too large");                                  \
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,numargs)),       \
+                       BAD_ARG,"nbytes too large");                                          \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
   } while (0)
 #define GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs) do {    \
-    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs()); \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));  \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));   \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());   \
     GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);             \
   } while (0)
 // TODO-EX: need to restore bounds-check on nbytes in GASNETI_COMMON_AMREPLYMEDIUM
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
-    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                  \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                   \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                    \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                    \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies"); \
@@ -62,7 +72,9 @@
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) ((void)0)
 #endif
 #define GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
-    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                          \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                           \
+    gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                            \
+    gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                            \
     GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs);          \
     _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs); \
   } while (0)
@@ -251,7 +263,9 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       sd->_category  = (int)gasneti_##cat;                                                 \
       sd->_dest_addr = dest_addr;                                                          \
       sd->_nargs     = nargs;                                                              \
-      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,flags,nargs);                   \
+      gex_Flags_t tmp_flags = flags | (cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT             \
+                                            : GEX_FLAG_AM_PREPARE_LEAST_ALLOC);            \
+      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,tmp_flags,nargs);               \
       if (dest >= gex_TM_QuerySize(tm))                                                    \
         gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
                            "destination rank out-of-range (%lu >= %lu)",                   \
@@ -263,7 +277,9 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       sd->_category  = (int)gasneti_##cat;                                             \
       sd->_dest_addr = dest_addr;                                                      \
       sd->_nargs     = nargs;                                                          \
-      size_t limit = gasnetc_Token_MaxReply##cat(token,lc_opt,flags,nargs);            \
+      gex_Flags_t tmp_flags = flags | (cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT         \
+                                            : GEX_FLAG_AM_PREPARE_LEAST_ALLOC);        \
+      size_t limit = gasnetc_Token_MaxReply##cat(token,lc_opt,tmp_flags,nargs);        \
       _GASNETI_CHECK_PREPARE(cbuf,min_len,max_len,limit,lc_opt,nargs,0,cat);           \
     } while(0)
 

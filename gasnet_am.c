@@ -552,7 +552,9 @@ void gasnetc_AM_CommitRequestMediumM(
         gex_Rank_t dest        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
         int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
@@ -585,7 +587,9 @@ void gasnetc_AM_CommitReplyMediumM(
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
         int rc = gasneti_AMReplyMediumV(token, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
@@ -621,7 +625,9 @@ void gasnetc_AM_CommitRequestLongM(
         gex_Rank_t dest        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
         int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
@@ -655,7 +661,9 @@ void gasnetc_AM_CommitReplyLongM(
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
-        gex_Flags_t flags      = sd->_flags & ~GEX_FLAG_IMMEDIATE;
+        gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
+                                                GEX_FLAG_AM_PREPARE_LEAST_CLIENT |
+                                                GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
         int rc = gasneti_AMReplyLongV(token, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
