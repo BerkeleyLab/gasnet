@@ -323,6 +323,9 @@ extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
 #ifndef GASNETE_VIS_NPAM
 #define GASNETE_VIS_NPAM 1
 #endif
+#if !(GASNETE_VIS_NPAM == 0 || GASNETE_VIS_NPAM == 1 || GASNETE_VIS_NPAM == 2)
+#error Incorrect GASNETE_VIS_NPAM definition - must be in {0,1,2}
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* GASNETE_METAMACRO_ASC/DESC##maxval(fn) is a meta-macro that iteratively expands the fn_INT(x,y) macro 

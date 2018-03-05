@@ -473,12 +473,8 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
   size_t maxrequest = gex_AM_MaxRequestMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(2,3));
   size_t maxreply   = gex_AM_MaxReplyMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(2,3));
 
-  gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)
-                                                  + dstcount*sizeof(gex_Memvec_t)
-                                                  #if GASNETE_VIS_NPAM == 0
-                                                  + maxrequest
-                                                  #endif
-                                                  );
+  gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) + dstcount*sizeof(gex_Memvec_t) +
+                                                  (GASNETE_VIS_NPAM ? 0 : maxrequest));
   gex_Memvec_t * const savedlst = (gex_Memvec_t *)(visop + 1);
   #if GASNETE_VIS_NPAM == 0
     gex_Memvec_t * const packedbuf = savedlst + dstcount;
