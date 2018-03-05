@@ -300,7 +300,11 @@ int main(int argc, char **argv) {
 }
 
 gex_Event_t *am_lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
-gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0 };
+gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0,
+                            GEX_FLAG_IMMEDIATE | GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+                            GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+                            GEX_FLAG_IMMEDIATE | GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
+                            GEX_FLAG_AM_PREPARE_LEAST_ALLOC };
 #define AM_LCOPT_CNT ((int)(sizeof(am_lcopt)/sizeof(am_lcopt[0])))
 #define AM_FLAGS_CNT ((int)(sizeof(am_flags)/sizeof(am_flags[0])))
 typedef struct { 
@@ -326,13 +330,15 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
         gex_Event_t *lcopt = am_lcopt[lci];                                                   \
         if ((lcopt == GEX_EVENT_GROUP) && strstr(#cat, "Reply")) break;                       \
         size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                          \
+        if (val != max->cat[lci][flagsi])                                                     \
+              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
+                  args,lci,flagsi);                                                           \
+        if (flags & (GEX_FLAG_AM_PREPARE_LEAST_CLIENT |                                       \
+                     GEX_FLAG_AM_PREPARE_LEAST_ALLOC)) break; /* exclude from LUB */          \
         size_t lubval = gex_AM_LUB##cat();                                                    \
         if (val < lubval)                                                                     \
              MSG("*** ERROR - FAILED HANDLER LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i", \
                   args,(int)r,lci,flagsi);                                                    \
-        if (val != max->cat[lci][flagsi])                                                     \
-              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
-                  args,lci,flagsi);                                                           \
       } while (0)
       CHECK_MAX(RequestMedium);
       CHECK_MAX(ReplyMedium);
@@ -652,7 +658,7 @@ void doit(int partner, int *partnerseg) {
             size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                         \
             if (args) {                                                                          \
               size_t more_args = val;                                                            \
-              for (int j = args-1; j > 0; --j) {                                                 \
+              for (int j = args-1; j >= 0; --j) {                                                \
                 size_t less_args = gex_AM_Max##cat(myteam, r, lcopt, flags, j);                  \
                 if (less_args < more_args) {                                                     \
                   MSG("*** ERROR - FAILED MAX ARGS MONOTONICITY TEST! "                          \
@@ -663,17 +669,19 @@ void doit(int partner, int *partnerseg) {
               }                                                                                  \
             }                                                                                    \
             max.cat[lci][flagsi] = val;                                                          \
-            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
-            size_t lubval = gex_AM_LUB##cat();                                                   \
-            if (val < lubval)                                                                    \
-              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
-                  args,(int)r,lci,flagsi);                                                       \
             if (r < GEX_RANK_INVALID) {                                                          \
               ranklub.cat[lci][flagsi] = MIN(val,ranklub.cat[lci][flagsi]);                      \
             } else if (val != ranklub.cat[lci][flagsi]) {                                        \
               MSG("*** ERROR - FAILED ALL-RANK LUB TEST! args=%i lci=%i flagsi=%i",              \
                   args,lci,flagsi);                                                              \
             }                                                                                    \
+            if (flags & (GEX_FLAG_AM_PREPARE_LEAST_CLIENT |                                      \
+                         GEX_FLAG_AM_PREPARE_LEAST_ALLOC)) break; /* exclude from LUB */         \
+            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
+            size_t lubval = gex_AM_LUB##cat();                                                   \
+            if (val < lubval)                                                                    \
+              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
+                  args,(int)r,lci,flagsi);                                                       \
           } while (0)
           GET_MAX(RequestMedium);
           GET_MAX(ReplyMedium);
