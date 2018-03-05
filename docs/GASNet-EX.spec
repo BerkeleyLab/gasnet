@@ -906,12 +906,12 @@ int gex_AM_ReplyShort[M](
 // length.  The length is in the range defined by the minimum and maximum
 // lengths.  When the client_buf argument is non-NULL, the address provided by
 // the return will be exactly that value.  Otherwise the address will be a
-// GASNet-owned buffer of the indicated length, suitably aligned to hold any
+// GASNet-allocated buffer of the indicated length, suitably aligned to hold any
 // data type.
 //
 // It is important to note that passing NULL for the client_buf argument to
 // a Prepare call requires GASNet to allocate buffer space of size no
-// smaller than min_length.  Care should be taken to keep such allocation
+// smaller than least_payload.  Care should be taken to keep such allocation
 // demands reasonable.
 //
 // Between the Prepare and the Commit calls the client is responsible for
@@ -933,7 +933,7 @@ int gex_AM_ReplyShort[M](
 // to Prepare are permitted in the same places as the corresponding
 // fixed-payload AM injection call.
 //
-// Currently the semantics of the min_length==0 case are unspecified.
+// Currently the semantics of the least_payload==0 case are unspecified.
 // We advise avoiding that case until a later release has resolved this.
 
 // Opaque type for AM Source Descriptor
@@ -953,7 +953,7 @@ typedef ... gex_AM_SrcDesc_t;
 // Query the address component of a gex_AM_SrcDesc_t
 //
 // Will be identical to the 'client_buf' passed to the Prepare call if that
-// value was non-NULL, and otherwise will be GASNet-owned memory suitably
+// value was non-NULL, and otherwise will be GASNet-allocated memory suitably
 // aligned to hold any data type.
 void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
 
@@ -961,7 +961,7 @@ void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
 //
 // Indicates the maximum length of the buffer located at gex_AM_SrcDescAddr()
 // that can be sent in the Commit call.
-// Will be between the 'min_length' and 'max_length' passed
+// Will be between the 'least_payload' and 'most_payload' passed
 // to the Prepare call (inclusive).
 size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 
@@ -982,20 +982,20 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //  const void *client_buf
 //   + If non-NULL the client is offering this buffer as a
 //     source_addr
-//   + If NULL, the client is requesting a GASNet-owned source
+//   + If NULL, the client is requesting a GASNet-allocated source
 //     buffer to populate
-//  size_t min_length
+//  size_t least_payload
 //   + This is the minimum length that the Prepare call may
-//     return on success - ie the minimum-sized payload the
+//     return on success - ie the least-sized payload the
 //     client is willing to send at this time.
 //   + The value must not exceed the value of the
 //     gex_AM_Max[...]() call with the analogous Prepare arguments
-//  size_t max_length
+//  size_t most_payload
 //   + This is the maximum length that the Prepare call may
 //     return on success - ie a (not necessarily tight) upper
 //     bound on the payload size the client is willing to send at
 //     this time.
-//   + The value must not be less than min_length (but they may
+//   + The value must not be less than least_payload (but they may
 //     be equal).
 //   + The value *may* exceed the corresponding gex_AM_Max[...]().
 //  void *dest_addr [LONG ONLY]
@@ -1019,19 +1019,19 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //     fixed-payload AM injection
 //   + GEX_FLAG_IMMEDIATE: the Prepare call may return
 //     GEX_AM_SRCDESC_NO_OP==0 if injection resources (in
-//     particular a buffer of size min_length or longer) cannot
+//     particular a buffer of size least_payload or longer) cannot
 //     be obtained.
 //     The Commit-time behavior is unaffected by this flag.
 //   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: is prohibited
 //   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_*: these flags may only be 
 //     passed if client_buf is non-NULL, and assert segment disposition
-//     properties for the range [client_buf..(client_buf+max_length-1)]
+//     properties for the range [client_buf..(client_buf+most_payload-1)]
 //     that must be true upon entry to Prepare. If gex_AM_SrcDescAddr()
 //     on the Prepare result is equal to client_buf, then the assertion 
 //     must remain true until after local completion is signalled via `lc_opt`.
 //   + [UNIMPLEMENTED] GEX_FLAG_PEER_SEG_*: [LONG ONLY] if `dest_addr` is
 //     non-NULL, these flags assert segment disposition properties for the
-//     range [dest_addr..(dest_addr+max_length-1)] that must be true upon
+//     range [dest_addr..(dest_addr+most_payload-1)] that must be true upon
 //     entry to Prepare and remain true until entry to the AM handler at
 //     the target. If `dest_addr` NULL at Prepare and non-NULL at Commit,
 //     these flags assert segment disposition properties for the Commit-time
@@ -1045,16 +1045,16 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestMedium(
                 gex_TM_t       tm,
                 gex_Rank_t     rank,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
                 unsigned int   numargs);
 extern gex_AM_SrcDesc_t gex_AM_PrepareReplyMedium(
                 gex_Token_t    token,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
                 unsigned int   numargs);
@@ -1062,8 +1062,8 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestLong(
                 gex_TM_t       tm,
                 gex_Rank_t     rank,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 void           *dest_addr,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
@@ -1071,8 +1071,8 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestLong(
 extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
                 gex_Token_t    token,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 void           *dest_addr,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,

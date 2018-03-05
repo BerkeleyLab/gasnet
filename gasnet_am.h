@@ -239,10 +239,10 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                            _reqrep, (unsigned int)nargs, (unsigned int)gex_AM_MaxArgs());                \
       if (min_length > max_length)                                                                       \
         gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": "                                       \
-                           "min_length larger than max_length (%"PRIuPTR" > %"PRIuPTR")",                \
+                           "least_payload larger than max_payload (%"PRIuPTR" > %"PRIuPTR")",            \
                            _reqrep, (uintptr_t)min_length, (uintptr_t)max_length);                       \
       if (min_length > limit)                                                                            \
-        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": min_length larger than gex_AM_Max%s"    \
+        gasneti_fatalerror("gex_AM_Prepare%s" _STRINGIFY(cat) ": least_payload larger than gex_AM_Max%s" \
                            _STRINGIFY(cat) "() (%"PRIuPTR" > %"PRIuPTR")",                               \
                            _reqrep, _reqrep, (uintptr_t)min_length, (uintptr_t)limit);                   \
     } while(0)
