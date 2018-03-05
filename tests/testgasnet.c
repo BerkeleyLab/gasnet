@@ -324,6 +324,7 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
       #define CHECK_MAX(cat) do {                                                             \
         gex_Flags_t flags = am_flags[flagsi];                                                 \
         gex_Event_t *lcopt = am_lcopt[lci];                                                   \
+        if ((lcopt == GEX_EVENT_GROUP) && strstr(#cat, "Reply")) break;                       \
         size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                          \
         size_t lubval = gex_AM_LUB##cat();                                                    \
         if (val < lubval)                                                                     \
@@ -647,6 +648,7 @@ void doit(int partner, int *partnerseg) {
           #define GET_MAX(cat) do {                                                              \
             gex_Flags_t flags = am_flags[flagsi];                                                \
             gex_Event_t *lcopt = am_lcopt[lci];                                                  \
+            if ((lcopt == GEX_EVENT_GROUP) && strstr(#cat, "Reply")) break;                      \
             size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                         \
             if (args) {                                                                          \
               size_t more_args = val;                                                            \
