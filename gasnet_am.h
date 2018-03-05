@@ -214,8 +214,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 /* ------------------------------------------------------------------------------------ */
 /* common logic for Negotiated Payload AMs */
 
-// Common argument processing
-// TODO-EX: tracing should probably occur here as well
+// Common argument processing and trace/stats
 #if GASNET_DEBUG
   extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd);
   extern int gasneti_test_sd_poison(void *addr, size_t len);
@@ -259,6 +258,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
     } while(0)
   #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                                   \
+      GASNETI_TRACE_PREP_REQUEST##cat(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs);\
       sd->_category  = (int)gasneti_##cat;                                                 \
       sd->_dest_addr = dest_addr;                                                          \
       sd->_nargs     = nargs;                                                              \
@@ -274,6 +274,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
     } while(0)
   #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                               \
+      GASNETI_TRACE_PREP_REPLY##cat(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs);\
       sd->_category  = (int)gasneti_##cat;                                             \
       sd->_dest_addr = dest_addr;                                                      \
       sd->_nargs     = nargs;                                                          \
@@ -325,11 +326,22 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                   _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
 #else
   #define gasneti_init_sd_poison(sd) ((void)0)
-  #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
+  #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
+          GASNETI_TRACE_PREP_REQUEST##cat(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs)
+  #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
+          GASNETI_TRACE_PREP_REPLY##cat(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs)
   #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
   #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
 #endif
+
+#define GASNETI_TRACE_PREP_REQUESTMedium(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,nargs)
+#define GASNETI_TRACE_PREP_REQUESTLong(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,nargs)
+#define GASNETI_TRACE_PREP_REPLYMedium(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,nargs)
+#define GASNETI_TRACE_PREP_REPLYLong(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,nargs)
 
 #ifndef _GEX_AM_SRCDESC_T
 // Allocate a buffer (use IFF client_buf is NULL)

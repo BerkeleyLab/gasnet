@@ -499,10 +499,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     }
 
     gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
     gasneti_reset_srcdesc(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, NULL);
     return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REQ_MEDIUM
@@ -536,10 +538,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     }
 
     gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
     gasneti_reset_srcdesc(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, NULL);
     return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REP_MEDIUM
@@ -583,10 +587,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     }
 
     gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_LONG, sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
     gasneti_reset_srcdesc(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_LONG, NULL);
     return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REQ_LONG
@@ -622,10 +628,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     }
 
     gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_LONG, sd);
     return gasneti_export_srcdesc(sd);
 
 out_immediate:
     gasneti_reset_srcdesc(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_LONG, NULL);
     return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REP_LONG

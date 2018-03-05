@@ -297,6 +297,32 @@
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes))); \
 } while(0)
 
+#define GASNETI_TRACE_PREP_MEDIUM(name,dest,cbuf,least_pl,most_pl,flags,numargs) do {                     \
+  _GASNETI_STAT_EVENT(A,name);                                                                            \
+  GASNETI_TRACE_PRINTF(A,(#name": dest=%i client_buf=" GASNETI_LADDRFMT " least_payload=%" PRIuSZ         \
+                                " most_payload=%" PRIuSZ " flags=0x%x numargs=%i",                        \
+    (int)dest,GASNETI_LADDRSTR(cbuf),(size_t)least_pl,(size_t)most_pl,flags,(int)numargs));               \
+} while(0)
+
+#define GASNETI_TRACE_PREP_LONG(name,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs) do {             \
+  _GASNETI_STAT_EVENT(A,name);                                                                            \
+  GASNETI_TRACE_PRINTF(A,(#name": dest=%i client_buf=" GASNETI_LADDRFMT " least_payload=%" PRIuSZ         \
+                                " most_payload=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT                   \
+                                " flags=0x%x numargs=%i",                                                 \
+    (int)dest,GASNETI_LADDRSTR(cbuf),(size_t)least_pl,(size_t)most_pl,                                    \
+    GASNETI_LADDRSTR(dest_addr),flags,(int)numargs));                                                     \
+} while(0)
+
+#define _GASNETI_TRACE_PREP_RETURN(name,sd) do { \
+  gasneti_AM_SrcDesc_t tmp_sd = (sd);                                                       \
+  if (tmp_sd) {                                                                             \
+    GASNETI_TRACE_PRINTF(A,(#name": return { Addr=" GASNETI_LADDRFMT " Size=%" PRIuSZ " }", \
+                            GASNETI_LADDRSTR(tmp_sd->_addr), (size_t)(tmp_sd->_size)));     \
+  } else {                                                                                  \
+    GASNETI_TRACE_PRINTF(A,(#name": return GEX_AM_SRCDESC_NO_OP"));                         \
+  }                                                                                         \
+} while(0)
+
 #if GASNET_TRACE
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs) \
           GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,flags,numargs)
@@ -331,6 +357,26 @@
                             gasneti_formatdata(&token, sizeof(token))));                        \
   } while(0)
 
+  #define GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,numargs) \
+          GASNETI_TRACE_PREP_MEDIUM(PREP_REQUEST_MEDIUM,dest,cbuf,least_pl,most_pl,flags,numargs)
+  #define GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,numargs) do { \
+          gex_Token_Info_t info;                                                         \
+          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                  \
+          gex_Rank_t temp = info.gex_srcrank;                                            \
+          GASNETI_TRACE_PREP_MEDIUM(PREP_REPLY_MEDIUM,temp,cbuf,least_pl,most_pl,flags,numargs); \
+  } while(0)
+
+  #define GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs) \
+          GASNETI_TRACE_PREP_LONG(PREP_REQUEST_LONG,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs)
+  #define GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,numargs) do { \
+          gex_Token_Info_t info;                                                                 \
+          gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                          \
+          gex_Rank_t temp = info.gex_srcrank;                                                    \
+          GASNETI_TRACE_PREP_LONG(PREP_REPLY_LONG,temp,cbuf,least_pl,most_pl,dest_addr,flags,numargs);\
+  } while(0)
+
+  #define GASNETI_TRACE_PREP_RETURN(name,sd) _GASNETI_TRACE_PREP_RETURN(PREP_##name,sd)
+
 #elif GASNET_STATS
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREQUEST_SHORT)
@@ -344,6 +390,15 @@
      GASNETI_TRACE_EVENT(A,AMREQUEST_LONG)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREPLY_LONG)
+  #define GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,numargs) \
+     GASNETI_TRACE_EVENT(A,PREP_REQUEST_MEDIUM)
+  #define GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,numargs) \
+     GASNETI_TRACE_EVENT(A,PREP_REPLY_MEDIUM)
+  #define GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs) \
+     GASNETI_TRACE_EVENT(A,PREP_REQUEST_LONG)
+  #define GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,numargs) \
+     GASNETI_TRACE_EVENT(A,PREP_REPLY_LONG)
+  #define GASNETI_TRACE_PREP_RETURN(name,sd) ((void)0)
 #else
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs)                                ((void)0)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs)                                    ((void)0)
@@ -351,6 +406,11 @@
   #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs)                ((void)0)
   #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,flags,numargs)    ((void)0)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs)        ((void)0)
+  #define GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,numargs)              ((void)0)
+  #define GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,numargs)                  ((void)0)
+  #define GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs)      ((void)0)
+  #define GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,numargs)          ((void)0)
+  #define GASNETI_TRACE_PREP_RETURN(name,sd)                                                         ((void)0)
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* AM Handler tracing */
@@ -758,6 +818,11 @@ extern void gasneti_trace_finish(void);
         CNT(A, AMREPLY_SHORT, cnt)                        \
         CNT(A, AMREPLY_MEDIUM, cnt)                       \
         CNT(A, AMREPLY_LONG, cnt)                         \
+                                                          \
+        CNT(A, PREP_REQUEST_MEDIUM, cnt)                  \
+        CNT(A, PREP_REQUEST_LONG, cnt)                    \
+        CNT(A, PREP_REPLY_MEDIUM, cnt)                    \
+        CNT(A, PREP_REPLY_LONG, cnt)                      \
                                                           \
         CNT(A, AMREQUEST_SHORT_HANDLER, cnt)              \
         CNT(A, AMREQUEST_MEDIUM_HANDLER, cnt)             \
