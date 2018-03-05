@@ -9,7 +9,7 @@
 int numnode = 0;
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR (((numnode&1)?2:1)*(uintptr_t)maxsz)
+  #define TEST_SEGSZ_EXPR (((numnode&1)?2:1)*(uintptr_t)alignup(maxsz,SIZEOF_GEX_RMA_VALUE_T))
 #endif
 #include <test.h>
 
@@ -395,7 +395,8 @@ int main(int argc, char **argv) {
 
   // Long Request and Reply (distinct for loopback)
   reply_addr = TEST_SEG(peer);
-  request_addr = (peer == mynode) ? (void*)(maxsz + (uintptr_t) reply_addr) : reply_addr;
+  request_addr = (peer == mynode) ? (void*)((uintptr_t)reply_addr + alignup(maxsz,SIZEOF_GEX_RMA_VALUE_T))
+                                  : reply_addr;
 
   BARRIER();
 
