@@ -322,7 +322,9 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
     for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
       #define CHECK_MAX(cat) do {                                                             \
-        size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);             \
+        gex_Flags_t flags = am_flags[flagsi];                                                 \
+        gex_Event_t *lcopt = am_lcopt[lci];                                                   \
+        size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                          \
         size_t lubval = gex_AM_LUB##cat();                                                    \
         if (val < lubval)                                                                     \
              MSG("*** ERROR - FAILED HANDLER LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i", \
@@ -643,11 +645,13 @@ void doit(int partner, int *partnerseg) {
       for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
         for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
           #define GET_MAX(cat) do {                                                              \
-            size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);            \
+            gex_Flags_t flags = am_flags[flagsi];                                                \
+            gex_Event_t *lcopt = am_lcopt[lci];                                                  \
+            size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                         \
             if (args) {                                                                          \
               size_t more_args = val;                                                            \
               for (int j = args-1; j > 0; --j) {                                                 \
-                size_t less_args = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], j);     \
+                size_t less_args = gex_AM_Max##cat(myteam, r, lcopt, flags, j);                  \
                 if (less_args < more_args) {                                                     \
                   MSG("*** ERROR - FAILED MAX ARGS MONOTONICITY TEST! "                          \
                       "args=%i rank=%i lci=%i flagsi=%i", j,(int)r,lci,flagsi);                  \
