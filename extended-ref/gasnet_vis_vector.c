@@ -363,15 +363,21 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
           rnum++; 
         }
       }
+      size_t packetlen;
       if_pf (rnum == 0) { // entire packet is empty, skip send
         gasneti_iop_markdone(iop, 1, 0);
-        continue;
+        #if GASNETE_VIS_NPAM == 0
+          continue;
+        #else // NPAM lacks a cancel, so must send to empty packet sink, but skip the ACK
+          packetlen = 0;
+          goto npamsend; 
+        #endif
       }
       /* gather data payload from sourcelist into packet */
       uint8_t * const end = gasnete_memvec_pack(lnum, &srclist[lpacket->firstidx], &packedbuf[rnum], 
                                 lpacket->firstoffset, lpacket->lastlen);
 
-      size_t const packetlen = end - (uint8_t *)packedbuf;
+      packetlen = end - (uint8_t *)packedbuf;
 
       #if GASNET_DEBUG
         // assert we don't send empty iovecs on the wire (bug3411)
@@ -392,6 +398,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
       gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_putv_AMPipeline_reqh),
                                packedbuf, packetlen, GEX_EVENT_NOW, 0, ARGS);
     #else
+      npamsend:
       gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_putv_AMPipeline_reqh), packetlen, ARGS);
     #endif
     #undef ARGS
@@ -417,6 +424,9 @@ GASNETI_INLINE(gasnete_putv_AMPipeline_reqh_inner)
 void gasnete_putv_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *iop, gex_AM_Arg_t rnum) {
+  #if GASNETE_VIS_NPAM 
+    if_pf (nbytes == 0) return; // empty packet sink
+  #endif
   gasneti_assert(addr && nbytes > 0 && rnum > 0);
   gex_Memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
@@ -535,9 +545,15 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
           rnum++; 
         }
       }
+      size_t nbytes;
       if_pf (rnum == 0) { // entire packet is empty, skip send
         gasnete_getv_AMPipeline_visop_signal(visop);
-        continue;
+        #if GASNETE_VIS_NPAM == 0
+          continue;
+        #else // NPAM lacks a cancel, so must send to empty packet sink, but skip the ACK
+          nbytes = 0;
+          goto npamsend; 
+        #endif
       }
 
       #if GASNET_DEBUG
@@ -552,12 +568,13 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
       #endif
 
       /* send AM(visop) from packedbuf */
-      size_t const nbytes = rnum*sizeof(gex_Memvec_t);
+      nbytes = rnum*sizeof(gex_Memvec_t);
     #define ARGS PACK(visop), packetidx
     #if GASNETE_VIS_NPAM == 0
       gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
                                packedbuf, nbytes, GEX_EVENT_NOW, 0, ARGS);
     #else
+      npamsend:
       gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_getv_AMPipeline_reqh), nbytes, ARGS);
     #endif
     #undef ARGS
@@ -579,6 +596,9 @@ GASNETI_INLINE(gasnete_getv_AMPipeline_reqh_inner)
 void gasnete_getv_AMPipeline_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *_visop, gex_AM_Arg_t packetidx) {
+  #if GASNETE_VIS_NPAM 
+    if_pf (nbytes == 0) return; // empty packet sink
+  #endif
   gasneti_assert(addr && nbytes > 0);
   gex_Memvec_t * const rlist = addr;
   size_t const rnum = nbytes / sizeof(gex_Memvec_t);
