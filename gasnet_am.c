@@ -319,6 +319,55 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Error checking for AM payload queries
+
+#if GASNET_DEBUG
+size_t gex_AM_MaxRequestMedium(
+           gex_TM_t tm, gex_Rank_t rank,
+           gex_Event_t *lc_opt, gex_Flags_t flags,
+           unsigned int nargs)
+{
+  // TODO-EX: lots of additional checks possible here
+  size_t result = gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs);
+  gasneti_assert(result >= 512);
+  return result;
+}
+
+size_t gex_AM_MaxReplyMedium(
+           gex_TM_t tm, gex_Rank_t rank,
+           gex_Event_t *lc_opt, gex_Flags_t flags,
+           unsigned int nargs)
+{
+  // TODO-EX: lots of additional checks possible here
+  size_t result = gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs);
+  gasneti_assert(result >= 512);
+  return result;
+}
+
+size_t gex_AM_MaxRequestLong(
+           gex_TM_t tm, gex_Rank_t rank,
+           gex_Event_t *lc_opt, gex_Flags_t flags,
+           unsigned int nargs)
+{
+  // TODO-EX: lots of additional checks possible here
+  size_t result = gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs);
+  gasneti_assert(result >= 512);
+  return result;
+}
+
+size_t gex_AM_MaxReplyLong(
+           gex_TM_t tm, gex_Rank_t rank,
+           gex_Event_t *lc_opt, gex_Flags_t flags,
+           unsigned int nargs)
+{
+  // TODO-EX: lots of additional checks possible here
+  size_t result = gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs);
+  gasneti_assert(result >= 512);
+  return result;
+}
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 // Implementation of Negotiated-Payload AMs
 //
 // For conduit's without specialization of NP-AM, this provides the entire
