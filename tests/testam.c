@@ -386,11 +386,12 @@ int main(int argc, char **argv) {
     }
   }
 
+  gex_Event_t tmp_lc_opt = use_np ? np_lc_opt : lc_opt;
   gex_Flags_t flags = use_np ? ( np_cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT
                                          : GEX_FLAG_AM_PREPARE_LEAST_ALLOC) : 0;
-  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,lc_opt,flags,0));
+  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,tmp_lc_opt,flags,0));
   maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,peer,GEX_EVENT_NOW,flags,0));
-  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,lc_opt,flags,0));
+  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,tmp_lc_opt,flags,0));
   maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,peer,GEX_EVENT_NOW,flags,0));
 
   recvr = !sender || (peer == mynode);
