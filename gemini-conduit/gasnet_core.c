@@ -1332,8 +1332,8 @@ int gasnetc_prepare_medium(
                        gex_Rank_t              dest,
                        gex_Token_t             token,
                        const void             *client_buf,
-                       size_t                  min_length,
-                       size_t                  max_length,
+                       size_t                  least_payload,
+                       size_t                  most_payload,
                        gex_Event_t            *lc_opt,
                        gex_Flags_t             flags,
                        unsigned int            nargs
@@ -1344,23 +1344,23 @@ int gasnetc_prepare_medium(
   size_t nbytes;
 
   if (isFixed) {
-    nbytes = max_length;
+    nbytes = most_payload;
     gpd = isReq
             ? gasnetc_alloc_request_post_descriptor(dest, head_len + nbytes, flags GASNETI_THREAD_PASS)
             : gasnetc_alloc_reply_post_descriptor(token, head_len + nbytes, flags);
   } else if (isReq) {
     // Call the "negotiating" variant of the buffer allocator
     gpd = gasnetc_alloc_request_post_descriptor_np(dest,
-                                                   head_len + min_length,
-                                                   head_len + max_length,
+                                                   head_len + least_payload,
+                                                   head_len + most_payload,
                                                    flags GASNETI_THREAD_PASS);
-    if_pt (gpd) nbytes = MIN(max_length, gpd->gpd_am_length - head_len);
+    if_pt (gpd) nbytes = MIN(most_payload, gpd->gpd_am_length - head_len);
   } else {
     // TODO-EX: Reply path might support negotiation as well, but currently
     // with default env vars there is no benefit since the bounce buffer size
     // is typically sized exactly to MaxMedium.
     size_t limit = gasnetc_Token_MaxReplyMedium(token, lc_opt, flags, nargs);
-    nbytes = MIN(limit, max_length);
+    nbytes = MIN(limit, most_payload);
     gpd = gasnetc_alloc_reply_post_descriptor(token, head_len + nbytes, flags);
   }
   gasneti_assert(gpd || (flags & GEX_FLAG_IMMEDIATE));
@@ -1618,25 +1618,25 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
                        gex_Rank_t         dest,
                        const void        *client_buf,
-                       size_t             min_length,
-                       size_t             max_length,
+                       size_t             least_payload,
+                       size_t             most_payload,
                        gex_Event_t       *lc_opt,
                        gex_Flags_t        flags
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
 
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
         imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
-                                           client_buf, min_length, max_length,
+                                           client_buf, least_payload, most_payload,
                                            NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
     } else {
-        imm = gasnetc_prepare_medium(sd,0,1,tm,dest,NULL,client_buf,min_length,max_length,
+        imm = gasnetc_prepare_medium(sd,0,1,tm,dest,NULL,client_buf,least_payload,most_payload,
                                      lc_opt,flags,nargs GASNETI_THREAD_PASS);
     }
 
@@ -1824,23 +1824,23 @@ extern int gasnetc_AMReplyMediumM(
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Token_t        token,
                        const void        *client_buf,
-                       size_t             min_length,
-                       size_t             max_length,
+                       size_t             least_payload,
+                       size_t             most_payload,
                        gex_Event_t       *lc_opt,
                        gex_Flags_t        flags
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REP(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
-                                         client_buf, min_length, max_length,
+                                         client_buf, least_payload, most_payload,
                                          NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
     } else {
-        imm = gasnetc_prepare_medium(sd,0,0,NULL,0,token,client_buf,min_length,max_length,
+        imm = gasnetc_prepare_medium(sd,0,0,NULL,0,token,client_buf,least_payload,most_payload,
                                      lc_opt,flags,nargs GASNETI_THREAD_PASS);
     }
 

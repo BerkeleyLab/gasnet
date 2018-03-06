@@ -644,8 +644,8 @@ int gasnetc_prepare_req_medium(
                        gex_TM_t                tm,
                        gex_Rank_t              dest,
                        const void             *client_buf,
-                       size_t                  min_length,
-                       size_t                  max_length,
+                       size_t                  least_payload,
+                       size_t                  most_payload,
                        gex_Event_t            *lc_opt,
                        gex_Flags_t             flags,
                        unsigned int            nargs
@@ -663,8 +663,8 @@ int gasnetc_prepare_req_medium(
   //   all other arguments are passed unchanged
   // + isFixed is 1 when called from gasnetc_AMRequestMediumM, and
   //   - client_buf is the source_buf argument to gasnetc_AMRequestMediumM
-  //   - min_length is unused
-  //   - max_length is the nbytes argument to gasnetc_AMRequestMediumM
+  //   - least_payload is unused
+  //   - most_payload is the nbytes argument to gasnetc_AMRequestMediumM
 
   return 0; // or 1 if GEX_FLAG_IMMEDIATE passed and resource(s) unavailable
 }
@@ -723,25 +723,25 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
                        gex_Rank_t         dest,
                        const void        *client_buf,
-                       size_t             min_length,
-                       size_t             max_length,
+                       size_t             least_payload,
+                       size_t             most_payload,
                        gex_Event_t       *lc_opt,
                        gex_Flags_t        flags
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
         imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
-                                           client_buf, min_length, max_length,
+                                           client_buf, least_payload, most_payload,
                                            NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
     } else {
-        imm = gasnetc_prepare_req_medium(sd,0,tm,dest,client_buf,min_length,max_length,
+        imm = gasnetc_prepare_req_medium(sd,0,tm,dest,client_buf,least_payload,most_payload,
                                          lc_opt,flags,nargs GASNETI_THREAD_PASS);
     }
 
@@ -939,8 +939,8 @@ int gasnetc_prepare_rep_medium(
                        const int               isFixed,
                        gex_Token_t             token,
                        const void             *client_buf,
-                       size_t                  min_length,
-                       size_t                  max_length,
+                       size_t                  least_payload,
+                       size_t                  most_payload,
                        gex_Event_t            *lc_opt,
                        gex_Flags_t             flags,
                        unsigned int            nargs
@@ -958,8 +958,8 @@ int gasnetc_prepare_rep_medium(
   //   all other arguments are passed unchanged
   // + isFixed is 1 when called from gasnetc_AMReplyMediumM, and
   //   - client_buf is the source_buf argument to gasnetc_AMReplyMediumM
-  //   - min_length is unused
-  //   - max_length is the nbytes argument to gasnetc_AMReplyMediumM
+  //   - least_payload is unused
+  //   - most_payload is the nbytes argument to gasnetc_AMReplyMediumM
 
   return 0; // or 1 if GEX_FLAG_IMMEDIATE passed and resource(s) unavailable
 }
@@ -1014,23 +1014,23 @@ extern int gasnetc_AMReplyMediumM(
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Token_t        token,
                        const void        *client_buf,
-                       size_t             min_length,
-                       size_t             max_length,
+                       size_t             least_payload,
+                       size_t             most_payload,
                        gex_Event_t       *lc_opt,
                        gex_Flags_t        flags
                        GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REP(sd,token,client_buf,min_length,max_length,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
-                                         client_buf, min_length, max_length,
+                                         client_buf, least_payload, most_payload,
                                          NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
     } else {
-        imm = gasnetc_prepare_rep_medium(sd,0,token,client_buf,min_length,max_length,
+        imm = gasnetc_prepare_rep_medium(sd,0,token,client_buf,least_payload,most_payload,
                                         lc_opt,flags,nargs GASNETI_THREAD_PASS);
     }
 
