@@ -22,6 +22,15 @@ PENDING: GASNet-EX 2018.3.0 Integration release
 * Notable bugs fixed in this release:
   -
 
+* Feature implementation status in this release:
+  - Negotiated-Payload Active Messages are well-implemented for shared memory
+    (PSHM and smp-conduit), gemini- and aries-conduits.  All other conduit are
+    currently using a portable reference implementation which may result in
+    performance less than will eventually be delivered.
+  - Remote Atomics are well-implemented for shared memory (PSHM on most systems,
+    and smp-conduit) and aries-conduit.  Other conduits with APIs for offloaded
+    atomics do not yet utilize them.
+
 * This release implements the following conduits only:
   - InfiniBand Verbs (ibv-conduit)
   - Cray uGNI (gemini- and aries-conduits)
