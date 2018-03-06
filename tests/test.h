@@ -327,10 +327,10 @@ static int _test_asi_bank;
       _test_asi_iters[_bank] = MAX(1,_test_asi_iters[_bank]);     \
       _test_asi_sz[_bank] = _new_sz;                              \
     }                                                             \
-    _TEST_ASI_##name:                                             \
-    assert(_test_asi_iters[_bank] > 0);                           \
-    (iters) = _test_asi_iters[_bank];                             \
     _test_asi_bank = _bank;                                       \
+    _TEST_ASI_##name:                                             \
+    assert(_test_asi_iters[_test_asi_bank] > 0);                  \
+    (iters) = _test_asi_iters[_test_asi_bank];                    \
     _test_asi_begin = gasnett_ticks_now();                        \
   }                                                               \
 } while (0)
