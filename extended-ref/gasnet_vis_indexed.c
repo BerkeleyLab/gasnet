@@ -282,8 +282,9 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTI_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype, 0);
 
-  // TODO-EX: the lc_opt argument below needs adjustment for NPAM once that is well-specified
-  size_t maxpacket = gex_AM_MaxRequestMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(5,6));
+  size_t const maxpacket = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                   (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                   HARGS(5,6));
   gasnete_packetdesc_t *remotept;
   gasnete_packetdesc_t *localpt;
   size_t const packetcnt = gasnete_packetize_addrlist(dstcount, dstlen, srccount, srclen, 
@@ -372,9 +373,12 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
   GASNETI_TRACE_EVENT(C, GETI_AMPIPELINE);
 
-  // TODO-EX: the lc_opt arguments below need adjustment for NPAM once that is well-specified
-  size_t maxrequest = gex_AM_MaxRequestMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(5,6));
-  size_t maxreply   = gex_AM_MaxReplyMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(2,3));
+  size_t const maxrequest = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                    HARGS(5,6));
+  size_t const maxreply   = gex_AM_MaxReplyMedium  (tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                    HARGS(2,3));
 
   gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) + dstcount*sizeof(void *) +
                                                   (GASNETE_VIS_NPAM ? 0 : maxrequest));
@@ -447,8 +451,9 @@ void gasnete_geti_AMPipeline_reqh_inner(gex_Token_t token,
   size_t const rnum = nbytes / sizeof(void *);
   gasneti_assert(nbytes == rnum * sizeof(void *));
   // TODO-EX: this function is currently undocumented
-  // TODO-EX: the lc_opt arguments below need adjustment for NPAM once that is well-specified
-  size_t maxreply   = gasnetc_Token_MaxReplyMedium(token,GEX_EVENT_NOW,0,HARGS(2,3));
+  size_t const maxreply = gasnetc_Token_MaxReplyMedium(token, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                       (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                       HARGS(2,3));
   #if GASNETE_VIS_NPAM == 0
     uint8_t * const packedbuf = gasneti_malloc(maxreply);
   #else // NPAM 1 or 2
