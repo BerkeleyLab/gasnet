@@ -137,10 +137,10 @@ typedef struct {
 #define gex_AM_LUBReplyLong()     ((size_t)GASNETC_MAX_LONG_REP)
 
   // TODO-EX: Medium sizes can be improved upon for PSHM case
-#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) ((size_t)GASNETC_MAX_MEDIUM)
-#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM)
-#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_LONG_REQ)
-#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)GASNETC_MAX_LONG_REP)
+#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    ((size_t)GASNETC_MAX_LONG_REQ)
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      ((size_t)GASNETC_MAX_LONG_REP)
 #define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM)
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     ((size_t)GASNETC_MAX_LONG_REP)
 

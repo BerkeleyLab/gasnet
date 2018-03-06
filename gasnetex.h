@@ -606,6 +606,33 @@ typedef uintptr_t gex_RMA_Value_t;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Error checking (or pass-through) for AM payload queries
+
+#if GASNET_DEBUG
+  extern size_t gex_AM_MaxRequestMedium(
+           gex_TM_t _tm, gex_Rank_t _rank,
+           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_AM_MaxReplyMedium(
+           gex_TM_t _tm, gex_Rank_t _rank,
+           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_AM_MaxRequestLong(
+           gex_TM_t _tm, gex_Rank_t _rank,
+           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_AM_MaxReplyLong(
+           gex_TM_t _tm, gex_Rank_t _rank,
+           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+#else
+  #define gex_AM_MaxRequestMedium gasnetc_AM_MaxRequestMedium
+  #define gex_AM_MaxReplyMedium   gasnetc_AM_MaxReplyMedium
+  #define gex_AM_MaxRequestLong   gasnetc_AM_MaxRequestLong
+  #define gex_AM_MaxReplyLong     gasnetc_AM_MaxReplyLong
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* Active Message Source Descriptor */
 
 struct gasneti_srcdesc_s;
