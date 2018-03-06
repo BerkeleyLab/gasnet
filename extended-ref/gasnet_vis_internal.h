@@ -320,8 +320,13 @@ extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
 // 0 = Use FP AM
 // 1 = Use NP AM with a fixed-payload-size algorithm
 // 2 = Use NP AM with a negotiated-payload size
+// Default is 1 for conduits with a "real" NP AM implementation, and 0 elsewhere
 #ifndef GASNETE_VIS_NPAM
-#define GASNETE_VIS_NPAM 1
+  #if GASNETC_HAVE_NP_REQ_MEDIUM && GASNETC_HAVE_NP_REP_MEDIUM
+    #define GASNETE_VIS_NPAM 1
+  #else
+    #define GASNETE_VIS_NPAM 0
+  #endif
 #endif
 #if !(GASNETE_VIS_NPAM == 0 || GASNETE_VIS_NPAM == 1 || GASNETE_VIS_NPAM == 2)
 #error Incorrect GASNETE_VIS_NPAM definition - must be in {0,1,2}
