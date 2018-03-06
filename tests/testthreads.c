@@ -524,6 +524,8 @@ void
 pong_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx) {
 	int	tid = tt_thread_data[idx].tid;
 
+	gex_Rank_t node = test_msgsource(token);
+
 	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)", 
 			(int)myrank, tid, (int)myrank, (int)idx));
         assert(idx >= 0 && idx < threads_num);
