@@ -687,7 +687,10 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
 /* Pipelined AM gather-scatter put */
 #if GASNETE_USE_AMPIPELINE && !defined(GASNETE_PUTS_AMPIPELINE)
 #define GASNETE_PUTS_AMPIPELINE 1
-#define GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) gex_AM_MaxRequestMedium((tm),(rank),GEX_EVENT_NOW,0,HARGS(5,7)) 
+#define GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) gex_AM_MaxRequestMedium((tm),(rank),                        \
+                                                                 (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),                 \
+                                                                 (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0) , \
+                                                                 HARGS(5,7)) 
 #define GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels) ((stridelevels)*(2*sizeof(size_t)+sizeof(ptrdiff_t)))
 #define GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) \
   ((ptrdiff_t)GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) - (ptrdiff_t)GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels))
@@ -895,9 +898,12 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7,
 #if GASNETE_USE_AMPIPELINE && !defined(GASNETE_GETS_AMPIPELINE)
 #define GASNETE_GETS_AMPIPELINE 1
 #define GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels)         ((stridelevels)*(sizeof(size_t)+sizeof(ptrdiff_t)))
-#define GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)             gex_AM_MaxRequestMedium((tm),(rank),GEX_EVENT_NOW,0,HARGS(6,9))
+#define GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)             gex_AM_MaxRequestMedium((tm),(rank),GEX_EVENT_GROUP,0,HARGS(6,9))
 
-#define GASNETE_GETS_AMPIPELINE_MAXREPLY(tm,rank)               gex_AM_MaxReplyMedium((tm),(rank),GEX_EVENT_NOW,0,HARGS(2,3)) 
+#define GASNETE_GETS_AMPIPELINE_MAXREPLY(tm,rank)               gex_AM_MaxReplyMedium((tm),(rank),                          \
+                                                                 (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),                 \
+                                                                 (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0) , \
+                                                                 HARGS(2,3)) 
 #define GASNETE_GETS_AMPIPELINE_REPLYOVERHEAD(stridelevels)     ((stridelevels)*sizeof(size_t))
 #define GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) \
        ((ptrdiff_t)GASNETE_GETS_AMPIPELINE_MAXREPLY(tm,rank) - (ptrdiff_t)GASNETE_GETS_AMPIPELINE_REPLYOVERHEAD(stridelevels))

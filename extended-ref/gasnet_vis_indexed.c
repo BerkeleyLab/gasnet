@@ -282,40 +282,57 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTI_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype, 0);
 
-  size_t maxpacket = gex_AM_MaxRequestMedium(tm,rank,GEX_EVENT_NOW,0,HARGS(5,6));
-  { void * * packedbuf = gasneti_malloc(maxpacket);
-    gasnete_packetdesc_t *remotept;
-    gasnete_packetdesc_t *localpt;
-    size_t packetidx;
-    size_t const packetcnt = gasnete_packetize_addrlist(dstcount, dstlen, srccount, srclen, 
+  size_t const maxpacket = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                   (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                   HARGS(5,6));
+  gasnete_packetdesc_t *remotept;
+  gasnete_packetdesc_t *localpt;
+  size_t const packetcnt = gasnete_packetize_addrlist(dstcount, dstlen, srccount, srclen, 
                                                 &remotept, &localpt,
                                                 maxpacket,
                                                 1);
-    gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
+  gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
-    for (packetidx = 0; packetidx < packetcnt; packetidx++) {
+  #if GASNETE_VIS_NPAM == 0
+    void * * const packedbuf = gasneti_malloc(maxpacket);
+  #endif
+
+  for (size_t packetidx = 0; packetidx < packetcnt; packetidx++) {
+    #if GASNETE_VIS_NPAM  // NPAM 1 or 2 (currently treated as 1)
+      gex_AM_SrcDesc_t sd = gex_AM_PrepareRequestMedium(tm, rank, NULL, maxpacket, maxpacket, NULL, 0, HARGS(5,6));
+      gasneti_assert(gex_AM_SrcDescSize(sd) >= maxpacket);
+      void * * const packedbuf = gex_AM_SrcDescAddr(sd);
+    #endif
+     
       gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
       gasnete_packetdesc_t * const lpacket = &localpt[packetidx];
       size_t const rnum = rpacket->lastidx - rpacket->firstidx + 1;
       size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
-      uint8_t *end;
       /* fill packet with remote metadata */
       GASNETI_MEMCPY(packedbuf, &dstlist[rpacket->firstidx], rnum*sizeof(void *));
       /* gather data payload from sourcelist into packet */
-      end = gasnete_addrlist_pack(lnum, &srclist[lpacket->firstidx], srclen, &packedbuf[rnum], 
+      uint8_t * const end = gasnete_addrlist_pack(lnum, &srclist[lpacket->firstidx], srclen, &packedbuf[rnum], 
                                   lpacket->firstoffset, lpacket->lastlen);
+      size_t const nbytes = end - (uint8_t *)packedbuf;
+      gasneti_assert(nbytes <= maxpacket);
 
       /* send AM(rnum, iop) from packedbuf */
+    #define ARGS PACK(iop), rnum, dstlen, rpacket->firstoffset, rpacket->lastlen
+    #if GASNETE_VIS_NPAM == 0
       gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_puti_AMPipeline_reqh),
-                               packedbuf, end - (uint8_t *)packedbuf, GEX_EVENT_NOW, 0,
-                               PACK(iop), rnum, dstlen, rpacket->firstoffset, rpacket->lastlen);
-    }
-
-    gasneti_free(remotept);
-    gasneti_free(localpt);
-    gasneti_free(packedbuf);
-    GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+                               packedbuf, nbytes, GEX_EVENT_NOW, 0, ARGS);
+    #else
+      gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_puti_AMPipeline_reqh), nbytes, ARGS);
+    #endif
+    #undef ARGS
   }
+
+  gasneti_free(remotept);
+  gasneti_free(localpt);
+  #if GASNETE_VIS_NPAM == 0
+    gasneti_free(packedbuf);
+  #endif
+  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
 }
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
     if (gasnete_vis_use_ampipe && dstcount > 1 && dstlen == (uint32_t)(dstlen) &&                                  \
@@ -356,48 +373,64 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
   GASNETI_TRACE_EVENT(C, GETI_AMPIPELINE);
 
-  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
-                                                    dstcount*sizeof(void *) + 
-                                                    gex_AM_LUBRequestMedium());
-    void * * const savedlst = (void * *)(visop + 1);
-    void * * const packedbuf = savedlst + dstcount;
-    gasnete_packetdesc_t *remotept;
-    gasnete_packetdesc_t *localpt;
-    gasneti_eop_t *eop;
-    size_t packetidx;
-    size_t const packetcnt = gasnete_packetize_addrlist(srccount, srclen, dstcount, dstlen,  
-                                                &remotept, &localpt,
-                                                // TODO-EX: Use _max_ version for target and pass both values to packetize
-                                                MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium()),
-                                                0);
-    GASNETE_VISOP_SETUP(visop, synctype, 1);
-    #if GASNET_DEBUG
-      visop->type = GASNETI_VIS_CAT_GETI_AMPIPELINE;
-      visop->count = dstcount;
-    #endif
-    gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
-    gasneti_assert(packetcnt == (gex_AM_Arg_t)packetcnt);
-    visop->len = dstlen;
-    visop->addr = localpt;
-    GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(void *));
-    gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
-    eop = visop->eop; /* visop may disappear once the last AM is launched */
+  size_t const maxrequest = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                    HARGS(5,6));
+  size_t const maxreply   = gex_AM_MaxReplyMedium  (tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                    HARGS(2,3));
 
-    for (packetidx = 0; packetidx < packetcnt; packetidx++) {
+  gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) + dstcount*sizeof(void *) +
+                                                  (GASNETE_VIS_NPAM ? 0 : maxrequest));
+  void * * const savedlst = (void * *)(visop + 1);
+  #if GASNETE_VIS_NPAM == 0
+    void * * const packedbuf = savedlst + dstcount;
+  #endif
+  gasnete_packetdesc_t *remotept;
+  gasnete_packetdesc_t *localpt;
+  size_t const packetcnt = gasnete_packetize_addrlist(srccount, srclen, dstcount, dstlen,  
+                                                &remotept, &localpt,
+                                                // TODO-EX: Packetization logic should take both into account
+                                                MIN(maxrequest,maxreply),
+                                                0);
+  GASNETE_VISOP_SETUP(visop, synctype, 1);
+  #if GASNET_DEBUG
+    visop->type = GASNETI_VIS_CAT_GETI_AMPIPELINE;
+    visop->count = dstcount;
+  #endif
+  gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
+  gasneti_assert(packetcnt == (gex_AM_Arg_t)packetcnt);
+  visop->len = dstlen;
+  visop->addr = localpt;
+  GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(void *));
+  gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
+  gasneti_eop_t *eop = visop->eop; /* visop may disappear once the last AM is launched */
+
+  for (size_t packetidx = 0; packetidx < packetcnt; packetidx++) {
+    #if GASNETE_VIS_NPAM  // NPAM 1 or 2 (currently treated as 1)
+      gex_AM_SrcDesc_t sd = gex_AM_PrepareRequestMedium(tm, rank, NULL, maxrequest, maxrequest, NULL, 0, HARGS(5,6));
+      gasneti_assert(gex_AM_SrcDescSize(sd) >= maxrequest);
+      void * * const packedbuf = gex_AM_SrcDescAddr(sd);
+    #endif
       gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
       size_t const rnum = rpacket->lastidx - rpacket->firstidx + 1;
       /* fill packet with remote metadata */
       GASNETI_MEMCPY(packedbuf, &srclist[rpacket->firstidx], rnum*sizeof(void *));
 
       /* send AM(visop) from packedbuf */
+      size_t const nbytes = rnum*sizeof(void *);
+    #define ARGS PACK(visop), packetidx, srclen, rpacket->firstoffset, rpacket->lastlen
+    #if GASNETE_VIS_NPAM == 0
       gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_geti_AMPipeline_reqh),
-                               packedbuf, rnum*sizeof(void *), GEX_EVENT_NOW, 0,
-                               PACK(visop), packetidx, srclen, rpacket->firstoffset, rpacket->lastlen);
-    }
-
-    gasneti_free(remotept);
-    GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
+                               packedbuf, nbytes, GEX_EVENT_NOW, 0, ARGS);
+    #else
+      gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_geti_AMPipeline_reqh), nbytes, ARGS);
+    #endif
+    #undef ARGS
   }
+
+  gasneti_free(remotept);
+  GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
 }
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
     if (gasnete_vis_use_ampipe && srccount > 1 &&                                                                  \
@@ -416,15 +449,34 @@ void gasnete_geti_AMPipeline_reqh_inner(gex_Token_t token,
   gex_AM_Arg_t dstlen, gex_AM_Arg_t firstoffset, gex_AM_Arg_t lastlen) {
   void * const * const rlist = addr;
   size_t const rnum = nbytes / sizeof(void *);
-  uint8_t * const packedbuf = gasneti_malloc(gex_AM_LUBReplyMedium());
+  gasneti_assert(nbytes == rnum * sizeof(void *));
+  // TODO-EX: this function is currently undocumented
+  size_t const maxreply = gasnetc_Token_MaxReplyMedium(token, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+                                                       (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
+                                                       HARGS(2,3));
+  #if GASNETE_VIS_NPAM == 0
+    uint8_t * const packedbuf = gasneti_malloc(maxreply);
+  #else // NPAM 1 or 2
+    gex_AM_SrcDesc_t sd = gex_AM_PrepareReplyMedium(token, NULL, maxreply, maxreply, NULL, 0, HARGS(2,3));
+    gasneti_assert(gex_AM_SrcDescSize(sd) >= maxreply);
+    uint8_t * const packedbuf = gex_AM_SrcDescAddr(sd);
+  #endif
+
   /* gather data payload from sourcelist into packet */
   uint8_t * const end = gasnete_addrlist_pack(rnum, rlist, dstlen, packedbuf, firstoffset, lastlen);
-  size_t const repbytes = end - packedbuf;
-  gasneti_assert(repbytes <= gex_AM_LUBReplyMedium());
-  gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_geti_AMPipeline_reph),
-                         packedbuf, repbytes, GEX_EVENT_NOW, 0,
-                         PACK(_visop),packetidx);
-  gasneti_free(packedbuf);
+  size_t const replysz = end - packedbuf;
+  gasneti_assert(replysz <= maxreply);
+
+  // send packet
+  #define ARGS PACK(_visop), packetidx
+  #if GASNETE_VIS_NPAM == 0
+    gex_AM_ReplyMedium(token, gasneti_handleridx(gasnete_geti_AMPipeline_reph),
+                           packedbuf, replysz, GEX_EVENT_NOW, 0, ARGS);
+    gasneti_free(packedbuf);
+  #else
+    gex_AM_CommitReplyMedium(sd, gasneti_handleridx(gasnete_geti_AMPipeline_reph), replysz, ARGS);
+  #endif
+  #undef ARGS
 }
 MEDIUM_HANDLER(gasnete_geti_AMPipeline_reqh,5,6, 
               (token,addr,nbytes, UNPACK(a0),      a1,a2,a3,a4),
@@ -440,9 +492,8 @@ void gasnete_geti_AMPipeline_reph_inner(gex_Token_t token,
   size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
   gasneti_assert(visop->type == GASNETI_VIS_CAT_GETI_AMPIPELINE);
   gasneti_assert(lpacket->lastidx < visop->count);
-  { uint8_t * const end = gasnete_addrlist_unpack(lnum, savedlst+lpacket->firstidx, visop->len, addr, lpacket->firstoffset, lpacket->lastlen);
-    gasneti_assert(end - (uint8_t *)addr == nbytes);
-  }
+  uint8_t * const end = gasnete_addrlist_unpack(lnum, savedlst+lpacket->firstidx, visop->len, addr, lpacket->firstoffset, lpacket->lastlen);
+  gasneti_assert(end - (uint8_t *)addr == nbytes);
   if (gasneti_weakatomic_decrement_and_test(&(visop->packetcnt), 
                                             GASNETI_ATOMIC_WMB_PRE|GASNETI_ATOMIC_WEAK_FENCE)) {
     /* last response packet completes operation and cleans up */
