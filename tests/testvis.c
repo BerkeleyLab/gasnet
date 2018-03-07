@@ -8,24 +8,19 @@
 #include <gasnet_vis.h>
 #include <gasnet_coll.h>
 
+/* select a larger than default segment, 
+   because this test needs plenty of memory to play with */
+uintptr_t segsz = (16*1024*1024);
 #ifndef TEST_SEGSZ
-  /* select a larger than default segment, 
-     because this test needs plenty of memory to play with */
-  #define TEST_SEGSZ          (16*1048576)
+  #define TEST_SEGSZ_EXPR ((uintptr_t)alignup(segsz,PAGESZ))
 #endif
-#include <test.h>
 
 static gex_Client_t      myclient;
 static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
-#ifndef MAX_VECLEN
-#define MAX_VECLEN  100
-#endif
-#ifndef MAX_IDXLEN
-#define MAX_IDXLEN  8192
-#endif
+#include <test.h>
 
 /* VEC_SZ sets the size/offset alignment of all data accesses
    we support sizes 1, 4 and 8
@@ -58,20 +53,18 @@ static gex_Segment_t     mysegment;
 #endif
 
 #define NUM_AREAS   4
-#ifndef MAX_STRIDEDIM
-#define MAX_STRIDEDIM  20
-#endif
-#ifndef MAX_CHUNKSZ
-#define MAX_CHUNKSZ 256
-#endif
-#ifndef MAX_INFLIGHT_OPS
-#define MAX_INFLIGHT_OPS 16
-#endif
+
+size_t max_veclen = 100;
+size_t max_idxlen = 8192;
+size_t max_stridedim = 20;
+size_t max_chunksz = 256;
+size_t max_inflight_ops = 16;
 
 #define RUN_VECTOR   1
 #define RUN_INDEXED  2
 #define RUN_STRIDED  4
-#define RUN_NB       8
+#define RUN_TRANSPOSE 8 
+#define RUN_NB       16
 
 #if GASNET_SEGMENT_EVERYTHING
   #define segeverything 1
@@ -123,8 +116,8 @@ void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
  */
 test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap) {
   test_memvec_list *mv;
-  size_t count = TEST_RAND_PICK(TEST_RAND(1, MIN(MAX_VECLEN,elemlen)),
-                 TEST_RAND(1, TEST_RAND(1, TEST_RAND(1, MIN(MAX_VECLEN,elemlen)))));
+  size_t count = TEST_RAND_PICK(TEST_RAND(1, MIN(max_veclen,elemlen)),
+                 TEST_RAND(1, TEST_RAND(1, TEST_RAND(1, MIN(max_veclen,elemlen)))));
   size_t per = 0;
   if (TEST_RAND_ONEIN(20)) count = 0;
   if (count > 0) per = elemlen / count; 
@@ -291,28 +284,28 @@ void rand_chunkelem(size_t *one, size_t *two) {
   if (TEST_RAND_ONEIN(2)) { size_t *tmp = one; one = two; two = tmp; }
   switch (TEST_RAND(0,2)) {
     case 0: { /* same chunksz */
-      *one = TEST_RAND(1, TEST_RAND(1, MAX_CHUNKSZ));
+      *one = TEST_RAND(1, TEST_RAND(1, max_chunksz));
       *two = *one;
       break;
     }
     case 1: { /* one a multiple of another */
-      size_t factor = TEST_RAND(1, TEST_RAND(1, TEST_RAND(1, MAX_CHUNKSZ)));
-      *one = (TEST_RAND(factor, MAX_CHUNKSZ) / factor);
+      size_t factor = TEST_RAND(1, TEST_RAND(1, TEST_RAND(1, max_chunksz)));
+      *one = (TEST_RAND(factor, max_chunksz) / factor);
       *two = *one * factor;
       break;
     }
     case 2: { /* both a small multiple of underlying factor */
       size_t onemult = TEST_RAND(1, 5);
       size_t twomult = TEST_RAND(1, 5);
-      size_t factor = TEST_RAND(1, MAX_CHUNKSZ/MAX(onemult, twomult));
+      size_t factor = TEST_RAND(1, max_chunksz/MAX(onemult, twomult));
       *one = factor * onemult;
       *two = factor * twomult;
       break;
     }
     default: FATALERR("TEST_RAND failure");
   }
-  assert(*one >= 1 && *one <= MAX_CHUNKSZ);
-  assert(*two >= 1 && *two <= MAX_CHUNKSZ);
+  assert(*one >= 1 && *one <= max_chunksz);
+  assert(*two >= 1 && *two <= max_chunksz);
 }
 
 /* build a addrlist over the area [addr...addr+len*VEC_SZ]
@@ -321,7 +314,7 @@ void rand_chunkelem(size_t *one, size_t *two) {
 test_addr_list *rand_addr_list(void *addr, size_t chunkelem, size_t elemlen, int allowoverlap) {
   test_addr_list *al;
   size_t count;
-  size_t maxchunks = MIN(MAX_IDXLEN, elemlen/chunkelem);
+  size_t maxchunks = MIN(max_idxlen, elemlen/chunkelem);
   count = TEST_RAND_PICK(TEST_RAND(1, maxchunks),
                          TEST_RAND(1, TEST_RAND(1, TEST_RAND(1, maxchunks))));
   if (TEST_RAND_ONEIN(20)) count = 0;
@@ -433,6 +426,18 @@ void _verify_addr_list_data_both(test_addr_list *src, void *result,
 } while (0)
 
 /* ------------------------------------------------------------------------------------ */
+#define PRINT_VECTOR(dest, vector, nelem) do {                                            \
+      assert(sizeof(dest) > 16);                                                          \
+      char *_p = (dest);                                                                  \
+      *_p++ = '[';                                                                        \
+      for (size_t i=0; i < (nelem); i++) {                                                \
+        snprintf(_p, sizeof(dest) - (_p - (dest))-3, "%lli", (long long int)(vector)[i]); \
+        if (i < (nelem)-1) strcat(_p, ", ");                                              \
+        _p+=strlen(_p);                                                                   \
+      }                                                                                   \
+      *_p++ = ']'; *_p = 0;                                                               \
+  } while (0)
+/* ------------------------------------------------------------------------------------ */
 typedef struct {
   uint64_t checksum;
   size_t _descsz; /* in bytes */
@@ -446,7 +451,7 @@ typedef struct {
   size_t *srcstrides; /* in bytes */
   size_t *dststrides; /* in bytes */
   size_t *contigstrides; /* in bytes */
-  size_t *count; /* count[0] in bytes, count[1+] in elem */ // TODO-EX: trans
+  size_t *count; /* count[0] in bytes, count[1+] in elem */
   size_t stridelevels;
 } test_strided_desc;
 
@@ -495,9 +500,8 @@ void _verify_strided_desc(test_strided_desc *sd, const char *file, int line) {
    [srcaddr...srcaddr+elemlen*VEC_SZ] and [dstaddr...dstaddr+elemlen*VEC_SZ]
    note elemlen is a VEC_T element count
  */
-// TODO-EX: trans
 test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contigaddr, size_t elemlen) {
-  size_t dim = TEST_RAND(2, TEST_RAND(2, TEST_RAND(2, MAX_STRIDEDIM)));
+  size_t dim = TEST_RAND(2, TEST_RAND(2, TEST_RAND(2, max_stridedim+1)));
   size_t sz;
   test_strided_desc *sd;
   size_t i;
@@ -583,7 +587,6 @@ test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contiga
   }
 }
 
-// TODO-EX: trans
 void _verify_strided_desc_data_both(test_strided_desc *desc, void *result, 
                             gex_Rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
@@ -613,14 +616,8 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
     }
     if (srcval != resval) {
       char idxstr[255];
-      char *p = idxstr;
-      size_t i;
-      for (i=0; i < dim; i++) {
-        snprintf(p, sizeof(idxstr) - (p - idxstr), "%i", (int)idx[i]);
-        if (i < dim-1) strcat(p, ", ");
-        p+=strlen(p);
-      }
-      ERR("mismatch at location [%s]\n"
+      PRINT_VECTOR(idxstr, idx, dim);
+      ERR("mismatch at location %s\n"
           "  expected val="VEC_FMT"\n"
           "    actual val="VEC_FMT"\n"
           "  at %s:%s:%i\n",
@@ -670,10 +667,348 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
 } while (0)
 
 /* ------------------------------------------------------------------------------------ */
+typedef struct {
+  uint64_t checksum;
+  size_t _descsz; /* in bytes */
+  size_t totalsz; /* in bytes */
+  size_t srcvolume; /* in bytes */
+  size_t dstvolume; /* in bytes */
+  void *srcaddr;
+  void *dstaddr;
+  void *contigaddr;
+  size_t *srcextents; /* in elems */
+  size_t *dstextents; /* in elems */
+  size_t *dim_map; /* dim_map[dst_dim] == src_dim */
+  size_t *rev_map; /* inverted dim_map */
+  ptrdiff_t *srcstrides; /* in bytes */
+  ptrdiff_t *dststrides; /* in bytes */
+  ptrdiff_t *contigstrides; /* in bytes */
+  size_t *count; 
+  size_t    *verify_count;
+  ptrdiff_t *verify_srcstrides;
+  void  *verify_srcaddr;
+  void  *verify_contigaddr;
+  size_t stridelevels;
+  size_t elemsz;
+} test_xpose_desc;
+
+void _verify_xpose_desc(test_xpose_desc const *xd, const char *file, int line) {
+  if (xd->checksum != test_checksum(((uint64_t*)xd)+1, xd->_descsz-8))
+    FATALERR("Checksum mismatch in verify_xpose_desc at %s:%i", file, line);
+
+  size_t sz = xd->elemsz;
+  size_t srcvol = sz;
+  size_t dstvol = sz;
+  uint8_t *srclo = xd->srcaddr;
+  uint8_t *srchi = srclo; 
+  uint8_t *dstlo = xd->dstaddr;
+  uint8_t *dsthi = dstlo; 
+  uint8_t *clo = xd->contigaddr;
+  uint8_t *chi = clo; 
+  int shuffled = (xd->dim_map == NULL);
+  if (shuffled) {
+    assert(!xd->dim_map && !xd->rev_map);
+    assert(xd->verify_count && xd->verify_srcstrides);
+  } else {
+    assert(xd->dim_map && xd->rev_map);
+    assert(!xd->verify_count && !xd->verify_srcstrides);
+  }
+  for (size_t i = 0; i < xd->stridelevels; i++) {
+    if (!shuffled){
+      assert_always(xd->rev_map[xd->dim_map[i]] == i);
+      assert_always(xd->dim_map[xd->rev_map[i]] == i);
+      assert_always(xd->contigstrides[i] == sz);
+    }
+    sz *= xd->count[i];
+    assert_always(xd->count[i] <= xd->dstextents[i]);
+    if (!shuffled) {
+      assert_always(xd->count[i] <= xd->srcextents[xd->dim_map[i]]);
+      assert_always(labs(xd->srcstrides[xd->rev_map[i]]) == srcvol);
+      assert_always(labs(xd->dststrides[i]) == dstvol);
+    }
+    srcvol *= xd->srcextents[i];
+    dstvol *= xd->dstextents[i];
+    if (xd->srcstrides[i] >= 0) srchi += xd->srcstrides[i] * ((ptrdiff_t)xd->count[i] - 1);
+    else                        srclo += xd->srcstrides[i] * ((ptrdiff_t)xd->count[i] - 1);
+    if (xd->dststrides[i] >= 0) dsthi += xd->dststrides[i] * ((ptrdiff_t)xd->count[i] - 1);
+    else                        dstlo += xd->dststrides[i] * ((ptrdiff_t)xd->count[i] - 1);
+    if (xd->contigstrides[i] >= 0) chi += xd->contigstrides[i] * ((ptrdiff_t)xd->count[i] - 1);
+    else                           clo += xd->contigstrides[i] * ((ptrdiff_t)xd->count[i] - 1);
+  }
+
+  assert_always(sz == xd->totalsz);
+  if (sz != 0) assert_always(xd->elemsz >= VEC_SZ && xd->elemsz % VEC_SZ == 0);
+  assert_always(srcvol == xd->srcvolume);
+  assert_always(dstvol == xd->dstvolume);
+
+  size_t srcbounds = srchi - srclo + xd->elemsz;
+  size_t dstbounds = dsthi - dstlo + xd->elemsz;
+  size_t cbounds = chi - clo + xd->elemsz;
+  assert_always(srcbounds <= xd->srcvolume);
+  assert_always(dstbounds <= xd->dstvolume);
+  assert_always(cbounds == xd->totalsz);
+}
+#define verify_xpose_desc(xd) do {                        \
+  if (verify) _verify_xpose_desc((xd), __FILE__, __LINE__); \
+} while (0)
+
+/* build an xpose set over the area 
+   [srcaddr...srcaddr+elemlen*VEC_SZ] and [dstaddr...dstaddr+elemlen*VEC_SZ]
+   note elemlen is a VEC_T element count
+ */
+test_xpose_desc *rand_xpose_desc(void *srcaddr, void *dstaddr, void *contigaddr, size_t elemlen) {
+  size_t dim = TEST_RAND(2, TEST_RAND(2, max_stridedim));
+  size_t sz = sizeof(test_xpose_desc)+10*dim*MAX(sizeof(ptrdiff_t),sizeof(size_t));
+  test_xpose_desc *xd = test_malloc(sz);
+  xd->_descsz = sz;
+  xd->stridelevels = dim;
+  size_t vecs_per_elem = TEST_RAND(1,TEST_RAND(1,16));
+  xd->elemsz =        VEC_SZ*vecs_per_elem;
+  elemlen /= vecs_per_elem;
+  xd->srcstrides =    (ptrdiff_t *)(xd+1);
+  xd->dststrides =    xd->srcstrides+dim;
+  xd->contigstrides = xd->dststrides+dim;
+  xd->count =         (size_t *)(xd->contigstrides+dim);
+  xd->srcextents =    xd->count+dim;
+  xd->dstextents =    xd->srcextents+dim;
+  xd->dim_map =       xd->dstextents+dim;
+  xd->rev_map =       xd->dim_map+dim;
+  xd->verify_count =  xd->rev_map+dim;
+  xd->verify_srcstrides = (ptrdiff_t*)xd->verify_count+dim;
+
+  size_t volume = TEST_RAND(elemlen*7/8, elemlen); /* in elem */
+  size_t srcmax = 0;
+  size_t dstmax = 0;
+  xd->srcextents[0] = volume;
+  xd->dstextents[0] = volume;
+  /* choose dimensional extents */
+  for (size_t i = 1; i < dim; i++) {
+    size_t prev,min,max;
+    prev = xd->srcextents[srcmax];
+    max = MAX(1,prev/2);
+    min = MIN(2,max);
+    xd->srcextents[i] = TEST_RAND(min,TEST_RAND(min, max));
+    xd->srcextents[srcmax] /= xd->srcextents[i];
+    xd->srcextents[i] = prev / xd->srcextents[srcmax];
+    if (xd->srcextents[i] > xd->srcextents[srcmax]) srcmax = i;
+    prev = xd->dstextents[dstmax];
+    max = MAX(1,prev/2);
+    min = MIN(2,max);
+    xd->dstextents[i] = TEST_RAND(min,TEST_RAND(min, max));
+    xd->dstextents[dstmax] /= xd->dstextents[i];
+    xd->dstextents[i] = prev / xd->dstextents[dstmax];
+    if (xd->dstextents[i] > xd->dstextents[dstmax]) dstmax = i;
+  }
+  SHUFFLE_ARRAY(size_t,xd->srcextents, dim);
+  SHUFFLE_ARRAY(size_t,xd->dstextents, dim);
+
+  // generate a transpositional map
+  for (size_t i = 0; i < dim; i++) {
+    xd->dim_map[i] = i;
+  }
+  #if !DISABLE_TRANSPOSE
+    SHUFFLE_ARRAY(size_t,xd->dim_map, dim);
+  #endif
+  for (size_t i = 0; i < dim; i++) {
+    xd->rev_map[xd->dim_map[i]] = i;
+  }
+
+  /* select counts */
+  int maximizecnt = TEST_RAND_ONEIN(20);
+  for (size_t i = 0; i < dim; i++) {
+    size_t maxcnt = MIN(xd->srcextents[xd->dim_map[i]],xd->dstextents[i]);
+    size_t mincnt = MIN(2,maxcnt);
+    if (maximizecnt) xd->count[i] = maxcnt;
+    else xd->count[i] = TEST_RAND(TEST_RAND(mincnt, maxcnt), maxcnt);
+  }
+
+  /* multiply up dimensions */
+  xd->srcvolume = xd->elemsz;
+  xd->dstvolume = xd->elemsz;
+  for (size_t i = 0; i < dim; i++) {
+    xd->srcstrides[xd->rev_map[i]] = xd->srcvolume;
+    xd->srcvolume *= xd->srcextents[i];
+    xd->dststrides[i] = xd->dstvolume;
+    xd->dstvolume *= xd->dstextents[i];
+  }
+  assert(xd->srcvolume <= volume*xd->elemsz);
+  assert(xd->dstvolume <= volume*xd->elemsz);
+  xd->srcaddr = ((VEC_T*)srcaddr) + TEST_RAND(0, (elemlen*vecs_per_elem)-(xd->srcvolume/VEC_SZ));
+  xd->dstaddr = ((VEC_T*)dstaddr) + TEST_RAND(0, (elemlen*vecs_per_elem)-(xd->dstvolume/VEC_SZ));
+
+  /* compute count-dependent quantities */
+  xd->totalsz = xd->elemsz;
+  for (size_t i = 0; i < dim; i++) {
+    xd->contigstrides[i] = (ptrdiff_t)xd->totalsz;
+    xd->totalsz *= xd->count[i];
+  }
+  xd->contigaddr = ((VEC_T*)contigaddr) + TEST_RAND(0, (elemlen*vecs_per_elem)-(xd->totalsz/VEC_SZ));
+  xd->verify_contigaddr = xd->contigaddr;
+
+  #if !DISABLE_INVERSION
+    #define INVERT_STRIDE(d, addr, strides, count) do {              \
+        addr = (uint8_t*)addr + strides[d]*(ptrdiff_t)(count[d]-1);  \
+        strides[d] = -strides[d];                                    \
+    } while (0)
+    if (TEST_RAND_ONEIN(2)) { // invert some src dimensions
+      for (size_t i = 0; i < dim; i++) {
+        if (TEST_RAND_ONEIN(2)) { // flip!
+          INVERT_STRIDE(i, xd->srcaddr, xd->srcstrides, xd->count);
+        }
+      }
+    }
+  #endif
+  xd->verify_srcaddr = xd->srcaddr;
+
+  #if !DISABLE_SHUFFLE
+  if (TEST_RAND_ONEIN(8)) { /* shuffle dimensions on all sides */
+    // Swapping dimensions on both sides does not affect the semantics of a transfer,
+    // it just permutes the canonical order in which elements are visited.
+    // Verification uses a fixed linear element-wise traversal for the contig side, 
+    // (ie we don't permute the order of the linear verification traversal)
+    // so it needs to also traverse the source values element-wise in their original
+    // un-permuted order, hence we preserve the unpermuted srcstrides/count for verification.
+    memcpy(xd->verify_count,xd->count,sizeof(size_t)*dim);
+    memcpy(xd->verify_srcstrides,xd->srcstrides,sizeof(ptrdiff_t)*dim);
+
+    for (size_t a = 0; a < dim-1; a++) {
+      size_t const b = TEST_RAND(a+1,dim-1);
+      assert(a != b); assert(a < dim-1); assert(b <= dim-1);
+      #define SWAP_ENTRY(array, type) do { \
+        type tmp = array[a]; array[a] = array[b]; array[b] = tmp; \
+      } while(0)
+      SWAP_ENTRY(xd->srcstrides, ptrdiff_t);
+      SWAP_ENTRY(xd->dststrides, ptrdiff_t);
+      SWAP_ENTRY(xd->contigstrides, ptrdiff_t);
+      SWAP_ENTRY(xd->count, size_t);
+      SWAP_ENTRY(xd->srcextents, size_t);
+      SWAP_ENTRY(xd->dstextents, size_t);
+      // dim_map would need more significant fixup to remain correct post-shuffle, 
+      // and we no longer really need it at this point
+      xd->dim_map = NULL;
+      xd->rev_map = NULL;
+      #undef SWAP_ENTRY
+     }
+     #if !DISABLE_INVERSION
+       if (TEST_RAND_ONEIN(2)) { // invert some dimensions all around
+         for (size_t i = 0; i < dim; i++) {
+           if (TEST_RAND_ONEIN(2)) { // flip!
+             INVERT_STRIDE(i, xd->srcaddr, xd->srcstrides, xd->count);
+             INVERT_STRIDE(i, xd->dstaddr, xd->dststrides, xd->count);
+             INVERT_STRIDE(i, xd->contigaddr, xd->contigstrides, xd->count);
+           }
+         }
+       }
+     #endif
+  } else {
+    xd->verify_count = NULL;
+    xd->verify_srcstrides = NULL;
+  }
+  #endif
+
+  xd->checksum = test_checksum(((uint64_t*)xd)+1, xd->_descsz-8);
+  verify_xpose_desc(xd);
+  return xd;
+}
+
+void _verify_xpose_desc_data_both(test_xpose_desc *desc,
+                            gex_Rank_t nodeid, VEC_T *areaptr,
+                            const char *context, const char *file, int line) {
+  size_t const dim = desc->stridelevels;
+  size_t * const count = (desc->verify_count ? desc->verify_count : desc->count);
+  ptrdiff_t * const srcstrides = (desc->verify_srcstrides ? desc->verify_srcstrides : desc->srcstrides);
+  VEC_T const *resultp = desc->verify_contigaddr;
+  ptrdiff_t srcoffset = 0; /* in bytes */
+  size_t curdim = 0;
+  size_t const vecs_per_elem = desc->elemsz / VEC_SZ;
+  assert(vecs_per_elem * VEC_SZ == desc->elemsz);
+  
+  if (desc->totalsz == 0) return; /* empty */
+
+  size_t * const idx = test_calloc(sizeof(size_t), dim);
+
+  while (curdim < dim) {
+
+   for (size_t v = 0; v < vecs_per_elem; v++) {
+    /* body */
+    VEC_T srcval;
+    VEC_T resval = *resultp;
+    ptrdiff_t srcboffset = srcoffset + v*VEC_SZ;
+    ptrdiff_t srcvoffset = srcboffset/VEC_SZ;
+    assert(srcvoffset * VEC_SZ == srcboffset);
+    VEC_T *srcptr = ((VEC_T*)desc->verify_srcaddr) + srcvoffset;
+    ptrdiff_t areavoffset = srcptr - areaptr;
+    if (areaptr == NULL) /* local src */
+      srcval = *srcptr;
+    else { /* remote src */
+      srcval = SEG_VALUE(nodeid, areavoffset);
+    }
+    if (srcval != resval) {
+      char idxstr[255];
+      PRINT_VECTOR(idxstr, idx, dim);
+      char dimstr[255];
+      if (desc->dim_map) PRINT_VECTOR(dimstr, desc->dim_map, dim);
+      else strcpy(dimstr,"(shuffled)");
+      ERR("mismatch at element %s.%i\n"
+          "  srcboffset= 0x%lx (%li)\n"
+          "  srcvoffset= 0x%lx (%li)\n"
+          "  areavoffset=0x%lx (%li)\n"
+          "  expected val="VEC_FMT"\n"
+          "    actual val="VEC_FMT"\n"
+          "  dim_map=%s\n"
+          "  at %s:%s:%i\n",
+          idxstr, (int)v, 
+          (long int)srcboffset, (long int)srcboffset,
+          (long int)srcvoffset, (long int)srcvoffset,
+          (long int)areavoffset, (long int)areavoffset,
+          VEC_STR(srcval), VEC_STR(resval),
+          dimstr,
+        context, file, line);
+      { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
+        char *buf = test_malloc(sz);
+        gasnett_format_putsgets(buf, NULL, nodeid,
+          desc->dstaddr, desc->dststrides,
+          desc->srcaddr, desc->srcstrides,
+          desc->elemsz, desc->count, desc->stridelevels);
+        ERR("strided desc: %s\n", buf);
+      }
+      FATALERR("testvis failed.");
+    }
+    resultp++;
+   } // v
+
+   /* increment */
+   for (curdim = 0; curdim < dim; curdim++) {
+     if (idx[curdim] < count[curdim]-1) {
+       idx[curdim]++;
+       srcoffset += srcstrides[curdim];
+       assert(idx[curdim] < count[curdim]);
+       break;
+     } else {
+       assert(idx[curdim] == count[curdim] - 1);
+       idx[curdim] = 0;
+       srcoffset -= srcstrides[curdim]*(ptrdiff_t)(count[curdim]-1);
+     }
+   }
+
+  } // while
+
+  test_free(idx);
+}
+
+#define verify_xpose_desc_data(desc,context) do {                                             \
+  if (verify) _verify_xpose_desc_data_both((desc),mynode,NULL,(context),__FILE__,__LINE__); \
+} while (0)
+
+#define verify_xpose_desc_data_remote(desc,node,areaptr,context) do {                              \
+  if (verify) _verify_xpose_desc_data_both((desc),(node),(areaptr),(context),__FILE__,__LINE__); \
+} while (0)
+
+/* ------------------------------------------------------------------------------------ */
 VEC_T *myseg = NULL;
 VEC_T *partnerseg = NULL;
 VEC_T *heapseg = NULL;
-size_t areasz = TEST_SEGSZ/NUM_AREAS/VEC_SZ; /* in elem */
+size_t areasz; /* in elem */
 int mynode, partner;
 VEC_T *my_seg_read_area;
 VEC_T *my_seg_write1_area;
@@ -708,6 +1043,7 @@ typedef struct {
   test_addr_list *itmp;
   test_strided_desc *sdesc;
   VEC_T *stmpbuf;
+  test_xpose_desc *xdesc;
 } test_op;
 
 #define TIME_DECL()                               \
@@ -785,7 +1121,7 @@ void doit(int iters, int runtests) {
   if (runtests & RUN_VECTOR) { 
     int iter;
     TIME_DECL();
-    MSG("Vector...");
+    MSG("Vector... (max_veclen=%i)",(int)max_veclen);
     for (iter = 0; iter < iters; iter++) {
       /* put test */
       { test_memvec_list *src;
@@ -838,15 +1174,16 @@ void doit(int iters, int runtests) {
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(v);
-  }
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_INDEXED) { 
     int iter;
     TIME_DECL();
-    MSG("Indexed...");
+    MSG("Indexed... (max_idxlen=%i, max_chunksz=%i)",(int)max_idxlen,(int)max_chunksz);
     for (iter = 0; iter < iters; iter++) {
       /* put test */
       { test_addr_list *src;
@@ -903,15 +1240,16 @@ void doit(int iters, int runtests) {
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(i);
-  }
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_STRIDED) { 
     int iter;
     TIME_DECL();
-    MSG("Strided...");
+    MSG("Strided (linear)... (max_stridedim=%i)",(int)max_stridedim);
     for (iter = 0; iter < iters; iter++) {
       /* put test */
       { test_strided_desc *desc;
@@ -921,13 +1259,15 @@ void doit(int iters, int runtests) {
         VEC_T *tmpbuf;
 
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
-        tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
+        tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);  // randomized tmpbuf position
 
+        // push strided local data to strided peer segment
         TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
         verify_strided_desc(desc);
+        // pull it back to contiguous local tmp
         TIMED_GET(gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ptrdiff_t*)desc->contigstrides, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
         verify_strided_desc(desc);
-        verify_strided_desc_data(desc, tmpbuf, "gasnet_puts_bulk/gasnet_gets_bulk test");
+        verify_strided_desc_data(desc, tmpbuf, "gex_VIS_Strided{Put,Get}Blocking linear test");
         test_free(desc);
       }
 
@@ -939,32 +1279,98 @@ void doit(int iters, int runtests) {
         VEC_T *tmpbuf;
 
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
-        tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
+        tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ); // randomized tmpbuf position
 
+        // pull strided peer data to strided local area
         gex_VIS_StridedGetBlocking(myteam, desc->dstaddr, (ptrdiff_t*)desc->dststrides, partner, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         verify_strided_desc(desc);
         if ((segeverything || dstarea == my_seg_write1_area) && 
-            TEST_RAND_PICK(0,1)) {
+            TEST_RAND_PICK(0,1)) { // loopback get: strided local data to contiguous local tmp
           gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ptrdiff_t*)desc->contigstrides, mynode, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
-        } else {
+        } else { // loopback put: strided local data to contiguous local tmp
           gex_VIS_StridedPutBlocking(myteam, mynode, tmpbuf, (ptrdiff_t*)desc->contigstrides, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0);
         }
         verify_strided_desc(desc);
-        verify_strided_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gasnet_gets_bulk test");
+        verify_strided_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking linear test");
         test_free(desc);
       }
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
     TIME_OUTPUT(s);
-  }
+  } else BARRIER();
+  BARRIER();
+  /*---------------------------------------------------------------------------------*/
+  if ((runtests & RUN_TRANSPOSE) && max_stridedim >= 2) { 
+    TIME_DECL();
+    MSG("Strided (transpositional)... (max_stridedim=%i)",(int)max_stridedim);
+    for (int iter = 0; iter < iters; iter++) {
+
+      /* get test */
+      { void *srcarea = partner_seg_read_area;
+        void *dstarea = NULL; // not used
+        void *tmparea = TEST_RAND_PICK(my_heap_write1_area, my_seg_write1_area);
+
+        test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
+
+        // pull strided peer data to contig local area
+        gex_VIS_StridedGetBlocking(myteam, desc->contigaddr, desc->contigstrides, partner, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+        verify_xpose_desc(desc);
+        verify_xpose_desc_data_remote(desc, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking transpose test");
+        test_free(desc);
+      }
+
+      /* put/get test */
+      { void *srcarea = TEST_RAND_PICK(my_heap_read_area, my_seg_read_area);
+        void *dstarea = partner_seg_remotewrite_area;
+        void *tmparea = TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area);
+
+        test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
+
+        // push strided local data to strided peer segment
+        TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, desc->dststrides, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0),desc->totalsz);
+        verify_xpose_desc(desc);
+        // pull it back to contiguous local tmp
+        TIMED_GET(gex_VIS_StridedGetBlocking(myteam, desc->contigaddr, desc->contigstrides, partner, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0),desc->totalsz);
+        verify_xpose_desc(desc);
+        verify_xpose_desc_data(desc, "gex_VIS_Strided{Put,Get}Blocking transpose test");
+        test_free(desc);
+      }
+
+      /* get/pack test */
+      { void *srcarea = partner_seg_read_area;
+        void *dstarea = TEST_RAND_PICK(my_heap_write1_area, my_seg_write1_area);
+        void *tmparea = my_seg_write2_area;
+
+        test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
+
+        // pull strided peer data to strided local area
+        gex_VIS_StridedGetBlocking(myteam, desc->dstaddr, desc->dststrides, partner, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+        verify_xpose_desc(desc);
+        if ((segeverything || dstarea == my_seg_write1_area) && 
+            TEST_RAND_PICK(0,1)) { // loopback get: strided local data to contiguous local tmp
+          gex_VIS_StridedGetBlocking(myteam, desc->contigaddr, desc->contigstrides, mynode, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+        } else { // loopback put: strided local data to contiguous local tmp
+          gex_VIS_StridedPutBlocking(myteam, mynode, desc->contigaddr, desc->contigstrides, desc->dstaddr, desc->dststrides, desc->elemsz, desc->count, desc->stridelevels, 0);
+        }
+        verify_xpose_desc(desc);
+        verify_xpose_desc_data_remote(desc, partner, partner_seg_read_area, "gex_VIS_StridedGetBlocking/pack transpose test");
+        test_free(desc);
+      }
+      TEST_PROGRESS_BAR(iter, iters);
+    }
+    BARRIER();
+    checkmem();
+    TIME_OUTPUT(x);
+  } else BARRIER();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_NB) { 
     int iter;
-    MSG("Non-blocking tests...");
+    MSG("Non-blocking tests... (max_inflight_ops=%i)",(int)max_inflight_ops);
     for (iter = 0; iter < iters; iter++) {
-      size_t numops = TEST_RAND(1, MAX_INFLIGHT_OPS);
+      size_t numops = TEST_RAND(1, max_inflight_ops);
       gex_Event_t *events = test_calloc(sizeof(gex_Event_t), numops);
       test_op *ops = test_calloc(sizeof(test_op), numops);
       size_t opareasz = areasz / numops;
@@ -978,19 +1384,28 @@ void doit(int iters, int runtests) {
         VEC_T *op_my_heap_write2_area = my_heap_write2_area + opareasz*i;
         VEC_T *op_partner_seg_remotewrite_area = partner_seg_remotewrite_area + opareasz*i;
 
-        switch (TEST_RAND(1,3)) {
+        int last_case = 4;
+        if (max_stridedim < 2) last_case = 3;
+        #if GASNETE_OLD_STRIDED // TODO-EX : remove this
+          last_case = 3;
+        #endif
+        gex_Flags_t flags = TEST_RAND_PICK(0,GEX_FLAG_IMMEDIATE); 
+        int fail;
+        switch (TEST_RAND(1,last_case)) {
           case 1: {
             ops[i].vsrc = rand_memvec_list(TEST_RAND_PICK(my_heap_read_area, my_seg_read_area), areasz, 1);
             ops[i].vdst = rand_memvec_list(op_partner_seg_remotewrite_area, opareasz, 0);
             trim_memvec_list(ops[i].vsrc, ops[i].vdst);
             ops[i].vtmp = buildcontig_memvec_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].vdst->totalsz/VEC_SZ, opareasz);
-
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_VectorPutNB(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, 0);
-            else gex_VIS_VectorPutNBI(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, 0);
-
+            
+            reputv: 
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_VectorPutNB(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_VectorPutNBI(myteam, partner, ops[i].vdst->count, ops[i].vdst->list, ops[i].vsrc->count, ops[i].vsrc->list, flags);
             verify_memvec_list(ops[i].vsrc);
             verify_memvec_list(ops[i].vdst);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputv; }
             break;
           }
           case 2: {
@@ -1002,12 +1417,14 @@ void doit(int iters, int runtests) {
             trim_addr_list(ops[i].isrc, ops[i].idst);
             ops[i].itmp = buildcontig_addr_list(TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area), ops[i].idst->totalsz/VEC_SZ, opareasz);
 
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_IndexedPutNB(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, 0);
-            else gex_VIS_IndexedPutNBI(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, 0);
-
+            reputi:
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_IndexedPutNB(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_IndexedPutNBI(myteam, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, ops[i].isrc->count, ops[i].isrc->list, ops[i].isrc->chunklen, flags);
             verify_addr_list(ops[i].isrc);
             verify_addr_list(ops[i].idst);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputi; }
             break;
           }
           case 3: {
@@ -1018,11 +1435,29 @@ void doit(int iters, int runtests) {
             ops[i].sdesc = rand_strided_desc(srcarea, dstarea, tmparea, opareasz);
             ops[i].stmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,opareasz - ops[i].sdesc->totalsz/VEC_SZ);
 
-            if (TEST_RAND_ONEIN(2)) 
-              events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-            else gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-
+            reputs:
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_StridedPutNBI(myteam, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->srcaddr, (ptrdiff_t*)ops[i].sdesc->srcstrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
             verify_strided_desc(ops[i].sdesc);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputs; }
+            break;
+          }
+          case 4: {
+            void *srcarea = TEST_RAND_PICK(my_heap_read_area, my_seg_read_area);
+            void *dstarea = op_partner_seg_remotewrite_area;
+            void *tmparea = TEST_RAND_PICK(op_my_heap_write2_area, op_my_seg_write2_area);
+
+            ops[i].xdesc = rand_xpose_desc(srcarea, dstarea, tmparea, opareasz);
+
+            reputx:
+            if (TEST_RAND_ONEIN(2)) {
+               events[i] = gex_VIS_StridedPutNB(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
+               fail = (events[i] == GEX_EVENT_NO_OP);
+            } else fail = gex_VIS_StridedPutNBI(myteam, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->srcaddr, ops[i].xdesc->srcstrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
+            verify_xpose_desc(ops[i].xdesc);
+            if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto reputx; }
             break;
           }
         }
@@ -1034,33 +1469,51 @@ void doit(int iters, int runtests) {
 
       /* gets */
       for(i=0; i < numops; i++) {
+        gex_Flags_t flags = TEST_RAND_PICK(0,GEX_FLAG_IMMEDIATE); 
+        int fail;
         if (ops[i].vsrc != NULL) {
           assert(ops[i].vdst != NULL && ops[i].vtmp != NULL);
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_VectorGetNB(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, 0);
-          else gex_VIS_VectorGetNBI(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, 0);
-
+          regetv:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_VectorGetNB(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_VectorGetNBI(myteam, ops[i].vtmp->count, ops[i].vtmp->list, partner, ops[i].vdst->count, ops[i].vdst->list, flags);
           verify_memvec_list(ops[i].vtmp);
           verify_memvec_list(ops[i].vdst);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regetv; }
         } else if (ops[i].isrc != NULL) {
           assert(ops[i].idst != NULL && ops[i].itmp != NULL);
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_IndexedGetNB(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, 0);
-          else gex_VIS_IndexedGetNBI(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, 0);
-
+          regeti:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_IndexedGetNB(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_IndexedGetNBI(myteam, ops[i].itmp->count, ops[i].itmp->list, ops[i].itmp->chunklen, partner, ops[i].idst->count, ops[i].idst->list, ops[i].idst->chunklen, flags);
           verify_addr_list(ops[i].itmp);
           verify_addr_list(ops[i].idst);
-        } else {
-          assert(ops[i].sdesc != NULL);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regeti; }
+        } else if (ops[i].sdesc != NULL) {
 
-          if (TEST_RAND_ONEIN(2)) 
-            events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-          else gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, 0);
-
+          regets:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_StridedGetNB(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_StridedGetNBI(myteam, ops[i].stmpbuf, (ptrdiff_t*)ops[i].sdesc->contigstrides, partner, ops[i].sdesc->dstaddr, (ptrdiff_t*)ops[i].sdesc->dststrides, ops[i].sdesc->count[0], ops[i].sdesc->count+1, ops[i].sdesc->stridelevels, flags);
           verify_strided_desc(ops[i].sdesc);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regets; }
+        } else {
+          assert(ops[i].xdesc != NULL);
+
+          regetx:
+          if (TEST_RAND_ONEIN(2)) {
+             events[i] = gex_VIS_StridedGetNB(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
+             fail = (events[i] == GEX_EVENT_NO_OP);
+          } else fail = gex_VIS_StridedGetNBI(myteam, ops[i].xdesc->contigaddr, ops[i].xdesc->contigstrides, partner, ops[i].xdesc->dstaddr, ops[i].xdesc->dststrides, ops[i].xdesc->elemsz, ops[i].xdesc->count, ops[i].xdesc->stridelevels, flags);
+          verify_xpose_desc(ops[i].xdesc);
+          if (fail) { assert_always(flags & GEX_FLAG_IMMEDIATE); events[i] = 0; flags &= ~GEX_FLAG_IMMEDIATE; goto regetx; }
         }
+
       }
 
       /* sync */
@@ -1090,10 +1543,15 @@ void doit(int iters, int runtests) {
           test_free(ops[i].isrc);
           test_free(ops[i].idst);
           test_free(ops[i].itmp);
-        } else {
+        } else if (ops[i].sdesc) {
           assert(ops[i].sdesc != NULL && ops[i].stmpbuf != NULL);
 
           verify_strided_desc_data(ops[i].sdesc, ops[i].stmpbuf, "gasnet_puts_bulk/gasnet_gets_bulk test");
+
+          test_free(ops[i].sdesc);
+        } else {
+          assert(ops[i].xdesc);
+          verify_xpose_desc_data(ops[i].xdesc, "gasnet_puts_bulk/gasnet_gets_bulk test");
 
           test_free(ops[i].sdesc);
         }
@@ -1102,8 +1560,9 @@ void doit(int iters, int runtests) {
       test_free(ops);
       TEST_PROGRESS_BAR(iter, iters);
     }
+    BARRIER();
     checkmem();
-  }
+  } else BARRIER();
   /*---------------------------------------------------------------------------------*/
   BARRIER();
 }
@@ -1117,38 +1576,68 @@ int main(int argc, char **argv) {
 
   assert_always(VEC_SZ == sizeof(VEC_T));
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testvis", &argc, &argv, 0));
-  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-  test_init("testvis",0, "[options] (iters) (seed)\n"
-            " -v/-i/-s/-n  run vector/indexed/strided/non-blocking tests (defaults to all)\n"
+  test_init_early("testvis",0, "[options] (iters) (seed)\n"
+            " -v/-i/-s/-x/-n  run vector/indexed/strided/transpositional/non-blocking tests (defaults to all)\n"
             " -d        disable correctness verification checks\n"
             " -o        one-way (half duplex) mode\n"
             " -t        enable timing output\n"
+            " -mm <n>   segment space to use (in MB)\n"
+            " -mv <n>   max vector length (in elements)\n"
+            " -mi <n>   max index addr list length (in elements)\n"
+            " -ms <n>   max striding dimensions\n"
+            " -mn <n>   max in-flight non-blocking operations\n"
+            " -mc <n>   max chunk size (in bytes)\n"
             " iters     number of testing iterations\n"
             " seed      seed offset for PRNG \n"
             );
 
   for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
+    if (argv[i][0] == '-' && (argv[i][1] == 'm' || argv[i][1] == 'M')) {
+      char argtype = argv[i][2];
+      char *valptr = &argv[i][3];
+      if (!*valptr) {
+        if (i+1 < argc) valptr = argv[++i];
+        else test_usage_early();
+      }
+      int64_t argval = gasnett_parse_int(valptr, 0);
+      if (argval == 0) test_usage_early();
+      switch(argtype) { // -m*
+          case 'm': case 'M': segsz = gasnett_parse_int(valptr, 1024*1024); break;
+          case 'v': case 'V': max_veclen = argval; break;
+          case 'i': case 'I': max_idxlen = argval; break;
+          case 's': case 'S': max_stridedim = argval; break;
+          case 'c': case 'C': max_chunksz = gasnett_parse_int(valptr, 1); break;
+          case 'n': case 'N': max_inflight_ops = argval; break;
+          default: test_usage_early();
+      }
+    } else if (argv[i][0] == '-') {
       int j;
       for (j = 1; argv[i][j]; j++) {
         switch(argv[i][j]) {
           case 'v': case 'V': runtests |= RUN_VECTOR; break;
           case 'i': case 'I': runtests |= RUN_INDEXED; break;
           case 's': case 'S': runtests |= RUN_STRIDED; break;
+          case 'x': case 'X': runtests |= RUN_TRANSPOSE; break;
           case 'n': case 'N': runtests |= RUN_NB; break;
           case 'd': case 'D': verify = 0; break;
           case 'o': case 'O': halfduplex = 1; break;
           case 't': case 'T': showtiming = 1; break;
-          default: test_usage();
+          default: test_usage_early();
         }
       }
     } else break;
   }
-  if (runtests == 0) runtests = RUN_VECTOR | RUN_INDEXED | RUN_STRIDED | RUN_NB;
+  int runall = RUN_VECTOR | RUN_INDEXED | RUN_STRIDED | RUN_TRANSPOSE | RUN_NB;
+  #if GASNETE_OLD_STRIDED // TODO-EX : remove this
+    runall &= ~RUN_TRANSPOSE;
+  #endif
+  if (runtests == 0) runtests = runall;
   if (i < argc) { iters = atoi(argv[i]); i++; }
   if (i < argc) { seedoffset = atoi(argv[i]); i++; }
-  if (i < argc) test_usage();
+  if (i < argc) test_usage_early();
+  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
+  areasz = TEST_SEGSZ/NUM_AREAS/VEC_SZ; /* in elem */
   mynode = gex_TM_QueryRank(myteam);
   myseg = TEST_SEG(mynode);
   partner = (mynode + 1) % gex_TM_QuerySize(myteam);
@@ -1160,14 +1649,19 @@ int main(int argc, char **argv) {
     TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
   }
   TEST_SRAND(mynode+seedoffset);
-  MSG("running %i iterations of %s%s%s%s%s test (seed=%i)%s...", 
+  char segstr[64];
+  gasnett_format_number(segsz, segstr, sizeof(segstr), 1);
+  MSG("running %i iterations of %s%s%s%s%s%s test (VEC_SZ=%i, seed=%i, segsz=%s)%s...", 
     iters, 
     (halfduplex?"half-duplex ":""),
     (runtests&RUN_VECTOR?"V":""), 
     (runtests&RUN_INDEXED?"I":""), 
     (runtests&RUN_STRIDED?"S":""),
+    (runtests&RUN_TRANSPOSE?"X":""),
     (runtests&RUN_NB?"N":""),
+    VEC_SZ,
     mynode+seedoffset,
+    segstr,
     (verify?"":" (verification disabled)")
     );
 

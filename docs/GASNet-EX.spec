@@ -250,6 +250,26 @@ typedef [some integer type] gex_Flags_t;
 //
 #define GEX_FLAG_AD_ACQ          ((gex_Flags_t)???)
 #define GEX_FLAG_AD_REL          ((gex_Flags_t)???)
+//
+// AM_PREPARE_LEAST_{CLIENT,ALLOC} [EXPERIMENTAL]
+//
+// This pair of mutually exclusive flags modify the behavior of the
+// gex_AM_Max{Request,Reply}{Medium,Long}() queries to request the largest
+// legal 'least_payload' argument to the corresponding "gex_AM_Prepare*()"
+// rather than the default behavior (returning the largest legal 'nbytes'
+// argument to the corresponding "gex_AM_{Request,Reply}*()").
+//
+// CLIENT - query largest 'least_payload' for a Prepare call with a
+//          client-provided buffer (non-NULL 'client_buf' argument).
+// ALLOC  - query largest 'least_payload' for a Prepare call with a
+//          GASNet-allocated buffer (NULL 'client_buf' argument).
+//
+// Legal (and meaningful) in gex_AM_Max{Request,Reply}{Medium,Long}() calls.
+// Ignored in gex_AM_Prepare{Request,Reply}{Medium,Long}() calls.
+// Invalid in gex_AM_{Request,Reply}{Medium,Long}*() calls.
+//
+#define GEX_FLAG_AM_PREPARE_LEAST_CLIENT   ((gex_Flags_t)???)
+#define GEX_FLAG_AM_PREPARE_LEAST_ALLOC    ((gex_Flags_t)???)
 
 // SEGMENT DISPOSITION
 //
@@ -627,57 +647,93 @@ int gex_EP_RegisterHandlers(
 // Semantically identical to gasnet_AMMaxArgs()
 unsigned int gex_AM_MaxArgs(void);
 
-// Max fixed-payload queries for specific peer, nargs, lc_opt and flags
-// rank == GEX_RANK_INVALID means not asking about a specific rank - yields min-of-maxes
-// The result of each query function is guaranteed to be symmetric - ie
-// 1. if two team members execute a given query on each other's ranks, with all
-//    other input arguments being equal, the queries are guaranteed to return the 
-//    same value. Note this does NOT imply any relationship between the results of
-//    different query functions (eg MaxRequestMedium versus MaxReplyMedium).
-// 2. if rank == GEX_RANK_INVALID, then all team members are guaranteed
-//   to get the same result given the same values of the other input arguments.
-// 3. 'nargs' must be between 0 and gex_AM_MaxArgs(), inclusive.
-// 4. 'lc_opt' indicates the payload local completion option to be used for the AM injection in question,
-//    and should be either GEX_EVENT_NOW, GEX_EVENT_GROUP (Requests only), or NULL to indicate
-//    gex_Event_t-based AM local completion.
-// 5. 'flags' indicates the flags that will be provided to the corresponding AM
-//    Request/Reply injection function (not to be confused with the handler registration flags).
+// Maximum payload size queries
+// Superset of gasnet_AMMax{Medium,LongRequest,LongReply}()
+//
+// This family of calls provide maximum payload queries of two types:
+// + In the absence of the GEX_FLAG_AM_PREPARE_LEAST_{CLIENT,ALLOC} flags,
+//   these queries return the maximum legal 'nbytes' argument value for the
+//   corresponding gex_AM_{Request,Reply}{Medium,Long}*() call (collectively
+//   known as "fixed-payload AM" injection calls).
+// + When passed either of the GEX_FLAG_AM_PREPARE_LEAST_{CLIENT,ALLOC} flags,
+//   these queries return the maximum legal 'least_payload' argument value for
+//   the corresponding gex_AM_Prepare{Request,Reply}{Medium,Long}() call
+//   (collectively known as "negotiated-payload AM" prepare calls).
+//
+// These are max payload queries for specific peer, numargs, lc_opt and flags,
+// except that (other_rank == GEX_RANK_INVALID) does not ask about a specific
+// rank, it the yields min-of-maxes over all team members.
+//
+// 1. The result of each query function is guaranteed to be symmetric - ie if
+//    two team members execute a given query on each other's ranks, with all
+//    other input arguments being equal, the queries are guaranteed to return
+//    the same value.  Note this does NOT imply any relationship between the
+//    results of different query functions (eg MaxRequestMedium versus
+//    MaxReplyMedium).
+// 2. If other_rank == GEX_RANK_INVALID, then all team members are guaranteed
+//    to get the same result given the same values of the other input
+//    arguments.  Otherwise, other_rank specifies the other team member
+//    involved in the operation being queried (where the rank making the query
+//    is implicitly involved).  Note that due to the symmetry described above,
+//    'other_rank' can (and should) always name the other party in the
+//    communication, regardless of whether that rank or the caller is to be
+//    the sender or the receiver.
+// 3. 'numargs' must be between 0 and gex_AM_MaxArgs(), inclusive.  It is
+//    guaranteed that increasing 'numargs' will produce monotonically non-
+//    increasing results when all other parameters are held fixed.
+// 4. 'lc_opt' indicates the payload local completion option to be used for
+//    the AM injection or prepare call in question.  The predefined constants
+//    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while NULL
+//    should be used to indicate the injection or prepare call will be passed a
+//    pointer to an gex_Event_t (including NULL where permitted/required).
+// 5. 'flags' indicates the flags that will be provided to the corresponding
+//    AM injection or prepare function (and should not to be confused with the
+//    handler registration flags).  The result of the query is only guaranteed
+//    to be correct for an injection of prepare call with exactly the same
+//    'flags', excepting only that the GEX_FLAG_AM_PREPARE_LEAST_* flags may
+//    be omitted from a prepare call.
+//
+// The result of all four query functions is guaranteed to be at least 512 (bytes).
+//
 // The result is guaranteed to be stable - ie for the same set of input arguments,
 // it will always return the same value.
-// Aside from the explicit guarantees above, the result may otherwise vary with the 
-// input arguments in unspecified ways, and thus only defines the fixed-payload limit
-// for an injection call with corresponding values of (tm, rank, lc_opt, flags and numargs).
-// For example, limits may vary between different pairs of ranks on the same team, or even
-// between the same pair of processes linked via different team or client.
+//
+// Aside from the explicit guarantees above, the result may otherwise vary
+// with the input arguments in unspecified ways, and thus only defines the
+// documented limit for an call with corresponding values of (tm, other_rank,
+// lc_opt, flags and numargs).  For example, limits may vary between different
+// pairs of ranks on the same team, or even between the same pair of processes
+// linked via different team or client.
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
-           gex_Rank_t rank,
+           gex_Rank_t other_rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_AM_MaxReplyLong(
            gex_TM_t tm,
-           gex_Rank_t rank,
+           gex_Rank_t other_rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm,
-           gex_Rank_t rank,
+           gex_Rank_t other_rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm,
-           gex_Rank_t rank,
+           gex_Rank_t other_rank,
            gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 
 // Least-upper-bound fixed-payload queries (unknown team/peer, nargs, lc_opt and flags)
 // Guaranteed to be less than or equal to the result of the corresponding AM_Max* 
-// function, for all valid input parameters to that function.
-// The result of all four queries is guaranteed to be at least 512 (bytes).
+// function, for all valid input parameters to that function (excluding use of the
+// GEX_FLAG_AM_PREPARE_LEAST_* flags).
+// The result of all four query functions is guaranteed to be at least 512 (bytes).
 // These functions correspond semantically to the gasnet_AMMax*() queries in GASNet-1,
 // which return a globally conservative maximum.
 size_t gex_AM_LUBRequestLong(void);
@@ -904,14 +960,19 @@ int gex_AM_ReplyShort[M](
 //
 // The return from the Prepare call provides the client with an address and a
 // length.  The length is in the range defined by the minimum and maximum
-// lengths.  The address will be either the client_buf (if non_NULL) or
-// it may be a GASNet-owned buffer of the indicated length, suitably aligned
-// to hold any data type.
+// lengths.  When the client_buf argument is non-NULL, the address provided by
+// the return will be exactly that value.  Otherwise the address will be a
+// GASNet-allocated buffer of the indicated length, suitably aligned to hold any
+// data type.
 //
-// It is important to note that passing NULL for the client_buf argument to
-// a Prepare call requires GASNet to allocate buffer space of size no
-// smaller than min_length.  Care should be taken to keep such allocation
-// demands reasonable.
+// It is important to note that passing NULL for the client_buf argument to a
+// Prepare call requires GASNet to allocate buffer space of size no smaller
+// than least_payload.  Use of gex_AM_Max{Request,Reply}{Medium,Long}() with
+// the GEX_FLAG_AM_PREPARE_LEAST_ALLOC flag is intended to enforce limits on
+// the space GASNet is required to allocate.  However, the current release does
+// not yet impose limits tighter than the corresponding fixed-payload queries.
+// Therefore, some extra care should be taken to keep such allocation demands
+// reasonable.
 //
 // Between the Prepare and the Commit calls the client is responsible for
 // assembling its payload (or the prefix of the given length) at the selected
@@ -932,7 +993,7 @@ int gex_AM_ReplyShort[M](
 // to Prepare are permitted in the same places as the corresponding
 // fixed-payload AM injection call.
 //
-// Currently the semantics of the min_length==0 case are unspecified.
+// Currently the semantics of the least_payload==0 case are unspecified.
 // We advise avoiding that case until a later release has resolved this.
 
 // Opaque type for AM Source Descriptor
@@ -951,16 +1012,16 @@ typedef ... gex_AM_SrcDesc_t;
 
 // Query the address component of a gex_AM_SrcDesc_t
 //
-// Will either be identical to the 'client_buf' passed
-// to the Prepare call, or will be GASNet-owned memory
-// suitably aligned to hold any data type.
+// Will be identical to the 'client_buf' passed to the Prepare call if that
+// value was non-NULL, and otherwise will be GASNet-allocated memory suitably
+// aligned to hold any data type.
 void *gex_AM_SrcDescAddr(gex_AM_SrcDesc_t sd);
 
 // Query the length component of a gex_AM_SrcDesc_t
 //
 // Indicates the maximum length of the buffer located at gex_AM_SrcDescAddr()
 // that can be sent in the Commit call.
-// Will be between the 'min_length' and 'max_length' passed
+// Will be between the 'least_payload' and 'most_payload' passed
 // to the Prepare call (inclusive).
 size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 
@@ -981,20 +1042,20 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //  const void *client_buf
 //   + If non-NULL the client is offering this buffer as a
 //     source_addr
-//   + If NULL, the client is requesting a GASNet-owned source
+//   + If NULL, the client is requesting a GASNet-allocated source
 //     buffer to populate
-//  size_t min_length
+//  size_t least_payload
 //   + This is the minimum length that the Prepare call may
-//     return on success - ie the minimum-sized payload the
+//     return on success - ie the least-sized payload the
 //     client is willing to send at this time.
 //   + The value must not exceed the value of the
 //     gex_AM_Max[...]() call with the analogous Prepare arguments
-//  size_t max_length
+//  size_t most_payload
 //   + This is the maximum length that the Prepare call may
 //     return on success - ie a (not necessarily tight) upper
 //     bound on the payload size the client is willing to send at
 //     this time.
-//   + The value must not be less than min_length (but they may
+//   + The value must not be less than least_payload (but they may
 //     be equal).
 //   + The value *may* exceed the corresponding gex_AM_Max[...]().
 //  void *dest_addr [LONG ONLY]
@@ -1018,19 +1079,19 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //     fixed-payload AM injection
 //   + GEX_FLAG_IMMEDIATE: the Prepare call may return
 //     GEX_AM_SRCDESC_NO_OP==0 if injection resources (in
-//     particular a buffer of size min_length or longer) cannot
+//     particular a buffer of size least_payload or longer) cannot
 //     be obtained.
 //     The Commit-time behavior is unaffected by this flag.
 //   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: is prohibited
 //   + [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_*: these flags may only be 
 //     passed if client_buf is non-NULL, and assert segment disposition
-//     properties for the range [client_buf..(client_buf+max_length-1)]
+//     properties for the range [client_buf..(client_buf+most_payload-1)]
 //     that must be true upon entry to Prepare. If gex_AM_SrcDescAddr()
 //     on the Prepare result is equal to client_buf, then the assertion 
 //     must remain true until after local completion is signalled via `lc_opt`.
 //   + [UNIMPLEMENTED] GEX_FLAG_PEER_SEG_*: [LONG ONLY] if `dest_addr` is
 //     non-NULL, these flags assert segment disposition properties for the
-//     range [dest_addr..(dest_addr+max_length-1)] that must be true upon
+//     range [dest_addr..(dest_addr+most_payload-1)] that must be true upon
 //     entry to Prepare and remain true until entry to the AM handler at
 //     the target. If `dest_addr` NULL at Prepare and non-NULL at Commit,
 //     these flags assert segment disposition properties for the Commit-time
@@ -1044,16 +1105,16 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestMedium(
                 gex_TM_t       tm,
                 gex_Rank_t     rank,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
                 unsigned int   numargs);
 extern gex_AM_SrcDesc_t gex_AM_PrepareReplyMedium(
                 gex_Token_t    token,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
                 unsigned int   numargs);
@@ -1061,8 +1122,8 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestLong(
                 gex_TM_t       tm,
                 gex_Rank_t     rank,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 void           *dest_addr,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
@@ -1070,8 +1131,8 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareRequestLong(
 extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
                 gex_Token_t    token,
                 const void     *client_buf,
-                size_t         min_length,
-                size_t         max_length,
+                size_t         least_payload,
+                size_t         most_payload,
                 void           *dest_addr,
                 gex_Event_t    *lc_opt,
                 gex_Flags_t    flags,
@@ -1936,7 +1997,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // End of section describing APIs provided by gasnet_ratomic.h
 //----------------------------------------------------------------------
 //
-// Vector/Indexed/Strided (VIS) [EXPERIMENTAL]
+// Vector/Indexed/Strided (VIS)
 //
 // APIs in this section are provided by gasnet_vis.h
 
@@ -2001,25 +2062,29 @@ int gex_AD_OpNBI_[DATATYPE](
 // Note that 'elemsz' need not match the "native" element size of the underlying
 // datastructure, it just needs to indicate a size of contiguous data chunks
 // (eg, it could be the length of an entire row of doubles stored contiguously).
-// These interface changes will enable a future release of the Strided interface
-// to expose more generalized data movement (specifically, transpose and reflection).
+// These interface changes enable the Strided interface to support more generalized
+// strided data movements (specifically, transpose and reflection).
 //
-// The CURRENT release preserves metadata preconditions analogous to those
-// in the GASNet-1 prototype, with 'count[0]' replaced by 'elemsz' - ie:
-// For stridelevels == 0:
+// Degenerate cases:
+//
+// * If elemsz == 0:
+//   the operation is a no-op and all other arguments are ignored
+// * If stridelevels == 0:
 //   the operation is a contiguous copy of elemsz bytes, and the 
 //   srcstrides, dststrides, count arguments are all ignored
-// For stridelevels == 1, the following preconditions must hold:
-//   srcstrides[0] >= elemsz
-//   (and analogously for dststrides)
-// For stridelevels > 1, the following preconditions must hold: 
-//   srcstrides[0] >= elemsz AND 
-//   srcstrides[1] >= (elemsz * count[0]) AND
-//   ForAll i in [2..stridelevels) :
-//     srcstrides[i] >= (count[i - 1] * srcstrides[i - 1])
-//   (and analogously for dststrides)
-// 
-// These restrictions will be loosened in an upcoming release. [UNIMPLEMENTED]
+// * If any entry in count[0..stridelevels-1] == 0:
+//   the operation is a no-op and tm, rank, srcaddr, dstaddr are ignored
+//   ({src,dst}strides must still reference valid arrays)
+//
+// Restrictions:
+//
+// * If any destination location overlaps a source location or another destination
+//   location, the result is undefined. Source locations are permitted to overlap
+//   with each other.
+//
+// * Metadata array inputs must remain valid and unchanged until after synchronization
+//   of operation completion (this restriction may eventually be loosened)
+//
 
 {gex_Event_t,int} gex_VIS_StridedGet{NB,NBI,Blocking}(
         gex_TM_t tm,

@@ -64,11 +64,30 @@
    */
 /* #define GASNETC_AMREGISTER 1 */
 
-  /* define these to 1 if your conduit supports PSHM, but cannot use the
+  /* define this to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
 /* #define GASNETC_GET_HANDLER 1 */
-/* #define GASNETC_TOKEN_CREATE 1 */
+
+  /* uncomment for each {Request,Reply} X {Medium,Long} pair for which your
+     conduit implements the corresponding gasnetc_AM_{Prepare,Commit}*().
+     If unset, a conduit-independent implementation in terms of the internal
+     functions gasnetc_AM{Request,Reply}{Medium,Long}V() will be used, and
+     your conduit must provide the V-suffixed functions for any of these that
+     are not defined.
+   */
+/* #define GASNETC_HAVE_NP_REQ_MEDIUM 1 */
+/* #define GASNETC_HAVE_NP_REP_MEDIUM 1 */
+/* #define GASNETC_HAVE_NP_REQ_LONG 1 */
+/* #define GASNETC_HAVE_NP_REP_LONG 1 */
+
+  /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()
+     include a call to gasneti_AMPoll (or equivalent) for progress.
+     The preferred implementation is to Poll only in the M-suffixed calls
+     and not the V-suffixed calls (and GASNETC_REQUESTV_POLLS undefined).
+     Used if (and only if) any of the GASNETC_HAVE_NP_* values above are unset.
+   */
+/* #define GASNETC_REQUESTV_POLLS 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
@@ -78,5 +97,21 @@
   #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig) gasnetc_fatalsignal_cleanup_callback(sig)
   extern void gasnetc_fatalsignal_cleanup_callback(int sig);
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+
+// Always loopback (self or PSHM)
+#define gex_Token_Info gasnetc_nbrhd_Token_Info
+
+// V-suffixed routines are unreachable since "nbrhd" Prepare/Commit
+// do all the work for Negotiated Payload AMs
+#define gasneti_AMRequestMediumV(tm,rank,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
+#define gasneti_AMRequestLongV(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
+#define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
+#define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
+        (gasneti_unreachable(), 0)
 
 #endif

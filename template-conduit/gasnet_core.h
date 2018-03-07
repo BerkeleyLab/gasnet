@@ -133,23 +133,31 @@ typedef struct {
 
   /* Provide tigher bounds based on parameters (*/
 /* Example for closed-form macros:
-#define gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs) ((size_t)###)
-#define gex_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
-#define gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)   ((size_t)###)
-#define gex_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)     ((size_t)###)
+#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  ((size_t)###)
+#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    ((size_t)###)
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    ((size_t)###)
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      ((size_t)###)
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   ((size_t)###)
+#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     ((size_t)###)
  */
 /* Example for true functions:
-extern size_t gex_AM_MaxRequestMedium(
+extern size_t gasnetc_AM_MaxRequestMedium(
            gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gex_AM_MaxReplyMedium(
+extern size_t gasnetc_AM_MaxReplyMedium(
            gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gex_AM_MaxRequestLong(
+extern size_t gasnetc_AM_MaxRequestLong(
            gex_TM_t tm, gex_Rank_t rank,
            gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gex_AM_MaxReplyLong(
+extern size_t gasnetc_AM_MaxReplyLong(
            gex_TM_t tm, gex_Rank_t rank,
+           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+extern size_t gasnetc_Token_MaxReplyMedium(
+           gex_AM_Token_t token,
+           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+extern size_t gasnetc_Token_MaxReplyLong(
+           gex_AM_Token_t token,
            gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
  */
 

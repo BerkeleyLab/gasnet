@@ -285,6 +285,10 @@ main(int argc, char **argv)
 		printf("ERROR: Threads must be between 1 and %u\n",(unsigned int)TEST_MAXTHREADS);
 		exit(EXIT_FAILURE);
 	}
+	if (numranks == 1 && threads_num == 1) {
+		printf("ERROR: Threads must be greater than 1 when running a single process\n");
+		exit(EXIT_FAILURE);
+	}
 
         /* limit sizes to a reasonable size */
         #define LIMIT(sz) MIN(sz,4194304)
@@ -407,8 +411,10 @@ alloc_thread_data(int threads)
 					td->ltid = j;
 					td->tid_peer_local = base + 
 						((j+1) % threads);
-					td->tid_peer = (tid+threads) % 
-						tot_threads;
+					td->tid_peer = (numranks == 1)
+                                            ? ((tid+1) % threads)
+                                            : ((tid+threads) % tot_threads);
+                                        assert_always(td->tid_peer != tid);
 				}
 			}
 		}
@@ -517,6 +523,8 @@ ping_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t
 void 
 pong_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx) {
 	int	tid = tt_thread_data[idx].tid;
+
+	gex_Rank_t node = test_msgsource(token);
 
 	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)", 
 			(int)myrank, tid, (int)myrank, (int)idx));

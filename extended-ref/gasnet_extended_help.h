@@ -101,8 +101,12 @@ typedef struct _gasnete_thread_cleanup {
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
+  gasneti_AM_SrcDesc_t gasneti_rep_sd, gasneti_req_sd; /* ptrs for NP-AM */   \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
+                                                                              \
+  /* Negotiated Payload data */                                               \
+  struct gasneti_AM_SrcDesc gasneti_sds[2];                                   \
                                                                               \
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
   int thread_cleanup_delay;
@@ -276,23 +280,9 @@ typedef union {
 } while(0)
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
-#define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-
-/* Wrapper around GASNETE_FAST_UNALIGNED_MEMCPY which becomes a no-op if src == dst */
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dest, src, nbytes) do { \
-    void *_dest = (dest);                                           \
-    const void *_src = (src);                                       \
-    if_pt (_dest != _src)                                           \
-        GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
-  } while (0)
-
-/* TODO-EX: these should replace the alignment-aware versions */
-#define GASNETE_FAST_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-#define GASNETE_FAST_MEMCPY_CHECK(dest, src, nbytes) do {             \
-    void *_dest = (dest);                                             \
-    const void *_src = (src);                                         \
-    if_pt (_dest != _src) GASNETE_FAST_MEMCPY(_dest, _src, (nbytes)); \
-  } while (0)
+// TODO-EX: remove these if/when all uses are updated
+#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETI_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETI_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
@@ -423,20 +413,20 @@ typedef union {
 #if GASNET_PSHM
   #define GASNETI_CHECKPSHM_GET(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
+      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
       gasnete_loopbackget_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       gasneti_leaf_finish(lc_opt);            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)

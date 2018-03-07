@@ -194,7 +194,7 @@ typedef union gasnetc_packet_u {
   
 /* compute header len, padded to multiple of 8-bytes */
 #define GASNETC_HEADLEN_AUX(type,nargs) \
-        GASNETI_ALIGNUP_NOASSERT(offsetof(type,args)+(nargs * sizeof(uint32_t)),8)
+        GASNETI_ALIGNUP_NOASSERT(gasneti_offsetof(type,args[nargs]),8)
 #define GASNETC_HEADLEN(cat,nargs) \
         GASNETC_HEADLEN_AUX(gasnetc_am_##cat##_packet_t,(nargs))
 
@@ -257,6 +257,7 @@ enum {
   /* mutually-exclusive resource recovery actions */
   _gc_post_unbounce,
   _gc_post_unregister,
+  _gc_post_unprepare,
   /* mutually-exclusive signaling actions */
   _gc_post_completion_flag,
   _gc_post_completion_cntr,
@@ -279,6 +280,7 @@ enum {
 #define GC_POST_SEND            GC_POST(send)
 #define GC_POST_UNBOUNCE        GC_POST(unbounce)
 #define GC_POST_UNREGISTER      GC_POST(unregister)
+#define GC_POST_UNPREPARE       GC_POST(unprepare)
 #define GC_POST_COMPLETION_FLAG GC_POST(completion_flag)
 #define GC_POST_COMPLETION_CNTR GC_POST(completion_cntr)
 #define GC_POST_COMPLETION_EOP  GC_POST(completion_eop)
@@ -318,6 +320,7 @@ struct gasnetc_post_descriptor {
   #define gpd_amo_result pd.sync_flag_value
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
+  #define gpd_am_length  pd.length
   #define gpd_am_peer    pd.first_operand
   #define gpd_put_lc     pd.second_operand
   #define gpd_amo_len    pd.length
@@ -439,6 +442,11 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest
                                                                  size_t length,
                                                                  gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG);
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor_np(gex_Rank_t dest,
+                                                                    size_t min_length,
+                                                                    size_t max_length,
+                                                                    gex_Flags_t flags
+                                                                    GASNETI_THREAD_FARG);
 
 /* Some common GPD idioms */
 

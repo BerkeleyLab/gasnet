@@ -6,6 +6,8 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_am.h>
+
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
 #endif
@@ -738,25 +740,13 @@ extern void gasnetc_exit(int exitcode) {
  *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
  *   implement gasnetc_get_handler() as a macro in
  *   gasnet_core_internal.h
- *
- * (###) GASNETC_TOKEN_CREATE
- *   If your conduit will support PSHM, then there needs to be a way
- *   for the conduit-specific and PSHM token spaces to co-exist.
- *   The default PSHM implementation produces tokens with the least-
- *   significant bit set and assumes the conduit never will.  If that
- *   is true, you don't need to do anything special here.
- *   If your conduit cannot use the default PSHM token code, then
- *   #define GASNETC_TOKEN_CREATE in gasnet_core_fwd.h and implement
- *   the associated routines described in gasnet_pshm.h.  That code
- *   could be functions located here, or could be macros or inlines
- *   in gasnet_core_internal.h.
  */
 #endif
 
 GASNETI_INLINE(gasnetc_msgsource)
 gex_Rank_t gasnetc_msgsource(gex_Token_t token) {
   #if GASNET_PSHM
-    gasneti_assert(! gasnetc_token_is_pshm(token));
+    gasneti_assert(! gasnetc_token_in_nbrhd(token));
   #endif
     gasneti_assert(token);
 
@@ -776,11 +766,9 @@ extern gex_TI_t gasnetc_Token_Info(
   gasneti_assert(token);
   gasneti_assert(info);
 
-#if GASNET_PSHM
-  if (gasnetc_token_is_pshm(token)) {
-    return gasnetc_AMPSHM_TokenInfo(token, info, mask);
+  if (gasnetc_token_in_nbrhd(token)) {
+    return gasnetc_nbrhd_Token_Info(token, info, mask);
   }
-#endif
 
   gex_TI_t result = 0;
 
@@ -806,7 +794,14 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
   AMLOCK();
+  // In single-nbrhd case never need to poll the network for client AMs.
+  // However, we'll still check for control traffic for orderly exit handling.
+  if (gasneti_mysupernode.grp_count > 1) {
     GASNETI_AM_SAFE_NORETURN(retval,AM_Poll(gasnetc_bundle));
+  } else {
+    // TODO-EX: a lock-free peek would allow elimination of a lock cycle
+    GASNETI_AM_SAFE_NORETURN(retval,AMUDP_SPMDHandleControlTraffic(NULL));
+  }
   AMUNLOCK();
   if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   else return GASNET_OK;
@@ -816,7 +811,30 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
 /*
   Active Message Request Functions
   ================================
+  TODO-EX: "nbrhd" support means we could remove the unreachable loopback paths in AMUDP
 */
+
+GASNETI_INLINE(gasnetc_AMRequestShort)
+int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  int retval;
+  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, tm, rank, handler,
+                                           0, 0, 0,
+                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
+    AMLOCK_TOSEND();
+      GASNETI_AM_SAFE_NORETURN(retval,
+               AMUDP_RequestVA(gasnetc_endpoint, rank, handler, 
+                               numargs, argptr));
+    AMUNLOCK();
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  }
+  return retval;
+}
 
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
@@ -825,28 +843,49 @@ extern int gasnetc_AMRequestShortM(
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
+
+  va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Short, rank, handler,
-                                           0, 0, 0,
-                                           flags, numargs, argptr);
-    va_end(argptr);
-  } else
-#endif
-  {
+  int retval = gasnetc_AMRequestShort(tm,rank,handler,flags,numargs,argptr GASNETI_THREAD_PASS);
+  va_end(argptr);
+  return retval;
+}
+
+GASNETI_INLINE(gasnetc_AMRequestMedium)
+int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  int retval;
+  gasneti_leaf_finish(lc_opt); // always locally completed
+  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, tm, rank, handler,
+                                           source_addr, nbytes, 0,
+                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestVA(gasnetc_endpoint, rank, handler, 
-                               numargs, argptr));
+               AMUDP_RequestIVA(gasnetc_endpoint, rank, handler, 
+                                source_addr, nbytes, 
+                                numargs, argptr));
     AMUNLOCK();
-    va_end(argptr);
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
   return retval;
+}
+
+extern int gasnetc_AMRequestMediumV(
+                            gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  return gasnetc_AMRequestMedium(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
 }
 
 extern int gasnetc_AMRequestMediumM( 
@@ -858,58 +897,29 @@ extern int gasnetc_AMRequestMediumM(
                             gex_Flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // always locally completed
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Medium, rank, handler,
-                                           source_addr, nbytes, 0,
-                                           flags, numargs, argptr);
-    va_end(argptr);
-  } else
-#endif
-  {
-    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
-    AMLOCK_TOSEND();
-      GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestIVA(gasnetc_endpoint, rank, handler, 
-                                source_addr, nbytes, 
-                                numargs, argptr));
-    AMUNLOCK();
-    va_end(argptr);
-    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  }
+  va_list argptr;
+  va_start(argptr, numargs); /*  pass in last argument */
+  int retval = gasnetc_AMRequestMedium(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+  va_end(argptr);
   return retval;
 }
 
-extern int gasnetc_AMRequestLongM(
-                            gex_TM_t tm,/* local context */
-                            gex_Rank_t rank,       /* with tm, defines remote context */
-                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
-                            void *source_addr, size_t nbytes,   /* data payload */
-                            void *dest_addr,                    /* data destination on destination node */
-                            gex_Event_t *lc_opt,       /* local completion of payload */
-                            gex_Flags_t flags
-                            GASNETI_THREAD_FARG,
-                            int numargs, ...) {
+GASNETI_INLINE(gasnetc_AMRequestLong)
+int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes, void *dest_addr,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
   int retval;
-  va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(rank)) {
-      retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, rank, handler,
+  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+      GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
+      retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, tm, rank, handler,
                                              source_addr, nbytes, dest_addr,
-                                             flags, numargs, argptr);
-      va_end(argptr);
-  } else
-#endif
-  {
+                                             flags, numargs, argptr GASNETI_THREAD_PASS);
+  } else {
     uintptr_t dest_offset;
 #if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
@@ -926,7 +936,53 @@ extern int gasnetc_AMRequestLongM(
                                    dest_offset, 0,
                                    numargs, argptr));
     AMUNLOCK();
-    va_end(argptr);
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  }
+  return retval;
+}
+
+extern int gasnetc_AMRequestLongV(
+                            gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes, void *dest_addr,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  return gasnetc_AMRequestLong(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+}
+
+extern int gasnetc_AMRequestLongM(
+                            gex_TM_t tm,/* local context */
+                            gex_Rank_t rank,       /* with tm, defines remote context */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            void *dest_addr,                    /* data destination on destination node */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
+                            gex_Flags_t flags
+                            GASNETI_THREAD_FARG,
+                            int numargs, ...) {
+  GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+
+  va_list argptr;
+  va_start(argptr, numargs); /*  pass in last argument */
+  int retval = gasnetc_AMRequestLong(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+  va_end(argptr);
+  return retval;
+}
+
+GASNETI_INLINE(gasnetc_AMReplyShort)
+int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
+                            gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  int retval;
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+      retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
+                                           0, 0, 0,
+                                           flags, numargs, argptr);
+  } else {
+    AM_ASSERT_LOCKED();
+    GASNETI_AM_SAFE_NORETURN(retval,
+              AMUDP_ReplyVA(token, handler, numargs, argptr));
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
   return retval;
@@ -937,26 +993,45 @@ extern int gasnetc_AMReplyShortM(
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags,
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
+
+  va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasnetc_token_is_pshm(token)) {
-      retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
-                                           0, 0, 0,
-                                           flags, numargs, argptr);
-      va_end(argptr);
-  } else
-#endif
-  {
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
+  va_end(argptr);
+  return retval;
+}
+
+GASNETI_INLINE(gasnetc_AMReplyMedium)
+int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  int retval;
+  gasneti_leaf_finish(lc_opt); // always locally completed
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+       retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
+                                            source_addr, nbytes, 0,
+                                            flags, numargs, argptr);
+  } else {
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
-              AMUDP_ReplyVA(token, handler, numargs, argptr));
-    va_end(argptr);
+              AMUDP_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
   return retval;
+}
+
+extern int gasnetc_AMReplyMediumV(
+                            gex_Token_t token, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -966,53 +1041,28 @@ extern int gasnetc_AMReplyMediumM(
                             gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags,
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // always locally completed
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasnetc_token_is_pshm(token)) {
-       retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
-                                            source_addr, nbytes, 0,
-                                            flags, numargs, argptr);
-       va_end(argptr);
-  } else
-#endif
-  {
-    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
-    AM_ASSERT_LOCKED();
-    GASNETI_AM_SAFE_NORETURN(retval,
-              AMUDP_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
-    va_end(argptr);
-    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  }
+  va_list argptr;
+  va_start(argptr, numargs); /*  pass in last argument */
+  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  va_end(argptr);
   return retval;
 }
 
-extern int gasnetc_AMReplyLongM( 
-                            gex_Token_t token,     /* token provided on handler entry */
-                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
-                            void *source_addr, size_t nbytes,   /* data payload */
-                            void *dest_addr,                    /* data destination on destination node */
-                            gex_Event_t *lc_opt,       /* local completion of payload */
-                            gex_Flags_t flags,
-                            int numargs, ...) {
+GASNETI_INLINE(gasnetc_AMReplyLong)
+int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes, void *dest_addr,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
   int retval;
-  va_list argptr;
-  GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_leaf_finish(lc_opt); // always locally completed
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasnetc_token_is_pshm(token)) {
-      retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+      retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
                                            source_addr, nbytes, dest_addr,
                                            flags, numargs, argptr);
-      va_end(argptr);
-  } else
-#endif
-  {
+  } else {
     uintptr_t dest_offset;
 
 #if GASNETC_MOCK_EVERYTHING
@@ -1027,9 +1077,34 @@ extern int gasnetc_AMReplyLongM(
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyXferVA(token, handler, source_addr, nbytes, dest_offset, numargs, argptr));
-    va_end(argptr);
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   }
+  return retval;
+}
+
+extern int gasnetc_AMReplyLongV(
+                            gex_Token_t token, gex_AM_Index_t handler,
+                            void *source_addr, size_t nbytes, void *dest_addr,
+                            gex_Event_t *lc_opt, gex_Flags_t flags,
+                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+{
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+}
+
+extern int gasnetc_AMReplyLongM( 
+                            gex_Token_t token,     /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            void *dest_addr,                    /* data destination on destination node */
+                            gex_Event_t *lc_opt,       /* local completion of payload */
+                            gex_Flags_t flags,
+                            int numargs, ...) {
+  GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+
+  va_list argptr;
+  va_start(argptr, numargs); /*  pass in last argument */
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  va_end(argptr);
   return retval;
 }
 

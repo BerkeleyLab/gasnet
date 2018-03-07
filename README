@@ -777,9 +777,12 @@ application-specific support.
 * GASNET_SD_INIT, GASNET_SD_INITVAL and GASNET_SD_INITLEN
  These variables are *only* recognized in a build configured with --enable-debug.
 
- When using the negotiated-payload AM APIs, GASNet can optionally initialize
- buffers it allocates at Prepare time with a defined pattern, and verify at Commit
- time that the client has written something else to these buffers.
+ When using the negotiated-payload AM APIs, GASNet can optionally initialize the
+ start of buffers it allocates at Prepare time with a defined pattern, and verify
+ at Commit time that the client has over-written this "canary".  To reduce
+ overhead, only a fixed-length pattern is used.  However, to avoid false alarms,
+ this length must be sufficiently long to make the probability of matching the
+ client data very low.
 
  GASNET_SD_INIT - Defaults to 1 in debug builds (and is effectively 0 otherwise)
    Setting to 0 disables the initialization and checking
@@ -787,7 +790,9 @@ application-specific support.
    Specifies the initialization pattern.
    See GASNET_MALLOC_INITVAL for more info.
  GASNET_SD_INITLEN - Defaults to 128
-   Specifies the minimum length of payload to subject to this checking.
+   Specifies the length of the "canary" used for this checking.
+   If 'nbytes' passed to the Commit call is less than this length, then no
+   checking will be performed.
    If set too small then the likelihood of random payloads corresponding to the
    initialization pattern may lead to false positives.
    The minimum is 1 byte and smaller values will be silently replaced by 1.

@@ -9,7 +9,7 @@
 int numnode = 0;
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR (((numnode&1)?2:1)*(uintptr_t)maxsz)
+  #define TEST_SEGSZ_EXPR (((numnode&1)?2:1)*(uintptr_t)alignup(maxsz,SIZEOF_GEX_RMA_VALUE_T))
 #endif
 #include <test.h>
 
@@ -26,6 +26,7 @@ void *request_addr = NULL;
 void *reply_addr = NULL;
 
 gex_Event_t *lc_opt = GEX_EVENT_NOW;
+gex_Event_t *np_lc_opt = GEX_EVENT_NOW;
 
 void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt) {
   if (sender) {
@@ -47,6 +48,104 @@ gex_HSL_t inchsl = GEX_HSL_INITIALIZER;
     var++;                      \
     gex_HSL_Unlock(&inchsl); \
   } while (0)
+
+
+/* ------------------------------------------------------------------------------------ */
+
+static enum {
+  SRC_NOOP = 0,  // send untouched source buffer (default)
+  SRC_GENERATE,  // "generate" payload (w/o memory reads)
+  SRC_MEMCPY,    // memcpy fixed payload to source buffer
+} src_mode;
+
+static int use_np = 0;
+static int np_cbuf = 0;
+static void* zero_buffer;
+
+GASNETT_INLINE(prep_payload)
+void prep_payload(uint8_t *dst, size_t len) {
+  if (!len) return;
+  assert(! ((uintptr_t)dst % SIZEOF_GEX_RMA_VALUE_T));
+  switch (src_mode) {
+    case SRC_NOOP:
+#if DEBUG
+      if (use_np) (*dst)++; // defeat poison check
+#endif
+      return;
+      break;
+    case SRC_MEMCPY:
+      memcpy(dst, zero_buffer, len);
+      break;
+    case SRC_GENERATE: {
+      uint8_t *p = dst;
+      for (size_t words = len / SIZEOF_GEX_RMA_VALUE_T; words; --words) {
+        *(gex_RMA_Value_t *)p = words;
+        p += SIZEOF_GEX_RMA_VALUE_T;
+      }
+      for (size_t bytes = len % SIZEOF_GEX_RMA_VALUE_T; bytes; --bytes) {
+        *(p++) = bytes;
+      }
+      break;
+    }
+  }
+}
+
+#define RequestMedium0(tm,rank,hidx,src_addr,nbytes,lc_opt,flags) do {                      \
+  if (use_np) {                                                                             \
+    void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
+    gex_AM_SrcDesc_t sd =                                                                   \
+            gex_AM_PrepareRequestMedium(tm,rank,cbuf,nbytes,nbytes,np_lc_opt,0,0);          \
+    assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
+    prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
+    gex_AM_CommitRequestMedium0(sd, hidx, nbytes);                                          \
+  } else {                                                                                  \
+    prep_payload(src_addr, nbytes);                                                         \
+    gex_AM_RequestMedium0(tm, rank, hidx, src_addr, nbytes, lc_opt, flags);                 \
+  }                                                                                         \
+} while (0)
+
+#define ReplyMedium0(token,hidx,src_addr,nbytes,lc_opt,flags) do {                          \
+  if (use_np) {                                                                             \
+    void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
+    gex_AM_SrcDesc_t sd =                                                                   \
+            gex_AM_PrepareReplyMedium(token,cbuf,nbytes,nbytes,np_lc_opt,0,0);              \
+    assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
+    prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
+    gex_AM_CommitReplyMedium0(sd, hidx, nbytes);                                            \
+  } else {                                                                                  \
+    prep_payload(src_addr, nbytes);                                                         \
+    gex_AM_ReplyMedium0(token, hidx, src_addr, nbytes, lc_opt, flags);                      \
+  }                                                                                         \
+} while (0)
+
+#define RequestLong0(tm,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,flags) do {               \
+  if (use_np) {                                                                             \
+    void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
+    gex_AM_SrcDesc_t sd =                                                                   \
+            gex_AM_PrepareRequestLong(tm,rank,cbuf,nbytes,nbytes,dst_addr,np_lc_opt,0,0);   \
+    assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
+    prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
+    gex_AM_CommitRequestLong0(sd, hidx, nbytes, dst_addr);                                  \
+  } else {                                                                                  \
+    prep_payload(src_addr, nbytes);                                                         \
+    gex_AM_RequestLong0(tm, rank, hidx, src_addr, nbytes, dst_addr, lc_opt, flags);         \
+  }                                                                                         \
+} while (0)
+
+#define ReplyLong0(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags) do {                   \
+  if (use_np) {                                                                             \
+    void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
+    gex_AM_SrcDesc_t sd =                                                                   \
+             gex_AM_PrepareReplyLong(token,cbuf,nbytes,nbytes,dst_addr,np_lc_opt,0,0);      \
+    assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
+    prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
+    gex_AM_CommitReplyLong0(sd, hidx, nbytes, dst_addr);                                    \
+  } else {                                                                                  \
+    prep_payload(src_addr, nbytes);                                                         \
+    gex_AM_ReplyLong0(token, hidx, src_addr, nbytes, dst_addr, lc_opt, flags);              \
+  }                                                                                         \
+} while (0)
+
 
 /* ------------------------------------------------------------------------------------ */
 gex_AM_Entry_t htable[];
@@ -76,7 +175,7 @@ void pong_shorthandler(gex_Token_t token) {
 
 
 void ping_medhandler(gex_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyMedium0(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0);
+  ReplyMedium0(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0);
 }
 void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes) {
   flag++;
@@ -84,7 +183,7 @@ void pong_medhandler(gex_Token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler(gex_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, reply_addr, GEX_EVENT_NOW, 0);
+  ReplyLong0(token, hidx_pong_longhandler, buf, nbytes, reply_addr, GEX_EVENT_NOW, 0);
 }
 
 void pong_longhandler(gex_Token_t token, void *buf, size_t nbytes) {
@@ -100,7 +199,7 @@ void pong_shorthandler_flood(gex_Token_t token) {
 
 
 void ping_medhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes, GEX_EVENT_NOW, 0);
+  ReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes, GEX_EVENT_NOW, 0);
 }
 void pong_medhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
   INC(flag);
@@ -108,7 +207,7 @@ void pong_medhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
 
 
 void ping_longhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
-  gex_AM_ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, reply_addr, GEX_EVENT_NOW, 0);
+  ReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, reply_addr, GEX_EVENT_NOW, 0);
 }
 
 void pong_longhandler_flood(gex_Token_t token, void *buf, size_t nbytes) {
@@ -194,6 +293,26 @@ int main(int argc, char **argv) {
       asynclc = 1;
       lc_opt = GEX_EVENT_GROUP;
       ++arg;
+    } else if (!strcmp(argv[arg], "-fp")) {
+      use_np = 0;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-np-cb")) {
+      use_np = 1;
+      np_cbuf = 1;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-np-gb")) {
+      use_np = 1;
+      np_cbuf = 0;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-noop")) {
+      src_mode = SRC_NOOP;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-generate")) {
+      src_mode = SRC_GENERATE;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-memcpy")) {
+      src_mode = SRC_MEMCPY;
+      ++arg;
     } else if (argv[arg][0] == '-') {
       help = 1;
       ++arg;
@@ -210,22 +329,29 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
 
 #if GASNET_PAR
-  test_init("testam", 1, "[options] (iters) (maxsz) (test_sections)\n"
-               "  The '-in' or '-out' option selects whether the requestor's\n"
-               "    buffer is in the GASNet segment or not (default is 'in').\n"
-               "  The -p option gives the number of polling threads, specified as\n"
+  #define PAR_USAGE \
+               "  The -p option gives the number of polling threads, specified as\n" \
                "    a non-negative integer argument (default is no polling threads).\n"
-               "  The '-sync-req' or '-async-req' option selects synchronous or asynchronous\n"
-               "    local completion of Medium and Long Requests (default is synchronous).\n"
-               "  The -c option enables cross-machine pairing (default is nearest neighbor).\n");
 #else
+  #define PAR_USAGE ""
+#endif
   test_init("testam", 1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the requestor's\n"
                "    buffer is in the GASNet segment or not (default is 'in').\n"
+               PAR_USAGE
                "  The '-sync-req' or '-async-req' option selects synchronous or asynchronous\n"
                "    local completion of Medium and Long Requests (default is synchronous).\n"
+               "  The '-fp', '-np-gb' or '-np-cb' option selects Fixed- or Negotiated-Payload\n"
+               "    for Medium and Long AMs, as follows:\n"
+               "      -fp:     Fixed-Payload (default)\n"
+               "      -np-gb:  Negotiated-Payload with GASNet-provided buffer\n"
+               "      -np-cb:  Negotiated-Payload with client-provided buffer\n"
+               "  The '-src-*' options select treatment of the payload buffer used for\n"
+               "    Medium and Long AMs, as follows:\n"
+               "      -src-noop:      no per-operation initialization (default)\n"
+               "      -src-generate:  initialized (w/o memory reads) on each AM injection\n"
+               "      -src-memcpy:    initialized using memcpy() on each AM injection\n"
                "  The -c option enables cross-machine pairing (default is nearest neighbor).\n");
-#endif
   if (help || argc > arg) test_usage();
 
   TEST_PRINT_CONDUITINFO();
@@ -236,6 +362,12 @@ int main(int argc, char **argv) {
     char *space = test_malloc(alignup(maxsz,PAGESZ) + PAGESZ);
     myseg = alignup_ptr(space, PAGESZ);
   }
+
+  if (src_mode == SRC_MEMCPY) {
+    zero_buffer = test_calloc(maxsz, 1);
+  }
+
+  np_lc_opt = np_cbuf ? lc_opt : NULL;
 
   if (crossmachinemode) {
     if ((numnode%2) && (mynode == numnode-1)) {
@@ -254,32 +386,51 @@ int main(int argc, char **argv) {
     }
   }
 
-  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,lc_opt,0,0));
-  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,peer,GEX_EVENT_NOW,0,0));
-  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,lc_opt,0,0));
-  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,peer,GEX_EVENT_NOW,0,0));
+  gex_Event_t *tmp_lc_opt = use_np ? np_lc_opt : lc_opt;
+  gex_Flags_t flags = use_np ? ( np_cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT
+                                         : GEX_FLAG_AM_PREPARE_LEAST_ALLOC) : 0;
+  maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,tmp_lc_opt,flags,0));
+  maxmedrep  = MIN(maxsz, gex_AM_MaxReplyMedium  (myteam,peer,GEX_EVENT_NOW,flags,0));
+  maxlongreq = MIN(maxsz, gex_AM_MaxRequestLong  (myteam,peer,tmp_lc_opt,flags,0));
+  maxlongrep = MIN(maxsz, gex_AM_MaxReplyLong    (myteam,peer,GEX_EVENT_NOW,flags,0));
 
   recvr = !sender || (peer == mynode);
 
   // Long Request and Reply (distinct for loopback)
   reply_addr = TEST_SEG(peer);
-  request_addr = (peer == mynode) ? (void*)(maxsz + (uintptr_t) reply_addr) : reply_addr;
+  request_addr = (peer == mynode) ? (void*)((uintptr_t)reply_addr + alignup(maxsz,SIZEOF_GEX_RMA_VALUE_T))
+                                  : reply_addr;
 
   BARRIER();
 
-  if (mynode == 0) {
-      printf("Running %i iterations of %s%ssync-LC-Request AM performance with local addresses %sside the segment"
 #if GASNET_PAR
-             " and %i extra recvr polling threads"
+  #define PAR_FMT "  %i extra recvr polling threads\n"
+  #define PAR_ARG ,pollers
+#else
+  #define PAR_FMT /*empty*/
+  #define PAR_ARG /*empty*/
 #endif
-             "...\n",
+  if (mynode == 0) {
+      printf("Running %i iterations of %s AM performance with:\n"
+             "  local addresses %sside the segment%s\n"
+             "  %ssynchronous LC for Requests%s\n"
+             "  %s\n"
+             "  %s\n"
+             PAR_FMT
+             "  ...\n",
              iters,
              (crossmachinemode ? "cross-machine ": ""),
+             (insegment ? "in" : "out"),
+             (insegment ? " (default)" : ""),
              (asynclc ? "a": ""),
-             (insegment ? "in" : "out")
-#if GASNET_PAR
-             ,pollers
-#endif
+             (asynclc ? "": " (default)"),
+             (!use_np   ? "fixed-Payload (default)"
+              :(np_cbuf ? "negotiated-Payload with client-provided buffer"
+                        : "negotiated-Payload with GASNet-provided buffer")),
+             ((src_mode == SRC_NOOP)     ? "no payload initialization (default)"
+             :(src_mode == SRC_GENERATE) ? "payload initialized by computation"
+                                         : "payload initialized using memcpy()")
+             PAR_ARG
             );
       printf("   Msg Sz  Description                             Total time   Avg. time   Bandwidth\n"
              "   ------  -----------                             ----------   ---------   ---------\n");
@@ -569,12 +720,12 @@ void doAMShort(void) {
 /* ------------------------------------------------------------------------------------ */
 void doAMMed(void) {
   GASNET_BEGIN_FUNCTION();
-  TESTAM_PERF("AMMedium   ",    gex_AM_RequestMedium0,    hidx_ping_medhandler,  hidx_pong_medhandler,  maxmedreq, maxmedrep, MEDDEST);
+  TESTAM_PERF("AMMedium   ",    RequestMedium0,           hidx_ping_medhandler,  hidx_pong_medhandler,  maxmedreq, maxmedrep, MEDDEST);
 }
 /* ------------------------------------------------------------------------------------ */
 void doAMLong(void) {
   GASNET_BEGIN_FUNCTION();
-  TESTAM_PERF("AMLong     ",      gex_AM_RequestLong0,      hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, LONGDEST);
+  TESTAM_PERF("AMLong     ",      RequestLong0,             hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, LONGDEST);
 }
 /* ------------------------------------------------------------------------------------ */
 void *doAll(void *ptr) {

@@ -22,7 +22,7 @@ gasnete_coll_pami_allgavi(const gasnet_team_handle_t team,
         (void) gasnete_coll_pami_images_barrier(team);
     }
 
-    GASNETE_FAST_UNALIGNED_MEMCPY(gasnete_coll_scale_ptr(team->pami.scratch_space,
+    GASNETI_MEMCPY(               gasnete_coll_scale_ptr(team->pami.scratch_space,
                                                          td->my_local_image,
                                                          nbytes),
                                   src, nbytes);
@@ -65,7 +65,7 @@ gasnete_coll_pami_allgavi(const gasnet_team_handle_t team,
         team->pami.tmp_addr = NULL;
     } else {
         gasneti_waitwhile(NULL == team->pami.tmp_addr);
-        GASNETE_FAST_UNALIGNED_MEMCPY(dst, team->pami.tmp_addr, nbytes * team->total_images);
+        GASNETI_MEMCPY(dst, team->pami.tmp_addr, nbytes * team->total_images);
         (void) gasnete_coll_pami_images_barrier(team); /* matches instance above ^^^^ */
     }
       
