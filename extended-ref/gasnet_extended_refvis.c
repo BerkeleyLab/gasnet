@@ -15,7 +15,8 @@ static int gasnete_vis_isinit = 0;
 
 #if GASNETE_USE_AMPIPELINE
 static int gasnete_vis_use_ampipe;
-static size_t gasnete_vis_maxchunk;
+static size_t gasnete_vis_put_maxchunk;
+static size_t gasnete_vis_get_maxchunk;
 #endif
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
 static int gasnete_vis_use_remotecontig;
@@ -36,14 +37,28 @@ extern void gasnete_vis_init(void) {
   } while (0)
   #if !GASNETE_USE_AMPIPELINE
     int gasnete_vis_use_ampipe = 0; // dummy
-    size_t gasnete_vis_maxchunk = 0; // dummy
   #endif
   GASNETE_VIS_ENV_YN(gasnete_vis_use_ampipe,GASNET_VIS_AMPIPE, GASNETE_USE_AMPIPELINE);
-  #ifndef GASNETE_VIS_MAXCHUNK_DEFAULT
-  #define GASNETE_VIS_MAXCHUNK_DEFAULT MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())-2*sizeof(void*)
+  #if GASNETE_USE_AMPIPELINE
+    #ifndef GASNETE_VIS_MAXCHUNK_DEFAULT
+    #define GASNETE_VIS_MAXCHUNK_DEFAULT MIN(gex_AM_LUBRequestMedium(),gex_AM_LUBReplyMedium())-2*sizeof(void*)
+    #endif
+    #ifndef GASNETE_VIS_PUT_MAXCHUNK_DEFAULT
+    #define GASNETE_VIS_PUT_MAXCHUNK_DEFAULT GASNETE_VIS_MAXCHUNK_DEFAULT
+    #endif
+    #ifndef GASNETE_VIS_GET_MAXCHUNK_DEFAULT
+    #define GASNETE_VIS_GET_MAXCHUNK_DEFAULT GASNETE_VIS_MAXCHUNK_DEFAULT
+    #endif
+    int gasnete_vis_maxchunk_set = !!gasneti_getenv("GASNET_VIS_MAXCHUNK");
+    size_t gasnete_vis_maxchunk = GASNETE_VIS_MAXCHUNK_DEFAULT;
+    gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnete_vis_maxchunk, 1);
+    gasnete_vis_put_maxchunk = GASNETE_VIS_PUT_MAXCHUNK_DEFAULT;
+    gasnete_vis_put_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_PUT_MAXCHUNK", 
+                                 (gasnete_vis_maxchunk_set ? gasnete_vis_maxchunk : gasnete_vis_put_maxchunk), 1);
+    gasnete_vis_get_maxchunk = GASNETE_VIS_GET_MAXCHUNK_DEFAULT;
+    gasnete_vis_get_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_GET_MAXCHUNK", 
+                                 (gasnete_vis_maxchunk_set ? gasnete_vis_maxchunk : gasnete_vis_get_maxchunk), 1);
   #endif
-  gasnete_vis_maxchunk = GASNETE_VIS_MAXCHUNK_DEFAULT;
-  gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnete_vis_maxchunk, 1);
   #if !GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
     int gasnete_vis_use_remotecontig = 0; // dummy
   #endif

@@ -886,7 +886,7 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7,
   #if GASNETE_PUTS_AMPIPELINE
     #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
       if (gasnete_vis_use_ampipe &&                                                  \
-          smd->elemsz <= gasnete_vis_maxchunk &&                                     \
+          smd->elemsz <= gasnete_vis_put_maxchunk &&                                 \
         (ptrdiff_t)smd->elemsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
       RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
   #else
@@ -1122,7 +1122,7 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reph,2,3,
   #if GASNETE_GETS_AMPIPELINE
     #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
       if (gasnete_vis_use_ampipe &&                                                  \
-          smd->elemsz <= gasnete_vis_maxchunk &&                                     \
+          smd->elemsz <= gasnete_vis_get_maxchunk &&                                 \
         (ptrdiff_t)smd->elemsz <= GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) && \
         GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
       RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
@@ -1677,8 +1677,9 @@ extern gex_Event_t gasnete_puts(gasnete_synctype_t synctype,
   } 
   // select and dispatch a network algorithm
   #if GASNETE_USE_AMPIPELINE
-    #define GASNETE_PUTS_REF_INDIV_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do { \
-      if (smd->elemsz > gasnete_vis_maxchunk) RETURN(gasnete_puts_ref_indiv(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
+    #define GASNETE_PUTS_REF_INDIV_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do {     \
+      if (smd->elemsz > gasnete_vis_put_maxchunk)                                       \
+        RETURN(gasnete_puts_ref_indiv(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
     } while (0)
   #else
     #define GASNETE_PUTS_REF_INDIV_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
@@ -1773,8 +1774,9 @@ extern gex_Event_t gasnete_gets(gasnete_synctype_t synctype,
   }
   // select and dispatch a network algorithm
   #if GASNETE_USE_AMPIPELINE
-    #define GASNETE_GETS_REF_INDIV_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do { \
-      if (smd->elemsz > gasnete_vis_maxchunk) RETURN(gasnete_gets_ref_indiv(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
+    #define GASNETE_GETS_REF_INDIV_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do {     \
+      if (smd->elemsz > gasnete_vis_get_maxchunk)                                       \
+        RETURN(gasnete_gets_ref_indiv(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
     } while (0)
   #else
     #define GASNETE_GETS_REF_INDIV_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
