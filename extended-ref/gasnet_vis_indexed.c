@@ -314,7 +314,7 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
 }
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
     if (gasnete_vis_use_ampipe && dstcount > 1 && dstlen == (uint32_t)(dstlen) &&                            \
-        (srclen <= gasnete_vis_maxchunk || dstlen <= gasnete_vis_maxchunk))                                  \
+        (srclen <= gasnete_vis_put_maxchunk || dstlen <= gasnete_vis_put_maxchunk))                          \
       return gasnete_puti_AMPipeline(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) ((void)0)
@@ -396,7 +396,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
 }
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
     if (gasnete_vis_use_ampipe && srccount > 1 &&                                                            \
-        (srclen <= gasnete_vis_maxchunk || dstlen <= gasnete_vis_maxchunk))                                  \
+        (srclen <= gasnete_vis_get_maxchunk || dstlen <= gasnete_vis_get_maxchunk))                          \
       return gasnete_geti_AMPipeline(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) ((void)0)

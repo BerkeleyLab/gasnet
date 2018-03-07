@@ -697,8 +697,13 @@ application-specific support.
  exception being cases where both sides happen to be fully contiguous, in
  which case we skip packing). The default is conduit-dependent.
 
-* GASNET_VIS_MAXCHUNK - limits the max size of a strided or indexed chunk which
- will be packed by AM pipelining. Defaults to the size that will fit in one MaxMedium
+* GASNET_VIS_{PUT,GET}_MAXCHUNK - limits the max size of a contiguous chunk which
+ will be packed by AM pipelining in a strided put/get or indexed put/get, respectively.
+ The chunk size may additionally be limited based on the size that will fit in one MaxMedium.
+ The default value is conduit-specific.
+
+* GASNET_VIS_MAXCHUNK - Provides a default value for GASNET_VIS_{PUT,GET}_MAXCHUNK,
+ to be used when the more specific knob is unset.
 
 * GASNET_VIS_REMOTECONTIG - enables a pack & RDMA algorithm for gather puts and
  scatter gets - i.e. cases that are locally non-contiguous but remotely
