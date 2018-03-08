@@ -1572,6 +1572,8 @@ typedef [some integer type] gex_OP_t;
 //
 // Atomic Domains
 //
+// An "Atomic Domain" is an opaque scalar type.
+//
 // Just as all point-to-point RMA calls take a gex_TM_t argument, calls to
 // initiate Remote Atomic operations take a gex_AD_t, where "AD" is short for
 // "Atomic Domain".
@@ -1665,8 +1667,11 @@ typedef [some integer type] gex_OP_t;
 //   Acquire and Release are intended to be compatible with the same concepts
 //   in the C11 and C++ language specifications for atomic operations.
 
-// Opaque type for Atomic Domain
+// Opaque scalar type for Atomic Domain
 typedef ... gex_AD_t;
+
+// Pre-defined constant, guaranteed to be zero
+#define GEX_AD_INVALID      ((gex_AD_t)0)
 
 // Create an Atomic Domain
 //
