@@ -75,9 +75,7 @@
         (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
 
 // GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE: specialized for testing C++11 attributes
-#if defined(__has_cpp_attribute) && \
-  (!PLATFORM_COMPILER_GNU_CXX || PLATFORM_COMPILER_CXX_LANGLVL >= 201100)
-  // g++ __has_cpp_attribute returns false positives with langlvl < C++11
+#ifdef __has_cpp_attribute
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) __has_cpp_attribute(x)
 #else
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
@@ -87,6 +85,33 @@
        ((GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE_ ## MACRO_NAME) && \
         PLATFORM_COMPILER_CXX_LANGLVL >= GASNETI_PLATFORM_CXX_CXX_LANGLVL) \
       || (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_CXX11_ATTRIBUTE(attrib_token)))
+
+// __has_*() Blacklists
+
+// Some compilers have a broken implementation of one or more of the following Gnu/clang extension macros:
+//     __has_builtin()  __has_attribute()  __has_cpp_attribute()
+// where "broken" means providing a definition that incorrectly returns non-zero answers in some cases.
+// We blacklist the use of the relevant macro on those particular compilers to ensure we never use it there.
+// Some compilers bitch about redefining these built-in macros, so instead we force our own
+// wrapper to conservatively always returns zero. 
+
+#if PLATFORM_COMPILER_PATHSCALE /* broken builtin_assume on Linux */ \
+   || ( PLATFORM_COMPILER_PGI_CXX && PLATFORM_OS_DARWIN ) /* Bug 3736 */
+  #undef  _GASNETI_HAS_BUILTIN
+  #define _GASNETI_HAS_BUILTIN(x)  0
+#endif
+
+#if PLATFORM_COMPILER_SUN /* bug 3666: Sun CC __has_attribute returns wrong answers and cannot be trusted */
+  #undef  _GASNETI_HAS_ATTRIBUTE
+  #define _GASNETI_HAS_ATTRIBUTE(x)  0
+#endif
+
+#if (PLATFORM_COMPILER_GNU_CXX && PLATFORM_COMPILER_CXX_LANGLVL < 201100)
+      /* g++ __has_cpp_attribute returns false positives with langlvl < C++11 */
+  #undef  _GASNETI_HAS_CXX11_ATTRIBUTE(x)
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
+#endif
+
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
@@ -278,11 +303,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #endif
 
 /* special GCC features */
-
-#if PLATFORM_COMPILER_SUN && defined(__has_attribute)
-#undef __has_attribute /* bug 3666: Sun CC __has_attribute returns wrong answers and cannot be trusted */
-#define __has_attribute(x)  0
-#endif
 
 /* work around bug 1620 unless client has explicitly set GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE */
 #if PLATFORM_COMPILER_PATHSCALE && !defined(GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE)
