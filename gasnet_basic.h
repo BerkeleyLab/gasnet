@@ -278,9 +278,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #endif
 
 /* special GCC features */
-#if PLATFORM_COMPILER_PGI && defined(__attribute__)
-#undef __attribute__ /* bug 1766: undo a stupid, gcc-centric definition from Linux sys/cdefs.h */
-#endif
 
 #if PLATFORM_COMPILER_SUN && defined(__has_attribute)
 #undef __has_attribute /* bug 3666: Sun CC __has_attribute returns wrong answers and cannot be trusted */
