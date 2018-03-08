@@ -157,6 +157,7 @@ void gasnete_ratomic_validate(
         gex_OP_t            opcode,    gex_DT_t         datatype,
         gex_Flags_t         flags)
 {
+    gasneti_assert(ad);
     gasneti_AD_t real_ad = gasneti_import_ad(ad);
 
     // Rank must be valid (redundant, but clearer than a later failure)
