@@ -12,12 +12,21 @@ PENDING:
 
 * Libfabric (ofi-conduit)
   - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
+  - Compatibility fixes for libfabric version 1.6
 
 * InfiniBand Verbs (ibv-conduit)
   - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
+
+* Portable UDP (udp-conduit)
+  - Reduce polling cost on single-supernode runs. smp-conduit remains the
+    recommended conduit for use on single-supernode shared-memory systems.
+
+* Portable MPI (mpi-conduit)
+  - Reduce polling cost on single-supernode runs. smp-conduit remains the
+    recommended conduit for use on single-supernode shared-memory systems.
 
 * GASNet tools (spec v1.11)
   - Numerous improvements to backtrace support, including fixing the
@@ -35,11 +44,13 @@ PENDING:
 * General and Misc.
   - GASNET_VIS_{AMPIPE,REMOTECONTIG} is now enabled by default on most conduits
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
+  - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
+  - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.
