@@ -108,7 +108,7 @@
 
 #if (PLATFORM_COMPILER_GNU_CXX && PLATFORM_COMPILER_CXX_LANGLVL < 201100)
       /* g++ __has_cpp_attribute returns false positives with langlvl < C++11 */
-  #undef  _GASNETI_HAS_CXX11_ATTRIBUTE(x)
+  #undef  _GASNETI_HAS_CXX11_ATTRIBUTE
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
 #endif
 
