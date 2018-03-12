@@ -15,12 +15,27 @@ PENDING: GASNet-EX 2018.3.0 Integration release
 * GASNet-EX Spec v0.4:
   - Renamed gex_System_QueryNeighborhoodInfo() and associated
     types and constants to gex_System_QueryNbrhdInfo() and similar.
+  - Adjusted payload limit queries to accomodate Negotiated-Payload AM.
+  - Remote Atomics: added flags for asserting locality properties
+  - Remote Atomics: added flags for requesting memory fencing behavior
+  - Strided: now supports transpose/reflection operations
+  - Added gex_ep (destination endpoint) to gex_Token_Info_t
+  - Minor clarifications throughout.
 
 * Major new features implemented in this release:
-  -
+  - Remote Atomics and Negotiated-Payload Active Messages have been
+    further specialized to improve performance on aries-conduit.
+  - Remote Atomics performance improvements for shared-memory bypass.
+  - Strided has been completely re-implemented and now supports N-d
+    transpose/reflection operations. Notable performance improvements throughout.
+  - VIS performance improvements, most notably for shared-memory bypass and
+    aries-conduit (where some in-memory copies have been removed)
+  - The 64k per-thread limit on in-flight explicit handle ops has been removed.
+    The number of in-flight ops is now limited only by available heap memory.
 
 * Notable bugs fixed in this release:
-  -
+  - Bug3704: allow gasnet.h and gasnetex.h to be included in either order
+  - Improved assertion checks and error messages in various places.
 
 * Feature implementation status in this release:
   - Negotiated-Payload Active Messages are well-implemented for shared memory
