@@ -823,6 +823,9 @@ extern gex_TI_t gex_Token_Info(
 //   the integers 0 through gex_AM_MaxArgs(), inclusive.
 //   The '[,arg0, ... ,argM-1]' then represent the arguments
 //   (each of type gex_AM_Arg_t).
+//   Additionally, on compilers supporting the __VA_ARG__ preprocessor feature
+//   (added in C99 and C++11) the "[M]" may optionally be omitted entirely and
+//   is inferred based on the argument count.
 // 
 // NOTE 1: Return value
 // 
@@ -1146,6 +1149,9 @@ extern gex_AM_SrcDesc_t gex_AM_PrepareReplyLong(
 //   the integers 0 through gex_AM_MaxArgs(), inclusive.
 //   The '[,arg0, ... ,argM-1]' then represent the arguments
 //   (each of type gex_AM_Arg_t).
+//   Additionally, on compilers supporting the __VA_ARG__ preprocessor feature
+//   (added in C99 and C++11) the "[M]" may optionally be omitted entirely and
+//   is inferred based on the argument count.
 //
 // RETURNS: void
 // ARGUMENTS:
