@@ -2020,6 +2020,8 @@ int gex_AD_OpNBI_[DATATYPE](
 // buffers (ie payload buffers and metadata arrays) passed to the non-blocking initiation 
 // functions are implicitly treated as GEX_EVENT_DEFER semantics, and thus must remain 
 // valid until the operation is fully completed (as in GASNet-1).
+// As an exception, the metadata arrays passed to Strided variants ({src,dst}strides[] and count[])
+// are guaranteed to be consumed synchronously before return from initiation.
 // A future revision will expose intermediate completion events [UNIMPLEMENTED]
 
 // NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]
