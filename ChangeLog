@@ -20,6 +20,9 @@ PENDING: GASNet-EX 2018.3.0 Integration release
   - Remote Atomics: added flags for requesting memory fencing behavior
   - Strided: now supports transpose/reflection operations
   - Added gex_ep (destination endpoint) to gex_Token_Info_t
+  - AM Request/Reply/Commit functions may now optionally omit the arg count
+    suffix on the function name when using compilers with __VA_ARG__ support
+    (added in C99/C++11, may also be available in older compilers).
   - Minor clarifications throughout.
 
 * Major new features implemented in this release:
