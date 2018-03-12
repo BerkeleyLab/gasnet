@@ -1369,12 +1369,13 @@ void gex_NBI_Wait(gex_EC_t event_mask, gex_Flags_t flags);
 // Extract a leaf event from the root event
 // NOTE: name is subject to change
 //
-// The 'root' argument must be a valid root event
+// The 'root' argument must be a valid root event, such as returned by an
+// NB initiation function (gex_*NB()) or gex_NBI_EndAccessRegion.
 // The 'event_category' argument is an GEX_EC_<x> constant.
 // It cannot be a bitwise-OR of multiple such values, nor GEX_EC_ALL.
 //
 // There are additional validity constraints to be documented, such as one
-// cannot ask for an event that was "suppressed" by passing EVENT_DEFER.
+// cannot ask for an event that was "suppressed" by passing EVENT_NOW or EVENT_DEFER.
 // Violating those constraints give undefined results (though we want a debug
 // build to report the violation).
 //
