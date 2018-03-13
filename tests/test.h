@@ -210,24 +210,69 @@ static void _test_makeErrMsg(const char *format, ...)) {
 #define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
 #define aligndown(a,b) (((a)/(b))*(b))
 
+// Two 64-bit PRNGs are available
+//  + "LCG64" uses 64-bit Linear Congruential Generator
+//  + "RANDn" uses multiple calls to rand().
+#if defined(_TEST_USE_LCG64)
+  // Keep setting
+#elif (RAND_MAX < 255) || \
+      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
+  // SHOULD NOT use "RANDn" in the following cases:
+  // + Any platform with RAND_MAX < 255 (though C99 requires 32K+)
+  // + Open64 to work-around bug 3738
+  // + Clang to work-around bug 3630
+  #define _TEST_USE_LCG64 1
+#else
+  // Current default is LCG64
+  #define _TEST_USE_LCG64 1
+#endif
+
+#if _TEST_USE_LCG64
+  // NOTE: this state and seed operation are per compilation unit.
+  // TODO: If/when we write tests spanning multiple source files we may
+  // need to move the PRNG state into its own object file.
+  static uint64_t _test_rand_val = 5551212;
+  #define TEST_SRAND(seed)  ((void)(_test_rand_val = (seed)))
+#else
+  #define TEST_SRAND(seed)  srand(seed)
+#endif
+
 static int64_t _test_rand(int64_t low, int64_t high) {
   assert(low <= high);
   assert(low <= high+1); /* We will overflow otherwise */
-  assert(RAND_MAX >= 255); // C99 guarantees 32k+
   uint64_t const range = high - low + 1;
+#if _TEST_USE_LCG64
+  // Implement the well-known LCG PRNG with widely used parameters.
+  // For an explanation of the LCG algorithm:
+  //     https://en.wikipedia.org/wiki/Linear_congruential_generator
+  // or any CS text (such as Knuth) covering pseudo-random number generation.
+  // For an example of where this particular generator is in use:
+  //     https://nuclear.llnl.gov/CNP/rng/rngman/
+  // and specifically the description of *this* generator:
+  //     https://nuclear.llnl.gov/CNP/rng/rngman/node4.html
+  // which states this multiplier is also the default for lcg64 in SPRNG:
+  //     http://www.sprng.org/sprng.html
+  _test_rand_val *= 2862933555777941757ull;
+  _test_rand_val += 3037000493ull;
+  uint64_t val = _test_rand_val;
+#else
+  // The "RANDn" generator accumulates 8 random bits at a time using
+  // multiple calls to libc's rand(), making only as many calls as
+  // are required to meet the requested [low,high] range.
+  assert(RAND_MAX >= 255); // C99 guarantees 32k+
   uint64_t rs = range;
   uint64_t val = 0;
   do { 
     val = (val << 8) ^ rand();
     rs >>= 8;
   } while (rs);
+#endif
   int64_t result = (int64_t)(val % range) + low;
   assert(result >= low && result <= high);
   return result;
 }
 #define TEST_RAND(low,high) _test_rand((low), (high))
 #define TEST_RAND_PICK(a,b) (TEST_RAND(0,1)==1?(a):(b))
-#define TEST_SRAND(seed)    srand(seed)
 #define TEST_RAND_ONEIN(p)  (TEST_RAND(1,p) == 1)
 
 #define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
