@@ -408,6 +408,21 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   /* av_type: type of address vectores that are usable with this domain */
   hints->domain_attr->av_type			= FI_AV_TABLE; /* type AV index */
 
+  /* In libfabric v1.6, the psm2 provider transitioned to using separate
+   * psm2 endpoints for each ofi endpoint, whereas in the past all communication
+   * was multiplexed over a single psm2 endpoint. Setting this variable ensures
+   * that unnecessary connections between remote endpoints which never communicate
+   * are not made, which can cause slow tear-down. This variable is set before
+   * calling fi_getinfo() as the provider may read its environment variables in
+   * that function call. */
+  int set_psm2_lazy_conn = 0;
+  if ((FI_MAJOR_VERSION == 1 && FI_MINOR_VERSION >= 6) || FI_MAJOR_VERSION > 1) {
+      if (!getenv("FI_PSM2_LAZY_CONN")) {
+          set_psm2_lazy_conn = 1;
+          setenv("FI_PSM2_LAZY_CONN", "1", 1);
+      }
+  }
+
   ret = fi_getinfo(OFI_CONDUIT_VERSION, NULL, NULL, 0ULL, hints, &info);
   if (FI_SUCCESS != ret) {
 	  GASNETI_RETURN_ERRR(RESOURCE,
@@ -418,16 +433,13 @@ int gasnetc_ofi_init(int *argc, char ***argv,
    * selection logic */
 
   if (!strcmp(info->fabric_attr->prov_name, "psm2")){
-	  high_perf_prov = 1;
+      high_perf_prov = 1;
       using_psm_provider = 1;
-      /* In libfabric v1.6, the psm2 provider transitioned to using separate
-       * psm2 endpoints for each ofi endpoint, whereas in the past all communication
-       * was multiplexed over a single psm2 endpoint. Setting this variable ensures
-       * that unnecessary connections between remote endpoints which never communicate
-       * are not made, which can cause slow tear-down. */
-      if ((FI_MAJOR_VERSION == 1 && FI_MINOR_VERSION >= 6) || FI_MAJOR_VERSION > 1) {
-	      setenv("FI_PSM2_LAZY_CONN", "1", 1);
-      }
+  } else if (set_psm2_lazy_conn) {
+      /* If we set this variable and are not using psm2, unset it in the
+       * unlikely case that another library in the current application will
+       * use ofi/psm2 */
+      unsetenv("FI_PSM2_LAZY_CONN");
   }
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
