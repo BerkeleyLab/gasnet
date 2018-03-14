@@ -297,6 +297,18 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define _GASNETE_UNPACK_HELPER(packed, unpacked, sz) \
         GASNETE_FAST_UNALIGNED_MEMCPY((unpacked), (packed), (sz))
 
+// GASNETE_VIS_MIN_PACKBUFFER is used to round up packing buffers to a large enough size
+// so that glibc malloc will hopefully give us memory with better access behavior, noticeably 
+// improving throughput on systems like KNL.
+#ifndef GASNETE_VIS_MIN_PACKBUFFER
+#define GASNETE_VIS_MIN_PACKBUFFER 8192
+#endif
+
+GASNETI_INLINE(gasnete_visbuf_malloc) GASNETI_MALLOC
+void *gasnete_visbuf_malloc(size_t _sz) {
+  return gasneti_malloc(MAX(_sz,GASNETE_VIS_MIN_PACKBUFFER));
+}
+
 /*---------------------------------------------------------------------------------*/
 /* packetization */
 typedef struct {

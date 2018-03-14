@@ -89,6 +89,7 @@ GASNETI_IDENT(gasneti_IdentString_StridedDirDims,  "$GASNetStridedDirectDims: " 
 #if GASNETE_USE_AMPIPELINE
 GASNETI_IDENT(gasneti_IdentString_VISNPAM,         "$GASNetVISNPAM: " _STRINGIFY(GASNETE_VIS_NPAM)" $");
 #endif
+GASNETI_IDENT(gasneti_IdentString_VISMinPackBuf,   "$GASNetVISMinPackBuffer: " _STRINGIFY(GASNETE_VIS_MIN_PACKBUFFER)" $");
 
 #undef GASNETI_GASNET_EXTENDED_REFVIS_C
 
