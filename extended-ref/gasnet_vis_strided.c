@@ -627,7 +627,7 @@ gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_sy
   gasneti_assert(nbytes > 0);
   GASNETI_TRACE_EVENT(C, PUTS_GATHER);
 
-  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
+  { gasneti_vis_op_t * const visop = gasnete_visbuf_malloc(sizeof(gasneti_vis_op_t)+nbytes);
     void * const packedbuf = visop + 1;
     gasnete_strided_pack_all(srcaddr, srcstrides, count, stridelevels, packedbuf);
     visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
@@ -660,7 +660,7 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
   gasneti_assert(nbytes > 0);
   GASNETI_TRACE_EVENT(C, GETS_SCATTER);
 
-  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+(2*stridelevels+1)*sizeof(size_t)+nbytes);
+  { gasneti_vis_op_t * const visop = gasnete_visbuf_malloc(sizeof(gasneti_vis_op_t)+(2*stridelevels+1)*sizeof(size_t)+nbytes);
     size_t * const savedstrides = (size_t *)(visop + 1);
     size_t * const savedcount = savedstrides + stridelevels;
     void * const packedbuf = (void *)(savedcount + stridelevels + 1);
@@ -739,7 +739,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
     size_t * const init = header;
     size_t * const packetinit = init;
   #else
-    size_t * const init = gasneti_malloc(stridelevels*sizeof(size_t) + GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels));
+    size_t * const init = gasnete_visbuf_malloc(stridelevels*sizeof(size_t) + GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels));
     void   * const packetbase = init + stridelevels;
     size_t * const packetinit = packetbase;
     void   * const packedbuf = (uint8_t*)packetbase + headersz;
@@ -965,7 +965,7 @@ gex_Event_t gasnete_gets_AMPipeline(gasneti_vis_smd_t * const smd,
                          + stridelevels*sizeof(ptrdiff_t)  // table self_strides[]
                          + stridelevels*sizeof(size_t)     // table/packet count[]
                          + stridelevels*sizeof(ptrdiff_t); // packet peer_strides[]
-  gasneti_vis_op_t * const visop = gasneti_malloc(visopsz); // TODO-EX: ideally use auxseg here to speed injection
+  gasneti_vis_op_t * const visop = gasnete_visbuf_malloc(visopsz); // TODO-EX: ideally use auxseg here to speed injection
   GASNETE_VISOP_SETUP(visop, synctype, 1);
   gasneti_eop_t *eop = visop->eop; // visop may disappear once the last AM is launched
   visop->count = stridelevels;
@@ -1038,7 +1038,7 @@ void gasnete_gets_AMPipeline_reqh_inner(gex_Token_t token,
                          packetchunks * chunksz;
   gasneti_assert(replysz > 0);
   #if GASNETE_VIS_NPAM == 0
-    void * const replybase = gasneti_malloc(replysz);
+    void * const replybase = gasnete_visbuf_malloc(replysz);
   #else
     gex_AM_SrcDesc_t sd = gex_AM_PrepareReplyMedium(token, NULL, replysz, replysz, NULL, 0, HARGS(2,3));
     void * const replybase = gex_AM_SrcDescAddr(sd);
@@ -1136,7 +1136,7 @@ static void *gasnete_convert_strided_to_memvec(gasneti_vis_smd_t * const smd,
                                                gex_Memvec_t *memvec[2]) {
   gasneti_assert(smd && smd->have_stats);
   gasneti_assert(memvec);
-  void *buf = gasneti_malloc(sizeof(gex_Memvec_t)*(smd->lcontig_segments[0] + smd->lcontig_segments[1]));
+  void *buf = gasnete_visbuf_malloc(sizeof(gex_Memvec_t)*(smd->lcontig_segments[0] + smd->lcontig_segments[1]));
   memvec[SMD_SELF] = buf;
   memvec[SMD_PEER] = memvec[SMD_SELF] + smd->lcontig_segments[SMD_SELF];
 
@@ -1243,7 +1243,7 @@ static void *gasnete_convert_strided_to_addrlist(gasneti_vis_smd_t * const smd,
                                                  void **addrlist[2]) {
   gasneti_assert(smd && smd->have_stats);
   gasneti_assert(addrlist);
-  void *buf = gasneti_malloc(sizeof(void *)*(smd->lcontig_segments[0] + smd->lcontig_segments[1]));
+  void *buf = gasnete_visbuf_malloc(sizeof(void *)*(smd->lcontig_segments[0] + smd->lcontig_segments[1]));
   addrlist[SMD_SELF] = buf;
   addrlist[SMD_PEER] = addrlist[SMD_SELF] + smd->lcontig_segments[SMD_SELF];
 
