@@ -62,7 +62,7 @@
 #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
 #define GASNETE_BUILD_AMREF_PUT 1
 
-#ifndef GASNET_DISABLE_MUNMAP_DEFAULT
+#if !defined(GASNET_DISABLE_MUNMAP_DEFAULT) && PLATFORM_ARCH_64
 #define GASNET_DISABLE_MUNMAP_DEFAULT 1 // default to disabling munmap for bug 955
 #endif
 // this VIS algorithm uses put/get with local-side buffers that are dynamically malloced and freed, 
