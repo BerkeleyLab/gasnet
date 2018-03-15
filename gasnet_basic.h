@@ -106,8 +106,9 @@
   #define _GASNETI_HAS_ATTRIBUTE(x)  0
 #endif
 
-#if (PLATFORM_COMPILER_GNU_CXX && PLATFORM_COMPILER_CXX_LANGLVL < 201100)
-      /* g++ __has_cpp_attribute returns false positives with langlvl < C++11 */
+#if (PLATFORM_COMPILER_GNU_CXX && PLATFORM_COMPILER_CXX_LANGLVL < 201100) \
+      /* g++ __has_cpp_attribute returns false positives with langlvl < C++11 */ \
+  || (PLATFORM_COMPILER_SUN_CXX && PLATFORM_COMPILER_VERSION_LT(5,15,0)) /* bug 3730 */
   #undef  _GASNETI_HAS_CXX11_ATTRIBUTE
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
 #endif
