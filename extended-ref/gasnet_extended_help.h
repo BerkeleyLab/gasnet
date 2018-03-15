@@ -135,6 +135,11 @@ extern int gasnete_maxthreadidx;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// TODO-EX: Eliminate GASNETE_FAST_ALIGNED_MEMCPY (which no longer has any internal
+// callers) and redirect the tools interface elsewhere.  This should include removal
+// of GASNETI_BUG1389_WORKAROUND and many corresponding bits (configure option, config
+// string, interaction w/ GASNETI_MAY_ALIAS, etc.)
+
 /* bug 1389: need to prevent bad optimizations on GASNETE_FAST_ALIGNED_MEMCPY due to
    ansi-aliasing rules added in C99 that foolishly outlaw type-punning. 
    Exploit a union of all possible base types of the given size as a loophole in the rules.
