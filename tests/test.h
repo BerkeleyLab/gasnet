@@ -366,7 +366,7 @@ static int _test_asi_bank;
 // Call this BEFORE test's own begin timer 
 #define TEST_ASI_BEGIN(name,iters,size,bank) do {                 \
   if (_test_asi_interval) {                                       \
-    size_t _new_sz = (size);                                      \
+   {size_t _new_sz = (size);                                      \
     int _bank = (bank);                                           \
     assert(_bank < TEST_ASI_BANKS);                               \
     assert(_new_sz > 0);                                          \
@@ -381,7 +381,7 @@ static int _test_asi_bank;
       _test_asi_sz[_bank] = _new_sz;                              \
     }                                                             \
     _test_asi_bank = _bank;                                       \
-    _TEST_ASI_##name:                                             \
+   } _TEST_ASI_##name:                                            \
     assert(_test_asi_iters[_test_asi_bank] > 0);                  \
     (iters) = _test_asi_iters[_test_asi_bank];                    \
     _test_asi_begin = gasnett_ticks_now();                        \
