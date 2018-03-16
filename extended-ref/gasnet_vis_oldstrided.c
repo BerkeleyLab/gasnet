@@ -832,7 +832,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, gasnet
   #define GASNETE_PUTS_AMPIPELINE_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
     if (gasnete_vis_use_ampipe &&                                                                                           \
         (stats)->_dstsegments > 1 &&                                                                                        \
-        (stats)->_dualcontigsz <= gasnete_vis_maxchunk &&                                                                   \
+        (stats)->_dualcontigsz <= gasnete_vis_put_maxchunk &&                                                               \
         (stats)->_dualcontigsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels))                                         \
       return gasnete_puts_AMPipeline(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else
@@ -974,7 +974,7 @@ gex_Event_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, gasnet
   #define GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
     if (gasnete_vis_use_ampipe &&                                                                                           \
         (stats)->_srcsegments > 1 &&                                                                                        \
-        (stats)->_dualcontigsz <= gasnete_vis_maxchunk &&                                                                   \
+        (stats)->_dualcontigsz <= gasnete_vis_get_maxchunk &&                                                               \
         (stats)->_dualcontigsz <= gex_AM_LUBReplyMedium())                                                                  \
       return gasnete_gets_AMPipeline(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else

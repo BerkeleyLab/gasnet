@@ -17,6 +17,9 @@ GASNETI_BEGIN_NOWARN
 struct gasneti_ad_t;
 typedef struct gasneti_ad_t *gex_AD_t;
 
+// GEX_AD_INVALID is guaranteed to be zero
+#define GEX_AD_INVALID ((gex_AD_t)(uintptr_t)0)
+
 // Forward decl of (internal) dispatch table type:
 union gasnete_ratomic_fn_tbl_u;
 typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;

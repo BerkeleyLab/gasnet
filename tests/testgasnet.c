@@ -445,6 +445,8 @@ void doit(int partner, int *partnerseg) {
 
 #if !GASNET_CONDUIT_SMP
   {
+    CHECK_ZERO_CONSTANT(gex_AD_t, GEX_AD_INVALID);
+
     gex_AD_t       ad;
     gex_DT_t       domain_type  = GEX_DT_U32;
     gex_OP_t       domain_ops   = GEX_OP_FADD|GEX_OP_SWAP;

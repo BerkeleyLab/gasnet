@@ -241,7 +241,7 @@ gex_Event_t gasnete_putv_gather(gasnete_synctype_t synctype,
   if_pf (nbytes == 0) return GEX_EVENT_INVALID; /* event empty */
   GASNETI_TRACE_EVENT(C, PUTV_GATHER);
 
-  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
+  { gasneti_vis_op_t * const visop = gasnete_visbuf_malloc(sizeof(gasneti_vis_op_t)+nbytes);
     void * const packedbuf = visop + 1;
     gasnete_memvec_pack(srccount, srclist, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTV_GATHER;
@@ -273,7 +273,7 @@ gex_Event_t gasnete_getv_scatter(gasnete_synctype_t synctype,
   if_pf (nbytes == 0) return GEX_EVENT_INVALID; /* event empty */
   GASNETI_TRACE_EVENT(C, GETV_SCATTER);
 
-  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(gex_Memvec_t)+nbytes);
+  { gasneti_vis_op_t * const visop = gasnete_visbuf_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(gex_Memvec_t)+nbytes);
     gex_Memvec_t * const savedlst = (gex_Memvec_t *)(visop + 1);
     void * const packedbuf = savedlst + dstcount;
     GASNETI_MEMCPY(savedlst, dstlist, dstcount*sizeof(gex_Memvec_t));
@@ -325,7 +325,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
   #if GASNETE_VIS_NPAM == 0
-    gex_Memvec_t * const packedbuf = gasneti_malloc(maxpacket);
+    gex_Memvec_t * const packedbuf = gasnete_visbuf_malloc(maxpacket);
   #endif
 
   for (size_t packetidx = 0; packetidx < packetcnt; packetidx++) {
@@ -487,7 +487,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
                                                     (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
                                                     HARGS(2,3));
 
-  gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) + dstcount*sizeof(gex_Memvec_t) +
+  gasneti_vis_op_t * const visop = gasnete_visbuf_malloc(sizeof(gasneti_vis_op_t) + dstcount*sizeof(gex_Memvec_t) +
                                                   (GASNETE_VIS_NPAM ? 0 : maxrequest));
   gex_Memvec_t * const savedlst = (gex_Memvec_t *)(visop + 1);
   #if GASNETE_VIS_NPAM == 0
@@ -608,7 +608,7 @@ void gasnete_getv_AMPipeline_reqh_inner(gex_Token_t token,
                                                        (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
                                                        HARGS(2,3));
   #if GASNETE_VIS_NPAM == 0
-    uint8_t * const packedbuf = gasneti_malloc(maxreply);
+    uint8_t * const packedbuf = gasnete_visbuf_malloc(maxreply);
   #else // NPAM 1 or 2
     gex_AM_SrcDesc_t sd = gex_AM_PrepareReplyMedium(token, NULL, maxreply, maxreply, NULL, 0, HARGS(2,3));
     gasneti_assert(gex_AM_SrcDescSize(sd) >= maxreply);

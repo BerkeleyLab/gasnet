@@ -360,8 +360,13 @@
   #elif defined(__SUNPRO_CC) && __SUNPRO_CC > 0
     #define PLATFORM_COMPILER_VERSION __SUNPRO_CC
   #endif
-  #define PLATFORM_COMPILER_VERSION_INT(maj,min,pat) \
-        ( ((maj) << 8) | ((min) << 4) | (pat) )
+  /* Sun version numbers look like hex but are actually a sloppy concatenation of decimal version numbers
+   * leading to weird discontinuities in the version space, luckily it remains monotonic (so far)
+   */
+  #define PLATFORM_COMPILER_VERSION_INT(maj,min,pat) ( \
+        (min) < 10 ?                                   \
+        ( ((maj) << 8) | ((min) << 4) | (pat) ) :      \
+        ( ((maj) << 12) | (((min)/10) << 8) | (((min)%10) << 4) | (pat) )  )
 
 #elif defined(__HP_cc) || defined(__HP_aCC)
   #define PLATFORM_COMPILER_HP  1
