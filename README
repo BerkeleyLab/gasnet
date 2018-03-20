@@ -438,7 +438,7 @@ Option 1.  smp-conduit
 This is a pure shared-memory implementation and should be the fastest and
 easiest to use option.  GASNet's shared memory support should work "out of
 the box" (no special configuration options required) on common laptop,
-desktop, and workstation environments, including Linux, MacOS, Windows with
+desktop, and workstation environments, including Linux, macOS, Windows with
 Cygwin, and Solaris.
 
 Option 2.  udp-conduit
@@ -499,9 +499,9 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MSWindows10-Linux/{gcc,clang}/64: smp, udp, mpi, BETA
 
 
-    * MacOSX/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi
-    * MacOSX/{x86,x86_64}/{gcc,icc,clang}/{32,64}: smp, udp, mpi
-    * MacOSX/{x86,x86_64}/PGI/{32,64}: smp, udp, #
+    * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi
+    * macOS/{x86,x86_64}/{gcc,icc,clang}/{32,64}: smp, udp, mpi
+    * macOS/{x86,x86_64}/PGI/{32,64}: smp, udp, #
 
     * CNL/Cray-XT/{gcc,PGI,PathScale,Intel}/64: smp, mpi &
 
@@ -1044,7 +1044,7 @@ specific Linux distribution for instructions to resize.  In particular, be
 advised that distributions may mount this filesystem early in the boot
 process, without regards to any entry in /etc/fstab.
 
-On MacOS, Cygwin and Solaris, there are no settings (known to us at this time)
+On macOS, Cygwin and Solaris, there are no settings (known to us at this time)
 required to increase the space available for allocation as POSIX shared
 memory.
 
@@ -1103,7 +1103,7 @@ kernel.shmmni=128
         To activate the new settings reboot, or run the following:
         sudo /sbin/sysctl -p /etc/sysctl.conf
 
-   - MacOS:
+   - macOS:
         Add the following three lines to /etc/sysctl.conf (sudo required):
 kern.sysv.shmmax=1099511627776
 kern.sysv.shmall=268435456
@@ -1156,17 +1156,17 @@ kern.shminfo.shmall=268435456
         of the CYGWIN environment variable.  Again, you should see the
         Cygwin documentation for more information on this subject.
 
-Warning to users of Mac OS X:
------------------------------
+Warning to users of macOS:
+-------------------------
 We have evidence which suggests that there is a kernel bug in all releases of
-Mac OS X though at least 10.12 (Sierra) which leads to a small leak of kernel
+macOS though at least 10.12 (Sierra) which leads to a small leak of kernel
 memory (perhaps a few 10s of bytes) each time POSIX or SystemV shared memory
 is used.  This may, after tens of thousands of runs of GASNet applications
 using PSHM, lead to a low memory condition contributing to slow performance
 and eventually to total memory exhaustion.  In normal usage, it is reasonable
 to expect that a Mac laptop or desktop system will be rebooted for software
 updates frequently enough that this leak will not impact normal users.
-Also note that --enable-pshm-file is NOT recommended for use on OSX, where
+Also note that --enable-pshm-file is NOT recommended for use on macOS, where
 it has been seen to cause VERY slow startup times.
 
 IMPORTANT: SYSTEM CLEANING OF PSHM OBJECTS:
