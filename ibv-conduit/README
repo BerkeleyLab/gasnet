@@ -975,7 +975,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   If your system is configured to allow large SystemV shared memory segments,
   then this can be resolved by switching to SystemV instead of POSIX for
-  GASNet's shared memory support.
+  GASNet's shared memory support.  However, it is also possible that one just
+  needs to increase the systems limit on POSIX shared memory allocations as
+  described under "System Settings for POSIX Shared Memory" in GASNet's
+  top-level README.
   The most up-to-date information on this bug is maintained at:
     http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3693
   That bug report describes more about the problem, and provides more detail
