@@ -47,18 +47,20 @@ static addr_table_t  *addr_table;
 #define GET_REMOTEADDR(remote_addr, dest) (uintptr_t)remote_addr
 #endif
 
-/* FI_MR_BASIC requires addressing by full virtual address */
-#define GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest)\
-    GASNETC_OFI_HAS_MR_SCALABLE ? GET_REMOTEADDR(dest_addr, dest) : (uintptr_t)dest_addr
 
+#define SCALABLE_NOT_AUTO_DETECTED (-1)
 
-static short has_mr_scalable = 0;
+static short has_mr_scalable = SCALABLE_NOT_AUTO_DETECTED;
 /* This pointer will only be malloced if GASNETC_OFI_HAS_MR_SCALABLE is
  * true at runtime */
 static uint64_t* gasnetc_ofi_target_keys;
 #ifndef GASNETC_OFI_HAS_MR_SCALABLE
 #define GASNETC_OFI_HAS_MR_SCALABLE has_mr_scalable
 #endif
+
+/* FI_MR_BASIC requires addressing by full virtual address */
+#define GET_REMOTEADDR_PER_MR_MODE(dest_addr, dest)\
+    GASNETC_OFI_HAS_MR_SCALABLE ? GET_REMOTEADDR(dest_addr, dest) : (uintptr_t)dest_addr
 
 #define GASNETC_OFI_GET_MR_KEY(dest) (gasneti_assert(!GASNETC_OFI_HAS_MR_SCALABLE),\
         gasnetc_ofi_target_keys[dest])
@@ -408,6 +410,19 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   /* av_type: type of address vectores that are usable with this domain */
   hints->domain_attr->av_type			= FI_AV_TABLE; /* type AV index */
 
+  /* If the configure script detected a provider's mr_mode, then force
+   * ofi to use that mode. */
+  switch(GASNETC_OFI_HAS_MR_SCALABLE) {
+      case 0:
+          hints->domain_attr->mr_mode = FI_MR_BASIC;
+          break;
+      case SCALABLE_NOT_AUTO_DETECTED:
+          hints->domain_attr->mr_mode = FI_MR_UNSPEC;
+          break;
+      default:
+          hints->domain_attr->mr_mode = FI_MR_SCALABLE;
+  }
+
   /* In libfabric v1.6, the psm2 provider transitioned to using separate
    * psm2 endpoints for each ofi endpoint, whereas in the past all communication
    * was multiplexed over a single psm2 endpoint. Setting this variable ensures
@@ -468,6 +483,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 
   if(info->domain_attr->mr_mode == FI_MR_SCALABLE) {
       has_mr_scalable = 1;
+  } else {
+      has_mr_scalable = 0;
   }
   if (GASNETC_OFI_HAS_MR_SCALABLE != has_mr_scalable) {
       gasneti_fatalerror("The statically-determined value for GASNETC_OFI_HAS_MR_SCALABLE=%i does\n"
