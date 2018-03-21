@@ -950,6 +950,34 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   your build of GASNet with --disable-ibv-xrc.  If that is not possible
   one can also set GASNET_USE_XRC=0 in your environment.
 
++ Bug 495 and 955
+  The "firehose" implementation of dynamic memory registration in ibv-conduit
+  is susceptible to incorrect behavior if it caches registration information
+  for a page of virtual memory that is returned to the OS by munmap() and the
+  same virtual address is allocated to the process again later.  To avoid this
+  in most cases, ibv-conduit defaults to GASNET_DISABLE_MUNMAP=1 (documented
+  in the top-level README) on 64-bit systems.  However, this can be undermined
+  by the GASNet client in a number of ways.  A (non-exhaustive) list of known
+  potentially problematic behaviors include:
+    + Calls to `mallopt(M_TRIM_THRESHOLD, X)` for X != -1.
+    + Setting environment variable MALLOC_MMAP_THRESHOLD_ other than to -1.
+    + Calls to `mallopt(M_MMAP_MAX, Y)` for Y != 0.
+    + Setting environment variable MALLOC_MMAP_MAX_ other than to 0.
+    + Replacing the glibc implementation of malloc/free with one that will
+      munmap() memory at any time other than process exit.
+  If your GASNet client code exhibits any of the above-listed behaviors, you
+  should explicitly set GASNET_DISABLE_MUNMAP=0.  This not only prevents
+  ibv-conduit from applying its default of 1, but additionally (and more
+  importantly) modifies other behaviors within GASNet to avoid memory
+  management behaviors that could trigger the bug.  However, this setting
+  cannot protect client code which may use malloc()ed memory as the source
+  or destination of GASNet communication calls if such memory is later
+  returned to the OS via munmap().
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=495
+  That bug report describes the problem in more detail, and lists the best
+  known recommended work-around(s).
+
 + Bug 3428
   In this release the code used to checksum AMRDMA traffic is known to be
   incorrect under agressive compiler optimization.  However, an alternative
@@ -975,7 +1003,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   If your system is configured to allow large SystemV shared memory segments,
   then this can be resolved by switching to SystemV instead of POSIX for
-  GASNet's shared memory support.
+  GASNet's shared memory support.  However, it is also possible that one just
+  needs to increase the systems limit on POSIX shared memory allocations as
+  described under "System Settings for POSIX Shared Memory" in GASNet's
+  top-level README.
   The most up-to-date information on this bug is maintained at:
     http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3693
   That bug report describes more about the problem, and provides more detail
