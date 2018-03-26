@@ -210,7 +210,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-03-28-2018: pending 1.30.2 work @638d607
+03-28-2018: pending 1.30.2 work @f36ab50
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
