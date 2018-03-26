@@ -250,7 +250,9 @@ GASNET_GNI_BTE_MULTI_CHANNEL
 
 GASNET_PHYSMEM_MAX
   If set, this parameter is used to determine the maximum amount of memory
-  the conduit may pin.  This limits how large the GASNet segment can be.
+  the conduit may pin per compute node (each process on a given compute node is
+  allocated an equal share of this limit, assuming PSHM is enabled as per
+  default).  This indirectly limits how large the GASNet segment can be.
   The value may specify either a relative or absolute size.  If the value
   parses as a floating-point value less than 1.0 (including fractions such
   as "5/8"), then this is taken as a fraction of the (estimated) physical
@@ -283,6 +285,38 @@ PMI_GNI_COOKIE     - Access code shared by all nodes in job
 PMI_GNI_PTAG       - Protection tag shared by all nodes in job
 PMI_GNI_DEV_ID     - Device ID (Selects which NIC is in use)
   Provided by Cray runtime system.  Don't mess with these.
+
+Remote Atomics:
+---------------
+
+There is no support for offload of atomics to the Gemini NIC.
+
+The following table indicates the pairs of atomic operation and data type that
+are eligible for offloaded to the Aries NIC.  The offloaded atomics will be
+used when the arguments to gex_AD_Create() express only supported pairs (unless
+suppressed by use of GEX_FLAG_AD_FAVOR_MY_RANK or GEX_FLAG_AD_FAVOR_MY_NBRHD
+flags, or in a single-process run).
+
+          I32   U32   I64   U64   FLT   DBL
+          ---   ---   ---   ---   ---   ---
+    SET:   Y     Y     Y     Y     Y     Y
+    GET:   Y     Y     Y     Y     Y     Y
+   SWAP:   Y     Y     Y     Y     Y     Y
+  CSWAP:   Y     Y     Y     Y     Y     Y
+ (F)ADD:   Y     Y     Y     Y     Y     N
+ (F)SUB:   Y     Y     Y     Y     Y     N
+ (F)INC:   Y     Y     Y     Y     Y     N
+ (F)DEC:   Y     Y     Y     Y     Y     N
+(F)MULT:   N     N     N     N     N     N
+ (F)MIN:   Y     N     Y     N     Y     Y
+ (F)MAX:   Y     N     Y     N     Y     Y
+ (F)AND:   Y     Y     Y     Y    N/A   N/A
+  (F)OR:   Y     Y     Y     Y    N/A   N/A
+ (F)XOR:   Y     Y     Y     Y    N/A   N/A
+
+    Y = offload is supported
+    N = offload is not supported
+    N/A indicates invalid op/type pairs
 
 Known problems:
 ---------------

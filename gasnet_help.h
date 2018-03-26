@@ -738,7 +738,23 @@ typedef void (*gasneti_progressfn_t)(void);
   #endif
   #define gasneti_AMPoll() _gasneti_AMPoll(GASNETI_THREAD_GET_ALONE)
 #endif
-  
+
+// Should poll when GEX_FLAG_IMMEDIATE bit set? (undefined or 1)
+#if defined(GASNETC_IMMEDIATE_AMPOLLS) && (GASNETC_IMMEDIATE_AMPOLLS != 1)
+  #error GASNETC_IMMEDIATE_AMPOLLS must be 1 or undefined
+#endif
+
+// Convenience test
+#if GASNETC_IMMEDIATE_AMPOLLS
+  #define GASNETC_IMMEDIATE_WOULD_POLL(flag) 1
+#else
+  #define GASNETC_IMMEDIATE_WOULD_POLL(flag) (!((flag)&GEX_FLAG_IMMEDIATE))
+#endif
+
+// Convenience conditional poll
+#define GASNETC_IMMEDIATE_MAYBE_POLL(flag) \
+    do { if (GASNETC_IMMEDIATE_WOULD_POLL(flag)) gasneti_AMPoll(); } while (0)
+
 /* Blocking functions
  * Note the _rmb at the end loop of each is required to ensure that subsequent
  * reads will not observe values that were prefeteched or are otherwise out
@@ -976,7 +992,7 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 // + Relies on dense array of nodeinfo even though only supernode-local are non-zero
 // + Was designed for single segment and even auxseg is currently a hack
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
-void *gasneti_pshm_addr2local(gex_Rank_t node, void *addr) {
+void *gasneti_pshm_addr2local(gex_Rank_t node, const void *addr) {
 #if 1 // TODO-EX: this is a hack!
   // Properties of unsigned subtraction make the following oblivous to order of client vs aux segment
   if_pf (((uintptr_t)addr - (uintptr_t)gasneti_seginfo[node].addr) >= gasneti_seginfo[node].size)
@@ -987,6 +1003,57 @@ void *gasneti_pshm_addr2local(gex_Rank_t node, void *addr) {
 } 
 GASNETI_PUREP(gasneti_pshm_addr2local)
 #endif /* GASNET_PSHM */
+
+/* ------------------------------------------------------------------------------------ */
+// Wrappers for memcpy()
+
+/* TODO-EX: these should replace the alignment-aware versions */
+// + GASNETI_MEMCPY
+//     Arguments must match POSIX constraints:
+//       Zero value of nbytes is permitted
+//       Both pointers must be valid (even for !nbytes)
+//       If nbytes non-zero src and dst ranges must not overlap
+//     This is the least costly option and should be used whenever the
+//     call site can be guaranteed to meet these requirements.
+// + GASNETI_MEMCPY_SAFE_EMPTY
+//     Omits memcpy() (thus ignoring pointers entirely) IFF !nbytes
+// + GASNETI_MEMCPY_SAFE_IDENTICAL
+//     Omits memcpy() IFF (src == dst)
+// + GASNETI_MEMCPY_SAFE
+//     Omits memcpy() IFF (!nbytes || src == dst)
+//     This is the most costly option.
+//     Use any of the versions above when possible.
+#define GASNETI_MEMCPY(dst,src,nbytes) do {                \
+    static uint8_t _fm_dummy;                              \
+    void       *_fm_d = (dst);                             \
+    void const *_fm_s = (src);                             \
+    size_t      _fm_n = (nbytes);                          \
+    gasneti_assume(_fm_s && _fm_d);                        \
+    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_s, 1)); \
+    gasneti_assert((_fm_dummy += *(volatile uint8_t*)_fm_d, 1)); \
+    gasneti_assume(!_fm_n || ((uintptr_t)_fm_s >= (uintptr_t)_fm_d+_fm_n)   \
+                          || ((uintptr_t)_fm_d >= (uintptr_t)_fm_s+_fm_n)); \
+    (void) memcpy(_fm_d, _fm_s, _fm_n);                    \
+  } while (0)
+#define GASNETI_MEMCPY_SAFE_IDENTICAL(dst,src,nbytes) do { \
+    void       *_fmc_d = (dst);                            \
+    void const *_fmc_s = (src);                            \
+    if_pt (_fmc_d != _fmc_s)                               \
+        GASNETI_MEMCPY(_fmc_d, _fmc_s, (nbytes));          \
+  } while (0)
+#define GASNETI_MEMCPY_SAFE_EMPTY(dst,src,nbytes) do {     \
+    size_t _fmse_n = (nbytes);                             \
+    if_pt (_fmse_n)                                        \
+        GASNETI_MEMCPY((dst), (src), _fmse_n);             \
+  } while (0)
+#define GASNETI_MEMCPY_SAFE(dst,src,nbytes) do {           \
+    void       *_fms_d = (dst);                            \
+    void const *_fms_s = (src);                            \
+    size_t      _fms_n = (nbytes);                         \
+    if_pt (_fms_n && _fms_d != _fms_s)                     \
+        GASNETI_MEMCPY(_fms_d, _fms_s, _fms_n);            \
+  } while (0)
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Variable-Argument Active Message Request/Reply Functions
@@ -1043,6 +1110,21 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 
 #define                gex_AM_ReplyLong(token,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
         GASNETI_AMVA(ReplyLong,__VA_ARGS__)(token,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
+
+/* Similarly provide argument-counting convenience wrappers for gex_AM_Commit{Request,Reply}{Medium,Long}, 
+ * with the same pre-requisites as above (compiler must support C99 __VA_ARGS__).
+ *
+ * Similarly to above, the implementation includes the last non-variadic argument (nbytes or dest_addr)
+ * within the __VA_ARGS__, for the same reasons.
+ */
+#define gex_AM_CommitRequestMedium(sd,hidx,...) \
+        GASNETI_AMVA(CommitRequestMedium,__VA_ARGS__)(sd,hidx,__VA_ARGS__)
+#define gex_AM_CommitReplyMedium(sd,hidx,...) \
+        GASNETI_AMVA(CommitReplyMedium,__VA_ARGS__)(sd,hidx,__VA_ARGS__)
+#define gex_AM_CommitRequestLong(sd,hidx,nbytes,...) \
+        GASNETI_AMVA(CommitRequestLong,__VA_ARGS__)(sd,hidx,nbytes,__VA_ARGS__)
+#define gex_AM_CommitReplyLong(sd,hidx,nbytes,...) \
+        GASNETI_AMVA(CommitReplyLong,__VA_ARGS__)(sd,hidx,nbytes,__VA_ARGS__)
 
 #endif
 /* ------------------------------------------------------------------------------------ */

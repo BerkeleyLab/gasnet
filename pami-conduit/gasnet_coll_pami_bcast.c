@@ -47,7 +47,7 @@ gasnete_coll_pami_bcast(const gasnet_team_handle_t team, void *dst,
         GASNETC_PAMI_CHECK(rc, "initiating blocking broadcast");
 
         if (i_am_root) {
-          if (dst != src) GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
+          GASNETI_MEMCPY_SAFE_IDENTICAL(dst, src, nbytes);
         }
 
         gasneti_polluntil(done);
@@ -62,7 +62,7 @@ gasnete_coll_pami_bcast(const gasnet_team_handle_t team, void *dst,
         team->pami.tmp_addr = NULL;
     } else {
         gasneti_waitwhile(NULL == team->pami.tmp_addr);
-        GASNETE_FAST_UNALIGNED_MEMCPY(dst, team->pami.tmp_addr, nbytes);
+        GASNETI_MEMCPY(dst, team->pami.tmp_addr, nbytes);
         (void) gasnete_coll_pami_images_barrier(team); /* matches instance above ^^^^ */
     }
       

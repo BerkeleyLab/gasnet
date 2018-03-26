@@ -2741,14 +2741,14 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char *
 
     switch (spawn_cmd) {
     #if GASNET_BLCR
-      case 'R': is_restart = 1; /* Fall through... */
+      case 'R': is_restart = 1; GASNETI_FALLTHROUGH
     #endif
       case 'M':  /* The master (root control process) */
         do_master(spawn_args, argc_p, argv_p); /* Does not return */
         break;
 
     #if GASNET_BLCR
-      case 'D': is_restart = 1; /* Fall through... */
+      case 'D': is_restart = 1; GASNETI_FALLTHROUGH
     #endif
       case 'C':  /* Non-root control process */
         do_control(spawn_args, argc_p, argv_p);

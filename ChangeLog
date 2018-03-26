@@ -1,5 +1,64 @@
 GASNet-EX ChangeLog
 -------------------
+03-28-2018: GASNet-EX 2018.3.0 Integration release
+
+* Integration release of the GASNet-EX system.
+  This archive represents a work-in-progress focused on "hardening" the features
+  added by the previous quarter's release, and has been well-tested against the
+  concurrent release of UPC++.
+  Many additional new features are coming soon, and are not yet reflected in this
+  archive. All new interfaces are subject to change without notice.
+
+  Feedback or questions on any matters related to the EX project are
+  welcomed at: gasnet-devel@lbl.gov
+
+* GASNet-EX Spec v0.4:
+  - Renamed gex_System_QueryNeighborhoodInfo() and associated
+    types and constants to gex_System_QueryNbrhdInfo() and similar.
+  - Adjusted payload limit queries to accomodate Negotiated-Payload AM.
+  - Remote Atomics: added flags for asserting locality properties
+  - Remote Atomics: added flags for requesting memory fencing behavior
+  - Strided: now supports transpose/reflection operations
+  - Added gex_ep (destination endpoint) to gex_Token_Info_t
+  - AM Request/Reply/Commit functions may now optionally omit the arg count
+    suffix on the function name when using compilers with __VA_ARG__ support
+    (added in C99/C++11, may also be available in older compilers).
+  - Minor clarifications throughout.
+
+* Major new features implemented in this release:
+  - Remote Atomics and Negotiated-Payload Active Messages have been
+    further specialized to improve performance on aries-conduit.
+  - Remote Atomics performance improvements for shared-memory bypass.
+  - Strided has been completely re-implemented and now supports N-d
+    transpose/reflection operations. Notable performance improvements throughout.
+  - VIS performance improvements, most notably for shared-memory bypass and
+    aries-conduit (where some in-memory copies have been removed)
+  - The 64k per-thread limit on in-flight explicit handle ops has been removed.
+    The number of in-flight ops is now limited only by available heap memory.
+
+* Notable bugs fixed in this release:
+  - Bug3704: allow gasnet.h and gasnetex.h to be included in either order
+  - Improved assertion checks and error messages in various places.
+
+* Feature implementation status in this release:
+  - Negotiated-Payload Active Messages are well-implemented for shared memory
+    (PSHM and smp-conduit), gemini- and aries-conduits.  All other conduit are
+    currently using a portable reference implementation which may result in
+    performance less than will eventually be delivered.
+  - Remote Atomics are well-implemented for shared memory (PSHM on most systems,
+    and smp-conduit) and aries-conduit.  Other conduits with APIs for offloaded
+    atomics do not yet utilize them.
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
 ----------------------------------------------------------------------
 12-20-2017: GASNet-EX 2017.12.0 Beta release
 
@@ -151,7 +210,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-12-20-2017: pending 1.30.2 work @ccd5286
+03-28-2018: pending 1.30.2 work @f36ab50
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
@@ -162,12 +221,21 @@ GASNet ChangeLog
 
 * Libfabric (ofi-conduit)
   - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
+  - Compatibility fixes for libfabric version 1.6
 
 * InfiniBand Verbs (ibv-conduit)
   - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
+
+* Portable UDP (udp-conduit)
+  - Reduce polling cost on single-supernode runs. smp-conduit remains the
+    recommended conduit for use on single-supernode shared-memory systems.
+
+* Portable MPI (mpi-conduit)
+  - Reduce polling cost on single-supernode runs. smp-conduit remains the
+    recommended conduit for use on single-supernode shared-memory systems.
 
 * GASNet tools (spec v1.11)
   - Numerous improvements to backtrace support, including fixing the
@@ -185,11 +253,13 @@ GASNet ChangeLog
 * General and Misc.
   - GASNET_VIS_{AMPIPE,REMOTECONTIG} is now enabled by default on most conduits
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
+  - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
+  - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.

@@ -6,6 +6,8 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_am.h>
+
 #include <gasnet_event_internal.h> // access to eop and iop
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
@@ -1004,7 +1006,7 @@ static int gasnetc_load_settings(void) {
     default: fprintf(stderr,
                      "WARNING: ignoring invalid GASNET_MAX_MTU value %d.\n",
                      i);
-             /* fall through to "auto" case: */
+             /* fall through to "auto" case: */ GASNETI_FALLTHROUGH
   case    0: /* TODO: "automatic" might be more sophisticated */
              /* Our historic default is 1k, which is a good latency-vs-bandwidth compromise */
              gasnetc_max_mtu = IBV_MTU_1024;

@@ -2637,15 +2637,15 @@ int gasneti_count0s_copy_bytes(void * GASNETI_RESTRICT dst, const void * GASNETI
 
   switch (bytes) {
   #if PLATFORM_ARCH_64
-    case 7: non_zeros  = !!(*(d++) = *(s++));
-    case 6: non_zeros += !!(*(d++) = *(s++));
-    case 5: non_zeros += !!(*(d++) = *(s++));
-    case 4: non_zeros += !!(*(d++) = *(s++));
-    case 3: non_zeros += !!(*(d++) = *(s++));
+    case 7: non_zeros  = !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
+    case 6: non_zeros += !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
+    case 5: non_zeros += !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
+    case 4: non_zeros += !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
+    case 3: non_zeros += !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
   #else
-    case 3: non_zeros  = !!(*(d++) = *(s++));
+    case 3: non_zeros  = !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
   #endif
-    case 2: non_zeros += !!(*(d++) = *(s++));
+    case 2: non_zeros += !!(*(d++) = *(s++)); GASNETI_FALLTHROUGH
     case 1: non_zeros += !!(*(d++) = *(s++));
   }
   return non_zeros;

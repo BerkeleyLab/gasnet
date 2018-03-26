@@ -101,8 +101,12 @@ typedef struct _gasnete_thread_cleanup {
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
+  gasneti_AM_SrcDesc_t gasneti_rep_sd, gasneti_req_sd; /* ptrs for NP-AM */   \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
+                                                                              \
+  /* Negotiated Payload data */                                               \
+  struct gasneti_AM_SrcDesc gasneti_sds[2];                                   \
                                                                               \
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
   int thread_cleanup_delay;
@@ -131,6 +135,11 @@ extern int gasnete_maxthreadidx;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// TODO-EX: Eliminate GASNETE_FAST_ALIGNED_MEMCPY (which no longer has any internal
+// callers) and redirect the tools interface elsewhere.  This should include removal
+// of GASNETI_BUG1389_WORKAROUND and many corresponding bits (configure option, config
+// string, interaction w/ GASNETI_MAY_ALIAS, etc.)
+
 /* bug 1389: need to prevent bad optimizations on GASNETE_FAST_ALIGNED_MEMCPY due to
    ansi-aliasing rules added in C99 that foolishly outlaw type-punning. 
    Exploit a union of all possible base types of the given size as a loophole in the rules.
@@ -276,23 +285,9 @@ typedef union {
 } while(0)
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
-#define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-
-/* Wrapper around GASNETE_FAST_UNALIGNED_MEMCPY which becomes a no-op if src == dst */
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dest, src, nbytes) do { \
-    void *_dest = (dest);                                           \
-    const void *_src = (src);                                       \
-    if_pt (_dest != _src)                                           \
-        GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
-  } while (0)
-
-/* TODO-EX: these should replace the alignment-aware versions */
-#define GASNETE_FAST_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
-#define GASNETE_FAST_MEMCPY_CHECK(dest, src, nbytes) do {             \
-    void *_dest = (dest);                                             \
-    const void *_src = (src);                                         \
-    if_pt (_dest != _src) GASNETE_FAST_MEMCPY(_dest, _src, (nbytes)); \
-  } while (0)
+// TODO-EX: remove these if/when all uses are updated
+#define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETI_MEMCPY(d,s,n)
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETI_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
@@ -423,20 +418,20 @@ typedef union {
 #if GASNET_PSHM
   #define GASNETI_CHECKPSHM_GET(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
+      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
       gasnete_loopbackget_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       gasneti_leaf_finish(lc_opt);            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \
     if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
@@ -450,19 +445,39 @@ typedef union {
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
-  #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node) 
 #else
   #define GASNETI_CHECKPSHM_GET(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt)   ((void)0)
   #define GASNETI_CHECKPSHM_GETVAL()       ((void)0)
   #define GASNETI_CHECKPSHM_PUTVAL(rt)     ((void)0)
+#endif
+
+// GASNETI_SUPERNODE_* convenience macros (same semantics w/ and w/o PSHM)
+//    LOCAL(node)                   -> non-zero iff node is in the supernode
+//    LOCAL_ADDR(node,addr)         -> local address if in supernode, undefined otherwise
+//    LOCAL_ADDR_OR_NULL(node,addr) -> local address if in supernode, NULL otherwise
+// TODO-EX:
+//   + Need (tm,rank) in place of node in all three
+//   + LOCAL_ADDR might be made smarter?
+//
+#if GASNET_PSHM
+  #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node)
+  #define GASNETI_SUPERNODE_LOCAL_ADDR(node,addr) gasneti_pshm_addr2local(node,addr)
+#else
   #if GASNET_CONDUIT_SMP
     #define GASNETI_SUPERNODE_LOCAL(node)    (1)
   #else 
     #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasneti_mynode) 
   #endif
+  #define GASNETI_SUPERNODE_LOCAL_ADDR(node,addr)  (addr)
 #endif
+GASNETI_INLINE(gasneti_supernode_addr_or_null) GASNETI_PURE
+void *gasneti_supernode_addr_or_null(gex_Rank_t _node, void *_addr) {
+  return GASNETI_SUPERNODE_LOCAL(_node) ? GASNETI_SUPERNODE_LOCAL_ADDR(_node,_addr) : NULL;
+}
+GASNETI_PUREP(gasneti_supernode_addr_or_null)
+#define GASNETI_SUPERNODE_LOCAL_ADDR_OR_NULL(node,addr) gasneti_supernode_addr_or_null(node,addr)
 
 /* ------------------------------------------------------------------------------------ */
 

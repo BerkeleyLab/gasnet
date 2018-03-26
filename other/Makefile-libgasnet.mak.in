@@ -84,6 +84,7 @@ libgasnet_sources =                                         \
         $(top_srcdir)/extended-ref/gasnet_coll_hashtable.c   \
         $(top_srcdir)/gasnet_event.c                       \
         $(top_srcdir)/gasnet_internal.c                     \
+        $(top_srcdir)/gasnet_am.c                           \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
 	$(top_srcdir)/gasnet_diagnostic.c

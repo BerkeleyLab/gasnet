@@ -74,6 +74,46 @@
        (GASNETI_COMPILER_HAS(ATTRIBUTE_ ## MACRO_NAME) || \
         (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_ATTRIBUTE(attrib_token)))
 
+// GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE: specialized for testing C++11 attributes
+#ifdef __has_cpp_attribute
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
+#endif
+// only trust configure results for C++ attrib if current C++ langlvl is >= configure C++ langlvl
+#define GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(MACRO_NAME,attrib_token) \
+       ((GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE_ ## MACRO_NAME) && \
+        PLATFORM_COMPILER_CXX_LANGLVL >= GASNETI_PLATFORM_CXX_CXX_LANGLVL) \
+      || (GASNETI_COMPILER_IS_UNKNOWN && _GASNETI_HAS_CXX11_ATTRIBUTE(attrib_token)))
+
+// __has_*() Blacklists
+
+// Some compilers have a broken implementation of one or more of the following Gnu/clang extension macros:
+//     __has_builtin()  __has_attribute()  __has_cpp_attribute()
+// where "broken" means providing a definition that incorrectly returns non-zero answers in some cases.
+// We blacklist the use of the relevant macro on those particular compilers to ensure we never use it there.
+// Some compilers bitch about redefining these built-in macros, so instead we force our own
+// wrapper to conservatively always returns zero. 
+
+#if PLATFORM_COMPILER_PATHSCALE /* broken builtin_assume on Linux */ \
+   || ( PLATFORM_COMPILER_PGI_CXX && PLATFORM_OS_DARWIN ) /* Bug 3736 */
+  #undef  _GASNETI_HAS_BUILTIN
+  #define _GASNETI_HAS_BUILTIN(x)  0
+#endif
+
+#if PLATFORM_COMPILER_SUN /* bug 3666: Sun CC __has_attribute returns wrong answers and cannot be trusted */
+  #undef  _GASNETI_HAS_ATTRIBUTE
+  #define _GASNETI_HAS_ATTRIBUTE(x)  0
+#endif
+
+#if (PLATFORM_COMPILER_GNU_CXX && PLATFORM_COMPILER_CXX_LANGLVL < 201100) \
+      /* g++ __has_cpp_attribute returns false positives with langlvl < C++11 */ \
+  || (PLATFORM_COMPILER_SUN_CXX && PLATFORM_COMPILER_VERSION_LT(5,15,0)) /* bug 3730 */
+  #undef  _GASNETI_HAS_CXX11_ATTRIBUTE
+  #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
+#endif
+
+
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
 //                  or 'otherwise' in the case of a compiler mismatch
@@ -170,6 +210,24 @@
 
 #include <stddef.h> /* get standard types, esp size_t */
 
+// gasneti_offsetof is our version of C's offsetof() that allows field arguments 
+// containing non-constant expressions. If the member_field_expr contains only
+// constant expressions then the result is a constant, otherwise it is non-constant.
+// Some compilers (eg XLC) complain about using stddef.h offsetof() for this purpose
+#if PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_PATHSCALE
+  #define gasneti_offsetof(type, member_field_expr) \
+          ((size_t)(uintptr_t)&(((type *)NULL)->member_field_expr))
+#elif PLATFORM_COMPILER_CRAY
+  // seen to botch all the remotely normal expressions involving constant addresses
+  extern volatile int gasnet_frozen;
+  #define GASNETI_OFFSET_BASE (&gasnet_frozen)
+  #define gasneti_offsetof(type, member_field_expr) \
+          ((size_t)((uintptr_t)&(((type *)GASNETI_OFFSET_BASE)->member_field_expr) - \
+                    (uintptr_t)GASNETI_OFFSET_BASE))
+#else
+  #define gasneti_offsetof offsetof
+#endif
+
 /* splitting and reassembling 64-bit quantities */
 #define GASNETI_MAKEWORD(hi,lo) ((((uint64_t)(hi)) << 32) | (((uint64_t)(lo)) & 0xFFFFFFFF))
 #define GASNETI_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
@@ -246,14 +304,6 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #endif
 
 /* special GCC features */
-#if PLATFORM_COMPILER_PGI && defined(__attribute__)
-#undef __attribute__ /* bug 1766: undo a stupid, gcc-centric definition from Linux sys/cdefs.h */
-#endif
-
-#if PLATFORM_COMPILER_SUN && defined(__has_attribute)
-#undef __has_attribute /* bug 3666: Sun CC __has_attribute returns wrong answers and cannot be trusted */
-#define __has_attribute(x)  0
-#endif
 
 /* work around bug 1620 unless client has explicitly set GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE */
 #if PLATFORM_COMPILER_PATHSCALE && !defined(GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE)
@@ -347,6 +397,10 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
     #define GASNETT_USE_GCC_ATTRIBUTE_DEPRECATED \
        GASNETI_COMPILER_HAS_ATTRIBUTE(DEPRECATED,__deprecated__)
   #endif
+  #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
+    #define GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH \
+       GASNETI_COMPILER_HAS_ATTRIBUTE(FALLTHROUGH,__fallthrough__)
+  #endif
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT \
        GASNETI_COMPILER_HAS_ATTRIBUTE(FORMAT,__format__)
@@ -358,6 +412,22 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #ifndef   GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG \
        GASNETI_COMPILER_HAS(ATTRIBUTE_FORMAT_FUNCPTR_ARG)
+  #endif
+#endif
+
+/* C++11 attributes */
+// The Clang C compiler defines __has_cpp_attribute(), expanding to 0.
+// However, it errors on __has_cpp_attribute(namespage::token) and thus
+// we check for __cplusplus even though that could be seen as redundant.
+#if defined(__cplusplus) && \
+    (GASNETI_COMPILER_HAS(CXX11_ATTRIBUTE) || defined(__has_cpp_attribute))
+  #ifndef   GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+    #define GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH \
+       GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(FALLTHROUGH,fallthrough)
+  #endif
+  #ifndef   GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+    #define GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH \
+       GASNETI_COMPILER_HAS_CXX11_ATTRIBUTE(CLANG__FALLTHROUGH,clang::fallthrough)
   #endif
 #endif
 
@@ -529,6 +599,20 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
   #define GASNETI_DEPRECATED __attribute__((__deprecated__))
 #else
   #define GASNETI_DEPRECATED
+#endif
+
+/* GASNETI_FALLTHROUGH: annotate a switch case as intentionally lacking "break".
+   Legal only between a statement and subsequent "case" (where "break" normally appears) or label.
+   Not legal (or necessary) between back-to-back cases w/o intervening statements. */
+#if GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH
+  // Syntax requires the attribute to be attached to a null statement (the semicolon).
+  #define GASNETI_FALLTHROUGH __attribute__((__fallthrough__)) ;
+#elif GASNETT_USE_CXX11_ATTRIBUTE_FALLTHROUGH
+  #define GASNETI_FALLTHROUGH [[fallthrough]] ;
+#elif GASNETT_USE_CXX11_ATTRIBUTE_CLANG__FALLTHROUGH
+  #define GASNETI_FALLTHROUGH [[clang::fallthrough]] ;
+#else
+  #define GASNETI_FALLTHROUGH
 #endif
 
 /* GASNETI_FORMAT_PRINTF: enable gcc printf format checking of function args */

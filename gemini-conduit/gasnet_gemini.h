@@ -194,7 +194,7 @@ typedef union gasnetc_packet_u {
   
 /* compute header len, padded to multiple of 8-bytes */
 #define GASNETC_HEADLEN_AUX(type,nargs) \
-        GASNETI_ALIGNUP_NOASSERT(offsetof(type,args)+(nargs * sizeof(uint32_t)),8)
+        GASNETI_ALIGNUP_NOASSERT(gasneti_offsetof(type,args[nargs]),8)
 #define GASNETC_HEADLEN(cat,nargs) \
         GASNETC_HEADLEN_AUX(gasnetc_am_##cat##_packet_t,(nargs))
 
@@ -257,6 +257,7 @@ enum {
   /* mutually-exclusive resource recovery actions */
   _gc_post_unbounce,
   _gc_post_unregister,
+  _gc_post_unprepare,
   /* mutually-exclusive signaling actions */
   _gc_post_completion_flag,
   _gc_post_completion_cntr,
@@ -279,6 +280,7 @@ enum {
 #define GC_POST_SEND            GC_POST(send)
 #define GC_POST_UNBOUNCE        GC_POST(unbounce)
 #define GC_POST_UNREGISTER      GC_POST(unregister)
+#define GC_POST_UNPREPARE       GC_POST(unprepare)
 #define GC_POST_COMPLETION_FLAG GC_POST(completion_flag)
 #define GC_POST_COMPLETION_CNTR GC_POST(completion_cntr)
 #define GC_POST_COMPLETION_EOP  GC_POST(completion_eop)
@@ -318,6 +320,7 @@ struct gasnetc_post_descriptor {
   #define gpd_amo_result pd.sync_flag_value
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
+  #define gpd_am_length  pd.length
   #define gpd_am_peer    pd.first_operand
   #define gpd_put_lc     pd.second_operand
   #define gpd_amo_len    pd.length
@@ -439,6 +442,56 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gex_Rank_t dest
                                                                  size_t length,
                                                                  gex_Flags_t flags
                                                                  GASNETI_THREAD_FARG);
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor_np(gex_Rank_t dest,
+                                                                    size_t min_length,
+                                                                    size_t max_length,
+                                                                    gex_Flags_t flags
+                                                                    GASNETI_THREAD_FARG);
+
+/* Some common GPD idioms */
+
+GASNETI_INLINE(gasnete_cntr_gpd)
+gasnetc_post_descriptor_t *
+gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
+                 uint32_t gpd_flags, gex_Flags_t flags GASNETC_DIDX_FARG)
+{
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+  if_pt (gpd) {
+    gpd->gpd_flags = gpd_flags;
+    gpd->gpd_completion = (uintptr_t) op;
+    (*initiated_p) += 1;
+  }
+  return gpd;
+}
+
+// Allocate an eop with the initiated_cnt pre-incremented
+GASNETI_INLINE(gasnete_eop_new_cnt)
+gasnete_eop_t *gasnete_eop_new_cnt(gasnete_threaddata_t * const thread) {
+  gasnete_eop_t *eop = gasnete_eop_new(thread);
+  eop->initiated_cnt++;
+  return eop;
+}
+
+// Free a never-used eop
+GASNETI_INLINE(gasnete_consume_eop)
+void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
+  // decrement the initiated counter rather than atomically increment the completed counter
+  eop->initiated_cnt -= 1;
+  gasneti_assert(GASNETC_EOP_CNT_DONE(eop));
+  SET_EVENT_DONE(eop, 0);
+  gasnete_eop_free(eop GASNETI_THREAD_PASS);
+}
+
+#define GASNETE_EOP_CNTRS(_eop) \
+        &(_eop)->initiated_cnt, ((gasnete_op_t*)(_eop)), GC_POST_COMPLETION_EOP
+#define GASNETE_IOP_CNTRS_put(_iop) \
+        &(_iop)->initiated_put_cnt, ((gasnete_op_t*)(_iop)), GC_POST_COMPLETION_IPUT
+#define GASNETE_IOP_CNTRS_get(_iop) \
+        &(_iop)->initiated_get_cnt, ((gasnete_op_t*)(_iop)), GC_POST_COMPLETION_IGET
+#define GASNETE_IOP_CNTRS_rmw(_iop) \
+        &(_iop)->initiated_rmw_cnt, ((gasnete_op_t*)(_iop)), GC_POST_COMPLETION_IRMW
+#define GASNETE_IOP_CNTRS(_iop,_putget) \
+        GASNETE_IOP_CNTRS_##_putget(_iop)
 
 #endif /* GASNET_GEMINI_H */
 

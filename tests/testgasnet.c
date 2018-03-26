@@ -26,6 +26,7 @@ test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
+void doit0(int partner, int *partnerseg);
 void doit1(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
@@ -208,6 +209,8 @@ int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
+  TEST_SRAND(((unsigned int)TIME()) & 0xFFFF);
+
   gex_AM_Entry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, clientname, &argc, &argv, clientflags));
@@ -297,7 +300,11 @@ int main(int argc, char **argv) {
 }
 
 gex_Event_t *am_lcopt[] = { GEX_EVENT_NOW, GEX_EVENT_GROUP, NULL };
-gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0 };
+gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0,
+                            GEX_FLAG_IMMEDIATE | GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+                            GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+                            GEX_FLAG_IMMEDIATE | GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
+                            GEX_FLAG_AM_PREPARE_LEAST_ALLOC };
 #define AM_LCOPT_CNT ((int)(sizeof(am_lcopt)/sizeof(am_lcopt[0])))
 #define AM_FLAGS_CNT ((int)(sizeof(am_flags)/sizeof(am_flags[0])))
 typedef struct { 
@@ -319,14 +326,19 @@ GASNETT_EXTERNC void sizecheck_reqh(gex_Token_t token, void *buf, size_t nbytes,
   for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
     for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
       #define CHECK_MAX(cat) do {                                                             \
-        size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);             \
+        gex_Flags_t flags = am_flags[flagsi];                                                 \
+        gex_Event_t *lcopt = am_lcopt[lci];                                                   \
+        if ((lcopt == GEX_EVENT_GROUP) && strstr(#cat, "Reply")) break;                       \
+        size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                          \
+        if (val != max->cat[lci][flagsi])                                                     \
+              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
+                  args,lci,flagsi);                                                           \
+        if (flags & (GEX_FLAG_AM_PREPARE_LEAST_CLIENT |                                       \
+                     GEX_FLAG_AM_PREPARE_LEAST_ALLOC)) break; /* exclude from LUB */          \
         size_t lubval = gex_AM_LUB##cat();                                                    \
         if (val < lubval)                                                                     \
              MSG("*** ERROR - FAILED HANDLER LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i", \
                   args,(int)r,lci,flagsi);                                                    \
-        if (val != max->cat[lci][flagsi])                                                     \
-              MSG("*** ERROR - FAILED MAX SYMMETRY TEST! args=%i lci=%i flagsi=%i",           \
-                  args,lci,flagsi);                                                           \
       } while (0)
       CHECK_MAX(RequestMedium);
       CHECK_MAX(ReplyMedium);
@@ -348,7 +360,6 @@ gex_AM_Entry_t sizecheck_handlers[] = { // deliberately registered as don't-care
 };
 
 void doit(int partner, int *partnerseg) {
-  int success = 1;
   BARRIER();
 
   // check predefined object constants
@@ -434,6 +445,8 @@ void doit(int partner, int *partnerseg) {
 
 #if !GASNET_CONDUIT_SMP
   {
+    CHECK_ZERO_CONSTANT(gex_AD_t, GEX_AD_INVALID);
+
     gex_AD_t       ad;
     gex_DT_t       domain_type  = GEX_DT_U32;
     gex_OP_t       domain_ops   = GEX_OP_FADD|GEX_OP_SWAP;
@@ -467,9 +480,9 @@ void doit(int partner, int *partnerseg) {
 #endif
 
   {
-    gex_NeighborhoodInfo_t *neighbor_array;
+    gex_NbrhdInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
-    gex_System_QueryNeighborhoodInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
+    gex_System_QueryNbrhdInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
 
     assert_always(neighbor_array != NULL);
     assert_always((neighbor_size > 0) && (neighbor_size <= gex_System_QueryJobSize()));
@@ -566,6 +579,26 @@ void doit(int partner, int *partnerseg) {
     assert_always((some & ~allval) == 0);        \
   } while (0)
 
+  // Format one random mask of each possible popcount() including 0
+  #define test_format(type,array,format_fn) do { \
+    const int elems = sizeof(array)/sizeof(type); \
+    type val = 0;                                 \
+    for (int i = 0; i <= elems; ++i) {            \
+      if (i) {                                    \
+        type prev = val;                          \
+        do {                                      \
+          val |= array[TEST_RAND(0,elems-1)];     \
+        } while (val == prev);                    \
+      }                                           \
+      size_t sz = format_fn(NULL, val);           \
+      char *buf = (char*) test_malloc(sz);        \
+      size_t rc = format_fn(buf, val);            \
+      assert_always(rc <= sz);                    \
+      assert_always(strlen(buf) < sz);            \
+      test_free(buf);                             \
+    }                                             \
+  } while (0)
+
   /* sanity check macros and system types */
   assert_signed(int8_t);
   assert_signed(int16_t);
@@ -573,6 +606,7 @@ void doit(int partner, int *partnerseg) {
   assert_signed(int64_t);
   assert_signed(intptr_t);
   assert_signed(ssize_t);
+  assert_signed(ptrdiff_t);
   assert_unsigned(uint8_t);
   assert_unsigned(uint16_t);
   assert_unsigned(uint32_t);
@@ -605,7 +639,7 @@ void doit(int partner, int *partnerseg) {
     firsttime = 0;
     BARRIER();
   }
-  /* verify Max >= LUB */
+  /* verify Max >= LUB and is non-increasing as args grows */
   amsz_t lub;
   memset(&lub,-1,sizeof(lub));
   assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
@@ -620,19 +654,36 @@ void doit(int partner, int *partnerseg) {
       for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
         for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
           #define GET_MAX(cat) do {                                                              \
-            size_t val = gex_AM_Max##cat(myteam, r, lcopt[lci], flags[flagsi], args);            \
+            gex_Flags_t flags = am_flags[flagsi];                                                \
+            gex_Event_t *lcopt = am_lcopt[lci];                                                  \
+            if ((lcopt == GEX_EVENT_GROUP) && strstr(#cat, "Reply")) break;                      \
+            size_t val = gex_AM_Max##cat(myteam, r, lcopt, flags, args);                         \
+            if (args) {                                                                          \
+              size_t more_args = val;                                                            \
+              for (int j = args-1; j >= 0; --j) {                                                \
+                size_t less_args = gex_AM_Max##cat(myteam, r, lcopt, flags, j);                  \
+                if (less_args < more_args) {                                                     \
+                  MSG("*** ERROR - FAILED MAX ARGS MONOTONICITY TEST! "                          \
+                      "args=%i rank=%i lci=%i flagsi=%i", j,(int)r,lci,flagsi);                  \
+                  break;                                                                         \
+                }                                                                                \
+                more_args = less_args;                                                           \
+              }                                                                                  \
+            }                                                                                    \
             max.cat[lci][flagsi] = val;                                                          \
-            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
-            size_t lubval = gex_AM_LUB##cat();                                                   \
-            if (val < lubval)                                                                    \
-              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
-                  args,(int)r,lci,flagsi);                                                       \
             if (r < GEX_RANK_INVALID) {                                                          \
               ranklub.cat[lci][flagsi] = MIN(val,ranklub.cat[lci][flagsi]);                      \
             } else if (val != ranklub.cat[lci][flagsi]) {                                        \
               MSG("*** ERROR - FAILED ALL-RANK LUB TEST! args=%i lci=%i flagsi=%i",              \
                   args,lci,flagsi);                                                              \
             }                                                                                    \
+            if (flags & (GEX_FLAG_AM_PREPARE_LEAST_CLIENT |                                      \
+                         GEX_FLAG_AM_PREPARE_LEAST_ALLOC)) break; /* exclude from LUB */         \
+            lub.cat[0][0] = MIN(val,lub.cat[0][0]);                                              \
+            size_t lubval = gex_AM_LUB##cat();                                                   \
+            if (val < lubval)                                                                    \
+              MSG("*** ERROR - FAILED LUB/MAX TEST! args=%i rank=%i lci=%i flagsi=%i",           \
+                  args,(int)r,lci,flagsi);                                                       \
           } while (0)
           GET_MAX(RequestMedium);
           GET_MAX(ReplyMedium);
@@ -691,6 +742,12 @@ void doit(int partner, int *partnerseg) {
     gex_Event_Wait(rc);
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit0(partner, partnerseg);
+}
+void doit0(int partner, int *partnerseg) {
+#endif
+
   /* misc type tests */
   assert_inttype(gex_Flags_t);
   static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
@@ -705,6 +762,19 @@ void doit(int partner, int *partnerseg) {
     GEX_FLAG_PEER_SEG_BOUND,
     GEX_FLAG_PEER_SEG_OFFSET,
 
+    GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+    GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
+
+    GEX_FLAG_AD_MY_RANK,
+    GEX_FLAG_AD_MY_NBRHD,
+
+    GEX_FLAG_AD_ACQ,
+    GEX_FLAG_AD_REL,
+
+    GEX_FLAG_AD_FAVOR_MY_RANK,
+    GEX_FLAG_AD_FAVOR_MY_NBRHD,
+    GEX_FLAG_AD_FAVOR_REMOTE,
+
     GEX_FLAG_AM_SHORT,
     GEX_FLAG_AM_MEDIUM,
     GEX_FLAG_AM_LONG,
@@ -715,7 +785,63 @@ void doit(int partner, int *partnerseg) {
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
-  // TODO-EX: ensure lack of aliasing within groups of flags that are mutually exclusive (eg GEX_FLAG_*_SEG_*)
+  // Ensure lack of aliasing within groups of flags potentially passed togther
+  static gex_Flags_t const flags_rma[] = { // gex_RMA_* initiation
+    GEX_FLAG_IMMEDIATE,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
+    //GEX_FLAG_LC_COPY_YES,
+    //GEX_FLAG_LC_COPY_NO,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_rma);
+  static gex_Flags_t const flags_ammax[] = { // gex_AM_Max* prepare-specific
+    GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
+    GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_ammax);
+  static gex_Flags_t const flags_adc[] = { // gex_AD_Create
+    GEX_FLAG_AD_FAVOR_MY_RANK,
+    GEX_FLAG_AD_FAVOR_MY_NBRHD,
+    GEX_FLAG_AD_FAVOR_REMOTE,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_adc);
+  static gex_Flags_t const flags_ad[] = { // gex_AD_Op* initiation
+    GEX_FLAG_IMMEDIATE,
+
+    GEX_FLAG_SELF_SEG_UNKNOWN,
+    GEX_FLAG_SELF_SEG_SOME,
+    GEX_FLAG_SELF_SEG_BOUND,
+    GEX_FLAG_SELF_SEG_OFFSET,
+    GEX_FLAG_PEER_SEG_UNKNOWN,
+    GEX_FLAG_PEER_SEG_SOME,
+    GEX_FLAG_PEER_SEG_BOUND,
+    GEX_FLAG_PEER_SEG_OFFSET,
+
+    GEX_FLAG_AD_MY_RANK,
+    GEX_FLAG_AD_MY_NBRHD,
+
+    GEX_FLAG_AD_ACQ,
+    GEX_FLAG_AD_REL,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_ad);
+  static gex_Flags_t const flags_amreg[] = { // gex_EP_RegisterHandlers
+    GEX_FLAG_AM_SHORT,
+    GEX_FLAG_AM_MEDIUM,
+    GEX_FLAG_AM_LONG,
+    // GEX_FLAG_AM_MEDLONG is an intentional alias
+    GEX_FLAG_AM_REQUEST,
+    GEX_FLAG_AM_REPLY,
+    // GEX_FLAG_AM_REQREP is an intentional alias
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_amreg);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
@@ -728,13 +854,14 @@ void doit(int partner, int *partnerseg) {
   assert_inttype(gex_TI_t);
   static gex_TI_t const ti_all = GEX_TI_ALL;
   static gex_TI_t const ti_arr[] = { // all flags but _ALL
-          GEX_TI_SRCRANK, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
+          GEX_TI_SRCRANK, GEX_TI_EP, GEX_TI_ENTRY, GEX_TI_IS_REQ, GEX_TI_IS_LONG
       };
   // TI constants should not alias, because they are used to indicate
   // field validity, and thus cannot be safely conflated in general
   // in particular, each flag needs at least one unique bit
   assert_arr_unaliased(gex_TI_t, ti_arr);
   assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
+  test_format(gex_TI_t, ti_arr, gasnett_format_ti);
 
   gex_RMA_Value_t val = 0;
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
@@ -759,21 +886,23 @@ void doit(int partner, int *partnerseg) {
     GEX_DT_FLT, GEX_DT_DBL
   };
   assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
+  test_format(gex_DT_t, datatypes_arr, gasnett_format_dt);
 
   assert_inttype(gex_OP_t);
   static gex_OP_t const ops_arr[] = { // ensure all the specfied values exist
     GEX_OP_AND,  GEX_OP_OR,   GEX_OP_XOR,
-    GEX_OP_ADD,  GEX_OP_SUB,  /*GEX_OP_MULT [UNIMPLEMENTED],*/
+    GEX_OP_ADD,  GEX_OP_SUB,  GEX_OP_MULT,
     GEX_OP_MIN,  GEX_OP_MAX,
     GEX_OP_INC,  GEX_OP_DEC,
     GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
-    GEX_OP_FADD, GEX_OP_FSUB, /*GEX_OP_FMULT [UNIMPLEMENTED],*/
+    GEX_OP_FADD, GEX_OP_FSUB, GEX_OP_FMULT,
     GEX_OP_FMIN, GEX_OP_FMAX,
     GEX_OP_FINC, GEX_OP_FDEC,
     GEX_OP_SET,  GEX_OP_GET,
     GEX_OP_SWAP, GEX_OP_CSWAP
   };
   assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
+  test_format(gex_OP_t, ops_arr, gasnett_format_op);
 
   #define typeissigned   <
   #define typeisunsigned >
@@ -793,10 +922,22 @@ void doit(int partner, int *partnerseg) {
   } while (0)
 
   #define assert_field_pointer(structtype, fieldtype, fieldname)  do {       \
-    static volatile structtype S;                                            \
-    static fieldtype volatile v;                                             \
+    static structtype S;                                                     \
+    static fieldtype v;                                                      \
     S.fieldname = v; /* warnings here mean non-compliance */                 \
     v = S.fieldname; /* warnings here mean non-compliance */                 \
+    static fieldtype *p;                                                     \
+    p = &(S.fieldname); /* warnings here mean non-compliance */              \
+    S.fieldname = *p;   /* warnings here mean non-compliance */              \
+    assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
+  } while (0)
+
+  #define assert_field_object(structtype, fieldtype, fieldname)  do {        \
+    static structtype S;                                                     \
+    static fieldtype *p;                                                     \
+    S.fieldname = (fieldtype)0; /* warnings here mean non-compliance */      \
+    p = &(S.fieldname); /* warnings here mean non-compliance */              \
+    S.fieldname = *p;   /* warnings here mean non-compliance */              \
     assert_always(sizeof(S.fieldname) == sizeof(fieldtype));                 \
   } while (0)
 
@@ -819,13 +960,14 @@ void doit(int partner, int *partnerseg) {
   assert_field_pointer(gex_AM_Entry_t, const char *,   gex_name);
 
   assert_field_int(gex_Token_Info_t,     gex_Rank_t,             gex_srcrank, typeisunsigned);
+  assert_field_object(gex_Token_Info_t, gex_EP_t, gex_ep);
   assert_field_pointer(gex_Token_Info_t, const gex_AM_Entry_t *, gex_entry);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
-  assert_field_constint(gex_NeighborhoodInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
+  assert_field_constint(gex_NbrhdInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
-  if (success) MSG("*** passed object test!!");
+  MSG("*** passed object test!!");
 
 #ifndef TESTGASNET_NO_SPLIT
   doit1(partner, partnerseg);

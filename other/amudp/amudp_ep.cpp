@@ -1148,9 +1148,9 @@ extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int glo
   #endif
 
     "Message Breakdown:        Requests     Replies   Avg data sz (Req/Rep/Both)\n"
-    " Short  (<=%5i bytes)   %8" PRIu64 "    %8" PRIu64 "  %9.*f/%.*f/%.*f bytes\n"
-    " Medium (<=%5i bytes)   %8" PRIu64 "    %8" PRIu64 "  %9.*f/%.*f/%.*f bytes\n"
-    " Long   (<=%5i bytes)   %8" PRIu64 "    %8" PRIu64 "  %9.*f/%.*f/%.*f bytes\n"
+    " Short  (<=%5" PRIuSZ " bytes)   %8" PRIu64 "    %8" PRIu64 "  %9.*f/%.*f/%.*f bytes\n"
+    " Medium (<=%5" PRIuSZ " bytes)   %8" PRIu64 "    %8" PRIu64 "  %9.*f/%.*f/%.*f bytes\n"
+    " Long   (<=%5" PRIuSZ " bytes)   %8" PRIu64 "    %8" PRIu64 "  %9.*f/%.*f/%.*f bytes\n"
 
     " Total                                          %9.*f/%.*f/%.*f bytes\n"
 
@@ -1171,17 +1171,17 @@ extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int glo
   #endif
 
     /* Message breakdown */
-    (int)(AMUDP_MAX_SHORT*sizeof(int)),
+    AMUDP_MAX_SHORT*sizeof(int),
       stats->RequestsSent[amudp_Short], stats->RepliesSent[amudp_Short], 
       AMUDP_StatPrecision(reqavgpayload[amudp_Short]), reqavgpayload[amudp_Short], 
       AMUDP_StatPrecision(repavgpayload[amudp_Short]), repavgpayload[amudp_Short], 
       AMUDP_StatPrecision(avgpayload[amudp_Short]), avgpayload[amudp_Short], 
-    (int)(AMUDP_MAX_SHORT*sizeof(int) + AMUDP_MAX_MEDIUM),
+    AMUDP_MAX_SHORT*sizeof(int) + AMUDP_MAX_MEDIUM,
       stats->RequestsSent[amudp_Medium], stats->RepliesSent[amudp_Medium], 
       AMUDP_StatPrecision(reqavgpayload[amudp_Medium]), reqavgpayload[amudp_Medium], 
       AMUDP_StatPrecision(repavgpayload[amudp_Medium]), repavgpayload[amudp_Medium], 
       AMUDP_StatPrecision(avgpayload[amudp_Medium]), avgpayload[amudp_Medium], 
-    (int)(AMUDP_MAX_SHORT*sizeof(int) + AMUDP_MAX_LONG),
+    AMUDP_MAX_SHORT*sizeof(int) + AMUDP_MAX_LONG,
       stats->RequestsSent[amudp_Long], stats->RepliesSent[amudp_Long], 
       AMUDP_StatPrecision(reqavgpayload[amudp_Long]), reqavgpayload[amudp_Long], 
       AMUDP_StatPrecision(repavgpayload[amudp_Long]), repavgpayload[amudp_Long], 

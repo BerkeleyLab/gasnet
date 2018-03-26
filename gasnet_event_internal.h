@@ -328,7 +328,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 typedef struct _gasnete_threaddata_t {
   GASNETE_COMMON_THREADDATA_FIELDS /* MUST come first, for reserved ptrs */
 
-  gasnete_eop_t *eop_bufs[256]; /*  buffers of eops for memory management */
+  void *eop_bufs;               /*  linked list of eop chunk buffers */
   int eop_num_bufs;             /*  number of valid buffer entries */
   gasnete_eop_t *eop_free;      /*  free list of eops */
 
@@ -351,6 +351,10 @@ typedef struct _gasnete_threaddata_t {
 /* ------------------------------------------------------------------------------------ */
 /* Reference implementation of eop and iop */
 #if !GASNETI_DISABLE_REFERENCE_EOP
+
+#ifndef GASNETE_EOP_CHUNKCNT
+#define GASNETE_EOP_CHUNKCNT 256  // the number of eops to allocate together as a block
+#endif
 
 extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread);
 extern gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread);

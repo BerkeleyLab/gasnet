@@ -29,7 +29,7 @@ gasnete_coll_pami_gathrvi(const gasnet_team_handle_t team,
         (void) gasnete_coll_pami_images_barrier(team);
     }
 
-    GASNETE_FAST_UNALIGNED_MEMCPY(gasnete_coll_scale_ptr(team->pami.scratch_space,
+    GASNETI_MEMCPY(               gasnete_coll_scale_ptr(team->pami.scratch_space,
                                                          td->my_local_image,
                                                          nbytes),
                                   src, nbytes);

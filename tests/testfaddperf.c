@@ -17,21 +17,13 @@ static gex_EP_t       myep;
 static gex_TM_t       myteam;
 static gex_Segment_t  mysegment;
 
-#if GASNET_CONDUIT_SMP
-int main(int argc, char **argv) {
-  GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testfaddperf", &argc, &argv, 0));
-  MSG0("WARNING: smp-conduit does not support remote atomics");
-  gasnet_exit(0);
-  return 0;
-}
-#else
-
 #include <gasnet_ratomic.h>
 
 static int myproc;
 static int numprocs;
 static int peerproc = -1;
 static int iamsender = 0;
+static int hotspotmode = 0;
 
 static void* myseg;
 static void* peerseg;
@@ -140,8 +132,11 @@ void _tcode##fadd_tput_test()                                                  \
                                   GEX_OP_FADD, i&15, 9999, 0);                 \
         }                                                                      \
         gex_NBI_Wait(GEX_EC_RMW, 0);                                           \
+        if (hotspotmode) BARRIER();                                            \
         end = TIME();                                                          \
         update_stat(&st, (end - begin), iters);                                \
+    } else {                                                                   \
+        if (hotspotmode) BARRIER();                                            \
     }                                                                          \
                                                                                \
     BARRIER();                                                                 \
@@ -191,7 +186,6 @@ int main(int argc, char **argv)
     int firstlastmode = 0;
     int fullduplexmode = 0;
     int crossmachinemode = 0;
-    int hotspotmode = 0;
     int skipwarmup = 0;
     int help = 0;
 
@@ -293,5 +287,4 @@ int main(int argc, char **argv)
 
     return 0;
 }
-#endif
 /* ------------------------------------------------------------------------------------ */

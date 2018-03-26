@@ -566,6 +566,11 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define gasnett_format_putsgets_bufsz   gasneti_format_putsgets_bufsz   
   #define gasnett_format_putsgets         gasneti_format_putsgets         
 
+  /* Enum/mask string formatting */
+  #define gasnett_format_dt               gasneti_format_dt
+  #define gasnett_format_op               gasneti_format_op
+  #define gasnett_format_ti               gasneti_format_ti
+
   #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
     GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gasnet_hsl_)
   #endif

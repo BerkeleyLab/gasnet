@@ -9,12 +9,12 @@ dnl -*- m4 -*-
 define([cv_prefix],[gasnet_cv_])
 
 dnl Public release version packaging identifier:
-define([GASNET_RELEASE_VERSION_MAJOR_D],[2017])
-define([GASNET_RELEASE_VERSION_MINOR_D],[12])
+define([GASNET_RELEASE_VERSION_MAJOR_D],[2018])
+define([GASNET_RELEASE_VERSION_MINOR_D],[3])
 define([GASNET_RELEASE_VERSION_PATCH_D],[0])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
-define([GASNETEX_SPEC_VERSION_MINOR_D],[3])
+define([GASNETEX_SPEC_VERSION_MINOR_D],[4])
 dnl GASNet-1 spec version:
 define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -205,6 +205,11 @@ fi
 
 ## discover bit width
 
+dnl Use the results of CHECK_SIZEOF(void *) to select 64-bit mode for some tools
+dnl NOTE: CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
+
 GASNET_CHECK_SIZEOF(void *)
 GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
 AC_SUBST(GASNETI_PTR_BITS)
@@ -265,16 +270,32 @@ dnl GASNET_GET_GNUWARNINGFLAGS(type, family, flagprefix)  type=C or CXX
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
   if test "$enabled_dev_warnings" = "yes" ; then
     # enable additional supported warnings
-        ]GASNET_TRY_[$1]FLAG[([$3-Wall],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wall"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wpointer-arith],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wpointer-arith"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wnested-externs],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wnested-externs"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wwrite-strings],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wwrite-strings"])
-        ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
-                              [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wmissing-format-attribute"])
+    for warnflag in dnl Traditional GASNet devwarn:
+                    -Wall                       \
+                    -Wpointer-arith             \
+                    -Wnested-externs            \
+                    -Wwrite-strings             \
+                    -Wmissing-format-attribute  \
+                dnl Selected warnings:
+                    -Winit-self                 \
+                dnl -Wextra subset:
+                    -Wclobbered                 \
+                    -Wcast-function-type        \
+                    -Wempty-body                \
+                    -Wignored-qualifiers        \
+                    -Wimplicit-fallthrough      \
+                    -Wmissing-parameter-type    \
+                    -Wold-style-declaration     \
+                    -Wuninitialized             \
+                    -Wshift-negative-value      \
+      ; do
+     if test "$2" = "Open64" && test "x$warnflag" = "x-Wempty-body" ; then 
+      : # Bug 3711: Open64 botches -Wempty-body at link time which is not probed here
+     else
+      ]GASNET_TRY_[$1]FLAG[([$3$warnflag],
+                            [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3$warnflag"])
+     fi
+    done
   fi
 
   case "$2" in
@@ -290,10 +311,23 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                               [[$1]FLAGS="$[$1]FLAGS $3-Wno-strict-aliasing"])
     ;;
   esac
+         # disable -Wformat if unsure we can support it for the printf implementation in use
+         if test -z "$have_c99_format" ; then
+           AC_MSG_ERROR([Internal configure error - Wformat check missing])
+         elif test "$have_c99_format" = 0 ; then # avoid false warnings
+           GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format],
+                               [[$1]FLAGS="$[$1]FLAGS $3-Wno-format"])
+         fi
+
          # disable warnings that should always be off (not supported by our headers)
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused],
-                             [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused"],
-         [ # -Wno-unused meta disable failed, try to disable the problematic sub-options individually
+         [ [$1]FLAGS="$[$1]FLAGS $3-Wno-unused"
+           # -Wno-unused unfortunately disables unused-result, which we want to preserve
+           if test "$2" != "Open64" ; then # Open64 accepts the illegal option and botches it
+             GASNET_TRY_[$1]FLAG([$3-Wunused-result],
+                               [[$1]FLAGS="$[$1]FLAGS $3-Wunused-result"])
+           fi
+         ], [ # -Wno-unused meta disable failed, try to disable the problematic sub-options individually
            GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused-function],
                                [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused-function"])
            GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused-value],
@@ -611,6 +645,51 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
   GASNET_POPVAR([$1]FLAGS)
   popdef([ppc64code])
 ])
+
+# Detect features that affect MISCFLAGS
+if test "$cross_compiling" = "yes" && test -z "$gasnet_cv_c99_format" ; then
+  gasnet_cv_c99_format=no # conservatively assume it's unavailable if we can't check
+fi
+GASNET_TRY_CACHE_RUN([for working C99 printf specifiers],c99_format,
+  [ #include <stdio.h>  /* snprintf */
+    #include <string.h> /* strcmp */
+    #include <stddef.h> /* types */
+    #include <errno.h>  /* reporting */
+    char test[[100]];
+    char expect[[100]];
+    int check(void) {
+      ptrdiff_t pd, pdneg;
+      size_t sz = 0xAAAABBBB;
+      strcat(expect, "AAAABBBB");
+      if (sizeof(size_t) >= 8) {
+        sz <<= 16; sz <<= 16;
+        sz += 0xCCCCDDDD;
+        strcat(expect,"CCCCDDDD");
+      }
+      strcat(expect, " 987654321");
+      pd = 987654321;
+      if (sizeof(ptrdiff_t) >= 8) {
+        pd *= 1000000000;
+        pd +=  987654321;
+        strcat(expect, "987654321");
+      }
+      strcat(expect, " -123456789");
+      pdneg = -123456789;
+      int ret = snprintf(test,sizeof(test),"%zX %ti %ti",sz,pd,pdneg);
+      if (ret <= 0) return ret;
+      if (strcmp(test,expect)) return 666;
+      return 0; 
+    } 
+    int main(void) {
+      int ret = check();
+      if (ret) { 
+        printf("got %i(%s): \t'%s'\n",ret,strerror(errno),test); /* for debugging */
+        printf("expected:         \t'%s'\n", expect);
+      }
+      return ret;
+    }
+  ],[ have_c99_format=1 ],[ have_c99_format=0 ])
+AC_DEFINE_UNQUOTED(HAVE_C99_FORMAT_SPECIFIERS,[$have_c99_format])
 
 dnl GASNET_SET_MISCFLAGS(CC|MPI_CC, compliancecode)
 AC_DEFUN([GASNET_SET_MISCFLAGS],[
@@ -936,6 +1015,7 @@ AC_DEFUN([GASNET_GET_PLATFORM_ID], [
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[FAMILYID],[EXPR])
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[ID],[EXPR])
   GASNET_GET_PLATFORM_COMPILER([$1],[$2],[VERSION],[EXPR])
+  GASNET_GET_PLATFORM_COMPILER([$1],[$2],GASNETI_C_OR_CXX([$1])[_LANGLVL],[EXPR])
   GASNET_POPVAR(CPPFLAGS)
 ])
 
@@ -1260,10 +1340,14 @@ AC_SUBST(SYS_HEADER_BLD)
 AC_SUBST(SYS_HEADER_INST)
 
 # Find the appropriate OS suffix for executables
-case "$target_os" in
-  cygwin*)    EXESUFFIX='.exe' ;;
-  *)          EXESUFFIX='' ;;
-esac
+if test "${ac_cv_exeext+set}" = set && test "$ac_cv_exeext" != no; then
+  EXESUFFIX=$ac_cv_exeext
+else
+  case "$target_os" in
+    cygwin*)    EXESUFFIX='.exe' ;;
+    *)          EXESUFFIX='' ;;
+  esac
+fi
 AC_SUBST(EXESUFFIX)
 AM_CONDITIONAL(HAVE_EXESUFFIX, test -n "$EXESUFFIX")
 
@@ -2619,20 +2703,27 @@ AC_DEFUN([GASNET_FH_CFLAGS],[
   AC_SUBST(FH_CFLAGS)
 ])
 
-dnl GASNET_ID_OTHER_COMPILER(CCVAR, lang-decr)
+dnl GASNET_ID_OTHER_COMPILER_FAMILY(CCVAR, lang-decr)
 dnl CCVAR is CXX|MPI_CC
-AC_DEFUN([GASNET_ID_OTHER_COMPILER],[
+AC_DEFUN([GASNET_ID_OTHER_COMPILER_FAMILY],[
   pushdef([lowername],translit($1,'A-Z','a-z'))
-  GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
   GASNET_FAMILY_CACHE_CHECK([$2], [$1], gasnet_cv_[]lowername[]_family)
+  popdef([lowername])
+])
+dnl GASNET_ID_OTHER_COMPILER_PLATFORM(CCVAR, lang-decr)
+dnl CCVAR is CXX|MPI_CC
+AC_DEFUN([GASNET_ID_OTHER_COMPILER_PLATFORM],[
+  GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
   mismatch=""
-  if test x"$[$1]_FAMILY" != x"$CC_FAMILY"; then
+  if test -z "$[$1]_FAMILY" || test -z "$CC_FAMILY"; then
+    AC_MSG_ERROR([Internal error in ID_OTHER_COMPILER_PLATFORM($1)])
+  elif test x"$[$1]_FAMILY" != x"$CC_FAMILY"; then
     mismatch="families"
   elif test x"$gasnet_cv_PLATFORM_[$1]_VERSION" != x"$gasnet_cv_PLATFORM_COMPILER_VERSION"; then
     mismatch="version codes"
   fi
   if test -n "$mismatch"; then
-    pushdef([outfmt],[$AWK -F'|' '{ printf("%s\t%s",[$]2,[$]3); }'])
+    pushdef([outfmt],[$AWK -F'|' '{ printf("%-22s\t%s",[$]2,[$]3); }'])
     idstr1=`echo "$gasnet_cv_PLATFORM_COMPILER_IDSTR" | outfmt`
     idstr2=`echo "$gasnet_cv_PLATFORM_[$1]_IDSTR" | outfmt`
     popdef([outfmt])
@@ -2642,7 +2733,6 @@ The compiler $mismatch of \$CC and \$[$1] do not match:
 m4_substr([        ],len([$1]))$1:  $idstr2
 If this is not what you intended, then set \$[$1] to select a different $2 compiler.])
   fi
-  popdef([lowername])
 ])
 
 dnl GASNET_LINKHELPER-*:
@@ -2738,7 +2828,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
 
  if test "$have_cxx" = yes; then
   AC_LANG_CPLUSPLUS
-  GASNET_ID_OTHER_COMPILER([CXX], [C++])
+  GASNET_ID_OTHER_COMPILER_FAMILY([CXX], [C++])
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
   GASNET_UDP_LIBS=""
@@ -2834,6 +2924,8 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   fi
   AC_SUBST(DEVWARN_CXXFLAGS)
 
+  GASNET_ID_OTHER_COMPILER_PLATFORM([CXX], [C++])
+
   # MISC_CXXFLAGS are added to CXXFLAGS here to ensure they are used for the remaining configure tests,
   # but they retain a separate identity post-configure
   CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
@@ -2862,6 +2954,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
   GASNET_CHECK_ASM_SUPPORT([C++ compiler],[CXX])
   GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
+  GASNET_GET_CXX11_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
   GASNET_CHECK_BUILTINS([GASNETI_HAVE_CXX],[C++ compiler])
 
   GASNET_TRY_CACHE_CHECK(for __VA_ARGS__ support in C++, cxx_va_args, [ GASNET_VA_ARGS_TEST ], [ ], [ AC_DEFINE(GASNETI_CXX_HAS_VA_ARGS) ])
@@ -3038,28 +3131,32 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       ])
 
     if test $have_mpi = yes; then
-      GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
+      GASNET_ID_OTHER_COMPILER_FAMILY([MPI_CC], [MPI])
+      if test "$BUILDCONFIG" = "debug" ; then
+        SAFE_MPI_CFLAGS="-g"
+      else
+        SAFE_MPI_CFLAGS="-O"
+      fi
+      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
       GASNET_PUSHVAR(CC_FAMILY,"$MPI_CC_FAMILY")
+      GASNET_PUSHVAR(CC,"$MPI_CC $MPI_CFLAGS") # detect MISC for append to user's flags
         # we re-detect miscflags for MPI_CC, because it may differ from CC
         GASNET_SET_MISCFLAGS(MPI_CC, [ GASNET_C99_TEST ])
-	MPI_MISCFLAGS="$MISC_CFLAGS $MISC_CPPFLAGS"
-        if test "$BUILDCONFIG" = "debug" ; then
-          SAFE_MPI_CFLAGS="-g"
-        else
-          SAFE_MPI_CFLAGS="-O"
-        fi
+        MPI_MISCFLAGS="$MISC_CFLAGS $MISC_CPPFLAGS"
+      GASNET_POPVAR(CC)
       GASNET_POPVAR(CC_FAMILY)
-    fi
       DEVWARN_MPI_CFLAGS="$DEVWARN_CFLAGS"
       AC_SUBST(DEVWARN_MPI_CFLAGS)
+      MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
+      CFLAGS="$MPI_CFLAGS" # for platform check
+      GASNET_ID_OTHER_COMPILER_PLATFORM([MPI_CC], [MPI])
+    fi
       GASNET_POPVAR(CC)
       GASNET_POPVAR(CFLAGS)
       GASNET_POPVAR(CPPFLAGS)
       GASNET_POPVAR(MISC_CFLAGS)
       GASNET_POPVAR(MISC_CPPFLAGS)
       GASNET_POPVAR(DEVWARN_CFLAGS)
-      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
-      MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
     else
       GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc=/path/to/mpicc if you want mpi-conduit or require MPI compatibility])
       # Avoid unecessary and potentially confusing probes and their errors/warnings
@@ -3132,7 +3229,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       fi
       AC_DEFINE_UNQUOTED([GASNETI_MPI_VERSION],[$GASNETI_MPI_VERSION])
 
-      # check MPI_CC for a working C99 environment (enough to parse gasnet.h) -- in case MPI_CFLAGS broke C99 compliance
+      # confirm MPI_CC has a working C99 environment (enough to parse gasnet.h)
       GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
        [ GASNET_C99_TEST ], [], [],
        [ mpi_test_worked=no 
@@ -4979,10 +5076,6 @@ AC_CHECK_HEADERS(sys/param.h)
 ##  Supporting Command-Line Tools (continued)
 ##
 
-dnl Use the results of AC_CHECK_SIZEOF(void *) to select 64-bit mode for some tools
-dnl NOTE: AC_CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
-dnl     Store full paths, so we find right ones even if users have
-dnl     some other version in their path
 if test x"$BOURNE_SHELL" = x; then
     BOURNE_SHELL="/bin/sh"
 fi

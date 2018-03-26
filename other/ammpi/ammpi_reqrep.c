@@ -437,7 +437,7 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
   #if AMMPI_FLOW_CONTROL || AMMPI_COLLECT_LATENCY_STATS
     if (isrequest && !status->replyIssued &&
         ep->perProcInfo[sourceId].tokens_in > ep->tokens_slack) { 
-      va_list va_dummy; va_list *p_dummy = &va_dummy; p_dummy++; /* dummy value */
+      static va_list va_dummy; va_list *p_dummy = &va_dummy; p_dummy++; /* dummy value */
       /*  user didn't reply, so issue an auto-reply */
       if_pf (AMMPI_ReplyGeneric(ammpi_Short, buf, 0, 0, 0, 0, 0, va_dummy, 
                                 ammpi_system_autoreply, 0) != AM_OK) /*  should never happen */

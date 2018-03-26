@@ -1094,7 +1094,6 @@ int main(int argc, char **argv)
   
   /* Need to test_init before gasnet_attach to use TEST_LOCALPROCS() */
   test_init_early("testcollperf",(performance_iters != 0),"(max data size) (outer_verification_iters) (inner_verification_iters) (performance_iters) (thread count per node) (test sections)");
-  MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
 
 #if GASNET_PAR
   if (argc > 5) {

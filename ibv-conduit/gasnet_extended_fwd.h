@@ -62,12 +62,16 @@
 #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
 #define GASNETE_BUILD_AMREF_PUT 1
 
-#ifndef GASNET_DISABLE_MUNMAP_DEFAULT
+#if !defined(GASNET_DISABLE_MUNMAP_DEFAULT) && PLATFORM_ARCH_64
 #define GASNET_DISABLE_MUNMAP_DEFAULT 1 // default to disabling munmap for bug 955
 #endif
 // this VIS algorithm uses put/get with local-side buffers that are dynamically malloced and freed, 
 // thus is only safe if we disabled malloc munmap to avoid running afowl of firehose bug3364/bug955
+#ifdef PLATFORM_OS_SOLARIS // Does not suffer from bug 955
+#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT 1
+#else // Linux and others, assume the worst
 #define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT gasneti_malloc_munmap_disabled
+#endif
 
 // Configure default VIS tuning knobs
 // 12/15/17: Measurements on multiple systems show 256 is a good value

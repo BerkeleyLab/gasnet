@@ -70,7 +70,7 @@ gex_Event_t _gex_RMA_GetNB(
   gasneti_boundscheck(tm, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(NB,dest,rank,src,nbytes);
-    GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackget_memsync();
     return GEX_EVENT_INVALID;
   } else {
@@ -92,7 +92,7 @@ gex_Event_t _gex_RMA_PutNB(
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NB,rank,dest,src,nbytes);
-    GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
     gasneti_leaf_finish(lc_opt);
     return GEX_EVENT_INVALID;
@@ -234,7 +234,7 @@ int _gex_RMA_GetNBI  (gex_TM_t tm, void *dest,
   gasneti_boundscheck(tm, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(NBI,dest,rank,src,nbytes);
-    GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackget_memsync();
     return 0;
   } else {
@@ -255,7 +255,7 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NBI,rank,dest,src,nbytes);
-    GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
@@ -408,7 +408,7 @@ int _gex_RMA_GetBlocking  (gex_TM_t tm, void *dest,
   gasneti_boundscheck(tm, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes);
-    GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackget_memsync();
     return 0;
   } else {
@@ -429,7 +429,7 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes);
-    GASNETE_FAST_MEMCPY(dest, src, nbytes);
+    GASNETI_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {

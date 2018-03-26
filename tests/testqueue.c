@@ -11,7 +11,7 @@
 #include <gasnetex.h>
 int maxsz = 0;
 #ifndef TEST_SEGSZ
-  #define TEST_SEGSZ_EXPR ((uintptr_t)maxsz)
+  #define TEST_SEGSZ_EXPR ((uintptr_t)(maxsz + alignup(maxsz,PAGESZ)))
 #endif
 #include "test.h"
 
@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
 
     
     myseg = TEST_SEG(myproc);
-    tgtmem = TEST_SEG(peerproc);
+    tgtmem = (char*)TEST_SEG(peerproc) + alignup(maxsz, PAGESZ);
 
     if (insegment) {
 	msgbuf = (void *) myseg;
