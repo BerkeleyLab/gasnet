@@ -376,7 +376,7 @@ extern void gasneti_freezeForDebugger(void) {
 #ifndef gasneti_import_client
 gasneti_Client_t gasneti_import_client(gex_Client_t _client) {
   const gasneti_Client_t _real_client = GASNETI_IMPORT_POINTER(gasneti_Client_t,_client);
-  GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_client, CLIENT);
   return _real_client;
 }
 #endif
@@ -422,7 +422,7 @@ void gasneti_free_client(gasneti_Client_t client)
 #ifndef gasneti_import_segment
 gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment) {
   const gasneti_Segment_t _real_segment = GASNETI_IMPORT_POINTER(gasneti_Segment_t,_segment);
-  GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_segment, SEGMENT);
   return _real_segment;
 }
 #endif
@@ -472,7 +472,7 @@ void gasneti_free_segment(gasneti_Segment_t segment)
 #ifndef gasneti_import_ep
 gasneti_EP_t gasneti_import_ep(gex_EP_t _ep) {
   const gasneti_EP_t _real_ep = GASNETI_IMPORT_POINTER(gasneti_EP_t,_ep);
-  GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_ep, EP);
   return _real_ep;
 }
 #endif
@@ -519,7 +519,7 @@ void gasneti_free_ep(gasneti_EP_t endpoint)
 #ifndef gasneti_import_tm
 gasneti_TM_t gasneti_import_tm(gex_TM_t _tm) {
   const gasneti_TM_t _real_tm = GASNETI_IMPORT_POINTER(gasneti_TM_t,_tm);
-  GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_tm, TM);
   return _real_tm;
 }
 #endif

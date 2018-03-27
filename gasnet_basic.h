@@ -252,7 +252,7 @@
 #endif
 
 /* magic numbers for identifying/protecting types
- * WARNING: GASNETI_CHECK_MAGIC() may evaluate the pointer argument more than once!
+ * WARNING: GASNETI_{CHECK,IMPORT}_MAGIC() may evaluate the pointer argument more than once!
  */
 #define GASNETI_MAKE_MAGIC(c0,c1,c2,c3) GASNETI_SIGNATURE8('g','e','x',':',c0,c1,c2,c3)
 #define GASNETI_MAKE_BAD_MAGIC(c0,c1,c2,c3) GASNETI_SIGNATURE8('B','A','D',':',c0,c1,c2,c3)
@@ -260,9 +260,16 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if GASNET_DEBUG
   #define GASNETI_INIT_MAGIC(p,m)  ((void)((p)->_magic._u = (m)))
   #define GASNETI_CHECK_MAGIC(p,m) gasneti_assert(!(p) || ((p)->_magic._u == (m)))
+  #define GASNETI_IMPORT_MAGIC(p,type) do { \
+      if ((p) && ((p)->_magic._u == GASNETI_##type##_BAD_MAGIC)) {              \
+        gasneti_fatalerror("Likely use-after-free error for " #type " object"); \
+      }                                                                         \
+      GASNETI_CHECK_MAGIC(p,GASNETI_##type##_MAGIC);                            \
+    } while (0)
 #else
   #define GASNETI_INIT_MAGIC(p,m)  ((void)0)
   #define GASNETI_CHECK_MAGIC(p,m) ((void)0)
+  #define GASNETI_IMPORT_MAGIC(p,t) ((void)0)
 #endif
 
 /* Non-asserting alignment macros

@@ -13,7 +13,7 @@
 #ifndef gasneti_import_ad
 gasneti_AD_t gasneti_import_ad(gex_AD_t _ad) {
   const gasneti_AD_t _real_ad = GASNETI_IMPORT_POINTER(gasneti_AD_t,_ad);
-  GASNETI_CHECK_MAGIC(_real_ad, GASNETI_AD_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_ad, AD);
   return _real_ad;
 }
 #endif
