@@ -1,8 +1,6 @@
 GASNet-EX ChangeLog
 -------------------
-03-28-2018: GASNet-EX 2018.3.0 Integration release
 
-* Integration release of the GASNet-EX system.
   This archive represents a work-in-progress focused on "hardening" the features
   added by the previous quarter's release, and has been well-tested against the
   concurrent release of UPC++.
@@ -12,10 +10,12 @@ GASNet-EX ChangeLog
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
+03-28-2018: GASNet-EX 2018.3.0 Release
+
 * GASNet-EX Spec v0.4:
   - Renamed gex_System_QueryNeighborhoodInfo() and associated
     types and constants to gex_System_QueryNbrhdInfo() and similar.
-  - Adjusted payload limit queries to accomodate Negotiated-Payload AM.
+  - Adjusted payload limit queries to accommodate Negotiated-Payload AM.
   - Remote Atomics: added flags for asserting locality properties
   - Remote Atomics: added flags for requesting memory fencing behavior
   - Strided: now supports transpose/reflection operations
@@ -62,14 +62,6 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 12-20-2017: GASNet-EX 2017.12.0 Beta release
 
-* BETA release of the GASNet-EX system.
-  This archive represents a lightly-tested snapshot of a work-in-progress.
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
-
-  Feedback or questions on any matters related to the EX project are
-  welcomed at: gasnet-devel@lbl.gov
-
 * GASNet-EX Spec v0.3:
   - Specified Remote Atomics API, and corresponding types [EXPERIMENTAL]
   - Specified Vector, Indexed, Strided API [EXPERIMENTAL]
@@ -101,17 +93,7 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-09-28-2017: GASNet-EX 2017.9.0 Integration release
-
-* First Integration release of the GASNet-EX system.
-  This archive represents a work-in-progress focused on "hardening" the features
-  added by the previous quarter's release, and has been well-tested against the
-  concurrent release of UPC++.
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
-
-  Feedback or questions on any matters related to the EX project are
-  welcomed at: gasnet-devel@lbl.gov
+09-28-2017: GASNet-EX 2017.9.0 Release
 
 * GASNet-EX Spec v0.2:
   - Specified gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
@@ -151,14 +133,6 @@ GASNet-EX ChangeLog
 
 ----------------------------------------------------------------------
 06-30-2017: GASNet-EX 2017.6.0 Beta release
-
-* Initial BETA release of the GASNet-EX system.
-  This archive represents a lightly-tested snapshot of a work-in-progress.
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
-
-  Feedback or questions on any matters related to the EX project are
-  welcomed at: gasnet-devel@lbl.gov
 
 * Major new features implemented this release: (mostly reference implementation)
   - Explicit Local Completion capability for Active Message and RMA Put APIs
