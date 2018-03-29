@@ -94,10 +94,11 @@
         GASNETE_TD_DOMAIN_IDX
 
 // Configure default VIS tuning knobs
-// 12/15/17: Measurements on NERSC Cori show the ideal MAXCHUNK for I+S to be:
-//   Haswell: ~512 for puts and ~1024 for gets
-//   KNL:     ~512 for puts and gets
-#define GASNETE_VIS_MAXCHUNK_DEFAULT 512
+// 3/21/18: Measurements on NERSC Cori using the EX implementation for aries-conduit
+// w/ default GASNETE_VIS_NPAM=1 and 4032 MaxMedium show the ideal MAXCHUNK for I+S on both
+// KNL and Haswell to be the following values:
+#define GASNETE_VIS_PUT_MAXCHUNK_DEFAULT 1330  // 3 strided chunks at 3d
+#define GASNETE_VIS_GET_MAXCHUNK_DEFAULT 2028  // 2 strided chunks at 3d
 
 #endif
 
