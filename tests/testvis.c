@@ -1386,9 +1386,6 @@ void doit(int iters, int runtests) {
 
         int last_case = 4;
         if (max_stridedim < 2) last_case = 3;
-        #if GASNETE_OLD_STRIDED // TODO-EX : remove this
-          last_case = 3;
-        #endif
         gex_Flags_t flags = TEST_RAND_PICK(0,GEX_FLAG_IMMEDIATE); 
         int fail;
         switch (TEST_RAND(1,last_case)) {
@@ -1628,9 +1625,6 @@ int main(int argc, char **argv) {
     } else break;
   }
   int runall = RUN_VECTOR | RUN_INDEXED | RUN_STRIDED | RUN_TRANSPOSE | RUN_NB;
-  #if GASNETE_OLD_STRIDED // TODO-EX : remove this
-    runall &= ~RUN_TRANSPOSE;
-  #endif
   if (runtests == 0) runtests = runall;
   if (i < argc) { iters = atoi(argv[i]); i++; }
   if (i < argc) { seedoffset = atoi(argv[i]); i++; }

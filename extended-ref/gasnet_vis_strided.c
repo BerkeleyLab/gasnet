@@ -8,10 +8,6 @@
   #error This file not meant to be compiled directly - included by gasnet_extended_refvis.c
 #endif
 
-#if !defined(GASNETE_OLD_STRIDED) || GASNETE_OLD_STRIDED
-#error Internal error: wrong GASNETE_OLD_STRIDED defn
-#endif
-
 /*---------------------------------------------------------------------------------*/
 /* *** GASNet-EX Strided Implementation *** */
 /*---------------------------------------------------------------------------------*
@@ -473,7 +469,7 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
@@ -481,7 +477,7 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 
 /* reference version that uses individual gets of the dualcontiguity size */
@@ -493,7 +489,7 @@ gex_Event_t gasnete_gets_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
@@ -501,7 +497,7 @@ gex_Event_t gasnete_gets_ref_indiv(gasneti_vis_smd_t * const smd,
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 
 // perform a loopback/PSHM memcpy of a strided area
@@ -704,7 +700,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
   // temporary storage: (smd scratch for NPAM, otherwise malloc)
   //  init[stridelevels] | count[stridelevels] | peer_strides[stridelevels] 
@@ -846,7 +842,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
   #if !GASNETE_VIS_NPAM
     gasneti_free(init);
   #endif
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
