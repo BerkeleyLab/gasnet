@@ -365,6 +365,28 @@ size_t gex_AM_MaxReplyLong(
   gasneti_assert(result >= 512);
   return result;
 }
+
+size_t gex_Token_MaxReplyMedium(
+           gex_Token_t token,
+           gex_Event_t *lc_opt, gex_Flags_t flags,
+           unsigned int nargs)
+{
+  // TODO-EX: lots of additional checks possible here
+  size_t result = gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs);
+  gasneti_assert(result >= 512);
+  return result;
+}
+
+size_t gex_Token_MaxReplyLong(
+           gex_Token_t token,
+           gex_Event_t *lc_opt, gex_Flags_t flags,
+           unsigned int nargs)
+{
+  // TODO-EX: lots of additional checks possible here
+  size_t result = gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs);
+  gasneti_assert(result >= 512);
+  return result;
+}
 #endif
 
 /* ------------------------------------------------------------------------------------ */

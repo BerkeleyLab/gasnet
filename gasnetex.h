@@ -625,11 +625,21 @@ typedef uintptr_t gex_RMA_Value_t;
            gex_TM_t _tm, gex_Rank_t _rank,
            gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
+  extern size_t gex_Token_MaxReplyMedium(
+           gex_Token_t _token,
+           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_Token_MaxReplyLong(
+           gex_Token_t _token,
+           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
 #else
   #define gex_AM_MaxRequestMedium gasnetc_AM_MaxRequestMedium
   #define gex_AM_MaxReplyMedium   gasnetc_AM_MaxReplyMedium
   #define gex_AM_MaxRequestLong   gasnetc_AM_MaxRequestLong
   #define gex_AM_MaxReplyLong     gasnetc_AM_MaxReplyLong
+  #define gex_Token_MaxReplyMedium   gasnetc_Token_MaxReplyMedium
+  #define gex_Token_MaxReplyLong     gasnetc_Token_MaxReplyLong
 #endif
 
 /* ------------------------------------------------------------------------------------ */
