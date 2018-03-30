@@ -354,8 +354,13 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
   void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
   gasneti_AM_SrcDesc_t sd = mythread_ptrs[4]; // 5th pointer (gasneti_req_sd)
   if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
-  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
+#if GASNET_DEBUG
+  if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
+    gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareRequest*() calls");
+  }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+#endif
   sd->_gex_buf = sd->_tofree = NULL;
   return sd;
 }
@@ -367,8 +372,13 @@ gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
   void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
   gasneti_AM_SrcDesc_t sd = mythread_ptrs[3]; // 4th pointer (gasneti_rep_sd)
   if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
-  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
+#if GASNET_DEBUG
+  if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
+    gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareReply*() calls");
+  }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+#endif
   sd->_gex_buf = sd->_tofree = NULL;
   return sd;
 }
@@ -379,7 +389,14 @@ GASNETI_INLINE(gasneti_reset_srcdesc)
 void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
   gasneti_free(sd->_tofree);
+#if GASNET_DEBUG
+  if (sd->_magic._u == GASNETI_AM_SRCDESC_BAD_MAGIC) {
+    gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_Commit%s*() calls",
+                       sd->_isreq ? "Request" : "Reply");
+  }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+#endif
 }
 
 GASNETI_INLINE(gasneti_prepare_common)
