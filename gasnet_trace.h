@@ -831,6 +831,19 @@ extern void gasneti_trace_finish(void);
         VAL(P, PUTS_NB_BULK, sz)                          \
         VAL(P, PUTS_NBI_BULK, sz)                         \
                                                           \
+        CNT(R, RATOMIC_NB_I32, cnt)                       \
+        CNT(R, RATOMIC_NB_U32, cnt)                       \
+        CNT(R, RATOMIC_NB_I64, cnt)                       \
+        CNT(R, RATOMIC_NB_U64, cnt)                       \
+        CNT(R, RATOMIC_NB_FLT, cnt)                       \
+        CNT(R, RATOMIC_NB_DBL, cnt)                       \
+        CNT(R, RATOMIC_NBI_I32, cnt)                      \
+        CNT(R, RATOMIC_NBI_U32, cnt)                      \
+        CNT(R, RATOMIC_NBI_I64, cnt)                      \
+        CNT(R, RATOMIC_NBI_U64, cnt)                      \
+        CNT(R, RATOMIC_NBI_FLT, cnt)                      \
+        CNT(R, RATOMIC_NBI_DBL, cnt)                      \
+                                                          \
         /* TODO-EX: "SYNCNB" name is out-of-date */       \
         VAL(S, TEST_SYNCNB, success)                      \
         VAL(S, TEST_SYNCNB_ALL, success)                  \
