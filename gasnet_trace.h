@@ -255,14 +255,14 @@
   GASNETI_TRACE_EVENT_TIME(S,name,GASNETI_TICKS_NOW_IFENABLED(S) - _waitstart)
 /*------------------------------------------------------------------------------------*/
 /* AM Request/Reply tracing helpers */
-#define _GASNETI_TRACE_GATHERARGS(numargs)                          \
+#define _GASNETI_TRACE_GATHERARGS(numargs,lastarg)                  \
   char argstr[256];                                                 \
   do {                                                              \
     int i;                                                          \
     char *aptr = argstr; int aspace = sizeof(argstr);               \
     va_list _argptr;                                                \
     *aptr = '\0';                                                   \
-    va_start(_argptr, numargs); /*  assumes last arg was numargs */ \
+    va_start(_argptr, lastarg);                                     \
       for (i=0;i<numargs;i++) {                                     \
         /* must be int due to default argument promotion */         \
         int len = snprintf(aptr,aspace," 0x%08x",(int)(uint32_t)va_arg(_argptr,int)); \
@@ -272,14 +272,14 @@
   } while(0)
 
 #define GASNETI_TRACE_AMSHORT(name,dest,handler,flags,numargs) do {                  \
-  _GASNETI_TRACE_GATHERARGS(numargs);                                                \
+  _GASNETI_TRACE_GATHERARGS(numargs,numargs);                                        \
   _GASNETI_STAT_EVENT(A,name);                                                       \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i flags=0x%x args:%s",            \
     (int)dest,handler,flags,argstr));                                                \
 } while(0)
 
 #define GASNETI_TRACE_AMMEDIUM(name,dest,handler,source_addr,nbytes,flags,numargs) do {                   \
-  _GASNETI_TRACE_GATHERARGS(numargs);                                                                     \
+  _GASNETI_TRACE_GATHERARGS(numargs,numargs);                                                             \
   _GASNETI_STAT_EVENT(A,name);                                                                            \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT                       \
                                 " nbytes=%" PRIuSZ " flags=0x%x args:%s",                                 \
@@ -288,7 +288,7 @@
 } while(0)
 
 #define GASNETI_TRACE_AMLONG(name,dest,handler,source_addr,nbytes,dest_addr,flags,numargs) do {\
-  _GASNETI_TRACE_GATHERARGS(numargs);                                                          \
+  _GASNETI_TRACE_GATHERARGS(numargs,numargs);                                                  \
   _GASNETI_STAT_EVENT(A,name);                                                                 \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT            \
                                 " nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" flags=0x%x args:%s",   \
