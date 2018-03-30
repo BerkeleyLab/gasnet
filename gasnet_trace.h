@@ -766,7 +766,7 @@ extern void gasneti_trace_init(int *argc, char ***argv);
 extern void gasneti_trace_finish(void);
 
 /* defines all the types */
-#define GASNETI_ALLTYPES "GPSWXBLAICDNH"
+#define GASNETI_ALLTYPES "GPRSWXBLAICDNH"
 
 
 /* GASNETI_ALL_STATS lists all the statistics values we gather, 

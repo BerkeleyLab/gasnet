@@ -877,6 +877,7 @@ Optional environment variable settings:
    A string containing one or more of the following letters:
      G - gets
      P - puts
+     R - remote atomics
      S - non-blocking synchronization
      W - collective operations (excluding barriers)
      X - collective synchronization (excluding barriers)

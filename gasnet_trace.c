@@ -1224,6 +1224,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 AGGR(G);
 AGGR(P);
 AGGR(S);
+AGGR(R);
 AGGR(W);
 AGGR(X);
 AGGR(B);
