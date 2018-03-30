@@ -466,14 +466,26 @@
       }                                                                     \
     } while(0)
 
+  #define _GASNETI_TRACE_HANDLER(name, info, timask) do { \
+      if (timask & GEX_TI_ENTRY) {                                                         \
+        const gex_AM_Entry_t *hentry = info.gex_entry;                                     \
+        const char *hname = hentry->gex_name ? hentry->gex_name : "(none)";                \
+        /* TODO-EX: print symbolc flags when available */                                  \
+        GASNETI_TRACE_PRINTF(A,(#name": handler: name='%s' fnptr=%p flags=0x%x cdata=%p",  \
+                             hname,hentry->gex_fnptr,hentry->gex_flags,hentry->gex_cdata));\
+      }                                                                                    \
+    } while(0)
+
   #define _GASNETI_TRACE_AMSHORT_HANDLER(name, handlerid, token, numargs, arghandle) do { \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                 \
     _GASNETI_STAT_EVENT(A,name);                                                          \
-    gex_Token_Info_t info;                                                              \
-    gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                     \
+    gex_Token_Info_t info;                                                                \
+    gex_TI_t timask = gex_Token_Info(token, &info, GEX_TI_SRCRANK|GEX_TI_EP|GEX_TI_ENTRY);\
     gex_Rank_t src = info.gex_srcrank;                                                    \
-    GASNETI_TRACE_PRINTF(A,(#name": src=%i handler=%i args:%s",                           \
-      (int)src,(int)(handlerid),argstr));                                                 \
+    const char *cname = gex_Client_QueryName(gex_EP_QueryClient(info.gex_ep));            \
+    GASNETI_TRACE_PRINTF(A,(#name": client='%s' src=%i handler=%i args:%s",               \
+      cname,(int)src,(int)(handlerid),argstr));                                           \
+    _GASNETI_TRACE_HANDLER(name, info, timask);                                           \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                           \
                       gasneti_formatdata((void*)&(token), sizeof(token))));               \
     } while(0)
@@ -481,11 +493,14 @@
   #define _GASNETI_TRACE_AMMEDLONG_HANDLER(name, handlerid, token, addr, nbytes, numargs, arghandle) do { \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                                 \
     _GASNETI_STAT_EVENT(A,name);                                                                          \
-    gex_Token_Info_t info;                                                                              \
-    gex_Token_Info(token, &info, GEX_TI_SRCRANK);                                                     \
+    gex_Token_Info_t info;                                                                                \
+    gex_TI_t timask = gex_Token_Info(token, &info, GEX_TI_SRCRANK|GEX_TI_EP|GEX_TI_ENTRY);                \
     gex_Rank_t src = info.gex_srcrank;                                                                    \
-    GASNETI_TRACE_PRINTF(A,(#name": src=%i handler=%i addr=" GASNETI_LADDRFMT " nbytes=%" PRIuSZ " args:%s", \
-      (int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,argstr));                           \
+    const char *cname = gex_Client_QueryName(gex_EP_QueryClient(info.gex_ep));                            \
+    GASNETI_TRACE_PRINTF(A,(#name": client='%s' src=%i handler=%i addr=" GASNETI_LADDRFMT                 \
+                            " nbytes=%" PRIuSZ " args:%s",                                                \
+      cname,(int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,argstr));                     \
+    _GASNETI_TRACE_HANDLER(name, info, timask);                                                           \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                                           \
                       gasneti_formatdata((void *)&(token), sizeof(token))));                              \
     GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(addr,nbytes)));                 \
