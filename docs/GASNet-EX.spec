@@ -2038,20 +2038,45 @@ int gex_AD_OpNBI_[DATATYPE](
 // This API is an updated and expanded version of the VIS prototype offered
 // in GASNet-1, which is documented here: http://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
 
+// The following semantics apply to all VIS functions:
+
 // For NB variants, return type for all functions in this section is gex_Event_t.
 // For NBI/Blocking variants, the return type is int which is non-zero *only* in the
 // "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
-
-// For the CURRENT release, all 'flags' arguments must be zero.
-// A future revision will offer GEX_FLAG_IMMEDIATE support [UNIMPLEMENTED]
-
-// NOTE: This interface does not yet offer local completion indication - all client-owned
-// buffers (ie payload buffers and metadata arrays) passed to the non-blocking initiation 
-// functions are implicitly treated as GEX_EVENT_DEFER semantics, and thus must remain 
+//
+// By default, all client-owned buffers (ie payload buffers and metadata
+// arrays) passed to the non-blocking initiation functions are implicitly
+// treated as GEX_EVENT_DEFER semantics, and thus must remain 
 // valid until the operation is fully completed (as in GASNet-1).
 // As an exception, the metadata arrays passed to Strided variants ({src,dst}strides[] and count[])
 // are guaranteed to be consumed synchronously before return from initiation.
-// A future revision will expose intermediate completion events [UNIMPLEMENTED]
+// gex_VIS_*Put{NB,NBI} optionally expose local completion of data payload buffers -
+// this functionality must be requested using the GEX_FLAG_VIS_WITH_LC flag (see below).
+//
+// A future revision may expose other intermediate completion events [UNIMPLEMENTED]
+//
+// The 'flags' argument must either be zero, or a bitwise OR of one or more
+// of the following flags:
+// - GEX_FLAG_IMMEDIATE: the call is permitted (but not required) to return a
+//   distinguishing value without initiating any communication if the conduit
+//   could determine that it would need to block temporarily to obtain the
+//   necessary resources.  The Blocking and NBI calls return a non-zero value
+//   (only) in this "no op" case, while the NB calls will return GEX_EVENT_NO_OP.
+// - GEX_FLAG_VIS_WITH_LC: (gex_VIS_*Put{NB,NBI} only) This flag requests
+//   asynchronous local completion indication for the local data payload buffers 
+//   comprising the source region(s) of the VIS Put operation. Without this flag,
+//   local completion behaves as GEX_EVENT_DEFER, i.e. folded into operation completion.
+//   When this flag is passed to gex_VIS_*PutNBI, asynchronous local completion indication 
+//   behaves as specified in sec:`Extended API` for lc_opt=GEX_EVENT_GROUP.
+//   When this flag is passed to gex_VIS_*PutNB, asynchronous local completion indication 
+//   behaves as specified in sec:`Extended API` for lc_opt=&(gex_Event_t variable).
+//   In the latter case, the client should retrieve the gex_Event_t corresponding to
+//   local completion by passing the root gex_Event_t returned by the Put initiation
+//   call to gex_Event_QueryLeaf(), for example:
+//     gex_Event_t VISput_RC = gex_VIS_VectorPutNB(..., GEX_FLAG_VIS_WITH_LC);
+//     gex_Event_t VISput_LC = gex_Event_QueryLeaf(VISput_RC, GEX_EC_LC);
+//   The second call is only valid when GEX_FLAG_VIS_WITH_LC was passed to the _VIS_*PutNB()
+//   call, and otherwise has undefined behavior.
 
 // NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]
 
