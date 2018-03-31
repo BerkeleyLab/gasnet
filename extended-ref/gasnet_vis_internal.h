@@ -205,11 +205,11 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     }                                                                                 \
   } while(0)
 
-#define GASNETE_PUT_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
+#define GASNETE_PUT_INDIV(tm, rank, dstaddr, srcaddr, nbytes, lc_opt) do { \
     gasneti_assert((nbytes) > 0);                                       \
     gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes)); \
     gasnete_put_nbi((tm), (rank), (dstaddr), (srcaddr), (nbytes),       \
-                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);       \
+                         (lc_opt), 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
@@ -228,14 +228,17 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert((nbytes) > 0);                                                   \
     gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes));             \
     switch (synctype) {                                                             \
-      case gasnete_synctype_nb:                                                     \
+      case gasnete_synctype_nb: {                                                   \
+        gex_Event_t _lc_dummy;                                                      \
         (retval) = _gex_RMA_PutNB ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                         GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
-        break;                                                                      \
+                    (((flags) & GEX_FLAG_VIS_WITH_LC) ? &_lc_dummy : GEX_EVENT_DEFER), \
+                    (flags) GASNETE_THREAD_PASS);                                   \
+        break; }                                                                    \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
                    _gex_RMA_PutNBI((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                         GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
+                    (((flags) & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER),\
+                    (flags) GASNETE_THREAD_PASS);                                   \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \
         (retval) = (gex_Event_t)(intptr_t)                                          \
