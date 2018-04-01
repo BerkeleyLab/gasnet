@@ -1630,6 +1630,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
 
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
         imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
@@ -1833,6 +1835,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
