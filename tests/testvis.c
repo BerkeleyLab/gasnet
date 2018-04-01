@@ -1034,6 +1034,14 @@ void checkmem(void) {
  }
 }
 
+// restore a section of my_heap_read_area after an overwrite test
+void restore_heap_read_area(VEC_T *addr, size_t cnt) {
+  ptrdiff_t const offset = addr - my_heap_read_area;
+  assert(offset >= 0 && offset + cnt <= areasz);
+  for (size_t i = 0; i < cnt; i++) 
+    *(addr++) = HEAP_VALUE(mynode, offset+i);
+}
+
 typedef struct {
   test_memvec_list *vsrc;
   test_memvec_list *vdst;
@@ -1128,12 +1136,52 @@ void doit(int iters, int runtests) {
         test_memvec_list *dst;
         test_memvec_list *tmp;
 
-        src = rand_memvec_list(TEST_RAND_PICK(my_heap_read_area, my_seg_read_area), areasz, 1);
+        VEC_T *src_area = TEST_RAND_PICK(my_heap_read_area, my_seg_read_area);
+        src = rand_memvec_list(src_area, areasz, 1);
         dst = rand_memvec_list(partner_seg_remotewrite_area, areasz, 0);
         trim_memvec_list(src, dst);
         tmp = buildcontig_memvec_list(TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area), dst->totalsz/VEC_SZ, areasz);
 
-        TIMED_PUT(gex_VIS_VectorPutBlocking(myteam, partner, dst->count, dst->list, src->count, src->list, 0),dst->totalsz);
+        #define CALL(fn) fn(myteam, partner, dst->count, dst->list, src->count, src->list, flags)
+        gex_Flags_t flags = 0;
+        if (src_area == my_heap_read_area && TEST_RAND_ONEIN(2)) { // LC overwrite test
+          gex_Event_t RC = GEX_EVENT_INVALID;
+          gex_Event_t LC = GEX_EVENT_INVALID;
+          flags = GEX_FLAG_VIS_WITH_LC;
+          int const flavor = TEST_RAND(1,3);
+          switch (flavor) {
+            case 1: // NB
+              RC = CALL(gex_VIS_VectorPutNB);
+              LC = gex_Event_QueryLeaf(RC, GEX_EC_LC);
+              break;
+            case 2: // NBI
+              CALL(gex_VIS_VectorPutNBI);
+              break;
+            case 3: // NBI-AR
+              gex_NBI_BeginAccessRegion(0);
+              CALL(gex_VIS_VectorPutNBI);
+              RC = gex_NBI_EndAccessRegion(0);
+              LC = gex_Event_QueryLeaf(RC, GEX_EC_LC);
+              break;
+          }
+          if (LC) gex_Event_Wait(LC);
+          else gex_NBI_Wait(GEX_EC_LC, 0);
+
+          for (ptrdiff_t i=src->count-1; i >= 0; i--) // clear
+            if (src->list[i].gex_len)
+              memset(src->list[i].gex_addr, 0, src->list[i].gex_len);
+
+          if (RC) gex_Event_Wait(RC);
+          else gex_NBI_Wait(GEX_EC_PUT, 0);
+
+          for (size_t i=0; i < src->count; i++) // restore
+            if (src->list[i].gex_len)
+              restore_heap_read_area(src->list[i].gex_addr, src->list[i].gex_len/VEC_SZ);
+
+        } else {
+          TIMED_PUT(CALL(gex_VIS_VectorPutBlocking),dst->totalsz);
+        }
+        #undef CALL
         verify_memvec_list(src);
         verify_memvec_list(dst);
         TIMED_GET(gex_VIS_VectorGetBlocking(myteam, tmp->count, tmp->list, partner, dst->count, dst->list, 0),dst->totalsz);
@@ -1192,12 +1240,52 @@ void doit(int iters, int runtests) {
         size_t srcchunkelem, dstchunkelem;
 
         rand_chunkelem(&srcchunkelem, &dstchunkelem);
-        src = rand_addr_list(TEST_RAND_PICK(my_heap_read_area, my_seg_read_area), srcchunkelem, areasz, 1);
+        VEC_T *src_area = TEST_RAND_PICK(my_heap_read_area, my_seg_read_area);
+        src = rand_addr_list(src_area, srcchunkelem, areasz, 1);
         dst = rand_addr_list(partner_seg_remotewrite_area, dstchunkelem, areasz, 0);
         trim_addr_list(src, dst);
         tmp = buildcontig_addr_list(TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area), dst->totalsz/VEC_SZ, areasz);
 
-        TIMED_PUT(gex_VIS_IndexedPutBlocking(myteam, partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen, 0),dst->totalsz);
+        #define CALL(fn) fn(myteam, partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen, flags)
+        gex_Flags_t flags = 0;
+        if (src_area == my_heap_read_area && TEST_RAND_ONEIN(2)) { // LC overwrite test
+          gex_Event_t RC = GEX_EVENT_INVALID;
+          gex_Event_t LC = GEX_EVENT_INVALID;
+          flags = GEX_FLAG_VIS_WITH_LC;
+          int const flavor = TEST_RAND(1,3);
+          switch (flavor) {
+            case 1: // NB
+              RC = CALL(gex_VIS_IndexedPutNB);
+              LC = gex_Event_QueryLeaf(RC, GEX_EC_LC);
+              break;
+            case 2: // NBI
+              CALL(gex_VIS_IndexedPutNBI);
+              break;
+            case 3: // NBI-AR
+              gex_NBI_BeginAccessRegion(0);
+              CALL(gex_VIS_IndexedPutNBI);
+              RC = gex_NBI_EndAccessRegion(0);
+              LC = gex_Event_QueryLeaf(RC, GEX_EC_LC);
+              break;
+          }
+          if (LC) gex_Event_Wait(LC);
+          else gex_NBI_Wait(GEX_EC_LC, 0);
+
+          if (src->chunklen)
+            for (ptrdiff_t i=src->count-1; i >= 0; i--) // clear
+              memset(src->list[i], 0, src->chunklen);
+
+          if (RC) gex_Event_Wait(RC);
+          else gex_NBI_Wait(GEX_EC_PUT, 0);
+
+          if (src->chunklen)
+            for (size_t i=0; i < src->count; i++) // restore
+              restore_heap_read_area(src->list[i], src->chunklen/VEC_SZ);
+
+        } else {
+          TIMED_PUT(CALL(gex_VIS_IndexedPutBlocking),dst->totalsz);
+        }
+        #undef CALL
         verify_addr_list(src);
         verify_addr_list(dst);
         TIMED_GET(gex_VIS_IndexedGetBlocking(myteam, tmp->count, tmp->list, tmp->chunklen, partner, dst->count, dst->list, dst->chunklen, 0),dst->totalsz);
@@ -1262,7 +1350,44 @@ void doit(int iters, int runtests) {
         tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);  // randomized tmpbuf position
 
         // push strided local data to strided peer segment
-        TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
+        #define CALL(fn) fn(myteam, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, flags)
+        gex_Flags_t flags = 0;
+        if (srcarea == my_heap_read_area && TEST_RAND_ONEIN(2) && desc->totalsz > 0) { // LC overwrite test
+          gex_Event_t RC = GEX_EVENT_INVALID;
+          gex_Event_t LC = GEX_EVENT_INVALID;
+          flags = GEX_FLAG_VIS_WITH_LC;
+          int const flavor = TEST_RAND(1,3);
+          switch (flavor) {
+            case 1: // NB
+              RC = CALL(gex_VIS_StridedPutNB);
+              LC = gex_Event_QueryLeaf(RC, GEX_EC_LC);
+              break;
+            case 2: // NBI
+              CALL(gex_VIS_StridedPutNBI);
+              break;
+            case 3: // NBI-AR
+              gex_NBI_BeginAccessRegion(0);
+              CALL(gex_VIS_StridedPutNBI);
+              RC = gex_NBI_EndAccessRegion(0);
+              LC = gex_Event_QueryLeaf(RC, GEX_EC_LC);
+              break;
+          }
+          if (LC) gex_Event_Wait(LC);
+          else gex_NBI_Wait(GEX_EC_LC, 0);
+
+          // clear
+          memset(desc->srcaddr, 0, desc->count[0]);
+
+          if (RC) gex_Event_Wait(RC);
+          else gex_NBI_Wait(GEX_EC_PUT, 0);
+
+          // restore
+          restore_heap_read_area(desc->srcaddr, desc->count[0]/VEC_SZ);
+
+        } else {
+          TIMED_PUT(CALL(gex_VIS_StridedPutBlocking),desc->totalsz);
+        }
+        #undef CALL
         verify_strided_desc(desc);
         // pull it back to contiguous local tmp
         TIMED_GET(gex_VIS_StridedGetBlocking(myteam, tmpbuf, (ptrdiff_t*)desc->contigstrides, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->count[0], desc->count+1, desc->stridelevels, 0),desc->totalsz);
