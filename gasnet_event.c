@@ -706,6 +706,7 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, gex_EC_t event_id) {
 #endif
 
 extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id) {
+  if (root == GEX_EVENT_INVALID) return GEX_EVENT_INVALID;
   gasnete_op_t *op = (gasnete_op_t*)root;
   _gasnete_get_leaf_check(op, event_id);
 

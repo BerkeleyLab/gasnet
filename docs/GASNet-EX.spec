@@ -1399,6 +1399,7 @@ void gex_NBI_Wait(gex_EC_t event_mask, gex_Flags_t flags);
 //
 // The 'root' argument must be a valid root event, such as returned by an
 // NB initiation function (gex_*NB()) or gex_NBI_EndAccessRegion.
+// It is permitted to be GEX_EVENT_INVALID (but not GEX_EVENT_NO_OP).
 // The 'event_category' argument is an GEX_EC_<x> constant.
 // It cannot be a bitwise-OR of multiple such values, nor GEX_EC_ALL.
 //
@@ -1407,7 +1408,8 @@ void gex_NBI_Wait(gex_EC_t event_mask, gex_Flags_t flags);
 // Violating those constraints give undefined results (though we want a debug
 // build to report the violation).
 //
-// For an event that has "already happened" the implementation may return
+// For root==GEX_EVENT_INVALID, or equivalently for
+// an event that has "already happened" the implementation may return
 // either GEX_EVENT_INVALID or a valid event that tests as done.  The
 // implementation is not constrained to pick consistently between these two
 // options (and in the extreme could choose between them at random).
@@ -1416,7 +1418,7 @@ void gex_NBI_Wait(gex_EC_t event_mask, gex_Flags_t flags);
 // calls with the same argument (that don't return INVALID_HANDLE) must return
 // the *same* event.
 gex_Event_t gex_Event_QueryLeaf(
-        gex_Event_t event,
+        gex_Event_t root,
         gex_EC_t event_category);
 
 
