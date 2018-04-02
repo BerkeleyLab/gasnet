@@ -298,14 +298,12 @@
 } while(0)
 
 #define GASNETI_TRACE_PREP_MEDIUM(name,dest,cbuf,least_pl,most_pl,flags,numargs) do {                     \
-  _GASNETI_STAT_EVENT(A,name);                                                                            \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i client_buf=" GASNETI_LADDRFMT " least_payload=%" PRIuSZ         \
                                 " most_payload=%" PRIuSZ " flags=0x%x numargs=%i",                        \
     (int)dest,GASNETI_LADDRSTR(cbuf),(size_t)least_pl,(size_t)most_pl,flags,(int)numargs));               \
 } while(0)
 
 #define GASNETI_TRACE_PREP_LONG(name,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs) do {             \
-  _GASNETI_STAT_EVENT(A,name);                                                                            \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i client_buf=" GASNETI_LADDRFMT " least_payload=%" PRIuSZ         \
                                 " most_payload=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT                   \
                                 " flags=0x%x numargs=%i",                                                 \
@@ -316,6 +314,7 @@
 #define _GASNETI_TRACE_PREP_RETURN(name,sd) do { \
   gasneti_AM_SrcDesc_t tmp_sd = (sd);                                                       \
   if (tmp_sd) {                                                                             \
+    _GASNETI_STAT_EVENT_VAL(A,name,tmp_sd->_size);                                          \
     GASNETI_TRACE_PRINTF(A,(#name": return { Addr=" GASNETI_LADDRFMT " Size=%" PRIuSZ " }", \
                             GASNETI_LADDRSTR(tmp_sd->_addr), (size_t)(tmp_sd->_size)));     \
   } else {                                                                                  \
@@ -325,7 +324,7 @@
 
 #define GASNETI_TRACE_COMMIT_MEDIUM(name,handler,source_addr,nbytes,numargs) do {              \
   _GASNETI_TRACE_GATHERARGS(numargs,sd_arg); /* assumes sd_arg is final fixed arg */           \
-  _GASNETI_STAT_EVENT(A,name);                                                                 \
+  _GASNETI_STAT_EVENT_VAL(A,name,nbytes);                                                      \
   GASNETI_TRACE_PRINTF(A,(#name": handler=%i nbytes=%" PRIuSZ " args:%s",                      \
                           handler,(size_t)nbytes,argstr));                                     \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes))); \
@@ -333,7 +332,7 @@
 
 #define GASNETI_TRACE_COMMIT_LONG(name,handler,source_addr,nbytes,dest_addr,numargs) do {               \
   _GASNETI_TRACE_GATHERARGS(numargs,sd_arg); /* assumes sd_arg is final fixed arg */                    \
-  _GASNETI_STAT_EVENT(A,name);                                                                          \
+  _GASNETI_STAT_EVENT_VAL(A,name,nbytes);                                                               \
   GASNETI_TRACE_PRINTF(A,(#name": handler=%i nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" args:%s", \
                           handler,(size_t)nbytes,GASNETI_LADDRSTR(dest_addr),argstr));                  \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));          \
@@ -416,23 +415,20 @@
      GASNETI_TRACE_EVENT_VAL(A,AMREQUEST_LONG,nbytes)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs) \
      GASNETI_TRACE_EVENT_VAL(A,AMREPLY_LONG,nbytes)
-  #define GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,PREP_REQUEST_MEDIUM)
-  #define GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,PREP_REPLY_MEDIUM)
-  #define GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,PREP_REQUEST_LONG)
-  #define GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,PREP_REPLY_LONG)
-  #define GASNETI_TRACE_PREP_RETURN(name,sd) ((void)0)
+  #define GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,numargs)          ((void)0)
+  #define GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,numargs)              ((void)0)
+  #define GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,numargs)  ((void)0)
+  #define GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,numargs)      ((void)0)
+  #define GASNETI_TRACE_PREP_RETURN(name,sd) \
+     _GASNETI_TRACE_PREP_RETURN(PREP_##name,sd)
   #define GASNETI_TRACE_COMMIT_REQUESTMEDIUM(handler,source_addr,nbytes,numargs) \
-     GASNETI_TRACE_EVENT(A,COMMIT_REQUEST_MEDIUM)
+     GASNETI_TRACE_EVENT_VAL(A,COMMIT_REQUEST_MEDIUM,nbytes)
   #define GASNETI_TRACE_COMMIT_REPLYMEDIUM(handler,source_addr,nbytes,numargs) \
-     GASNETI_TRACE_EVENT(A,COMMIT_REPLY_MEDIUM)
+     GASNETI_TRACE_EVENT_VAL(A,COMMIT_REPLY_MEDIUM,nbytes)
   #define GASNETI_TRACE_COMMIT_REQUESTLONG(handler,source_addr,nbytes,dest_addr,numargs) \
-     GASNETI_TRACE_EVENT(A,COMMIT_REQUEST_LONG)
+     GASNETI_TRACE_EVENT_VAL(A,COMMIT_REQUEST_LONG,nbytes)
   #define GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,numargs) \
-     GASNETI_TRACE_EVENT(A,COMMIT_REPLY_LONG)
+     GASNETI_TRACE_EVENT_VAL(A,COMMIT_REPLY_LONG,nbytes)
 #else
   #define GASNETI_TRACE_AMREQUESTSHORT(tm,dest,handler,flags,numargs)                                ((void)0)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs)                                    ((void)0)
@@ -872,14 +868,14 @@ extern void gasneti_trace_finish(void);
         VAL(A, AMREPLY_MEDIUM, sz)                        \
         VAL(A, AMREPLY_LONG, sz)                          \
                                                           \
-        CNT(A, PREP_REQUEST_MEDIUM, cnt)                  \
-        CNT(A, PREP_REQUEST_LONG, cnt)                    \
-        CNT(A, PREP_REPLY_MEDIUM, cnt)                    \
-        CNT(A, PREP_REPLY_LONG, cnt)                      \
-        CNT(A, COMMIT_REQUEST_MEDIUM, cnt)                \
-        CNT(A, COMMIT_REQUEST_LONG, cnt)                  \
-        CNT(A, COMMIT_REPLY_MEDIUM, cnt)                  \
-        CNT(A, COMMIT_REPLY_LONG, cnt)                    \
+        VAL(A, PREP_REQUEST_MEDIUM, sz)                   \
+        VAL(A, PREP_REQUEST_LONG, sz)                     \
+        VAL(A, PREP_REPLY_MEDIUM, sz)                     \
+        VAL(A, PREP_REPLY_LONG, sz)                       \
+        VAL(A, COMMIT_REQUEST_MEDIUM, sz)                 \
+        VAL(A, COMMIT_REQUEST_LONG, sz)                   \
+        VAL(A, COMMIT_REPLY_MEDIUM, sz)                   \
+        VAL(A, COMMIT_REPLY_LONG, sz)                     \
                                                           \
         CNT(A, AMREQUEST_SHORT_HANDLER, cnt)              \
         CNT(A, AMREQUEST_MEDIUM_HANDLER, cnt)             \
