@@ -502,7 +502,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
                                                  _opcode, _fences);          \
-        if (_GASNETE_RATOMIC_DISP_ISFETCH(_opcode)) {                        \
+        if (gasneti_op_fetch(_opcode)) {                                     \
             *_result_p = _result;                                            \
         }                                                                    \
         return retdone;                                                      \
@@ -536,12 +536,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
        break; /* Leave enclosing do/while w/o using tools */             \
     }
 #endif
-#define _GASNETE_RATOMIC_DISP_ISFETCH(opcode) \
-    ((opcode) & (GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT | \
-                 GEX_OP_FMIN | GEX_OP_FMAX |                \
-                 GEX_OP_FINC | GEX_OP_FDEC |                \
-                 GEX_OP_FAND | GEX_OP_FOR  | GEX_OP_FXOR  | \
-                 GEX_OP_GET  | GEX_OP_SWAP | GEX_OP_CSWAP))
 #define _GASNETE_RATOMIC_DISP_ARGS(type) \
          gex_AD_t            _ad,        type             *_result_p,    \
          gex_Rank_t          _tgt_rank,  void             *_tgt_addr,    \
