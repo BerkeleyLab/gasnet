@@ -82,9 +82,9 @@ gasnete_coll_broadcast_pami(gasnet_team_handle_t team, void *dst,
 {
   if ((team->pami.geom == PAMI_GEOMETRY_NULL) || !gasnete_use_pami_bcast) {
     /* Use generic implementation for cases we don't (yet) handle, or when disabled */
-    gasnet_coll_handle_t handle;
+    gex_Event_t handle;
     handle = gasnete_coll_broadcast_nb_default(team,dst,srcimage,src,nbytes,flags,0 GASNETI_THREAD_PASS);
-    gasnete_coll_wait_sync(handle GASNETI_THREAD_PASS);
+    gasnete_wait(handle GASNETI_THREAD_PASS);
   } else {
     /* Use PAMI-specific implementation */
     gasnete_coll_pami_bcast(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_PASS);
@@ -99,9 +99,9 @@ gasnete_coll_broadcastM_pami(gasnet_team_handle_t team,
 {
   if ((team->pami.geom == PAMI_GEOMETRY_NULL) || !gasnete_use_pami_bcast) {
     /* Use generic implementation for cases we don't (yet) handle, or when disabled */
-    gasnet_coll_handle_t handle;
+    gex_Event_t handle;
     handle = gasnete_coll_broadcastM_nb_default(team,dstlist,srcimage,src,nbytes,flags,0 GASNETI_THREAD_PASS);
-    gasnete_coll_wait_sync(handle GASNETI_THREAD_PASS);
+    gasnete_wait(handle GASNETI_THREAD_PASS);
   } else {
     /* Use PAMI-specific implementation */
   #if GASNET_PAR

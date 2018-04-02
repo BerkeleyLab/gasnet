@@ -11,7 +11,11 @@
 #ifndef _GASNET_COLL_FWD_H
 #define _GASNET_COLL_FWD_H
 
-#define GASNETI_COLL_PROGRESSFNS(FN) 
+#ifndef GASNETI_COLL_PROGRESSFNS
+  extern void gasneti_coll_progressfn(void);
+  #define GASNETI_COLL_PROGRESSFNS(FN) \
+      FN(gasneti_pf_coll, BOOLEAN, gasneti_coll_progressfn)
+#endif
 
 /* stats needed by the COLL reference implementation */
 #ifndef GASNETI_COLL_STATS

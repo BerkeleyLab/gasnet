@@ -15,7 +15,7 @@
 #define GASNETE_COLL_EVERY_SYNC_FLAG GASNETE_COLL_EVERY_IN_SYNC_FLAG | GASNETE_COLL_EVERY_OUT_SYNC_FLAG
 
 #if GASNETE_COLL_CONDUIT_COLLECTIVES
-gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_get(gasnet_team_handle_t team,
+gex_Event_t gasnete_coll_smp_bcast_flat_get(gasnet_team_handle_t team,
                                                  void * const dstlist[],
                                                  gasnet_image_t srcimage, void *src,
                                                  size_t nbytes, int flags, 
@@ -31,10 +31,10 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_get(gasnet_team_handle_t team,
   if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dstlist[td->my_local_image], src, nbytes);
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_put(gasnet_team_handle_t team,
+gex_Event_t gasnete_coll_smp_bcast_flat_put(gasnet_team_handle_t team,
                                             void * const dstlist[],
                                             gasnet_image_t srcimage, void *src,
                                             size_t nbytes, int flags, 
@@ -52,10 +52,10 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_put(gasnet_team_handle_t team,
     gasnete_coll_local_broadcast(team->my_images, dstlist, src, nbytes); 
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t team,
+gex_Event_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t team,
                                             void * const dstlist[],
                                             gasnet_image_t srcimage, void *src,
                                             size_t nbytes, int flags, 
@@ -73,10 +73,10 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
   smp_coll_broadcast_tree_flag(td->smp_coll_handle, team->my_images, dstlist, src, 
                                  nbytes, flags, coll_params->param_list[0]);
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_smp_reduceM_flat(gasnet_team_handle_t team,
                                 gasnet_image_t dstimage, void *dst,
                                 void * const srclist[], size_t src_blksz, size_t src_offset,
@@ -96,10 +96,10 @@ gasnete_coll_smp_reduceM_flat(gasnet_team_handle_t team,
                               elem_size, elem_count, func, func_arg);
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
   
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_smp_scatM_flat_put(gasnet_team_handle_t team,
                             void * const dstlist[],
                             gasnet_image_t srcimage, void *src,
@@ -120,10 +120,10 @@ gasnete_coll_smp_scatM_flat_put(gasnet_team_handle_t team,
     }
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t gasnete_coll_smp_scatM_flat_get(gasnet_team_handle_t team,
+gex_Event_t gasnete_coll_smp_scatM_flat_get(gasnet_team_handle_t team,
                                                      void * const dstlist[],
                                                      gasnet_image_t srcimage, void *src,
                                                      size_t nbytes, size_t dist, int flags,
@@ -139,9 +139,9 @@ gasnet_coll_handle_t gasnete_coll_smp_scatM_flat_get(gasnet_team_handle_t team,
   if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dstlist[td->my_local_image], ((uint8_t*)src)+td->my_image*dist, nbytes);
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
-gasnet_coll_handle_t
+gex_Event_t
 gasnete_coll_smp_gathM_flat_put(gasnet_team_handle_t team,
                                 gasnet_image_t dstimage, void *dst,
                                 void * const srclist[],
@@ -156,10 +156,10 @@ gasnete_coll_smp_gathM_flat_put(gasnet_team_handle_t team,
   if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(((uint8_t*)dst)+td->my_image*dist, srclist[td->my_local_image], nbytes);
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t
+gex_Event_t
 gasnete_coll_smp_gathM_flat_get(gasnet_team_handle_t team,
                                 gasnet_image_t dstimage, void *dst,
                                 void * const srclist[],
@@ -180,10 +180,10 @@ gasnete_coll_smp_gathM_flat_get(gasnet_team_handle_t team,
     }
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t
+gex_Event_t
 gasnete_coll_smp_gath_allM_flat_put(gasnet_team_handle_t team,
                                     void * const dstlist [],
                                     void * const srclist[],
@@ -206,10 +206,10 @@ gasnete_coll_smp_gath_allM_flat_put(gasnet_team_handle_t team,
                                         srclist[td->my_image], nbytes);
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t
+gex_Event_t
 gasnete_coll_smp_gath_allM_flat_get(gasnet_team_handle_t team,
                                     void * const dstlist [],
                                     void * const srclist[],
@@ -232,10 +232,10 @@ gasnete_coll_smp_gath_allM_flat_get(gasnet_team_handle_t team,
                                         srclist[src], nbytes);
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t
+gex_Event_t
 gasnete_coll_smp_exchgM_flat_put(gasnet_team_handle_t team,
                                     void * const dstlist [],
                                     void * const srclist[],
@@ -258,10 +258,10 @@ gasnete_coll_smp_exchgM_flat_put(gasnet_team_handle_t team,
                                         gasnete_coll_scale_ptr(srclist[td->my_image], nbytes, dst), nbytes);
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
-gasnet_coll_handle_t
+gex_Event_t
 gasnete_coll_smp_exchgM_flat_get(gasnet_team_handle_t team,
                                     void * const dstlist [],
                                     void * const srclist[],
@@ -285,7 +285,7 @@ gasnete_coll_smp_exchgM_flat_get(gasnet_team_handle_t team,
 
   }
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
-  return GASNET_COLL_INVALID_HANDLE;
+  return GEX_EVENT_INVALID;
 }
 
 void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* info) {
