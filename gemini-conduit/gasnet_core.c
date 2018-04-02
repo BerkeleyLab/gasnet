@@ -1644,10 +1644,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 
     if (imm) {
         gasneti_reset_srcdesc(sd);
-        return GEX_AM_SRCDESC_NO_OP;
+        sd = NULL; // GEX_AM_SRCDESC_NO_OP
+    } else {
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -1850,10 +1852,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 
     if (imm) {
         gasneti_reset_srcdesc(sd);
-        return GEX_AM_SRCDESC_NO_OP;
+        sd = NULL; // GEX_AM_SRCDESC_NO_OP
+    } else {
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 }
 
