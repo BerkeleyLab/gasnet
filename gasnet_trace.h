@@ -280,7 +280,7 @@
 
 #define GASNETI_TRACE_AMMEDIUM(name,dest,handler,source_addr,nbytes,flags,numargs) do {                   \
   _GASNETI_TRACE_GATHERARGS(numargs,numargs);                                                             \
-  _GASNETI_STAT_EVENT(A,name);                                                                            \
+  _GASNETI_STAT_EVENT_VAL(A,name,nbytes);                                                                 \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT                       \
                                 " nbytes=%" PRIuSZ " flags=0x%x args:%s",                                 \
     (int)dest,handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,flags,argstr));                        \
@@ -289,7 +289,7 @@
 
 #define GASNETI_TRACE_AMLONG(name,dest,handler,source_addr,nbytes,dest_addr,flags,numargs) do {\
   _GASNETI_TRACE_GATHERARGS(numargs,numargs);                                                  \
-  _GASNETI_STAT_EVENT(A,name);                                                                 \
+  _GASNETI_STAT_EVENT_VAL(A,name,nbytes);                                                      \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr=" GASNETI_LADDRFMT            \
                                 " nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" flags=0x%x args:%s",   \
     (int)dest,handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,                            \
@@ -409,13 +409,13 @@
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs) \
      GASNETI_TRACE_EVENT(A,AMREPLY_SHORT)
   #define GASNETI_TRACE_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,AMREQUEST_MEDIUM)
+     GASNETI_TRACE_EVENT_VAL(A,AMREQUEST_MEDIUM,nbytes)
   #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,AMREPLY_MEDIUM)
+     GASNETI_TRACE_EVENT_VAL(A,AMREPLY_MEDIUM,nbytes)
   #define GASNETI_TRACE_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,AMREQUEST_LONG)
+     GASNETI_TRACE_EVENT_VAL(A,AMREQUEST_LONG,nbytes)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs) \
-     GASNETI_TRACE_EVENT(A,AMREPLY_LONG)
+     GASNETI_TRACE_EVENT_VAL(A,AMREPLY_LONG,nbytes)
   #define GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,numargs) \
      GASNETI_TRACE_EVENT(A,PREP_REQUEST_MEDIUM)
   #define GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,numargs) \
@@ -866,11 +866,11 @@ extern void gasneti_trace_finish(void);
         VAL(L, HSL_TRYLOCK, success)                      \
                                                           \
         CNT(A, AMREQUEST_SHORT, cnt)                      \
-        CNT(A, AMREQUEST_MEDIUM, cnt)                     \
-        CNT(A, AMREQUEST_LONG, cnt)                       \
+        VAL(A, AMREQUEST_MEDIUM, sz)                      \
+        VAL(A, AMREQUEST_LONG, sz)                        \
         CNT(A, AMREPLY_SHORT, cnt)                        \
-        CNT(A, AMREPLY_MEDIUM, cnt)                       \
-        CNT(A, AMREPLY_LONG, cnt)                         \
+        VAL(A, AMREPLY_MEDIUM, sz)                        \
+        VAL(A, AMREPLY_LONG, sz)                          \
                                                           \
         CNT(A, PREP_REQUEST_MEDIUM, cnt)                  \
         CNT(A, PREP_REQUEST_LONG, cnt)                    \
