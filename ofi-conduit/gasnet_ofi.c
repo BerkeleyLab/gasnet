@@ -168,13 +168,13 @@ static int gasnetc_ofi_inited = 0;
 #define GASNETC_OFI_POLL_EVERYTHING() do { gasnetc_ofi_poll(); gasnetc_AMPSHMPoll(0);} while (0)
 #define GASNETC_OFI_POLL_SELECTIVE(type) do {\
     if (type == OFI_POLL_ALL) {\
-        gasnetc_ofi_am_recv_poll(1);\
+        gasnetc_ofi_am_recv_poll_cold(1);\
         gasnetc_AMPSHMPoll(0);\
     }\
     else {\
         gasnetc_AMPSHMPoll(1);\
     }\
-    gasnetc_ofi_am_recv_poll(0);\
+    gasnetc_ofi_am_recv_poll_cold(0);\
     gasnetc_ofi_tx_poll();\
 }while(0)
 
@@ -198,8 +198,15 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
 void gasnetc_ofi_release_request_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_tx_poll();
-GASNETI_PLEASE_INLINE(gasnetc_ofi_am_recv_poll)
+GASNETI_INLINE(gasnetc_ofi_am_recv_poll)
 void gasnetc_ofi_am_recv_poll(int is_request);
+void gasnetc_ofi_am_recv_poll_cold(int is_request) { // non-inline wrapper to avoid forced inlining on "cold" paths
+  gasnetc_ofi_am_recv_poll(is_request);
+}
+GASNETI_NEVER_INLINE(gasnetc_fi_cq_readerr, // this wrapper silences a warning on gcc 4.8.5
+ssize_t gasnetc_fi_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf, uint64_t flags)) {
+  return fi_cq_readerr(cq, buf, flags);
+}
 
 /* Reads any user-provided settings from the environment to avoid clogging up
  * the gasnetc_ofi_init() function with this code. */
@@ -1000,7 +1007,7 @@ void gasnetc_ofi_tx_poll()
 		if_pf (ret < 0) {
             if (-FI_EAVAIL == ret) {
                 GASNETC_OFI_LOCK_EXPR(&gasnetc_ofi_locks.tx_cq,
-                   fi_cq_readerr(gasnetc_ofi_tx_cqfd, &e ,0));
+                   gasnetc_fi_cq_readerr(gasnetc_ofi_tx_cqfd, &e ,0));
                 if_pf (gasnetc_is_exit_error(e)) return;
                 gasneti_fatalerror("fi_cq_read for tx_poll failed with error: %s\n", fi_strerror(e.err));
             } 
@@ -1031,7 +1038,7 @@ void gasnetc_ofi_tx_poll()
     }
 }
 
-GASNETI_PLEASE_INLINE(gasnetc_ofi_am_recv_poll)
+GASNETI_INLINE(gasnetc_ofi_am_recv_poll)
 void gasnetc_ofi_am_recv_poll(int is_request)
 {
 	int ret = 0;
@@ -1067,7 +1074,7 @@ void gasnetc_ofi_am_recv_poll(int is_request)
         return;
     } 
     if_pf (ret < 0) {
-        fi_cq_readerr(cq, &e ,0);
+        gasnetc_fi_cq_readerr(cq, &e ,0);
         GASNETC_OFI_PAR_UNLOCK(lock_p);
         if_pf (gasnetc_is_exit_error(e)) return;
         gasneti_fatalerror("fi_cq_read for am_recv_poll failed with error: %s\n", fi_strerror(e.err));
