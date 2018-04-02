@@ -21,6 +21,7 @@ private_headers = gasnet_coll_autotune.h \
                   gasnet_coll_trees.h \
                   gasnet_extended_refcoll.h \
                   gasnet_extended_refvis.h \
+                  gasnet_extended_refratomic.h \
                   $(CONDUIT_PRIVATEHEADERS)
 
 @BUILD_SEQ_LIBS_TRUE@     makefile_fragments_seq =     $(CONDUIT_NAME)-seq.mak
