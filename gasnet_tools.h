@@ -109,7 +109,6 @@ GASNETI_BEGIN_NOWARN
 /* various configure-detected C compiler features available in only some compilers */
 #define GASNETT_INLINE                  GASNETI_INLINE
 #define GASNETT_ALWAYS_INLINE           GASNETI_ALWAYS_INLINE
-#define GASNETT_PLEASE_INLINE           GASNETI_PLEASE_INLINE
 #define GASNETT_NEVER_INLINE            GASNETI_NEVER_INLINE
 #define GASNETT_RESTRICT                GASNETI_RESTRICT
 #define GASNETT_USED                    GASNETI_USED

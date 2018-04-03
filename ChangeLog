@@ -211,7 +211,7 @@ GASNet ChangeLog
   - Reduce polling cost on single-supernode runs. smp-conduit remains the
     recommended conduit for use on single-supernode shared-memory systems.
 
-* GASNet tools (spec v1.11)
+* GASNet tools (spec v1.12)
   - Numerous improvements to backtrace support, including fixing the
     following bugs:
     + Bug 3624: Improve backtrace fail-over behavior
@@ -221,6 +221,7 @@ GASNet ChangeLog
     + Bug 3637: Fix EXECINFO backtrace for *BSD
     + Enable GDB backtrace on Cray systems, when available
   - Bug 3664: GASNETT_PREDICT_{TRUE,FALSE} result value semantics change slightly
+  - GASNETT_PLEASE_INLINE has been removed. Recommended replacement is `inline`
   - Improve behavior when installed public headers are passed to a compiler 
     that was not probed at configure time.
 
