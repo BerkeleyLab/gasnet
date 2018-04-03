@@ -4399,7 +4399,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   va_list argptr;
 
   const gex_Rank_t rank = gasnetc_epid2node(dest);
-  GASNETI_TRACE_AMREQUESTSHORT(NULL,rank,handler,numargs);
+  GASNETI_TRACE_AMREQUESTSHORT(NULL,rank,handler,/*flags*/0,numargs);
 
   /* ensure AM progress, but NOT progress functions */
   gasnetc_poll_rcv();
@@ -4431,7 +4431,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   va_list argptr;
 
   const gex_Rank_t rank = gasnetc_epid2node(dest);
-  GASNETI_TRACE_AMREQUESTMEDIUM(NULL,rank,handler,source_addr,nbytes,numargs);
+  GASNETI_TRACE_AMREQUESTMEDIUM(NULL,rank,handler,source_addr,nbytes,/*flags*/0,numargs);
 
   /* ensure AM progress, but NOT progress functions */
   gasnetc_poll_rcv();
@@ -4461,7 +4461,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
   int retval;
   va_list argptr;
   gasneti_assert(token);
-  GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);
+  GASNETI_TRACE_AMREPLYSHORT(token,handler,/*flags*/0,numargs);
   va_start(argptr, numargs);
   if_pt (gasnetc_token_in_nbrhd(token)) {
     retval = gasnetc_nbrhd_ReplyGeneric ( gasneti_Short, token, handler,
@@ -4490,7 +4490,7 @@ extern int gasnetc_ReplySysMedium(gex_Token_t token,
   int retval;
   va_list argptr;
   gasneti_assert(token);
-  GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs); 
+  GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,/*flags*/0,numargs); 
   va_start(argptr, numargs);
   if_pt (gasnetc_token_in_nbrhd(token)) {
     retval = gasnetc_nbrhd_ReplyGeneric ( gasneti_Medium, token, handler,
