@@ -25,7 +25,7 @@ gex_Event_t gasnete_get_nb(
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
 #define gasnete_get_nb gasnete_get_nb
@@ -39,7 +39,7 @@ gex_Event_t gasnete_put_nb(
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb gasnete_put_nb
@@ -58,7 +58,7 @@ int gasnete_get_nbi (gex_TM_t tm,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_get_nbi gasnete_get_nbi
@@ -71,7 +71,7 @@ int gasnete_put_nbi (gex_TM_t tm,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_put_nbi gasnete_put_nbi
@@ -92,7 +92,7 @@ int gasnete_put_val(
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_put_val gasnete_put_val
@@ -106,7 +106,7 @@ gex_Event_t gasnete_put_nb_val(
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb_val gasnete_put_nb_val
@@ -128,7 +128,7 @@ gex_RMA_Value_t gasnete_get_val(
                 GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();
-  gasneti_assert(0 && "Unreachable");
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_get_val gasnete_get_val
