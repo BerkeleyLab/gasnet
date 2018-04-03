@@ -541,7 +541,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #define _GASNETE_RATOMIC_DISP2(fname,nbnbi,isint,type,dtcode,rettype,retdone) \
     extern rettype fname##_external(_GASNETE_RATOMIC_DISP_ARGS(type))    \
                                       _GASNETE_RATOMIC_DISP_WARN##nbnbi; \
-    GASNETI_ALWAYS_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi       \
+    GASNETI_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi              \
     rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
         GASNETE_TRACE_RATOMIC##nbnbi(dtcode##_dtype, _result_p,          \

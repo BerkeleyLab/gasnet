@@ -441,7 +441,7 @@ struct gasneti_pshmnet {
                 (gasneti_atomic_val_t)((uintptr_t)(addr) - (uintptr_t)gasnetc_pshmnet_region))
 #if PLATFORM_COMPILER_PGI && PLATFORM_COMPILER_VERSION_LT(10,0,0)
 /* PGI 9.0-0 truncates the macro version to 32-bits! (older than 9.0 not tested) */
-GASNETI_ALWAYS_INLINE(gasneti_pshm_addr)
+GASNETI_INLINE(gasneti_pshm_addr)
 void * gasneti_pshm_addr(uintptr_t offset) {
   gasneti_assert(offset);
   return (void*)(offset + (uintptr_t)gasnetc_pshmnet_region);
@@ -586,7 +586,7 @@ void gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   }
 }
 
-GASNETI_ALWAYS_INLINE(gasneti_pshmnet_queue_peek)
+GASNETI_INLINE(gasneti_pshmnet_queue_peek)
 int gasneti_pshmnet_queue_peek(const gasneti_pshmnet_queue_t * const q)
 {
   return q->shead || q->head;
