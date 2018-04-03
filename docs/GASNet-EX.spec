@@ -707,25 +707,25 @@ unsigned int gex_AM_MaxArgs(void);
 size_t gex_AM_MaxRequestLong(
            gex_TM_t tm,
            gex_Rank_t other_rank,
-           gex_Event_t *lc_opt,
+           const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_AM_MaxReplyLong(
            gex_TM_t tm,
            gex_Rank_t other_rank,
-           gex_Event_t *lc_opt,
+           const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_AM_MaxRequestMedium(
            gex_TM_t tm,
            gex_Rank_t other_rank,
-           gex_Event_t *lc_opt,
+           const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_AM_MaxReplyMedium(
            gex_TM_t tm,
            gex_Rank_t other_rank,
-           gex_Event_t *lc_opt,
+           const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 
@@ -742,12 +742,12 @@ size_t gex_AM_MaxReplyMedium(
 // These are only permitted in Request handlers.
 size_t gex_Token_MaxReplyLong(
            gex_AM_Token_t token,
-           gex_Event_t *lc_opt,
+           const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_Token_MaxReplyMedium(
            gex_AM_Token_t token,
-           gex_Event_t *lc_opt,
+           const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 
