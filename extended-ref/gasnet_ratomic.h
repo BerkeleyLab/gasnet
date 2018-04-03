@@ -164,6 +164,20 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 #define _gex_dt_U64_dtype GEX_DT_U64
 #define _gex_dt_FLT_dtype GEX_DT_FLT
 #define _gex_dt_DBL_dtype GEX_DT_DBL
+//
+#define _gex_dt_I32_fmt "%i"
+#define _gex_dt_U32_fmt "%u"
+#define _gex_dt_I64_fmt "%" PRIi64
+#define _gex_dt_U64_fmt "%" PRIu64
+#define _gex_dt_FLT_fmt "%g"
+#define _gex_dt_DBL_fmt "%g"
+//
+#define _gex_dt_I32_fmt_cast (int)
+#define _gex_dt_U32_fmt_cast (unsigned int)
+#define _gex_dt_I64_fmt_cast
+#define _gex_dt_U64_fmt_cast
+#define _gex_dt_FLT_fmt_cast
+#define _gex_dt_DBL_fmt_cast
 
 
 //
@@ -437,10 +451,78 @@ GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_TBL)
 union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 
 //
+// Tracing / statistics support
+//
+
+#if GASNETI_STATS_OR_TRACE
+  #define _GASNETE_RATOMIC_EVENT(prefix,dtype) do { \
+    switch(dtype) {                                               \
+      case GEX_DT_I32: _GASNETI_STAT_EVENT(R,prefix##I32); break; \
+      case GEX_DT_U32: _GASNETI_STAT_EVENT(R,prefix##U32); break; \
+      case GEX_DT_I64: _GASNETI_STAT_EVENT(R,prefix##I64); break; \
+      case GEX_DT_U64: _GASNETI_STAT_EVENT(R,prefix##U64); break; \
+      case GEX_DT_FLT: _GASNETI_STAT_EVENT(R,prefix##FLT); break; \
+      case GEX_DT_DBL: _GASNETI_STAT_EVENT(R,prefix##DBL); break; \
+      default: gasneti_unreachable();                             \
+    }                                                             \
+  } while (0)
+#endif
+
+#if GASNET_TRACE
+  #define _GASNETE_TRACE_RATOMIC(prefix,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) do { \
+    const char *_trat_suffix = "";                                      \
+    switch(dtype) {                                                     \
+      case GEX_DT_I32: _trat_suffix="I32"; break;                       \
+      case GEX_DT_U32: _trat_suffix="U32"; break;                       \
+      case GEX_DT_I64: _trat_suffix="I64"; break;                       \
+      case GEX_DT_U64: _trat_suffix="U64"; break;                       \
+      case GEX_DT_FLT: _trat_suffix="FLT"; break;                       \
+      case GEX_DT_DBL: _trat_suffix="DBL"; break;                       \
+      default: gasneti_unreachable();                                   \
+    }                                                                   \
+    if (GASNETI_TRACE_ENABLED(R)) {                                     \
+      _GASNETE_RATOMIC_EVENT(prefix,dtype);                             \
+      char *_trat_opstr = (char *)gasneti_extern_malloc(gasneti_format_op(NULL,opcode));\
+      gasneti_format_op(_trat_opstr,opcode);                            \
+      char _trat_resultstr[32] = "";                                    \
+      if (gasneti_op_fetch(opcode)) {                                   \
+        snprintf(_trat_resultstr, sizeof(_trat_resultstr),              \
+                 " " GASNETI_LADDRFMT " <-",GASNETI_LADDRSTR(result_p));\
+      }                                                                 \
+      /* TODO-EX: real team support */                                  \
+      GASNETI_TRACE_PRINTF(R,(#prefix "%s: %s%s " GASNETI_RADDRFMT " flags=0x%x",\
+                           _trat_suffix,_trat_opstr,_trat_resultstr,    \
+                           GASNETI_RADDRSTR(tgt_rank,tgt_addr),flags)); \
+      gasneti_extern_free(_trat_opstr);                                 \
+    }                                                                   \
+    if (gasneti_op_1arg(opcode)) {                                      \
+      GASNETI_TRACE_PRINTF(D,(#prefix "%s: operand = " fmt,             \
+                              _trat_suffix, cast op1));                 \
+    } else if (opcode == GEX_OP_CSWAP) {                                \
+      GASNETI_TRACE_PRINTF(D,(#prefix "%s: oldval = " fmt               \
+                              ", newval = " fmt,                        \
+                              _trat_suffix, cast op1, cast op2));       \
+    } else gasneti_assert(gasneti_op_0arg(opcode));                     \
+  } while (0)
+  #define GASNETE_TRACE_RATOMIC_gex_nb(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          _GASNETE_TRACE_RATOMIC(RATOMIC_NB_,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          _GASNETE_TRACE_RATOMIC(RATOMIC_NBI_,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
+#elif GASNET_STATS
+  #define GASNETE_TRACE_RATOMIC_gex_nb(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          _GASNETE_RATOMIC_EVENT(RATOMIC_NB_,dtype)
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          _GASNETE_RATOMIC_EVENT(RATOMIC_NBI_,dtype)
+#else
+  #define GASNETE_TRACE_RATOMIC_gex_nb(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          ((void)0)
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          ((void)0)
+#endif
+
+//
 // Define of a full family of "dispatch" functions that together
 // constitute the default implementation of remote atomics.
-//
-// TODO: need trace/stats at this layer or one higher
 //
 // GASNETE_RATOMIC_DISP(dtcode):
 //   Expands to definitions of two inline functions:
@@ -462,6 +544,10 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
     GASNETI_ALWAYS_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi       \
     rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
+        GASNETE_TRACE_RATOMIC##nbnbi(dtcode##_dtype, _result_p,          \
+                                     _tgt_rank,_tgt_addr,_opcode,_flags, \
+                                     dtcode##_fmt,dtcode##_fmt_cast,     \
+                                     _operand1,_operand2);               \
         gasnete_ratomic_validate(_ad,_result_p,_tgt_rank,_tgt_addr,      \
                                  _opcode, dtcode##_dtype, _flags);       \
         gasneti_AD_t _real_ad = gasneti_import_ad(_ad);                  \
@@ -502,7 +588,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         type _result = gasnete_ratomicfn##dtcode((type *)_tgt_addr,          \
                                                  _operand1, _operand2,       \
                                                  _opcode, _fences);          \
-        if (_GASNETE_RATOMIC_DISP_ISFETCH(_opcode)) {                        \
+        if (gasneti_op_fetch(_opcode)) {                                     \
             *_result_p = _result;                                            \
         }                                                                    \
         return retdone;                                                      \
@@ -536,12 +622,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
        break; /* Leave enclosing do/while w/o using tools */             \
     }
 #endif
-#define _GASNETE_RATOMIC_DISP_ISFETCH(opcode) \
-    ((opcode) & (GEX_OP_FADD | GEX_OP_FSUB | GEX_OP_FMULT | \
-                 GEX_OP_FMIN | GEX_OP_FMAX |                \
-                 GEX_OP_FINC | GEX_OP_FDEC |                \
-                 GEX_OP_FAND | GEX_OP_FOR  | GEX_OP_FXOR  | \
-                 GEX_OP_GET  | GEX_OP_SWAP | GEX_OP_CSWAP))
 #define _GASNETE_RATOMIC_DISP_ARGS(type) \
          gex_AD_t            _ad,        type             *_result_p,    \
          gex_Rank_t          _tgt_rank,  void             *_tgt_addr,    \
