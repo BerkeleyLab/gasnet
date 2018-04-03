@@ -737,6 +737,8 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GEX_FLAG_AM_REPLY               (1U <<  4)
 #define GEX_FLAG_AM_REQREP              (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY)
 
+#define GEX_FLAG_VIS_WITH_LC            (1U <<  9)
+
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
 #endif

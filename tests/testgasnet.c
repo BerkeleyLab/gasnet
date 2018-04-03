@@ -750,17 +750,23 @@ void doit0(int partner, int *partnerseg) {
 
   /* misc type tests */
   assert_inttype(gex_Flags_t);
-  static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
-    GEX_FLAG_IMMEDIATE,
+  // flags used in calls to initiate communication
+  #define COMM_INIT_FLAGS          \
+    GEX_FLAG_IMMEDIATE,            \
+                                   \
+    GEX_FLAG_SELF_SEG_UNKNOWN,     \
+    GEX_FLAG_SELF_SEG_SOME,        \
+    GEX_FLAG_SELF_SEG_BOUND,       \
+    GEX_FLAG_SELF_SEG_OFFSET,      \
+    GEX_FLAG_PEER_SEG_UNKNOWN,     \
+    GEX_FLAG_PEER_SEG_SOME,        \
+    GEX_FLAG_PEER_SEG_BOUND,       \
+    GEX_FLAG_PEER_SEG_OFFSET,      \
+    /*GEX_FLAG_LC_COPY_YES, */     \
+    /*GEX_FLAG_LC_COPY_NO,  */
 
-    GEX_FLAG_SELF_SEG_UNKNOWN,
-    GEX_FLAG_SELF_SEG_SOME,
-    GEX_FLAG_SELF_SEG_BOUND,
-    GEX_FLAG_SELF_SEG_OFFSET,
-    GEX_FLAG_PEER_SEG_UNKNOWN,
-    GEX_FLAG_PEER_SEG_SOME,
-    GEX_FLAG_PEER_SEG_BOUND,
-    GEX_FLAG_PEER_SEG_OFFSET,
+  static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
+    COMM_INIT_FLAGS
 
     GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
     GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
@@ -782,24 +788,14 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_AM_REQUEST,
     GEX_FLAG_AM_REPLY,
     GEX_FLAG_AM_REQREP,
+
+    GEX_FLAG_VIS_WITH_LC,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
   // Ensure lack of aliasing within groups of flags potentially passed togther
   static gex_Flags_t const flags_rma[] = { // gex_RMA_* initiation
-    GEX_FLAG_IMMEDIATE,
-
-    GEX_FLAG_SELF_SEG_UNKNOWN,
-    GEX_FLAG_SELF_SEG_SOME,
-    GEX_FLAG_SELF_SEG_BOUND,
-    GEX_FLAG_SELF_SEG_OFFSET,
-    GEX_FLAG_PEER_SEG_UNKNOWN,
-    GEX_FLAG_PEER_SEG_SOME,
-    GEX_FLAG_PEER_SEG_BOUND,
-    GEX_FLAG_PEER_SEG_OFFSET,
-
-    //GEX_FLAG_LC_COPY_YES,
-    //GEX_FLAG_LC_COPY_NO,
+    COMM_INIT_FLAGS
   };
   assert_arr_unaliased(gex_Flags_t, flags_rma);
   static gex_Flags_t const flags_ammax[] = { // gex_AM_Max* prepare-specific
@@ -814,16 +810,7 @@ void doit0(int partner, int *partnerseg) {
   };
   assert_arr_unaliased(gex_Flags_t, flags_adc);
   static gex_Flags_t const flags_ad[] = { // gex_AD_Op* initiation
-    GEX_FLAG_IMMEDIATE,
-
-    GEX_FLAG_SELF_SEG_UNKNOWN,
-    GEX_FLAG_SELF_SEG_SOME,
-    GEX_FLAG_SELF_SEG_BOUND,
-    GEX_FLAG_SELF_SEG_OFFSET,
-    GEX_FLAG_PEER_SEG_UNKNOWN,
-    GEX_FLAG_PEER_SEG_SOME,
-    GEX_FLAG_PEER_SEG_BOUND,
-    GEX_FLAG_PEER_SEG_OFFSET,
+    COMM_INIT_FLAGS
 
     GEX_FLAG_AD_MY_RANK,
     GEX_FLAG_AD_MY_NBRHD,
@@ -842,6 +829,12 @@ void doit0(int partner, int *partnerseg) {
     // GEX_FLAG_AM_REQREP is an intentional alias
   };
   assert_arr_unaliased(gex_Flags_t, flags_amreg);
+  static gex_Flags_t const flags_vis[] = { // gex_VIS_* initiation
+    COMM_INIT_FLAGS
+
+    GEX_FLAG_VIS_WITH_LC,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_vis);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;

@@ -767,9 +767,10 @@ gex_Event_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
+  gex_Event_t * const lc_opt = (flags & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
   GASNETE_START_NBIREGION(synctype);
 
-  #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len)
+  #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len, lc_opt)
   GASNETE_VECTOR_HELPER(dstcount, dstlist, srccount, srclist, ACTION);
   #undef ACTION
   

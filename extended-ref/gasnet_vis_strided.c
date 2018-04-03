@@ -469,11 +469,12 @@ gex_Event_t gasnete_puts_ref_indiv(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
+  gex_Event_t * const lc_opt = (flags & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
   GASNETE_START_NBIREGION(synctype);
 
     size_t const elemsz = smd->elemsz;
     #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2)  \
-      GASNETE_PUT_INDIV(tm, rank, p2, p1, elemsz)
+      GASNETE_PUT_INDIV(tm, rank, p2, p1, elemsz, lc_opt)
     GASNETE_SMD_STRIDED_HELPER(smd);
     #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
