@@ -514,19 +514,14 @@
   #define _GASNETI_ALWAYS_INLINE(fnname)
 #endif
 
-/* GASNETI_PLEASE_INLINE: Inline a function if possible, but don't generate an error 
- * for cases where it is impossible (eg recursive functions)
- */
 #if GASNET_DEBUG
-  #define GASNETI_PLEASE_INLINE(fnname) static
-#elif defined(GASNETT_USE_PLEASE_INLINE)
-  #define GASNETI_PLEASE_INLINE(fnname) GASNETT_USE_PLEASE_INLINE(fnname)
+  #define _GASNETI_INLINE_MODIFIER static
 #elif defined(__cplusplus)
-  #define GASNETI_PLEASE_INLINE(fnname) inline
+  #define _GASNETI_INLINE_MODIFIER inline
 #elif __STDC_VERSION__ >= 199901L
-  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static inline)
+  #define _GASNETI_INLINE_MODIFIER GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static inline)
 #else
-  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
+  #define _GASNETI_INLINE_MODIFIER GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
 #endif
 
 /* GASNETI_ALWAYS_INLINE aka GASNETI_INLINE: Most forceful inlining demand available.
@@ -536,7 +531,7 @@
 #if GASNET_DEBUG
   #define GASNETI_ALWAYS_INLINE(fnname) static
 #else
-  #define GASNETI_ALWAYS_INLINE(fnname) _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PLEASE_INLINE(fnname)
+  #define GASNETI_ALWAYS_INLINE(fnname) _GASNETI_ALWAYS_INLINE(fnname) _GASNETI_INLINE_MODIFIER
 #endif
 #define GASNETI_INLINE(fnname) GASNETI_ALWAYS_INLINE(fnname)
 
