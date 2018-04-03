@@ -14,10 +14,6 @@
   Factored bits of extended API code common to most conduits, overridable when necessary
 */
 
-#define GASNETE_NEW_THREADDATA_IOP_INIT(threaddata) ((void)0)
-#define GASNETE_FREE_IOPS(threaddata) ((void)0)
-#define GASNETE_FREE_EOPS(threaddata) ((void)0)
-
 #include "gasnet_extended_common.c"
 
 /* ------------------------------------------------------------------------------------ */
