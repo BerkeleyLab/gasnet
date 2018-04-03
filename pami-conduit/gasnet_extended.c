@@ -1177,7 +1177,7 @@ static void gasnete_cb_pdbarr_done(pami_context_t context, void *cookie, pami_re
 }
 
 /* Called only w/ context lock held */
-GASNETI_ALWAYS_INLINE(gasnete_pdbarr_send)
+GASNETI_INLINE(gasnete_pdbarr_send)
 void gasnete_pdbarr_send(
         gasnet_node_t peer,
         uint32_t teamid,

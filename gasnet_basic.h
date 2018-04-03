@@ -505,7 +505,6 @@
   #define GASNETI_CONSTP(fnname) GASNETI_PUREP(fnname)
 #endif
 
-/* GASNETI_ALWAYS_INLINE: force inlining of function if possible */
 // bug 3673: Cannot use Cray pragma _CRI inline_always here
 #if GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
   /* bug1525: gcc's __always_inline__ attribute appears to be maximally aggressive */
@@ -514,31 +513,25 @@
   #define _GASNETI_ALWAYS_INLINE(fnname)
 #endif
 
-/* GASNETI_PLEASE_INLINE: Inline a function if possible, but don't generate an error 
- * for cases where it is impossible (eg recursive functions)
- */
 #if GASNET_DEBUG
-  #define GASNETI_PLEASE_INLINE(fnname) static
-#elif defined(GASNETT_USE_PLEASE_INLINE)
-  #define GASNETI_PLEASE_INLINE(fnname) GASNETT_USE_PLEASE_INLINE(fnname)
+  #define _GASNETI_INLINE_MODIFIER static
 #elif defined(__cplusplus)
-  #define GASNETI_PLEASE_INLINE(fnname) inline
+  #define _GASNETI_INLINE_MODIFIER inline
 #elif __STDC_VERSION__ >= 199901L
-  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static inline)
+  #define _GASNETI_INLINE_MODIFIER GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static inline)
 #else
-  #define GASNETI_PLEASE_INLINE(fnname) GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
+  #define _GASNETI_INLINE_MODIFIER GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
 #endif
 
-/* GASNETI_ALWAYS_INLINE aka GASNETI_INLINE: Most forceful inlining demand available.
+/* GASNETI_INLINE: Most forceful inlining demand available.
  * Might generate errors in cases where inlining is semantically impossible 
  * (eg recursive functions, varargs fns)
  */
 #if GASNET_DEBUG
-  #define GASNETI_ALWAYS_INLINE(fnname) static
+  #define GASNETI_INLINE(fnname) static
 #else
-  #define GASNETI_ALWAYS_INLINE(fnname) _GASNETI_ALWAYS_INLINE(fnname) GASNETI_PLEASE_INLINE(fnname)
+  #define GASNETI_INLINE(fnname) _GASNETI_ALWAYS_INLINE(fnname) _GASNETI_INLINE_MODIFIER
 #endif
-#define GASNETI_INLINE(fnname) GASNETI_ALWAYS_INLINE(fnname)
 
 /* GASNETI_NEVER_INLINE: Most forceful demand available to disable inlining for function.
  */
