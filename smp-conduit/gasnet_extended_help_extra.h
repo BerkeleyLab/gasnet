@@ -138,9 +138,20 @@ gex_RMA_Value_t gasnete_get_val(
   ====================
 */
 
-// Get trivially identical to synced nb (need gasneti_sync_reads())
-#define gasnete_get(tm,dest,rank,src,nbytes,flags_and_TI) \
-        gasnete_syncnb_one(gasnete_get_nb(tm,dest,rank,src,nbytes,flags_and_TI) GASNETI_THREAD_GET)
+// Get trivially identical to nb plus gasneti_sync_reads())
+GASNETI_INLINE(gasnete_get) GASNETI_WARN_UNUSED_RESULT
+int gasnete_get(
+                     gex_TM_t tm,
+                     void *dest,
+                     gex_Rank_t rank, void *src,
+                     size_t nbytes,
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+  gex_Event_t e = gasnete_get_nb(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_PASS);
+  gasneti_sync_reads();
+  return 0;
+}
+#define gasnete_get gasnete_get
 
 // Put identical to nbi (w/o any need to sync_reads) except for lack of lc_opt argument
 #define gasnete_put(tm,rank,dest,src,nbytes,flags_and_TI) \
