@@ -58,8 +58,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                    \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                    \
     GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs);    \
-    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt; \
-    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyMedium(token,_lc_opt_or_null,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                 \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
@@ -70,8 +69,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                            \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                            \
     GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs);    \
-    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;         \
-    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyLong(token,_lc_opt_or_null,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyLong(token,lc_opt,flags,numargs)),   \
                        BAD_ARG,"nbytes too large");                                         \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                  \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
