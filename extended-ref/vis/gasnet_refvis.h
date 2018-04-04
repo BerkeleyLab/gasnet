@@ -1,11 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_extended_refvis.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/vis/gasnet_refvis.h $
  * Description: GASNet Vector, Indexed & Strided conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _GASNET_EXTENDED_REFVIS_H
-#define _GASNET_EXTENDED_REFVIS_H
+#ifndef _GASNET_REFVIS_H
+#define _GASNET_REFVIS_H
 
 #include <gasnet_handler.h>
 

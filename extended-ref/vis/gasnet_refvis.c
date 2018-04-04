@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_extended_refvis.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/vis/gasnet_refvis.c $
  * Description: Reference implementation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -6,7 +6,7 @@
 
 #include <gasnet_vis_internal.h>
 
-#include <gasnet_extended_refvis.h>
+#include <gasnet_refvis.h>
 
 /*---------------------------------------------------------------------------------*/
 /* *** VIS Init *** */
@@ -66,15 +66,15 @@ extern void gasnete_vis_init(void) {
 }
 /*---------------------------------------------------------------------------------*/
 
-#define GASNETI_GASNET_EXTENDED_REFVIS_C 1
+#define GASNETI_GASNET_REFVIS_C 1
 
-#include "gasnet_vis_vector.c"
+#include "vis/gasnet_vector.c"
 
-#include "gasnet_vis_indexed.c"
+#include "vis/gasnet_indexed.c"
 
-#include "gasnet_vis_strided.c"
+#include "vis/gasnet_strided.c"
 
-#undef GASNETI_GASNET_EXTENDED_REFVIS_C
+#undef GASNETI_GASNET_REFVIS_C
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Progress Function *** */

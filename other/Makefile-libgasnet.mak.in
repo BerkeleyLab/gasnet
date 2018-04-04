@@ -29,6 +29,7 @@ TOOLLIBINCLUDES =         \
 	$(PLPA_INCLUDES)
 
 LIBINCLUDES = $(TOOLLIBINCLUDES) \
+        -I$(top_srcdir)/extended-ref/vis \
         -I$(top_srcdir)/extended-ref  
 
 
@@ -74,7 +75,7 @@ libgasnet_sources =                                         \
         $(CONDUIT_SOURCELIST)                               \
         $(libgasnet_tools_sources)                          \
         $(PSHM_SOURCES)                                     \
-        $(top_srcdir)/extended-ref/gasnet_extended_refvis.c \
+        $(top_srcdir)/extended-ref/vis/gasnet_refvis.c      \
         $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c\
         $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \
         $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
@@ -98,6 +99,7 @@ libgasnet_tools_dependencies =  \
 libgasnet_dependencies =                  \
         $(libgasnet_tools_dependencies)   \
         $(srcdir)/*.[ch]                  \
+        $(top_srcdir)/extended-ref/*/*.[ch] \
         $(top_srcdir)/extended-ref/*.[ch] \
         $(top_srcdir)/other/smp-collectives/*.[ch] \
         $(top_srcdir)/tests/test.h        \

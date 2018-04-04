@@ -1,11 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_vis_strided.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/vis/gasnet_strided.c $
  * Description: GASNet Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef GASNETI_GASNET_EXTENDED_REFVIS_C
-  #error This file not meant to be compiled directly - included by gasnet_extended_refvis.c
+#ifndef GASNETI_GASNET_REFVIS_C
+  #error This file not meant to be compiled directly - included by gasnet_refvis.c
 #endif
 
 /* Clang can be picky */
