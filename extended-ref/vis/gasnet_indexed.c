@@ -450,8 +450,7 @@ void gasnete_geti_AMPipeline_reqh_inner(gex_Token_t token,
   void * const * const rlist = addr;
   size_t const rnum = nbytes / sizeof(void *);
   gasneti_assert(nbytes == rnum * sizeof(void *));
-  // TODO-EX: this function is currently undocumented
-  size_t const maxreply = gasnetc_Token_MaxReplyMedium(token, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
+  size_t const maxreply = gex_Token_MaxReplyMedium(token, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
                                                        (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
                                                        HARGS(2,3));
   #if GASNETE_VIS_NPAM == 0
