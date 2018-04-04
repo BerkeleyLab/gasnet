@@ -683,9 +683,11 @@ unsigned int gex_AM_MaxArgs(void);
 //    increasing results when all other parameters are held fixed.
 // 4. 'lc_opt' indicates the payload local completion option to be used for
 //    the AM injection or prepare call in question.  The predefined constants
-//    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while NULL
-//    should be used to indicate the injection or prepare call will be passed a
-//    pointer to an gex_Event_t (including NULL where permitted/required).
+//    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while a
+//    pointer to any variable of type gex_Event_t (or a NULL pointer) may be
+//    used interchangeably to indicate that the injection or prepare call
+//    passes any such value (without requiring that the same pointer value be
+//    passed).
 // 5. 'flags' indicates the flags that will be provided to the corresponding
 //    AM injection or prepare function (and should not to be confused with the
 //    handler registration flags).  The result of the query is only guaranteed
