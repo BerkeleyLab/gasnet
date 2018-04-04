@@ -478,7 +478,8 @@
     gex_Token_Info_t info;                                                                \
     gex_TI_t timask = gex_Token_Info(token, &info, GEX_TI_SRCRANK|GEX_TI_EP|GEX_TI_ENTRY);\
     gex_Rank_t src = info.gex_srcrank;                                                    \
-    const char *cname = gex_Client_QueryName(gex_EP_QueryClient(info.gex_ep));            \
+    gex_Client_t client = info.gex_ep ? gex_EP_QueryClient(info.gex_ep) : NULL;           \
+    const char *cname = client ? gex_Client_QueryName(client) : "N/A";                    \
     GASNETI_TRACE_PRINTF(A,(#name": client='%s' src=%i handler=%i args:%s",               \
       cname,(int)src,(int)(handlerid),argstr));                                           \
     _GASNETI_TRACE_HANDLER(name, info, timask);                                           \
@@ -492,7 +493,8 @@
     gex_Token_Info_t info;                                                                                \
     gex_TI_t timask = gex_Token_Info(token, &info, GEX_TI_SRCRANK|GEX_TI_EP|GEX_TI_ENTRY);                \
     gex_Rank_t src = info.gex_srcrank;                                                                    \
-    const char *cname = gex_Client_QueryName(gex_EP_QueryClient(info.gex_ep));                            \
+    gex_Client_t client = info.gex_ep ? gex_EP_QueryClient(info.gex_ep) : NULL;                           \
+    const char *cname = client ? gex_Client_QueryName(client) : "N/A";                                    \
     GASNETI_TRACE_PRINTF(A,(#name": client='%s' src=%i handler=%i addr=" GASNETI_LADDRFMT                 \
                             " nbytes=%" PRIuSZ " args:%s",                                                \
       cname,(int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,argstr));                     \
