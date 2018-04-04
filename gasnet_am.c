@@ -326,7 +326,7 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 
 static void check_max_payload_args(
            const char *fname, gasneti_category_t category, int isReq,
-           gex_Event_t *lc_opt, gex_Flags_t flags,
+           const gex_Event_t *lc_opt, gex_Flags_t flags,
            unsigned int nargs)
 {
   if (!(lc_opt == NULL) &&
@@ -362,7 +362,7 @@ static void check_max_payload_result(gex_Flags_t flags, size_t lub, size_t resul
 #define DEFN_AM_MAX_FN(reqrep,cat) \
 size_t gex_AM_Max##reqrep##cat(                                            \
            gex_TM_t tm, gex_Rank_t rank,                                   \
-           gex_Event_t *lc_opt, gex_Flags_t flags,                         \
+           const gex_Event_t *lc_opt, gex_Flags_t flags,                   \
            unsigned int nargs)                                             \
 {                                                                          \
   const char *fname = "gex_AM_Max" #reqrep #cat;                           \
@@ -383,7 +383,7 @@ size_t gex_AM_Max##reqrep##cat(                                            \
 #define DEFN_TOKEN_MAX_FN(reqrep,cat) \
 size_t gex_Token_Max##reqrep##cat(                                          \
            gex_Token_t token,                                               \
-           gex_Event_t *lc_opt, gex_Flags_t flags,                          \
+           const gex_Event_t *lc_opt, gex_Flags_t flags,                    \
            unsigned int nargs)                                              \
 {                                                                           \
   const char *fname = "gex_Token_Max" #reqrep #cat;                         \

@@ -611,27 +611,27 @@ typedef uintptr_t gex_RMA_Value_t;
 #if GASNET_DEBUG
   extern size_t gex_AM_MaxRequestMedium(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxReplyMedium(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxRequestLong(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxReplyLong(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_Token_MaxReplyMedium(
            gex_Token_t _token,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_Token_MaxReplyLong(
            gex_Token_t _token,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
 #else
   #define gex_AM_MaxRequestMedium gasnetc_AM_MaxRequestMedium
