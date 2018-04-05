@@ -204,7 +204,7 @@ typedef struct gasnete_coll_pshmbarrier_s {
   } while(0)
 
 
-GASNETI_ALWAYS_INLINE(gasnete_pshmbarrier_arrive)
+GASNETI_INLINE(gasnete_pshmbarrier_arrive)
 void gasnete_pshmbarrier_arrive(gasnete_pshmbarrier_data_t * const pshm_bdata, int value, int flags, int two_to_phase) {
   /* Signal my own arrival */
 #if GASNETE_PSHM_BARR_U64
@@ -370,7 +370,7 @@ int gasnete_pshmbarrier_kick(gasnete_pshmbarrier_data_t * const pshm_bdata) {
 }
 
 /* Returns non-zero IFF barrier is "locally complete" == does NOT require further kicks to progress */
-GASNETI_ALWAYS_INLINE(gasnete_pshmbarrier_notify_inner)
+GASNETI_INLINE(gasnete_pshmbarrier_notify_inner)
 int gasnete_pshmbarrier_notify_inner(gasnete_pshmbarrier_data_t * const pshm_bdata, int value, int flags) {
   /* Start a new phase */
   int two_to_phase = (pshm_bdata->private.two_to_phase ^= 3); /* alternates between 01 and 10 base-2 */
@@ -387,7 +387,7 @@ int gasnete_pshmbarrier_notify_inner(gasnete_pshmbarrier_data_t * const pshm_bda
   }
 }
 
-GASNETI_ALWAYS_INLINE(finish_pshm_barrier)
+GASNETI_INLINE(finish_pshm_barrier)
 int finish_pshm_barrier(const gasnete_pshmbarrier_data_t * const pshm_bdata, int id, int flags, gasneti_atomic_sval_t state) {
   const struct gasneti_pshm_barrier_node * const mynode = pshm_bdata->private.mynode;
   const gasneti_pshm_barrier_t * const shared_data = pshm_bdata->shared;
@@ -406,7 +406,7 @@ int finish_pshm_barrier(const gasnete_pshmbarrier_data_t * const pshm_bdata, int
 /* Poll waiting for appropriate done bit in "state"
  * Returns GASNET_{OK,ERR_BARRIER_MISMATCH}
  */
-GASNETI_ALWAYS_INLINE(gasnete_pshmbarrier_wait_inner)
+GASNETI_INLINE(gasnete_pshmbarrier_wait_inner)
 int gasnete_pshmbarrier_wait_inner(gasnete_pshmbarrier_data_t * const pshm_bdata, int id, int flags, int shift) {
   const gasneti_atomic_sval_t goal = pshm_bdata->private.two_to_phase << shift;
   gasneti_atomic_t * const state_p = &pshm_bdata->shared->state;
@@ -421,7 +421,7 @@ int gasnete_pshmbarrier_wait_inner(gasnete_pshmbarrier_data_t * const pshm_bdata
 /* Test for appropriate done bit in "state"
  * Returns zero or non-zero (the state in pure-SMP case)
  */
-GASNETI_ALWAYS_INLINE(gasnete_pshmbarrier_try_inner)
+GASNETI_INLINE(gasnete_pshmbarrier_try_inner)
 gasneti_atomic_sval_t gasnete_pshmbarrier_try_inner(gasnete_pshmbarrier_data_t * const pshm_bdata, int shift) {
   const gasneti_atomic_sval_t goal = pshm_bdata->private.two_to_phase << shift;
   gasneti_atomic_t * const state_p = &pshm_bdata->shared->state;

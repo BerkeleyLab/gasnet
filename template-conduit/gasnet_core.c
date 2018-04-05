@@ -735,6 +735,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
         imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
@@ -747,10 +749,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 
     if (imm) {
         gasneti_reset_srcdesc(sd);
-        return GEX_AM_SRCDESC_NO_OP;
+        sd = NULL; // GEX_AM_SRCDESC_NO_OP
+    } else {
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 }
 
@@ -1024,6 +1028,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
     int imm;
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
@@ -1036,10 +1042,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 
     if (imm) {
         gasneti_reset_srcdesc(sd);
-        return GEX_AM_SRCDESC_NO_OP;
+        sd = NULL; // GEX_AM_SRCDESC_NO_OP
+    } else {
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
 }
 

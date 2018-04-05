@@ -921,67 +921,67 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 
 #include <ctype.h>
 #if GASNETT_USE_CTYPE_WRAPPERS 
-  GASNETI_ALWAYS_INLINE(gasnett_toupper) GASNETI_CONST
+  GASNETI_INLINE(gasnett_toupper) GASNETI_CONST
   int gasnett_toupper(int _c) { return toupper(_c); }
   #undef toupper
   #define toupper gasnett_toupper
 
-  GASNETI_ALWAYS_INLINE(gasnett_tolower) GASNETI_CONST
+  GASNETI_INLINE(gasnett_tolower) GASNETI_CONST
   int gasnett_tolower(int _c) { return tolower(_c); }
   #undef tolower
   #define tolower gasnett_tolower
 
-  GASNETI_ALWAYS_INLINE(gasnett_isalnum) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isalnum) GASNETI_CONST
   int gasnett_isalnum(int _c) { return isalnum(_c); }
   #undef isalnum
   #define isalnum gasnett_isalnum
 
-  GASNETI_ALWAYS_INLINE(gasnett_isalpha) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isalpha) GASNETI_CONST
   int gasnett_isalpha(int _c) { return isalpha(_c); }
   #undef isalpha
   #define isalpha gasnett_isalpha
 
-  GASNETI_ALWAYS_INLINE(gasnett_iscntrl) GASNETI_CONST
+  GASNETI_INLINE(gasnett_iscntrl) GASNETI_CONST
   int gasnett_iscntrl(int _c) { return iscntrl(_c); }
   #undef iscntrl
   #define iscntrl gasnett_iscntrl
 
-  GASNETI_ALWAYS_INLINE(gasnett_isdigit) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isdigit) GASNETI_CONST
   int gasnett_isdigit(int _c) { return isdigit(_c); }
   #undef isdigit
   #define isdigit gasnett_isdigit
 
-  GASNETI_ALWAYS_INLINE(gasnett_isgraph) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isgraph) GASNETI_CONST
   int gasnett_isgraph(int _c) { return isgraph(_c); }
   #undef isgraph
   #define isgraph gasnett_isgraph
 
-  GASNETI_ALWAYS_INLINE(gasnett_islower) GASNETI_CONST
+  GASNETI_INLINE(gasnett_islower) GASNETI_CONST
   int gasnett_islower(int _c) { return islower(_c); }
   #undef islower
   #define islower gasnett_islower
 
-  GASNETI_ALWAYS_INLINE(gasnett_isprint) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isprint) GASNETI_CONST
   int gasnett_isprint(int _c) { return isprint(_c); }
   #undef isprint
   #define isprint gasnett_isprint
 
-  GASNETI_ALWAYS_INLINE(gasnett_ispunct) GASNETI_CONST
+  GASNETI_INLINE(gasnett_ispunct) GASNETI_CONST
   int gasnett_ispunct(int _c) { return ispunct(_c); }
   #undef ispunct
   #define ispunct gasnett_ispunct
 
-  GASNETI_ALWAYS_INLINE(gasnett_isspace) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isspace) GASNETI_CONST
   int gasnett_isspace(int _c) { return isspace(_c); }
   #undef isspace
   #define isspace gasnett_isspace
 
-  GASNETI_ALWAYS_INLINE(gasnett_isupper) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isupper) GASNETI_CONST
   int gasnett_isupper(int _c) { return isupper(_c); }
   #undef isupper
   #define isupper gasnett_isupper
 
-  GASNETI_ALWAYS_INLINE(gasnett_isxdigit) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isxdigit) GASNETI_CONST
   int gasnett_isxdigit(int _c) { return isxdigit(_c); }
   #undef isxdigit
   #define isxdigit gasnett_isxdigit
@@ -990,7 +990,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
   #if !(HAVE_ISBLANK_DECL || defined(isblank))
    extern int isblank(int);
   #endif
-  GASNETI_ALWAYS_INLINE(gasnett_isblank) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isblank) GASNETI_CONST
   int gasnett_isblank(int _c) { return isblank(_c); }
   #undef isblank
   #define isblank gasnett_isblank
@@ -1000,7 +1000,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
   #if !(HAVE_ISASCII_DECL || defined(isascii))
    extern int isascii(int);
   #endif
-  GASNETI_ALWAYS_INLINE(gasnett_isascii) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isascii) GASNETI_CONST
   int gasnett_isascii(int _c) { return isascii(_c); }
   #undef isascii
   #define isascii gasnett_isascii
@@ -1010,7 +1010,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
   #if !(HAVE_TOASCII_DECL || defined(toascii))
    extern int toascii(int);
   #endif
-  GASNETI_ALWAYS_INLINE(gasnett_toascii) GASNETI_CONST
+  GASNETI_INLINE(gasnett_toascii) GASNETI_CONST
   int gasnett_toascii(int _c) { return toascii(_c); }
   #undef toascii
   #define toascii gasnett_toascii
@@ -1020,7 +1020,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 /* If a platform lacks isblank() we supply it, assuming the C/POSIX locale.
  */
 #if !HAVE_ISBLANK
-  GASNETI_ALWAYS_INLINE(gasnett_isblank) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isblank) GASNETI_CONST
   int gasnett_isblank(int _c) { return (_c == ' ') || (_c == '\t'); }
   #undef isblank /* Paranoia */
   #define isblank gasnett_isblank
@@ -1029,7 +1029,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 /* If a platform lacks isascii() we supply it.
  */
 #if !HAVE_ISASCII
-  GASNETI_ALWAYS_INLINE(gasnett_isascii) GASNETI_CONST
+  GASNETI_INLINE(gasnett_isascii) GASNETI_CONST
   int gasnett_isascii(int _c) { return !(_c & ~0x7f); }
   #undef isascii /* Paranoia */
   #define isascii gasnett_isascii
@@ -1038,7 +1038,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 /* If a platform lacks toascii() we supply it.
  */
 #if !HAVE_TOASCII
-  GASNETI_ALWAYS_INLINE(gasnett_toascii) GASNETI_CONST
+  GASNETI_INLINE(gasnett_toascii) GASNETI_CONST
   int gasnett_toascii(int _c) { return (_c & 0x7f); }
   #undef toascii /* Paranoia */
   #define toascii gasnett_toascii

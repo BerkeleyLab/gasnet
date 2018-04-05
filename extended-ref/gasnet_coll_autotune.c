@@ -29,7 +29,7 @@ struct gasnet_coll_tuning_iterator_t_{
   uint32_t curr_idx;
 };
 
-GASNETI_ALWAYS_INLINE(gasnete_coll_nextpower2)
+GASNETI_INLINE(gasnete_coll_nextpower2)
 size_t gasnete_coll_nextpower2(size_t n)
 {
   size_t x;

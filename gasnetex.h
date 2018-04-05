@@ -611,25 +611,35 @@ typedef uintptr_t gex_RMA_Value_t;
 #if GASNET_DEBUG
   extern size_t gex_AM_MaxRequestMedium(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxReplyMedium(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxRequestLong(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxReplyLong(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_Token_MaxReplyMedium(
+           gex_Token_t _token,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_Token_MaxReplyLong(
+           gex_Token_t _token,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
 #else
   #define gex_AM_MaxRequestMedium gasnetc_AM_MaxRequestMedium
   #define gex_AM_MaxReplyMedium   gasnetc_AM_MaxReplyMedium
   #define gex_AM_MaxRequestLong   gasnetc_AM_MaxRequestLong
   #define gex_AM_MaxReplyLong     gasnetc_AM_MaxReplyLong
+  #define gex_Token_MaxReplyMedium   gasnetc_Token_MaxReplyMedium
+  #define gex_Token_MaxReplyLong     gasnetc_Token_MaxReplyLong
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -726,6 +736,8 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 #define GEX_FLAG_AM_REQUEST             (1U <<  3)
 #define GEX_FLAG_AM_REPLY               (1U <<  4)
 #define GEX_FLAG_AM_REQREP              (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY)
+
+#define GEX_FLAG_VIS_WITH_LC            (1U <<  9)
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)

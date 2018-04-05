@@ -18,7 +18,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));              \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));               \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());               \
-    GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,numargs);                     \
+    GASNETI_TRACE_AMREQUESTSHORT(tm,rank,handler,flags,numargs);               \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
 #define GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
@@ -26,9 +26,10 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                    \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                     \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                     \
-    GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,numargs);       \
+    GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,flags,numargs); \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
-    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,numargs)),\
+    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;  \
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,_lc_opt_or_null,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
@@ -38,9 +39,10 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                            \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                             \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                             \
-    GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,numargs);       \
+    GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,flags,numargs); \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
-    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,numargs)),       \
+    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;          \
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,_lc_opt_or_null,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                          \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
@@ -49,34 +51,31 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));  \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));   \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());   \
-    GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);             \
+    GASNETI_TRACE_AMREPLYSHORT(token,handler,flags,numargs);       \
   } while (0)
-// TODO-EX: need to restore bounds-check on nbytes in GASNETI_COMMON_AMREPLYMEDIUM
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                   \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                    \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                    \
+    GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs);    \
+    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt; \
+    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyMedium(token,_lc_opt_or_null,flags,numargs)),\
+                       BAD_ARG,"nbytes too large");                                 \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies"); \
-    GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);          \
   } while (0)
-#if GASNET_DEBUG || GASNETI_ENABLE_ERRCHECKS
-  // TODO-EX: need to restore bounds-check on nbytes _GASNETI_COMMON_AMREPLYLONG_CHECKS
-  #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
-      GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                          \
-      GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies");      \
-      GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies");    \
-    } while (0)
-#else
-  #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) ((void)0)
-#endif
 #define GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT));                           \
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                            \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                            \
-    GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs);          \
-    _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs); \
+    GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs);    \
+    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;         \
+    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyLong(token,_lc_opt_or_null,flags,numargs)),\
+                       BAD_ARG,"nbytes too large");                                         \
+    GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                  \
+    GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
+    GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies"); \
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */
@@ -215,8 +214,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 /* ------------------------------------------------------------------------------------ */
 /* common logic for Negotiated Payload AMs */
 
-// Common argument processing
-// TODO-EX: tracing should probably occur here as well
+// Common argument processing and trace/stats
 #if GASNET_DEBUG
   extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd);
   extern int gasneti_test_sd_poison(void *addr, size_t len);
@@ -260,12 +258,14 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
     } while(0)
   #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                                   \
+      GASNETI_TRACE_PREP_REQUEST##cat(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs);\
       sd->_category  = (int)gasneti_##cat;                                                 \
       sd->_dest_addr = dest_addr;                                                          \
       sd->_nargs     = nargs;                                                              \
       gex_Flags_t tmp_flags = flags | (cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT             \
                                             : GEX_FLAG_AM_PREPARE_LEAST_ALLOC);            \
-      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,tmp_flags,nargs);               \
+      gex_Event_t *lc_opt_or_null = (lc_opt && gasneti_leaf_is_pointer(lc_opt)) ? NULL : lc_opt; \
+      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt_or_null,tmp_flags,nargs);       \
       if (dest >= gex_TM_QuerySize(tm))                                                    \
         gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
                            "destination rank out-of-range (%lu >= %lu)",                   \
@@ -274,6 +274,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
     } while(0)
   #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) \
     do {                                                                               \
+      GASNETI_TRACE_PREP_REPLY##cat(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs);\
       sd->_category  = (int)gasneti_##cat;                                             \
       sd->_dest_addr = dest_addr;                                                      \
       sd->_nargs     = nargs;                                                          \
@@ -319,17 +320,53 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
                              _reqrep, nargs);                                                            \
       }                                                                                                  \
     } while(0)
-  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat)
-  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) \
-                  _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat)
+  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) do {            \
+      GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs); \
+      _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,1,cat);                      \
+    } while(0)
+  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) do {            \
+      GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs);   \
+      _GASNETI_CHECK_COMMIT(sd,handler,nbytes,dest_addr,nargs,0,cat);                      \
+    } while(0)
 #else
   #define gasneti_init_sd_poison(sd) ((void)0)
-  #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,min,max,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,minlen,maxlen,dest_addr,lc_opt,flags,nargs,cat) ((void)0)
-  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
-  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs,cat) ((void)0)
+
+  #if GASNET_TRACE // Need to store nargs from Prep to Commit to trace the args
+    #define _GASNETI_COMMON_PREP_NARGS(sd,nargs) ((void)(sd->_nargs = nargs))
+  #else
+    #define _GASNETI_COMMON_PREP_NARGS(sd,nargs) ((void)0)
+  #endif
+  #define GASNETI_COMMON_PREP_REQ(sd,tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) do { \
+      _GASNETI_COMMON_PREP_NARGS(sd,nargs);                                                        \
+      GASNETI_TRACE_PREP_REQUEST##cat(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs); \
+    } while(0)
+  #define GASNETI_COMMON_PREP_REP(sd,token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs,cat) do { \
+      _GASNETI_COMMON_PREP_NARGS(sd,nargs);                                                    \
+      GASNETI_TRACE_PREP_REPLY##cat(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs); \
+    } while(0)
+  #define GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,dest_addr,nargs_arg,cat) \
+          GASNETI_TRACE_COMMIT_REQUEST##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
+  #define GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,dest_addr,nargs_arg,cat) \
+          GASNETI_TRACE_COMMIT_REPLY##cat(handler,sd->_addr,sd->_size,dest_addr,sd->_nargs)
 #endif
+
+#define GASNETI_TRACE_PREP_REQUESTMedium(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REQUESTMEDIUM(tm,dest,cbuf,least_pl,most_pl,flags,nargs)
+#define GASNETI_TRACE_PREP_REQUESTLong(tm,dest,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REQUESTLONG(tm,dest,cbuf,least_pl,most_pl,dest_addr,flags,nargs)
+#define GASNETI_TRACE_PREP_REPLYMedium(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REPLYMEDIUM(token,cbuf,least_pl,most_pl,flags,nargs)
+#define GASNETI_TRACE_PREP_REPLYLong(token,cbuf,least_pl,most_pl,dest_addr,lc_opt,flags,nargs) \
+        GASNETI_TRACE_PREP_REPLYLONG(token,cbuf,least_pl,most_pl,dest_addr,flags,nargs)
+
+#define GASNETI_TRACE_COMMIT_REQUESTMedium(handler,source_addr,nbytes,dest_addr,numargs) \
+        GASNETI_TRACE_COMMIT_REQUESTMEDIUM(handler,source_addr,nbytes,numargs)
+#define GASNETI_TRACE_COMMIT_REQUESTLong(handler,source_addr,nbytes,dest_addr,numargs) \
+        GASNETI_TRACE_COMMIT_REQUESTLONG(handler,source_addr,nbytes,dest_addr,numargs)
+#define GASNETI_TRACE_COMMIT_REPLYMedium(handler,source_addr,nbytes,dest_addr,numargs) \
+        GASNETI_TRACE_COMMIT_REPLYMEDIUM(handler,source_addr,nbytes,numargs)
+#define GASNETI_TRACE_COMMIT_REPLYLong(handler,source_addr,nbytes,dest_addr,numargs) \
+        GASNETI_TRACE_COMMIT_REPLYLONG(handler,source_addr,nbytes,dest_addr,numargs)
 
 #ifndef _GEX_AM_SRCDESC_T
 // Allocate a buffer (use IFF client_buf is NULL)
@@ -354,8 +391,13 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
   void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
   gasneti_AM_SrcDesc_t sd = mythread_ptrs[4]; // 5th pointer (gasneti_req_sd)
   if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
-  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
+#if GASNET_DEBUG
+  if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
+    gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareRequest*() calls");
+  }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+#endif
   sd->_gex_buf = sd->_tofree = NULL;
   return sd;
 }
@@ -367,8 +409,13 @@ gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
   void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
   gasneti_AM_SrcDesc_t sd = mythread_ptrs[3]; // 4th pointer (gasneti_rep_sd)
   if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
-  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Would catch nested prepare
+#if GASNET_DEBUG
+  if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
+    gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareReply*() calls");
+  }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
+#endif
   sd->_gex_buf = sd->_tofree = NULL;
   return sd;
 }
@@ -379,7 +426,14 @@ GASNETI_INLINE(gasneti_reset_srcdesc)
 void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
   gasneti_free(sd->_tofree);
+#if GASNET_DEBUG
+  if (sd->_magic._u == GASNETI_AM_SRCDESC_BAD_MAGIC) {
+    gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_Commit%s*() calls",
+                       sd->_isreq ? "Request" : "Reply");
+  }
+  GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+#endif
 }
 
 GASNETI_INLINE(gasneti_prepare_common)

@@ -620,7 +620,7 @@ test_ammedium(threaddata_t *tdata)
 
 	do {
 		len = RANDOM_SIZE();
-        } while (len > gex_AM_MaxRequestMedium(myteam,peer,GEX_EVENT_NOW,0,2));
+        } while (len > gex_AM_MaxRequestMedium(myteam,node,GEX_EVENT_NOW,0,2));
 		
 	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
@@ -647,7 +647,7 @@ test_amlong(threaddata_t *tdata)
 
 	do {
 		len = RANDOM_SIZE();
-        } while ((len > gex_AM_MaxRequestLong(myteam,peer,GEX_EVENT_NOW,0,3))
+        } while ((len > gex_AM_MaxRequestLong(myteam,node,GEX_EVENT_NOW,0,3))
               || (len > TEST_SEGZ_PER_THREAD));
 		
 	tdata->flag = -1;

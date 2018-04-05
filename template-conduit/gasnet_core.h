@@ -141,24 +141,30 @@ typedef struct {
 #define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     ((size_t)###)
  */
 /* Example for true functions:
-extern size_t gasnetc_AM_MaxRequestMedium(
+extern GASNETI_PURE size_t gasnetc_AM_MaxRequestMedium(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gasnetc_AM_MaxReplyMedium(
+           const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+GASNETI_PUREP(gasnetc_AM_MaxRequestMedium)
+extern GASNETI_PURE size_t gasnetc_AM_MaxReplyMedium(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gasnetc_AM_MaxRequestLong(
+           const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+GASNETI_PUREP(gasnetc_AM_MaxReplyMedium)
+extern GASNETI_PURE size_t gasnetc_AM_MaxRequestLong(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gasnetc_AM_MaxReplyLong(
+           const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+GASNETI_PUREP(gasnetc_AM_MaxRequestLong)
+extern GASNETI_PURE size_t gasnetc_AM_MaxReplyLong(
            gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gasnetc_Token_MaxReplyMedium(
+           const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+GASNETI_PUREP(gasnetc_AM_MaxReplyLong)
+extern GASNETI_PURE size_t gasnetc_Token_MaxReplyMedium(
            gex_AM_Token_t token,
+           const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+GASNETI_PUREP(gasnetc_Token_MaxReplyMedium)
+extern GASNETI_PURE size_t gasnetc_Token_MaxReplyLong(
+           const gex_AM_Token_t token,
            gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
-extern size_t gasnetc_Token_MaxReplyLong(
-           gex_AM_Token_t token,
-           gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
+GASNETI_PUREP(gasnetc_Token_MaxReplyLong)
  */
 
 /* ------------------------------------------------------------------------------------ */

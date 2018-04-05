@@ -183,18 +183,15 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /*---------------------------------------------------------------------------------*/
 /* ***  Individual put/get helpers *** */
 /*---------------------------------------------------------------------------------*/
-// TODO-EX: rework these after removing GASNETE_OLD_STRIDED
 /* helper for vis functions implemented atop other GASNet operations
    start a recursive NBI access region, if appropriate */
-#define GASNETE_START_NBIREGION(synctype, islocal) do {    \
-  if (islocal) GASNETE_ASSERT_OLD_STRIDED();               \
-  if (synctype != gasnete_synctype_nbi && !islocal)        \
+#define GASNETE_START_NBIREGION(synctype) do {               \
+  if (synctype != gasnete_synctype_nbi)                      \
     gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate event */
-#define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
-    if (islocal) return GEX_EVENT_INVALID;                                            \
+#define GASNETE_END_NBIREGION_AND_RETURN(synctype) do {                               \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
         return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);                   \
@@ -208,30 +205,11 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     }                                                                                 \
   } while(0)
 
-#if GASNETE_OLD_STRIDED
-#define GASNETE_PUT_INDIV_OLD(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
-    gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(gasneti_THUNK_TM, dstnode, dstaddr, nbytes);    \
-    gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
-    if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
-    else gasnete_put_nbi(gasneti_THUNK_TM, (dstnode), (dstaddr), (srcaddr), (nbytes), \
-                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
-  } while (0)
-
-#define GASNETE_GET_INDIV_OLD(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
-    gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(gasneti_THUNK_TM, srcnode, srcaddr, nbytes);    \
-    gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
-    if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
-    else gasnete_get_nbi(gasneti_THUNK_TM, (dstaddr), (srcnode), (srcaddr), (nbytes), \
-                         0 GASNETE_THREAD_PASS);                                \
-  } while (0)
-#endif
-#define GASNETE_PUT_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
+#define GASNETE_PUT_INDIV(tm, rank, dstaddr, srcaddr, nbytes, lc_opt) do { \
     gasneti_assert((nbytes) > 0);                                       \
     gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes)); \
     gasnete_put_nbi((tm), (rank), (dstaddr), (srcaddr), (nbytes),       \
-                         GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);       \
+                         (lc_opt), 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
@@ -250,14 +228,17 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert((nbytes) > 0);                                                   \
     gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes));             \
     switch (synctype) {                                                             \
-      case gasnete_synctype_nb:                                                     \
+      case gasnete_synctype_nb: {                                                   \
+        gex_Event_t _lc_dummy;                                                      \
         (retval) = _gex_RMA_PutNB ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                         GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
-        break;                                                                      \
+                    (((flags) & GEX_FLAG_VIS_WITH_LC) ? &_lc_dummy : GEX_EVENT_DEFER), \
+                    (flags) GASNETE_THREAD_PASS);                                   \
+        break; }                                                                    \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
                    _gex_RMA_PutNBI((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                         GEX_EVENT_DEFER, (flags) GASNETE_THREAD_PASS);             \
+                    (((flags) & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER),\
+                    (flags) GASNETE_THREAD_PASS);                                   \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \
         (retval) = (gex_Event_t)(intptr_t)                                          \

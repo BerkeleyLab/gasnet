@@ -38,7 +38,6 @@ CONDUITMODE_headers = 		\
 	gasnet.h           	\
 	gasnet_ammacros.h  	\
 	gasnet_coll.h      	\
-	gasnet_handler_internal.h \
 	gasnet_trace.h     	\
 	gasnet_vis.h      
 CONDUITMODE_EXTRA_DIST =    	\
@@ -47,6 +46,7 @@ CONDUITMODE_EXTRA_DIST =    	\
 	template-conduit  	\
 	gasnet_event.c 	\
 	gasnet_event_internal.h 	\
+	gasnet_handler_internal.h \
 	gasnet_internal.h 	\
 	gasnet_internal.c 	\
 	gasnet_am.h 	        \

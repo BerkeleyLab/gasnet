@@ -17,10 +17,6 @@
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 #define GASNETI_EOP_IS_HANDLE 1
-#define GASNETI_DISABLE_REFERENCE_EOP 1
-#define GASNETI_DISABLE_EOP_INTERFACE 1
-
-#define GASNETE_BUILD_AMRATOMIC_STUBS 1 // RAtomics via GASNet-Tools only, never AMs
 
   /* if conduit-internal threads may call the Extended API and/or they may run
      progress functions, then define GASNETE_CONDUIT_THREADS_USING_TD to the

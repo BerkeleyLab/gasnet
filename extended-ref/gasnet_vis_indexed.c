@@ -280,7 +280,7 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   gasneti_assert(dstcount > 1); /* supports scatter put */
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
   GASNETI_TRACE_EVENT(C, PUTI_AMPIPELINE);
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
   size_t const maxpacket = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
@@ -332,7 +332,7 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   #if GASNETE_VIS_NPAM == 0
     gasneti_free(packedbuf);
   #endif
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
     if (gasnete_vis_use_ampipe && dstcount > 1 && dstlen == (uint32_t)(dstlen) &&                                  \
@@ -601,13 +601,14 @@ gex_Event_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  gex_Event_t * const lc_opt = (flags & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
+  GASNETE_START_NBIREGION(synctype);
 
-  #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len)
+  #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len, lc_opt)
   GASNETE_INDEXED_HELPER(dstcount, dstlist, dstlen, srccount, srclist, srclen, ACTION);
   #undef ACTION
 
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 
 /* reference version that uses individual gets */
@@ -620,13 +621,13 @@ gex_Event_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
   #define ACTION(p1,p2,len) GASNETE_GET_INDIV(tm, rank, p1, p2, len)
   GASNETE_INDEXED_HELPER(dstcount, dstlist, dstlen, srccount, srclist, srclen, ACTION);
   #undef ACTION
 
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 
 /*---------------------------------------------------------------------------------*/

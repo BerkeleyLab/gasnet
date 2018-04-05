@@ -311,7 +311,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
     return GEX_EVENT_INVALID;
     nonempty: ;
   }
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
   size_t const maxpacket = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
                                                    (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0),
@@ -409,7 +409,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   #if GASNETE_VIS_NPAM == 0
     gasneti_free(packedbuf);
   #endif
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
   #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,srccount,srclist,flags) \
     if (gasnete_vis_use_ampipe && dstcount > 1)                                                      \
@@ -767,13 +767,14 @@ gex_Event_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  gex_Event_t * const lc_opt = (flags & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
+  GASNETE_START_NBIREGION(synctype);
 
-  #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len)
+  #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len, lc_opt)
   GASNETE_VECTOR_HELPER(dstcount, dstlist, srccount, srclist, ACTION);
   #undef ACTION
   
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 
 /* reference version that uses individual gets */
@@ -785,13 +786,13 @@ gex_Event_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, GETV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype, 0);
+  GASNETE_START_NBIREGION(synctype);
 
   #define ACTION(p1,p2,len) GASNETE_GET_INDIV(tm, rank, p1, p2, len)
   GASNETE_VECTOR_HELPER(dstcount, dstlist, srccount, srclist, ACTION);
   #undef ACTION
 
-  GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
 /*---------------------------------------------------------------------------------*/
 /* top-level gasnet_putv_* entry point */
