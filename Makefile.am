@@ -15,8 +15,7 @@ SUBDIRS =            \
 # GASNET_TOOLSONLY_TRUE_BEGIN
 # CONDUITMODE_DIST_SUBDIRS = 
 # CONDUITMODE_headers = 
-# CONDUITMODE_EXTRA_DIST = 	\
-# 	.gasnet_toolsonly_mode 
+# CONDUITMODE_EXTRA_DIST = .gasnet_toolsonly_mode 
 # GASNET_TOOLSONLY_TRUE_END
 # GASNET_TOOLSONLY_FALSE_BEGIN
   # Directories we manually recurse into:
@@ -76,6 +75,7 @@ headers =                  	\
 	gasnet_toolhelp.h  	
 
 EXTRA_DIST =              		\
+	$(CONDUITMODE_EXTRA_DIST)       \
 	README				\
  	README-tools 			\
 	ChangeLog	  		\
@@ -86,9 +86,7 @@ EXTRA_DIST =              		\
         configure.in      		\
         acconfig.h        		\
         acinclude.m4      		\
-        $(headers)        		\
-        gasnet_tools.c    		\
-	$(CONDUITMODE_EXTRA_DIST)
+        gasnet_tools.c    		
 #       tests handled below
 
 include_HEADERS = $(headers)
