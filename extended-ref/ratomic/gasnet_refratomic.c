@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_extended_refratomic.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/ratomic/gasnet_refratomic.c $
  * Description: Reference implemetation of GASNet Remote Atomics, using Active Messages
  * Copyright 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -6,7 +6,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_ratomic_internal.h>
-#include <gasnet_extended_refratomic.h>
+#include <gasnet_refratomic.h>
 
 #ifndef _GEX_AD_T
 

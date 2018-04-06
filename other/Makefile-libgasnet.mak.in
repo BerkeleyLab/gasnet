@@ -30,6 +30,7 @@ TOOLLIBINCLUDES =         \
 
 LIBINCLUDES = $(TOOLLIBINCLUDES) \
         -I$(top_srcdir)/extended-ref/vis \
+        -I$(top_srcdir)/extended-ref/ratomic \
         -I$(top_srcdir)/extended-ref  
 
 
@@ -76,8 +77,8 @@ libgasnet_sources =                                         \
         $(libgasnet_tools_sources)                          \
         $(PSHM_SOURCES)                                     \
         $(top_srcdir)/extended-ref/vis/gasnet_refvis.c      \
+        $(top_srcdir)/extended-ref/ratomic/gasnet_refratomic.c\
         $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c\
-        $(top_srcdir)/extended-ref/gasnet_extended_refratomic.c \
         $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \
         $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
         $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \

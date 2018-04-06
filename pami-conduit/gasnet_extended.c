@@ -1232,7 +1232,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of remote atomics */
-#include "gasnet_extended_refratomic.h"
+#include "gasnet_refratomic.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
