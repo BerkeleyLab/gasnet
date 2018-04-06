@@ -1734,8 +1734,8 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
   uint64_t mask;
   size_t length;
+  unsigned int slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
   if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
-    unsigned int slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
     gasneti_assert(slots <= am_maxcredit/2);
     mask = (((uint64_t)1 << slots) - 1);
 
@@ -1745,19 +1745,18 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
-    length = max_length;
+    length = min_length;
   } else {
-    unsigned int min_slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
-    unsigned int slots;
+    unsigned int avail_slots;
 
-    BUSYWAIT(((slots = gasnetc_remote_slots_avail(peer)) < min_slots),
+    BUSYWAIT(((avail_slots = gasnetc_remote_slots_avail(peer)) < slots),
            ESCAPE1(out_immediate_2),
            ESCAPE2(out_immediate_2),
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
     unsigned int max_slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
-    slots = MIN(slots, max_slots);
+    slots = MIN(avail_slots, max_slots);
     length = slots << am_slot_bits;
 
     mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
@@ -1819,7 +1818,7 @@ gasnetc_alloc_request_post_descriptor(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  return request_post_descriptor_inner(dest, 1, 0, length, flags GASNETI_THREAD_PASS);
+  return request_post_descriptor_inner(dest, 1, length, length, flags GASNETI_THREAD_PASS);
 }
 
 #if GASNETC_NP_MEDXL // NP Medium beyond MaxMedium - disabled by default

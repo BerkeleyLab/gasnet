@@ -1398,9 +1398,13 @@ void gasnetc_commit_medium(
   int numargs = sd->_nargs;
   int do_copy = isFixed || !sd->_gex_buf;
 
-  const size_t total_len = nbytes + GASNETC_HEADLEN(medium, numargs);
-  gasneti_assert(total_len <= gpd->gpd_am_length);
-  gpd->gpd_am_length = total_len;
+  if (isFixed) {
+    gasneti_assert(gpd->gpd_am_length == nbytes + GASNETC_HEADLEN(medium, numargs));
+  } else {
+    size_t total_len = nbytes + GASNETC_HEADLEN(medium, numargs);
+    gasneti_assert(gpd->gpd_am_length >= total_len);
+    gpd->gpd_am_length = total_len;
+  }
 
   gasnetc_format_medium(gpd,handler,source_addr,nbytes,numargs,argptr,do_copy);
   if (isReq) {
