@@ -469,7 +469,7 @@ static void gasnete_shmembarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#include "gasnet_extended_refvis.h"
+#include "gasnet_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*

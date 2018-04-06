@@ -1058,7 +1058,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#include "gasnet_extended_refvis.h"
+#include "gasnet_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*

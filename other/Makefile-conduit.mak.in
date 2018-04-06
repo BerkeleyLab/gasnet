@@ -10,7 +10,10 @@
 
 # header files to be installed
 # Conduit-specific headers will overwrite any conflicts in extended-ref
-headers = $(top_srcdir)/extended-ref/*.h $(srcdir)/*.h $(CONDUIT_EXTRAHEADERS)
+headers = $(top_srcdir)/extended-ref/*.h                    \
+          $(top_srcdir)/extended-ref/vis/gasnet_vis_fwd.h   \
+          $(srcdir)/*.h                                     \
+	  $(CONDUIT_EXTRAHEADERS)
 
 # headers to exclude from $(headers) - please don't use wildcards
 # XXX: Probably not complete and we lack an automated update machanism
@@ -20,7 +23,7 @@ private_headers = gasnet_coll_autotune.h \
                   gasnet_coll_team.h \
                   gasnet_coll_trees.h \
                   gasnet_extended_refcoll.h \
-                  gasnet_extended_refvis.h \
+                  gasnet_refvis.h \
                   $(CONDUIT_PRIVATEHEADERS)
 
 @BUILD_SEQ_LIBS_TRUE@     makefile_fragments_seq =     $(CONDUIT_NAME)-seq.mak
