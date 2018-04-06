@@ -341,7 +341,8 @@ static void check_max_payload_args(
       gasneti_fatalerror("Call to %s() with invalid lc_opt=%p", fname, lc_opt);
     }
     // Following attempts to elicit SIGSEGV/SIGBUS/SIGILL on bogus pointers
-    static uintptr_t dummy += (uintptr_t) *(volatile gex_Event_t *)lc_opt;
+    static uintptr_t dummy;
+    dummy += (uintptr_t) *(volatile gex_Event_t *)lc_opt;
   }
   if ((flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT) &&
       (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC)) {
