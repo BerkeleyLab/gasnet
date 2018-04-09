@@ -91,8 +91,9 @@
 #define _hidx_gasnete_geti_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+5)
 #define _hidx_gasnete_geti_AMPipeline_reph    (GASNETE_VIS_HANDLER_BASE+6)
 #define _hidx_gasnete_puts_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+7)
-#define _hidx_gasnete_gets_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+8)
-#define _hidx_gasnete_gets_AMPipeline_reph    (GASNETE_VIS_HANDLER_BASE+9)
+#define _hidx_gasnete_puts_AMPipeline1_reqh   (GASNETE_VIS_HANDLER_BASE+8)
+#define _hidx_gasnete_gets_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+9)
+#define _hidx_gasnete_gets_AMPipeline_reph    (GASNETE_VIS_HANDLER_BASE+10)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -106,8 +107,10 @@
   MEDIUM_HANDLER_DECL(gasnete_geti_AMPipeline_reph,2,3);
  #if GASNETE_PUTS_AMPIPELINE || !defined(GASNETE_PUTS_AMPIPELINE)
   MEDIUM_HANDLER_DECL(gasnete_puts_AMPipeline_reqh,5,7);
+  MEDIUM_HANDLER_DECL(gasnete_puts_AMPipeline1_reqh,4,6);
   #define GASNETE_PUTS_AMPIPELINE_HANDLERS() \
-    gasneti_handler_tableentry_with_bits(gasnete_puts_AMPipeline_reqh,5,7,REQUEST,MEDIUM,0),   
+    gasneti_handler_tableentry_with_bits(gasnete_puts_AMPipeline_reqh,5,7,REQUEST,MEDIUM,0), \
+    gasneti_handler_tableentry_with_bits(gasnete_puts_AMPipeline1_reqh,4,6,REQUEST,MEDIUM,0),   
  #else
   #define GASNETE_PUTS_AMPIPELINE_HANDLERS() 
  #endif
