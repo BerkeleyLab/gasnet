@@ -166,6 +166,25 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     if (visop->eop) gasneti_eop_markdone(visop->eop); \
     else gasneti_iop_markdone(visop->iop, 1, isget);  \
   } while (0)
+
+// ops with a single completion event
+#define GASNETE_START_ONEOP(op, handle, synctype, isget) do {         \
+    if (synctype == gasnete_synctype_nbi) {                           \
+      op = (void *)gasneti_iop_register(1,isget GASNETE_THREAD_PASS); \
+      handle = GEX_EVENT_INVALID;                                     \
+    } else {                                                          \
+      op = (void *)gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);     \
+      handle = gasneti_eop_to_event((gasneti_eop_t *)op);             \
+    }                                                                 \
+  } while (0)
+#define GASNETE_RETURN_ONEOP(handle, synctype) do {                   \
+    if_pf (synctype == gasnete_synctype_b) {                          \
+      gasnete_wait(handle GASNETI_THREAD_PASS);                       \
+      return GEX_EVENT_INVALID;                                       \
+    } else return handle;                                             \
+  } while (0)
+      
+
 #else
 #define GASNETE_ERROR_NO_EOP_INTERFACE() gasneti_fatalerror("Tried to invoke GASNETE_VISOP_SIGNAL without GASNETI_HAVE_EOP_INTERFACE at %s:%i",__FILE__,__LINE__)
 #define GASNETE_VISOP_SIGNAL(visop, isget) GASNETE_ERROR_NO_EOP_INTERFACE()

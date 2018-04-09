@@ -748,17 +748,12 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
 
   gasneti_assert(headersz1 + chunksz <= maxpacket1);
 
-  GASNETE_START_NBIREGION(synctype); // XXX
-
   if (totalsz <= maxpayload1) { // TODO-EX: could squeeze in more by trimming packet_init and packetchunks
     // *** simplified path: entire payload fits in a single MaxMedium packet
     size_t const packetsz = headersz1 + totalsz;
-  #if 1
-    gasneti_iop_t * const iop = gasneti_iop_register(1,0 GASNETE_THREAD_PASS);
-  #else
-    gasneti_vis_op_t visop; // temporary for convenience of factored macros
-    GASNETE_VISOP_SETUP(visop, synctype, 0);
-  #endif
+    gex_Event_t handle;
+    void *op;
+    GASNETE_START_ONEOP(op, handle, synctype, 0);
 
     #if GASNETE_VIS_NPAM
       gex_AM_SrcDesc_t sd = gex_AM_PrepareRequestMedium(tm, rank, NULL, packetsz, packetsz, NULL, 0, HARGS(4,6));
@@ -795,7 +790,7 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
     // send packet
     gasneti_assert(stridelevels == (size_t)(uint32_t)(gex_AM_Arg_t)stridelevels);
     gasneti_assert(chunksz ==      (size_t)(uint32_t)(gex_AM_Arg_t)chunksz);
-    #define ARGS PACK(iop), PACK(dstaddr), stridelevels, chunksz
+    #define ARGS PACK(op), PACK(dstaddr), stridelevels, chunksz
     #if GASNETE_VIS_NPAM == 0
       gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_puts_AMPipeline1_reqh),
                                packetbase, packetsz, GEX_EVENT_NOW, 0, ARGS);
@@ -805,16 +800,15 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
     #endif   
     #undef ARGS
 
-    //GASNETE_VISOP_RETURN(visop, synctype);
-    GASNETE_END_NBIREGION_AND_RETURN(synctype);
+    GASNETE_RETURN_ONEOP(handle, synctype);
   }
 
   // *** general multi-packet path
+  GASNETE_START_NBIREGION(synctype);
   size_t const maxpacket = GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels);
   size_t const headersz = GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels);
   size_t const maxpayload = maxpacket - headersz;
   gasneti_assert(headersz + chunksz <= maxpacket);
-  //GASNETE_START_NBIREGION(synctype);
 
   #if GASNETE_VIS_NPAM
     void   * const header = SMD_SCRATCH(smd,stridelevels);
@@ -952,11 +946,29 @@ void gasnete_puts_AMPipeline1_reqh_inner(gex_Token_t token,
   #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
-  gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(op));
+  gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_puts_AMPipeline1_reph), 0, PACK(op));
 }
 MEDIUM_HANDLER(gasnete_puts_AMPipeline1_reqh,4,6, 
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1),      a2,a3),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3), a4,a5));
+/* ------------------------------------------------------------------------------------ */
+#include "gasnet_event_internal.h" // TODO-EX: REMOVE THIS
+GASNETI_INLINE(gasnete_puts_AMPipeline1_reph_inner)
+void gasnete_puts_AMPipeline1_reph_inner(gex_Token_t token,
+  void *_op) {
+  // TODO-EX: Internal op interface needs a way to express this pattern
+  gasnete_op_t * op = _op;
+  if (OPTYPE(op) == OPTYPE_EXPLICIT) {
+    gasneti_eop_t * eop = _op; 
+    gasneti_eop_markdone(eop);
+  } else { 
+    gasneti_iop_t * iop = _op; 
+    gasneti_iop_markdone(iop, 1, 0);
+  }
+}
+SHORT_HANDLER(gasnete_puts_AMPipeline1_reph,1,2,
+              (token, UNPACK(a0)),
+              (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
 void gasnete_puts_AMPipeline_reqh_inner(gex_Token_t token,
