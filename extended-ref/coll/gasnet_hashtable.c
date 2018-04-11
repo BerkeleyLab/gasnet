@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_hashtable.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_hashtable.c $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@
 #include <stdlib.h>
 
 #include <gasnet_internal.h>
-#include <gasnet_coll_hashtable.h>
+#include <coll/gasnet_hashtable.h>
 
 /* Part I: table */
 

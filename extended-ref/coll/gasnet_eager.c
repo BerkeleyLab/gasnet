@@ -1,16 +1,16 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_eager.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_eager.c $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_coll.h>
+#include <coll/gasnet_coll.h>
 
-#include <gasnet_coll_internal.h>
-#include <gasnet_coll_trees.h>
-#include <gasnet_coll_scratch.h>
-#include <gasnet_coll_autotune_internal.h>
+#include <coll/gasnet_coll_internal.h>
+#include <coll/gasnet_trees.h>
+#include <coll/gasnet_scratch.h>
+#include <coll/gasnet_autotune_internal.h>
 #include <gasnet_vis.h>
 
 

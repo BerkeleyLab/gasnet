@@ -125,7 +125,7 @@ extern void gasnete_init(void) {
 */
 
 /* use reference implementation of collectives */
-#include "gasnet_extended_refcoll.h"
+#include "gasnet_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*

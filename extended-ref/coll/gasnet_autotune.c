@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_autotune.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_autotune.c $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -6,7 +6,7 @@
 
 
 /* This is intended as a stub for the autotuner routines*/
-#include <gasnet_coll_autotune_internal.h>
+#include <coll/gasnet_autotune_internal.h>
 
 
 /*a small library to write and read XML style sheets for the collective tuner*/
