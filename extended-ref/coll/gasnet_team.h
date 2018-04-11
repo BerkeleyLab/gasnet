@@ -1,14 +1,14 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_team.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_team.h $
  * Description: GASNet team data structure
  * Copyright 2009, The Regents of the University of California
  * Terms of use are as specified in license.txt 
  */
 
-#ifndef GASNET_COLL_TEAM_H_
-#define GASNET_COLL_TEAM_H_
+#ifndef GASNET_TEAM_H_
+#define GASNET_TEAM_H_
 
-#include <gasnet_coll_internal.h>
-#include <gasnet_coll_hashtable.h>
+#include <coll/gasnet_coll_internal.h>
+#include <coll/gasnet_hashtable.h>
 
 #define TEAM_DIR_SIZE 1021
 /* extern gasnete_hashtable_t *team_dir; */
@@ -67,4 +67,4 @@ uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) ;
     fprintf((fp), "\n");                        \
   } while(0);
 
-#endif /* GASNET_COLL_TEAM_H_ */
+#endif /* GASNET_TEAM_H_ */

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_team.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_team.c $
  *
  * Description: GASNet generic team implementation for collectives 
  * Copyright 2009, The Regents of the University of California
@@ -6,14 +6,14 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_coll.h>
-#include <gasnet_coll_internal.h>
-#include <gasnet_extended_refcoll.h>
+#include <coll/gasnet_coll.h>
+#include <coll/gasnet_coll_internal.h>
+#include <coll/gasnet_refcoll.h>
 
-#include <gasnet_coll_team.h>
-#include <gasnet_coll_autotune_internal.h>
-#include <gasnet_coll_scratch.h>
-#include <gasnet_coll_trees.h>
+#include <coll/gasnet_team.h>
+#include <coll/gasnet_autotune_internal.h>
+#include <coll/gasnet_scratch.h>
+#include <coll/gasnet_trees.h>
 
 #ifdef GASNETE_COLL_TEAM_CONDUIT_DECLS
 GASNETE_COLL_TEAM_CONDUIT_DECLS

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_internal.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_coll_internal.h $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,10 +15,10 @@
 #ifdef GASNET_FCA_ENABLED
 #include <other/fca/gasnet_fca.h>
 #endif
-#include <gasnet_coll.h>
+#include <coll/gasnet_coll.h>
 #include <gasnet_handler.h>
 
-#include <gasnet_coll_team.h>
+#include <coll/gasnet_team.h>
 #include <smp-collectives/smp_coll.h>
 
 // Upon implementing GASNETI_MEMCPY() (with assertions), it was discovered
@@ -155,7 +155,7 @@ extern int gasnete_coll_handle_done(gasnet_coll_handle_t handle GASNETE_THREAD_F
 
 /** Need to insert this here so that trees.h picks up all the forward declaration of the structs*/
 /** but also before the internal strucutres use the trees*/
-#include <gasnet_coll_trees.h>
+#include <coll/gasnet_trees.h>
 
 /*---------------------------------------------------------------------------------*/
 /* Operations of the active list */

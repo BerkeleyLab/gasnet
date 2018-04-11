@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_autotune.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_autotune.h $
  * Description: GASNet Autotuner Implementation                                                     
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt                                                     
@@ -6,8 +6,8 @@
 
 /* This is intended as a stub for the autotuner routines*/
 
-#ifndef __GASNET_COLL_AUTOTUNE_H__
-#define __GASNET_COLL_AUTOTUNE_H__ 1
+#ifndef __GASNET_AUTOTUNE_H__
+#define __GASNET_AUTOTUNE_H__ 1
 
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "BINOMIAL_TREE"
 #define GASNETE_COLL_DEFAULT_TREE_FANOUT 2

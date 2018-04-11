@@ -35,9 +35,9 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 CONDUITMODE_headers = 		\
 	gasnet.h           	\
 	gasnet_ammacros.h  	\
-	gasnet_coll.h      	\
 	gasnet_handler.h   	\
 	gasnet_trace.h     	\
+	extended-ref/coll/gasnet_coll.h \
 	extended-ref/vis/gasnet_vis.h      
 CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
