@@ -1005,11 +1005,12 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7,
 #endif // GASNETE_PUTS_AMPIPELINE
 #ifndef GASNETE_PUTS_AMPIPELINE_SELECTOR
   #if GASNETE_PUTS_AMPIPELINE
-    #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
-      if (gasnete_vis_use_ampipe &&                                                  \
-          smd->elemsz <= gasnete_vis_put_maxchunk &&                                 \
-        (ptrdiff_t)smd->elemsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
-      RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
+    #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do {   \
+      if ((ptrdiff_t)smd->elemsz <= MIN((ptrdiff_t)gasnete_vis_put_maxchunk,           \
+                                        GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
+         ) { gasneti_assert(gasnete_vis_use_ampipe);                                   \
+      RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
+      } } while (0)
   #else
     #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
   #endif
@@ -1251,12 +1252,13 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reph,2,3,
 #endif // GASNETE_GETS_AMPIPELINE
 #ifndef GASNETE_GETS_AMPIPELINE_SELECTOR
   #if GASNETE_GETS_AMPIPELINE
-    #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
-      if (gasnete_vis_use_ampipe &&                                                  \
-          smd->elemsz <= gasnete_vis_get_maxchunk &&                                 \
-        (ptrdiff_t)smd->elemsz <= GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) && \
-        GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
-      RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
+    #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do {   \
+      if ((ptrdiff_t)smd->elemsz <= MIN((ptrdiff_t)gasnete_vis_get_maxchunk,           \
+                                        GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) && \
+        GASNETT_PREDICT_TRUE(GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
+         ) { gasneti_assert(gasnete_vis_use_ampipe);                                   \
+      RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
+      } } while (0)
   #else
     #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
   #endif
