@@ -17,9 +17,7 @@ headers = $(top_srcdir)/extended-ref/*.h                    \
 	  $(CONDUIT_EXTRAHEADERS)
 
 # headers to exclude from $(headers) - please don't use wildcards
-# XXX: Probably not complete and we lack an automated update machanism
 private_headers = \
-                  gasnet_refvis.h \
                   $(CONDUIT_PRIVATEHEADERS)
 
 @BUILD_SEQ_LIBS_TRUE@     makefile_fragments_seq =     $(CONDUIT_NAME)-seq.mak
