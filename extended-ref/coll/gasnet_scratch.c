@@ -1,11 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_scratch.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_scratch.c $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 
-#include "gasnet_coll_scratch.h"
+#include <coll/gasnet_scratch.h>
 #define GASNETE_COLL_SCRATCH_DEBUG_PRINTS 0
 struct gasnete_coll_op_info_t_;
 typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;

@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_autotune_internal.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_autotune_internal.h $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>                              
  * Terms of use are as specified in license.txt
@@ -14,13 +14,13 @@
  */
 
 
-#ifndef __GASNET_COLL_AUTOTUNE_INTERNAL_H__
-#define __GASNET_COLL_AUTOTUNE_INTERNAL_H__ 1
+#ifndef __GASNET_AUTOTUNE_INTERNAL_H__
+#define __GASNET_AUTOTUNE_INTERNAL_H__ 1
 
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "KNOMIAL_TREE,2"
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD 1024
 #include <myxml/myxml.h>
-#include <gasnet_coll.h>
+#include <coll/gasnet_coll.h>
 
 /*returns the implementation of the collectives including all the parameters to the algorithm*/
 struct gasnete_coll_implementation_t_{

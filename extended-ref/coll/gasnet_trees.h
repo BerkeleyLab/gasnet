@@ -1,16 +1,16 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_trees.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_trees.h $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef ALREADY_SEEN_GASNET_COLL_TREES_H 
-#define ALREADY_SEEN_GASNET_COLL_TREES_H 1
+#ifndef _GASNET_TREES_H 
+#define _GASNET_TREES_H 1
 
 #if 0
-#include <gasnet_coll.h>
-#include <gasnet_coll_internal.h>
-#include <gasnet_extended_refcoll.h>
+#include <coll/gasnet_coll.h>
+#include <coll/gasnet_coll_internal.h>
+#include <coll/gasnet_refcoll.h>
 #endif
 
 

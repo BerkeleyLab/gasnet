@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_coll_hashtable.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_hashtable.h $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -16,8 +16,8 @@
  * 2009
  */
 
-#ifndef GASNET_COLL_HASHTABLE_H_
-#define GASNET_COLL_HASHTABLE_H_
+#ifndef GASNET_HASHTABLE_H_
+#define GASNET_HASHTABLE_H_
 
 /* Part I: Table */
 
@@ -80,4 +80,4 @@ uint32_t gasnete_hashtable_remove(gasnete_hashtable_t * ht, uint32_t key, void *
 
 void gasnete_hashtable_free(gasnete_hashtable_t * ht);
 
-#endif /* GASNET_COLL_HASHTABLE_H_ */
+#endif /* GASNET_HASHTABLE_H_ */

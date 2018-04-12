@@ -478,7 +478,7 @@ static void gasnete_shmembarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of collectives */
-#include "gasnet_extended_refcoll.h"
+#include "gasnet_refcoll.h"
 
 /* ------------------------------------------------------------------------ */
 /*
