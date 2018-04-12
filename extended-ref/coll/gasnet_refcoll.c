@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_extended_refcoll.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/coll/gasnet_refcoll.c $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,24 +13,24 @@
 #define ALL_THREADS_POLL 0
 
 #include <gasnet_internal.h>
-#include <gasnet_coll.h>
+#include <coll/gasnet_coll.h>
 
-#include <gasnet_coll_internal.h>
-#include <gasnet_coll_team.h>
-#include <gasnet_coll_autotune_internal.h>
-#include <gasnet_coll_scratch.h>
-#include <gasnet_coll_trees.h>
-#include <gasnet_extended_refcoll.h>
+#include <coll/gasnet_coll_internal.h>
+#include <coll/gasnet_team.h>
+#include <coll/gasnet_autotune_internal.h>
+#include <coll/gasnet_scratch.h>
+#include <coll/gasnet_trees.h>
+#include <coll/gasnet_refcoll.h>
 #include <gasnet_vis.h>
 
 /*TEMPORARY (Need to eventually change it such that 
   the files are compiled under their own .o files)*/
-#include <gasnet_coll_trees.c>
+#include <coll/gasnet_trees.c>
 /* gasnet_coll_autotune.c and gasnet_coll_scratch.c have 
    to be included after gasnet_coll_trees.c
 */
-#include <gasnet_coll_autotune.c>
-#include <gasnet_coll_scratch.c>
+#include <coll/gasnet_autotune.c>
+#include <coll/gasnet_scratch.c>
 #include <smp-collectives/smp_coll.c>
 #include <smp-collectives/smp_coll_barrier.c>
 

@@ -36,8 +36,8 @@ CONDUITMODE_headers = 		\
 	gasnetex.h           	\
 	gasnet.h           	\
 	gasnet_ammacros.h  	\
-	gasnet_coll.h      	\
 	gasnet_trace.h     	\
+	extended-ref/coll/gasnet_coll.h \
 	extended-ref/ratomic/gasnet_ratomic.h \
 	extended-ref/vis/gasnet_vis.h      
 CONDUITMODE_EXTRA_DIST =    	\
