@@ -17,6 +17,7 @@ size_t areasz = 0;
 int insegment = 1;
 int doputs = 1;
 int dogets = 1;
+int doNB = 0;
 int remotecontig = 0;
 int localcontig = 0;
 size_t stridelevels = 2;
@@ -26,6 +27,8 @@ int numprocs;
 int peerproc = -1;
 int iamsender = 0;
 void *Lbase, *Rbase;
+gasnet_handle_t *evts = NULL;
+size_t evtcnt = 0;
 
 size_t min_payload = 0, max_payload = 0;
 size_t min_contig = 0, max_contig = 0;
@@ -131,6 +134,12 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[arg], "-l")) {
       localcontig = 1;
       ++arg;
+    } else if (!strcmp(argv[arg], "-nb")) {
+      doNB = 1;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-nbi")) {
+      doNB = 0;
+      ++arg;
     } else if (argv[arg][0] == '-') {
       help = 1;
       ++arg;
@@ -179,7 +188,10 @@ int main(int argc, char **argv) {
              "  -a        enables full-duplex mode, where all nodes send.\n"
              "  -c        enables cross-machine pairing, default is nearest neighbor.\n"
              "  -f        enables 'first/last' mode, where the first/last\n"
-             "            nodes communicate with each other, while all other nodes sit idle.");
+             "            nodes communicate with each other, while all other nodes sit idle.\n"
+             "  -nbi      use NBI-mode synchronization (default)\n"
+             "  -nb       use NB-mode synchronization"
+             );
   if (help || argc > arg) test_usage();
 
   /* get SPMD info */
@@ -230,7 +242,7 @@ int main(int argc, char **argv) {
   else iters = atol(iterstr); 
 
   if (myproc == 0) {
-    MSG0("Running %s iterations of %s%s%snon-contiguous put/get%s%s\n"
+    MSG0("Running %s iterations of %s%s%snon-contiguous put/get %s %s%s\n"
          "   local data %s-segment for payload sizes: %" PRIuSZ "...%" PRIuSZ "  (datafactor=%.2f)\n"
          "   contig sizes: %" PRIuSZ "...%" PRIuSZ "  (contigfactor=%.2f)\n"
          "   densitysteps=%i stridelevels=%" PRIuSZ 
@@ -239,6 +251,7 @@ int main(int argc, char **argv) {
     (firstlastmode ? "first/last " : ""),
     (fullduplexmode ? "full-duplex ": ""),
     (crossmachinemode ? "cross-machine ": ""),
+    (doNB?"NB":"NBI"),
     (remotecontig?"(remotely-contiguous)":""),
     (localcontig?"(locally-contiguous)":""),
     insegment ? "in" : "out", 
@@ -366,30 +379,62 @@ int main(int argc, char **argv) {
                 }
               }
               #define DOIT(iters) do {                                                           \
-                int i;                                                                           \
+                if (doNB && iters > evtcnt) {                                                    \
+                  test_free(evts);                                                               \
+                  evts = test_malloc(iters * sizeof(gasnet_handle_t));                           \
+                  evtcnt = iters;                                                                \
+                }                                                                                \
                 switch (viscat) {                                                                \
                   case TEST_V:                                                                   \
-                    for (i = 0; i < iters; i++) {                                                \
-                      if (isget) gasnet_getv_nbi_bulk(Lcnt,Lvlist,peerproc,Rcnt,Rvlist);         \
-                      else gasnet_putv_nbi_bulk(peerproc,Rcnt,Rvlist,Lcnt,Lvlist);               \
+                    if (doNB) {                                                                  \
+                      if (isget) for (long i = 0; i < iters; i++)                                \
+                        evts[i] = gasnet_getv_nb_bulk(Lcnt,Lvlist,peerproc,Rcnt,Rvlist);         \
+                      else for (long i = 0; i < iters; i++)                                      \
+                        evts[i] = gasnet_putv_nb_bulk(peerproc,Rcnt,Rvlist,Lcnt,Lvlist);         \
+                    } else {                                                                     \
+                      if (isget) for (long i = 0; i < iters; i++)                                \
+                        gasnet_getv_nbi_bulk(Lcnt,Lvlist,peerproc,Rcnt,Rvlist);                  \
+                      else for (long i = 0; i < iters; i++)                                      \
+                        gasnet_putv_nbi_bulk(peerproc,Rcnt,Rvlist,Lcnt,Lvlist);                  \
                     }                                                                            \
                     break;                                                                       \
                   case TEST_I:                                                                   \
-                    for (i = 0; i < iters; i++) {                                                \
-                      if (isget) gasnet_geti_nbi_bulk(Lcnt,Lilist,Lsz,peerproc,Rcnt,Rilist,Rsz); \
-                      else gasnet_puti_nbi_bulk(peerproc,Rcnt,Rilist,Rsz,Lcnt,Lilist,Lsz);       \
+                    if (doNB) {                                                                  \
+                      if (isget) for (long i = 0; i < iters; i++)                                \
+                        evts[i] =                                                                \
+                         gasnet_geti_nb_bulk(Lcnt,Lilist,Lsz,peerproc,Rcnt,Rilist,Rsz);          \
+                      else for (long i = 0; i < iters; i++)                                      \
+                        evts[i] =                                                                \
+                         gasnet_puti_nb_bulk(peerproc,Rcnt,Rilist,Rsz,Lcnt,Lilist,Lsz);          \
+                    } else {                                                                     \
+                      if (isget) for (long i = 0; i < iters; i++)                                \
+                        gasnet_geti_nbi_bulk(Lcnt,Lilist,Lsz,peerproc,Rcnt,Rilist,Rsz);          \
+                      else for (long i = 0; i < iters; i++)                                      \
+                        gasnet_puti_nbi_bulk(peerproc,Rcnt,Rilist,Rsz,Lcnt,Lilist,Lsz);          \
                     }                                                                            \
                     break;                                                                       \
                   case TEST_S:                                                                   \
-                    for (i = 0; i < iters; i++) {                                                \
-                      if (isget) gasnet_gets_nbi_bulk(Lbase,Lstrides,peerproc,Rbase,Rstrides,    \
-                                                      LRcount,stridelevels);                     \
-                      else gasnet_puts_nbi_bulk(peerproc,Rbase,Rstrides,Lbase,Lstrides,          \
-                                                LRcount,stridelevels);                           \
+                    if (doNB) {                                                                  \
+                      if (isget) for (long i = 0; i < iters; i++)                                \
+                        evts[i] =                                                                \
+                         gasnet_gets_nb_bulk(Lbase,Lstrides,peerproc,Rbase,Rstrides,             \
+                                             LRcount,stridelevels);                              \
+                      else for (long i = 0; i < iters; i++)                                      \
+                        evts[i] =                                                                \
+                         gasnet_puts_nb_bulk(peerproc,Rbase,Rstrides,Lbase,Lstrides,             \
+                                             LRcount,stridelevels);                              \
+                    } else {                                                                     \
+                      if (isget) for (long i = 0; i < iters; i++)                                \
+                        gasnet_gets_nbi_bulk(Lbase,Lstrides,peerproc,Rbase,Rstrides,             \
+                                             LRcount,stridelevels);                              \
+                      else for (long i = 0; i < iters; i++)                                      \
+                        gasnet_puts_nbi_bulk(peerproc,Rbase,Rstrides,Lbase,Lstrides,             \
+                                             LRcount,stridelevels);                              \
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \
-                gasnet_wait_syncnbi_all();                                                       \
+                if (doNB) gasnet_wait_syncnb_all(evts, iters);                                   \
+                else gasnet_wait_syncnbi_all();                                                  \
               } while (0)
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();
