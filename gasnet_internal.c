@@ -1236,7 +1236,7 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
       "WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!\n"
       : 0;
     #endif
-    if (warning && gasnet_mynode() == 0) {
+    if (warning && gasneti_mynode == 0) {
       fprintf(stderr, warning);
       fflush(stderr);
     }
