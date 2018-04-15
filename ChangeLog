@@ -237,6 +237,7 @@ GASNet ChangeLog
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
   - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
+  - Fix bug 3741: misidentification of IBM XL Compilers 13.1.6 and newer (v6)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.
