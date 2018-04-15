@@ -684,11 +684,17 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
 /* Pipelined AM gather-scatter put */
 #if GASNETE_USE_AMPIPELINE && !defined(GASNETE_PUTS_AMPIPELINE)
 #define GASNETE_PUTS_AMPIPELINE 1
-#define GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) gex_AM_MaxRequestMedium((tm),(rank),                        \
-                                                                 (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),                 \
-                                                                 (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0) , \
-                                                                 HARGS(5,7)) 
-#define GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels) ((stridelevels)*(2*sizeof(size_t)+sizeof(ptrdiff_t)))
+#define _GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels,args)                       \
+          gex_AM_MaxRequestMedium((tm),(rank),                                              \
+                                  (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),                \
+                                  (GASNETE_VIS_NPAM ? GEX_FLAG_AM_PREPARE_LEAST_ALLOC : 0), \
+                                  args) 
+#define GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) \
+       _GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels,HARGS(5,7))
+#define GASNETE_PUTS_AMPIPELINE1_MAXPACKET(tm,rank,stridelevels) \
+       _GASNETE_PUTS_AMPIPELINE_MAXPACKET( tm,rank,stridelevels,HARGS(4,6))
+#define GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels)  ((stridelevels)*(2*sizeof(size_t)+sizeof(ptrdiff_t)))
+#define GASNETE_PUTS_AMPIPELINE1_PACKETOVERHEAD(stridelevels) ((stridelevels)*(sizeof(size_t)+sizeof(ptrdiff_t)))
 #define GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) \
   ((ptrdiff_t)GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels) - (ptrdiff_t)GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels))
 GASNETI_NEVER_INLINE(gasnete_puts_AMPipeline,
@@ -701,42 +707,115 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
   gasneti_assert(smd->elemsz > 0);
   gasneti_assert(smd->stridelevels > 0);
   gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  GASNETE_START_NBIREGION(synctype);
 
   // temporary storage: (smd scratch for NPAM, otherwise malloc)
   //  init[stridelevels] | count[stridelevels] | peer_strides[stridelevels] 
   //
   // packet data:
   //   packet_init[stridelevels] - cloned from local init[] during packing
+  //     - omitted for single-packet
   //   count[stridelevels] - copied from smd
   //   peer_strides[stridelevels] - copied from smd
   //   packed data, to fill up to MaxRequestMedium()
   //     packetchunks complete chunks of elemsz granularity
   //     no partial chunks
   //
-  // AM Request args:
+  // AM Request args: (single-packet)
+  //   &op_addr, dstaddr, (int)stridelevels, (int)elemsz
+  // AM Request args: (multi-packet)
   //   &access_region_iop, dstaddr, (int)stridelevels, (int)elemsz, (int)packetchunks
   //
   // Each request handler unpacks into destination and sends a reply to markdone(1) the iop
   //
   // TODO-EX: consider growing chunksize to lcontig_sz[SMD_PEER]:
-  // thus removing lcontig_dims[SMD_PEER] entries from the 3 metadata arrays on the wire
+  // thus removing lcontig_dims[SMD_PEER] entries from the 2-3 metadata arrays on the wire
   // and increasing the granularity of the unpack operation at the peer.
   // The cost is coarser granularity in the chunking decreases the packet occupancy of the payload
   // Implementation would simply require shrinking all the stridelevels above (and growing elemsz),
   // except for local_init[], which is deliberately positioned to allow sending the suffix
   //
-
+  gasneti_vis_smd_dim_t const * const sdim = smd->dim;
+  const void * const dstaddr = smd->addr[SMD_PEER];
   size_t const stridelevels = smd->stridelevels;
+  size_t const chunksz = smd->elemsz;
+  size_t const totalchunks = smd->elemcnt;
+  size_t const totalsz = smd->totalsz;
+  gasneti_assert(chunksz*totalchunks == totalsz);
+
+  size_t const maxpacket1 = GASNETE_PUTS_AMPIPELINE1_MAXPACKET(tm,rank,stridelevels);
+  size_t const headersz1 = GASNETE_PUTS_AMPIPELINE1_PACKETOVERHEAD(stridelevels);
+  size_t const maxpayload1 = maxpacket1 - headersz1;
+
+  gasneti_assert(headersz1 + chunksz <= maxpacket1);
+
+  if (totalsz <= maxpayload1) { // TODO-EX: could squeeze in more by trimming packet_init and packetchunks
+    // *** simplified path: entire payload fits in a single MaxMedium packet
+    size_t const packetsz = headersz1 + totalsz;
+    gex_Event_t handle;
+    void *op;
+    GASNETE_START_ONEOP(op, handle, synctype, 0);
+
+    #if GASNETE_VIS_NPAM
+      gex_AM_SrcDesc_t sd = gex_AM_PrepareRequestMedium(tm, rank, NULL, packetsz, packetsz, NULL, 0, HARGS(4,6));
+      void * const packetbase = gex_AM_SrcDescAddr(sd);
+      gasneti_assert(gex_AM_SrcDescSize(sd) >= packetsz);
+    #else
+      void   * const packetbase = gasnete_visbuf_malloc(packetsz);
+    #endif
+    size_t    * const packetcount = packetbase;
+    ptrdiff_t * const packetstrides = (ptrdiff_t*)(packetcount + stridelevels);
+    void      * const packedbuf = packetstrides + stridelevels;
+    gasneti_assume(packedbuf == (uint8_t*)packetbase + headersz1);
+
+    // setup the packet header
+    for (size_t d = 0; d < stridelevels; d++) {
+      packetcount[d] = sdim[d].count; 
+      packetstrides[d] = sdim[d].stride[SMD_PEER]; 
+    }
+
+    void * srcaddr = smd->addr[SMD_SELF];
+    if (smd->lcontig_dims[SMD_SELF] == stridelevels) { // source is contiguous
+      GASNETI_MEMCPY(packedbuf, srcaddr, totalsz);
+    } else { // gather data payload from source into packet
+      uint8_t *pbuf = packedbuf;
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2) do { \
+        GASNETI_MEMCPY(pbuf, p1, chunksz); pbuf += chunksz; \
+      } while (0)
+        GASNETE_1STRIDED_HELPER(stridelevels, SITER_SDIM_COUNT(sdim),
+                                     srcaddr, SITER_SDIM_STRIDE(sdim,SMD_SELF));
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
+      gasneti_assert(pbuf == (uint8_t*)packetbase + packetsz);
+    }
+
+    // send packet
+    gasneti_assert(stridelevels == (size_t)(uint32_t)(gex_AM_Arg_t)stridelevels);
+    gasneti_assert(chunksz ==      (size_t)(uint32_t)(gex_AM_Arg_t)chunksz);
+    #define ARGS PACK(op), PACK(dstaddr), stridelevels, chunksz
+    #if GASNETE_VIS_NPAM == 0
+      gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_puts_AMPipeline1_reqh),
+                               packetbase, packetsz, GEX_EVENT_NOW, 0, ARGS);
+      gasneti_free(packetbase);
+    #else
+      gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_puts_AMPipeline1_reqh), packetsz, ARGS);
+    #endif   
+    #undef ARGS
+
+    GASNETE_RETURN_ONEOP(handle, synctype);
+  }
+
+  // *** general multi-packet path
+  GASNETE_START_NBIREGION(synctype);
   size_t const maxpacket = GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels);
   size_t const headersz = GASNETE_PUTS_AMPIPELINE_PACKETOVERHEAD(stridelevels);
+  size_t const maxpayload = maxpacket - headersz;
+  gasneti_assert(headersz + chunksz <= maxpacket);
 
   #if GASNETE_VIS_NPAM
     void   * const header = SMD_SCRATCH(smd,stridelevels);
     size_t * const init = header;
     size_t * const packetinit = init;
   #else
-    size_t * const init = gasnete_visbuf_malloc(stridelevels*sizeof(size_t) + GASNETE_PUTS_AMPIPELINE_MAXPACKET(tm,rank,stridelevels));
+    size_t * const init = gasnete_visbuf_malloc(stridelevels*sizeof(size_t) + maxpacket);
     void   * const packetbase = init + stridelevels;
     size_t * const packetinit = packetbase;
     void   * const packedbuf = (uint8_t*)packetbase + headersz;
@@ -747,17 +826,11 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
   // setup the packet header
   memset(init,0,stridelevels*sizeof(size_t)); /* init[] = [0..0] */
   for (size_t d = 0; d < stridelevels; d++) {
-    packetcount[d] = smd->dim[d].count; 
-    packetstrides[d] = smd->dim[d].stride[SMD_PEER]; 
+    packetcount[d] = sdim[d].count; 
+    packetstrides[d] = sdim[d].stride[SMD_PEER]; 
   }
 
-  size_t const chunksz = smd->elemsz;
-  size_t const totalchunks = smd->elemcnt;
-  gasneti_assert(headersz + chunksz <= maxpacket);
-  gasneti_assert(chunksz*totalchunks == smd->totalsz);
-
   #if GASNETE_VIS_NPAM < 2
-    size_t const maxpayload = maxpacket - headersz;
     size_t const chunksperpacket = maxpayload / chunksz;
     size_t const packetcnt = (totalchunks + chunksperpacket - 1)/chunksperpacket;
 
@@ -766,11 +839,9 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
   #endif
 
   // packetization loop
-  gasneti_vis_smd_dim_t const * const sdim = smd->dim;
   void *srcaddr = smd->addr[SMD_SELF];
-  void * const dstaddr = smd->addr[SMD_PEER];
   size_t remaining = totalchunks;
-  while (remaining) {
+  do {
     // obtain NPAM buffer, populate packet header and compute packetchunks
     #if GASNETE_VIS_NPAM < 2
       size_t const packetchunks = MIN(chunksperpacket, remaining);
@@ -802,12 +873,12 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
     remaining -= packetchunks;
 
     // fill packet with data
-    size_t nbytes;
+    size_t packetsz;
     if (smd->lcontig_dims[SMD_SELF] == stridelevels) { // source is contiguous
-      nbytes = packetchunks*chunksz;
-      GASNETI_MEMCPY(packedbuf, srcaddr, nbytes);
-      srcaddr = ((uint8_t *)srcaddr) + nbytes;
-      nbytes += headersz;
+      packetsz = packetchunks*chunksz;
+      GASNETI_MEMCPY(packedbuf, srcaddr, packetsz);
+      srcaddr = ((uint8_t *)srcaddr) + packetsz;
+      packetsz += headersz;
       if (remaining) GASNETE_STRIDED_VECTOR_INC(init, packetchunks, SITER_SDIM_COUNT(sdim), stridelevels);
     } else { // gather data payload from source into packet
       uint8_t *pbuf = packedbuf;
@@ -818,13 +889,13 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
         GASNETE_1STRIDED_HELPER(stridelevels, SITER_SDIM_COUNT(sdim),
                                      srcaddr, SITER_SDIM_STRIDE(sdim,SMD_SELF));
       #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      nbytes = pbuf - (uint8_t*)packetbase;
-      gasneti_assert(nbytes == headersz + packetchunks * chunksz);
+      packetsz = pbuf - (uint8_t*)packetbase;
+      gasneti_assert(packetsz == headersz + packetchunks * chunksz);
     }
 
     // send packet
     #if GASNETE_VIS_NPAM < 2
-      gasneti_assert(nbytes <= maxpacket);
+      gasneti_assert(packetsz <= maxpacket);
     #endif
     gasneti_assert(stridelevels == (size_t)(uint32_t)(gex_AM_Arg_t)stridelevels);
     gasneti_assert(chunksz ==      (size_t)(uint32_t)(gex_AM_Arg_t)chunksz);
@@ -832,19 +903,72 @@ gex_Event_t gasnete_puts_AMPipeline(gasneti_vis_smd_t * const smd,
     #define ARGS PACK(iop), PACK(dstaddr), stridelevels, chunksz, packetchunks
     #if GASNETE_VIS_NPAM == 0
       gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_puts_AMPipeline_reqh),
-                               packetbase, nbytes, GEX_EVENT_NOW, 0, ARGS);
+                               packetbase, packetsz, GEX_EVENT_NOW, 0, ARGS);
     #else
-      gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_puts_AMPipeline_reqh), nbytes, ARGS);
+      gex_AM_CommitRequestMedium(sd, gasneti_handleridx(gasnete_puts_AMPipeline_reqh), packetsz, ARGS);
     #endif   
     #undef ARGS
 
-  } // packetization loop
+  } while (remaining); // packetization loop
 
   #if !GASNETE_VIS_NPAM
     gasneti_free(init);
   #endif
   GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_puts_AMPipeline1_reqh_inner)
+void gasnete_puts_AMPipeline1_reqh_inner(gex_Token_t token,
+  void *addr, size_t nbytes,
+  void *op, void *dstaddr, 
+  gex_AM_Arg_t _stridelevels, gex_AM_Arg_t _chunksz) {
+  // marshall inputs
+  size_t const stridelevels = (uint32_t)_stridelevels;
+  size_t const chunksz      = (uint32_t)_chunksz;
+  size_t const    * const packetcount =   addr;
+  ptrdiff_t const * const packetstrides = (ptrdiff_t*)(packetcount + stridelevels);
+  void const      * const packedbuf =     packetstrides + stridelevels;
+
+  // unpack data into destination
+  uint8_t const * psrc = packedbuf;
+  #if GASNET_DEBUG
+    size_t packetchunks=1;
+    for (size_t i=0; i < stridelevels; i++) packetchunks *= packetcount[i];
+    gasneti_assert(packetchunks > 0);
+    gasneti_assert(psrc - (uint8_t*)addr + packetchunks * chunksz == nbytes);
+  #endif
+  #define GASNETE_STRIDED_HELPER_LOOPBODY(p1,p2) do { \
+     GASNETI_MEMCPY(p1, psrc, chunksz); psrc += chunksz; \
+  } while (0)
+    GASNETE_1STRIDED_HELPER(stridelevels, SITER_ARRAY(packetcount),
+                                 dstaddr, SITER_ARRAY(packetstrides));
+    gasneti_assert(psrc - (uint8_t *)addr == nbytes);
+  #undef GASNETE_STRIDED_HELPER_LOOPBODY
+
+  /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
+  gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_puts_AMPipeline1_reph), 0, PACK(op));
+}
+MEDIUM_HANDLER(gasnete_puts_AMPipeline1_reqh,4,6, 
+              (token,addr,nbytes, UNPACK(a0),      UNPACK(a1),      a2,a3),
+              (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3), a4,a5));
+/* ------------------------------------------------------------------------------------ */
+#include "gasnet_event_internal.h" // TODO-EX: REMOVE THIS
+GASNETI_INLINE(gasnete_puts_AMPipeline1_reph_inner)
+void gasnete_puts_AMPipeline1_reph_inner(gex_Token_t token,
+  void *_op) {
+  // TODO-EX: Internal op interface needs a way to express this pattern
+  gasnete_op_t * op = _op;
+  if (OPTYPE(op) == OPTYPE_EXPLICIT) {
+    gasneti_eop_t * eop = _op; 
+    gasneti_eop_markdone(eop);
+  } else { 
+    gasneti_iop_t * iop = _op; 
+    gasneti_iop_markdone(iop, 1, 0);
+  }
+}
+SHORT_HANDLER(gasnete_puts_AMPipeline1_reph,1,2,
+              (token, UNPACK(a0)),
+              (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
 void gasnete_puts_AMPipeline_reqh_inner(gex_Token_t token,
@@ -881,11 +1005,12 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7,
 #endif // GASNETE_PUTS_AMPIPELINE
 #ifndef GASNETE_PUTS_AMPIPELINE_SELECTOR
   #if GASNETE_PUTS_AMPIPELINE
-    #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
-      if (gasnete_vis_use_ampipe &&                                                  \
-          smd->elemsz <= gasnete_vis_put_maxchunk &&                                 \
-        (ptrdiff_t)smd->elemsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
-      RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
+    #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do {   \
+      if ((ptrdiff_t)smd->elemsz <= MIN((ptrdiff_t)gasnete_vis_put_maxchunk,           \
+                                        GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) \
+         ) { gasneti_assert(gasnete_vis_use_ampipe);                                   \
+      RETURN(gasnete_puts_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
+      } } while (0)
   #else
     #define GASNETE_PUTS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
   #endif
@@ -1127,12 +1252,13 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reph,2,3,
 #endif // GASNETE_GETS_AMPIPELINE
 #ifndef GASNETE_GETS_AMPIPELINE_SELECTOR
   #if GASNETE_GETS_AMPIPELINE
-    #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags)      \
-      if (gasnete_vis_use_ampipe &&                                                  \
-          smd->elemsz <= gasnete_vis_get_maxchunk &&                                 \
-        (ptrdiff_t)smd->elemsz <= GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels) && \
-        GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
-      RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS))
+    #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) do {   \
+      if ((ptrdiff_t)smd->elemsz <= MIN((ptrdiff_t)gasnete_vis_get_maxchunk,           \
+                                        GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(tm,rank,stridelevels)) && \
+        GASNETT_PREDICT_TRUE(GASNETE_GETS_AMPIPELINE_REQUESTSZ(stridelevels) <= GASNETE_GETS_AMPIPELINE_MAXREQUEST(tm,rank)) \
+         ) { gasneti_assert(gasnete_vis_use_ampipe);                                   \
+      RETURN(gasnete_gets_AMPipeline(smd,synctype,tm,rank,flags GASNETE_THREAD_PASS)); \
+      } } while (0)
   #else
     #define GASNETE_GETS_AMPIPELINE_SELECTOR(RETURN,smd,synctype,tm,rank,flags) ((void)0)
   #endif

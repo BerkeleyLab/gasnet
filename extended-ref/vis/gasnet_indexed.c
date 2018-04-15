@@ -335,8 +335,8 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   GASNETE_END_NBIREGION_AND_RETURN(synctype);
 }
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
-    if (gasnete_vis_use_ampipe && dstcount > 1 && dstlen == (uint32_t)(dstlen) &&                                  \
-        (srclen <= gasnete_vis_put_maxchunk || dstlen <= gasnete_vis_put_maxchunk))                                \
+    if (dstcount > 1 && GASNETT_PREDICT_TRUE(dstlen == (uint32_t)(dstlen)) &&                                      \
+        MIN(srclen,dstlen) <= gasnete_vis_put_maxchunk)                                                            \
       return gasnete_puti_AMPipeline(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) ((void)0)
@@ -433,8 +433,7 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
   GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
 }
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
-    if (gasnete_vis_use_ampipe && srccount > 1 &&                                                                  \
-        (srclen <= gasnete_vis_get_maxchunk || dstlen <= gasnete_vis_get_maxchunk))                                \
+    if (srccount > 1 && MIN(srclen,dstlen) <= gasnete_vis_get_maxchunk)                                            \
       return gasnete_geti_AMPipeline(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) ((void)0)
