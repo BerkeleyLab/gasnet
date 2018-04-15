@@ -1238,7 +1238,7 @@ case "$target_os" in
 	  fi
 	fi
 	# Check for IBM PE by presence of POE
-	if test x$force_arch_imbpe = xyes || 
+	if test x$force_arch_ibmpe = xyes || 
            ( env PAGER=cat poe -h | grep 'Parallel Operating Environment' ) >/dev/null 2>&1; then
 	    GASNETI_ARCH_IBMPE=1
 	    GASNET_PLATFORM=ibmpe
