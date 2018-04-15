@@ -1070,7 +1070,6 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
   gasnetc_epid_t qpi = gasnetc_epid2qpi(epid);
 
   if_pt (qpi == 0) {
-#if GASNETC_IB_MAX_HCAS > 1
  #if 0
     /* Select by largest space avail */
     uint32_t space, best_space;
@@ -1094,7 +1093,6 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     *(volatile int *)(&prev) = qpi;
  #endif
     gasneti_assert(qpi < gasnetc_num_qps);
-#endif
   } else {
     --qpi; /* offset */
     gasneti_assert(qpi < gasnetc_alloc_qps);
