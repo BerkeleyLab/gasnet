@@ -199,6 +199,8 @@ GASNet ChangeLog
 
 * InfiniBand Verbs (ibv-conduit)
   - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
+  - Now use HCA's maximum supported MTU by default, resulting in nearly a 2x
+    increase in peak Get bandwidth on modern HCAs.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
