@@ -579,7 +579,7 @@ GASNET_IF_DISABLED([ppc64-probe],[Disable probe for PPC64 compiler options],[DIS
 AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
   pushdef([ppc64code],[[
 	#include <stdio.h>
-	#if defined(__xlC__)
+	#if defined(__xlC__) || defined(__ibmxl__)
 	  static int testme(double *p);
 	  #pragma mc_func testme {            \\
 	    /* ARGS: r3 = p  LOCAL: r4, r5 */ \\

@@ -29,9 +29,9 @@
 /* Publish and enforce version number for the public interface to this header */
 /* YOU ARE NOT PERMITTED TO CHANGE THIS SECTION WITHOUT DIRECT APPROVAL FROM DAN BONACHEA */
 #if _PORTABLE_PLATFORM_H != PLATFORM_HEADER_VERSION \
-     || PLATFORM_HEADER_VERSION < 5
+     || PLATFORM_HEADER_VERSION < 6
 #undef  PLATFORM_HEADER_VERSION 
-#define PLATFORM_HEADER_VERSION 5
+#define PLATFORM_HEADER_VERSION 6
 #undef  _PORTABLE_PLATFORM_H
 #define _PORTABLE_PLATFORM_H PLATFORM_HEADER_VERSION
 /* End Header versioning handshake */
@@ -204,6 +204,9 @@
   PLATFORM_COMPILER_VERSION:
      defined to an integral expression which is guaranteed to be monotonically non-decreasing 
      with increasing compiler versions. Will be zero for unrecognized compilers.
+     The exact encoding of compiler version tuples into this constant may occasionally
+     change when this header is upgraded, so code should use the (in)equality macros below
+     to check against particular compiler versions, instead of embedding an encoded constant.
   PLATFORM_COMPILER_VERSION_STR:
      A string representation of the compiler version, which may contain additional info
   PLATFORM_COMPILER_VERSION_[GT,GE,EQ,LE,LT](maj,min,pat):
@@ -314,7 +317,7 @@
     #endif
   #endif
 
-#elif defined(__xlC__) 
+#elif defined(__xlC__) || defined(__ibmxl__)
   #define PLATFORM_COMPILER_XLC  1
   #define PLATFORM_COMPILER_FAMILYNAME XLC
   #define PLATFORM_COMPILER_FAMILYID 5
@@ -323,9 +326,26 @@
   #else
     #define PLATFORM_COMPILER_XLC_C  1
   #endif
-  #define PLATFORM_COMPILER_VERSION __xlC__
+  #ifdef __ibmxl_version__
+    #define PLATFORM_COMPILER_VERSION \
+      (__ibmxl_version__ << 24 | __ibmxl_release__ << 16 | \
+       __ibmxl_modification__ << 8 | __ibmxl_ptf_fix_level__)
+    #define PLATFORM_COMPILER_VERSION_STR \
+      PLATFORM_STRINGIFY(__ibmxl_version__) "." PLATFORM_STRINGIFY(__ibmxl_release__) "." PLATFORM_STRINGIFY(__ibmxl_modification__) "." PLATFORM_STRINGIFY(__ibmxl_ptf_fix_level__)
+  #else
+    #ifdef __xlC_ver__
+      #define PLATFORM_COMPILER_VERSION (__xlC__ << 16 | __xlC_ver__)
+    #else
+      #define PLATFORM_COMPILER_VERSION (__xlC__ << 16)
+    #endif
+    #ifdef __xlc__
+      #define PLATFORM_COMPILER_VERSION_STR __xlc__
+    #else
+      #define PLATFORM_COMPILER_VERSION_STR PLATFORM_STRINGIFY(__xlC__)
+    #endif
+  #endif
   #define PLATFORM_COMPILER_VERSION_INT(maj,min,pat) \
-        ( ((maj) << 8) | ((min) << 4) | (pat) )
+        ( ((maj) << 24) | ((min) << 16) | ((pat) << 8) )
 
 #elif defined(__DECC) || defined(__DECCXX)
   #define PLATFORM_COMPILER_COMPAQ  1
