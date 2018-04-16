@@ -2613,6 +2613,9 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(__xlC__, $3=XLC, [], $_force_compile)
   fi
   if test "$$3" = "unknown"; then
+    GASNET_IFDEF(__ibmxl__, $3=XLC, [], $_force_compile)
+  fi
+  if test "$$3" = "unknown"; then
     GASNET_IFDEF(_CRAYC, $3=Cray, [], $_force_compile)
   fi
   dnl gcc-like compilers, which may define __GNUC__ - order matters here
