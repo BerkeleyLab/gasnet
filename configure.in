@@ -1941,52 +1941,18 @@ fi
 
 ## ARM-specific checks for "kernel helpers"
 if expr "$target_cpu" : "arm" >/dev/null; then
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_arch_arm.h
 
   ## Does ARM kernel have cmpxchg support?
   if test "$cross_compiling" = "yes" ; then
     GASNET_CROSS_VAR(GASNETI_HAVE_ARM_CMPXCHG, HAVE_ARM_CMPXCHG)
   else
     GASNET_TRY_CACHE_RUN([for ARM cmpxchg kernel support], have_arm_cmpxchg, [
-      #include "gasnet_asm.h" /* For GASNETI_ARM_ASMCALL() */
-      int cmp_swap(volatile unsigned int *v, int oldval, int newval) {
-	register unsigned int result __asm("r0");
-	register unsigned int _newval __asm("r1") = newval;
-	register unsigned int _v __asm("r2") = (unsigned long)v;
-	register unsigned int _oldval __asm("r4") = oldval;
-
-	/* Transient failure is possible if interrupted.
-	 * Since we can't distinguish the cause of the failure,
-	 * we must retry as long as the failure looks "improper"
-	 * which is defined as (!swapped && (v->ctr == oldval))
-	 */
-	__asm__ __volatile__ (
-		"0:	mov	r0, r4          @ r0 = oldval              \n"
-		GASNETI_ARM_ASMCALL(r3, 0x3f)
-#ifdef __thumb2__
-		"	ite	cc		@ THUMB2: If(cc)-Then-Else \n"
-#endif
-		"	ldrcc	ip, [[r2, #0]]	@ if (!swapped) ip=v->ctr  \n"
-		"	eorcs	ip, r4, #1	@ else ip=oldval^1         \n"
-		"	teq	r4, ip		@ if (ip == oldval)        \n"
-		"	beq	0b		@    then retry            \n"
-		: "=&r" (result)
-		: "r" (_oldval), "r" (_v), "r" (_newval)
-		: "r3", "ip", "lr", "cc", "memory" );
-
-	return !result;
-      } 
-
+      #define GASNETI_IN_CONFIGURE 1
+      #define CHECK_ARM_CMPXCHG 1
+      #include "gasnet_arch_arm.h"
       int main(void) {
-	volatile unsigned int X = 4321;
-
-	/* Expect FAIL and X unchanged */
-	if (cmp_swap(&X, 0, 1234) || (X != 4321)) return 1;
-
-	/* Expect SUCCESS and X changed */
-	if (!cmp_swap(&X, 4321, 1234) || (X != 1234)) return 1;
-
-       	return 0;
+        return gasneti_arm_cmpxchg_check();
       }
     ], [GASNETI_HAVE_ARM_CMPXCHG=1]
      , [GASNETI_HAVE_ARM_CMPXCHG=0])
@@ -2000,26 +1966,11 @@ if expr "$target_cpu" : "arm" >/dev/null; then
     GASNET_CROSS_VAR(GASNETI_HAVE_ARM_MEMBAR, HAVE_ARM_MEMBAR)
   else
     GASNET_TRY_CACHE_RUN([for ARM membar kernel support], have_arm_membar, [
-      #include "gasnet_asm.h" /* For GASNETI_ARM_ASMCALL() */
-      #define arm_membar()                           \
-	  __asm__ __volatile__ (                     \
-		  GASNETI_ARM_ASMCALL(r0, 0x5f)      \
-		  : : : "r0", "lr", "cc", "memory" )
+      #define GASNETI_IN_CONFIGURE 1
+      #define CHECK_ARM_MEMBAR 1
+      #include "gasnet_arch_arm.h"
       int main(void) {
-	/* First check the interface version (number of helpers) */
-	unsigned int kernel_helper_version = *(unsigned int *)0xffff0ffcUL;
-
-	/* Max possible is 128 32-byte helper "slots".
-	 * We check this because prior to 2.6.12, the same location
-	 * held the thread-specific pointer! */
-	if (kernel_helper_version > 128) exit(1);
-
-	/* memory barrier occupies slot #3 */
-	if (kernel_helper_version < 3) exit(1);
-
-	/* Can't test any side effect, but at least check for crash */
-	arm_membar();
-	exit(0);
+        return gasneti_arm_membar_check();
       }
     ], [GASNETI_HAVE_ARM_MEMBAR=1]
      , [GASNETI_HAVE_ARM_MEMBAR=0])
@@ -2028,7 +1979,7 @@ if expr "$target_cpu" : "arm" >/dev/null; then
     AC_DEFINE(GASNETI_HAVE_ARM_MEMBAR)
   fi
 
-  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(CPPFLAGS)
 fi
 
 ## Check support for AARCH64 real time counter

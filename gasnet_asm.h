@@ -144,24 +144,8 @@
 #endif
 
 #if PLATFORM_ARCH_ARM && PLATFORM_OS_LINUX
-  /* This helper macro hides ISA differences going from ARMv4 to ARMv5 */
-  #if defined(__thumb__) && !defined(__thumb2__)
-    #error "GASNet does not support ARM Thumb1 mode"
-    #define GASNETI_ARM_ASMCALL(_tmp, _offset) "choke me"
-  #elif defined(__ARM_ARCH_2__)
-    #error "GASNet does not support ARM versions earlier than ARMv3"
-    #define GASNETI_ARM_ASMCALL(_tmp, _offset) "choke me"
-  #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__)
-    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
-	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
-	"	mov	lr, pc                              @ lr = return addr    \n" \
-	"	sub	pc, " #_tmp ", #" #_offset "        @ call _tmp - _offset \n"
-  #else
-    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
-	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
-	"	sub	" #_tmp ", " #_tmp ", #" #_offset " @ _tmp -= _offset     \n" \
-	"	blx	" #_tmp "                           @ call _tmp           \n"
-  #endif
+  /* For GASNETI_ARM_ASMCALL() */
+  #include "gasnet_arch_arm.h"
 #endif
 
 #if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
