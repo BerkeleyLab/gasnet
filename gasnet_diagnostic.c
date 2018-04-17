@@ -969,7 +969,6 @@ static void progressfns_test(int id) {
 #endif
 }
 /* ------------------------------------------------------------------------------------ */
-#if GASNETI_HAVE_EOP_INTERFACE
 static void op_test(int id) {
   int iter;
   GASNET_BEGIN_FUNCTION();
@@ -1187,12 +1186,6 @@ static void op_test(int id) {
     PTHREAD_BARRIER(num_threads);
   }
 }
-#else
-static void op_test(int id) { 
-  PTHREAD_BARRIER(num_threads);
-  TEST_HEADER("internal op interface test - SKIPPED"); else return;
-}
-#endif
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_PAR
 

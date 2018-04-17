@@ -490,10 +490,6 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
 
 /* ------------------------------------------------------------------------------------ */
-#ifndef GASNETI_DISABLE_EOP_INTERFACE
-#define GASNETI_HAVE_EOP_INTERFACE 1
-#endif
-#if GASNETI_HAVE_EOP_INTERFACE
 /* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)
    to expose non-blocking operations that utilize the regular GASNet op sync mechanisms
    Conduits provide two opaque scalar types: gasneti_eop_t and gasneti_iop_t
@@ -566,7 +562,6 @@ gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_
 /* marks in-flight remote atomic operation(s) as complete ... */
 void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations);
 
-#endif
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
 extern int gasneti_VerboseErrors;

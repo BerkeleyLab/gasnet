@@ -18,10 +18,8 @@ typedef struct gasneti_vis_op_S {
   struct gasneti_vis_op_S *next;
   uint8_t type;
   void *addr;
-  #if GASNETI_HAVE_EOP_INTERFACE
-    gasneti_eop_t *eop;
-    gasneti_iop_t *iop;
-  #endif
+  gasneti_eop_t *eop;
+  gasneti_iop_t *iop;
   gasneti_weakatomic_t packetcnt;
   size_t count;
   size_t len;
@@ -128,7 +126,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 /*---------------------------------------------------------------------------------*/
 /* VISOP manipulation */
-#if GASNETI_HAVE_EOP_INTERFACE
+
 /* create a dummy eop/iop based on synctype, save it in visop */
 #define GASNETE_VISOP_SETUP(visop, synctype, isget) do {              \
     if (synctype == gasnete_synctype_nbi) {                           \
@@ -184,11 +182,6 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     } else return handle;                                             \
   } while (0)
       
-
-#else
-#define GASNETE_ERROR_NO_EOP_INTERFACE() gasneti_fatalerror("Tried to invoke GASNETE_VISOP_SIGNAL without GASNETI_HAVE_EOP_INTERFACE at %s:%i",__FILE__,__LINE__)
-#define GASNETE_VISOP_SIGNAL(visop, isget) GASNETE_ERROR_NO_EOP_INTERFACE()
-#endif
 
 /* do GASNETE_VISOP_SETUP, push the visop on the thread-specific list 
    and do GASNETE_VISOP_RETURN */
