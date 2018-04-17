@@ -1928,7 +1928,6 @@ fi
 # Check how to reference MIPS assembler temporary register ("$1" or "$at")
 if expr "$target_cpu" : "mips" >/dev/null; then
   AC_CHECK_HEADERS(sgidefs.h)
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
     #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   ], [
@@ -1943,7 +1942,6 @@ if expr "$target_cpu" : "mips" >/dev/null; then
                 "move \$at,\$0\n\t"
                 ".set at"); 
   ], [AC_DEFINE(GASNETI_HAVE_MIPS_REG_AT)])
-  GASNET_POPVAR(CFLAGS)
 fi
 
 ## ARM-specific checks for "kernel helpers"
@@ -2056,7 +2054,7 @@ if test "$target_cpu" = "aarch64" ; then
 fi
 
 ## Do toolchain and CPU support ia64 "cmp8xchg16"?
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
 AC_MSG_CHECKING(for ia64 cmp8xchg16 support)
 AC_TRY_RUN([
   #include "gasnet_portable_platform.h" /* For PLATFORM_{ARCH,COMPILER}_* */
@@ -2100,10 +2098,9 @@ AC_TRY_RUN([
 ], [AC_MSG_RESULT(no)
 ], [ : # For now we assume "NO" when cross compiling
     AC_MSG_RESULT(no)])
-GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(CPPFLAGS)
 
 ## Do CC/gas and CPU support "cmpxchg16b"?
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 if test "$cross_compiling" = "yes" ; then
   GASNET_CROSS_VAR(GASNETI_HAVE_X86_CMPXCHG16B,HAVE_X86_CMPXCHG16B,[probe])
   if test "$GASNETI_HAVE_X86_CMPXCHG16B" = '1'; then
@@ -2111,6 +2108,7 @@ if test "$cross_compiling" = "yes" ; then
   fi
 fi
 if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; then
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
   GASNET_TRY_CACHE_RUN_WITHCC([for x86-64 cmpxchg16b support],[x86_64_cmpxchg16b],[
     #include "gasnet_portable_platform.h"
   ],[[
@@ -2150,15 +2148,15 @@ if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; 
     #error wrong CPU architecture
   #endif
   ]], [AC_DEFINE(GASNETI_HAVE_X86_CMPXCHG16B)])
+  GASNET_POPVAR(CPPFLAGS)
 fi
-GASNET_POPVAR(CFLAGS)
 
 ## x86 -fPIC which steals the B register
 ## XXX: Test currently only correctly identifies PIC mode with using a
 ## compiler which accepts GNU-style asm - but that is the only
 ## case where we *currently* care.  Test may need some additional
 ## cases for other compilers in the future.
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
 GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
   #include "gasnet_portable_platform.h" /* For PLATFORM_COMPILER_* */
 ], [
@@ -2175,7 +2173,7 @@ GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
     #error wrong CPU architecture
   #endif
 ], [AC_DEFINE(GASNETI_HAVE_X86_EBX)])
-GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(CPPFLAGS)
 
 ## Does 32-bit SPARC compiler understand "U" and "h" register classes?
 if expr "$GASNETI_PTR_BITS$target_cpu" : "32sparc" >/dev/null; then
@@ -2190,10 +2188,16 @@ if expr "$GASNETI_PTR_BITS$target_cpu" : "32sparc" >/dev/null; then
 fi
 
 ## Spinloop hints
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
 # need to run here because some OS's (Solaris/x86) forbid the pause instruction
 GASNET_TRY_CACHE_RUN_WITHCC(for x86 pause instruction,x86_pause_instruction, [
-  #include "gasnet_asm.h" /* Includes portable_platform.h */
+  #include "gasnet_portable_platform.h"
+  #if PLATFORM_COMPILER_SUN
+    #define GASNETI_ASM(mnemonic) __asm(mnemonic)
+  #else
+    /* All remaining x86/x86-64 compilers support GNU-style ASM or none at all */
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
+  #endif
 ], [
   #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86
     GASNETI_ASM("pause");
@@ -2201,20 +2205,7 @@ GASNET_TRY_CACHE_RUN_WITHCC(for x86 pause instruction,x86_pause_instruction, [
     #error wrong CPU architecture
   #endif
 ], [AC_DEFINE(GASNETI_PAUSE_INSTRUCTION, "pause")])
-## Disabled ia64 pause hint until we see an actual need for it -PHH 2006.01.09
-#AC_MSG_CHECKING(for ia64 pause hint)
-#AC_TRY_COMPILE([
-#  #include "gasnet_asm.h"
-#], [
-#  #if defined(__ia64__)
-#    GASNETI_ASM("hint @pause");
-#  #else
-#    #error wrong CPU architecture
-#  #endif
-#], [AC_DEFINE(GASNETI_PAUSE_INSTRUCTION, "hint @pause")
-#    AC_MSG_RESULT(yes)
-#], [AC_MSG_RESULT(no)])
-GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(CPPFLAGS)
 
 ## Misc. builtins (e.g. for bit manipilation)
 
