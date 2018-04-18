@@ -28,6 +28,8 @@
   #if GASNETI_COMPILER_HAS(SYNC_ATOMICS_64)
       #define GASNETI_HAVE_SYNC_ATOMICS_64 1
   #endif
+#else
+  #error header inclusion error: missing GASNETI_COMPILER_HAS
 #endif
 
 #define GASNETI_ASM_AVAILABLE 1
