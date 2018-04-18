@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNETEX_H) && !defined(_IN_CONFIGURE)
+#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNETEX_H)
   #error This file is not meant to be included directly- clients should include gasnetex.h or gasnet_tools.h
 #endif
 
@@ -28,8 +28,6 @@
   #if GASNETI_COMPILER_HAS(SYNC_ATOMICS_64)
       #define GASNETI_HAVE_SYNC_ATOMICS_64 1
   #endif
-#elif !defined(_IN_CONFIGURE)
-  #error header inclusion error: missing GASNETI_COMPILER_HAS
 #endif
 
 #define GASNETI_ASM_AVAILABLE 1
