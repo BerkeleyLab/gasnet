@@ -2520,7 +2520,7 @@
     #if PLATFORM_OS_LINUX && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG)
       #define GASNETI_HAVE_ATOMIC32_T 1
 
-      typedef struct { volatile unsigned int gasneti_ctr; } gasneti_atomic32_t;
+      typedef struct { volatile uint32_t gasneti_ctr; } gasneti_atomic32_t;
       #define gasneti_atomic32_init(v)       { (v) }
       #define _gasneti_atomic32_read(p)      ((p)->gasneti_ctr)
       #define _gasneti_atomic32_set(p,v)     ((p)->gasneti_ctr = (v))
