@@ -183,10 +183,8 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 /*---------------------------------------------------------------------------------*/
 /* packing/unpacking helpers */
-#define _GASNETE_PACK_HELPER(packed, unpacked, sz) \
-        GASNETE_FAST_UNALIGNED_MEMCPY((packed), (unpacked), (sz))
-#define _GASNETE_UNPACK_HELPER(packed, unpacked, sz) \
-        GASNETE_FAST_UNALIGNED_MEMCPY((unpacked), (packed), (sz))
+#define _GASNETE_PACK_HELPER(packed, unpacked, sz)   GASNETI_MEMCPY((packed), (unpacked), (sz))
+#define _GASNETE_UNPACK_HELPER(packed, unpacked, sz) GASNETI_MEMCPY((unpacked), (packed), (sz))
 
 /*---------------------------------------------------------------------------------*/
 /* packetization */
