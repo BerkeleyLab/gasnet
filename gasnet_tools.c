@@ -178,8 +178,10 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* call-based membar/atomic support for C++ compilers which lack inline assembly */
-#if defined(GASNETI_USING_SLOW_ATOMICS) || \
+/* call-based membar/atomic support for compilers which lack inline assembly of configured CC */
+#if defined(GASNETI_USING_SLOW_ATOMICOPS) || \
+    defined(GASNETI_USING_SLOW_ATOMIC32) || \
+    defined(GASNETI_USING_SLOW_ATOMIC64) || \
     defined(GASNETI_USING_SLOW_MEMBARS)
 #error gasnet_tools.c must be compiled with support for inline assembly
 #endif
