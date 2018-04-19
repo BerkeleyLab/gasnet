@@ -177,6 +177,11 @@
 #undef GASNETI_HAVE_CXX_SYNC_ATOMICS_64
 #undef GASNETI_HAVE_MPI_CC_SYNC_ATOMICS_64
 
+/* Which atomics implementations are built in tools library */
+#undef GASNETI_ATOMIC_IMPL_CONFIGURE
+#undef GASNETI_ATOMIC32_IMPL_CONFIGURE
+#undef GASNETI_ATOMIC64_IMPL_CONFIGURE
+
 /* Does CXX support C99 __VA_ARGS__ */
 #undef GASNETI_CXX_HAS_VA_ARGS
 

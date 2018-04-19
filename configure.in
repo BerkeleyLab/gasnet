@@ -2396,6 +2396,43 @@ GASNET_MSG_WARN([
 fi
 
 #---------------------------------------------------------------------------------------------------------------
+## Determine our atomics "family"
+## Must follow all potentially relevant probes of asm support and "force" option
+
+AC_DEFUN([GASNET_GET_ATOMIC_IMPL],[
+  pushdef([uppername],translit($1,'a-z','A-Z'))
+  GASNET_TRY_CACHE_EXTRACT_EXPR([$1 implementation family (binary probe)], uppername[]_IMPL,
+                                [#include "gasnet_portable_platform.h"
+                                 #define GASNETI_IN_CONFIGURE 1
+                                 #include "gasnet_atomic_fwd.h"],
+                                GASNETI_[]uppername[]_IMPL,
+                                GASNETI_[]uppername[]_IMPL_CONFIGURE)
+  AC_DEFINE_UNQUOTED(GASNETI_[]uppername[]_IMPL_CONFIGURE, $GASNETI_[]uppername[]_IMPL_CONFIGURE)
+  # Must keep the following consistent with gasnet_atomic_fwd.h
+  case $GASNETI_[]uppername[]_IMPL_CONFIGURE in
+    0) GASNETI_[]uppername[]_IMPL_STR=generic;;
+    1) GASNETI_[]uppername[]_IMPL_STR=native;;
+    2) GASNETI_[]uppername[]_IMPL_STR=os;;
+    3) GASNETI_[]uppername[]_IMPL_STR=compiler;;
+    4) GASNETI_[]uppername[]_IMPL_STR=hybrid;;
+    *) GASNET_MSG_ERROR([Invalid GASNETI_[]uppername[]_IMPL detected])
+       ;;
+  esac
+  popdef([uppername])
+])
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other")
+  GASNET_GET_ATOMIC_IMPL(atomic)
+  GASNET_GET_ATOMIC_IMPL(atomic32)
+  GASNET_GET_ATOMIC_IMPL(atomic64)
+GASNET_POPVAR(CPPFLAGS)
+if test "$GASNETI_ATOMIC_IMPL_STR" = "$GASNETI_ATOMIC32_IMPL_STR" &&
+   test "$GASNETI_ATOMIC_IMPL_STR" = "$GASNETI_ATOMIC64_IMPL_STR"; then
+  atomics_config="$GASNETI_ATOMIC_IMPL_STR"
+else
+  atomics_config="$GASNETI_ATOMIC_IMPL_STR,${GASNETI_ATOMIC32_IMPL_STR}32,${GASNETI_ATOMIC64_IMPL_STR}64"
+fi
+
+#---------------------------------------------------------------------------------------------------------------
 # PSHM uses atomics in shared memory for IPC.
 # So we assume that Generic and O/S atomics are insufficient.
 # If that is ever not the case, one can add exceptions as needed.
@@ -5225,6 +5262,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   FCA support:            $have_fca
   BLCR support:           $have_blcr
+  Atomics support:        $atomics_config
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
@@ -5234,6 +5272,7 @@ cat >>$CONDUIT_LIST <<EOF
  Misc Settings
  -------------
   Pthreads support:       $have_pthread
+  Atomics support:        $atomics_config
 EOF
 fi
 echo "----------------------------------------------------------------------" >> $CONDUIT_LIST

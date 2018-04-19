@@ -11,6 +11,11 @@
 #ifndef _GASNET_ATOMIC_BITS_H
 #define _GASNET_ATOMIC_BITS_H
 
+// NOTE:
+// This header provides only a portion of the atomics implementation.
+// It is CRUCIAL that any changes/additions to support for any cpu/os/compiler
+// combination also be reflected in gasnet_atomic_fwd.h
+
 /* ------------------------------------------------------------------------------------ */
 /* Atomics HOW TO:
 
@@ -142,25 +147,8 @@
  */
 
 /* ------------------------------------------------------------------------------------ */
-/* Identify special cases lacking native support */
 
-#if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */                \
-    (PLATFORM_ARCH_ARM && !defined(GASNETI_HAVE_ARM_CMPXCHG)) ||                   \
-    (PLATFORM_ARCH_MIPS && defined(_MIPS_ISA) && (_MIPS_ISA < 2)) ||               \
-    PLATFORM_COMPILER_TINY ||  /* not worth special case atomics implementation */ \
-    PLATFORM_ARCH_MICROBLAZE   /* no atomic instructions */
-  #define GASNETI_USE_GENERIC_ATOMICOPS
-#elif defined(GASNETI_FORCE_OS_ATOMICOPS) /* for debugging */
-  #define GASNETI_USE_OS_ATOMICOPS
-#elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS) || /* for debugging */ \
-    (PLATFORM_COMPILER_XLC && !GASNETI_HAVE_XLC_ASM && GASNETI_HAVE_SYNC_ATOMICS_32) || \
-    PLATFORM_ARCH_AARCH64 || \
-    PLATFORM_ARCH_S390 || \
-    PLATFORM_ARCH_TILE
-  /* TODO: can (should?) do TILE and AARCH64 natively */
-  /* TODO: probe for an XLC version with non-broken gcc inline asm support? */
-  #define GASNETI_USE_COMPILER_ATOMICOPS
-#endif
+#include "gasnet_atomic_fwd.h"
 
 /* ------------------------------------------------------------------------------------ */
 /* Work-arounds and special cases for various platforms */
@@ -335,7 +323,7 @@
       #endif
   /* ------------------------------------------------------------------------------------ */
   #else
-    #error GASNETI_USE_OS_ATOMICS defined on unsupported OS - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
+    #error GASNETI_USE_OS_ATOMICOPS defined on unsupported OS - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
   #endif
 #else
   /* ------------------------------------------------------------------------------------
