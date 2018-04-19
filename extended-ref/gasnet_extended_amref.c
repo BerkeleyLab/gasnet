@@ -245,7 +245,7 @@ GASNETI_INLINE(gasnete_amref_get_reph_inner)
 void gasnete_amref_get_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *done) {
-  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
+  GASNETI_MEMCPY(dest, addr, nbytes);
   MARK_DONE(done,1);
 }
 MEDIUM_HANDLER(gasnete_amref_get_reph,2,4,
@@ -284,7 +284,7 @@ GASNETI_INLINE(gasnete_amref_put_reqh_inner)
 void gasnete_amref_put_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *done) {
-  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
+  GASNETI_MEMCPY(dest, addr, nbytes);
   gasneti_sync_writes();
   GASNETI_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_amref_markdone_reph),
