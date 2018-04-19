@@ -1121,11 +1121,11 @@ typedef _gasneti_weakatomic_id(64_t)           gasneti_weakatomic64_t;
   #define GASNETI_ATOMIC_CONFIG   atomics_forced_os
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS)
   #define GASNETI_ATOMIC_CONFIG   atomics_forced_compiler
-#elif defined(GASNETI_USE_GENERIC_ATOMICOPS)
+#elif (GASNETI_ATOMIC_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
   #define GASNETI_ATOMIC_CONFIG   atomics_mutex
-#elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
+#elif (GASNETI_ATOMIC_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_COMPILER)
   #define GASNETI_ATOMIC_CONFIG   atomics_compiler
-#elif defined(GASNETI_USE_OS_ATOMICOPS)
+#elif (GASNETI_ATOMIC_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
   #define GASNETI_ATOMIC_CONFIG   atomics_os
 #else
   #define GASNETI_ATOMIC_CONFIG   atomics_native
@@ -1137,11 +1137,11 @@ typedef _gasneti_weakatomic_id(64_t)           gasneti_weakatomic64_t;
   #define GASNETI_ATOMIC32_CONFIG   atomic32_forced_os
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_forced_compiler
-#elif defined(GASNETI_USE_GENERIC_ATOMIC32)
+#elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_mutex
-#elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
+#elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_COMPILER)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_compiler
-#elif defined(GASNETI_USE_OS_ATOMICOPS)
+#elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_os
 #else
   #define GASNETI_ATOMIC32_CONFIG   atomic32_native
@@ -1153,13 +1153,13 @@ typedef _gasneti_weakatomic_id(64_t)           gasneti_weakatomic64_t;
   #define GASNETI_ATOMIC64_CONFIG   atomic64_forced_os
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS) && PLATFORM_ARCH_64
   #define GASNETI_ATOMIC64_CONFIG   atomic64_forced_compiler
-#elif defined(GASNETI_USE_GENERIC_ATOMIC64)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_mutex
-#elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_COMPILER)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_compiler
-#elif defined(GASNETI_HYBRID_ATOMIC64)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_HYBRID)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_hybrid
-#elif defined(GASNETI_USE_OS_ATOMICOPS)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_os
 #else
   #define GASNETI_ATOMIC64_CONFIG   atomic64_native

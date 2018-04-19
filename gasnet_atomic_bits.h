@@ -204,6 +204,22 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* ABI properties, independent of implementation */
+
+// Exceptional cases
+#if PLATFORM_ARCH_X86
+  #define gasneti_atomic64_align 4
+#endif
+
+// Defaults
+#ifndef gasneti_atomic32_align
+  #define gasneti_atomic32_align 4
+#endif
+#ifndef gasneti_atomic64_align
+  #define gasneti_atomic64_align 8
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* Helpers for "special" call-based atomics on platforms w/ crippled inline asm support. */
 
 #define GASNETI_SPECIAL_ASM_DECL(name) \
@@ -212,8 +228,32 @@
 	GASNETI_NEVER_INLINE(name, extern void name(void)) { body; }
 
 /* ------------------------------------------------------------------------------------ */
+/* Logic to handle unknown compilers */
+// NOTE: probably incomplete with respect to a "private" atomic type
 
-#if defined(GASNETI_USE_GENERIC_ATOMICOPS)
+#if GASNETI_COMPILER_IS_UNKNOWN
+  // TODO: do not yet make any attempt to identify "safe" cases (such as later
+  // version of same compiler family) that could safely use the native atomics.
+  #define GASNETI_MISMATCHED_ATOMICOPS 1
+
+  #if (GASNETI_ATOMIC32_IMPL_CONFIGURE != GASNETI_ATOMIC_IMPL_GENERIC)
+    #define GASNETI_HAVE_ATOMIC32_T 1
+    #define GASNETI_USING_SLOW_ATOMIC32 1
+  #endif
+
+  #if (GASNETI_ATOMIC64_IMPL_CONFIGURE != GASNETI_ATOMIC_IMPL_GENERIC)
+    #define GASNETI_HAVE_ATOMIC64_T 1
+    #define GASNETI_USING_SLOW_ATOMIC64 1
+  #endif
+#endif
+
+
+/* ------------------------------------------------------------------------------------ */
+
+#if defined(GASNETI_MISMATCHED_ATOMICOPS)
+  /* Logic above has determind current compiler cannot safely use these implementations. */
+  /* This case exists only to prevent the following cases from matching. */
+#elif defined(GASNETI_USE_GENERIC_ATOMICOPS)
   /* Use a very slow but portable implementation of atomic ops using mutexes */
   /* This case exists only to prevent the following cases from matching. */
 #elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
@@ -361,17 +401,10 @@
      #define GASNETI_HAVE_ATOMIC32_T 1
      typedef struct { volatile uint32_t gasneti_ctr; } gasneti_atomic32_t;
      #define gasneti_atomic32_init(v)      { (v) }
-     #define gasneti_atomic32_align 4
 
      #define GASNETI_HAVE_ATOMIC64_T 1
      typedef struct { volatile uint64_t gasneti_ctr; } gasneti_atomic64_t;
      #define gasneti_atomic64_init(v)      { (v) }
-     #if PLATFORM_ARCH_64
-       #define gasneti_atomic64_align 8
-     #else
-       #define gasneti_atomic64_align 4
-     #endif
-
 
       #if PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_OPEN64
         /* Pathscale optimizer is buggy and fails to clobber memory output location correctly
@@ -872,7 +905,6 @@
         #define _gasneti_atomic_load_arg0	"movl 8(%ebp), %ecx	\n\t"
         #define _gasneti_atomic_load_arg1	"movl 12(%ebp), %eax	\n\t"
 	#define _gasneti_atomic_load_arg2	"movl 16(%ebp), %edx	\n\t"
-        #define gasneti_atomic64_align 4 /* only need 4-byte alignment, not the default 8 */
       #endif
 
       #define GASNETI_HAVE_ATOMIC32_T 1
@@ -2930,15 +2962,6 @@
 #ifdef GASNETI_ATOMIC_ADDFETCH_BODY
   GASNETI_SPECIAL_ASM_DECL(_gasneti_special_atomic_addfetch);
   #define _gasneti_atomic_addfetch (*(gasneti_atomic_val_t (*)(gasneti_atomic_t *, gasneti_atomic_val_t))(&_gasneti_special_atomic_addfetch))
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-
-#ifndef gasneti_atomic32_align
-  #define gasneti_atomic32_align 4
-#endif
-#ifndef gasneti_atomic64_align
-  #define gasneti_atomic64_align 8
 #endif
 
 /* ------------------------------------------------------------------------------------ */
