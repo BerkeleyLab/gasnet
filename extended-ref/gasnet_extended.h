@@ -228,10 +228,10 @@ int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   extern void gasnete_wait_syncnb(gasnet_handle_t handle);
 #elif !defined(gasnete_wait_syncnb)
   #define gasnete_wait_syncnb(handle) do {                                      \
-      gasnet_handle_t _handle = (handle);                                       \
-      if_pt (_handle != GASNET_INVALID_HANDLE) {                                \
+      gasnet_handle_t _gws_handle = (handle);                                   \
+      if_pt (_gws_handle != GASNET_INVALID_HANDLE) {                            \
         gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */        \
-        gasneti_pollwhile(gasnete_try_syncnb(_handle) == GASNET_ERR_NOT_READY); \
+        gasneti_pollwhile(gasnete_try_syncnb(_gws_handle) == GASNET_ERR_NOT_READY); \
       }                                                                         \
     } while(0)
 #endif
