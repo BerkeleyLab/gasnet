@@ -65,7 +65,7 @@
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);
-extern void gasneti_fatal_threadoverflow(const char *subsystem);
+extern void gasneti_fatal_threadoverflow(const char *_subsystem);
 
 #ifndef _GASNETE_MYTHREAD
   struct _gasnete_threaddata_t;
@@ -87,12 +87,12 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem);
    run for dynamic thread exits when the process is continuing.
    Cleanups will run in reverse order of registration
  */
-extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context);
+extern void gasnete_register_threadcleanup(void (*_cleanupfn)(void *), void *_context);
 
 typedef struct _gasnete_thread_cleanup {
-    struct _gasnete_thread_cleanup *next;
-    void (*cleanupfn)(void *);
-    void *context;
+    struct _gasnete_thread_cleanup *_next;
+    void (*_cleanupfn)(void *);
+    void *_context;
 } gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
 
 
@@ -332,11 +332,11 @@ typedef union {
 /* interpret *src as a ptr to an nbytes type,
    and return the value as a gex_RMA_Value_t */
 #ifdef GASNETI_BUG1389_WORKAROUND
-  #define GASNETE_VALUE_RETURN(src, nbytes) do {              \
-    gex_RMA_Value_t result = 0;                       \
-    gasneti_compiler_fence();                                 \
-    memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes); \
-    return result;                                            \
+  #define GASNETE_VALUE_RETURN(src, nbytes) do {               \
+    gex_RMA_Value_t _result = 0;                               \
+    gasneti_compiler_fence();                                  \
+    memcpy(GASNETE_STARTOFBITS(&_result,nbytes), src, nbytes); \
+    return _result;                                            \
   } while(0)
 #else
 #define GASNETE_VALUE_RETURN(src, nbytes) do {                               \
@@ -349,9 +349,9 @@ typedef union {
       case 4: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
       case 8: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
       default: { /* no such native nbytes integral type */                   \
-          gex_RMA_Value_t result = 0;                                \
-          memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes);          \
-          return result;                                                     \
+          gex_RMA_Value_t _result = 0;                                       \
+          memcpy(GASNETE_STARTOFBITS(&_result,nbytes), src, nbytes);         \
+          return _result;                                                    \
       }                                                                      \
     }                                                                        \
   } while (0)
