@@ -260,27 +260,28 @@ typedef union {
   } while(0)
 #else
 #define GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes) do { \
-  const void * const _src = (src);                          \
-  void * const _dst = (dest);                               \
-  switch(nbytes) {                                          \
+  const void * const _fam_src = (src);                      \
+  void * const _fam_dst = (dest);                           \
+  size_t const _fam_nbytes = (nbytes);                      \
+  switch(_fam_nbytes) {                                     \
     case 0:                                                 \
       break;                                                \
-    case 1:  *((gasnete_anytype8_t *)_dst) =                \
-             *((gasnete_anytype8_t *)_src);                 \
+    case 1:  *((gasnete_anytype8_t *)_fam_dst) =            \
+             *((gasnete_anytype8_t *)_fam_src);             \
       break;                                                \
   GASNETE_OMIT_WHEN_MISSING_16BIT(                          \
-    case 2:  *((gasnete_anytype16_t *)_dst) =               \
-             *((gasnete_anytype16_t *)_src);                \
+    case 2:  *((gasnete_anytype16_t *)_fam_dst) =           \
+             *((gasnete_anytype16_t *)_fam_src);            \
       break;                                                \
   )                                                         \
-    case 4:  *((gasnete_anytype32_t *)_dst) =               \
-             *((gasnete_anytype32_t *)_src);                \
+    case 4:  *((gasnete_anytype32_t *)_fam_dst) =           \
+             *((gasnete_anytype32_t *)_fam_src);            \
       break;                                                \
-    case 8:  *((gasnete_anytype64_t *)_dst) =               \
-             *((gasnete_anytype64_t *)_src);                \
+    case 8:  *((gasnete_anytype64_t *)_fam_dst) =           \
+             *((gasnete_anytype64_t *)_fam_src);            \
       break;                                                \
     default:                                                \
-      memcpy(_dst, _src, nbytes);                           \
+      memcpy(_fam_dst, _fam_src, _fam_nbytes);              \
   }                                                         \
 } while(0)
 #endif /* GASNETI_BUG1389_WORKAROUND */
