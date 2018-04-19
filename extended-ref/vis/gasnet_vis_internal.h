@@ -285,10 +285,8 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 /*---------------------------------------------------------------------------------*/
 /* packing/unpacking helpers */
-#define _GASNETE_PACK_HELPER(packed, unpacked, sz) \
-        GASNETE_FAST_UNALIGNED_MEMCPY((packed), (unpacked), (sz))
-#define _GASNETE_UNPACK_HELPER(packed, unpacked, sz) \
-        GASNETE_FAST_UNALIGNED_MEMCPY((unpacked), (packed), (sz))
+#define _GASNETE_PACK_HELPER(packed, unpacked, sz)   GASNETI_MEMCPY((packed), (unpacked), (sz))
+#define _GASNETE_UNPACK_HELPER(packed, unpacked, sz) GASNETI_MEMCPY((unpacked), (packed), (sz))
 
 // GASNETE_VIS_MIN_PACKBUFFER is used to round up packing buffers to a large enough size
 // so that glibc malloc will hopefully give us memory with better access behavior, noticeably 
