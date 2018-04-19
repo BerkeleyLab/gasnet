@@ -98,7 +98,7 @@ gex_Event_t gasnete_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(H);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
@@ -118,7 +118,7 @@ gex_Event_t gasnete_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(H);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
@@ -182,7 +182,7 @@ int gasnete_get_nbi (gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
  {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
@@ -203,7 +203,7 @@ int gasnete_put_nbi (gex_TM_t tm,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
  {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
@@ -248,7 +248,7 @@ extern int gasnete_get  (gex_TM_t tm,
                          size_t nbytes, gex_Flags_t flags
                          GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_get(rank, src, dest, nbytes, flags,
@@ -265,7 +265,7 @@ extern int gasnete_put  (gex_TM_t tm,
                          size_t nbytes, gex_Flags_t flags
                          GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT_NOLC(I);
+  GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_put(rank, src, dest, nbytes, flags,

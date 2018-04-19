@@ -66,7 +66,7 @@ gex_Event_t _gex_RMA_GetNB(
                         gex_Rank_t rank, void *src,
                         size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NB,H);
+  GASNETI_CHECKZEROSZ_GET(NB,dest,rank,src,nbytes);
   gasneti_boundscheck(tm, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(NB,dest,rank,src,nbytes);
@@ -88,7 +88,7 @@ gex_Event_t _gex_RMA_PutNB(
                         /*const*/ void *src,  // TODO-EX: un-comment const
                         size_t nbytes, gex_Event_t *lc_opt,
                         gex_Flags_t flags GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NB,H);
+  GASNETI_CHECKZEROSZ_PUT(NB,rank,dest,src,nbytes);
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NB,rank,dest,src,nbytes);
@@ -230,7 +230,7 @@ int _gex_RMA_GetNBI  (gex_TM_t tm, void *dest,
                         gex_Rank_t rank, void *src,
                         size_t nbytes, gex_Flags_t flags
                         GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NBI,I);
+  GASNETI_CHECKZEROSZ_GET(NBI,dest,rank,src,nbytes);
   gasneti_boundscheck(tm, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_LOCAL(NBI,dest,rank,src,nbytes);
@@ -251,7 +251,7 @@ int _gex_RMA_PutNBI  (gex_TM_t tm,
                         /*const*/ void *src,  // TODO-EX: un-comment const
                         size_t nbytes, gex_Event_t *lc_opt,
                         gex_Flags_t flags GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NBI,I);
+  GASNETI_CHECKZEROSZ_PUT(NBI,rank,dest,src,nbytes);
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_LOCAL(NBI,rank,dest,src,nbytes);
@@ -404,7 +404,7 @@ int _gex_RMA_GetBlocking  (gex_TM_t tm, void *dest,
                     gex_Rank_t rank, void *src,
                     size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes),I);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes),nbytes);
   gasneti_boundscheck(tm, rank, src, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes);
@@ -425,7 +425,7 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
                     /*const*/ void *src,  // TODO-EX: un-comment const
                     size_t nbytes, gex_Flags_t flags
                     GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),I);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),nbytes);
   gasneti_boundscheck(tm, rank, dest, nbytes);
   if (gasnete_islocal(rank)) {
     GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes);
