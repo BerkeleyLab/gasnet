@@ -55,7 +55,7 @@
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);
-extern void gasneti_fatal_threadoverflow(const char *subsystem);
+extern void gasneti_fatal_threadoverflow(const char *_subsystem);
 
 #ifndef _GASNETE_MYTHREAD
   struct _gasnete_threaddata_t;
@@ -77,7 +77,7 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem);
    run for dynamic thread exits when the process is continuing.
    Cleanups will run in reverse order of registration
  */
-extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context);
+extern void gasnete_register_threadcleanup(void (*_cleanupfn)(void *), void *_context);
 
 /* free list of valget cells */
 #ifdef GASNETE_VALGET_CUSTOM
@@ -87,9 +87,9 @@ extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *cont
 #endif
 
 typedef struct _gasnete_thread_cleanup {
-    struct _gasnete_thread_cleanup *next;
-    void (*cleanupfn)(void *);
-    void *context;
+    struct _gasnete_thread_cleanup *_next;
+    void (*_cleanupfn)(void *);
+    void *_context;
 } gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
 
 
@@ -322,11 +322,11 @@ typedef union {
 /* interpret *src as a ptr to an nbytes type,
    and return the value as a gasnet_register_value_t */
 #ifdef GASNETI_BUG1389_WORKAROUND
-  #define GASNETE_VALUE_RETURN(src, nbytes) do {              \
-    gasnet_register_value_t result = 0;                       \
-    gasneti_compiler_fence();                                 \
-    memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes); \
-    return result;                                            \
+  #define GASNETE_VALUE_RETURN(src, nbytes) do {               \
+    gasnet_register_value_t _result = 0;                       \
+    gasneti_compiler_fence();                                  \
+    memcpy(GASNETE_STARTOFBITS(&_result,nbytes), src, nbytes); \
+    return _result;                                            \
   } while(0)
 #else
 #define GASNETE_VALUE_RETURN(src, nbytes) do {                               \
@@ -339,9 +339,9 @@ typedef union {
       case 4: return (gasnet_register_value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
       case 8: return (gasnet_register_value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
       default: { /* no such native nbytes integral type */                   \
-          gasnet_register_value_t result = 0;                                \
-          memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes);          \
-          return result;                                                     \
+          gasnet_register_value_t _result = 0;                               \
+          memcpy(GASNETE_STARTOFBITS(&_result,nbytes), src, nbytes);         \
+          return _result;                                                    \
       }                                                                      \
     }                                                                        \
   } while (0)
@@ -361,21 +361,21 @@ typedef union {
     #define gasnete_aligncheck(ptr,nbytes) do {                                         \
         uint8_t *_gasnete_alignbuf =                                                    \
           (uint8_t *)(((uintptr_t)&(_gasnete_aligncheck[0x100])) & ~((uintptr_t)0xFF)); \
-        uintptr_t offset = ((uintptr_t)(ptr)) & 0xFF;                                   \
-        uint8_t *p = _gasnete_alignbuf + offset;                                        \
-        gasneti_assert(p >= _gasnete_aligncheck &&                                      \
-              (p + 8) < (_gasnete_aligncheck+sizeof(_gasnete_aligncheck)));             \
+        uintptr_t _offset = ((uintptr_t)(ptr)) & 0xFF;                                  \
+        uint8_t *_p = _gasnete_alignbuf + _offset;                                      \
+        gasneti_assert(_p >= _gasnete_aligncheck &&                                     \
+              (_p + 8) < (_gasnete_aligncheck+sizeof(_gasnete_aligncheck)));            \
         /* NOTE: a runtime bus error in this code indicates the relevant pointer        \
             was not "properly aligned for accessing objects of size nbytes", as         \
             required by the GASNet spec for src/dest addresses in non-bulk puts/gets    \
          */                                                                             \
         switch (nbytes) {                                                               \
-          case 1: *(uint8_t *)p = 0; break;                                             \
+          case 1: *(uint8_t *)_p = 0; break;                                            \
         GASNETE_OMIT_WHEN_MISSING_16BIT(                                                \
-          case 2: *(uint16_t *)p = 0; break;                                            \
+          case 2: *(uint16_t *)_p = 0; break;                                           \
         )                                                                               \
-          case 4: *(uint32_t *)p = 0; break;                                            \
-          case 8: *(uint64_t *)p = 0; break;                                            \
+          case 4: *(uint32_t *)_p = 0; break;                                           \
+          case 8: *(uint64_t *)_p = 0; break;                                           \
         }                                                                               \
       } while (0)
   #endif
