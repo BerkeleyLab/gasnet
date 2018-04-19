@@ -222,37 +222,59 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
   }
 #endif
 
+/* Warn (once) if slow atomics are reached */
+static int gasneti_slow_atomic_warning_issued = 0;
+GASNETI_NEVER_INLINE(gasneti_slow_atomic_warn,
+static void gasneti_slow_atomic_warn(void)) {
+  gasneti_slow_atomic_warning_issued = 1;
+  fprintf(stderr,
+          "WARNING: using slow atomics due to use of a compiler not probed by GASNet at configure time\n");
+  fflush(stderr);
+}
+#define GASNETI_SLOW_ATOMIC_WARNING() do { \
+    if_pf (! gasneti_slow_atomic_warning_issued) gasneti_slow_atomic_warn(); \
+  } while (0)
+
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
   /* We don't need or want slow versions of generics (they use no ASM) */
 #else
   extern gasneti_atomic_val_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic_read(p,flags);
   }
   extern void gasneti_slow_atomic_set(gasneti_atomic_t *p, gasneti_atomic_val_t v, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic_set(p, v, flags);
   }
   extern void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic_increment(p, flags);
   }
   extern void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic_decrement(p, flags);
   }
   extern int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic_decrement_and_test(p, flags);
   }
   #if defined(GASNETI_HAVE_ATOMIC_CAS)
     extern int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, gasneti_atomic_val_t oldval, gasneti_atomic_val_t newval, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_compare_and_swap(p,oldval,newval,flags);
     }
     extern gasneti_atomic_val_t gasneti_slow_atomic_swap(gasneti_atomic_t *p, gasneti_atomic_val_t val, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_swap(p,val,flags);
     }
   #endif
   #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
     extern gasneti_atomic_val_t gasneti_slow_atomic_add(gasneti_atomic_t *p, gasneti_atomic_val_t op, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_add(p,op,flags);
     }
     extern gasneti_atomic_val_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, gasneti_atomic_val_t op, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_subtract(p,op,flags);
     }
   #endif
@@ -261,30 +283,39 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
   /* We don't need or want slow versions of generics (they use no ASM) */
 #else
   extern uint32_t gasneti_slow_atomic32_read(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_read(p,flags);
   }
   extern void gasneti_slow_atomic32_set(gasneti_atomic32_t *p, uint32_t v, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic32_set(p, v, flags);
   }
   extern void gasneti_slow_atomic32_increment(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic32_increment(p, flags);
   }
   extern void gasneti_slow_atomic32_decrement(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic32_decrement(p, flags);
   }
   extern int gasneti_slow_atomic32_decrement_and_test(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_decrement_and_test(p, flags);
   }
   extern int gasneti_slow_atomic32_compare_and_swap(gasneti_atomic32_t *p, uint32_t oldval, uint32_t newval, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_compare_and_swap(p,oldval,newval,flags);
   }
   extern uint32_t gasneti_slow_atomic32_swap(gasneti_atomic32_t *p, uint32_t val, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_swap(p,val,flags);
   }
   extern uint32_t gasneti_slow_atomic32_add(gasneti_atomic32_t *p, uint32_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_add(p,op,flags);
   }
   extern uint32_t gasneti_slow_atomic32_subtract(gasneti_atomic32_t *p, uint32_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_subtract(p,op,flags);
   }
 #endif
@@ -292,30 +323,39 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
   /* We don't need or want slow versions of generics (they use no ASM) */
 #else
   extern uint64_t gasneti_slow_atomic64_read(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_read(p,flags);
   }
   extern void gasneti_slow_atomic64_set(gasneti_atomic64_t *p, uint64_t v, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic64_set(p, v, flags);
   }
   extern void gasneti_slow_atomic64_increment(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic64_increment(p, flags);
   }
   extern void gasneti_slow_atomic64_decrement(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic64_decrement(p, flags);
   }
   extern int gasneti_slow_atomic64_decrement_and_test(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_decrement_and_test(p, flags);
   }
   extern int gasneti_slow_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_compare_and_swap(p,oldval,newval,flags);
   }
   extern uint64_t gasneti_slow_atomic64_swap(gasneti_atomic64_t *p, uint64_t val, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_swap(p,val,flags);
   }
   extern uint64_t gasneti_slow_atomic64_add(gasneti_atomic64_t *p, uint64_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_add(p,op,flags);
   }
   extern uint64_t gasneti_slow_atomic64_subtract(gasneti_atomic64_t *p, uint64_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_subtract(p,op,flags);
   }
 #endif
