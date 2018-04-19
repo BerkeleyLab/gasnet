@@ -601,13 +601,13 @@ static void gasnete_put_nbi_inner (gasnet_node_t node, void *dest, void *src,
 extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
                              size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+    GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
     gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
                               size_t nbytes GASNETE_THREAD_FARG) {
-    GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+    GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
     gasnete_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
@@ -622,7 +622,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     gasnete_getreq_t* req;
     psm2_error_t ret;
 
-    GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+    GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
     gasneti_assert(node < gasneti_nodes);
 
     if(nbytes >= gasnetc_psm_state.long_msg_threshold) {
@@ -746,12 +746,12 @@ extern gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest,
 
 extern gasnet_handle_t gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_PUT(ALIGNED,H);
+    GASNETI_CHECKPSHM_PUT(ALIGNED,H,node,dest,src,nbytes);
     return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-    GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+    GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
     return gasnete_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
@@ -766,7 +766,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     gasnete_getreq_t* req;
     psm2_error_t ret;
 
-    GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+    GASNETI_CHECKPSHM_GET(UNALIGNED,H,dest,node,src,nbytes);
     gasneti_assert(node < gasneti_nodes);
 
     op = gasnete_eop_new(GASNETE_MYTHREAD);

@@ -66,7 +66,7 @@ extern void gasnete_init(void);
 
 GASNETI_INLINE(_gasnet_get_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_get_nb      (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NB,H);
+  GASNETI_CHECKZEROSZ_GET(NB,H,dest,node,src,nbytes);
   gasneti_boundscheck(node, src, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
@@ -90,7 +90,7 @@ gasnet_handle_t _gasnet_get_nb      (void *dest, gasnet_node_t node, void *src, 
 #endif
 GASNETI_INLINE(_gasnet_put_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NB,H);
+  GASNETI_CHECKZEROSZ_PUT(NB,H,node,dest,src,nbytes);
   gasneti_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
@@ -109,7 +109,7 @@ gasnet_handle_t _gasnet_put_nb      (gasnet_node_t node, void *dest, void *src, 
 
 GASNETI_INLINE(_gasnet_get_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NB_BULK,H);
+  GASNETI_CHECKZEROSZ_GET(NB_BULK,H,dest,node,src,nbytes);
   gasneti_boundscheck(node, src, nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET_LOCAL(NB_BULK,dest,node,src,nbytes);
@@ -126,7 +126,7 @@ gasnet_handle_t _gasnet_get_nb_bulk (void *dest, gasnet_node_t node, void *src, 
 
 GASNETI_INLINE(_gasnet_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NB_BULK,H);
+  GASNETI_CHECKZEROSZ_PUT(NB_BULK,H,node,dest,src,nbytes);
   gasneti_boundscheck(node, dest, nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT_LOCAL(NB_BULK,node,dest,src,nbytes);
@@ -143,7 +143,7 @@ gasnet_handle_t _gasnet_put_nb_bulk (gasnet_node_t node, void *dest, void *src, 
 
 GASNETI_INLINE(_gasnet_memset_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t   _gasnet_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_MEMSET(NB,H);
+  GASNETI_CHECKZEROSZ_MEMSET(NB,H,node,dest,val,nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET_LOCAL(NB,node,dest,val,nbytes);
     memset(dest, val, nbytes);
@@ -308,7 +308,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val,   siz
 
 GASNETI_INLINE(_gasnet_get_nbi)
 void _gasnet_get_nbi      (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NBI,V);
+  GASNETI_CHECKZEROSZ_GET(NBI,V,dest,node,src,nbytes);
   gasneti_boundscheck(node, src, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
@@ -326,7 +326,7 @@ void _gasnet_get_nbi      (void *dest, gasnet_node_t node, void *src, size_t nby
 
 GASNETI_INLINE(_gasnet_put_nbi)
 void _gasnet_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NBI,V);
+  GASNETI_CHECKZEROSZ_PUT(NBI,V,node,dest,src,nbytes);
   gasneti_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
@@ -344,7 +344,7 @@ void _gasnet_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nby
 
 GASNETI_INLINE(_gasnet_get_nbi_bulk)
 void _gasnet_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NBI_BULK,V);
+  GASNETI_CHECKZEROSZ_GET(NBI_BULK,V,dest,node,src,nbytes);
   gasneti_boundscheck(node, src, nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET_LOCAL(NBI_BULK,dest,node,src,nbytes);
@@ -360,7 +360,7 @@ void _gasnet_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nby
 
 GASNETI_INLINE(_gasnet_put_nbi_bulk)
 void _gasnet_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NBI_BULK,V);
+  GASNETI_CHECKZEROSZ_PUT(NBI_BULK,V,node,dest,src,nbytes);
   gasneti_boundscheck(node, dest, nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT_LOCAL(NBI_BULK,node,dest,src,nbytes);
@@ -376,7 +376,7 @@ void _gasnet_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nby
 
 GASNETI_INLINE(_gasnet_memset_nbi)
 void   _gasnet_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_MEMSET(NBI,V);
+  GASNETI_CHECKZEROSZ_MEMSET(NBI,V,node,dest,val,nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET_LOCAL(NBI,node,dest,val,nbytes);
     memset(dest, val, nbytes);
@@ -558,7 +558,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
 
 GASNETI_INLINE(_gasnet_get)
 void _gasnet_get (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,node,src,nbytes),V);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,node,src,nbytes),V,nbytes);
   gasneti_boundscheck(node, src, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
@@ -576,7 +576,7 @@ void _gasnet_get (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNE
 
 GASNETI_INLINE(_gasnet_get_bulk)
 void _gasnet_get_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(BULK,V);
+  GASNETI_CHECKZEROSZ_GET(BULK,V,dest,node,src,nbytes);
   gasneti_boundscheck(node, src, nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET_LOCAL(BULK,dest,node,src,nbytes);
@@ -592,7 +592,7 @@ void _gasnet_get_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes 
 
 GASNETI_INLINE(_gasnet_put)
 void _gasnet_put (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,node,dest,src,nbytes),V);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,node,dest,src,nbytes),V,nbytes);
   gasneti_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
@@ -610,7 +610,7 @@ void _gasnet_put (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNE
 
 GASNETI_INLINE(_gasnet_put_bulk)
 void _gasnet_put_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(BULK,V);
+  GASNETI_CHECKZEROSZ_PUT(BULK,V,node,dest,src,nbytes);
   gasneti_boundscheck(node, dest, nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT_LOCAL(BULK,node,dest,src,nbytes);
@@ -626,7 +626,7 @@ void _gasnet_put_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes 
 
 GASNETI_INLINE(_gasnet_memset)
 void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_MEMSET_NAMED(MEMSET_LOCAL,LOCAL,node,dest,val,nbytes),V);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_MEMSET_NAMED(MEMSET_LOCAL,LOCAL,node,dest,val,nbytes),V,nbytes);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET_NAMED(MEMSET_LOCAL,LOCAL,node,dest,val,nbytes);
     memset(dest, val, nbytes);

@@ -361,7 +361,7 @@ extern void gasnete_amref_put_nbi      (gasnet_node_t node, void *dest, void *sr
 
 #if GASNETE_BUILD_AMREF_GET_BULK
 extern gasnet_handle_t gasnete_amref_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+  GASNETI_CHECKPSHM_GET(UNALIGNED,H,dest,node,src,nbytes);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
@@ -433,14 +433,14 @@ gasnet_handle_t gasnete_amref_put_nb_inner(gasnet_node_t node, void *dest, void 
 
 #if GASNETE_BUILD_AMREF_PUT
 extern gasnet_handle_t gasnete_amref_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
+  GASNETI_CHECKPSHM_PUT(ALIGNED,H,node,dest,src,nbytes);
   return gasnete_amref_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */
 
 #if GASNETE_BUILD_AMREF_PUT_BULK
 extern gasnet_handle_t gasnete_amref_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
   return gasnete_amref_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 #endif /* GASNETE_BUILD_AMREF_PUT_BULK */
@@ -449,7 +449,7 @@ extern gasnet_handle_t gasnete_amref_put_nb_bulk (gasnet_node_t node, void *dest
 
 #ifdef GASNETE_BUILD_AMREF_MEMSET
 extern gasnet_handle_t gasnete_amref_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
- GASNETI_CHECKPSHM_MEMSET(H);
+ GASNETI_CHECKPSHM_MEMSET(H,node,dest,val,nbytes);
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
@@ -480,7 +480,7 @@ extern gasnet_handle_t gasnete_amref_memset_nb   (gasnet_node_t node, void *dest
 extern void gasnete_amref_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
-  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_get_cnt++;
   
@@ -627,14 +627,14 @@ void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size
 
 #if GASNETE_BUILD_AMREF_PUT
 extern void gasnete_amref_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+  GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
   gasnete_amref_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */
 
 #if GASNETE_BUILD_AMREF_PUT_BULK
 extern void gasnete_amref_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
   gasnete_amref_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 #endif /* GASNETE_BUILD_AMREF_PUT_BULK */
@@ -645,7 +645,7 @@ extern void gasnete_amref_put_nbi_bulk (gasnet_node_t node, void *dest, void *sr
 extern void gasnete_amref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
-  GASNETI_CHECKPSHM_MEMSET(V);
+  GASNETI_CHECKPSHM_MEMSET(V,node,dest,val,nbytes);
 
   op->initiated_put_cnt++;
 

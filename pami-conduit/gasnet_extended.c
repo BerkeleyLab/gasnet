@@ -618,7 +618,7 @@ void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes
 */
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+  GASNETI_CHECKPSHM_GET(UNALIGNED,H,dest,node,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
     gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 1);
@@ -627,7 +627,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 }
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
+  GASNETI_CHECKPSHM_PUT(ALIGNED,H,node,dest,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
     gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 1);
@@ -637,7 +637,7 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
     gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 1);
@@ -758,7 +758,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 */
 
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -768,7 +768,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 }
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+  GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -785,7 +785,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -889,7 +889,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 #if GASNETI_DIRECT_GET_BULK
 extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
   {
     volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
     gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)&op, 1);
@@ -901,7 +901,7 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 #if GASNETI_DIRECT_PUT_BULK
 extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
   {
     volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
     gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
