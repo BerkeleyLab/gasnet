@@ -428,7 +428,7 @@ gasnet_handle_t gasnete_gets_ref_indiv(gasnete_strided_stats_t const *stats, gas
 }
 
 #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(ploc, psrc, contigsz);   \
+  GASNETI_MEMCPY(ploc, psrc, contigsz);                  \
   ploc += contigsz;                                      \
 } while (0)
 void gasnete_strided_pack_all(void *addr, const size_t strides[],
@@ -437,7 +437,7 @@ void gasnete_strided_pack_all(void *addr, const size_t strides[],
 #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
 #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(psrc, ploc, contigsz);   \
+  GASNETI_MEMCPY(psrc, ploc, contigsz);                  \
   ploc += contigsz;                                      \
 } while (0)
 void gasnete_strided_unpack_all(void *addr, const size_t strides[],
@@ -468,7 +468,7 @@ void gasnete_strided_unpack_all(void *addr, const size_t strides[],
     removed, and all contiguous trailing dimensions have been folded into count[0] 
  */
 #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(ploc, psrc, contigsz);   \
+  GASNETI_MEMCPY(ploc, psrc, contigsz);                  \
   ploc += contigsz;                                      \
 } while (0)
 void *gasnete_strided_pack_partial(void **addr, const size_t strides[],
@@ -488,7 +488,7 @@ void *gasnete_foldedstrided_pack_partial(void **addr, const size_t strides[],
 #undef GASNETE_STRIDED_HELPER_LOOPBODY
 
 #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-  GASNETE_FAST_UNALIGNED_MEMCPY(psrc, ploc, contigsz);   \
+  GASNETI_MEMCPY(psrc, ploc, contigsz);                  \
   ploc += contigsz;                                      \
 } while (0)
 void *gasnete_strided_unpack_partial(void **addr, const size_t strides[],
