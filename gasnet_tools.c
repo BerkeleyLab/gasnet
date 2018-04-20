@@ -490,15 +490,18 @@ extern int gasneti_nsleep(uint64_t ns_delay) {
   GASNETI_TIMER_DEFN
 #endif
 
-extern uint64_t gasneti_gettimeofday_us(void) {
+GASNETI_INLINE(_gasneti_gettimeofday_us)
+uint64_t _gasneti_gettimeofday_us(void) {
   uint64_t retval;
   struct timeval tv;
   gasneti_assert_zeroret(gettimeofday(&tv, NULL));
   retval = ((uint64_t)tv.tv_sec) * 1000000 + (uint64_t)tv.tv_usec;
   return retval;
 }
+extern uint64_t gasneti_gettimeofday_us(void) { return _gasneti_gettimeofday_us(); }
 
-extern uint64_t gasneti_wallclock_ns(void) {
+GASNETI_INLINE(_gasneti_wallclock_ns)
+uint64_t _gasneti_wallclock_ns(void) {
   #if HAVE_CLOCK_GETTIME
     struct timespec tm;
     #if defined(_POSIX_MONOTONIC_CLOCK)
@@ -517,6 +520,15 @@ extern uint64_t gasneti_wallclock_ns(void) {
     return ((uint64_t)tv.tv_sec)*1000000000 + ((uint64_t)tv.tv_usec)*1000;
   #endif
 }
+extern uint64_t gasneti_wallclock_ns(void) { return _gasneti_wallclock_ns(); }
+
+// Conditionally available:
+#if GASNETI_USING_GETTIMEOFDAY // Used *only* for gtod-based timers:
+  extern uint64_t gasneti_ticks_gtod_us(void) { return _gasneti_gettimeofday_us(); }
+#endif
+#if GASNETI_USING_POSIX_REALTIME // Used *only* for POSIX-RT timers:
+  extern uint64_t gasneti_ticks_posix_ns(void) { return _gasneti_wallclock_ns(); }
+#endif
 
 extern double gasneti_tick_metric(int idx) {
   static double *_gasneti_tick_metric = NULL;
