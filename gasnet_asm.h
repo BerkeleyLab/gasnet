@@ -22,6 +22,9 @@
   #if GASNETI_COMPILER_HAS(XLC_ASM)
       #define GASNETI_HAVE_XLC_ASM 1
   #endif
+  #if GASNETI_COMPILER_HAS(SIMPLE_ASM)
+      #define GASNETI_HAVE_SIMPLE_ASM 1
+  #endif
   #if GASNETI_COMPILER_HAS(SYNC_ATOMICS_32)
       #define GASNETI_HAVE_SYNC_ATOMICS_32 1
   #endif
@@ -91,17 +94,20 @@
     // Present in 17.10 and not in 17.4, but uncertain about in between.
     #define GASNETI_PGI_ASM_BUG1754 1
   #endif
-#elif PLATFORM_COMPILER_SUN 
-  #ifdef __cplusplus 
-    #if PLATFORM_OS_LINUX
+#elif GASNETI_HAVE_SIMPLE_ASM
+  /* Configure detected support for asm("mnemonic") */
+  /* We only probe compiler families where we trust it (just Sun at this time) */
+  #define GASNETI_ASM(mnemonic)  asm(mnemonic)
+#elif PLATFORM_COMPILER_SUN_CXX
+    // TODO: unknown when/if C++ on Solaris/SPARC begins to support asm()
+    #if PLATFORM_OS_LINUX || (PLATFORM_COMPILER_VERSION_GE(5,9,0) && !PLATFORM_ARCH_SPARC)
       #define GASNETI_ASM(mnemonic)  asm(mnemonic)
-    #else /* Sun C++ on Solaris lacks inline assembly support (man inline) */
+    #else /* Sun C++ on Solaris (may) lack inline assembly support (man inline) */
       #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
       #undef GASNETI_ASM_AVAILABLE
     #endif
-  #else /* Sun C */
+#elif PLATFORM_COMPILER_SUN_C
     #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
-  #endif
 #elif PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CRAY
   /* platforms where inline assembly not supported or used */
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 

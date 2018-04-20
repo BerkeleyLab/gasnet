@@ -26,11 +26,7 @@
  */
 #include <gasnet_asm.h>
 
-#if PLATFORM_COMPILER_SUN_CXX
-  /* no inline assembly in these C++ compilers, so pay a function call overhead */
-  #define GASNETI_USING_SLOW_MEMBARS 1
-/* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_ARCH_SPARC
+#if PLATFORM_ARCH_SPARC
   #if defined(__sparcv9) || defined(__sparcv9cpu) || \
       defined(__sparc_v9__) || defined(GASNETI_ARCH_ULTRASPARC) /* SPARC v9 ISA */
    #if GASNETI_ASM_AVAILABLE
@@ -89,7 +85,7 @@
       * Unfortunately, all read-modify-write operations also set condition
       * codes.  So, we have an extra messy case for gcc, icc, etc.
       */
-  #if PLATFORM_COMPILER_SUN_C
+  #if PLATFORM_COMPILER_SUN && GASNETI_ASM_AVAILABLE
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
        GASNETI_ASM("lock; addl $0,0(%esp)");
@@ -122,7 +118,7 @@
      #define gasneti_local_wmb() gasneti_local_mb()
      #define GASNETI_WMB_IS_MB
    #endif
- #elif GASNETI_HAVE_GCC_ASM
+ #elif GASNETI_ASM_AVAILABLE
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
      GASNETI_ASM("sfence");
