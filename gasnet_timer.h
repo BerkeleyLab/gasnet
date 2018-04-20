@@ -175,7 +175,7 @@
     #endif
       return ret;
     }
- #elif PLATFORM_COMPILER_SUN
+ #elif PLATFORM_COMPILER_SUN && GASNETI_ASM_AVAILABLE
    /* The current compiler has asm, but lacks full GNU-style asm() support.
     *
     * Defining GASNETI_TICKS_NOW_BODY at library build time will use the
