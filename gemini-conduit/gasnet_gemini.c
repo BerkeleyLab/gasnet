@@ -709,16 +709,14 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     gasnetc_init_reg_credit(MAX(max_memreg, 0));
   }
 
-  gasnetc_mem_consistency = GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY;
-  { char * envval = gasneti_getenv("GASNET_GNI_MEM_CONSISTENCY");
-    if (!envval || !envval[0]) {
-      /* No value given - keep default */
-    } else if (!strcmp(envval, "strict") || !strcmp(envval, "STRICT")) {
+  { const char * envval = gasneti_getenv_withdefault("GASNET_GNI_MEM_CONSISTENCY","relaxed");
+    gasnetc_mem_consistency = GASNETC_RELAXED_MEM_CONSISTENCY;
+    if (!strcmp(envval, "strict") || !strcmp(envval, "STRICT")) {
       gasnetc_mem_consistency = GASNETC_STRICT_MEM_CONSISTENCY;
     } else if (!strcmp(envval, "relaxed") || !strcmp(envval, "RELAXED")) {
       gasnetc_mem_consistency = GASNETC_RELAXED_MEM_CONSISTENCY;
-    } else if (!strcmp(envval, "default") || !strcmp(envval, "DEFAULT")) {
-      gasnetc_mem_consistency = GASNETC_DEFAULT_MEM_CONSISTENCY;
+    } else if (!strcmp(envval, "none") || !strcmp(envval, "NONE")) {
+      gasnetc_mem_consistency = GASNETC_NEITHER_MEM_CONSISTENCY;
     } else if (!gasneti_mynode) {
       fflush(NULL);
       fprintf(stderr, "WARNING: ignoring unknown value '%s' for environment "
@@ -734,7 +732,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     case GASNETC_RELAXED_MEM_CONSISTENCY:
       gasnetc_memreg_flags = GNI_MEM_RELAXED_PI_ORDERING;
       break;
-    case GASNETC_DEFAULT_MEM_CONSISTENCY:
+    case GASNETC_NEITHER_MEM_CONSISTENCY:
       gasnetc_memreg_flags = 0;
       break;
   }

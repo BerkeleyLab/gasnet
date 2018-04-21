@@ -195,10 +195,11 @@ GASNET_GNI_BOUNCE_SIZE      - default 256K, space for bounce buffers
   buffer which can be in-flight at any time.
 
 GASNET_GNI_MEM_CONSISTENCY
-  This control the use of the flag GNI_MEM_STRICT_PI_ORDERING,
+  This controls the use of the flag GNI_MEM_STRICT_PI_ORDERING,
   GNI_MEM_RELAXED_PI_ORDERING, or neither when registering memory
-  for RDMA.
-  The legal values are the strings "strict", "relaxed" or "default".
+  for RDMA.  In general, users are not expected to have any need
+  to change the value away from the default.
+  The legal values are the strings "strict", "relaxed" or "none".
   In this release the default is "relaxed".
 
 GASNET_GNI_MEMREG
