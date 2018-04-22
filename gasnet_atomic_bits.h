@@ -279,6 +279,10 @@
   #if GASNETI_HAVE_SYNC_ATOMICS_32
     /* Generic implementation in terms of GCC's __sync atomics */
 
+    #if 0 // Update if/when using 32-bit __sync atomic where they are not signal-safe
+      #define GASNETI_ATOMIC32_NOT_SIGNALSAFE 1
+    #endif
+
     /* GCC documentation promises a full memory barrier */
     #define _gasneti_atomic32_prologue_rmw(p,f)         /*empty*/
     #define _gasneti_atomic32_fence_before_rmw(p,f)     /*empty*/
@@ -309,7 +313,12 @@
         return oval;
     }
 
-    #if GASNETI_HAVE_SYNC_ATOMICS_64
+    // TODO: use 64-bit sync atomics on ILP32 iff signal safe (otherwise probably equivalent to generics)
+    #if PLATFORM_ARCH_64 && GASNETI_HAVE_SYNC_ATOMICS_64
+      #if 0 // Update if/when using 64-bit __sync atomic where they are not signal-safe
+        #define GASNETI_ATOMIC64_NOT_SIGNALSAFE 1
+      #endif
+
       #define _gasneti_atomic64_prologue_rmw(p,f)         /*empty*/
       #define _gasneti_atomic64_fence_before_rmw(p,f)     /*empty*/
       #define _gasneti_atomic64_fence_after_rmw(p,f)      /*empty*/
