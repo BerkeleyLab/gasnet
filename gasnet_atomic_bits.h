@@ -93,13 +93,13 @@
 
    + Fences:
      If you define any of the operations above with the "_" prefix, then the
-     non- version (with a flags argument) will be constructed automatically,
+     non-prefixed version (w/ flags argument) will be constructed automatically,
      and this construction will implement the fences requested by this flags
      argument.  By default this construction assumes that there are no fencing
      side-effects (compiler fence or memory barriers) in the "_"-prefixed
      operations.  When that is NOT the case, one can override this default
      behavior by defining the appropriate fencing macros.  At present this is
-     done only for the x86/x86-64 and IA6464.
+     done only for the x86/x86-64 and IA64.
 
      In the case of the x86/x86-64 all of the read-modify-write operations
      include a full memory barrier but do NOT include a compiler fence.  So
@@ -111,6 +111,14 @@
      where "cf" stands for compiler fence and _gasneti_atomic_cf_before() and
      ...after are defined in gasneti_atomicops.h along with several other macros
      used to construct the default fences.
+
+   + Native atomics:
+     The term "native atomics" is used to refer to the implementation of
+     atomic operations via inline assembly.
+
+   + Compiler atomics and OS atomics:
+     These terms are used to refer to the implementation of atomic operations by
+     a third-party such as a compiler or a system header.
 
    + Generic atomics:
      The term "generic atomics" is used here and in gasnet_atomicops.h to refer
@@ -127,21 +135,32 @@
      and provide exactly the operations expected by the corresponding code in
      gasnet_atomicops.h (search for GASNETI_HYBRID_ATOMIC64).
 
+   + Special atomics:
+     The term "special atomics" describes the case of native atomics for C
+     compilers which have only "out-of-line" asm support (receiving args and
+     returning a value using the ABI-defined function calling convention).
+     In this case the implementation here must define the macro
+     GASNETI_ATOMIC_SPECIALS to be expanded in gasnet_tools.c.
+
+   + Slow atomics:
+     The term "slow atomics" is for when the C compiler which built the gasnet
+     library used an implementation which the current compiler cannot be relied
+     upon to also generate.  This can occur (1) when the C++ compiler lacks the
+     same asm support as the C compiler, or (2) when the compiler used at client
+     compile time does not match the one used to build the library.  All that is
+     required to use slow atomics is to define GASNETI_USING_SLOW_ATOMIC32
+     and/or GASNETI_USING_SLOW_ATOMIC64.  These cause atomic operations to
+     resolve function calls to the library.
+     Note: The CC probed at configure time cannot use slow atomics.
+     Note: The generic and slow atomics are mutually exclusive.
+
 
    TODO: Fully document the macros used to override the default fences.
-         For now, the code for x86/86-64 is the only decent example.
+         For now, the code for x86/x86_64 is the only decent example.
 
    TODO: Document definition of a "private" atomic type.
          There are no surviving examples, however the SPARC7 and
          PA-RISC code (removed after GASNet-1.22.0) were good examples.
-
-   TODO: Document definition of "special" and "slow" atomics.
-         In brief: "special" is for out-of-line asm available in some compilers,
-         while "slow" is for the one case we've had in which the C compiler has
-         asm support (either inline or "special") but the C++ compiler did not.
-         While "slow" is pretty straight-forward, the construction of "special"
-         atomics require specific macro names to trigger the proper
-         constructions elsewhere.
 
    SEE ALSO: http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
  */
