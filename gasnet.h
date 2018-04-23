@@ -478,8 +478,8 @@ static int *gasneti_linkconfig_idiotcheck(void);
 #endif
 GASNETI_USED
 static int *gasneti_linkconfig_idiotcheck(void) {
-  static int val;
-  val +=
+  static int _val;
+  _val +=
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH))
@@ -504,12 +504,12 @@ static int *gasneti_linkconfig_idiotcheck(void) {
         ;
   #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
   if (_gasneti_linkconfig_idiotcheck == &gasneti_linkconfig_idiotcheck)
-    val += *(*_gasneti_linkconfig_idiotcheck)();
+    _val += *(*_gasneti_linkconfig_idiotcheck)();
   #endif
-  return &val;
+  return &_val;
 }
-extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
-                                       uintptr_t segsize, uintptr_t minheapoffset);
+extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *_table, int _numentries,
+                                       uintptr_t _segsize, uintptr_t _minheapoffset);
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
     #error Tried to compile GASNet client code with optimization enabled but also GASNET_DEBUG (which seriously hurts performance). Reconfigure/rebuild GASNet without --enable-debug
