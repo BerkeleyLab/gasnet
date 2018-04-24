@@ -58,12 +58,14 @@
     // TODO: unknown when/if C++ on Solaris/SPARC begins to support asm()
     #if PLATFORM_OS_LINUX || (PLATFORM_COMPILER_VERSION_GE(5,9,0) && !PLATFORM_ARCH_SPARC)
       #define GASNETI_ASM(mnemonic)  asm(mnemonic)
+      #define GASNETI_HAVE_SIMPLE_ASM 1
     #else /* Sun C++ on Solaris (may) lack inline assembly support (man inline) */
       #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
       #undef GASNETI_ASM_AVAILABLE
     #endif
 #elif PLATFORM_COMPILER_SUN_C
     #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
+    #define GASNETI_HAVE_SIMPLE_ASM 1 // Equivalent to "simple" with a different spelling
 #elif PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CRAY
   /* platforms where inline assembly not supported or used */
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 
