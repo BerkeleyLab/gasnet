@@ -42,6 +42,9 @@
 // identifying such support.  The following is used as a secondary mechanism,
 // in particular for compilers not probed by configure.
 //
+// For version-based tests, also check if something should be added to the
+// "Sanity Checks" at the emd of this header.
+//
 #define GASNETI_ASM_AVAILABLE 1
 #if GASNETI_HAVE_GCC_ASM
   /* Configure detected support for GCC-style inline asm */
@@ -172,6 +175,25 @@
 #if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
   /* For _MIPS_ISA and _MIPS_SIM values on some MIPS platforms */
   #include <sgidefs.h>
+#endif
+
+//
+// Sanity checks
+// For compilers with version-based ASM support here and behavior-based
+// logic in configure, we want to know if the version-based is ever
+// more permissive than configure-based.
+//
+#if !GASNETI_COMPILER_IS_UNKNOWN
+  #if GASNETI_HAVE_GCC_ASM && !GASNETI_COMPILER_HAS(GCC_ASM)
+    #error Version-based test of GCC_ASM support passes when configure-based FAILED
+  #elif GASNETI_HAVE_SIMPLE_ASM && !GASNETI_COMPILER_HAS(SIMPLE_ASM)
+    #if PLATFORM_COMPILER_SUN_C
+      // Exceptional because configure probe tests a different spelling.
+      // C compiler *always* supports `__asm()`, but support for `asm()` is probed.
+    #else
+      #error Version-based test of SIMPLE_ASM support passes when configure-based FAILED
+    #endif
+  #endif
 #endif
 
 #endif /* _GASNET_ASM_H */
