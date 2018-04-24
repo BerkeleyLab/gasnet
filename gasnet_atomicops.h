@@ -545,10 +545,12 @@ typedef int32_t gasneti_atomic32_sval_t;	/* For consistency in fencing macros */
   #define gasneti_genatomic32_add(p,op,f)      ((uint32_t)gasneti_genatomic32_addfetch((p),(op),(f)))
   #define gasneti_genatomic32_subtract(p,op,f) ((uint32_t)gasneti_genatomic32_addfetch((p),(uint32_t)-(op),(f)))
   #define _gasneti_atomic32_cons(_id)          gasneti_genatomic32_##_id
-#elif defined(GASNETI_USING_SLOW_ATOMICS)
-  /* Since this is an indirection, rather than a full implementation, the
-   * platform-specifc code provides gasneti_atomic32_t and gasneti_atomic32_init
-   */
+#elif defined(GASNETI_USING_SLOW_ATOMIC32)
+  typedef struct { volatile uint32_t gasneti_ctr; } gasneti_atomic32_t;
+  #define gasneti_atomic32_init(v) { (v) }
+  #define gasneti_slow_atomic32_t     gasneti_atomic32_t
+  #define gasneti_slow_atomic32_init  gasneti_atomic32_init
+  #define gasneti_slow_atomic32_align gasneti_atomic32_align
   extern uint32_t gasneti_slow_atomic32_read(gasneti_atomic32_t *p, const int flags);
   extern void gasneti_slow_atomic32_set(gasneti_atomic32_t *p, uint32_t v, const int flags);
   extern void gasneti_slow_atomic32_increment(gasneti_atomic32_t *p, const int flags);
@@ -638,10 +640,12 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #define gasneti_genatomic64_add(p,op,f)      ((uint64_t)gasneti_genatomic64_addfetch((p),(uint64_t)(op),(f)))
   #define gasneti_genatomic64_subtract(p,op,f) ((uint64_t)gasneti_genatomic64_addfetch((p),(uint64_t)-(op),(f)))
   #define _gasneti_atomic64_cons(_id)          gasneti_genatomic64_##_id
-#elif defined(GASNETI_USING_SLOW_ATOMICS)
-  /* Since this is an indirection, rather than a full implementation, the
-   * platform-specifc code provides gasneti_atomic64_t and gasneti_atomic64_init
-   */
+#elif defined(GASNETI_USING_SLOW_ATOMIC64)
+  typedef struct { volatile uint64_t gasneti_ctr; } gasneti_atomic64_t;
+  #define gasneti_atomic64_init(v) { (v) }
+  #define gasneti_slow_atomic64_t     gasneti_atomic64_t
+  #define gasneti_slow_atomic64_init  gasneti_atomic64_init
+  #define gasneti_slow_atomic64_align gasneti_atomic64_align
   extern uint64_t gasneti_slow_atomic64_read(gasneti_atomic64_t *p, const int flags);
   extern void gasneti_slow_atomic64_set(gasneti_atomic64_t *p, uint64_t v, const int flags);
   extern void gasneti_slow_atomic64_increment(gasneti_atomic64_t *p, const int flags);
@@ -860,7 +864,11 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #define GASNETI_HAVE_ATOMIC_CAS               1
   #define GASNETI_HAVE_ATOMIC_ADD_SUB           1
 
-  #define _gasneti_atomic_cons(_id)    gasneti_atomic32_##_id
+  #if defined(GASNETI_USING_SLOW_ATOMIC32)
+    #define _gasneti_atomic_cons(_id)    gasneti_slow_atomic32_##_id
+  #else
+    #define _gasneti_atomic_cons(_id)    gasneti_atomic32_##_id
+  #endif
 #elif defined(GASNETI_USE_64BIT_ATOMICS)
   typedef uint64_t			gasneti_atomic_val_t;
   typedef int64_t			gasneti_atomic_sval_t;
@@ -880,11 +888,12 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #define GASNETI_HAVE_ATOMIC_CAS               1
   #define GASNETI_HAVE_ATOMIC_ADD_SUB           1
 
-  #define _gasneti_atomic_cons(_id)    gasneti_atomic64_##_id
-#elif defined(GASNETI_USING_SLOW_ATOMICS)
-  /* Slow function-call based atomics
-   * Used at client compile time for any compiler w/o inline asm support
-   */
+  #if defined(GASNETI_USING_SLOW_ATOMIC64)
+    #define _gasneti_atomic_cons(_id)    gasneti_slow_atomic64_##_id
+  #else
+    #define _gasneti_atomic_cons(_id)    gasneti_atomic64_##_id
+  #endif
+#elif defined(GASNETI_USING_SLOW_ATOMICOPS) // GASNETI_HAVE_PRIVATE_ATOMIC_T case
   extern gasneti_atomic_val_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags);
   extern void gasneti_slow_atomic_set(gasneti_atomic_t *p, gasneti_atomic_val_t v, const int flags);
   extern void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags);
@@ -1112,11 +1121,11 @@ typedef _gasneti_weakatomic_id(64_t)           gasneti_weakatomic64_t;
   #define GASNETI_ATOMIC_CONFIG   atomics_forced_os
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS)
   #define GASNETI_ATOMIC_CONFIG   atomics_forced_compiler
-#elif defined(GASNETI_USE_GENERIC_ATOMICOPS)
+#elif (GASNETI_ATOMIC_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
   #define GASNETI_ATOMIC_CONFIG   atomics_mutex
-#elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
+#elif (GASNETI_ATOMIC_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_COMPILER)
   #define GASNETI_ATOMIC_CONFIG   atomics_compiler
-#elif defined(GASNETI_USE_OS_ATOMICOPS)
+#elif (GASNETI_ATOMIC_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
   #define GASNETI_ATOMIC_CONFIG   atomics_os
 #else
   #define GASNETI_ATOMIC_CONFIG   atomics_native
@@ -1128,11 +1137,11 @@ typedef _gasneti_weakatomic_id(64_t)           gasneti_weakatomic64_t;
   #define GASNETI_ATOMIC32_CONFIG   atomic32_forced_os
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_forced_compiler
-#elif defined(GASNETI_USE_GENERIC_ATOMIC32)
+#elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_mutex
-#elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
+#elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_COMPILER)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_compiler
-#elif defined(GASNETI_USE_OS_ATOMICOPS)
+#elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
   #define GASNETI_ATOMIC32_CONFIG   atomic32_os
 #else
   #define GASNETI_ATOMIC32_CONFIG   atomic32_native
@@ -1144,13 +1153,13 @@ typedef _gasneti_weakatomic_id(64_t)           gasneti_weakatomic64_t;
   #define GASNETI_ATOMIC64_CONFIG   atomic64_forced_os
 #elif defined(GASNETI_FORCE_COMPILER_ATOMICOPS) && PLATFORM_ARCH_64
   #define GASNETI_ATOMIC64_CONFIG   atomic64_forced_compiler
-#elif defined(GASNETI_USE_GENERIC_ATOMIC64)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_mutex
-#elif defined(GASNETI_USE_COMPILER_ATOMICOPS)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_COMPILER)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_compiler
-#elif defined(GASNETI_HYBRID_ATOMIC64)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_HYBRID)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_hybrid
-#elif defined(GASNETI_USE_OS_ATOMICOPS)
+#elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
   #define GASNETI_ATOMIC64_CONFIG   atomic64_os
 #else
   #define GASNETI_ATOMIC64_CONFIG   atomic64_native
