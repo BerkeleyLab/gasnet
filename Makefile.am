@@ -67,6 +67,7 @@ headers =                  	\
 	gasnet_asm.h       	\
 	gasnet_atomicops.h 	\
 	gasnet_atomic_bits.h 	\
+	gasnet_atomic_fwd.h 	\
         gasnet_basic.h     	\
         gasnet_help.h      	\
 	gasnet_membar.h    	\

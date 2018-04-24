@@ -22,6 +22,13 @@
    see README-tools for usage information
 */
 
+// Note to implementers:
+//
+// When using assembly (inline or special) to implement gasneti_ticks_now() care
+// must be taken to ensure (via preprocessor) that such code is reachable only
+// by compilers which will accept it.  In particular, unknown compilers should
+// result in "#define GASNETI_USING_SLOW_TIMERS 1" to use a function call.
+
 #if defined(GASNETC_CONDUIT_SPECIFIC_TIMERS)
   #if !defined(gasneti_ticks_to_ns) || !defined(gasneti_ticks_now)
     /* conduit-specific timers must be implemented using a macro */
@@ -142,19 +149,34 @@
 /* ------------------------------------------------------------------------------------ */
 #elif (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_OPENBSD || \
        GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ) && \
-     (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_SUN || \
-      PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
-      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_CLANG) && \
      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC || PLATFORM_ARCH_IA64) && \
       !(PLATFORM_ARCH_IA64 && GASNETI_ARCH_ALTIX) /* bug 1622 */
-  #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
-    #include <ia64intrin.h>
-  #elif GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ || PLATFORM_OS_OPENBSD
-    #include <sys/sysctl.h> 
-  #endif
   typedef uint64_t gasneti_tick_t;
- #if PLATFORM_COMPILER_SUN
-   /* The current compiler lacks full GNU-style asm() support.
+ #if GASNETI_HAVE_GCC_ASM
+    GASNETI_INLINE(gasneti_ticks_now)
+    uint64_t gasneti_ticks_now (void) {
+      uint64_t ret;
+    #if (PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC)
+      uint32_t lo, hi;
+      __asm__ __volatile__("rdtsc"
+                           : "=a" (lo), "=d" (hi)
+                           /* no inputs */); 
+      ret = ((uint64_t)lo) | (((uint64_t)hi)<<32);
+    #elif PLATFORM_ARCH_X86
+      __asm__ __volatile__("rdtsc"
+                           : "=A" (ret)
+                           /* no inputs */); 
+    #elif PLATFORM_ARCH_IA64
+      __asm__ __volatile__("mov %0=ar.itc" 
+                           : "=r"(ret) 
+                           /* no inputs */);
+    #else
+      #error Unreachable
+    #endif
+      return ret;
+    }
+ #elif PLATFORM_COMPILER_SUN && GASNETI_ASM_AVAILABLE
+   /* The current compiler has asm, but lacks full GNU-style asm() support.
     *
     * Defining GASNETI_TICKS_NOW_BODY at library build time will use the
     * given asm() as the body of a function gasneti_slow_ticks_now() and
@@ -181,33 +203,19 @@
      #define GASNETI_TICKS_NOW_BODY \
 		GASNETI_ASM_SPECIAL( "mov.m r8=ar.itc;" );
    #endif
+ #elif PLATFORM_COMPILER_CRAY
+    GASNETI_INLINE(gasneti_ticks_now)
+    uint64_t gasneti_ticks_now (void) {
+      return (uint64_t) _rtc();
+    }
+ #elif PLATFORM_COMPILER_INTEL && PLATFORM_ARCH_IA64
+    #include <ia64intrin.h>
+    GASNETI_INLINE(gasneti_ticks_now)
+    uint64_t gasneti_ticks_now (void) {
+      return (uint64_t)__getReg(_IA64_REG_AR_ITC);
+    }
  #else
-  GASNETI_INLINE(gasneti_ticks_now)
-  uint64_t gasneti_ticks_now (void) {
-    uint64_t ret;
-    #if PLATFORM_COMPILER_CRAY
-      ret = _rtc();
-    #elif PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
-      uint32_t lo, hi;
-      __asm__ __volatile__("rdtsc"
-                           : "=a" (lo), "=d" (hi)
-                           /* no inputs */); 
-      ret = ((uint64_t)lo) | (((uint64_t)hi)<<32);
-    #elif PLATFORM_ARCH_X86
-      __asm__ __volatile__("rdtsc"
-                           : "=A" (ret)
-                           /* no inputs */); 
-    #elif PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
-      ret = (uint64_t)__getReg(_IA64_REG_AR_ITC);
-    #elif PLATFORM_ARCH_IA64
-      __asm__ __volatile__("mov %0=ar.itc" 
-                           : "=r"(ret) 
-                           /* no inputs */);
-    #else
-      #error "unsupported CPU"
-    #endif
-    return ret;
-  } 
+    #define GASNETI_USING_SLOW_TIMERS 1
  #endif
   extern double gasneti_calibrate_tsc(void);
   #define GASNETI_CALIBRATE_TSC 1
@@ -227,16 +235,12 @@
     return (uint64_t)(st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_ARCH_POWERPC && \
-      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC || \
-        PLATFORM_COMPILER_CLANG || PLATFORM_COMPILER_PGI ) && \
-      ( PLATFORM_OS_LINUX || PLATFORM_OS_BGQ)
+#elif PLATFORM_ARCH_POWERPC && ( PLATFORM_OS_LINUX || PLATFORM_OS_BGQ)
   /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
   typedef uint64_t gasneti_tick_t;
- #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG || PLATFORM_COMPILER_PGI || \
-     (PLATFORM_COMPILER_XLC && GASNETI_HAVE_GCC_ASM && !GASNETI_HAVE_XLC_ASM)
+ #if GASNETI_HAVE_GCC_ASM
   #if PLATFORM_COMPILER_CLANG /* or something to force? */
     /* Clang's integrated assembler (correctly) warns that mftb* are deprecated */
     #define GASNETI_MFTB(_reg)  "mfspr %" #_reg ",268"
@@ -309,6 +313,8 @@
         return ((uint64_t)hi << 32) | lo;
       } 
    #endif
+ #else
+   #define GASNETI_USING_SLOW_TIMERS 1
  #endif
   #define GASNETI_TIMER_DEFN \
          double gasneti_timer_Tick = 0.0; \
@@ -440,6 +446,7 @@
          int    gasneti_timer_firstTime = 1;
   extern double gasneti_timer_Tick; /* inverse GHz */
   extern int    gasneti_timer_firstTime;
+ #if GASNETI_HAVE_GCC_ASM
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
     gasneti_tick_t ret;
@@ -451,6 +458,9 @@
                           "memory");
     return ret;
   }
+ #else
+  #define GASNETI_USING_SLOW_TIMERS
+ #endif
 
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
@@ -467,6 +477,7 @@
 #elif PLATFORM_ARCH_MICROBLAZE && (defined(MB_CC) || defined(MB_FSL_CC))
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
+ #if GASNETI_HAVE_GCC_ASM
   gasneti_tick_t gasneti_ticks_now(void) {
     unsigned int msr, tmp;
     gasneti_tick_t retval;
@@ -492,6 +503,9 @@
     #endif
     return retval;
   }
+ #else
+   #define GASNETI_USING_SLOW_TIMERS 1
+ #endif
 
   GASNETI_INLINE(gasneti_ticks_to_us)
   gasneti_tick_t gasneti_ticks_to_us(gasneti_tick_t st) {
@@ -518,6 +532,11 @@
 #else /* use slow, portable timers */
   #define GASNETI_USING_GETTIMEOFDAY 1
 #endif
+
+#if GASNETI_USING_SLOW_TIMERS && GASNETI_COMPILER_IS_CC
+  #error unknown compiler - dont know how to read timer registers
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* completely portable (low-performance) microsecond granularity wall-clock time */
 extern uint64_t gasneti_gettimeofday_us(void);
@@ -531,6 +550,7 @@ extern uint64_t gasneti_wallclock_ns(void);
   #define GASNETI_USING_GETTIMEOFDAY 1
   /* portable microsecond granularity wall-clock timer */
   typedef uint64_t _gasneti_tick_t;
+  extern uint64_t gasneti_ticks_gtod_us(void);
   #undef gasneti_tick_t
   #define gasneti_tick_t _gasneti_tick_t
   #undef gasneti_ticks_to_us
@@ -538,15 +558,16 @@ extern uint64_t gasneti_wallclock_ns(void);
   #undef gasneti_ticks_to_ns
   #define gasneti_ticks_to_ns(st)  (((gasneti_tick_t)(st))*1000)
   #undef gasneti_ticks_now
-  #define gasneti_ticks_now()      ((gasneti_tick_t)gasneti_gettimeofday_us())
+  #define gasneti_ticks_now()      ((gasneti_tick_t)gasneti_ticks_gtod_us())
 #elif defined(GASNETI_FORCE_POSIX_REALTIME) || defined(GASNETI_USING_POSIX_REALTIME)
   #undef GASNETI_USING_POSIX_REALTIME 
   #define GASNETI_USING_POSIX_REALTIME 1
   typedef uint64_t _gasneti_tick_t;
+  extern uint64_t gasneti_ticks_posix_ns(void);
   #undef gasneti_tick_t
   #define gasneti_tick_t _gasneti_tick_t
   #undef gasneti_ticks_now
-  #define gasneti_ticks_now() gasneti_wallclock_ns()
+  #define gasneti_ticks_now() gasneti_ticks_posix_ns()
 
   #undef gasneti_ticks_to_us
   #define gasneti_ticks_to_us(st)  (((gasneti_tick_t)(st))/1000)
@@ -561,6 +582,10 @@ extern uint64_t gasneti_wallclock_ns(void);
   #define GASNETI_USING_SLOW_TIMERS 1
   extern void gasneti_slow_ticks_now(void);
   #define gasneti_ticks_now()    ((*(gasneti_tick_t (*)(void))(&gasneti_slow_ticks_now))())
+#elif defined(GASNETI_USING_SLOW_TIMERS)
+  // Compiler w/o necessary asm support (could be CXX, MPI_CC or unknown)
+  extern gasneti_tick_t gasneti_slow_ticks_now(void);
+  #define gasneti_ticks_now()    gasneti_slow_ticks_now()
 #endif
 
 #ifndef gasneti_ticks_to_us
