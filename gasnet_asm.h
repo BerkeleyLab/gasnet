@@ -40,60 +40,9 @@
   /* Configure detected support for GCC-style inline asm */
 #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
       PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG || \
+      PLATFORM_COMPILER_PGI || \
       (PLATFORM_COMPILER_XLC && PLATFORM_COMPILER_VERSION_GE(12,0,0))
   #define GASNETI_HAVE_GCC_ASM 1
-#elif PLATFORM_COMPILER_PGI && PLATFORM_ARCH_POWERPC
-  #define GASNETI_HAVE_GCC_ASM 1
-  #if PLATFORM_COMPILER_VERSION_LT(17,3,0) // All known versions prior to 17.3
-    // PGI "tpr 23290"
-    // Does not grok the immediate modifier "%I" in an asm template
-    #define GASNETI_PGI_ASM_TPR23290 1
-  #endif
-  #if PLATFORM_COMPILER_PGI_CXX && \
-      PLATFORM_COMPILER_VERSION_LT(17,1,0) // All known versions prior to 17.1
-    // PGI "tpr 23291"
-    // C++ compiler does not grok "cr0", though C compiler does
-    #define GASNETI_PGI_ASM_TPR23291 1
-  #endif
-  #if PLATFORM_COMPILER_PGI_CXX && GASNET_NDEBUG && \
-      PLATFORM_COMPILER_VERSION_GE(16,0,0) && PLATFORM_COMPILER_VERSION_LT(17,7,0)
-    // PGI "tpr 24514"
-    // C++ compiler fails with certain asm constructs at -O2
-    #define GASNETI_PGI_ASM_TPR24514 1
-  #endif
-#elif PLATFORM_COMPILER_PGI /* x86 and x86-64 */
-  #define GASNETI_HAVE_GCC_ASM 1
-  #if PLATFORM_COMPILER_VERSION_LT(7,2,5)
-    #error "GASNet does not support PGI compilers prior to 7.2-5"
-  #endif
-  #if PLATFORM_ARCH_32 && \
-      PLATFORM_COMPILER_VERSION_GE(7,1,5) && PLATFORM_COMPILER_VERSION_LT(8,0,6)
-    /* Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
-     * be met unless they appear in a specific order.  This is on 32-bit targets only.
-     *
-     * NOTE: PGI reports TPR 14969 was fixed in 8.0-1.
-     * However, we have only been able to test 8.0-6 and later.
-     */
-    #define GASNETI_PGI_ASM_BUG2294 1
-  #endif
-  #if PLATFORM_COMPILER_VERSION_GE(7,0,0) && PLATFORM_COMPILER_VERSION_LT(10,8,0)
-    /* Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
-     * a 64-bit operand at -O1 (but is OK at -O0 and -O2).
-     */
-    #define GASNETI_PGI_ASM_BUG2843 1
-  #endif
-  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(17,0,0)
-    // C++ compiler generates code that is consistent with having lost the volatile
-    // qualifier from the integer member of the atomic type struct.
-    #define GASNETI_PGI_ASM_BUG3674 1
-  #endif
-  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GT(17,4,0)
-    // C++ compiler generates code that promotes 8-bit asm output to
-    // 32-bits without clearing the other 24 bits.
-    // The work-around is the same as for an older (unrelated) bug 1754.
-    // Present in 17.10 and not in 17.4, but uncertain about in between.
-    #define GASNETI_PGI_ASM_BUG1754 1
-  #endif
 #elif GASNETI_HAVE_SIMPLE_ASM
   /* Configure detected support for asm("mnemonic") */
   /* We only probe compiler families where we trust it (just Sun at this time) */
@@ -125,6 +74,62 @@
 
 #ifndef GASNETI_ASM_SPECIAL
   #define GASNETI_ASM_SPECIAL GASNETI_ASM
+#endif
+
+//
+// Bugs, quirks, dialects, etc.
+//
+
+#if PLATFORM_COMPILER_PGI && PLATFORM_ARCH_POWERPC
+  #if PLATFORM_COMPILER_VERSION_LT(17,3,0) // All known versions prior to 17.3
+    // PGI "tpr 23290"
+    // Does not grok the immediate modifier "%I" in an asm template
+    #define GASNETI_PGI_ASM_TPR23290 1
+  #endif
+  #if PLATFORM_COMPILER_PGI_CXX && \
+      PLATFORM_COMPILER_VERSION_LT(17,1,0) // All known versions prior to 17.1
+    // PGI "tpr 23291"
+    // C++ compiler does not grok "cr0", though C compiler does
+    #define GASNETI_PGI_ASM_TPR23291 1
+  #endif
+  #if PLATFORM_COMPILER_PGI_CXX && GASNET_NDEBUG && \
+      PLATFORM_COMPILER_VERSION_GE(16,0,0) && PLATFORM_COMPILER_VERSION_LT(17,7,0)
+    // PGI "tpr 24514"
+    // C++ compiler fails with certain asm constructs at -O2
+    #define GASNETI_PGI_ASM_TPR24514 1
+  #endif
+#elif PLATFORM_COMPILER_PGI /* x86 and x86-64 */
+  #if PLATFORM_COMPILER_VERSION_LT(7,2,5)
+    #error "GASNet does not support PGI compilers prior to 7.2-5"
+  #endif
+  #if PLATFORM_ARCH_32 && \
+      PLATFORM_COMPILER_VERSION_GE(7,1,5) && PLATFORM_COMPILER_VERSION_LT(8,0,6)
+    /* Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
+     * be met unless they appear in a specific order.  This is on 32-bit targets only.
+     *
+     * NOTE: PGI reports TPR 14969 was fixed in 8.0-1.
+     * However, we have only been able to test 8.0-6 and later.
+     */
+    #define GASNETI_PGI_ASM_BUG2294 1
+  #endif
+  #if PLATFORM_COMPILER_VERSION_GE(7,0,0) && PLATFORM_COMPILER_VERSION_LT(10,8,0)
+    /* Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
+     * a 64-bit operand at -O1 (but is OK at -O0 and -O2).
+     */
+    #define GASNETI_PGI_ASM_BUG2843 1
+  #endif
+  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(17,0,0)
+    // C++ compiler generates code that is consistent with having lost the volatile
+    // qualifier from the integer member of the atomic type struct.
+    #define GASNETI_PGI_ASM_BUG3674 1
+  #endif
+  #if PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GT(17,4,0)
+    // C++ compiler generates code that promotes 8-bit asm output to
+    // 32-bits without clearing the other 24 bits.
+    // The work-around is the same as for an older (unrelated) bug 1754.
+    // Present in 17.10 and not in 17.4, but uncertain about in between.
+    #define GASNETI_PGI_ASM_BUG1754 1
+  #endif
 #endif
 
 #if PLATFORM_OS_BGQ && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
