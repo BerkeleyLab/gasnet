@@ -35,6 +35,13 @@
   #error header inclusion error: missing GASNETI_COMPILER_HAS
 #endif
 
+// NOTE:
+//
+// When adding new support for compilers with usable inline asm, one should
+// add to GASNET_CHECK_ASM_SUPPORT() in configure.in as the primary means of
+// identifying such support.  The following is used as a secondary mechanism,
+// in particular for compilers not probed by configure.
+//
 #define GASNETI_ASM_AVAILABLE 1
 #if GASNETI_HAVE_GCC_ASM
   /* Configure detected support for GCC-style inline asm */

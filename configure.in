@@ -1051,9 +1051,34 @@ popdef([uppername])
 popdef([lowername])
 ])
 
+dnl Check GCC-style inline asm support
+dnl GASNET_CHECK_GCC_ASM(compiler-display-name, compiler-type)
+dnl Where compiler-type is CC|CXX|MPI_CC
+AC_DEFUN([GASNET_CHECK_GCC_ASM],[
+GASNET_FUN_BEGIN([$0($1,$2)])
+pushdef([lowername],translit($2,'A-Z','a-z'))
+pushdef([uppername],translit($2,'a-z','A-Z'))
+case "$target_cpu" in
+  # TODO: expand as this becomes reachable on other CPUs
+  rs6000|powerpc*) gcc_asm_string='"sync"';;
+                *) AC_MSG_ERROR([Internal error - GASNET_CHECK[]_GCC_ASM called for unknown architecture]) ;;
+esac
+GASNET_TRY_CACHE_LINK([$1 for GCC inline asm support], lowername[]_gcc_asm, [],
+  [ __asm__ __volatile__ ($gcc_asm_string); ],
+  [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
+popdef([uppername])
+popdef([lowername])
+])
+
 dnl Check for compilers with varying support for inline asm and atomics
 dnl GASNET_CHECK_ASM_SUPPORT(compiler-display-name, compiler-type)
 dnl Where compiler-type is CC|CXX|MPI_CC
+dnl
+dnl NOTE TO IMPLEMENTERS:
+dnl Changes made here that enable ASM support on additional platforms,
+dnl which do not require any compile/link/run test, should also be
+dnl applied in gasnet_asm.h.
+dnl
 AC_DEFUN([GASNET_CHECK_ASM_SUPPORT],[
 GASNET_FUN_BEGIN([$0($1,$2)])
 pushdef([lowername],translit($2,'A-Z','a-z'))
@@ -1074,9 +1099,14 @@ XLC)
       ],
       [ gasneti_local_sync(); ],
       [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_XLC_ASM) ])
-    GASNET_TRY_CACHE_LINK([$1 for GCC inline asm support], lowername[]_gcc_asm, [],
-      [ __asm__ __volatile__ ("sync"); ],
-      [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
+    GASNET_CHECK_GCC_ASM($1, $2)
+  ;;
+GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)
+    # Currently believe all of these support GCC-style inline ASM on all CPUs
+    # where we use it.  If that is ever *not* the case then one should split
+    # off the case for the relevant compiler and apply blacklists or probes.
+    # NOTE: be sure to keep gasnet_asm.h in-sync with any changes made here.
+    AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM)
   ;;
 esac
 GASNET_PUSHVAR(flagsvar,"$flagsvar -I$TOP_SRCDIR/other")
