@@ -545,7 +545,7 @@ gasnet_handle_t gasnete_get_nb_inner (void *dest, gasnet_node_t node,
 extern gasnet_handle_t gasnete_get_nb (void *dest, gasnet_node_t node,
                                        void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_GET(ALIGNED,H);
+    GASNETI_CHECKPSHM_GET(ALIGNED,H,dest,node,src,nbytes);
     return gasnete_get_nb_inner (dest, node, src, nbytes GASNETE_THREAD_PASS);
 }
 
@@ -557,7 +557,7 @@ extern gasnet_handle_t gasnete_get_nb (void *dest, gasnet_node_t node,
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node,
         void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+    GASNETI_CHECKPSHM_GET(UNALIGNED,H,dest,node,src,nbytes);
     return gasnete_get_nb_inner (dest, node, src, nbytes GASNETE_THREAD_PASS);
 }
 
@@ -590,13 +590,13 @@ gasnet_handle_t gasnete_put_nb_inner(
 
 /* -------------------------------------------------------------------------- */
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-    GASNETI_CHECKPSHM_PUT(ALIGNED,H);
+    GASNETI_CHECKPSHM_PUT(ALIGNED,H,node,dest,src,nbytes);
     return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 /* -------------------------------------------------------------------------- */
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-    GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+    GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
     return gasnete_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 /* -------------------------------------------------------------------------- */
@@ -638,7 +638,7 @@ void gasnete_put_inner(gasnet_node_t node, void* dest, void *src,
 extern void gasnete_put(gasnet_node_t node, void* dest, void *src,
                         size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+    GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
     gasnete_put_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
@@ -653,7 +653,7 @@ extern void gasnete_put(gasnet_node_t node, void* dest, void *src,
 extern void gasnete_put_bulk(gasnet_node_t node, void* dest, void *src,
                              size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+    GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
     gasnete_put_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
@@ -687,7 +687,7 @@ void gasnete_get_inner(void *dest, gasnet_node_t node, void *src,
 extern void gasnete_get(void *dest, gasnet_node_t node, void *src,
                         size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_GET(ALIGNED,V);
+    GASNETI_CHECKPSHM_GET(ALIGNED,V,dest,node,src,nbytes);
     gasnete_get_inner(dest, node, src, nbytes GASNETE_THREAD_PASS);
 }
 
@@ -702,7 +702,7 @@ extern void gasnete_get(void *dest, gasnet_node_t node, void *src,
 extern void gasnete_get_bulk(void *dest, gasnet_node_t node, void *src,
                              size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+    GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
     gasnete_get_inner(dest, node, src, nbytes GASNETE_THREAD_PASS);
 }
 
@@ -872,7 +872,7 @@ void gasnete_get_nbi_inner (void *dest, gasnet_node_t node, void *src,
 extern void gasnete_get_nbi (void *dest, gasnet_node_t node, void *src,
                              size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_GET(ALIGNED,V);
+    GASNETI_CHECKPSHM_GET(ALIGNED,V,dest,node,src,nbytes);
     gasnete_get_nbi_inner(dest, node, src, nbytes GASNETE_THREAD_PASS);
 }
 
@@ -884,7 +884,7 @@ extern void gasnete_get_nbi (void *dest, gasnet_node_t node, void *src,
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src,
                                   size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+    GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
     gasnete_get_nbi_inner(dest, node, src, nbytes GASNETE_THREAD_PASS);
 }
 
@@ -940,7 +940,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src,
 extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
                              size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+    GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
     gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
@@ -952,7 +952,7 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
                                   size_t nbytes GASNETE_THREAD_FARG)
 {
-    GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+    GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
     gasnete_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 

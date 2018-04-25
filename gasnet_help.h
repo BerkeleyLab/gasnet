@@ -146,24 +146,24 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 #define _gasneti_boundscheck(node,ptr,nbytes,nodetest,segtest) do {            \
-    gasnet_node_t _node = (node);                                              \
-    const void *_ptr = (const void *)(ptr);                                    \
-    size_t _nbytes = (size_t)(nbytes);                                         \
-    if_pf (!nodetest(_node))                                                   \
+    gasnet_node_t _bc_node = (node);                                           \
+    const void *_bc_ptr = (const void *)(ptr);                                 \
+    size_t _bc_nbytes = (size_t)(nbytes);                                      \
+    if_pf (!nodetest(_bc_node))                                                \
       gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
-                         (unsigned long)_node, (unsigned long)gasneti_nodes,   \
+                         (unsigned long)_bc_node, (unsigned long)gasneti_nodes,\
                          gasneti_current_loc);                                 \
-    if_pf (_ptr == NULL || !segtest(_node,_ptr,_nbytes))                       \
+    if_pf (_bc_ptr == NULL || !segtest(_bc_node,_bc_ptr,_bc_nbytes))           \
       gasneti_fatalerror("Remote address out of range "                        \
          "(node=%lu ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"        \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
          "\n    fullsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")",      \
-         (unsigned long)_node, GASNETI_LADDRSTR(_ptr), (uintptr_t)_nbytes,     \
+         (unsigned long)_bc_node, GASNETI_LADDRSTR(_bc_ptr), (uintptr_t)_bc_nbytes, \
          gasneti_current_loc,                                                  \
-         GASNETI_LADDRSTR(gasneti_seginfo_client[_node].addr),                 \
-         GASNETI_LADDRSTR(gasneti_seginfo_client_ub[_node]),                   \
-         GASNETI_LADDRSTR(gasneti_seginfo[_node].addr),                        \
-         GASNETI_LADDRSTR(gasneti_seginfo_ub[_node])                           \
+         GASNETI_LADDRSTR(gasneti_seginfo_client[_bc_node].addr),              \
+         GASNETI_LADDRSTR(gasneti_seginfo_client_ub[_bc_node]),                \
+         GASNETI_LADDRSTR(gasneti_seginfo[_bc_node].addr),                     \
+         GASNETI_LADDRSTR(gasneti_seginfo_ub[_bc_node])                        \
          );                                                                    \
   } while(0)
 

@@ -358,7 +358,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
-	GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+	GASNETI_CHECKPSHM_GET(UNALIGNED,H,dest,node,src,nbytes);
 	{
 		gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
 		op->ofi.type = OFI_TYPE_EGET;
@@ -369,7 +369,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
-	GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+	GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
 	{
 		gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
 		op->ofi.type = OFI_TYPE_EPUT;
@@ -386,7 +386,7 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
-	GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+	GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
 	{
 		gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
 		op->ofi.type = OFI_TYPE_EPUT;
@@ -501,7 +501,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
-	GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+	GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
 	{
 		gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 		gasnete_iop_t *op = mythread->current_iop;
@@ -513,7 +513,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
-	GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+	GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
 	{
         /* If we know we will definitely submit this non-blocking op as
          * a blocking one, simply call the put function to avoid messing
@@ -540,7 +540,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
-	GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+	GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
 	{
 		gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 		gasnete_iop_t *op = mythread->current_iop;
