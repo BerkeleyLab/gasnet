@@ -24,7 +24,7 @@ gex_Event_t gasnete_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(H);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
@@ -38,7 +38,7 @@ gex_Event_t gasnete_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(H);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
@@ -57,7 +57,7 @@ int gasnete_get_nbi (gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   gasneti_unreachable();
   return 0;
 }
@@ -70,7 +70,7 @@ int gasnete_put_nbi (gex_TM_t tm,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   gasneti_unreachable();
   return 0;
 }
@@ -91,7 +91,7 @@ int gasnete_put_val(
                 size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(I);
+  GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes);
   gasneti_unreachable();
   return 0;
 }
@@ -105,7 +105,7 @@ gex_Event_t gasnete_put_nb_val(
                 size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(H);
+  GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes);
   gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
@@ -127,7 +127,7 @@ gex_RMA_Value_t gasnete_get_val(
                 size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GETVAL();
+  GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes);
   gasneti_unreachable();
   return 0;
 }

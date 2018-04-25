@@ -871,8 +871,8 @@ static int *gasneti_linkconfig_idiotcheck(void);
 #endif
 GASNETI_USED
 static int *gasneti_linkconfig_idiotcheck(void) {
-  static int val;
-  val +=
+  static int _val;
+  _val +=
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH))
@@ -897,9 +897,9 @@ static int *gasneti_linkconfig_idiotcheck(void) {
         ;
   #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
   if (_gasneti_linkconfig_idiotcheck == &gasneti_linkconfig_idiotcheck)
-    val += *(*_gasneti_linkconfig_idiotcheck)();
+    _val += *(*_gasneti_linkconfig_idiotcheck)();
   #endif
-  return &val;
+  return &_val;
 }
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))

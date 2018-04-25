@@ -228,22 +228,22 @@ extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *cont
   gasnete_threaddata_t *thread = NULL;
   gasnete_thread_cleanup_t *newcleanup = gasneti_malloc(sizeof(gasnete_thread_cleanup_t));
   gasneti_leak(newcleanup);
-  newcleanup->cleanupfn = cleanupfn;
-  newcleanup->context = context;
+  newcleanup->_cleanupfn = cleanupfn;
+  newcleanup->_context = context;
 
   #if GASNETI_MAX_THREADS > 1
     thread = gasneti_threadkey_get(gasnete_threaddata);
   #endif
   if (thread) { /* usual case - extended API thread init before register */
-    newcleanup->next = thread->thread_cleanup;
+    newcleanup->_next = thread->thread_cleanup;
     thread->thread_cleanup = newcleanup;
   } else { /* save away the cleanups for now */
     #if GASNETI_MAX_THREADS > 1
       gasnete_threadkey_init();
-      newcleanup->next = pthread_getspecific(gasnete_threadless_cleanup);
+      newcleanup->_next = pthread_getspecific(gasnete_threadless_cleanup);
       pthread_setspecific(gasnete_threadless_cleanup, newcleanup);
     #else
-      newcleanup->next = gasnete_threadless_cleanup;
+      newcleanup->_next = gasnete_threadless_cleanup;
       gasnete_threadless_cleanup = newcleanup;
     #endif
   }
@@ -260,8 +260,8 @@ static void gasnete_threadless_cleanup_fn(void *_lifo) {
     gasnete_thread_cleanup_t *cleanuplist = (gasnete_thread_cleanup_t *)_lifo;
     gasnete_thread_cleanup_t *nextcleanup;
     while ((nextcleanup = cleanuplist) != NULL) {
-      cleanuplist = nextcleanup->next;
-      nextcleanup->cleanupfn(nextcleanup->context);
+      cleanuplist = nextcleanup->_next;
+      nextcleanup->_cleanupfn(nextcleanup->_context);
       gasneti_free(nextcleanup);
     }
   }
@@ -302,8 +302,8 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
       else break;
       
       while ((nextcleanup = cleanuplist) != NULL) {
-        cleanuplist = nextcleanup->next;
-        nextcleanup->cleanupfn(nextcleanup->context);
+        cleanuplist = nextcleanup->_next;
+        nextcleanup->_cleanupfn(nextcleanup->_context);
         gasneti_free(nextcleanup);
       }
     }

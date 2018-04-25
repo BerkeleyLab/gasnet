@@ -207,12 +207,12 @@
 
 #if GASNETI_STATS_OR_TRACE
 #define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) do {                       \
-  void *_src = (src);  /* workaround for CrayC warning */                                      \
+  void *_tpn_src = (src);  /* workaround for CrayC warning */                                  \
   _GASNETI_STAT_EVENT_VAL (P, name, (nbytes));                                                 \
   GASNETI_TRACE_GETPUT_##locality(P, name, (nbytes), node);                                    \
   GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT" <- " GASNETI_LADDRFMT" (%" PRIuPTR " bytes): %s", \
-                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(_src),             \
-                          (uintptr_t)(nbytes), gasneti_formatdata(_src,(nbytes))));            \
+                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(_tpn_src),         \
+                          (uintptr_t)(nbytes), gasneti_formatdata(_tpn_src,(nbytes))));        \
 } while (0)
 #else
 #define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) ((void)0)

@@ -45,37 +45,37 @@ extern void gasnete_init(void);
 
 #ifndef gasnete_put_nb
   extern gex_Event_t gasnete_put_nb(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gex_Event_t *lc_opt,
-                        gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        /*const*/ void *_src,  // TODO-EX: un-comment const
+                        size_t _nbytes, gex_Event_t *_lc_opt,
+                        gex_Flags_t _flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #ifndef gasnete_get_nb
   extern gex_Event_t gasnete_get_nb(
-                        gex_TM_t tm, void *dest,
-                        gex_Rank_t rank, void *src,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm, void *_dest,
+                        gex_Rank_t _rank, void *_src,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_RMA_GetNB(
-                        gex_TM_t tm, void *dest,
-                        gex_Rank_t rank, void *src,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm, void *_dest,
+                        gex_Rank_t _rank, void *_src,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NB,H);
-  gasneti_boundscheck(tm, rank, src, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_GET_LOCAL(NB,dest,rank,src,nbytes);
-    GASNETI_MEMCPY(dest, src, nbytes);
+  GASNETI_CHECKZEROSZ_GET(NB,_dest,_rank,_src,_nbytes);
+  gasneti_boundscheck(_tm, _rank, _src, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_GET_LOCAL(NB,_dest,_rank,_src,_nbytes);
+    GASNETI_MEMCPY(_dest, _src, _nbytes);
     gasnete_loopbackget_memsync();
     return GEX_EVENT_INVALID;
   } else {
-    GASNETI_TRACE_GET(NB,dest,rank,src,nbytes);
-    return gasnete_get_nb(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_GET(NB,_dest,_rank,_src,_nbytes);
+    return gasnete_get_nb(_tm, _dest, _rank, _src, _nbytes, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_GetNB(tm,dest,rank,src,nbytes,flags) \
@@ -83,22 +83,22 @@ gex_Event_t _gex_RMA_GetNB(
 
 GASNETI_INLINE(_gex_RMA_PutNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_RMA_PutNB(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gex_Event_t *lc_opt,
-                        gex_Flags_t flags GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NB,H);
-  gasneti_boundscheck(tm, rank, dest, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_PUT_LOCAL(NB,rank,dest,src,nbytes);
-    GASNETI_MEMCPY(dest, src, nbytes);
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        /*const*/ void *_src,  // TODO-EX: un-comment const
+                        size_t _nbytes, gex_Event_t *_lc_opt,
+                        gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  GASNETI_CHECKZEROSZ_PUT(NB,_rank,_dest,_src,_nbytes);
+  gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_PUT_LOCAL(NB,_rank,_dest,_src,_nbytes);
+    GASNETI_MEMCPY(_dest, _src, _nbytes);
     gasnete_loopbackput_memsync();
-    gasneti_leaf_finish(lc_opt);
+    gasneti_leaf_finish(_lc_opt);
     return GEX_EVENT_INVALID;
   } else {
-    GASNETI_TRACE_PUT(NB,rank,dest,src,nbytes);
-    return gasnete_put_nb(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_PUT(NB,_rank,_dest,_src,_nbytes);
+    return gasnete_put_nb(_tm, _rank, _dest, _src, _nbytes, _lc_opt, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_PutNB(tm,rank,dest,src,nbytes,lc_opt,flags) \
@@ -111,41 +111,41 @@ gex_Event_t _gex_RMA_PutNB(
 */
 
 #ifndef gasnete_test
-extern int gasnete_test(gex_Event_t event GASNETI_THREAD_FARG);
+extern int gasnete_test(gex_Event_t _event GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_test_some
-extern int gasnete_test_some(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG);
+extern int gasnete_test_some(gex_Event_t *_pevent, size_t _numevents GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_test_all
-extern int gasnete_test_all (gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG);
+extern int gasnete_test_all (gex_Event_t *_pevent, size_t _numevents GASNETI_THREAD_FARG);
 #endif
 
 
 GASNETI_INLINE(_gex_Event_Test) GASNETI_WARN_UNUSED_RESULT
-int  _gex_Event_Test(gex_Event_t event GASNETI_THREAD_FARG) {
-  int result = GASNET_OK;
-  if_pt (event != GEX_EVENT_INVALID)
-    result = gasnete_test(event GASNETI_THREAD_PASS);
-  GASNETI_TRACE_TRYSYNC(TEST_SYNCNB,result);
-  return result;
+int  _gex_Event_Test(gex_Event_t _event GASNETI_THREAD_FARG) {
+  int _result = GASNET_OK;
+  if_pt (_event != GEX_EVENT_INVALID)
+    _result = gasnete_test(_event GASNETI_THREAD_PASS);
+  GASNETI_TRACE_TRYSYNC(TEST_SYNCNB,_result);
+  return _result;
 }
 #define gex_Event_Test(pevent) \
        _gex_Event_Test(pevent GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_Event_TestSome)
-int _gex_Event_TestSome(gex_Event_t *pevent, size_t numevents, gex_Flags_t flags GASNETI_THREAD_FARG) {
-  int result = gasnete_test_some(pevent,numevents GASNETI_THREAD_PASS);
-  GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_SOME,result);
-  return result;
+int _gex_Event_TestSome(gex_Event_t *_pevent, size_t _numevents, gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  int _result = gasnete_test_some(_pevent,_numevents GASNETI_THREAD_PASS);
+  GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_SOME,_result);
+  return _result;
 }
 #define gex_Event_TestSome(pevent, numevents, flags) \
        _gex_Event_TestSome(pevent, numevents, flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_Event_TestAll)
-int _gex_Event_TestAll(gex_Event_t *pevent, size_t numevents, gex_Flags_t flags GASNETI_THREAD_FARG) {
-  int result = gasnete_test_all(pevent,numevents GASNETI_THREAD_PASS);
-  GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_ALL,result);
-  return result;
+int _gex_Event_TestAll(gex_Event_t *_pevent, size_t _numevents, gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  int _result = gasnete_test_all(_pevent,_numevents GASNETI_THREAD_PASS);
+  GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_ALL,_result);
+  return _result;
 }
 #define gex_Event_TestAll(pevent, numevents, flags) \
        _gex_Event_TestAll(pevent, numevents, flags GASNETI_THREAD_GET)
@@ -153,18 +153,18 @@ int _gex_Event_TestAll(gex_Event_t *pevent, size_t numevents, gex_Flags_t flags 
 
 #ifndef gasnete_wait
   GASNETI_INLINE(gasnete_wait)
-  void gasnete_wait(gex_Event_t event GASNETI_THREAD_FARG) {
-    if_pt (event != GEX_EVENT_INVALID) {
+  void gasnete_wait(gex_Event_t _event GASNETI_THREAD_FARG) {
+    if_pt (_event != GEX_EVENT_INVALID) {
       gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
-      gasneti_pollwhile(gasnete_test(event GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+      gasneti_pollwhile(gasnete_test(_event GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
     }
   }
 #endif
 
 GASNETI_INLINE(_gex_Event_Wait)
-void _gex_Event_Wait(gex_Event_t event GASNETI_THREAD_FARG) {
+void _gex_Event_Wait(gex_Event_t _event GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait(event GASNETI_THREAD_PASS);
+  gasnete_wait(_event GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB);
 }
 #define gex_Event_Wait(event) \
@@ -172,16 +172,16 @@ void _gex_Event_Wait(gex_Event_t event GASNETI_THREAD_FARG) {
 
 #ifndef gasnete_wait_some // TODO-EX: a non-inline function could allow some optimizations
   GASNETI_INLINE(gasnete_wait_some)
-  void gasnete_wait_some(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
+  void gasnete_wait_some(gex_Event_t *_pevent, size_t _numevents GASNETI_THREAD_FARG) {
     gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
-    gasneti_pollwhile(gasnete_test_some(pevent, numevents GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+    gasneti_pollwhile(gasnete_test_some(_pevent, _numevents GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
   }
 #endif
 
 GASNETI_INLINE(_gex_Event_WaitSome)
-void _gex_Event_WaitSome(gex_Event_t *pevent, size_t numevents, gex_Flags_t flags GASNETI_THREAD_FARG) {
+void _gex_Event_WaitSome(gex_Event_t *_pevent, size_t _numevents, gex_Flags_t _flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_some(pevent, numevents GASNETI_THREAD_PASS);
+  gasnete_wait_some(_pevent, _numevents GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_SOME);
 }
 #define gex_Event_WaitSome(pevent, numevents, flags) \
@@ -189,16 +189,16 @@ void _gex_Event_WaitSome(gex_Event_t *pevent, size_t numevents, gex_Flags_t flag
 
 #ifndef gasnete_wait_all // TODO-EX: a non-inline function could allow some optimizations
   GASNETI_INLINE(gasnete_wait_all)
-  void gasnete_wait_all(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG) {
+  void gasnete_wait_all(gex_Event_t *_pevent, size_t _numevents GASNETI_THREAD_FARG) {
     gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
-    gasneti_pollwhile(gasnete_test_all(pevent, numevents GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+    gasneti_pollwhile(gasnete_test_all(_pevent, _numevents GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
   }
 #endif
 
 GASNETI_INLINE(_gex_Event_WaitAll)
-void _gex_Event_WaitAll(gex_Event_t *pevent, size_t numevents, gex_Flags_t flags GASNETI_THREAD_FARG) {
+void _gex_Event_WaitAll(gex_Event_t *_pevent, size_t _numevents, gex_Flags_t _flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_all(pevent, numevents GASNETI_THREAD_PASS);
+  gasnete_wait_all(_pevent, _numevents GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_ALL);
 }
 #define gex_Event_WaitAll(pevent, numevents, flags) \
@@ -211,56 +211,56 @@ void _gex_Event_WaitAll(gex_Event_t *pevent, size_t numevents, gex_Flags_t flags
 */
 
 #ifndef gasnete_get_nbi
-extern int gasnete_get_nbi  (gex_TM_t tm, void *dest,
-                             gex_Rank_t rank, void *src,
-                             size_t nbytes, gex_Flags_t flags
+extern int gasnete_get_nbi  (gex_TM_t _tm, void *_dest,
+                             gex_Rank_t _rank, void *_src,
+                             size_t _nbytes, gex_Flags_t _flags
                              GASNETI_THREAD_FARG);
 #endif
 
 #ifndef gasnete_put_nbi
-extern int gasnete_put_nbi  (gex_TM_t tm,
-                             gex_Rank_t rank, void *dest,
-                             /*const*/ void *src,  // TODO-EX: un-comment const
-                             size_t nbytes, gex_Event_t *lc_opt,
-                             gex_Flags_t flags GASNETI_THREAD_FARG);
+extern int gasnete_put_nbi  (gex_TM_t _tm,
+                             gex_Rank_t _rank, void *_dest,
+                             /*const*/ void *_src,  // TODO-EX: un-comment const
+                             size_t _nbytes, gex_Event_t *_lc_opt,
+                             gex_Flags_t _flags GASNETI_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetNBI)
-int _gex_RMA_GetNBI  (gex_TM_t tm, void *dest,
-                        gex_Rank_t rank, void *src,
-                        size_t nbytes, gex_Flags_t flags
+int _gex_RMA_GetNBI  (gex_TM_t _tm, void *_dest,
+                        gex_Rank_t _rank, void *_src,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NBI,I);
-  gasneti_boundscheck(tm, rank, src, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_GET_LOCAL(NBI,dest,rank,src,nbytes);
-    GASNETI_MEMCPY(dest, src, nbytes);
+  GASNETI_CHECKZEROSZ_GET(NBI,_dest,_rank,_src,_nbytes);
+  gasneti_boundscheck(_tm, _rank, _src, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_GET_LOCAL(NBI,_dest,_rank,_src,_nbytes);
+    GASNETI_MEMCPY(_dest, _src, _nbytes);
     gasnete_loopbackget_memsync();
     return 0;
   } else {
-    GASNETI_TRACE_GET(NBI,dest,rank,src,nbytes);
-    return gasnete_get_nbi(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_GET(NBI,_dest,_rank,_src,_nbytes);
+    return gasnete_get_nbi(_tm, _dest, _rank, _src, _nbytes, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_GetNBI(tm,dest,rank,src,nbytes,flags) \
        _gex_RMA_GetNBI(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_RMA_PutNBI)
-int _gex_RMA_PutNBI  (gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gex_Event_t *lc_opt,
-                        gex_Flags_t flags GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NBI,I);
-  gasneti_boundscheck(tm, rank, dest, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_PUT_LOCAL(NBI,rank,dest,src,nbytes);
-    GASNETI_MEMCPY(dest, src, nbytes);
+int _gex_RMA_PutNBI  (gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        /*const*/ void *_src,  // TODO-EX: un-comment const
+                        size_t _nbytes, gex_Event_t *_lc_opt,
+                        gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  GASNETI_CHECKZEROSZ_PUT(NBI,_rank,_dest,_src,_nbytes);
+  gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_PUT_LOCAL(NBI,_rank,_dest,_src,_nbytes);
+    GASNETI_MEMCPY(_dest, _src, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
-    GASNETI_TRACE_PUT(NBI,rank,dest,src,nbytes);
-    return gasnete_put_nbi(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_PUT(NBI,_rank,_dest,_src,_nbytes);
+    return gasnete_put_nbi(_tm, _rank, _dest, _src, _nbytes, _lc_opt, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_PutNBI(tm,rank,dest,src,nbytes,lc_opt,flags) \
@@ -300,14 +300,14 @@ typedef unsigned int gex_EC_t;
 #endif
 
 #ifndef gasnete_test_syncnbi_mask
-  extern int  gasnete_test_syncnbi_mask(gex_EC_t mask, gex_Flags_t flags GASNETI_THREAD_FARG);
+  extern int  gasnete_test_syncnbi_mask(gex_EC_t _mask, gex_Flags_t _flags GASNETI_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gex_NBI_Test) GASNETI_WARN_UNUSED_RESULT
-int _gex_NBI_Test(gex_EC_t mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
-  int retval = gasnete_test_syncnbi_mask(mask, flags GASNETI_THREAD_PASS);
-  GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI,retval);
-  return retval;
+int _gex_NBI_Test(gex_EC_t _mask, gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  int _retval = gasnete_test_syncnbi_mask(_mask, _flags GASNETI_THREAD_PASS);
+  GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI,_retval);
+  return _retval;
 }
 #define gex_NBI_Test(mask, flags)   \
        _gex_NBI_Test(mask, flags GASNETI_THREAD_GET)
@@ -330,10 +330,10 @@ int _gex_NBI_Test(gex_EC_t mask, gex_Flags_t flags GASNETI_THREAD_FARG) {
   ======================================
 */
 #ifndef gasnete_begin_nbi_accessregion
-extern void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG);
+extern void gasnete_begin_nbi_accessregion(gex_Flags_t _flags, int _allowrecursion GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_end_nbi_accessregion
-extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t _flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #define gex_NBI_BeginAccessRegion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
@@ -345,7 +345,7 @@ extern gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD
   =====================================
 */
 #ifndef gasnete_Event_QueryLeaf
-extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id);
+extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t _root, gex_EC_t _event_id);
 #endif
 
 #define gex_Event_QueryLeaf(root, event_id) gasnete_Event_QueryLeaf(root, event_id)
@@ -358,20 +358,20 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id);
 
 
 #if GASNETI_DIRECT_BLOCKING_GET
-  extern int gasnete_get  (gex_TM_t tm,
-                           void *dest,
-                           gex_Rank_t rank, void *src,
-                           size_t nbytes, gex_Flags_t flags
+  extern int gasnete_get  (gex_TM_t _tm,
+                           void *_dest,
+                           gex_Rank_t _rank, void *_src,
+                           size_t _nbytes, gex_Flags_t _flags
                            GASNETI_THREAD_FARG);
 #elif !defined(gasnete_get)
   GASNETI_INLINE(gasnete_get)
-  int gasnete_get (gex_TM_t tm,
-                    void *dest,
-                    gex_Rank_t rank, void *src,
-                    size_t nbytes, gex_Flags_t flags
+  int gasnete_get (gex_TM_t _tm,
+                    void *_dest,
+                    gex_Rank_t _rank, void *_src,
+                    size_t _nbytes, gex_Flags_t _flags
                     GASNETI_THREAD_FARG)
   {
-    gex_Event_t h = gasnete_get_nb(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+    gex_Event_t h = gasnete_get_nb(_tm, _dest, _rank, _src, _nbytes, _flags GASNETI_THREAD_PASS);
     if (h == GEX_EVENT_NO_OP) return 1;
     else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
@@ -379,20 +379,20 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id);
 #endif
 
 #if GASNETI_DIRECT_BLOCKING_PUT
-  extern int gasnete_put  (gex_TM_t tm,
-                           gex_Rank_t rank, void* dest,
-                           /*const*/ void *src, // TODO-EX: uncomment const
-                           size_t nbytes, gex_Flags_t flags
+  extern int gasnete_put  (gex_TM_t _tm,
+                           gex_Rank_t _rank, void* _dest,
+                           /*const*/ void *_src, // TODO-EX: uncomment const
+                           size_t _nbytes, gex_Flags_t _flags
                            GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put)
   GASNETI_INLINE(gasnete_put)
-  int gasnete_put  (gex_TM_t tm,
-                    gex_Rank_t rank, void* dest,
-                    /*const*/ void *src, // TODO-EX: uncomment const
-                    size_t nbytes, gex_Flags_t flags
+  int gasnete_put  (gex_TM_t _tm,
+                    gex_Rank_t _rank, void* _dest,
+                    /*const*/ void *_src, // TODO-EX: uncomment const
+                    size_t _nbytes, gex_Flags_t _flags
                     GASNETI_THREAD_FARG)
   {
-    gex_Event_t h = gasnete_put_nb(tm, rank, dest, src, nbytes, GEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
+    gex_Event_t h = gasnete_put_nb(_tm, _rank, _dest, _src, _nbytes, GEX_EVENT_DEFER, _flags GASNETI_THREAD_PASS);
     if (h == GEX_EVENT_NO_OP) return 1;
     else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
@@ -400,41 +400,41 @@ extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id);
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetBlocking)
-int _gex_RMA_GetBlocking  (gex_TM_t tm, void *dest,
-                    gex_Rank_t rank, void *src,
-                    size_t nbytes, gex_Flags_t flags
+int _gex_RMA_GetBlocking  (gex_TM_t _tm, void *_dest,
+                    gex_Rank_t _rank, void *_src,
+                    size_t _nbytes, gex_Flags_t _flags
                     GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes),I);
-  gasneti_boundscheck(tm, rank, src, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes);
-    GASNETI_MEMCPY(dest, src, nbytes);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,_dest,_rank,_src,_nbytes),_nbytes);
+  gasneti_boundscheck(_tm, _rank, _src, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,_dest,_rank,_src,_nbytes);
+    GASNETI_MEMCPY(_dest, _src, _nbytes);
     gasnete_loopbackget_memsync();
     return 0;
   } else {
-    GASNETI_TRACE_GET_NAMED(GET,NONLOCAL,dest,rank,src,nbytes);
-    return gasnete_get(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_GET_NAMED(GET,NONLOCAL,_dest,_rank,_src,_nbytes);
+    return gasnete_get(_tm, _dest, _rank, _src, _nbytes, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_GetBlocking(tm,dest,rank,src,nbytes,flags) \
        _gex_RMA_GetBlocking(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_INLINE(_gex_RMA_PutBlocking)
-int _gex_RMA_PutBlocking  (gex_TM_t tm,
-                    gex_Rank_t rank, void *dest,
-                    /*const*/ void *src,  // TODO-EX: un-comment const
-                    size_t nbytes, gex_Flags_t flags
+int _gex_RMA_PutBlocking  (gex_TM_t _tm,
+                    gex_Rank_t _rank, void *_dest,
+                    /*const*/ void *_src,  // TODO-EX: un-comment const
+                    size_t _nbytes, gex_Flags_t _flags
                     GASNETI_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),I);
-  gasneti_boundscheck(tm, rank, dest, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes);
-    GASNETI_MEMCPY(dest, src, nbytes);
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,_rank,_dest,_src,_nbytes),_nbytes);
+  gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,_rank,_dest,_src,_nbytes);
+    GASNETI_MEMCPY(_dest, _src, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
-    GASNETI_TRACE_PUT_NAMED(PUT,NONLOCAL,rank,dest,src,nbytes);
-    return gasnete_put(tm, rank, dest, src, nbytes, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_PUT_NAMED(PUT,NONLOCAL,_rank,_dest,_src,_nbytes);
+    return gasnete_put(_tm, _rank, _dest, _src, _nbytes, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_PutBlocking(tm,rank,dest,src,nbytes,flags) \
@@ -448,42 +448,42 @@ int _gex_RMA_PutBlocking  (gex_TM_t tm,
 
 #if GASNETI_DIRECT_PUT_VAL
   extern int gasnete_put_val(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put_val)
   GASNETI_INLINE(gasnete_put_val)
-  int gasnete_put_val( gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+  int gasnete_put_val( gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
   {
-    gex_RMA_Value_t src = value;
-    return gasnete_put(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                       nbytes, flags GASNETI_THREAD_PASS);
+    gex_RMA_Value_t _src = _value;
+    return gasnete_put(_tm, _rank, _dest, GASNETE_STARTOFBITS(&_src,_nbytes),
+                       _nbytes, _flags GASNETI_THREAD_PASS);
   }
 #endif
 
 GASNETI_INLINE(_gex_RMA_PutVal)
-int _gex_RMA_PutVal(  gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+int _gex_RMA_PutVal(  gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
-  gasneti_boundscheck(tm, rank, dest, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_PUT_LOCAL(VAL,rank,dest,&value,nbytes);
-    GASNETE_VALUE_ASSIGN(dest, value, nbytes);
+  gasneti_assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
+  gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_PUT_LOCAL(VAL,_rank,_dest,&_value,_nbytes);
+    GASNETE_VALUE_ASSIGN(_dest, _value, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
-    GASNETI_TRACE_PUT(VAL,rank,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
-    return gasnete_put_val(tm, rank, dest, value, nbytes, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_PUT(VAL,_rank,_dest,GASNETE_STARTOFBITS(&_value,_nbytes),_nbytes);
+    return gasnete_put_val(_tm, _rank, _dest, _value, _nbytes, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_PutBlockingVal(tm,rank,dest,value,nbytes,flags) \
@@ -491,36 +491,36 @@ int _gex_RMA_PutVal(  gex_TM_t tm,
 
 #if GASNETI_DIRECT_PUT_NB_VAL && !defined(gasnete_put_nb_val)
   extern gex_Event_t gasnete_put_nb_val(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 GASNETI_INLINE(_gex_RMA_PutNBVal) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_RMA_PutNBVal (
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
-  gasneti_boundscheck(tm, rank, dest, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_PUT_LOCAL(NB_VAL,rank,dest,&value,nbytes);
-    GASNETE_VALUE_ASSIGN(dest, value, nbytes);
+  gasneti_assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
+  gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_PUT_LOCAL(NB_VAL,_rank,_dest,&_value,_nbytes);
+    GASNETE_VALUE_ASSIGN(_dest, _value, _nbytes);
     gasnete_loopbackput_memsync();
     return GEX_EVENT_INVALID;
   } else {
-    GASNETI_TRACE_PUT(NB_VAL,rank,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
+    GASNETI_TRACE_PUT(NB_VAL,_rank,_dest,GASNETE_STARTOFBITS(&_value,_nbytes),_nbytes);
     #if GASNETI_DIRECT_PUT_NB_VAL || defined(gasnete_put_nb_val)
-      return gasnete_put_nb_val(tm, rank, dest, value, nbytes, flags GASNETI_THREAD_PASS);
+      return gasnete_put_nb_val(_tm, _rank, _dest, _value, _nbytes, _flags GASNETI_THREAD_PASS);
     #else
-      { gex_RMA_Value_t src = value;
-        return gasnete_put_nb(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                              nbytes, GEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
+      { gex_RMA_Value_t _src = _value;
+        return gasnete_put_nb(_tm, _rank, _dest, GASNETE_STARTOFBITS(&_src,_nbytes),
+                              _nbytes, GEX_EVENT_NOW, _flags GASNETI_THREAD_PASS);
       }
     #endif
   }
@@ -530,44 +530,44 @@ gex_Event_t _gex_RMA_PutNBVal (
 
 #if GASNETI_DIRECT_PUT_NBI_VAL
   extern int gasnete_put_nbi_val(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG);
 #elif !defined(gasnete_put_nbi_val)
   GASNETI_INLINE(gasnete_put_nbi_val)
   int gasnete_put_nbi_val(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
   {
-    gex_RMA_Value_t src = value;
-    return gasnete_put_nbi(tm, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                           nbytes, GEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
+    gex_RMA_Value_t _src = _value;
+    return gasnete_put_nbi(_tm, _rank, _dest, GASNETE_STARTOFBITS(&_src,_nbytes),
+                           _nbytes, GEX_EVENT_NOW, _flags GASNETI_THREAD_PASS);
   }
 #endif
 
 GASNETI_INLINE(_gex_RMA_PutNBIVal)
 int _gex_RMA_PutNBIVal(
-                        gex_TM_t tm,
-                        gex_Rank_t rank, void *dest,
-                        gex_RMA_Value_t value,
-                        size_t nbytes, gex_Flags_t flags
+                        gex_TM_t _tm,
+                        gex_Rank_t _rank, void *_dest,
+                        gex_RMA_Value_t _value,
+                        size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gex_RMA_Value_t));
-  gasneti_boundscheck(tm, rank, dest, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_PUT_LOCAL(NBI_VAL,rank,dest,&value,nbytes);
-    GASNETE_VALUE_ASSIGN(dest, value, nbytes);
+  gasneti_assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
+  gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_PUT_LOCAL(NBI_VAL,_rank,_dest,&_value,_nbytes);
+    GASNETE_VALUE_ASSIGN(_dest, _value, _nbytes);
     gasnete_loopbackput_memsync();
     return 0;
   } else {
-    GASNETI_TRACE_PUT(NBI_VAL,rank,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
-    return gasnete_put_nbi_val(tm, rank, dest, value, nbytes, flags GASNETI_THREAD_PASS);
+    GASNETI_TRACE_PUT(NBI_VAL,_rank,_dest,GASNETE_STARTOFBITS(&_value,_nbytes),_nbytes);
+    return gasnete_put_nbi_val(_tm, _rank, _dest, _value, _nbytes, _flags GASNETI_THREAD_PASS);
   }
 }
 #define gex_RMA_PutNBIVal(tm,rank,dest,value,nbytes,flags) \
@@ -585,31 +585,31 @@ int _gex_RMA_PutNBIVal(
 
 #if !defined(gasnete_get_val) && GASNETI_DIRECT_GET_VAL
   extern gex_RMA_Value_t gasnete_get_val (
-                  gex_TM_t tm,
-                  gex_Rank_t rank, void *src,
-                  size_t nbytes, gex_Flags_t flags
+                  gex_TM_t _tm,
+                  gex_Rank_t _rank, void *_src,
+                  size_t _nbytes, gex_Flags_t _flags
                   GASNETI_THREAD_FARG);
 #endif
 
 GASNETI_INLINE(_gex_RMA_GetBlockingVal) GASNETI_WARN_UNUSED_RESULT
 gex_RMA_Value_t _gex_RMA_GetBlockingVal (
-                gex_TM_t tm,
-                gex_Rank_t rank, void *src,
-                size_t nbytes, gex_Flags_t flags
+                gex_TM_t _tm,
+                gex_Rank_t _rank, void *_src,
+                size_t _nbytes, gex_Flags_t _flags
                 GASNETI_THREAD_FARG)
 {
-  gasneti_boundscheck(tm, rank, src, nbytes);
-  if (gasnete_islocal(rank)) {
-    GASNETI_TRACE_GET_LOCAL(VAL,NULL,rank,src,nbytes);
-    GASNETE_VALUE_RETURN(src, nbytes);
+  gasneti_boundscheck(_tm, _rank, _src, _nbytes);
+  if (gasnete_islocal(_rank)) {
+    GASNETI_TRACE_GET_LOCAL(VAL,NULL,_rank,_src,_nbytes);
+    GASNETE_VALUE_RETURN(_src, _nbytes);
   } else {
-    GASNETI_TRACE_GET(VAL,NULL,rank,src,nbytes);
+    GASNETI_TRACE_GET(VAL,NULL,_rank,_src,_nbytes);
     #if GASNETI_DIRECT_GET_VAL || defined(gasnete_get_val)
-      return gasnete_get_val(tm, rank, src, nbytes, flags GASNETI_THREAD_PASS);
+      return gasnete_get_val(_tm, _rank, _src, _nbytes, _flags GASNETI_THREAD_PASS);
     #else
-      { gex_RMA_Value_t val = 0;
-        gasnete_get(tm, GASNETE_STARTOFBITS(&val,nbytes), rank, src, nbytes, flags GASNETI_THREAD_PASS);
-        return val;
+      { gex_RMA_Value_t _val = 0;
+        gasnete_get(_tm, GASNETE_STARTOFBITS(&_val,_nbytes), _rank, _src, _nbytes, _flags GASNETI_THREAD_PASS);
+        return _val;
       }
     #endif
   }
@@ -633,8 +633,8 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 #endif
 
 /*intialize the barriers for a given team*/
-extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type,
-                                      gex_Rank_t *nodes, gex_Rank_t *supernodes);
+extern void gasnete_coll_barrier_init(gasnete_coll_team_t _team, int _barrier_type,
+                                      gex_Rank_t *_nodes, gex_Rank_t *_supernodes);
 
 /*initialize the barriers for GASNET_TEAM_ALL*/
 extern void gasnete_barrier_init(void);
@@ -644,11 +644,11 @@ extern void gasnete_barrier_init(void);
 extern gasneti_tick_t gasnete_barrier_notifytime;
 #endif
 
-extern void gasnet_barrier_notify(int id, int flags);
-extern int gasnet_barrier_wait(int id, int flags);
-extern int gasnet_barrier_try(int id, int flags);
-extern int gasnet_barrier(int id, int flags);
-extern int gasnet_barrier_result(int *id);
+extern void gasnet_barrier_notify(int _id, int _flags);
+extern int gasnet_barrier_wait(int _id, int _flags);
+extern int gasnet_barrier_try(int _id, int _flags);
+extern int gasnet_barrier(int _id, int _flags);
+extern int gasnet_barrier_result(int *_id);
 /* ------------------------------------------------------------------------------------ */
 
 // TODO-EX: remove these checks for conduits using legacy internal APIs

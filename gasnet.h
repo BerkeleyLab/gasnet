@@ -438,13 +438,13 @@ gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t _node, void *_src, size_t
 {
   gasnet_valget_handle_t _result = (gasnet_valget_handle_t)gasneti_extern_malloc(sizeof(*_result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
-  void *dest = (void*)((uintptr_t)&(_result->gasneti_valget_value) + sizeof(gex_RMA_Value_t) - _nbytes);
+  void *_dest = (void*)((uintptr_t)&(_result->gasneti_valget_value) + sizeof(gex_RMA_Value_t) - _nbytes);
 #else /* little-endian */
-  void *dest = &_result->gasneti_valget_value;
+  void *_dest = &_result->gasneti_valget_value;
 #endif
   _result->gasneti_valget_value = 0;
   //assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
-  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, dest, _node, _src, _nbytes, 0);
+  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, _dest, _node, _src, _nbytes, 0);
   return _result;
 }
 

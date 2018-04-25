@@ -27,57 +27,57 @@
 
 // Long
 extern int gasnetc_AMRequestLongM(
-                gex_TM_t tm,                   // Names a local context ("return address")
-                gex_Rank_t rank,          // Together with 'tm', names a remote context
-                gex_AM_Index_t handler,        // Index into handler table of remote context
-                /*const*/ void *source_addr,   // Payload address (or OFFSET)
-                size_t nbytes,                 // Payload length
-                void *dest_addr,               // Payload destination address (or OFFSET)
-                gex_Event_t *lc_opt,  // Local completion control (see above)
-                gex_Flags_t flags         // Flags to control this operation
-                GASNETI_THREAD_FARG,           // Hidden thread-specific info argument
-                int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
+                gex_TM_t _tm,                 // Names a local context ("return address")
+                gex_Rank_t _rank,             // Together with 'tm', names a remote context
+                gex_AM_Index_t _handler,      // Index into handler table of remote context
+                /*const*/ void *_source_addr, // Payload address (or OFFSET)
+                size_t _nbytes,               // Payload length
+                void *_dest_addr,             // Payload destination address (or OFFSET)
+                gex_Event_t *_lc_opt,         // Local completion control (see above)
+                gex_Flags_t _flags            // Flags to control this operation
+                GASNETI_THREAD_FARG,          // Hidden thread-specific info argument
+                int _numargs, ...);           // Argument list (0..AMMaxArgs) as varargs
 extern int gasnetc_AMReplyLongM(
-                gex_Token_t token,             // Names local and remote contexts
-                gex_AM_Index_t handler,
-                /*const*/ void *source_addr,
-                size_t nbytes,
-                void *dest_addr,
-                gex_Event_t *lc_opt,
-                gex_Flags_t flags,
-                int numargs, ...);
+                gex_Token_t _token,           // Names local and remote contexts
+                gex_AM_Index_t _handler,
+                /*const*/ void *_source_addr,
+                size_t _nbytes,
+                void *_dest_addr,
+                gex_Event_t *_lc_opt,
+                gex_Flags_t _flags,
+                int _numargs, ...);
 // Medium
 extern int gasnetc_AMRequestMediumM(
-                gex_TM_t tm,
-                gex_Rank_t rank,
-                gex_AM_Index_t handler,
-                /*const*/ void *source_addr,
-                size_t nbytes,
-                gex_Event_t *lc_opt,
-                gex_Flags_t flags
+                gex_TM_t _tm,
+                gex_Rank_t _rank,
+                gex_AM_Index_t _handler,
+                /*const*/ void *_source_addr,
+                size_t _nbytes,
+                gex_Event_t *_lc_opt,
+                gex_Flags_t _flags
                 GASNETI_THREAD_FARG,
-                int numargs, ...);
+                int _numargs, ...);
 extern int gasnetc_AMReplyMediumM(
-                gex_Token_t token,
-                gex_AM_Index_t handler,
-                /*const*/ void *source_addr,
-                size_t nbytes,
-                gex_Event_t *lc_opt,
-                gex_Flags_t flags,
-                int numargs, ...);
+                gex_Token_t _token,
+                gex_AM_Index_t _handler,
+                /*const*/ void *_source_addr,
+                size_t _nbytes,
+                gex_Event_t *_lc_opt,
+                gex_Flags_t _flags,
+                int _numargs, ...);
 // Short
 extern int gasnetc_AMRequestShortM(
-                gex_TM_t tm,
-                gex_Rank_t rank,
-                gex_AM_Index_t handler,
-                gex_Flags_t flags
+                gex_TM_t _tm,
+                gex_Rank_t _rank,
+                gex_AM_Index_t _handler,
+                gex_Flags_t _flags
                 GASNETI_THREAD_FARG,
-                int numargs, ...);
+                int _numargs, ...);
 extern int gasnetc_AMReplyShortM(
-                gex_Token_t token,
-                gex_AM_Index_t handler,
-                gex_Flags_t flags,
-                int numargs, ...);
+                gex_Token_t _token,
+                gex_AM_Index_t _handler,
+                gex_Flags_t _flags,
+                int _numargs, ...);
 
 /* ------------------------------------------------------------------------------------ */
 /*
