@@ -312,12 +312,8 @@ typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
 typedef struct {
   gasneti_AMPSHM_msg_t msg;
-#if (GASNETI_MAX_MEDIUM_PSHM < 65536) /* GASNET<C>_MAX_MEDIUM_PSHM often not a preprocess-time constant */
-  uint16_t numbytes;
-#else
   uint32_t numbytes;
-#endif
-  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_PSHM]; /* Is 2, 4 or 8-byte aligned */
+  uint8_t  mediumdata[4 + GASNETC_MAX_MEDIUM_PSHM]; /* +4 to deal with 4 or 8-byte alignment */
 } gasneti_AMPSHM_medmsg_t;
 
 typedef struct {
@@ -574,6 +570,8 @@ gasneti_pshmnet_init(void *region, size_t regionlen, gasneti_pshm_rank_t pshmnod
 
   /* make sure that our max buffer size fits all possible AMs */
   gasneti_assert(sizeof(gasneti_AMPSHM_maxmsg_t) <= GASNETI_PSHMNET_MAX_PAYLOAD);
+
+  gasneti_assert((offsetof(gasneti_AMPSHM_medmsg_t, mediumdata) % 4) == 0);
 
   szpernode = gasneti_pshmnet_memory_needed_pernode(pshmnodes);
   szonce = gasneti_pshmnet_memory_needed_once(pshmnodes);
