@@ -233,6 +233,12 @@ gex_Rank_t *gasneti_pshm_firsts = NULL;
  * These come early because their sizes influence allocation
  ******************************************************************************/
 
+// NOTE:
+// If sizes of these types changes, such that gasneti_pshmnet_allocator_block_t
+// also changes size, one must update GASNETC_MAX_MEDIUM_NBRHD_DFLT in gasnetex.h
+// to ensure a tight fit in 64KB:
+//   sizeof(gasneti_pshmnet_allocator_block_t) == 65536
+
 /* TODO: Could/should we squeeze unused args out of a Medium.*/
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */
 
@@ -510,6 +516,19 @@ gasneti_pshmnet_init(void *region, size_t regionlen, gasneti_pshm_rank_t pshmnod
   gasneti_assert(sizeof(gasneti_AMPSHM_maxmsg_t) <= GASNETI_PSHMNET_MAX_PAYLOAD);
 
   gasneti_assert((offsetof(gasneti_AMPSHM_medmsg_t, mediumdata) % 4) == 0);
+
+  // Check GASNETC_MAX_MEDIUM_NBRHD_DFLT (if used) provides tight fit
+  #if (PLATFORM_OS_LINUX || PLATFORM_OS_DARWIN) && \
+      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)
+    // Arbitrary choice of frequently-tested ABIs known to provide tight fit
+    gasneti_assert((GASNETC_MAX_MEDIUM_NBRHD != GASNETC_MAX_MEDIUM_NBRHD_DFLT) || \
+                   (sizeof(gasneti_pshmnet_allocator_block_t) == 65536));
+  #else
+    // Other ABIs may have less restrictive alignments (allow 16-byte slack)
+    gasneti_assert((GASNETC_MAX_MEDIUM_NBRHD != GASNETC_MAX_MEDIUM_NBRHD_DFLT) || \
+                   ((sizeof(gasneti_pshmnet_allocator_block_t) <= 65536) && \
+                    (sizeof(gasneti_pshmnet_allocator_block_t) >= 65536 - 16)));
+  #endif
 
   szpernode = gasneti_pshmnet_memory_needed_pernode(pshmnodes);
   szonce = gasneti_pshmnet_memory_needed_once(pshmnodes);
