@@ -10,7 +10,7 @@
 #include <gasnet_internal.h>
 
 typedef struct {
-  uint8_t  requestBuf[GASNETC_MAX_MEDIUM];
+  uint8_t  requestBuf[((GASNETC_MAX_MEDIUM+7) & ~7)]; // note need to 8-byte align
   uint8_t  replyBuf[GASNETC_MAX_MEDIUM];
 } gasnetc_threadinfo_t;
 

@@ -159,6 +159,18 @@ GASNETI_BEGIN_NOWARN
 #define gex_Client_Init gasnetc_Client_Init
 
 /* ------------------------------------------------------------------------------------ */
+// Default (read-only) shared-memory MaxMedium value "recommended" to conduits.
+// Value of GASNETC_MAX_MEDIUM_NBRHD determines the actual maximum.
+// See template-conduit/gasnet_core.h for more info.
+#if !GASNETI_PSHM_ENABLED
+  #define GASNETC_MAX_MEDIUM_NBRHD_DFLT 65536
+#elif PLATFORM_ARCH_64
+  #define GASNETC_MAX_MEDIUM_NBRHD_DFLT 65416
+#else
+  #define GASNETC_MAX_MEDIUM_NBRHD_DFLT 65436
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* GASNet forward definitions, which may override some of the defaults below */
 #include <gasnet_core_fwd.h>
 #include <gasnet_extended_fwd.h>
@@ -269,11 +281,6 @@ GASNETI_BEGIN_NOWARN
   #define GASNET_ERR_BAD_ARG              (_GASNET_ERR_BASE+3)
   #define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
   #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
-#endif
-
-/* Largest Medium supported by AMPSHM */
-#ifndef GASNETI_MAX_MEDIUM_PSHM
-  #define GASNETI_MAX_MEDIUM_PSHM 65000
 #endif
 
 extern const char *gasnet_ErrorName(int);
