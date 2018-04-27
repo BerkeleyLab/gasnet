@@ -1595,6 +1595,25 @@ typedef [some integer type] gex_DT_t;
 typedef [some integer type] gex_OP_t;
 #define GEX_OP_??? ((gex_OP_t)???) // For each GEX_OP_* above
 
+// Opcode conversion
+//
+// The macro GEX_OP_TO_FETCHING(op) takes a non-fetching opcode as an argument
+// and returns the corresponding fetching opcode.  The value of 'op' must be
+// either GEX_OP_SET or an opcode listed under "Non-fetching Operations", above.
+// All other values return undefined results.
+//
+// The macro GEX_OP_TO_NONFETCHING(op) takes a fetching opcode as an argument
+// and returns the corresponding non-fetching opcode.  The value of 'op' must be
+// either GEX_OP_SWAP or an opcode listed under "Fetching Operations", above.
+// All other values return undefined results.
+//
+// In addition to the natural result when applied to the arithmetic opcodes,
+// SWAP/SET are considered to be a fetching/non-fetching pair:
+//    GEX_OP_TO_FETCHING(GEX_OP_SET)     == GEX_OP_SWAP
+//    GEX_OP_TO_NONFETCHING(GEX_OP_SWAP) == GEX_OP_SET
+
+#define GEX_OP_TO_FETCHING(op)    ???
+#define GEX_OP_TO_NONFETCHING(op) ???
 
 //----------------------------------------------------------------------
 //
