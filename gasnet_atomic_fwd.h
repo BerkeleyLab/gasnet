@@ -185,4 +185,32 @@
 #undef GASNETI_CONFIG_HAVE_SYNC_ATOMICS_32
 #undef GASNETI_CONFIG_HAVE_SYNC_ATOMICS_64
 
+// Sanity checks on relationship between 32- and 64-bit implementations:
+//  1) 64-bit atomics are either same-as-32-bit, GENERIC or HYBRID
+//  2) 64-bit NATIVE implies 32-bit NATIVE
+//  3) 64-bit SYNC   implies 32-bit SYNC
+//  4) 64-bit OS     implies 32-bit OS
+//  5) 64-bit HYBRID implies 32-bit NATIVE
+//  6) 32-bit HYBRID does not exist
+#if /* Rule #1: 64-bit is one of (32-bit, GENERIC, HYBRID) */    \
+    ((GASNETI_ATOMIC64_IMPL != GASNETI_ATOMIC32_IMPL)       &&   \
+     (GASNETI_ATOMIC64_IMPL != GASNETI_ATOMIC_IMPL_GENERIC) &&   \
+     (GASNETI_ATOMIC64_IMPL != GASNETI_ATOMIC_IMPL_HYBRID)) ||   \
+    /* Rule #2: 64-bit NATIVE implies 32-bit NATIVE */           \
+    ((GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_NATIVE) &&    \
+     (GASNETI_ATOMIC32_IMPL != GASNETI_ATOMIC_IMPL_NATIVE)) ||   \
+    /* Rule #3: 64-bit SYNC implies 32-bit SYNC */               \
+    ((GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_SYNC) &&      \
+     (GASNETI_ATOMIC32_IMPL != GASNETI_ATOMIC_IMPL_SYNC)) ||     \
+    /* Rule #4: 64-bit OS implies 32-bit OS */                   \
+    ((GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_OS) &&        \
+     (GASNETI_ATOMIC32_IMPL != GASNETI_ATOMIC_IMPL_OS)) ||       \
+    /* Rule #5: 64-bit HYBRID implies 32-bit NATIVE */           \
+    ((GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_HYBRID) &&    \
+     (GASNETI_ATOMIC32_IMPL != GASNETI_ATOMIC_IMPL_NATIVE)) ||   \
+    /* Rule #6: 32-bit HYBRID does not exist */                  \
+     (GASNETI_ATOMIC32_IMPL == GASNETI_ATOMIC_IMPL_HYBRID)
+  #error Internal error - unexpected atomics configuration
+#endif
+
 #endif // _GASNET_ATOMIC_FWD_H
