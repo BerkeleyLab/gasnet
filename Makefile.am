@@ -37,6 +37,7 @@ CONDUITMODE_headers = 		\
 	gasnet.h           	\
 	gasnet_ammacros.h  	\
 	gasnet_trace.h     	\
+	gasnet_fwd.h    	\
 	extended-ref/coll/gasnet_coll.h \
 	extended-ref/ratomic/gasnet_ratomic.h \
 	extended-ref/vis/gasnet_vis.h      
