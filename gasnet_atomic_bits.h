@@ -137,10 +137,15 @@
 
    + Special atomics:
      The term "special atomics" describes the case of native atomics for C
-     compilers which have only "out-of-line" asm support (receiving args and
-     returning a value using the ABI-defined function calling convention).
-     In this case the implementation here must define one or both of the
-     macros GASNETI_ATOMIC{32,64}_SPECIALS to be expanded in gasnet_tools.c.
+     compilers which require use of "out-of-line" asm support (receiving args
+     and returning a value using the ABI-defined function calling convention).
+     In this case the implementation defines the necessary operations through
+     any combination of macros, inline functions and "special" functions.
+     Special functions are defined via GASNETI_ATOMIC{32,64}_[OPNAME]_BODY
+     macros, each providing the assembly to be expanded as the body of a
+     library function (and triggering generation of the necessary wrappers).
+     The macros GASNETI_ATOMIC{32,64}_SPECIALS collect the BODY macros to be
+     expanded in gasnet_tools.c.
 
    + Slow atomics:
      The term "slow atomics" is for when the C compiler which built the gasnet
@@ -271,17 +276,48 @@
   // So, we must decide between allowing the compiler to generate either the
   // actual atomicops or library calls.
 
-  // NOTE: If the configured CC and current compiler are both using native or
-  // compiler-based "__sync" atomics (including one of each), then we consider
-  // this pair to be compatible.  This is true because we currently only enable
-  // __sync atomics which we believe to be compatible with the native inline
-  // asm.  In particular we assume compilers do not use a mutex-based
-  // implementation which might not be compatible with native atomics or
-  // between distinct compiler families.  If these assumptions are ever broken,
-  // then additional logic will be needed to sort out which pairs are
-  // compatible.
+  // Notes on COMPATIBLE implementations
+  //
+  // Two implementations are considered "compatible" if they interoperate
+  // (linking and producing correct results).  The logic below determines if
+  // the current compiler would normally use implementations of the 32- and
+  // 64-bit atomic operations that are compatible with those in the GASNet
+  // libraries.  If not, then later logic makes the necessary definitions to
+  // ensure force use of compatible implementations.  In some cases this
+  // means use of "SLOW" atomics - calling GASNet library functions.
+  //
+  // GENERIC, OS and HYBRID implementations are each compatible only with
+  // themselves.  However, each is compatible across all supported compiler
+  // families.
+  //
+  // NATIVE and SYNC implementations are currently all mutually compatible.
+  // This is true because we currently only enable __sync atomics which we
+  // believe to be compatible with the native inline asm.  In particular we
+  // assume compilers do not use a mutex-based implementation which might not
+  // be compatible with native atomics or between distinct compiler families.
+  // If these assumptions are ever broken, then additional logic will be
+  // needed to sort out which pairs are compatible.
+  //
+  // The compatibility of SPECIAL implementations is asymmetric.  A library
+  // built with SPECIAL atomics is compatible with any compiler's use of SYNC
+  // or NATIVE atomics implementations for the same reasons those two can be
+  // mixed.  However, a SPECIAL implementation uses compiler-specific support
+  // routines in the library.  Therefore a compiler's SPECIAL implementation
+  // is compatible only with a library built with SPECIAL by the same compiler
+  // family (all other cases will lack the appropriate support routines).
 
-  #if (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC32_IMPL)
+  #if (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_SPECIAL)
+    #if (GASNETI_ATOMIC32_IMPL == GASNETI_ATOMIC_IMPL_SPECIAL) && \
+        (PLATFORM_COMPILER_FAMILYID == GASNETI_PLATFORM_COMPILER_FAMILYID)
+      // SPECIAL is self-COMPATIBLE only within a compiler family
+    #elif (GASNETI_ATOMIC32_IMPL == GASNETI_ATOMIC_IMPL_NATIVE) || \
+          (GASNETI_ATOMIC32_IMPL == GASNETI_ATOMIC_IMPL_SYNC)
+      // SPECIAL library is assumed COMPATIBLE with NATIVE and SYNC
+      // Exceptions should be added here
+    #else
+      #define GASNETI_ATOMIC32_WANT_SLOW 1
+    #endif
+  #elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC32_IMPL)
     // EQUAL - nothing to #define
   #elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
     #define GASNETI_ATOMIC32_WANT_GENERIC 1
@@ -306,7 +342,18 @@
     #error Internal error - unexpected atomics configuration
   #endif
 
-  #if (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC64_IMPL)
+  #if (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_SPECIAL)
+    #if (GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_SPECIAL) && \
+        (PLATFORM_COMPILER_FAMILYID == GASNETI_PLATFORM_COMPILER_FAMILYID)
+      // SPECIAL is self-COMPATIBLE only within a compiler family
+    #elif (GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_NATIVE) || \
+          (GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_SYNC)
+      // SPECIAL library is assumed COMPATIBLE with NATIVE and SYNC
+      // Exceptions should be added here
+    #else
+      #define GASNETI_ATOMIC64_WANT_SLOW 1
+    #endif
+  #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC64_IMPL)
     // EQUAL - nothing to #define
   #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_GENERIC)
     #define GASNETI_ATOMIC64_WANT_GENERIC 1
