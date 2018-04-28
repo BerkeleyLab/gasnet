@@ -217,6 +217,7 @@ GASNet ChangeLog
   - Fix bug 3647: aries-conduit should honor non-default process layouts
   - Fix bug 3695: AMReply injection might corrupt the payload of the
     running AM Medium Request handler.
+  - Tweak the interface and documentation of GASNET_GNI_MEM_CONSISTENCY envvar.
 
 * Libfabric (ofi-conduit)
   - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
@@ -257,12 +258,19 @@ GASNet ChangeLog
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
+  - Additional debug checks now detect prohibited overlap in loopback RMA and AMLong.
+  - The extended-ref source directory has been re-arranged
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
   - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
   - Fix bug 3741: misidentification of IBM XL Compilers 13.1.6 and newer (v6)
+  - Fix bug 3743: verify correct KNL processor tuning on CNL
+  - Public headers are less suceptible to malfunctions when compiled with
+    un-prefixed tokens redefined by the preprocessor. C/C++ keywords remain
+    reserved, as do tokens prepended by one or more underscores or one of the
+    reserved gasnet prefixes (see 'GASNet coding standards' in README-devel)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.
