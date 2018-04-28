@@ -396,8 +396,10 @@
    * which should work regardless of the compiler's inline assembly support.
    * ------------------------------------------------------------------------------------ */
   #if PLATFORM_OS_CYGWIN
-      /* These are *NOT* Cywgin calls, but Windows API calls that may actually
-       * be intrinsics in the MS compilers on 64-bit systems. */
+      /* These are *NOT* Cygwin calls, but Windows API calls that may actually
+       * be intrinsics in the MS compilers on 64-bit systems.
+       * Intrinsics below incur full memory barriers. Win8+ offer finer-grained
+       * control over fencing, but we don't currently use those. */
       #include <windows.h>
 
       #define GASNETI_HAVE_ATOMIC32_T 1
@@ -427,7 +429,7 @@
         #define gasneti_atomic64_compare_and_swap(p,oval,nval,f) \
 	     (InterlockedCompareExchange64((LONGLONG *)&((p)->gasneti_ctr),nval,oval) == (LONGLONG)(oval))
         #define gasneti_atomic64_fetchadd(p,op,f) InterlockedExchangeAdd64((LONGLONG *)&((p)->gasneti_ctr), op)
-        #define gasneti_atomic64_swap(p,op,f) InterlockedExchange((LONGLONG *)&((p)->gasneti_ctr), op)
+        #define gasneti_atomic64_swap(p,op,f) InterlockedExchange64((LONGLONG *)&((p)->gasneti_ctr), op)
       #endif
   /* ------------------------------------------------------------------------------------ */
   #else
