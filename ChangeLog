@@ -10,6 +10,31 @@ GASNet-EX ChangeLog
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
+PENDING: GASNet-EX 2018.6.0 Release
+
+* GASNet-EX Spec v0.5:
+  - Add GEX_OP_TO_(NON)FETCHING()
+
+* Notable bugs fixed in this release:
+  - Bug3749: assertion failure in PSHM's NP-AM
+
+* Major new features implemented in this release:
+  - gasnet_fwd.h now provides a dependency-free useful subset of the API 
+    declarations, suitable for inclusion into application-level code.
+
+* Feature implementation status in this release:
+  - ...
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
 03-28-2018: GASNet-EX 2018.3.0 Release
 
 * GASNet-EX Spec v0.4:
