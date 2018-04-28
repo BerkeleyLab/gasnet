@@ -627,7 +627,14 @@
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || \
         PLATFORM_COMPILER_OPEN64 || \
-        PLATFORM_COMPILER_CLANG
+        PLATFORM_COMPILER_CLANG || \
+        (PLATFORM_COMPILER_SUN && GASNETI_HAVE_GCC_ASM)
+     #if PLATFORM_COMPILER_SUN_C
+       #pragma error_messages(off, E_ASM_UNUSED_PARAM)
+     #elif PLATFORM_COMPILER_SUN_CXX
+       #pragma error_messages(off, inlasmpnu)
+     #endif
+
      #define GASNETI_HAVE_ATOMIC32_T 1
      typedef struct { volatile uint32_t gasneti_ctr; } gasneti_atomic32_t;
      #define gasneti_atomic32_init(v)      { (v) }
@@ -691,7 +698,11 @@
       #define _gasneti_atomic32_decrement _gasneti_atomic32_decrement
       GASNETI_INLINE(_gasneti_atomic32_decrement_and_test)
       int _gasneti_atomic32_decrement_and_test(gasneti_atomic32_t *v) {
+      #if PLATFORM_COMPILER_SUN
+          unsigned char retval;
+      #else
           GASNETI_ASM_REGISTER_KEYWORD unsigned char retval;
+      #endif
           __asm__ __volatile__(
 	          GASNETI_X86_LOCK_PREFIX
 		  "decl %0		\n\t"
@@ -709,7 +720,11 @@
 
       GASNETI_INLINE(_gasneti_atomic32_compare_and_swap)
       int _gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *v, uint32_t oldval, uint32_t newval) {
+      #if PLATFORM_COMPILER_SUN
+        unsigned char retval;
+      #else
         GASNETI_ASM_REGISTER_KEYWORD unsigned char retval;
+      #endif
         GASNETI_ASM_REGISTER_KEYWORD uint32_t readval;
         __asm__ __volatile__ (
 		GASNETI_X86_LOCK_PREFIX
@@ -1096,6 +1111,11 @@
 	}
 	#define gasneti_atomic128_read gasneti_atomic128_read
       #endif /* GASNETI_HAVE_X86_CMPXCHG16B */
+     #if PLATFORM_COMPILER_SUN_C
+       #pragma error_messages(default, E_ASM_UNUSED_PARAM)
+     #elif PLATFORM_COMPILER_SUN_CXX
+       #pragma error_messages(default, inlasmpnu)
+     #endif
     #elif PLATFORM_COMPILER_SUN
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
