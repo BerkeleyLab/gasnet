@@ -1113,7 +1113,6 @@ GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)
 esac
 GASNET_PUSHVAR(flagsvar,"$flagsvar -I$TOP_SRCDIR/other")
 dnl  TODO: factor this and loop over "32" and "64" ?
-dnl  TODO: we should probe if test-and-set is swap
 GASNET_TRY_CACHE_LINK([$1 for 32-bit __sync atomics support], lowername[]_sync_atomics_32, [
     #include "portable_inttypes.h"
   ],[
