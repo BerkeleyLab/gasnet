@@ -457,50 +457,41 @@
     #define gasneti_atomic32_compare_and_swap(p,oval,nval,f) \
             (__sync_bool_compare_and_swap(&((p)->gasneti_ctr), (oval), (nval)))
 
-    // TODO: SWAP implementation is conservative (portable) and could be improved:
-    // + On many platforms __sync_lock_test_and_set() is a swap (w/ only an
-    //   acquire fence).  However, safe use requires a configure test to verify
-    //   the behavior and some extra logic do deal with the looser fencing.
-    //   See "TODO: GASNETI_COMPILER_HAS_SYNC_SWAP_VIA_TEST_AND_SET" below.
-    // + Clang extends the sync atomics with __sync_swap() (w/ a full memory
-    //   fence).  Unlike __sync_lock_test_and_set(), one can use
-    //      #if GASNETI_COMPILER_HAS_BUILTIN(SYNC_SWAP,__sync_swap)
-    //   to supplement configure-time information (since when available the
-    //   behavior does not vary).
-    //   See "TODO: GASNETI_COMPILER_HAS_SYNC_SWAP" below.
-    //
+    #if __GCC_ATOMIC_TEST_AND_SET_TRUEVAL // means test_and_set is actually a swap
+      // Unlike the other __sync*(), __sync_lock_test_and_set() is documented as
+      // having only an ACQ fence.  So, we *may* need to make up the difference.
+      #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
+        // Nothing to do: SWAP must be lock-prefix instruction (or mutex cycle)
+        // TODO: other ARCHs w/ this property?
+        #define _gasneti_atomic_fence_before_swap(f) ((void)0)
+        #define _gasneti_atomic_fence_after_swap(f)  ((void)0)
+      #elif (GASNETI_RMB_IS_MB && 0)
+        // TODO: disabled since GASNETI_RMB_IS_MB could reflect *our* choice
+        // of RMB and not the implementation of __sync_lock_test_and_set().
+        // Example: on PPC we use lwsync but compiler might use isync.
+        #define _gasneti_atomic_fence_before_swap(f) _gasneti_atomic_fence_before(f)
+        #define _gasneti_atomic_fence_after_swap()   ((void)0)
+      #else
+        #define _gasneti_atomic_fence_before_swap(f) _gasneti_atomic_fence_before(f)
+        #define _gasneti_atomic_fence_after_swap(F)  _gasneti_atomic_fence_after((f) & ~GASNETI_ATOMIC_ACQ)
+      #endif
+   #endif
+
+    // Two implementations of SWAP are possible:
+    // 1) __sync_lock_test_and_set() is often a swap, and modern GCC will
+    //    `#define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1` on such platforms.
+    //    Since it has only an acquire fence, some additional work is required.
+    // 2) Loop on (fully-fenced) __sync_val_compare_and_swap().
     GASNETI_INLINE(gasneti_atomic32_swap)
     uint32_t gasneti_atomic32_swap(gasneti_atomic32_t *p, uint32_t nval, const int flags) {
         GASNETI_ASM_REGISTER_KEYWORD volatile uint32_t *p32 = &(p->gasneti_ctr);
-        GASNETI_ASM_REGISTER_KEYWORD uint32_t oval, tmp = *p32;
-    #if 0 // TODO: GASNETI_COMPILER_HAS_SYNC_SWAP_VIA_TEST_AND_SET
-        // Unlike the other __sync*(), __sync_lock_test_and_set() is documented as
-        // having only an ACQ fence.  So, we *may* need to make up the difference.
-        #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
-          // Nothing to do: SWAP must be lock-prefix instruction (or mutex cycle)
-          // TODO: other ARCHs w/ this property?
-          #define GASNETI_FLAGS_BEFORE_SWAP32(f) 0
-          #define GASNETI_FLAGS_AFTER_SWAP32(f)  0
-        #elif (GASNETI_RMB_IS_MB && 0)
-          // TODO: disabled since GASNETI_RMB_IS_MB could reflect *our* choice
-          // of RMB and not the implementation of __sync_lock_test_and_set().
-          // Example: on PPC we use lwsync but compiler might use isync.
-          #define GASNETI_FLAGS_BEFORE_SWAP32(f) (f)
-          #define GASNETI_FLAGS_AFTER_SWAP32(f)  0 // ACQ == RMB_POST == MB_POST
-        #else
-          #define GASNETI_FLAGS_BEFORE_SWAP32(f) (f)
-          #define GASNETI_FLAGS_AFTER_SWAP32(f)  (f & ~GASNETI_ATOMIC_ACQ)
-        #endif
-
-        _gasneti_atomic_fence_before(GASNETI_FLAGS_BEFORE_SWAP32(flags));
+        GASNETI_ASM_REGISTER_KEYWORD uint32_t oval;
+    #if __GCC_ATOMIC_TEST_AND_SET_TRUEVAL
+        _gasneti_atomic_fence_before_swap(flags);
         oval = __sync_lock_test_and_set(p32,nval);
-        _gasneti_atomic_fence_after(GASNETI_FLAGS_AFTER_SWAP32(flags));
-
-        #undef GASNETI_FLAGS_BEFORE_SWAP32
-        #undef GASNETI_FLAGS_AFTER_SWAP32
-    #elif 0 // TODO: GASNETI_COMPILER_HAS_SYNC_SWAP
-        oval = __sync_swap(p32,nval);
+        _gasneti_atomic_fence_after_swap(flags);
     #else
+        GASNETI_ASM_REGISTER_KEYWORD uint32_t tmp = *p32;
         do {
             oval = tmp;
         } while (oval != (tmp = __sync_val_compare_and_swap(p32,oval,nval)));
@@ -533,17 +524,27 @@
       #define gasneti_atomic64_compare_and_swap(p,oval,nval,f) \
               (__sync_bool_compare_and_swap(&((p)->gasneti_ctr), (oval), (nval)))
 
-      // TODO: this implementation could be improved.  See gasneti_atomic32_swap, above.
+      // See comments w/ gasneti_atomic64_swap
       GASNETI_INLINE(gasneti_atomic64_swap)
       uint64_t gasneti_atomic64_swap(gasneti_atomic64_t *p, uint64_t nval, const int flags) {
           GASNETI_ASM_REGISTER_KEYWORD volatile uint64_t *p64 = &(p->gasneti_ctr);
-          GASNETI_ASM_REGISTER_KEYWORD uint64_t oval, tmp = *p64;
+          GASNETI_ASM_REGISTER_KEYWORD uint64_t oval;
+      #if __GCC_ATOMIC_TEST_AND_SET_TRUEVAL
+          _gasneti_atomic_fence_before_swap(flags);
+          oval = __sync_lock_test_and_set(p64,nval);
+          _gasneti_atomic_fence_after_swap(flags);
+      #else
+          GASNETI_ASM_REGISTER_KEYWORD uint64_t tmp = *p64;
           do {
               oval = tmp;
           } while (oval != (tmp = __sync_val_compare_and_swap(p64,oval,nval)));
+      #endif
           return oval;
       }
     #endif /* GASNETI_HAVE_SYNC_ATOMICS_64 */
+
+    #undef _gasneti_atomic_fence_before_swap
+    #undef _gasneti_atomic_fence_after_swap
   #else 
     #error "GASNETI_USE_COMPILER_ATOMICOPS for unknown or unsupported compiler"
   #endif
