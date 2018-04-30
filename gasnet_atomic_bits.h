@@ -759,34 +759,6 @@
         #define _gasneti_atomic64_set(p,v)     ((p)->gasneti_ctr = (v))
        #endif
 
-        #if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(2,3,0)
-	  /* A "dirty hack" for bug 1620 because pathcc < 2.3 botches the 64-bit asm */
-          #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY\
-	    GASNETI_ASM_SPECIAL(                        \
-		         "movq     %rsi, %rax		\n\t" \
-		         GASNETI_X86_LOCK_PREFIX	\
-		         "cmpxchgq %rdx, (%rdi)		\n\t" \
-		         "sete     %cl			\n\t" \
-		         "movzbl   %cl, %eax" )
-          #define GASNETI_ATOMIC64_SWAP_BODY\
-	    GASNETI_ASM_SPECIAL(                        \
-		         "movq     %rsi, %rax		\n\t" \
-		         GASNETI_X86_LOCK_PREFIX	\
-		         "xchgq    %rax, (%rdi)" )
-          #define GASNETI_ATOMIC64_FETCHADD_BODY\
-	    GASNETI_ASM_SPECIAL(                        \
-		         "movq     %rsi, %rax		\n\t" \
-		         GASNETI_X86_LOCK_PREFIX	\
-		         "xaddq    %rax, (%rdi)" )
-
-          #define GASNETI_ATOMIC64_SPECIALS                                      \
-            GASNETI_SPECIAL_ASM_DEFN(_gasneti_special_atomic64_compare_and_swap, \
-                                     GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY)     \
-            GASNETI_SPECIAL_ASM_DEFN(_gasneti_special_atomic64_swap,             \
-                                     GASNETI_ATOMIC64_SWAP_BODY)                 \
-            GASNETI_SPECIAL_ASM_DEFN(_gasneti_special_atomic64_fetchadd,         \
-                                     GASNETI_ATOMIC64_FETCHADD_BODY)
-        #else
           GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
           int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
 	  #if GASNETI_PGI_ASM_BUG2843 && GASNET_NDEBUG
@@ -839,7 +811,6 @@
             return retval;
           }
           #define _gasneti_atomic64_fetchadd _gasneti_atomic64_fetchadd
-        #endif
       #elif PLATFORM_COMPILER_OPEN64
         /* No known working 64-bit atomics for this compiler on ILP32.  See bug 2725. */
       #elif GASNETI_USE_X86_EBX && \
