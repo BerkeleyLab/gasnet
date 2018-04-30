@@ -33,6 +33,14 @@ EX-Specific Implementation Notes:
 * gasnet_fwd.h provides a dependency-free useful subset of the API
   declarations, suitable for inclusion into application-level code.
 
+* The following public headers may be included in any order:
+  - gasnetex.h       : GASNet-EX API + Tools
+  - gasnet.h         : GASNet-1 API (also includes gasnetex.h)
+  - gasnet_fwd.h     : Forward declaration subset for app inclusion
+  - gasnet_ratomic.h : Remote Atomics API
+  - gasnet_vis.h     : Non-contiguous RMA (VIS) API
+  - gasnet_coll.h    : Collectives API
+
 =======================================================================
 =======================================================================
 
