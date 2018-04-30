@@ -116,7 +116,7 @@ extern void gasnete_init(void) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#include "gasnet_extended_refvis.h"
+#include "gasnet_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -125,7 +125,7 @@ extern void gasnete_init(void) {
 */
 
 /* use reference implementation of collectives */
-#include "gasnet_extended_refcoll.h"
+#include "gasnet_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -134,7 +134,7 @@ extern void gasnete_init(void) {
 */
 
 /* use reference implementation of remote atomics */
-#include "gasnet_extended_refratomic.h"
+#include "gasnet_refratomic.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*

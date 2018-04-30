@@ -10,6 +10,31 @@ GASNet-EX ChangeLog
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
+PENDING: GASNet-EX 2018.6.0 Release
+
+* GASNet-EX Spec v0.5:
+  - Add GEX_OP_TO_(NON)FETCHING()
+
+* Notable bugs fixed in this release:
+  - Bug3749: assertion failure in PSHM's NP-AM
+
+* Major new features implemented in this release:
+  - gasnet_fwd.h now provides a dependency-free useful subset of the API 
+    declarations, suitable for inclusion into application-level code.
+
+* Feature implementation status in this release:
+  - ...
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
 03-28-2018: GASNet-EX 2018.3.0 Release
 
 * GASNet-EX Spec v0.4:
@@ -192,6 +217,7 @@ GASNet ChangeLog
   - Fix bug 3647: aries-conduit should honor non-default process layouts
   - Fix bug 3695: AMReply injection might corrupt the payload of the
     running AM Medium Request handler.
+  - Tweak the interface and documentation of GASNET_GNI_MEM_CONSISTENCY envvar.
 
 * Libfabric (ofi-conduit)
   - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
@@ -199,6 +225,8 @@ GASNet ChangeLog
 
 * InfiniBand Verbs (ibv-conduit)
   - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
+  - Now use HCA's maximum supported MTU by default, resulting in nearly a 2x
+    increase in peak Get bandwidth on modern HCAs.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
@@ -230,11 +258,19 @@ GASNet ChangeLog
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
+  - Additional debug checks now detect prohibited overlap in loopback RMA and AMLong.
+  - The extended-ref source directory has been re-arranged
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
   - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
+  - Fix bug 3741: misidentification of IBM XL Compilers 13.1.6 and newer (v6)
+  - Fix bug 3743: verify correct KNL processor tuning on CNL
+  - Public headers are less suceptible to malfunctions when compiled with
+    un-prefixed tokens redefined by the preprocessor. C/C++ keywords remain
+    reserved, as do tokens prepended by one or more underscores or one of the
+    reserved gasnet prefixes (see 'GASNet coding standards' in README-devel)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.

@@ -205,8 +205,6 @@ void gasnete_iop_free(gasnete_iop_t *iop GASNETI_THREAD_FARG) {
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface */
 
-#if !GASNETI_DISABLE_EOP_INTERFACE
-
 // TODO-EX: EOP_INTERFACE
 //   Must generalize IOP to encompass LC, RMW and future Event Categories
 //     Anticipated implementation is to replace 'isget' with a member of the
@@ -257,8 +255,6 @@ void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations) {
   GASNETE_IOP_CNT_FINISH(op, rmw, noperations, 0);
   gasnete_iop_check(op);
 }
-
-#endif // GASNETI_DISABLE_EOP_INTERFACE
 
 /* ------------------------------------------------------------------------------------ */
 /*

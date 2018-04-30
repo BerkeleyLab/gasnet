@@ -296,6 +296,7 @@ extern void gasneti_check_config_preinit(void) {
 }
 
 static void gasneti_check_portable_conduit(void);
+static void gasneti_check_architecture(void);
 int gasneti_malloc_munmap_disabled = 0;
 extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
@@ -330,6 +331,7 @@ extern void gasneti_check_config_postattach(void) {
       }
       #if GASNET_NDEBUG
         gasneti_check_portable_conduit();
+        gasneti_check_architecture();
       #endif
     }
   }
@@ -1212,6 +1214,34 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       fflush(stderr);
     }
   }
+}
+
+static void gasneti_check_architecture(void) { // check for bad build configurations
+  #if PLATFORM_OS_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
+  { FILE *fp = fopen("/proc/cpuinfo","r");
+    char model[255];
+    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    while (!feof(fp) && fgets(model, sizeof(model), fp)) {
+      if (strstr(model,"model name")) break;
+    }
+    fclose(fp);
+    GASNETI_TRACE_PRINTF(I,("CPU %s",model));
+    int isKNL = !!strstr(model, "Phi");
+    #ifdef __CRAY_MIC_KNL  // module craype-mic-knl that tunes for AVX512
+      const char *warning = isKNL ? 0 :
+      "WARNING: This executable was optimized for MIC KNL (module craype-mic-knl) but run on another processor!\n";
+    #else // some other x86 tuning mode
+      const char *warning = isKNL ? 
+      "WARNING: This executable is running on a MIC KNL architecture, but was not optimized for MIC KNL.\n"
+      "WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!\n"
+      : 0;
+    #endif
+    if (warning && gasneti_mynode == 0) {
+      fprintf(stderr, warning);
+      fflush(stderr);
+    }
+  }
+  #endif
 }
 
 /* ------------------------------------------------------------------------------------ */

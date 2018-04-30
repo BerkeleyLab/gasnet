@@ -15,8 +15,7 @@ SUBDIRS =            \
 # GASNET_TOOLSONLY_TRUE_BEGIN
 # CONDUITMODE_DIST_SUBDIRS = 
 # CONDUITMODE_headers = 
-# CONDUITMODE_EXTRA_DIST = 	\
-# 	.gasnet_toolsonly_mode 
+# CONDUITMODE_EXTRA_DIST = .gasnet_toolsonly_mode 
 # GASNET_TOOLSONLY_TRUE_END
 # GASNET_TOOLSONLY_FALSE_BEGIN
   # Directories we manually recurse into:
@@ -37,9 +36,11 @@ CONDUITMODE_headers = 		\
 	gasnetex.h           	\
 	gasnet.h           	\
 	gasnet_ammacros.h  	\
-	gasnet_coll.h      	\
 	gasnet_trace.h     	\
-	gasnet_vis.h      
+	gasnet_fwd.h    	\
+	extended-ref/coll/gasnet_coll.h \
+	extended-ref/ratomic/gasnet_ratomic.h \
+	extended-ref/vis/gasnet_vis.h      
 CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
@@ -73,6 +74,7 @@ headers =                  	\
 	gasnet_asm.h       	\
 	gasnet_atomicops.h 	\
 	gasnet_atomic_bits.h 	\
+	gasnet_atomic_fwd.h 	\
         gasnet_basic.h     	\
         gasnet_help.h      	\
 	gasnet_membar.h    	\
@@ -81,6 +83,7 @@ headers =                  	\
 	gasnet_toolhelp.h  	
 
 EXTRA_DIST =              		\
+	$(CONDUITMODE_EXTRA_DIST)       \
 	README				\
  	README-tools 			\
 	ChangeLog	  		\
@@ -91,9 +94,7 @@ EXTRA_DIST =              		\
         configure.in      		\
         acconfig.h        		\
         acinclude.m4      		\
-        $(headers)        		\
-        gasnet_tools.c    		\
-	$(CONDUITMODE_EXTRA_DIST)
+        gasnet_tools.c    		
 #       tests handled below
 
 include_HEADERS = $(headers)

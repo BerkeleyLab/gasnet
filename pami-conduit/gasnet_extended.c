@@ -398,7 +398,7 @@ gex_Event_t gasnete_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(H);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
     gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_eop_done, op);
@@ -414,7 +414,7 @@ gex_Event_t gasnete_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(H);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
     pami_event_function ldone_fn = NULL;
@@ -461,7 +461,7 @@ int gasnete_get_nbi( gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -479,7 +479,7 @@ int gasnete_put_nbi( gex_TM_t tm,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -523,7 +523,7 @@ int gasnete_get(     gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     volatile int done = 0;
     gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_int_done, (void*)&done);
@@ -541,7 +541,7 @@ int gasnete_put(     gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT_NOLC(I);
+  GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes);
   {
     volatile int done = 0;
     gasnete_put_common(rank, dest, src, nbytes, NULL, gasnete_cb_int_done, (void*)&done);
@@ -1214,7 +1214,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#include "gasnet_extended_refvis.h"
+#include "gasnet_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1223,7 +1223,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of collectives */
-#include "gasnet_extended_refcoll.h"
+#include "gasnet_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1232,7 +1232,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of remote atomics */
-#include "gasnet_extended_refratomic.h"
+#include "gasnet_refratomic.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*

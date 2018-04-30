@@ -22,11 +22,24 @@ the evolving EX specification.
 GASNet-EX notably includes a backwards-compatibility layer to assist in
 migration of current GASNet-1 client software. Existing GASNet clients can
 get started by relying on this layer (provided in gasnet.h), and incrementally 
-add calls to the new gex_* interfaces (defined in gasnetex.h) to access new 
-EX features and capabilities.
+add calls to the new gex_* interfaces (defined in gasnetex.h, which is 
+automatically included by gasnet.h) to access new EX features and capabilities.
 
 Feedback or questions on any matters related to the GASNet-EX project are
 welcomed at: gasnet-devel@lbl.gov
+
+EX-Specific Implementation Notes:
+
+* gasnet_fwd.h provides a dependency-free useful subset of the API
+  declarations, suitable for inclusion into application-level code.
+
+* The following public headers may be included in any order:
+  - gasnetex.h       : GASNet-EX API + Tools
+  - gasnet.h         : GASNet-1 API (also includes gasnetex.h)
+  - gasnet_fwd.h     : Forward declaration subset for app inclusion
+  - gasnet_ratomic.h : Remote Atomics API
+  - gasnet_vis.h     : Non-contiguous RMA (VIS) API
+  - gasnet_coll.h    : Collectives API
 
 =======================================================================
 =======================================================================

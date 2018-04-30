@@ -709,16 +709,14 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     gasnetc_init_reg_credit(MAX(max_memreg, 0));
   }
 
-  gasnetc_mem_consistency = GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY;
-  { char * envval = gasneti_getenv("GASNET_GNI_MEM_CONSISTENCY");
-    if (!envval || !envval[0]) {
-      /* No value given - keep default */
-    } else if (!strcmp(envval, "strict") || !strcmp(envval, "STRICT")) {
+  { const char * envval = gasneti_getenv_withdefault("GASNET_GNI_MEM_CONSISTENCY","relaxed");
+    gasnetc_mem_consistency = GASNETC_RELAXED_MEM_CONSISTENCY;
+    if (!strcmp(envval, "strict") || !strcmp(envval, "STRICT")) {
       gasnetc_mem_consistency = GASNETC_STRICT_MEM_CONSISTENCY;
     } else if (!strcmp(envval, "relaxed") || !strcmp(envval, "RELAXED")) {
       gasnetc_mem_consistency = GASNETC_RELAXED_MEM_CONSISTENCY;
-    } else if (!strcmp(envval, "default") || !strcmp(envval, "DEFAULT")) {
-      gasnetc_mem_consistency = GASNETC_DEFAULT_MEM_CONSISTENCY;
+    } else if (!strcmp(envval, "none") || !strcmp(envval, "NONE")) {
+      gasnetc_mem_consistency = GASNETC_NEITHER_MEM_CONSISTENCY;
     } else if (!gasneti_mynode) {
       fflush(NULL);
       fprintf(stderr, "WARNING: ignoring unknown value '%s' for environment "
@@ -734,7 +732,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     case GASNETC_RELAXED_MEM_CONSISTENCY:
       gasnetc_memreg_flags = GNI_MEM_RELAXED_PI_ORDERING;
       break;
-    case GASNETC_DEFAULT_MEM_CONSISTENCY:
+    case GASNETC_NEITHER_MEM_CONSISTENCY:
       gasnetc_memreg_flags = 0;
       break;
   }
@@ -1734,8 +1732,8 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
   uint64_t mask;
   size_t length;
+  unsigned int slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
   if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
-    unsigned int slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
     gasneti_assert(slots <= am_maxcredit/2);
     mask = (((uint64_t)1 << slots) - 1);
 
@@ -1745,19 +1743,18 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
-    length = max_length;
+    length = min_length;
   } else {
-    unsigned int min_slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
-    unsigned int slots;
+    unsigned int avail_slots;
 
-    BUSYWAIT(((slots = gasnetc_remote_slots_avail(peer)) < min_slots),
+    BUSYWAIT(((avail_slots = gasnetc_remote_slots_avail(peer)) < slots),
            ESCAPE1(out_immediate_2),
            ESCAPE2(out_immediate_2),
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
     unsigned int max_slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
-    slots = MIN(slots, max_slots);
+    slots = MIN(avail_slots, max_slots);
     length = slots << am_slot_bits;
 
     mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
@@ -1819,7 +1816,7 @@ gasnetc_alloc_request_post_descriptor(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  return request_post_descriptor_inner(dest, 1, 0, length, flags GASNETI_THREAD_PASS);
+  return request_post_descriptor_inner(dest, 1, length, length, flags GASNETI_THREAD_PASS);
 }
 
 #if GASNETC_NP_MEDXL // NP Medium beyond MaxMedium - disabled by default

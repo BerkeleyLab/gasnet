@@ -683,9 +683,11 @@ unsigned int gex_AM_MaxArgs(void);
 //    increasing results when all other parameters are held fixed.
 // 4. 'lc_opt' indicates the payload local completion option to be used for
 //    the AM injection or prepare call in question.  The predefined constants
-//    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while NULL
-//    should be used to indicate the injection or prepare call will be passed a
-//    pointer to an gex_Event_t (including NULL where permitted/required).
+//    GEX_EVENT_NOW and GEX_EVENT_GROUP should be used directly, while a
+//    pointer to any variable of type gex_Event_t (or a NULL pointer) may be
+//    used interchangeably to indicate that the injection or prepare call
+//    passes any such value (without requiring that the same pointer value be
+//    passed).
 // 5. 'flags' indicates the flags that will be provided to the corresponding
 //    AM injection or prepare function (and should not to be confused with the
 //    handler registration flags).  The result of the query is only guaranteed
@@ -1593,6 +1595,25 @@ typedef [some integer type] gex_DT_t;
 typedef [some integer type] gex_OP_t;
 #define GEX_OP_??? ((gex_OP_t)???) // For each GEX_OP_* above
 
+// Opcode conversion
+//
+// The macro GEX_OP_TO_FETCHING(op) takes a non-fetching opcode as an argument
+// and returns the corresponding fetching opcode.  The value of 'op' must be
+// either GEX_OP_SET or an opcode listed under "Non-fetching Operations", above.
+// All other values return undefined results.
+//
+// The macro GEX_OP_TO_NONFETCHING(op) takes a fetching opcode as an argument
+// and returns the corresponding non-fetching opcode.  The value of 'op' must be
+// either GEX_OP_SWAP or an opcode listed under "Fetching Operations", above.
+// All other values return undefined results.
+//
+// In addition to the natural result when applied to the arithmetic opcodes,
+// SWAP/SET are considered to be a fetching/non-fetching pair:
+//    GEX_OP_TO_FETCHING(GEX_OP_SET)     == GEX_OP_SWAP
+//    GEX_OP_TO_NONFETCHING(GEX_OP_SWAP) == GEX_OP_SET
+
+#define GEX_OP_TO_FETCHING(op)    ???
+#define GEX_OP_TO_NONFETCHING(op) ???
 
 //----------------------------------------------------------------------
 //

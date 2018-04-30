@@ -28,8 +28,7 @@
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                     \
     GASNETI_TRACE_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,flags,numargs); \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
-    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;  \
-    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,_lc_opt_or_null,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestMedium(tm,rank,lc_opt,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
@@ -41,8 +40,7 @@
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                             \
     GASNETI_TRACE_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,flags,numargs); \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
-    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;          \
-    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,_lc_opt_or_null,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gex_AM_MaxRequestLong(tm,rank,lc_opt,flags,numargs)),       \
                        BAD_ARG,"nbytes too large");                                          \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
@@ -58,8 +56,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                    \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                    \
     GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,flags,numargs);    \
-    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt; \
-    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyMedium(token,_lc_opt_or_null,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                 \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
@@ -70,8 +67,7 @@
     gasneti_assert(! (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));                            \
     gasneti_assert(numargs >= 0 && numargs <= gex_AM_MaxArgs());                            \
     GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,flags,numargs);    \
-    gex_Event_t *_lc_opt_or_null = gasneti_leaf_is_pointer(lc_opt) ? NULL : lc_opt;         \
-    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyLong(token,_lc_opt_or_null,flags,numargs)),\
+    GASNETI_CHECK_ERRR((nbytes > gasnetc_Token_MaxReplyLong(token,lc_opt,flags,numargs)),   \
                        BAD_ARG,"nbytes too large");                                         \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                  \
     GASNETI_CHECK_ERRR((lc_opt == GEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
@@ -264,8 +260,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       sd->_nargs     = nargs;                                                              \
       gex_Flags_t tmp_flags = flags | (cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT             \
                                             : GEX_FLAG_AM_PREPARE_LEAST_ALLOC);            \
-      gex_Event_t *lc_opt_or_null = (lc_opt && gasneti_leaf_is_pointer(lc_opt)) ? NULL : lc_opt; \
-      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt_or_null,tmp_flags,nargs);       \
+      size_t limit = gex_AM_MaxRequest##cat(tm,dest,lc_opt,tmp_flags,nargs);               \
       if (dest >= gex_TM_QuerySize(tm))                                                    \
         gasneti_fatalerror("gex_AM_PrepareRequest" _STRINGIFY(cat) ": "                    \
                            "destination rank out-of-range (%lu >= %lu)",                   \

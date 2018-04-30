@@ -65,7 +65,7 @@
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);
-extern void gasneti_fatal_threadoverflow(const char *subsystem);
+extern void gasneti_fatal_threadoverflow(const char *_subsystem);
 
 #ifndef _GASNETE_MYTHREAD
   struct _gasnete_threaddata_t;
@@ -87,12 +87,12 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem);
    run for dynamic thread exits when the process is continuing.
    Cleanups will run in reverse order of registration
  */
-extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context);
+extern void gasnete_register_threadcleanup(void (*_cleanupfn)(void *), void *_context);
 
 typedef struct _gasnete_thread_cleanup {
-    struct _gasnete_thread_cleanup *next;
-    void (*cleanupfn)(void *);
-    void *context;
+    struct _gasnete_thread_cleanup *_next;
+    void (*_cleanupfn)(void *);
+    void *_context;
 } gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
 
 
@@ -260,27 +260,28 @@ typedef union {
   } while(0)
 #else
 #define GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes) do { \
-  const void * const _src = (src);                          \
-  void * const _dst = (dest);                               \
-  switch(nbytes) {                                          \
+  const void * const _fam_src = (src);                      \
+  void * const _fam_dst = (dest);                           \
+  size_t const _fam_nbytes = (nbytes);                      \
+  switch(_fam_nbytes) {                                     \
     case 0:                                                 \
       break;                                                \
-    case 1:  *((gasnete_anytype8_t *)_dst) =                \
-             *((gasnete_anytype8_t *)_src);                 \
+    case 1:  *((gasnete_anytype8_t *)_fam_dst) =            \
+             *((gasnete_anytype8_t *)_fam_src);             \
       break;                                                \
   GASNETE_OMIT_WHEN_MISSING_16BIT(                          \
-    case 2:  *((gasnete_anytype16_t *)_dst) =               \
-             *((gasnete_anytype16_t *)_src);                \
+    case 2:  *((gasnete_anytype16_t *)_fam_dst) =           \
+             *((gasnete_anytype16_t *)_fam_src);            \
       break;                                                \
   )                                                         \
-    case 4:  *((gasnete_anytype32_t *)_dst) =               \
-             *((gasnete_anytype32_t *)_src);                \
+    case 4:  *((gasnete_anytype32_t *)_fam_dst) =           \
+             *((gasnete_anytype32_t *)_fam_src);            \
       break;                                                \
-    case 8:  *((gasnete_anytype64_t *)_dst) =               \
-             *((gasnete_anytype64_t *)_src);                \
+    case 8:  *((gasnete_anytype64_t *)_fam_dst) =           \
+             *((gasnete_anytype64_t *)_fam_src);            \
       break;                                                \
     default:                                                \
-      memcpy(_dst, _src, nbytes);                           \
+      memcpy(_fam_dst, _fam_src, _fam_nbytes);              \
   }                                                         \
 } while(0)
 #endif /* GASNETI_BUG1389_WORKAROUND */
@@ -332,11 +333,11 @@ typedef union {
 /* interpret *src as a ptr to an nbytes type,
    and return the value as a gex_RMA_Value_t */
 #ifdef GASNETI_BUG1389_WORKAROUND
-  #define GASNETE_VALUE_RETURN(src, nbytes) do {              \
-    gex_RMA_Value_t result = 0;                       \
-    gasneti_compiler_fence();                                 \
-    memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes); \
-    return result;                                            \
+  #define GASNETE_VALUE_RETURN(src, nbytes) do {               \
+    gex_RMA_Value_t _result = 0;                               \
+    gasneti_compiler_fence();                                  \
+    memcpy(GASNETE_STARTOFBITS(&_result,nbytes), src, nbytes); \
+    return _result;                                            \
   } while(0)
 #else
 #define GASNETE_VALUE_RETURN(src, nbytes) do {                               \
@@ -349,9 +350,9 @@ typedef union {
       case 4: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
       case 8: return (gex_RMA_Value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
       default: { /* no such native nbytes integral type */                   \
-          gex_RMA_Value_t result = 0;                                \
-          memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes);          \
-          return result;                                                     \
+          gex_RMA_Value_t _result = 0;                                       \
+          memcpy(GASNETE_STARTOFBITS(&_result,nbytes), src, nbytes);         \
+          return _result;                                                    \
       }                                                                      \
     }                                                                        \
   } while (0)
@@ -398,59 +399,57 @@ typedef union {
 #define GASNETE_MYTHREAD          GASNETI_MYTHREAD 
 
 /* helper macros */
-#define _GASNETI_RETURN_I  return 0
-#define _GASNETI_RETURN_H  return GEX_EVENT_INVALID
-#define GASNETI_CHECKZEROSZ_GET(variety, rt) do {            \
-    if_pf (nbytes == 0) {                                    \
-      GASNETI_TRACE_GET_LOCAL(variety,dest,rank,src,nbytes); \
-      _GASNETI_RETURN_##rt;                                  \
+#define GASNETI_CHECKZEROSZ_GET(variety,dest,rank,src,nbytes) do { \
+    if_pf (nbytes == 0) {                                          \
+      GASNETI_TRACE_GET_LOCAL(variety,dest,rank,src,nbytes);       \
+      return 0;                                                    \
     } } while(0)
-#define GASNETI_CHECKZEROSZ_PUT(variety, rt) do {            \
-    if_pf (nbytes == 0) {                                    \
-      GASNETI_TRACE_PUT_LOCAL(variety,rank,dest,src,nbytes); \
-      _GASNETI_RETURN_##rt;                                  \
+#define GASNETI_CHECKZEROSZ_PUT(variety,rank,dest,src,nbytes) do { \
+    if_pf (nbytes == 0) {                                          \
+      GASNETI_TRACE_PUT_LOCAL(variety,rank,dest,src,nbytes);       \
+      return 0;                                                    \
     } } while(0)
-#define GASNETI_CHECKZEROSZ_NAMED(tracecall, rt) do { \
-    if_pf (nbytes == 0) {                             \
-      tracecall;                                      \
-      _GASNETI_RETURN_##rt;                           \
+#define GASNETI_CHECKZEROSZ_NAMED(tracecall,nbytes) do {           \
+    if_pf (nbytes == 0) {                                          \
+      tracecall;                                                   \
+      return 0;                                                    \
     } } while(0)
 #if GASNET_PSHM
-  #define GASNETI_CHECKPSHM_GET(rt) do { \
-    if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
-      gasnete_loopbackget_memsync();            \
-      _GASNETI_RETURN_##rt;                     \
+  #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes) do {                   \
+    if (gasneti_pshm_in_supernode(rank)) {                                      \
+      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes);         \
+      gasnete_loopbackget_memsync();                                            \
+      return 0;                                                                 \
     }} while(0)
-  #define GASNETI_CHECKPSHM_PUT(rt) do { \
-    if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
-      gasnete_loopbackput_memsync();            \
-      gasneti_leaf_finish(lc_opt);            \
-      _GASNETI_RETURN_##rt;                     \
+  #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes) do {                   \
+    if (gasneti_pshm_in_supernode(rank)) {                                      \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes);         \
+      gasnete_loopbackput_memsync();                                            \
+      gasneti_leaf_finish(lc_opt);                                              \
+      return 0;                                                                 \
     }} while(0)
-  #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \
-    if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
-      gasnete_loopbackput_memsync();            \
-      _GASNETI_RETURN_##rt;                     \
+  #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) do {              \
+    if (gasneti_pshm_in_supernode(rank)) {                                      \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes);         \
+      gasnete_loopbackput_memsync();                                            \
+      return 0;                                                                 \
     }} while(0)
-  #define GASNETI_CHECKPSHM_GETVAL() do {     \
-    if (gasneti_pshm_in_supernode(rank)) {      \
-      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(rank, src), nbytes); \
+  #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes) do {                     \
+    if (gasneti_pshm_in_supernode(rank)) {                                      \
+      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(rank, src), nbytes);         \
     }} while(0)
-  #define GASNETI_CHECKPSHM_PUTVAL(rt) do {     \
-    if (gasneti_pshm_in_supernode(rank)) {      \
+  #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) do {              \
+    if (gasneti_pshm_in_supernode(rank)) {                                      \
       GASNETE_VALUE_ASSIGN(gasneti_pshm_addr2local(rank, dest), value, nbytes); \
-      gasnete_loopbackput_memsync();            \
-      _GASNETI_RETURN_##rt;                     \
+      gasnete_loopbackput_memsync();                                            \
+      return 0;                                                                 \
     }} while(0)
 #else
-  #define GASNETI_CHECKPSHM_GET(rt)        ((void)0)
-  #define GASNETI_CHECKPSHM_PUT(rt)        ((void)0)
-  #define GASNETI_CHECKPSHM_PUT_NOLC(rt)   ((void)0)
-  #define GASNETI_CHECKPSHM_GETVAL()       ((void)0)
-  #define GASNETI_CHECKPSHM_PUTVAL(rt)     ((void)0)
+  #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes)      ((void)0)
+  #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes)      ((void)0)
+  #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) ((void)0)
+  #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes)        ((void)0)
+  #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) ((void)0)
 #endif
 
 // GASNETI_SUPERNODE_* convenience macros (same semantics w/ and w/o PSHM)
