@@ -165,6 +165,8 @@ typedef void (*gasnet_coll_reduce_fn_t)(
 	right_operands = A + 1
 */
 
+// TODO-EX: The fields of this struct violate public header naming conventions.
+// Need to remove or rework this struct
 typedef struct {
     gasnet_coll_reduce_fn_t	fnptr;
     unsigned int		flags;
@@ -285,6 +287,9 @@ void gasnete_coll_dumpProfile(char *_filename, gasnete_coll_team_t _team GASNETE
 #define gasnet_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
 gasnete_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)
 
+#ifdef _GASNET_COLL_INTERNAL_H
+// The fields of this struct violate public header naming conventions,
+// but it is only used internally by the autotuner so hide it from clients
 typedef struct gasnet_coll_args_t_ {
   uint8_t **dst; 
   uint8_t **src; 
@@ -305,6 +310,7 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t _team, gasnet_coll_optype
                                   gasnet_coll_overlap_sample_work_t _fnptr, void *_sample_work_arg,
                                   /*returned by the algorithm*/
                                   uint32_t *_best_algidx, uint32_t *_num_params, uint32_t **_best_param, char **_best_tree GASNETE_THREAD_FARG);
+#endif // _GASNET_COLL_INTERNAL_H
 
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t _team, gasnet_coll_optype_t _optype);
 extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t _team, int _tree_type, int _fanout, gasnet_coll_optype_t _optype); 
