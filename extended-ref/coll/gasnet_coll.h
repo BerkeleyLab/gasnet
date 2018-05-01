@@ -176,20 +176,16 @@ struct gasnete_coll_team_t_;
 typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
 typedef gasnete_coll_team_t gasnet_team_handle_t;
 /*change this so even the TEAM_ALL has a default team allocated rather than NULL*/
+#endif
 
 #ifndef GASNET_TEAM_ALL
 extern gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
 
-#endif
-
-
-
 extern gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
 extern gex_Rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node);
 extern gex_Rank_t gasnete_coll_team_size(gasnete_coll_team_t team);
-
 
 #define gasnet_coll_team_rank2node(TEAM, RANK) gasnete_coll_team_rank2node(TEAM, RANK)
 #define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
