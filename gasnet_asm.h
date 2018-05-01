@@ -141,6 +141,24 @@
   #endif
 #endif
 
+// Compilers with __has_builtin() support (at least clang-derived ones) treat
+// the __sync* atomic functions as built-ins, allowing this preprocess-time
+// probe.  However, we apply this only to compilers not probed for this support
+// by configure.
+// Lack of a __builtin prefix on these functions necessitates use of the
+// _GASNETI_HAS_BUILTIN macro, not originally intended for use outside
+// of gasnet_basic.h.
+#if GASNETI_COMPILER_IS_UNKNOWN
+  #if _GASNETI_HAS_BUILTIN(__sync_bool_compare_and_swap) && \
+      _GASNETI_HAS_BUILTIN(__sync_val_compare_and_swap)  && \
+      _GASNETI_HAS_BUILTIN(__sync_fetch_and_add)
+    #define GASNETI_HAVE_SYNC_ATOMICS_32 1
+    #if PLATFORM_ARCH_64
+      #define GASNETI_HAVE_SYNC_ATOMICS_64 1
+    #endif
+  #endif
+#endif
+
 #if PLATFORM_OS_BGQ && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
   /* The situation on BG/Q is either as bad as on BG/P, or perhaps worse.
    * The use of 'extern inline' means we can't get what we need at all in

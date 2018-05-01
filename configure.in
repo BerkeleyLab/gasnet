@@ -2450,6 +2450,7 @@ AC_DEFUN([GASNET_GET_ATOMIC_IMPL],[
     2) GASNETI_[]uppername[]_IMPL_STR=os;;
     3) GASNETI_[]uppername[]_IMPL_STR=compiler;;
     4) GASNETI_[]uppername[]_IMPL_STR=hybrid;;
+    5) GASNETI_[]uppername[]_IMPL_STR=native;;  # 5="special" is native but not inline
     *) GASNET_MSG_ERROR([Invalid GASNETI_[]uppername[]_IMPL detected])
        ;;
   esac
