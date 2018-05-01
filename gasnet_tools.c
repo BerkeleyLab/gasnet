@@ -173,8 +173,11 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 /* ------------------------------------------------------------------------------------ */
 /* call-based atomic support for C compilers with limited inline assembly */
 
-#ifdef GASNETI_ATOMIC_SPECIALS
-  GASNETI_ATOMIC_SPECIALS
+#ifdef GASNETI_ATOMIC32_SPECIALS
+  GASNETI_ATOMIC32_SPECIALS
+#endif
+#ifdef GASNETI_ATOMIC64_SPECIALS
+  GASNETI_ATOMIC64_SPECIALS
 #endif
 
 /* ------------------------------------------------------------------------------------ */
