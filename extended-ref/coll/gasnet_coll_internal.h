@@ -244,6 +244,9 @@ typedef enum {
 #endif
 } gasnete_coll_barrier_type_t;
 
+/* intialize the barriers for a given team */
+extern void gasnete_coll_barrier_init(gasnete_coll_team_t _team, int _barrier_type,
+                                      gasnet_node_t *_nodes, gasnet_node_t *_super_nodes);
 
 /* "peers" are sets of nodes at distances +/- powers of two, taken from some parent set */
 typedef struct {
