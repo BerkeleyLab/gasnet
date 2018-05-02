@@ -48,6 +48,8 @@
 #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
       PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG || \
       PLATFORM_COMPILER_PGI || \
+      (PLATFORM_COMPILER_SUN && PLATFORM_COMPILER_VERSION_GE(5,12,0) && \
+       (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)) || \
       (PLATFORM_COMPILER_XLC && PLATFORM_COMPILER_VERSION_GE(12,0,0))
   #define GASNETI_HAVE_GCC_ASM 1
 #elif GASNETI_HAVE_SIMPLE_ASM
@@ -200,13 +202,13 @@
 //
 #if !GASNETI_COMPILER_IS_UNKNOWN
   #if GASNETI_HAVE_GCC_ASM && !GASNETI_COMPILER_HAS(GCC_ASM)
-    #error Version-based test of GCC_ASM support passes when configure-based FAILED
+    #error Something about your compiler violates GASNet's hard-coded assumptions regarding GCC_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information.
   #elif GASNETI_HAVE_SIMPLE_ASM && !GASNETI_COMPILER_HAS(SIMPLE_ASM)
     #if PLATFORM_COMPILER_SUN_C
       // Exceptional because configure probe tests a different spelling.
       // C compiler *always* supports `__asm()`, but support for `asm()` is probed.
     #else
-      #error Version-based test of SIMPLE_ASM support passes when configure-based FAILED
+      #error Something about your compiler violates GASNet's hard-coded assumptions regarding SIMPLE_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information.
     #endif
   #endif
 #endif
