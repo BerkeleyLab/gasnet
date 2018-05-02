@@ -13,7 +13,6 @@
 #define ALL_THREADS_POLL 0
 
 #include <gasnet_internal.h>
-#include <coll/gasnet_coll.h>
 
 #include <coll/gasnet_coll_internal.h>
 #include <coll/gasnet_team.h>

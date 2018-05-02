@@ -14,7 +14,6 @@
 #include <string.h>
 
 #include <gasnet_extended_help.h>
-#include <gasnet_coll.h>
 
 /*  TODO: add debug code to enforce restrictions on SEQ and PARSYNC config */
 /*        (only one thread calls, HSL's only locked by that thread - how to check without pthread_getspecific()?) */
@@ -804,17 +803,8 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t _node, void *_src, size_t
   =========
 */
 
-
-#ifndef GASNET_TEAM_ALL
-extern gasnet_team_handle_t gasnete_coll_team_all;
-#define GASNET_TEAM_ALL gasnete_coll_team_all
-#endif
-
-/*intialize the barriers for a given team*/
-extern void gasnete_coll_barrier_init(gasnete_coll_team_t _team, int _barrier_type,
-                                      gasnet_node_t *_nodes, gasnet_node_t *_super_nodes);
-
-/*initialize the barriers for GASNET_TEAM_ALL*/
+// initialize the barriers for GASNET_TEAM_ALL
+// other teams are handled by gasnete_coll_barrier_init
 extern void gasnete_barrier_init(void);
 
 
