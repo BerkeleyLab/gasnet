@@ -260,6 +260,7 @@ GASNet ChangeLog
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
   - Additional debug checks now detect prohibited overlap in loopback RMA and AMLong.
   - The extended-ref source directory has been re-arranged
+  - Clients using gasnet_coll_* must now explicitly #include <gasnet_coll.h>
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
