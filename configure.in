@@ -197,6 +197,8 @@ case "$CC_FAMILY" in
         esac
         ;;
   PGI)  GASNET_PGI_VERSION_CHECK(CC);;
+  Pathscale)
+        GASNET_PATHSCALE_VERSION_CHECK(CC);;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -1084,11 +1086,23 @@ GASNET_FUN_BEGIN([$0($1,$2)])
 pushdef([lowername],translit($2,'A-Z','a-z'))
 pushdef([uppername],translit($2,'a-z','A-Z'))
 pushdef([flagsvar],ifelse(index([$2],[CXX]),[-1],[C],[CXX])[]FLAGS)
+GASNET_PUSHVAR(flagsvar,"$flagsvar -I$TOP_SRCDIR/other")
 case "$[]uppername[]_FAMILY" in
 Sun)
     GASNET_TRY_CACHE_LINK([$1 for simple inline asm() support], lowername[]_simple_asm, [],
       [ asm("nop"); ],
       [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_SIMPLE_ASM) ])
+    # We lack a reliable configure probe to diagnose broken GCC inline asm support on Sun C
+    # We only know 5.12 and newer on x86/x86-64 are reliable (see bug 2941)
+    GASNET_TRY_CACHE_LINK([$1 for GCC inline asm support], lowername[]_gcc_asm, [
+        #include "gasnet_portable_platform.h"
+      ],[
+        #if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64) && PLATFORM_COMPILER_VERSION_GE(5,12,0)
+          __asm__ __volatile__ ("lock; addl \$[]0,0(%%esp)" : : : "memory", "cc");
+        #else
+          #error Support has not been verified
+        #endif
+      ],[ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
   ;;
 XLC)
     GASNET_TRY_CACHE_LINK([$1 for XLC mc_func support], lowername[]_mc_func, [
@@ -1109,9 +1123,7 @@ GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)
     AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM)
   ;;
 esac
-GASNET_PUSHVAR(flagsvar,"$flagsvar -I$TOP_SRCDIR/other")
 dnl  TODO: factor this and loop over "32" and "64" ?
-dnl  TODO: we should probe if test-and-set is swap
 GASNET_TRY_CACHE_LINK([$1 for 32-bit __sync atomics support], lowername[]_sync_atomics_32, [
     #include "portable_inttypes.h"
   ],[
@@ -2876,7 +2888,8 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
       x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc.
       *)        AC_MSG_ERROR(Cray C++ compiler for unknown target CPU) ;;
      esac ;;
-    Pathscale)  CXXDEBUGFLAGS="-g3 -O0"  # consistent with CCDEBUGFLAGS
+    Pathscale)  GASNET_PATHSCALE_VERSION_CHECK(CXX)
+                CXXDEBUGFLAGS="-g3 -O0"  # consistent with CCDEBUGFLAGS
                 CXXOPTFLAGS="-O3"        # consistent with CCOPTFLAGS
     ;;
     Open64)
