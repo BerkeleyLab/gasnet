@@ -202,13 +202,13 @@
 //
 #if !GASNETI_COMPILER_IS_UNKNOWN
   #if GASNETI_HAVE_GCC_ASM && !GASNETI_COMPILER_HAS(GCC_ASM)
-    #error Something about your compiler violates GASNet's hard-coded assumptions regarding GCC_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information.
+    #error "Something about your compiler violates GASNet's hard-coded assumptions regarding GCC_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information."
   #elif GASNETI_HAVE_SIMPLE_ASM && !GASNETI_COMPILER_HAS(SIMPLE_ASM)
     #if PLATFORM_COMPILER_SUN_C
       // Exceptional because configure probe tests a different spelling.
       // C compiler *always* supports `__asm()`, but support for `asm()` is probed.
     #else
-      #error Something about your compiler violates GASNet's hard-coded assumptions regarding SIMPLE_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information.
+      #error "Something about your compiler violates GASNet's hard-coded assumptions regarding SIMPLE_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information."
     #endif
   #endif
 #endif
