@@ -5,6 +5,7 @@
  */
 
 #include <gasnetex.h>
+#include <gasnet_coll.h>
 
 #include <test.h>
 
