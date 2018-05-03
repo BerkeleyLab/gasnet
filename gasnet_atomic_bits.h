@@ -473,7 +473,7 @@
         #define _gasneti_atomic_fence_after_swap()   ((void)0)
       #else
         #define _gasneti_atomic_fence_before_swap(f) _gasneti_atomic_fence_before(f)
-        #define _gasneti_atomic_fence_after_swap(F)  _gasneti_atomic_fence_after((f) & ~GASNETI_ATOMIC_ACQ)
+        #define _gasneti_atomic_fence_after_swap(f)  _gasneti_atomic_fence_after((f) & ~GASNETI_ATOMIC_ACQ)
       #endif
    #endif
 
