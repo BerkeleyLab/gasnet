@@ -2877,6 +2877,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
          fi
          CXXOPTFLAGS="-xO2" # Can we go higher to match "-fast -xO5" of CCOPTFLAGS?
          GASNET_TRY_CXXFLAG([-xlibmopt], [CXXOPTFLAGS="$CXXOPTFLAGS -xlibmopt"])
+         GASNET_TRY_CXXFLAG([-errtags], [MISC_CXXFLAGS="$MISC_CXXFLAGS -errtags"])
       ;;
     Cray)
      case "$target_cpu" in
