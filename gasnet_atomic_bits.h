@@ -676,9 +676,19 @@
       #define _gasneti_atomic32_set(p,v)     ((p)->gasneti_ctr = (v))
      #endif
 
+      #if PLATFORM_COMPILER_SUN
+        // Sun compiler warns if any %n fails to appear in the template.
+        // Suppression of the warning via #pragma is only partially effective.
+        // Fortunately, "appearance" in comments is sufficient.
+        #define GASNETI_ASM_USED(n)  "# arg %" #n " is used \n\t"
+      #else
+        #define GASNETI_ASM_USED(n)
+      #endif
+
       GASNETI_INLINE(_gasneti_atomic32_increment)
       void _gasneti_atomic32_increment(gasneti_atomic32_t *v) {
         __asm__ __volatile__(
+                GASNETI_ASM_USED(1)
                 GASNETI_X86_LOCK_PREFIX
 		"incl %0"
                 : "=m" (v->gasneti_ctr)
@@ -689,6 +699,7 @@
       GASNETI_INLINE(_gasneti_atomic32_decrement)
       void _gasneti_atomic32_decrement(gasneti_atomic32_t *v) {
         __asm__ __volatile__(
+                GASNETI_ASM_USED(1)
                 GASNETI_X86_LOCK_PREFIX
 		"decl %0"
                 : "=m" (v->gasneti_ctr)
@@ -704,6 +715,7 @@
           GASNETI_ASM_REGISTER_KEYWORD unsigned char retval;
       #endif
           __asm__ __volatile__(
+                  GASNETI_ASM_USED(2)
 	          GASNETI_X86_LOCK_PREFIX
 		  "decl %0		\n\t"
 		  "sete %1"
@@ -727,6 +739,7 @@
       #endif
         GASNETI_ASM_REGISTER_KEYWORD uint32_t readval;
         __asm__ __volatile__ (
+                GASNETI_ASM_USED(4)
 		GASNETI_X86_LOCK_PREFIX
 		"cmpxchgl %3, %1	\n\t"
 	#if GASNETI_PGI_ASM_BUG2294 /* Sensitive to output constraint order */
@@ -754,6 +767,7 @@
          */
 	uint32_t retval = op;
         __asm__ __volatile__(
+                GASNETI_ASM_USED(3)
                 GASNETI_X86_LOCK_PREFIX
 		"xaddl %0, %1"
                 : "=&r" (retval), "=m" (v->gasneti_ctr)
@@ -783,6 +797,7 @@
             GASNETI_ASM_REGISTER_KEYWORD unsigned char retval;
             GASNETI_ASM_REGISTER_KEYWORD uint64_t readval = oldval;
             __asm__ __volatile__ (
+                    GASNETI_ASM_USED(4)
 		    GASNETI_X86_LOCK_PREFIX
 		    "cmpxchgq %3, %1	\n\t"
 		    "sete %0"
@@ -803,6 +818,7 @@
           #endif
             GASNETI_ASM_REGISTER_KEYWORD uint64_t retval;
             __asm__ __volatile__(
+                    GASNETI_ASM_USED(2)
                     GASNETI_X86_LOCK_PREFIX  /* 'lock' is implied, but is the fence? */
                     "xchgq %0, %1"
                     : "=r" (retval), "=m" (v->gasneti_ctr)
@@ -819,6 +835,7 @@
           #endif
             GASNETI_ASM_REGISTER_KEYWORD uint64_t retval;
             __asm__ __volatile__(
+                    GASNETI_ASM_USED(2)
                     GASNETI_X86_LOCK_PREFIX
                     "xaddq %0, %1"
                     : "=r" (retval), "=m" (v->gasneti_ctr)
@@ -928,6 +945,7 @@
 	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(v);
           _GASNETI_ATOMIC_CHECKALIGN(gasneti_atomic64_align, p);
           __asm__ __volatile__ (
+                    GASNETI_ASM_USED(2)
 		    "0:				\n\t"
 		    "lock;			"
 		    "cmpxchg8b	(%1)		\n\t"
