@@ -318,7 +318,7 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
 }
 
 GASNETI_NEVER_INLINE(gasnete_new_threaddata,
-static gasnete_threaddata_t * gasnete_new_threaddata(void)) {
+extern void * gasnete_new_threaddata(void)) {
   gasnete_threaddata_t *threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
   int idx;
   uint64_t maxthreads = gasneti_max_threads();
@@ -365,8 +365,8 @@ static gasnete_threaddata_t * gasnete_new_threaddata(void)) {
 }
 /* PURE function (returns same value for a given thread every time) 
 */
-#if (GASNETI_MAX_THREADS > 1) && !defined(gasnete_mythread)
-  extern gasnete_threaddata_t *gasnete_mythread(void) {
+#if (GASNETI_MAX_THREADS > 1) && !defined(_GASNETE_MYTHREAD)
+  extern gasnete_threaddata_t *gasnete_slow_mythread(void) {
     gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
     GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
     if_pf (!threaddata) {
