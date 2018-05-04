@@ -9,6 +9,7 @@
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
+#include <gasnet_coll.h>
 
 static pami_send_hint_t gasnete_null_send_hint;
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
