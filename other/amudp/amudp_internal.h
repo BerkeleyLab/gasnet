@@ -179,6 +179,18 @@ extern void AMUDP_InitRetryCache();
   #define if_pt(cond) if (PREDICT_TRUE(cond))
 #endif
 
+#include <assert.h>
+#undef assert
+#define assert(x) ERROR_use_AMUDP_assert
+#if AMUDP_NDEBUG
+  #define AMUDP_assert(expr) ((void)0)
+#else
+  #define AMUDP_assert(expr)                                \
+    (PREDICT_TRUE(expr) ? (void)0 :                         \
+      AMUDP_FatalErr("Assertion failure at %s %s:%i: %s\n", \
+        AMUDP_CURR_FUNCTION, __FILE__, __LINE__, #expr))
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* Internal types */
 
@@ -463,16 +475,6 @@ static void *_AMUDP_realloc(void *ptr, size_t S, const char *curloc) {
 static void _AMUDP_free(void *ptr, const char *curloc) {
   free(ptr);
 }
-static char *_AMUDP_strdup(const char *s, const char *curloc) {
-  char *ret = strdup(s);
-  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuSZ ") at %s", strlen(s), curloc);
-  return ret;
-}
-static char *_AMUDP_strndup(const char *s, size_t sz, const char *curloc) {
-  char *ret = strndup(s,sz);
-  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuSZ ",%" PRIuSZ ") at %s", strlen(s), sz, curloc);
-  return ret;
-}
 #define AMUDP_curloc __FILE__ ":" _STRINGIFY(__LINE__)
 #if AMUDP_DEBUG
   /* use the gasnet debug malloc functions if a debug libgasnet is linked */
@@ -546,6 +548,26 @@ static char *_AMUDP_strndup(const char *s, size_t sz, const char *curloc) {
   #define AMUDP_memcheck_one()  ((void)0)
   #define AMUDP_memcheck_all()  ((void)0)
 #endif
+// some older OS's (eg Solaris 10) lack strndup, so roll our own
+static char *_AMUDP_strdup(const char *s, const char *curloc) {
+  AMUDP_assert(s);
+  size_t len = strlen(s);
+  char *ret = (char*)AMUDP_malloc(len+1);
+  if_pf(!ret) AMUDP_FatalErr("Failed to strdup(%" PRIuSZ ") at %s", strlen(s), curloc);
+  memcpy(ret,s,len);
+  ret[len] = 0;
+  return ret;
+}
+static char *_AMUDP_strndup(const char *s, size_t sz, const char *curloc) {
+  AMUDP_assert(s);
+  size_t _len = strlen(s);
+  size_t len = MIN(_len,sz);
+  char *ret = (char *)AMUDP_malloc(len+1);
+  if_pf(!ret) AMUDP_FatalErr("Failed to strndup(%" PRIuSZ ",%" PRIuSZ ") at %s", strlen(s), sz, curloc);
+  memcpy(ret,s,len);
+  ret[len] = 0;
+  return ret;
+}
 
 /*------------------------------------------------------------------------------------
  * Error reporting
@@ -651,18 +673,6 @@ static const char *AMUDP_ErrorDesc(int errval) {
   #define AMUDP_CHECK_ERRR(errcond, type, reason)           ((void)0)
   #define AMUDP_CHECK_ERRFR(errcond, type, fromfn, reason)  ((void)0)
   #define AMUDP_CHECK_ERRFRC(errcond, type, fromfn, reason, cleanup) ((void)0)
-#endif
-
-#include <assert.h>
-#undef assert
-#define assert(x) ERROR_use_AMUDP_assert
-#if AMUDP_NDEBUG
-  #define AMUDP_assert(expr) ((void)0)
-#else
-  #define AMUDP_assert(expr)                                \
-    (PREDICT_TRUE(expr) ? (void)0 :                         \
-      AMUDP_FatalErr("Assertion failure at %s %s:%i: %s\n", \
-        AMUDP_CURR_FUNCTION, __FILE__, __LINE__, #expr))
 #endif
 
 #define enEqual(en1,en2)                    \
