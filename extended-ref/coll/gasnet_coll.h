@@ -332,7 +332,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_LADDRFMT " <- " GASNETI_RADDRFMT                        \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        GASNETI_LADDRSTR(dst), GASNETI_RADDRSTR(root,src),                         \
+			        GASNETI_LADDRSTR(dst), GASNETI_RADDRSTR(team,root,src),                    \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_LADDRFMT " <- (%i,????"")"                              \
@@ -349,7 +349,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": %s <- " GASNETI_RADDRFMT                                          \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        _dstlist, GASNETI_RADDRSTR(root,src),                                      \
+			        _dstlist, GASNETI_RADDRSTR(team,root,src),                                 \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": %s <- (%i,????"")"                                                \
@@ -370,7 +370,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT " <- " GASNETI_LADDRFMT                        \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        GASNETI_RADDRSTR(root,dst), GASNETI_LADDRSTR(src),                         \
+			        GASNETI_RADDRSTR(team,root,dst), GASNETI_LADDRSTR(src),                    \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": (%i,????"") <- " GASNETI_LADDRFMT                                 \
@@ -387,7 +387,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT " <- %s"                                       \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        GASNETI_RADDRSTR(root,dst), _srclist,                                      \
+			        GASNETI_RADDRSTR(team,root,dst), _srclist,                                 \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": (%i,????"") <- %s"                                                \

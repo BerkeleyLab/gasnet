@@ -419,15 +419,15 @@ typedef union {
 #define GASNETE_MYTHREAD          GASNETI_MYTHREAD 
 
 /* helper macros */
-#define GASNETI_CHECKZEROSZ_GET(variety,dest,rank,src,nbytes) do { \
-    if_pf (nbytes == 0) {                                          \
-      GASNETI_TRACE_GET_LOCAL(variety,dest,rank,src,nbytes);       \
-      return 0;                                                    \
+#define GASNETI_CHECKZEROSZ_GET(variety,tm,dest,rank,src,nbytes) do { \
+    if_pf (nbytes == 0) {                                             \
+      GASNETI_TRACE_GET_LOCAL(variety,tm,dest,rank,src,nbytes);       \
+      return 0;                                                       \
     } } while(0)
-#define GASNETI_CHECKZEROSZ_PUT(variety,rank,dest,src,nbytes) do { \
-    if_pf (nbytes == 0) {                                          \
-      GASNETI_TRACE_PUT_LOCAL(variety,rank,dest,src,nbytes);       \
-      return 0;                                                    \
+#define GASNETI_CHECKZEROSZ_PUT(variety,tm,rank,dest,src,nbytes) do { \
+    if_pf (nbytes == 0) {                                             \
+      GASNETI_TRACE_PUT_LOCAL(variety,tm,rank,dest,src,nbytes);       \
+      return 0;                                                       \
     } } while(0)
 #define GASNETI_CHECKZEROSZ_NAMED(tracecall,nbytes) do {           \
     if_pf (nbytes == 0) {                                          \

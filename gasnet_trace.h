@@ -169,68 +169,75 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* misc helpers for specific tracing scenarios */
+
+#define GASNETI_TMFMT "%p" // TODO-EX: replaced with a GUID
+#define GASNETI_TMSTR(tm) (tm)
+#define GASNETI_TMRANKFMT GASNETI_TMFMT ":%i"
+#define GASNETI_TMRANKSTR(tm,rank) GASNETI_TMSTR(tm),(rank)
+
 #if PLATFORM_ARCH_32 
   #define GASNETI_LADDRFMT "0x%08" PRIxPTR
   #define GASNETI_LADDRSTR(ptr) ((uintptr_t)(ptr))
-  #define GASNETI_RADDRFMT "(%i,0x%08" PRIxPTR ")"
-  #define GASNETI_RADDRSTR(node,ptr) ((int)(node)),GASNETI_LADDRSTR(ptr)
+  #define GASNETI_RADDRFMT "(" GASNETI_TMRANKFMT ",0x%08" PRIxPTR ")"
+  #define GASNETI_RADDRSTR(tm,rank,ptr) GASNETI_TMRANKSTR((tm),(rank)),GASNETI_LADDRSTR(ptr)
 #else
   #define GASNETI_LADDRFMT "0x%08x %08x"
   #define GASNETI_LADDRSTR(ptr) GASNETI_HIWORD(ptr), GASNETI_LOWORD(ptr)
-  #define GASNETI_RADDRFMT "(%i,0x%08x %08x)"
-  #define GASNETI_RADDRSTR(node,ptr) ((int)(node)),GASNETI_LADDRSTR(ptr)
+  #define GASNETI_RADDRFMT "(" GASNETI_TMRANKFMT ",0x%08x %08x)"
+  #define GASNETI_RADDRSTR(tm,rank,ptr) GASNETI_TMRANKSTR((tm),(rank)),GASNETI_LADDRSTR(ptr)
 #endif
 
 
 #if GASNET_TRACE
-  #define GASNETI_TRACE_GETPUT(type, name, nbytes, node)                      \
-    GASNETI_TRACE_PRINTF(type, ("%s: %s = %6" PRIuPTR ",  node = %i", #name,  \
+  #define GASNETI_TRACE_GETPUT(type, name, nbytes, tm, rank)                  \
+    GASNETI_TRACE_PRINTF(type, ("%s: %s = %6" PRIuPTR ",  peer = "            \
+                                GASNETI_TMRANKFMT, #name,                     \
                                 gasneti_stats[(int)GASNETI_STAT_##name].desc, \
-                                (uintptr_t)(nbytes), (node)));
+                                (uintptr_t)(nbytes), GASNETI_TMRANKSTR((tm),(rank))));
   #define GASNETI_TRACE_GETPUT_NONLOCAL GASNETI_TRACE_GETPUT
-  #define GASNETI_TRACE_GETPUT_LOCAL(type, name, nbytes, node) do {  \
-    if (GASNETI_TRACE_ENABLED(type) && !gasneti_trace_suppresslocal) \
-      GASNETI_TRACE_GETPUT(type, name, nbytes, node);                \
+  #define GASNETI_TRACE_GETPUT_LOCAL(type, name, nbytes, tm, rank) do {  \
+    if (GASNETI_TRACE_ENABLED(type) && !gasneti_trace_suppresslocal)     \
+      GASNETI_TRACE_GETPUT(type, name, nbytes, tm, rank);                \
     } while (0)
 #else
-  #define GASNETI_TRACE_GETPUT_NONLOCAL(type, name, nbytes, node) ((void)0)
-  #define GASNETI_TRACE_GETPUT_LOCAL(type, name, nbytes, node)    ((void)0)
+  #define GASNETI_TRACE_GETPUT_NONLOCAL(type, name, nbytes, tm, rank) ((void)0)
+  #define GASNETI_TRACE_GETPUT_LOCAL(type, name, nbytes, tm, rank)    ((void)0)
 #endif
 
-#define GASNETI_TRACE_GET_NAMED(name,locality,dest,node,src,nbytes) do {                   \
+#define GASNETI_TRACE_GET_NAMED(name,locality,tm,dest,rank,src,nbytes) do {                \
   _GASNETI_STAT_EVENT_VAL (G, name, (nbytes));                                             \
-  GASNETI_TRACE_GETPUT_##locality(G, name, (nbytes), node);                                \
+  GASNETI_TRACE_GETPUT_##locality(G, name, (nbytes), (tm), (rank));                        \
   GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_LADDRFMT" <- " GASNETI_RADDRFMT" (%" PRIuPTR " bytes)", \
-                          GASNETI_LADDRSTR(dest), GASNETI_RADDRSTR((node),(src)),          \
+                          GASNETI_LADDRSTR(dest), GASNETI_RADDRSTR((tm),(rank),(src)),     \
                           (uintptr_t)(nbytes)));                                           \
 } while (0)
 
 #if GASNETI_STATS_OR_TRACE
-#define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) do {                       \
+#define GASNETI_TRACE_PUT_NAMED(name,locality,tm,rank,dest,src,nbytes) do {                    \
   void *_tpn_src = (src);  /* workaround for CrayC warning */                                  \
   _GASNETI_STAT_EVENT_VAL (P, name, (nbytes));                                                 \
-  GASNETI_TRACE_GETPUT_##locality(P, name, (nbytes), node);                                    \
+  GASNETI_TRACE_GETPUT_##locality(P, name, (nbytes), tm, rank);                                \
   GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT" <- " GASNETI_LADDRFMT" (%" PRIuPTR " bytes): %s", \
-                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(_tpn_src),         \
+                          GASNETI_RADDRSTR((tm),(rank),(dest)), GASNETI_LADDRSTR(_tpn_src),    \
                           (uintptr_t)(nbytes), gasneti_formatdata(_tpn_src,(nbytes))));        \
 } while (0)
 #else
-#define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) ((void)0)
+#define GASNETI_TRACE_PUT_NAMED(name,locality,tm,rank,dest,src,nbytes) ((void)0)
 #endif
 
 /* tracing for remote gets/puts */
-#define GASNETI_TRACE_GET(variety,dest,node,src,nbytes) \
-  GASNETI_TRACE_GET_NAMED(GET_##variety,NONLOCAL,dest,node,src,nbytes)
+#define GASNETI_TRACE_GET(variety,tm,dest,rank,src,nbytes) \
+  GASNETI_TRACE_GET_NAMED(GET_##variety,NONLOCAL,tm,dest,rank,src,nbytes)
 
-#define GASNETI_TRACE_PUT(variety,node,dest,src,nbytes) \
-  GASNETI_TRACE_PUT_NAMED(PUT_##variety,NONLOCAL,node,dest,src,nbytes)   
+#define GASNETI_TRACE_PUT(variety,tm,rank,dest,src,nbytes) \
+  GASNETI_TRACE_PUT_NAMED(PUT_##variety,NONLOCAL,tm,rank,dest,src,nbytes)   
 
 /* tracing for local gets/puts (separation allows suppression of trace output) */
-#define GASNETI_TRACE_GET_LOCAL(variety,dest,node,src,nbytes) \
-  GASNETI_TRACE_GET_NAMED(GET_##variety##_LOCAL,LOCAL,dest,node,src,nbytes)
+#define GASNETI_TRACE_GET_LOCAL(variety,tm,dest,rank,src,nbytes) \
+  GASNETI_TRACE_GET_NAMED(GET_##variety##_LOCAL,LOCAL,tm,dest,rank,src,nbytes)
 
-#define GASNETI_TRACE_PUT_LOCAL(variety,node,dest,src,nbytes) \
-  GASNETI_TRACE_PUT_NAMED(PUT_##variety##_LOCAL,LOCAL,node,dest,src,nbytes)   
+#define GASNETI_TRACE_PUT_LOCAL(variety,tm,rank,dest,src,nbytes) \
+  GASNETI_TRACE_PUT_NAMED(PUT_##variety##_LOCAL,LOCAL,tm,rank,dest,src,nbytes)   
 
 /*------------------------------------------------------------------------------------*/
 #define GASNETI_TRACE_TRYSYNC(name,success) \
