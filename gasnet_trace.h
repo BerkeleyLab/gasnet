@@ -170,8 +170,8 @@
 /* ------------------------------------------------------------------------------------ */
 /* misc helpers for specific tracing scenarios */
 
-#define GASNETI_TMFMT "%p" // TODO-EX: replaced with a GUID
-#define GASNETI_TMSTR(tm) (tm)
+#define GASNETI_TMFMT "%s"
+#define GASNETI_TMSTR(tm) gasneti_formattm(tm)
 #define GASNETI_TMRANKFMT GASNETI_TMFMT ":%i"
 #define GASNETI_TMRANKSTR(tm,rank) GASNETI_TMSTR(tm),(rank)
 
@@ -799,6 +799,8 @@ extern size_t gasneti_format_putsgets(char *_buf, void *_pstats,
                                     void *_dstaddr, const ptrdiff_t _dststrides[],
                                     void *_srcaddr, const ptrdiff_t _srcstrides[],
                                     size_t _elemsz, const size_t _count[], size_t _stridelevels);
+
+extern const char *gasneti_formattm(gex_TM_t _tm);
 
 // Prints a *set* of values to a caller-provided buffer.
 // Call with NULL buffer returns required length.
