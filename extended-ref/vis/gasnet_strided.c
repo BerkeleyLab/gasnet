@@ -1649,7 +1649,7 @@ out:
     if (change && GASNETI_TRACE_ENABLED(D)) { // trace the optimized metadata
       char *str = gasneti_malloc(gasneti_format_putsgets_bufsz(opt_stridelevels));
       int srcid = (isput?SMD_SELF:SMD_PEER);
-      gasneti_format_putsgets(str,NULL,(gex_Rank_t)-1,
+      gasneti_format_putsgets(str,NULL,NULL,(gex_Rank_t)-1,
                               smd->addr[!srcid],opt_strides[!srcid],
                               smd->addr[srcid],opt_strides[srcid],
                               opt_elemsz,opt_count,opt_stridelevels);
