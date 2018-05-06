@@ -321,19 +321,14 @@
     #define GASNETI_ATOMIC32_WANT_GENERIC 1
   #elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
     #define GASNETI_ATOMIC32_WANT_OS 1
-  #elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_NATIVE)
-    #if (GASNETI_ATOMIC32_IMPL != GASNETI_ATOMIC_IMPL_SYNC)
-      #define GASNETI_ATOMIC32_WANT_SLOW 1
-    #else
-      // NATIVE and SYNC are assumed to be COMPATIBLE (see note above)
+  #elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_NATIVE) || \
+        (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_SYNC)
+    #if (GASNETI_ATOMIC32_IMPL == GASNETI_ATOMIC_IMPL_NATIVE) || \
+        (GASNETI_ATOMIC32_IMPL == GASNETI_ATOMIC_IMPL_SYNC)
+      // All NATIVE and SYNC are assumed to be COMPATIBLE (see note above)
       // Exceptions should be added here
-    #endif
-  #elif (GASNETI_ATOMIC32_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_SYNC)
-    #if (GASNETI_ATOMIC32_IMPL != GASNETI_ATOMIC_IMPL_NATIVE)
-      #define GASNETI_ATOMIC32_WANT_SLOW 1
     #else
-      // NATIVE and SYNC are assumed to be COMPATIBLE (see note above)
-      // Exceptions should be added here
+      #define GASNETI_ATOMIC32_WANT_SLOW 1
     #endif
   #else
     // NOTE 32-bit atomics are never "hybrid"
@@ -355,19 +350,14 @@
     #define GASNETI_ATOMIC64_WANT_GENERIC 1
   #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_OS)
     #define GASNETI_ATOMIC64_WANT_OS 1
-  #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_NATIVE)
-    #if (GASNETI_ATOMIC64_IMPL != GASNETI_ATOMIC_IMPL_SYNC)
-      #define GASNETI_ATOMIC64_WANT_SLOW 1
-    #else
-      // NATIVE and SYNC are assumed to be COMPATIBLE (see note above)
+  #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_NATIVE) || \
+        (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_SYNC)
+    #if (GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_NATIVE) || \
+        (GASNETI_ATOMIC64_IMPL == GASNETI_ATOMIC_IMPL_SYNC)
+      // All NATIVE and SYNC are assumed to be COMPATIBLE (see note above)
       // Exceptions should be added here
-    #endif
-  #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_SYNC)
-    #if (GASNETI_ATOMIC64_IMPL != GASNETI_ATOMIC_IMPL_NATIVE)
-      #define GASNETI_ATOMIC64_WANT_SLOW 1
     #else
-      // NATIVE and SYNC are assumed to be COMPATIBLE (see note above)
-      // Exceptions should be added here
+      #define GASNETI_ATOMIC64_WANT_SLOW 1
     #endif
   #elif (GASNETI_ATOMIC64_IMPL_CONFIGURE == GASNETI_ATOMIC_IMPL_HYBRID)
     // Note that hybrid is not "compatible" with anything but itself
