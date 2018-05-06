@@ -906,6 +906,7 @@
 	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newlo = GASNETI_LOWORD(newval);
 	  GASNETI_ASM_REGISTER_KEYWORD uint32_t newhi = GASNETI_HIWORD(newval);
           __asm__ __volatile__ (
+                    GASNETI_ASM_USED(2)
 		    "lock;			"
 		    "cmpxchg8b	%0		"
 		    : "=m" (p->gasneti_ctr), "+&A" (oldval)
