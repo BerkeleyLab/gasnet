@@ -989,7 +989,7 @@ static gasnet_seginfo_t *_test_seginfo;
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
- #else
+ #endif
   static int _test_Segment_Attach(
                 gex_Segment_t     *segment_p,
                 gex_TM_t          tm,
@@ -999,7 +999,6 @@ static gasnet_seginfo_t *_test_seginfo;
   }
   #undef gex_Segment_Attach
   #define gex_Segment_Attach _test_Segment_Attach
- #endif
 #else
  /* Segment FAST or LARGE
   * Wrap gasnet_attach() or gex_Segment_Attach() to validate
@@ -1024,7 +1023,7 @@ static gasnet_seginfo_t *_test_seginfo;
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
- #else
+ #endif
   static int _test_Segment_Attach(
                 gex_Segment_t     *segment_p,
                 gex_TM_t          tm,
@@ -1043,7 +1042,6 @@ static gasnet_seginfo_t *_test_seginfo;
   }
   #undef gex_Segment_Attach
   #define gex_Segment_Attach _test_Segment_Attach
- #endif
 #endif
 
 #define TEST_MYSEG()          (TEST_SEG(TEST_MYPROC))
