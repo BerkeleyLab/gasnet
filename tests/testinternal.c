@@ -49,8 +49,15 @@ int main(int argc, char **argv) {
     MSG0("Running GASNet internal diagnostics with iters=%i", iters);
   #endif
 
+
+  gex_Rank_t myrank = gex_TM_QueryRank(myteam);
+  gex_Rank_t numrank = gex_TM_QuerySize(myteam);
+  gex_Rank_t peer = (myrank ^ 1);
+  if (peer == numrank) peer = myrank;
+
   BARRIER();
-  test_errs = gasnett_run_diagnostics(iters, threads, test_sections, myteam, TEST_SEGINFO());
+  test_errs = gasnett_run_diagnostics(iters, threads, test_sections, myteam,
+                                      TEST_SEG(myrank), peer, TEST_SEG(peer));
   BARRIER();
 
   if (test_errs) ERR("gasnett_run_diagnostics(%i) failed.", iters);

@@ -35,7 +35,6 @@ int main(int argc, char **argv)
   
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
-  gasnet_seginfo_t const * test_segs;
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testteam", &argc, &argv, 0));
 
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
@@ -53,13 +52,18 @@ int main(int argc, char **argv)
 
   mynode = gex_TM_QueryRank(myteam);
   nodes = gex_TM_QuerySize(myteam);
-  test_segs = TEST_SEGINFO();
   
-  teamA_scratch.addr = test_segs[mynode].addr;
-  teamA_scratch.size = test_segs[mynode].size/2;
+
+  {
+    void *addr = TEST_SEG(mynode);
+    uintptr_t size = TEST_SEGSZ / 2;
+
+    teamA_scratch.addr = addr;
+    teamA_scratch.size = size;
   
-  teamB_scratch.addr = (uint8_t*)teamA_scratch.addr + teamA_scratch.size;
-  teamB_scratch.size = teamA_scratch.size;
+    teamB_scratch.addr = (uint8_t*)addr + size;
+    teamB_scratch.size = size;
+  }
 
   if (argc > 4)
     test_usage();

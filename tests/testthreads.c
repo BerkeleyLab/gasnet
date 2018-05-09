@@ -96,6 +96,7 @@ int		threads_num = 1;
 gex_Rank_t	*tt_thread_map;
 void		**tt_addr_map;
 threaddata_t	*tt_thread_data;
+void            *myseg;
 
 #ifdef GASNET_PAR
 #define thread_barrier() PTHREAD_BARRIER(threads_num)
@@ -199,6 +200,7 @@ main(int argc, char **argv)
 
         myrank = gex_TM_QueryRank(myteam);
         numranks = gex_TM_QuerySize(myteam);
+	myseg = TEST_SEG(myrank);
 
         #if TEST_MPI
           #define TEST_MPI_USAGE  "  -m  use MPI calls                              \n"
@@ -475,8 +477,8 @@ ping_medhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t 
         assert(idx >= 0 && idx < threads_num);
         assert(node < numranks);
         assert(nbytes <= gex_AM_MaxRequestMedium(myteam,node,GEX_EVENT_NOW,0,2));
-        assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(myrank) ||
-               (uintptr_t)buf >= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
+        assert((uintptr_t)buf+nbytes < (uintptr_t)myseg ||
+               (uintptr_t)buf >= (uintptr_t)myseg + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
 	gex_AM_ReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GEX_EVENT_NOW, 0, idx);
 }
@@ -493,8 +495,8 @@ pong_medhandler(gex_Token_t token, void *buf, size_t nbytes,
         assert(idx >= 0 && idx < threads_num);
         assert(tid >= 0 && tid < threads_num*numranks);
         assert(nbytes <= gex_AM_MaxReplyMedium(myteam,node,GEX_EVENT_NOW,0,1));
-        assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(myrank) ||
-               (uintptr_t)buf >= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
+        assert((uintptr_t)buf+nbytes < (uintptr_t)myseg ||
+               (uintptr_t)buf >= (uintptr_t)myseg + TEST_SEGSZ);
 	tt_thread_data[idx].flag++;
 }
 
@@ -515,7 +517,7 @@ ping_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx, harg_t
         assert(node < numranks);
         assert(nbytes <= gex_AM_MaxRequestLong(myteam,node,GEX_EVENT_NOW,0,3));
         assert(buf == tt_addr_map[target_id]);
-        assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
+        assert((uintptr_t)buf + nbytes <= (uintptr_t)myseg + TEST_SEGSZ);
         nbytes = MIN(nbytes, (size_t)(uint32_t)repsz);
 	gex_AM_ReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GEX_EVENT_NOW, 0, idx);
 }
@@ -532,7 +534,7 @@ pong_longhandler(gex_Token_t token, void *buf, size_t nbytes, harg_t idx) {
         assert(tid >= 0 && tid < threads_num*numranks);
         assert(nbytes <= gex_AM_MaxReplyLong(myteam,node,GEX_EVENT_NOW,0,1));
         assert(buf == tt_addr_map[myrank * threads_num + idx]);
-        assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(myrank) + TEST_SEGSZ);
+        assert((uintptr_t)buf + nbytes <= (uintptr_t)myseg + TEST_SEGSZ);
 	tt_thread_data[idx].flag++;
 }
 

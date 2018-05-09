@@ -970,10 +970,6 @@ int gasnete_coll_segment_check(gasnete_coll_team_t team, int flags,
 #else
 GASNETI_INLINE(_gasnete_coll_segment_check_aux)
 int _gasnete_coll_segment_check_aux(gasnete_coll_team_t team, int rooted, gasnet_image_t root, const void *addr, size_t len) {
-#if GASNET_ALIGNED_SEGMENTS
-  /* It is always sufficient to check against node 0. */
-  return gasnete_coll_in_segment(0, addr, len);
-#else
   if (rooted) {
     /* Check the given address against the given node only */
     return gasnete_coll_in_segment(gasnete_coll_image_node(team, root), addr, len);
@@ -987,7 +983,6 @@ int _gasnete_coll_segment_check_aux(gasnete_coll_team_t team, int rooted, gasnet
     }
     return 1;
   }
-#endif
 }
 
 GASNETI_INLINE(gasnete_coll_segment_check)
@@ -1029,25 +1024,15 @@ GASNETI_INLINE(_gasnete_coll_segment_checkM_aux)
 int _gasnete_coll_segment_checkM_aux(gasnete_coll_team_t team, int rooted, gasnet_image_t root, const void *addr, size_t len) {
   if (rooted) {
     /* Check the given address against the given node only */
-#if GASNET_ALIGNED_SEGMENTS /* always use node 0 for cache reuse */
-    return gasnete_coll_in_segment(0, addr, len);
-#else
     return gasnete_coll_in_segment(gasnete_coll_image_node(team, root), addr, len);
-#endif
   } else {
     /* Check the given addresses against ALL nodes */
     void * const *addrlist = (void * const *)addr;
     gex_Rank_t i;
     for (i = 0; i < team->total_ranks; ++i) {
-#if GASNET_ALIGNED_SEGMENTS /* always use node 0 for cache reuse */
-      if (!gasnete_coll_in_segment(0, addrlist[i], len)) {
-        return 0;
-      }
-#else
       if (!gasnete_coll_in_segment(i, addrlist[i], len)) {
         return 0;
       }
-#endif
     }
     return 1;
   }
