@@ -890,9 +890,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 #endif
 
 static size_t test_num_am_handlers = 0;
-static gasnet_seginfo_t *_test_seginfo;
-#define TEST_SEG(node) (assert(_test_seginfo), _test_seginfo[node].addr)
-#define TEST_SEGINFO() (assert(_test_seginfo), (gasnet_seginfo_t const *)_test_seginfo)
+static gex_TM_t _test_tm0;
 #ifdef GASNET_SEGMENT_EVERYTHING
   /* following trivially handles the case where static data is aligned
      across the nodes, and also works on X-1 where the static data is
@@ -900,6 +898,7 @@ static gasnet_seginfo_t *_test_seginfo;
      The only assumption is that AM mediums, barriers and atomics work properly
      We intercept the gasnet_attach or gex_Segment_Attach call and do the segment exchange there
    */
+  static gasnet_seginfo_t *_test_seginfo;
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
   static void _test_seggather(gex_Token_t token, void *buf, size_t nbytes) {
@@ -983,9 +982,8 @@ static gasnet_seginfo_t *_test_seginfo;
   {
     /* do regular attach, then setup seg_everything segment */
     GASNET_Safe(gasnet_attach(table, numentries, segsize, minheapoffset));
-    gex_TM_t tm;
-    gasnet_QueryGexObjects(NULL,NULL,&tm,NULL);
-    return _test_create_test_segment(tm, segsize);
+    gasnet_QueryGexObjects(NULL,NULL,&_test_tm0,NULL);
+    return _test_create_test_segment(_test_tm0, segsize);
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
@@ -995,10 +993,12 @@ static gasnet_seginfo_t *_test_seginfo;
                 gex_TM_t          tm,
                 uintptr_t         length)
   {
+    _test_tm0 = tm;
     return _test_create_test_segment(tm, length);
   }
   #undef gex_Segment_Attach
   #define gex_Segment_Attach _test_Segment_Attach
+  #define TEST_SEG(node) (assert(_test_seginfo), _test_seginfo[node].addr)
 #else
  /* Segment FAST or LARGE
   * Wrap gasnet_attach() or gex_Segment_Attach() to validate
@@ -1018,7 +1018,8 @@ static gasnet_seginfo_t *_test_seginfo;
            assert_always(s[i].addr == s[0].addr);
          #endif
        }
-       _test_seginfo = s;
+       test_free(s);
+       gasnet_QueryGexObjects(NULL,NULL,&_test_tm0,NULL);
        return GASNET_OK;
   }
   #undef gasnet_attach
@@ -1031,17 +1032,24 @@ static gasnet_seginfo_t *_test_seginfo;
   {
       check_zeroret(gex_Segment_Attach(segment_p, tm, length));
       BARRIER();
-      gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(TEST_PROCS*sizeof(gasnet_seginfo_t));
       for (gex_Rank_t i=0; i < TEST_PROCS; i++) {
-        check_zeroret(gex_Segment_QueryBound(tm, i, &s[i].addr, NULL, &s[i].size));
-        assert_always(s[i].size >= TEST_SEGSZ);
-        assert_always(((uintptr_t)s[i].size) % PAGESZ == 0);
+        void *_addr;  uintptr_t _size;
+        check_zeroret(gex_Segment_QueryBound(tm, i, &_addr, NULL, &_size));
+        assert_always(_size >= TEST_SEGSZ);
+        assert_always(((uintptr_t)_size) % PAGESZ == 0);
       }
-      _test_seginfo = s;
+      _test_tm0 = tm;
       return GASNET_OK;
   }
   #undef gex_Segment_Attach
   #define gex_Segment_Attach _test_Segment_Attach
+
+  static void* _test_seg(gex_Rank_t rank) {
+    void *addr;
+    check_zeroret(gex_Segment_QueryBound(_test_tm0, rank, &addr, NULL, NULL));
+    return addr;
+  }
+  #define TEST_SEG(rank)        _test_seg(rank)
 #endif
 
 #define TEST_MYSEG()          (TEST_SEG(TEST_MYPROC))
@@ -1053,10 +1061,10 @@ static gasnet_seginfo_t *_test_seginfo;
     static volatile int is_aligned = -1;
     if_pf (is_aligned < 0) {
       int result = 1; /* Assume aligned until we find otherwise */
-      void *addr0 = _test_seginfo[0].addr;
+      void *addr0 = TEST_SEG(0);
       gex_Rank_t i;
       for (i = 1; i < TEST_PROCS; i++) {
-        if (_test_seginfo[i].addr != addr0) {
+        if (TEST_SEG(i) != addr0) {
           result = 0;
           break;
         }
