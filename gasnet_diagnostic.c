@@ -108,28 +108,40 @@ static gex_TM_t myteam;
    in par mode, the test may internally spawn up to threadcnt threads
  */
 extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *testsections,
-                                   gex_TM_t myteam_arg, gasnet_seginfo_t const *seginfo) {
-  int i;
+                                   gex_TM_t myteam_arg, void *myseg_arg,
+                                   gex_Rank_t peer_arg, void *peerseg_arg) {
   test_errs = 0;
   iters = iter_cnt;
   iters2 = (iters <= INT_MAX/100) ? iters*100 : iters;
   iters0 = MAX(1,iters/100);
   gex_Rank_t mynode = gex_TM_QueryRank(myteam_arg);
   gex_Rank_t nnodes = gex_TM_QuerySize(myteam_arg);
-  peer = (mynode ^ 1);
-  if (peer == nnodes) peer = mynode;
-  assert_always(seginfo);
-  _test_seginfo = (gasnet_seginfo_t *)seginfo;
-  for (i=0; i < (int)nnodes; i++) {
-    assert_always(_test_seginfo[i].size >= TEST_SEGSZ);
-    assert_always((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
-  }
-  myteam = myteam_arg;
-  myseg = TEST_MYSEG();
-  peerseg = TEST_SEG(peer);
-  peersegmid = (char *)peerseg + TEST_SEGSZ/2;
-  if (testsections) TEST_SECTION_PARSE(testsections);
 
+  myteam = myteam_arg;
+  myseg = myseg_arg;
+  peer = peer_arg;
+  peerseg = peerseg_arg;
+  peersegmid = (char *)peerseg + TEST_SEGSZ/2;
+
+#if !GASNET_SEGMENT_EVERYTHING
+  for (gex_Rank_t rank =0; rank < nnodes; rank++) {
+    void *owneraddr;
+    void *localaddr;
+    uintptr_t size;
+    check_zeroret(gex_Segment_QueryBound(myteam_arg, rank, &owneraddr, &localaddr, &size));
+    assert_always(size >= TEST_SEGSZ);
+    assert_always((((uintptr_t)owneraddr) % PAGESZ) == 0);
+    assert_always((((uintptr_t)localaddr) % PAGESZ) == 0);
+    if (rank == mynode) {
+      assert_always(owneraddr == localaddr);
+      assert_always(owneraddr == myseg);
+    } else if (rank == peer) {
+      assert_always(owneraddr == peerseg);
+    }
+  }
+#endif
+
+  if (testsections) TEST_SECTION_PARSE(testsections);
   assert_always(gasneti_THUNK_TM      == myteam);
   assert_always(gasneti_THUNK_EP      == gex_TM_QueryEP(myteam));
   assert_always(gasneti_THUNK_CLIENT  == gex_TM_QueryClient(myteam));
