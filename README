@@ -528,8 +528,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/MIPS/gcc/{32,n32,64}:       smp, udp, #
     * Linux/MIPS64el/gcc/{32,n32,64}:   smp, udp, #
 
-    * Linux/SGI-Altix-IA64/{gcc,IntelC}/64: smp, mpi, udp, shmem
-    * Linux/SGI-Altix-Xeon/{gcc,IntelC}/64: smp, mpi, udp, shmem
+    * Linux/SGI-Altix-IA64/{gcc,IntelC}/64: smp, mpi, udp, shmem &
+    * Linux/SGI-Altix-Xeon/{gcc,IntelC}/64: smp, mpi, udp, shmem &
 
     * FreeBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
     * OpenBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
@@ -545,8 +545,9 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MSWindows10-Linux/{gcc,clang}/64: smp, udp, mpi, BETA
 
 
-    * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi
-    * macOS/{x86,x86_64}/{gcc,icc,clang}/{32,64}: smp, udp, mpi
+    * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi &
+    * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
+    * macOS/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi
     * macOS/{x86,x86_64}/PGI/{32,64}: smp, udp, #
 
     * CNL/Cray-XT/{gcc,PGI,PathScale,Intel}/64: smp, mpi &
