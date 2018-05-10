@@ -613,15 +613,21 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
         context, file, line);
       { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
         char *buf = test_malloc(sz);
+      #ifdef GEX_SPEC_VERSION_MAJOR // this undocumented function changed signature in EX
+        gex_TM_t tm;
+        gasnet_QueryGexObjects(NULL,NULL,&tm,NULL);
+        gasnett_format_putsgets(buf, NULL, tm, nodeid,
+          desc->dstaddr, (void *)desc->dststrides,
+          desc->srcaddr, (void *)desc->srcstrides,
+          desc->count[0], desc->count+1,
+          desc->stridelevels);
+      #else
         gasnett_format_putsgets(buf, NULL, nodeid,
           desc->dstaddr, (void *)desc->dststrides,
           desc->srcaddr, (void *)desc->srcstrides,
-        #ifdef GEX_SPEC_VERSION_MAJOR // this undocumented function changed signature in EX
-          desc->count[0], desc->count+1,
-        #else
           desc->count,
-        #endif
           desc->stridelevels);
+      #endif
         ERR("strided desc: %s\n", buf);
       }
       FATALERR("testvis failed.");
