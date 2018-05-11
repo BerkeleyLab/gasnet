@@ -710,27 +710,6 @@ application-specific support.
  scatter gets - i.e. cases that are locally non-contiguous but remotely
  contiguous. The default is conduit-dependent.
 
-* GASNET_COLL_OPT - set to 1 to enable the optimized versions of 
- the collectives. These include binomial trees for the rooted collectives 
- (broadcast, scatter, and gather) and Bruck's algorithm for the non-rooted ones
- (gather all, and exchange) for small enough message sizes. Defaults to 1 if no 
- value is specified.
-
-* GASNET_COLL_BROADCAST_OPT - set to 1 to enable optimized binomial tree broadcast. 
- Defaults to GASNET_COLL_OPT.
-
-* GASNET_COLL_SCATTER_OPT - set to 1 to enable optimized binomial tree scatter.
- Defaults to GASNET_COLL_OPT.
-
-* GASNET_COLL_GATHER_OPT - set to 1 to enable optimized binomial tree gather.
- Defaults to GASNET_COLL_OPT.
-
-* GASNET_COLL_GATHER_ALL_OPT - set to 1 to enable optimized gather all. Defaults to 
- GASNET_COLL_OPT.
-
-* GASNET_COLL_EXCHANGE_OPT - set to 1 to enable optimized exchange. Defaults to 
- GASNET_COLL_OPT
-
 * GASNET_COLL_SCRATCH_SIZE - specifies the size of the GASNet auxiliary scratch space 
  per node. Most of the optimized collectives rely on this auxiliary space to enable 
  optimized communication schedules. If the size is set too low, then the collectives 

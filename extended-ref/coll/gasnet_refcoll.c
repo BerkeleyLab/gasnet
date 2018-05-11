@@ -39,15 +39,6 @@ static size_t gasnete_coll_p2p_eager_buffersz = 0;
 /*set a std segment size of 1024 bytes*/
 
 /*---------------------------------------------------------------------------------*/
-/* Set from environment variables by gasnete_coll_init(): */
-int gasnete_coll_opt_enabled;
-int gasnete_coll_opt_broadcast_enabled;
-int gasnete_coll_opt_scatter_enabled;
-int gasnete_coll_opt_gather_enabled;
-int gasnete_coll_opt_gather_all_enabled;
-int gasnete_coll_opt_exchange_enabled;
-
-/*---------------------------------------------------------------------------------*/
 /* XXX: sequence and other stuff that will need to be per-team scoped: */
 
 gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
@@ -1097,13 +1088,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   }
 
   if (first) {
-    gasnete_coll_opt_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_OPT", 1);
-    gasnete_coll_opt_broadcast_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_BROADCAST_OPT", gasnete_coll_opt_enabled);
-    gasnete_coll_opt_scatter_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_SCATTER_OPT", gasnete_coll_opt_enabled);
-    gasnete_coll_opt_gather_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_GATHER_OPT", gasnete_coll_opt_enabled);
-    gasnete_coll_opt_gather_all_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_GATHER_ALL_OPT", gasnete_coll_opt_enabled);
-    gasnete_coll_opt_exchange_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_EXCHANGE_OPT", gasnete_coll_opt_enabled);
-
     gasnete_coll_p2p_eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
                                                                 GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
     gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
