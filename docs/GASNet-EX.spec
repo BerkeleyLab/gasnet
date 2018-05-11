@@ -72,6 +72,26 @@
 // that client code may need to change).
 
 
+// Calls from restricted context
+//
+// The only GASNet functions which may be called within AM handler context,
+// or while holding a GASNet handler-safe lock are as follows:
+//
+// gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
+// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_HSL_*()
+// gex_System_QueryJob*(), gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
+// gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
+// 
+// The following are conditionally permitted in handler context, the condition being the 
+// caller must be within an AMRequest handler and not holding a handler-safe lock:
+//
+// gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
+//
+// All other functions are prohibited to be called from a thread within the 
+// dynamic context of an AM handler, or while holding a handler-safe lock.
+// This prohibition notably prohibits all communication initiation (aside from Reply 
+// injection from a Request handler), explicit polling and test/wait operations on handles/events.
+
 // Hybrid/transitional client support:
 //
 // To enable clients that mix GASNet-1 and GASNet-EX, the following API is
@@ -497,7 +517,7 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 //
 // For rank != gex_TM_QueryRank(tm), this query MAY communicate.
 // This call is not legal in contexts which prohibit communication, including
-// (but is limited to) AM Handler context or when holding an HSL.
+// (but not limited to) AM Handler context or when holding an HSL.
 int gex_Segment_QueryBound(
                 gex_TM_t    tm,
                 gex_Rank_t  rank,
