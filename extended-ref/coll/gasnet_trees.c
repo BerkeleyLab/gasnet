@@ -159,7 +159,7 @@ char* gasnete_coll_tree_type_to_str(char *buffer, gasnete_coll_tree_type_t tree_
   }
   for(i=0; i<tree_type->num_params; i++ ) {
     gasneti_assert(strlen(buffer) < GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
-    sprintf(buffer, "%s,%d", buffer, tree_type->params[i]);
+    sprintf(buffer+strlen(buffer), ",%d", tree_type->params[i]);
   }
   return buffer;
 }
