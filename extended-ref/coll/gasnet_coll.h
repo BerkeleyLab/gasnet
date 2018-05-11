@@ -326,13 +326,15 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #else
     #define gasnete_coll_format_addrlist(list,flags) gasneti_extern_strdup("[LIST]")
   #endif 
+  // TODO-EX: Remove this work-around for fact that collective's "team" is not a "tm"
+  #define GASNETI_RADDRSTR_COLL(root,ptr) GASNETI_RADDRSTR((gex_TM_t)(uintptr_t)1,root,ptr)
   #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags) do {                           \
     GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_LADDRFMT " <- " GASNETI_RADDRFMT                        \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        GASNETI_LADDRSTR(dst), GASNETI_RADDRSTR(root,src),                         \
+			        GASNETI_LADDRSTR(dst), GASNETI_RADDRSTR_COLL(root,src),                    \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_LADDRFMT " <- (%i,????"")"                              \
@@ -349,7 +351,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": %s <- " GASNETI_RADDRFMT                                          \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        _dstlist, GASNETI_RADDRSTR(root,src),                                      \
+			        _dstlist, GASNETI_RADDRSTR_COLL(root,src),                                 \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": %s <- (%i,????"")"                                                \
@@ -370,7 +372,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT " <- " GASNETI_LADDRFMT                        \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        GASNETI_RADDRSTR(root,dst), GASNETI_LADDRSTR(src),                         \
+			        GASNETI_RADDRSTR_COLL(root,dst), GASNETI_LADDRSTR(src),                    \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": (%i,????"") <- " GASNETI_LADDRFMT                                 \
@@ -387,7 +389,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT " <- %s"                                       \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
-			        GASNETI_RADDRSTR(root,dst), _srclist,                                      \
+			        GASNETI_RADDRSTR_COLL(root,dst), _srclist,                                 \
       			        (size_t)nbytes, (void *)team, flags));                                     \
       } else {                                                                                             \
         GASNETI_TRACE_PRINTF(D,(#name ": (%i,????"") <- %s"                                                \

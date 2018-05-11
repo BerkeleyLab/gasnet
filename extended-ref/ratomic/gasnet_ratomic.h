@@ -469,7 +469,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #endif
 
 #if GASNET_TRACE
-  #define _GASNETE_TRACE_RATOMIC(prefix,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) do { \
+  #define _GASNETE_TRACE_RATOMIC(prefix,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) do { \
     const char *_trat_suffix = "";                                      \
     switch(dtype) {                                                     \
       case GEX_DT_I32: _trat_suffix="I32"; break;                       \
@@ -492,7 +492,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
       /* TODO-EX: real team support */                                  \
       GASNETI_TRACE_PRINTF(R,(#prefix "%s: %s%s " GASNETI_RADDRFMT " flags=0x%x",\
                            _trat_suffix,_trat_opstr,_trat_resultstr,    \
-                           GASNETI_RADDRSTR(tgt_rank,tgt_addr),flags)); \
+                           GASNETI_RADDRSTR(gex_AD_QueryTM(ad),tgt_rank,tgt_addr),flags)); \
       gasneti_extern_free(_trat_opstr);                                 \
     }                                                                   \
     if (gasneti_op_1arg(opcode)) {                                      \
@@ -504,19 +504,19 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
                               _trat_suffix, cast op1, cast op2));       \
     } else gasneti_assert(gasneti_op_0arg(opcode));                     \
   } while (0)
-  #define GASNETE_TRACE_RATOMIC_gex_nb(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
-          _GASNETE_TRACE_RATOMIC(RATOMIC_NB_,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
-  #define GASNETE_TRACE_RATOMIC_gex_nbi(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
-          _GASNETE_TRACE_RATOMIC(RATOMIC_NBI_,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
+  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          _GASNETE_TRACE_RATOMIC(RATOMIC_NB_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+          _GASNETE_TRACE_RATOMIC(RATOMIC_NBI_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)
 #elif GASNET_STATS
-  #define GASNETE_TRACE_RATOMIC_gex_nb(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
           _GASNETE_RATOMIC_EVENT(RATOMIC_NB_,dtype)
-  #define GASNETE_TRACE_RATOMIC_gex_nbi(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
           _GASNETE_RATOMIC_EVENT(RATOMIC_NBI_,dtype)
 #else
-  #define GASNETE_TRACE_RATOMIC_gex_nb(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
           ((void)0)
-  #define GASNETE_TRACE_RATOMIC_gex_nbi(dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
+  #define GASNETE_TRACE_RATOMIC_gex_nbi(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
           ((void)0)
 #endif
 
@@ -544,7 +544,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
     GASNETI_INLINE(fname) _GASNETE_RATOMIC_DISP_WARN##nbnbi              \
     rettype fname(_GASNETE_RATOMIC_DISP_ARGS(type))                      \
     {                                                                    \
-        GASNETE_TRACE_RATOMIC##nbnbi(dtcode##_dtype, _result_p,          \
+        GASNETE_TRACE_RATOMIC##nbnbi(_ad, dtcode##_dtype, _result_p,     \
                                      _tgt_rank,_tgt_addr,_opcode,_flags, \
                                      dtcode##_fmt,dtcode##_fmt_cast,     \
                                      _operand1,_operand2);               \

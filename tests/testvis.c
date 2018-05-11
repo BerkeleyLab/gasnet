@@ -625,7 +625,7 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
         context, file, line);
       { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
         char *buf = test_malloc(sz);
-        gasnett_format_putsgets(buf, NULL, nodeid,
+        gasnett_format_putsgets(buf, NULL, myteam, nodeid,
           desc->dstaddr, (ptrdiff_t*)desc->dststrides,
           desc->srcaddr, (ptrdiff_t*)desc->srcstrides,
           desc->count[0], desc->count+1, desc->stridelevels);
@@ -966,7 +966,7 @@ void _verify_xpose_desc_data_both(test_xpose_desc *desc,
         context, file, line);
       { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
         char *buf = test_malloc(sz);
-        gasnett_format_putsgets(buf, NULL, nodeid,
+        gasnett_format_putsgets(buf, NULL, myteam, nodeid,
           desc->dstaddr, desc->dststrides,
           desc->srcaddr, desc->srcstrides,
           desc->elemsz, desc->count, desc->stridelevels);

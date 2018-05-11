@@ -127,7 +127,7 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
 extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount) {
   return 200+dstcount*50+srccount*50;
 }
-extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
+extern size_t gasneti_format_putvgetv(char *buf, gex_TM_t tm, gex_Rank_t rank,
                                     size_t dstcount, gex_Memvec_t const dstlist[], 
                                     size_t srccount, gex_Memvec_t const srclist[]) {
   const int bufsz = gasneti_format_putvgetv_bufsz(dstcount, srccount);
@@ -135,9 +135,9 @@ extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
   char * srclist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(srccount));
   gasneti_memveclist_stats_t dststats = gasneti_format_memveclist(dstlist_str, dstcount, dstlist);
   (void) gasneti_format_memveclist(srclist_str, srccount, srclist);
-  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i\n"
+  sprintf(buf,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT"\n"
               "dst: %s\nsrc: %s",
-              dststats._totalsz, (int)(node),
+              dststats._totalsz, GASNETI_TMRANKSTR(tm,rank),
               dstlist_str, srclist_str);    
   gasneti_assert(strlen(buf) < bufsz);
   gasneti_free(dstlist_str);
@@ -178,7 +178,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
 extern size_t gasneti_format_putigeti_bufsz(size_t dstcount, size_t srccount) {
   return 500+dstcount*25+srccount*25;
 }
-extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
+extern size_t gasneti_format_putigeti(char *buf, gex_TM_t tm, gex_Rank_t rank,
                                     size_t dstcount, void * const dstlist[], size_t dstlen,
                                     size_t srccount, void * const srclist[], size_t srclen) {
   const int bufsz = gasneti_format_putigeti_bufsz(dstcount, srccount);
@@ -187,9 +187,9 @@ extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
   size_t totalsz = dstcount * dstlen;
   (void) gasneti_format_addrlist(dstlist_str, dstcount, (void * const *)dstlist, dstlen);
   (void) gasneti_format_addrlist(srclist_str, srccount, (void * const *)srclist, srclen);
-  size_t len = snprintf(buf,bufsz,"(%"PRIuSZ" data bytes) node=%i\n"
+  size_t len = snprintf(buf,bufsz,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT"\n"
               "dst: %s\nsrc: %s",
-              totalsz, (int)node,
+              totalsz, GASNETI_TMRANKSTR(tm,rank),
               dstlist_str, srclist_str);    
   gasneti_assert(len < bufsz);
   gasneti_free(dstlist_str);
@@ -218,7 +218,7 @@ extern size_t gasneti_format_putsgets_bufsz(size_t stridelevels) {
   return 500+3*stridelevels*50;
 }
 extern size_t gasneti_format_putsgets(char *buf, void *_pstats, 
-                                    gex_Rank_t node,
+                                    gex_TM_t tm, gex_Rank_t rank,
                                     void *dstaddr, const ptrdiff_t dststrides[],
                                     void *srcaddr, const ptrdiff_t srcstrides[],
                                     size_t elemsz, const size_t count[], size_t stridelevels) {
@@ -231,10 +231,10 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
     return 0;
   }
   if_pf (stridelevels == 0) {
-    sprintf(buf,"(%"PRIuSZ" data bytes) node=%i stridelevels=0 elemsz=%"PRIuSZ"\n"
+    sprintf(buf,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT" stridelevels=0 elemsz=%"PRIuSZ"\n"
               "dst: dstaddr="GASNETI_LADDRFMT"\n"
               "src: srcaddr="GASNETI_LADDRFMT,
-       elemsz, (int)node, elemsz,
+       elemsz, GASNETI_TMRANKSTR(tm,rank), elemsz,
        GASNETI_LADDRSTR(dstaddr),
        GASNETI_LADDRSTR(srcaddr)
     );
@@ -258,13 +258,13 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   gasneti_format_strides(dststrides_str, stridelevels, dststrides);
   gasneti_assert(sizeof(ptrdiff_t) == sizeof(size_t));
   gasneti_format_strides(count_str, stridelevels, (const ptrdiff_t *)count);
-  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i stridelevels=%"PRIuSZ" elemsz=%"PRIuSZ" count=%s\n"
+  sprintf(buf,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT" stridelevels=%"PRIuSZ" elemsz=%"PRIuSZ" count=%s\n"
               "dst: dstaddr="GASNETI_LADDRFMT" dststrides=%s\n"
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
               "src: srcaddr="GASNETI_LADDRFMT" srcstrides=%s\n"
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
            ,
-              totalsz, (int)(node), stridelevels, elemsz, count_str,
+              totalsz, GASNETI_TMRANKSTR(tm,rank), stridelevels, elemsz, count_str,
               GASNETI_LADDRSTR(dstaddr), dststrides_str, 
               dstextent, GASNETI_LADDRSTR(dstbase), GASNETI_LADDRSTR((uint8_t *)dstbase+dstextent-1),
               GASNETI_LADDRSTR(srcaddr), srcstrides_str,
@@ -276,6 +276,19 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   gasneti_free(dststrides_str);
   gasneti_free(count_str);
   return totalsz;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* TM trace formatting - legal even without STATS/TRACE */
+
+// Format a gex_TM_t as a GUID
+// TODO-EX: Stringify real GUIDs when we have a team-split
+extern const char *gasneti_formattm(gex_TM_t tm) {
+  if (tm == gasneti_THUNK_TM) return "TM0";  // Team0
+  if ((uintptr_t)tm == 1)     return "N/A";  // GASNet-1 collectives team
+  if (tm == NULL)             return "JOB";  // JobRank, as with token
+  gasneti_fatalerror("Invalid TM");
+  return NULL;
 }
 
 /* ------------------------------------------------------------------------------------ */
