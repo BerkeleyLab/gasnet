@@ -315,10 +315,10 @@
   #define GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs) \
           GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,numargs)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) do {         \
-          gasnet_node_t temp;                                            \
-          if (gasnet_AMGetMsgSource(token,&temp) != GASNET_OK)           \
+          gasnet_node_t _tar_peer;                                       \
+          if (gasnet_AMGetMsgSource(token,&_tar_peer) != GASNET_OK)      \
             gasneti_fatalerror("gasnet_AMGetMsgSource() failed");        \
-          GASNETI_TRACE_AMSHORT(AMREPLY_SHORT,temp,handler,numargs);     \
+          GASNETI_TRACE_AMSHORT(AMREPLY_SHORT,_tar_peer,handler,numargs);\
           GASNETI_TRACE_PRINTF(C,("AMREPLY_SHORT: Reply token: %s",      \
                             gasneti_formatdata(&token, sizeof(token)))); \
   } while(0)
@@ -326,10 +326,10 @@
   #define GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs) \
           GASNETI_TRACE_AMMEDIUM(AMREQUEST_MEDIUM,dest,handler,source_addr,nbytes,numargs)
   #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) do {      \
-          gasnet_node_t temp;                                                             \
-          if (gasnet_AMGetMsgSource(token,&temp) != GASNET_OK)                            \
+          gasnet_node_t _tar_peer;                                                        \
+          if (gasnet_AMGetMsgSource(token,&_tar_peer) != GASNET_OK)                       \
             gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                         \
-          GASNETI_TRACE_AMMEDIUM(AMREPLY_MEDIUM,temp,handler,source_addr,nbytes,numargs); \
+          GASNETI_TRACE_AMMEDIUM(AMREPLY_MEDIUM,_tar_peer,handler,source_addr,nbytes,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_MEDIUM: Reply token: %s",                      \
                             gasneti_formatdata(&token, sizeof(token))));                  \
   } while(0)
@@ -337,10 +337,10 @@
   #define GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs) \
           GASNETI_TRACE_AMLONG(AMREQUEST_LONG,dest,handler,source_addr,nbytes,dest_addr,numargs)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) do {    \
-          gasnet_node_t temp;                                                                   \
-          if (gasnet_AMGetMsgSource(token,&temp) != GASNET_OK)                                  \
+          gasnet_node_t _tar_peer;                                                              \
+          if (gasnet_AMGetMsgSource(token,&_tar_peer) != GASNET_OK)                             \
             gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                               \
-          GASNETI_TRACE_AMLONG(AMREPLY_LONG,temp,handler,source_addr,nbytes,dest_addr,numargs); \
+          GASNETI_TRACE_AMLONG(AMREPLY_LONG,_tar_peer,handler,source_addr,nbytes,dest_addr,numargs); \
           GASNETI_TRACE_PRINTF(C,("AMREPLY_LONG: Reply token: %s",                              \
                             gasneti_formatdata(&token, sizeof(token))));                        \
   } while(0)
@@ -390,25 +390,25 @@
     } while(0)
 
   #define _GASNETI_TRACE_AMSHORT_HANDLER(name, handlerid, token, numargs, arghandle) do { \
-    gasnet_node_t src;                                                                    \
+    gasnet_node_t _tah_peer;                                                              \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                 \
     _GASNETI_STAT_EVENT(A,name);                                                          \
-    if (gasnet_AMGetMsgSource(token,&src) != GASNET_OK)                                   \
+    if (gasnet_AMGetMsgSource(token,&_tah_peer) != GASNET_OK)                             \
       gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                               \
     GASNETI_TRACE_PRINTF(A,(#name": src=%i handler=%i args:%s",                           \
-      (int)src,(int)(handlerid),_tgha_argstr));                                           \
+      (int)_tah_peer,(int)(handlerid),_tgha_argstr));                                     \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                           \
                       gasneti_formatdata((void*)&(token), sizeof(token))));               \
     } while(0)
 
   #define _GASNETI_TRACE_AMMEDLONG_HANDLER(name, handlerid, token, addr, nbytes, numargs, arghandle) do { \
-    gasnet_node_t src;                                                                                    \
+    gasnet_node_t _tah_peer;                                                                              \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                                 \
     _GASNETI_STAT_EVENT(A,name);                                                                          \
-    if (gasnet_AMGetMsgSource(token,&src) != GASNET_OK)                                                   \
+    if (gasnet_AMGetMsgSource(token,&_tah_peer) != GASNET_OK)                                             \
       gasneti_fatalerror("gasnet_AMGetMsgSource() failed");                                               \
     GASNETI_TRACE_PRINTF(A,(#name": src=%i handler=%i addr=" GASNETI_LADDRFMT " nbytes=%" PRIuSZ " args:%s", \
-      (int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,_tgha_argstr));                     \
+      (int)_tah_peer,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,_tgha_argstr));               \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                                           \
                       gasneti_formatdata((void *)&(token), sizeof(token))));                              \
     GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(addr,nbytes)));                 \
