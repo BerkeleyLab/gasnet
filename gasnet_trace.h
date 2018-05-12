@@ -110,8 +110,8 @@
      into *pfilename and *plinenum. no-op when tracing is off.
    */
   #if GASNETI_CLIENT_THREADS
-    extern void gasneti_trace_setsourceline(const char *filename, unsigned int linenum);
-    extern void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum);
+    extern void gasneti_trace_setsourceline(const char *_filename, unsigned int _linenum);
+    extern void gasneti_trace_getsourceline(const char **_pfilename, unsigned int *_plinenum);
     extern void gasneti_trace_freezesourceline(void);
     extern void gasneti_trace_unfreezesourceline(void);
   #else
@@ -119,16 +119,16 @@
     extern unsigned int gasneti_srclinenum;
     extern unsigned int gasneti_srcfreeze;
     GASNETI_INLINE(gasneti_trace_setsourceline)
-    void gasneti_trace_setsourceline(const char *filename, unsigned int linenum) {
+    void gasneti_trace_setsourceline(const char *_filename, unsigned int _linenum) {
       if_pt (gasneti_srcfreeze == 0) {
-        if_pt (filename != NULL) gasneti_srcfilename = filename;
-        gasneti_srclinenum = linenum;
+        if_pt (_filename != NULL) gasneti_srcfilename = _filename;
+        gasneti_srclinenum = _linenum;
       }
     }
     GASNETI_INLINE(gasneti_trace_getsourceline)
-    void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum) {
-      *pfilename = gasneti_srcfilename;
-      *plinenum = gasneti_srclinenum;
+    void gasneti_trace_getsourceline(const char **_pfilename, unsigned int *_plinenum) {
+      *_pfilename = gasneti_srcfilename;
+      *_plinenum = gasneti_srclinenum;
     }
     GASNETI_INLINE(gasneti_trace_freezesourceline)
     void gasneti_trace_freezesourceline(void) {
@@ -254,7 +254,7 @@
 #if GASNET_STATS
   typedef void (*gasnett_stats_callback_t)(void (*)(const char *, ...));
   extern void (*gasnett_stats_callback)(
-    GASNETI_FORMAT_PRINTF_FUNCPTR_ARG(format,1,2,void (*format)(const char *, ...))
+    GASNETI_FORMAT_PRINTF_FUNCPTR_ARG(_format,1,2,void (*_format)(const char *, ...))
   );
 #endif
 
@@ -626,7 +626,7 @@ typedef struct {
 } gasneti_stat_timeval_t;
 
 /* startup & cleanup called by GASNet */
-extern void gasneti_trace_init(int *argc, char ***argv);
+extern void gasneti_trace_init(int *_argc, char ***_argv);
 extern void gasneti_trace_finish(void);
 
 /* defines all the types */
@@ -829,16 +829,16 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
   extern FILE *gasneti_tracefile;
   extern FILE *gasneti_statsfile;
   GASNETI_FORMAT_PRINTF(gasneti_dynsprintf,1,2,
-  extern char *gasneti_dynsprintf(const char *format,...));
-  extern char *gasneti_formatdata(void *p, size_t nbytes);
-  extern void gasneti_trace_output(const char *type, const char *msg, int traceheader);
-  extern void gasneti_stats_output(const char *type, const char *msg, int traceheader);
+  extern char *gasneti_dynsprintf(const char *_format,...));
+  extern char *gasneti_formatdata(void *_p, size_t _nbytes);
+  extern void gasneti_trace_output(const char *_type, const char *_msg, int _traceheader);
+  extern void gasneti_stats_output(const char *_type, const char *_msg, int _traceheader);
 
   extern char gasneti_tracetypes[];
   extern char gasneti_statstypes[];
   extern char gasneti_trace_maskstr[];
   extern char gasneti_stats_maskstr[];
-  extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *types);
+  extern void gasneti_trace_updatemask(const char *_newmask, char *_maskstr, char *_types);
 
   extern int gasneti_trace_suppresslocal;
 #endif
@@ -893,9 +893,9 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
   #undef _GASNETI_DECL_INTVAL
   #undef _GASNETI_DECL_TIMEVAL
 
-  extern void gasneti_stat_count_accumulate(gasneti_statctr_t *pctr);
-  extern void gasneti_stat_intval_accumulate(gasneti_stat_intval_t *pintval, gasneti_statctr_t val);
-  extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gasneti_tick_t val);
+  extern void gasneti_stat_count_accumulate(gasneti_statctr_t *_pctr);
+  extern void gasneti_stat_intval_accumulate(gasneti_stat_intval_t *_pintval, gasneti_statctr_t _val);
+  extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *_pintval, gasneti_tick_t _val);
   #define _GASNETI_STAT_EVENT(type, name) do {                 \
     if (GASNETI_STATS_ENABLED(type))                           \
       gasneti_stat_count_accumulate(&gasneti_stat_ctr_##name); \
