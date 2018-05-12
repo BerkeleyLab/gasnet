@@ -192,7 +192,7 @@
   #define GASNETI_TRACE_GETPUT(type, name, nbytes, tm, rank)                  \
     GASNETI_TRACE_PRINTF(type, ("%s: %s = %6" PRIuPTR ",  peer = "            \
                                 GASNETI_TMRANKFMT, #name,                     \
-                                gasneti_stats[(int)GASNETI_STAT_##name].desc, \
+                                gasneti_stats[(int)GASNETI_STAT_##name]._desc,\
                                 (uintptr_t)(nbytes), GASNETI_TMRANKSTR((tm),(rank))));
   #define GASNETI_TRACE_GETPUT_NONLOCAL GASNETI_TRACE_GETPUT
   #define GASNETI_TRACE_GETPUT_LOCAL(type, name, nbytes, tm, rank) do {  \
@@ -612,17 +612,17 @@ typedef uint64_t gasneti_statctr_t;
   ((GASNETI_STATS_ENABLED(type) || GASNETI_TRACE_ENABLED(type)) ? \
    gasneti_ticks_now():(gasneti_tick_t)0)
 typedef struct {
-  gasneti_statctr_t count;
-  gasneti_statctr_t minval;
-  gasneti_statctr_t maxval;
-  gasneti_statctr_t sumval;
+  gasneti_statctr_t _count;
+  gasneti_statctr_t _minval;
+  gasneti_statctr_t _maxval;
+  gasneti_statctr_t _sumval;
 } gasneti_stat_intval_t;
 
 typedef struct {
-  gasneti_statctr_t count;
-  gasneti_tick_t minval;
-  gasneti_tick_t maxval;
-  gasneti_tick_t sumval;
+  gasneti_statctr_t _count;
+  gasneti_tick_t _minval;
+  gasneti_tick_t _maxval;
+  gasneti_tick_t _sumval;
 } gasneti_stat_timeval_t;
 
 /* startup & cleanup called by GASNet */
@@ -820,9 +820,9 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
   } gasneti_statidx_t;
   #undef _GASNETI_BUILD_ENUM
   typedef struct {
-    const char * const type;
-    const char * const name;
-    const char * const desc;
+    const char * const _type;
+    const char * const _name;
+    const char * const _desc;
   } gasneti_statinfo_t;
   extern gasneti_statinfo_t gasneti_stats[];
 
@@ -869,10 +869,10 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
     GASNETI_TRACE_PRINTF(type, ("%s", #name))
   #define _GASNETI_TRACE_EVENT_VAL(type, name, val) \
     GASNETI_TRACE_PRINTF(type, ("%s: %s = %6" PRIu64,        \
-        #name, gasneti_stats[(int)GASNETI_STAT_##name].desc, (uint64_t)val))
+        #name, gasneti_stats[(int)GASNETI_STAT_##name]._desc, (uint64_t)val))
   #define _GASNETI_TRACE_EVENT_TIME(type, name, time)        \
     GASNETI_TRACE_PRINTF(type, ("%s: %s = %6.3fus",            \
-        #name, gasneti_stats[(int)GASNETI_STAT_##name].desc, \
+        #name, gasneti_stats[(int)GASNETI_STAT_##name]._desc, \
         gasneti_ticks_to_ns(time)/1000.0))
 #else
   #define _GASNETI_TRACE_EVENT(type, name)             ((void)0)
