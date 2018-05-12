@@ -27,16 +27,16 @@
 
   /* emit trace info and accumulate an integer stat value */
   #define GASNETI_TRACE_EVENT_VAL(type, name, val) do { \
-       gasneti_statctr_t _val = (val);                  \
-       _GASNETI_STAT_EVENT_VAL (type, name, _val);      \
-       _GASNETI_TRACE_EVENT_VAL(type, name, _val);      \
+       gasneti_statctr_t _te_val = (val);               \
+       _GASNETI_STAT_EVENT_VAL (type, name, _te_val);   \
+       _GASNETI_TRACE_EVENT_VAL(type, name, _te_val);   \
       } while (0)
 
   /* emit trace info and accumulate a time stat value */
   #define GASNETI_TRACE_EVENT_TIME(type, name, time) do { \
-       gasneti_tick_t _time = (time);                     \
-       _GASNETI_STAT_EVENT_TIME(type, name, _time);       \
-       _GASNETI_TRACE_EVENT_TIME(type, name, _time);      \
+       gasneti_tick_t _te_time = (time);                  \
+       _GASNETI_STAT_EVENT_TIME(type, name, _te_time);    \
+       _GASNETI_TRACE_EVENT_TIME(type, name, _te_time);   \
       } while (0)
 #else
   #define GASNETI_TRACE_EVENT(type, name)            ((void)0)
@@ -56,8 +56,8 @@
   */
   #define GASNETI_TRACE_PRINTF(type, args) do { \
     if (GASNETI_TRACE_ENABLED(type)) {          \
-      char *_msg = gasneti_dynsprintf args;     \
-      gasneti_trace_output(#type, _msg, 1);     \
+      char *_tpf_msg = gasneti_dynsprintf args; \
+      gasneti_trace_output(#type, _tpf_msg, 1); \
     }                                           \
   } while(0)
 #else
@@ -77,8 +77,8 @@
   */
   #define GASNETI_STATS_PRINTF(type, args) do { \
     if (GASNETI_STATS_ENABLED(type)) {          \
-      char *_msg = gasneti_dynsprintf args;     \
-      gasneti_stats_output(#type, _msg, 0);     \
+      char *_spf_msg = gasneti_dynsprintf args; \
+      gasneti_stats_output(#type, _spf_msg, 0); \
     }                                           \
   } while(0)
 #else
@@ -263,19 +263,20 @@
 /*------------------------------------------------------------------------------------*/
 /* AM Request/Reply tracing helpers */
 #define _GASNETI_TRACE_GATHERARGS(numargs,lastarg)                  \
-  char argstr[256];                                                 \
+  char _tga_argstr[256];                                            \
   do {                                                              \
-    int i;                                                          \
-    char *aptr = argstr; int aspace = sizeof(argstr);               \
-    va_list _argptr;                                                \
-    *aptr = '\0';                                                   \
-    va_start(_argptr, lastarg);                                     \
-      for (i=0;i<numargs;i++) {                                     \
+    char *_tga_aptr = _tga_argstr;                                  \
+    size_t _tga_aspace = sizeof(_tga_argstr);                       \
+    va_list _tga_argptr;                                            \
+    *_tga_aptr = '\0';                                              \
+    va_start(_tga_argptr, lastarg);                                 \
+      for (int _tga_i=0;_tga_i<(numargs);_tga_i++) {                \
         /* must be int due to default argument promotion */         \
-        int len = snprintf(aptr,aspace," 0x%08x",(int)(uint32_t)va_arg(_argptr,int)); \
-        aptr += len; aspace -= len;                                 \
+        int _tga_len = snprintf(_tga_aptr,_tga_aspace," 0x%08x",    \
+                           (int)(uint32_t)va_arg(_tga_argptr,int)); \
+        _tga_aptr += _tga_len; _tga_aspace -= _tga_len;             \
       }                                                             \
-    va_end(_argptr);                                                \
+    va_end(_tga_argptr);                                            \
   } while(0)
 
 #define GASNETI_TRACE_AMSHORT(name,tm,rank,handler,flags,numargs) do {               \
@@ -283,7 +284,7 @@
   _GASNETI_STAT_EVENT(A,name);                                                       \
   GASNETI_TRACE_PRINTF(A,(#name": dest=" GASNETI_TMRANKFMT                           \
                                 " handler=%i flags=0x%x args:%s",                    \
-    GASNETI_TMRANKSTR(tm,rank),handler,flags,argstr));                               \
+    GASNETI_TMRANKSTR(tm,rank),handler,flags,_tga_argstr));                          \
 } while(0)
 
 #define GASNETI_TRACE_AMMEDIUM(name,tm,rank,handler,source_addr,nbytes,flags,numargs) do {                \
@@ -292,7 +293,7 @@
   GASNETI_TRACE_PRINTF(A,(#name": dest=" GASNETI_TMRANKFMT                                                \
                                 " handler=%i source_addr=" GASNETI_LADDRFMT                               \
                                 " nbytes=%" PRIuSZ " flags=0x%x args:%s",                                 \
-    GASNETI_TMRANKSTR(tm,rank),handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,flags,argstr));       \
+    GASNETI_TMRANKSTR(tm,rank),handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,flags,_tga_argstr));  \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));            \
 } while(0)
 
@@ -303,7 +304,7 @@
                                 " handler=%i source_addr=" GASNETI_LADDRFMT                    \
                                 " nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" flags=0x%x args:%s",   \
     GASNETI_TMRANKSTR(tm,rank),handler,GASNETI_LADDRSTR(source_addr),(size_t)nbytes,           \
-    GASNETI_LADDRSTR(dest_addr),flags,argstr));                                                \
+    GASNETI_LADDRSTR(dest_addr),flags,_tga_argstr));                                           \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes))); \
 } while(0)
 
@@ -339,7 +340,7 @@
   _GASNETI_TRACE_GATHERARGS(numargs,sd_arg); /* assumes sd_arg is final fixed arg */           \
   _GASNETI_STAT_EVENT_VAL(A,name,nbytes);                                                      \
   GASNETI_TRACE_PRINTF(A,(#name": handler=%i nbytes=%" PRIuSZ " args:%s",                      \
-                          handler,(size_t)nbytes,argstr));                                     \
+                          handler,(size_t)nbytes,_tga_argstr));                                \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes))); \
 } while(0)
 
@@ -347,7 +348,7 @@
   _GASNETI_TRACE_GATHERARGS(numargs,sd_arg); /* assumes sd_arg is final fixed arg */                    \
   _GASNETI_STAT_EVENT_VAL(A,name,nbytes);                                                               \
   GASNETI_TRACE_PRINTF(A,(#name": handler=%i nbytes=%" PRIuSZ " dest_addr=" GASNETI_LADDRFMT" args:%s", \
-                          handler,(size_t)nbytes,GASNETI_LADDRSTR(dest_addr),argstr));                  \
+                          handler,(size_t)nbytes,GASNETI_LADDRSTR(dest_addr),_tga_argstr));             \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));          \
 } while(0)
 
@@ -463,15 +464,16 @@
 /* AM Handler tracing */
 #if GASNETI_STATS_OR_TRACE
   #define _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle)              \
-    char argstr[256];                                                       \
+    char _tgha_argstr[256];                                                 \
     do {                                                                    \
-      int i;                                                                \
-      char *aptr = argstr; int aspace = sizeof(argstr);                     \
-      *aptr = '\0';                                                         \
-      for (i=0;i<numargs;i++) {                                             \
+      char *_tgha_aptr = _tgha_argstr;                                      \
+      size_t _tgha_aspace = sizeof(_tgha_argstr);                           \
+      *_tgha_aptr = 0;                                                      \
+      for (int _tgha_i=0;_tgha_i<(numargs);_tgha_i++) {                     \
         /* here we assume args are stored in an array named by arghandle */ \
-        int len = snprintf(aptr,aspace," 0x%08x",(int)((uint32_t*)arghandle)[i]); \
-        aptr += len; aspace -= len;                                         \
+        int _tgha_len = snprintf(_tgha_aptr,_tgha_aspace," 0x%08x",         \
+                                 (int)((uint32_t*)(arghandle))[_tgha_i]);   \
+        _tgha_aptr += _tgha_len; _tgha_aspace -= _tgha_len;                 \
       }                                                                     \
     } while(0)
 
@@ -494,7 +496,7 @@
     gex_Client_t client = info.gex_ep ? gex_EP_QueryClient(info.gex_ep) : NULL;           \
     const char *cname = client ? gex_Client_QueryName(client) : "N/A";                    \
     GASNETI_TRACE_PRINTF(A,(#name": client='%s' src=%i handler=%i args:%s",               \
-      cname,(int)src,(int)(handlerid),argstr));                                           \
+      cname,(int)src,(int)(handlerid),_tgha_argstr));                                     \
     _GASNETI_TRACE_HANDLER(name, info, timask);                                           \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                           \
                       gasneti_formatdata((void*)&(token), sizeof(token))));               \
@@ -510,7 +512,7 @@
     const char *cname = client ? gex_Client_QueryName(client) : "N/A";                                    \
     GASNETI_TRACE_PRINTF(A,(#name": client='%s' src=%i handler=%i addr=" GASNETI_LADDRFMT                 \
                             " nbytes=%" PRIuSZ " args:%s",                                                \
-      cname,(int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,argstr));                     \
+      cname,(int)src,(int)(handlerid),GASNETI_LADDRSTR(addr),(size_t)nbytes,_tgha_argstr));               \
     _GASNETI_TRACE_HANDLER(name, info, timask);                                                           \
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                                           \
                       gasneti_formatdata((void *)&(token), sizeof(token))));                              \
@@ -816,11 +818,12 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
 
 
 #if GASNETI_STATS_OR_TRACE
-  #define BUILD_ENUM(type,name,desc) GASNETI_STAT_##name,
+  #define _GASNETI_BUILD_ENUM(type,name,desc) GASNETI_STAT_##name,
   typedef enum {
-    GASNETI_ALL_STATS(BUILD_ENUM, BUILD_ENUM, BUILD_ENUM)
+    GASNETI_ALL_STATS(_GASNETI_BUILD_ENUM, _GASNETI_BUILD_ENUM, _GASNETI_BUILD_ENUM)
     GASNETI_STAT_COUNT
   } gasneti_statidx_t;
+  #undef _GASNETI_BUILD_ENUM
   typedef struct {
     const char * const type;
     const char * const name;
@@ -884,16 +887,16 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
 
 
 #if GASNET_STATS
-  #define DECL_CTR(type,name,desc)                   \
+  #define _GASNETI_DECL_CTR(type,name,desc) \
     extern gasneti_statctr_t gasneti_stat_ctr_##name;
-  #define DECL_INTVAL(type,name,desc)                   \
+  #define _GASNETI_DECL_INTVAL(type,name,desc) \
     extern gasneti_stat_intval_t gasneti_stat_intval_##name;
-  #define DECL_TIMEVAL(type,name,desc)                    \
+  #define _GASNETI_DECL_TIMEVAL(type,name,desc) \
     extern gasneti_stat_timeval_t gasneti_stat_timeval_##name;
-  GASNETI_ALL_STATS(DECL_CTR, DECL_INTVAL, DECL_TIMEVAL)
-  #undef DECL_CTR
-  #undef DECL_INTVAL
-  #undef DECL_TIMEVAL
+  GASNETI_ALL_STATS(_GASNETI_DECL_CTR, _GASNETI_DECL_INTVAL, _GASNETI_DECL_TIMEVAL)
+  #undef _GASNETI_DECL_CTR
+  #undef _GASNETI_DECL_INTVAL
+  #undef _GASNETI_DECL_TIMEVAL
 
   extern void gasneti_stat_count_accumulate(gasneti_statctr_t *pctr);
   extern void gasneti_stat_intval_accumulate(gasneti_stat_intval_t *pintval, gasneti_statctr_t val);
