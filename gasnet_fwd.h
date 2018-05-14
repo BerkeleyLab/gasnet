@@ -108,8 +108,8 @@ typedef uint32_t gex_OP_t;
 
 // Convert between fetching and non-fetching variants
 // Undefined result if input is not in the appropriate range.
-#define GEX_OP_TO_FETCHING(op)    ((op) << (__GEX_OP_AND - _GEX_OP_FAND))
-#define GEX_OP_TO_NONFETCHING(op) ((op) >> (__GEX_OP_AND - _GEX_OP_FAND))
+#define GEX_OP_TO_FETCHING(op)    ((op) >> (_GEX_OP_AND - _GEX_OP_FAND))
+#define GEX_OP_TO_NONFETCHING(op) ((op) << (_GEX_OP_AND - _GEX_OP_FAND))
 
 //================================================
 // GEX_FLAG_*

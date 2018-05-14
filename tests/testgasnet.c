@@ -887,15 +887,25 @@ void doit0(int partner, int *partnerseg) {
     GEX_OP_ADD,  GEX_OP_SUB,  GEX_OP_MULT,
     GEX_OP_MIN,  GEX_OP_MAX,
     GEX_OP_INC,  GEX_OP_DEC,
+    GEX_OP_SET,  
+
     GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
     GEX_OP_FADD, GEX_OP_FSUB, GEX_OP_FMULT,
     GEX_OP_FMIN, GEX_OP_FMAX,
     GEX_OP_FINC, GEX_OP_FDEC,
-    GEX_OP_SET,  GEX_OP_GET,
-    GEX_OP_SWAP, GEX_OP_CSWAP
+    GEX_OP_SWAP, 
+
+    GEX_OP_GET, GEX_OP_CSWAP
   };
   assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
   test_format(gex_OP_t, ops_arr, gasnett_format_op);
+  for (size_t i = 0; ; i++) {
+    gex_OP_t nfop = ops_arr[i];
+    gex_OP_t fop =  ops_arr[i+11];
+    assert_always(GEX_OP_TO_FETCHING(nfop) == fop);
+    assert_always(GEX_OP_TO_NONFETCHING(fop) == nfop);
+    if (nfop == GEX_OP_SET) break;
+  }
 
   #define typeissigned   <
   #define typeisunsigned >
