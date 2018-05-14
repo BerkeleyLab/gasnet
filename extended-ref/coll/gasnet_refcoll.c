@@ -965,10 +965,11 @@ void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
    * distinct entries.
    */
 #if ALL_THREADS_POLL
-  if (gasneti_mutex_trylock(&poll_lock) == 0) {
+  if (gasneti_mutex_trylock(&poll_lock) == 0)
 #else
-    if(td->my_local_image==0) {
+  if(td->my_local_image==0)
 #endif
+  {
     gasnete_coll_op_t *op;
 
 
@@ -1007,11 +1008,6 @@ void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
   }
 }
   
-  
-#if 0
-}
-#endif
-
 static gasnet_seginfo_t *gasnete_coll_auxseg_save = NULL;
 
 
