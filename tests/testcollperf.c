@@ -984,6 +984,7 @@ void *thread_main(void *arg) {
 
   for(flag_iter=0; flag_iter<9; flag_iter++) {
     int flags;
+    PTHREAD_BARRIER(threads_per_node);
     if(td->my_local_thread==0) TEST_SECTION_BEGIN();
     COLL_BARRIER();
     
