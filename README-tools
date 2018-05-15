@@ -692,6 +692,11 @@ gasnett_constant_p(expr)
   This expands to use of __builtin_constant_p() on compilers with the necessary
   support, or to the constant 0 otherwise.
 
+gasnett_unreachable()
+
+  This annotation marks the current code location as unreachable (using compiler-specific
+  mechanisms), to assist optimization of surrounding code.
+
 -----------------------------------------------------
 Error-checking System Mutexes and Condition Variables
 -----------------------------------------------------
