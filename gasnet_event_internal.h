@@ -192,11 +192,25 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     gasneti_assert(_h != GEX_EVENT_NO_OP);                \
     gasneti_assert(gasneti_event_idx(_h) < GASNETE_OP_EVENTS); \
     gasnete_op_t *_op = gasneti_event_op(_h);                  \
-    if (OPTYPE(_op) == OPTYPE_EXPLICIT) {                       \
-      gasnete_eop_check((gasnete_eop_t*)_op);                   \
-    } else {                                                    \
-      gasnete_iop_check((gasnete_iop_t*)_op);                   \
-    }                                                           \
+    switch (EVENT_TYPE(_op,0)) {                               \
+      case gasnete_event_type_eop:                             \
+        gasnete_eop_check((gasnete_eop_t*)_op);                \
+        break;                                                 \
+      case gasnete_event_type_iop:                             \
+        gasnete_iop_check((gasnete_iop_t*)_op);                \
+        break;                                                 \
+      case gasnete_event_type_free_eop:                        \
+      case gasnete_event_type_pendingfree_eop:                 \
+        gasneti_fatalerror("Invalid use of free eop");         \
+        break;                                                 \
+      case gasnete_event_type_free_iop:                        \
+      case gasnete_event_type_pendingfree_iop:                 \
+        gasneti_fatalerror("Invalid use of free iop");         \
+        break;                                                 \
+      default:                                                 \
+        gasneti_fatalerror("Event has invalid type %d",        \
+                           EVENT_TYPE(_op,0));                 \
+    }                                                          \
   } while (0)
 #else
   #define gasnete_eop_check(eop)   ((void)0)
