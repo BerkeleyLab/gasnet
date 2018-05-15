@@ -135,6 +135,8 @@ GASNETI_BEGIN_NOWARN
 
 #define gasnett_constant_p              gasneti_constant_p
 
+#define gasnett_unreachable             gasneti_unreachable
+
 /* ------------------------------------------------------------------------------------ */
 /* portable memory barriers */
 

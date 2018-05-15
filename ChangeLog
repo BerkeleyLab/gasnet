@@ -239,6 +239,9 @@ GASNet ChangeLog
   - Reduce polling cost on single-supernode runs. smp-conduit remains the
     recommended conduit for use on single-supernode shared-memory systems.
 
+* GASNet tools (spec v1.13)
+  - Add gasnett_unreachable()
+
 * GASNet tools (spec v1.12)
   - Numerous improvements to backtrace support, including fixing the
     following bugs:
