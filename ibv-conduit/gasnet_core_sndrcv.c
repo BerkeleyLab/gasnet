@@ -4517,7 +4517,8 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
+  gasneti_assert(tm);
+  gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm));
   gasneti_assert(ep == gasnetc_ep0);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, tm, rank, handler,
@@ -4539,7 +4540,8 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
+  gasneti_assert(tm);
+  gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm));
   gasneti_assert(ep == gasnetc_ep0);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
@@ -4601,7 +4603,8 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  gasnetc_EP_t ep = tm ? (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm)) : gasnetc_ep0; // TODO-EX: drop null-TM case
+  gasneti_assert(tm);
+  gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm));
   gasneti_assert(ep == gasnetc_ep0);
   if (gasnetc_dest_in_nbrhd(tm, rank)) {
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
