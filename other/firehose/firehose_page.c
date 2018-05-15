@@ -2528,7 +2528,7 @@ send_am:
 	req->flags |= FH_FLAG_INFLIGHT;
 
 	gex_AM_RequestMedium(
-		    NULL, node,
+		    gasneti_THUNK_TM, node,
 		    fh_handleridx(fh_am_move_reqh),
 		    reg_alloc, 
 		    sizeof(firehose_region_t)*tot_r+args_len,
@@ -2883,7 +2883,7 @@ fh_acquire_remote_region(firehose_request_t *req,
 		req->flags |= FH_FLAG_INFLIGHT;
 
                 gex_AM_RequestMedium(
-			    NULL, node,
+			    gasneti_THUNK_TM, node,
 			    fh_handleridx(fh_am_move_reqh),
 			    reg_alloc, 
 			    sizeof(firehose_region_t)*(new_r+old_r)+args_len, 

@@ -650,7 +650,7 @@ static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
     hca->amrdma_rcv.cep[count] = cep;
     gasnetc_atomic_set(&hca->amrdma_rcv.count, count+1, GASNETI_ATOMIC_REL);
 
-    gex_AM_RequestShort(NULL, node, gasneti_handleridx(gasnetc_amrdma_grant_reqh), 0,
+    gex_AM_RequestShort(gasneti_THUNK_TM, node, gasneti_handleridx(gasnetc_amrdma_grant_reqh), 0,
 		            (gex_AM_Arg_t)qpi,
 		            (gex_AM_Arg_t)hca->amrdma_reg.handle->rkey,
 		            PACK(cep->amrdma_recv->addr));
@@ -3895,7 +3895,7 @@ gasnetc_sndrcv_quiesce(void) {
                                                         : gasneti_mynode + (gasneti_nodes - distance);
       if (gasnetc_non_ib(peer)) {
         /* BLCR-TODO: this might be a problem between init and attach? */
-        gex_AM_RequestShort0(NULL, peer, gasneti_handleridx(gasnetc_sys_close_reqh), 0);
+        gex_AM_RequestShort0(gasneti_THUNK_TM, peer, gasneti_handleridx(gasnetc_sys_close_reqh), 0);
       } else {
         static gasnetc_counter_t dummy = GASNETC_COUNTER_INITIALIZER; /* So PFs don't run */
         const int qp_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;

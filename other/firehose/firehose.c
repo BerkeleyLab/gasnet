@@ -1408,7 +1408,7 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 	FH_TABLE_ASSERT_UNLOCKED;
 	/* Run the "reply" handler as a request */
 	gex_AM_RequestMedium(
-	     NULL, rc->node, fh_handleridx(fh_am_move_reph),
+	     gasneti_THUNK_TM, rc->node, fh_handleridx(fh_am_move_reph),
 	     rc->pin_list, rc->reply_len,
 	     GEX_EVENT_NOW, 0,
 	     rc->pin_list_num, PACK(rc->context));
