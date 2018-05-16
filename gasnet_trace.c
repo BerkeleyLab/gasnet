@@ -272,6 +272,7 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
       unsigned int frozen;
     } gasneti_srclineinfo_t;
     static void gasneti_srclineinfo_cleanup_threaddata(void *_td) {
+      gasneti_threadkey_set(gasneti_srclineinfo_key, NULL);
       gasneti_free(_td);
     }
     GASNETI_INLINE(gasneti_mysrclineinfo)
@@ -331,6 +332,7 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   } gasneti_printbuf_t;
   GASNETI_THREADKEY_DEFINE(gasneti_printbuf_key);
   static void gasneti_printbuf_cleanup_threaddata(void *_td) {
+      gasneti_threadkey_set(gasneti_printbuf_key, NULL);
       gasneti_free(_td);
   }
 
