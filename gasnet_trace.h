@@ -852,8 +852,10 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
     GASNETI_TRACE_PRINTF(I,("%s GASNET_TRACELOCAL",(_val?"Enabling":"Disabling"))); \
     gasneti_trace_suppresslocal = !_val;                                            \
   } while (0)
+  #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
 #else
   #define GASNETI_TRACE_ENABLED(type) 0
+  #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
 #endif
 #if GASNET_STATS
   #define GASNETI_STATS_ENABLED(type) (gasneti_statstypes[(int)*(char*)#type])
