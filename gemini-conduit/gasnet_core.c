@@ -1576,6 +1576,9 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(tm,dest,handler,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
+  gasneti_assert(tm || (handler == gasneti_handleridx(gasnetc_sys_barrier_reqh))
+                    || (handler == gasneti_handleridx(gasnetc_exit_reqh)));
+
   va_list argptr;
   va_start(argptr, numargs);
   int retval = gasnetc_AMRequestShort(tm,dest,handler,flags,numargs,argptr GASNETI_THREAD_PASS);
@@ -1596,6 +1599,8 @@ extern int gasnetc_AMRequestMediumM(
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
   gasneti_leaf_finish(lc_opt); // lack of gather-send prevents async local completion
+
+  gasneti_assert(tm || (handler == gasneti_handleridx(gasnetc_sys_exchange_reqh)));
 
   va_list argptr;
   va_start(argptr, numargs);
@@ -1703,6 +1708,8 @@ extern int gasnetc_AMRequestLongM(
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTLONG(tm,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
+
+  gasneti_assert(tm);
 
   va_list argptr;
   va_start(argptr, numargs);
