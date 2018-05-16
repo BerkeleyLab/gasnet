@@ -955,51 +955,74 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
 /* Returns "local rank" if given node is in the callers supernode.
  * Otherwise returns an "impossible" value >= gasneti_pshm_nodes.
  */
-GASNETI_INLINE(gasneti_pshm_local_rank) GASNETI_PURE
-unsigned int gasneti_pshm_local_rank(gex_Rank_t node) {
+GASNETI_INLINE(gasneti_pshm_jobrank_to_local_rank) GASNETI_PURE
+unsigned int gasneti_pshm_jobrank_to_local_rank(gex_Rank_t _jobrank) {
 #if GASNET_CONDUIT_SMP
-  return node;
+  return _jobrank;
 #else
   if_pt (gasneti_pshm_rankmap == NULL) {
     /* NOTE: gex_Rank_t is an unsigned type, so in the case of
-     * (node < gasneti_pshm_firstnode), the subtraction will wrap to
+     * (_jobrank < gasneti_pshm_firstnode), the subtraction will wrap to
      * a "large" value.
      */
-    return (node - gasneti_pshm_firstnode);
+    return (_jobrank - gasneti_pshm_firstnode);
   } else {
-    return gasneti_pshm_rankmap[node];
+    return gasneti_pshm_rankmap[_jobrank];
   }
 #endif
 }
-GASNETI_PUREP(gasneti_pshm_local_rank)
+GASNETI_PUREP(gasneti_pshm_jobrank_to_local_rank)
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
  * NOTE: result is false before vnet initialization.
  */
-GASNETI_INLINE(gasneti_pshm_in_supernode) GASNETI_PURE
-int gasneti_pshm_in_supernode(gex_Rank_t node) {
+GASNETI_INLINE(gasneti_pshm_jobrank_in_supernode) GASNETI_PURE
+int gasneti_pshm_jobrank_in_supernode(gex_Rank_t _jobrank) {
 #if GASNET_CONDUIT_SMP
   return 1;
 #else
-  return (gasneti_pshm_local_rank(node) < gasneti_pshm_nodes);
+  return (gasneti_pshm_jobrank_to_local_rank(_jobrank) < gasneti_pshm_nodes);
 #endif
 }
-GASNETI_PUREP(gasneti_pshm_in_supernode)
+GASNETI_PUREP(gasneti_pshm_jobrank_in_supernode)
 
 /* Returns local version of remote in-supernode address.
  */
 // TODO-EX: This is probably the wrong interface for at least 2 reasons:
 // + Relies on dense array of nodeinfo even though only supernode-local are non-zero
 // + Was designed for single segment and even auxseg is currently a hack
-GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
-void *gasneti_pshm_addr2local(gex_Rank_t node, const void *addr) {
+GASNETI_INLINE(gasneti_pshm_jobrank_addr2local) GASNETI_PURE
+void *gasneti_pshm_jobrank_addr2local(gex_Rank_t _jobrank, const void *_addr) {
 #if 1 // TODO-EX: this is a hack!
   // Properties of unsigned subtraction make the following oblivous to order of client vs aux segment
-  if_pf (((uintptr_t)addr - (uintptr_t)gasneti_seginfo[node].addr) >= gasneti_seginfo[node].size)
-    return (void*)((uintptr_t)addr + (uintptr_t)gasneti_nodeinfo[node].auxoffset);
+  if_pf (((uintptr_t)_addr - (uintptr_t)gasneti_seginfo[_jobrank].addr) >= gasneti_seginfo[_jobrank].size)
+    return (void*)((uintptr_t)_addr + (uintptr_t)gasneti_nodeinfo[_jobrank].auxoffset);
 #endif
-  return  (void*)((uintptr_t)addr
-                   + (uintptr_t)gasneti_nodeinfo[node].offset);
+  return  (void*)((uintptr_t)_addr
+                   + (uintptr_t)gasneti_nodeinfo[_jobrank].offset);
+} 
+GASNETI_PUREP(gasneti_pshm_jobrank_addr2local)
+
+// Same as the three functions above, but taking (tm,rank) in place of jobrank
+
+GASNETI_INLINE(gasneti_pshm_local_rank) GASNETI_PURE
+unsigned int gasneti_pshm_local_rank(gex_TM_t _tm, gex_Rank_t _rank) {
+  gex_Rank_t _jobrank = _rank; // TODO-EX: real TM support
+  return gasneti_pshm_jobrank_to_local_rank(_jobrank);
+}
+GASNETI_PUREP(gasneti_pshm_local_rank)
+
+GASNETI_INLINE(gasneti_pshm_in_supernode) GASNETI_PURE
+int gasneti_pshm_in_supernode(gex_TM_t _tm, gex_Rank_t _rank) {
+  gex_Rank_t _jobrank = _rank; // TODO-EX: real TM support
+  return gasneti_pshm_jobrank_in_supernode(_jobrank);
+}
+GASNETI_PUREP(gasneti_pshm_in_supernode)
+
+GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
+void *gasneti_pshm_addr2local(gex_TM_t _tm, gex_Rank_t _rank, const void *_addr) {
+  gex_Rank_t _jobrank = _rank; // TODO-EX: real TM support
+  return gasneti_pshm_jobrank_addr2local(_jobrank, _addr);
 } 
 GASNETI_PUREP(gasneti_pshm_addr2local)
 #endif /* GASNET_PSHM */

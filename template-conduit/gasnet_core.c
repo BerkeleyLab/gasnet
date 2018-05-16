@@ -517,7 +517,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
     retval = gasneti_nbrhd_RequestGeneric( gasneti_Short, rank, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
@@ -571,7 +571,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasneti_nbrhd_RequestGeneric( gasneti_Medium, rank, handler,
                                            source_addr, nbytes, 0,
@@ -697,7 +697,7 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs);
 
   int retval;
-  if_pt (gasnetc_dest_in_nbrhd(tm, dest)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, dest)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, dest, handler,
                                           source_addr, nbytes, NULL,
@@ -789,7 +789,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasneti_nbrhd_RequestGeneric( gasneti_Long, rank, handler,
                                            source_addr, nbytes, dest_addr,

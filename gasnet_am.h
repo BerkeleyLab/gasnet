@@ -620,6 +620,7 @@ void *gasnetc_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
 
 /* ------------------------------------------------------------------------------------ */
 // Types and macros common to loopback and PSHM
+// TODO-EX: "promote" conduit-independent gasnetc_nbrhd_* interfaces to gasneti_nbrhd_*
 
 typedef struct {
   gex_Token_Info_t ti;
@@ -629,23 +630,22 @@ typedef struct {
 #endif
 } gasnetc_nbrhd_token_t;
 
-#define gasnetc_dest_in_nbrhd(tm,rank) GASNETI_SUPERNODE_LOCAL(rank)
 #define gasnetc_token_in_nbrhd(tok) ((uintptr_t)(tok)&1)
 
 GASNETI_INLINE(gasnetc_nbrhd_token_init)
 gex_Token_t gasnetc_nbrhd_token_init(
                         gasnetc_nbrhd_token_t *real_token,
-                        gex_Rank_t src,
+                        gex_Rank_t src_jobrank,
                         gex_AM_Entry_t *entry,
                         int isReq)
 {
     gasneti_assert(!((uintptr_t)real_token & 1));
-    gasneti_assert(GASNETI_SUPERNODE_LOCAL(src));
+    gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(src_jobrank));
   #if !PLATFORM_COMPILER_PGI // Bug 3587
     // generic msgsource() requires srcrank first
     gasneti_assert(!offsetof(gasnetc_nbrhd_token_t,ti.gex_srcrank));
   #endif
-    real_token->ti.gex_srcrank = src;
+    real_token->ti.gex_srcrank = src_jobrank;
     real_token->ti.gex_ep = gasneti_THUNK_EP;
     real_token->ti.gex_entry = entry;
     real_token->ti.gex_is_req = isReq;
@@ -958,7 +958,7 @@ void gasnetc_loopback_Commit(
   #define _GASNETC_IS_NBRHD_FIELD _loopback
 #endif
 #define GASNETC_IS_NBRHD_PREPARE_REQ(sd,tm,dest) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_dest_in_nbrhd(tm,dest)))
+    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = GASNETI_NBRHD_LOCAL(tm,dest)))
 #define GASNETC_IS_NBRHD_PREPARE_REP(sd,token) \
     (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_token_in_nbrhd(token)))
 #define GASNETC_IS_NBRHD_COMMIT(sd) \
@@ -981,7 +981,7 @@ int gasnetc_nbrhd_PrepareRequest(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(gasnetc_dest_in_nbrhd(tm,dest));
+  gasneti_assert(GASNETI_NBRHD_LOCAL(tm,dest));
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
     return gasnetc_AMPSHM_PrepareRequestMedium(sd, tm, dest, client_buf, least_payload, most_payload,

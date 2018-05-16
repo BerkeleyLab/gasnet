@@ -1675,8 +1675,8 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
     // Note that we try to avoid iteration over all nodes.
     // For the case of supernode peers with contiguous ranks we examine no extra nodes
     for (gex_Rank_t node = gasneti_pshm_firstnode; local_rank < gasneti_pshm_nodes; node++) {
-        if (! gasneti_pshm_in_supernode(node)) continue;
-        gasneti_assert(local_rank == gasneti_pshm_local_rank(node));
+        if (! gasneti_pshm_jobrank_in_supernode(node)) continue;
+        gasneti_assert(local_rank == gasneti_pshm_jobrank_to_local_rank(node));
         if (node != gasneti_mynode) {
 
             const uintptr_t size = seginfo[node].size;
@@ -1879,7 +1879,7 @@ int gasneti_Segment_QueryBound(
   }
 
   if (localaddr_p) {
-    if (GASNETI_SUPERNODE_LOCAL(rank)) {
+    if (GASNETI_NBRHD_LOCAL(tm_arg,rank)) {
     #if GASNET_PSHM
       gasneti_assert(gasneti_nodeinfo);
       *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[rank].addr + gasneti_nodeinfo[rank].offset);

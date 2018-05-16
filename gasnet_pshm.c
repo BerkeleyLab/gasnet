@@ -1267,8 +1267,8 @@ int ampshm_prepare_inner(
   gasneti_assert(sd);
 
   // Determine PSHM peer
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
-  gasneti_pshm_rank_t pshmrank = gasneti_pshm_local_rank(jobrank);
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
+  gasneti_pshm_rank_t pshmrank = gasneti_pshm_jobrank_to_local_rank(jobrank);
 
   // Determine the xfer size
   size_t size;
@@ -1356,7 +1356,7 @@ void ampshm_commit_inner(
         GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr;
         GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
         gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes ); // truncated?
-        void *data = gasneti_pshm_addr2local(sd->_pshm._jobrank, dest_addr);
+        void *data = gasneti_pshm_jobrank_addr2local(sd->_pshm._jobrank, dest_addr);
         GASNETI_MEMCPY_SAFE_EMPTY(data, sd->_addr, nbytes);
         break;
     }
@@ -1451,7 +1451,7 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 int gasneti_AMPSHM_RequestShort(gex_Rank_t jobrank, gex_AM_Index_t handler,
                                 gex_Flags_t flags, int numargs, va_list argptr)
 {
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 1, jobrank, handler, NULL,
                                       0, NULL, flags, numargs, argptr);
 }
@@ -1460,7 +1460,7 @@ int gasneti_AMPSHM_RequestMedium(gex_Rank_t jobrank, gex_AM_Index_t handler,
                                  void *source_addr, size_t nbytes,
                                  gex_Flags_t flags, int numargs, va_list argptr)
 {
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 1, jobrank, handler, source_addr,
                                       nbytes, NULL, flags, numargs, argptr);
 }
@@ -1469,7 +1469,7 @@ int gasneti_AMPSHM_RequestLong(gex_Rank_t jobrank, gex_AM_Index_t handler,
                                void *source_addr, size_t nbytes, void *dest_addr,
                                gex_Flags_t flags, int numargs, va_list argptr)
 {
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 1, jobrank, handler, source_addr,
                                       nbytes, dest_addr, flags, numargs, argptr);
 }

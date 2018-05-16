@@ -817,8 +817,8 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
     const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     uint64_t * const dst = GASNETE_GDBARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
-    if (gasneti_pshm_in_supernode(node)) {
-      *(uint64_t*)gasneti_pshm_addr2local(node, dst) = payload;
+    if (gasneti_pshm_jobrank_in_supernode(node)) {
+      *(uint64_t*)gasneti_pshm_jobrank_addr2local(node, dst) = payload;
     } else
 #endif
     {

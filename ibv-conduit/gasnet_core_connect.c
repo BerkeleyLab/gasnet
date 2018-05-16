@@ -376,7 +376,7 @@ gasnetc_xrc_init(void **shared_mem_p) {
    Returns NULL for cases that should not have any connection */
 static const gasnetc_port_info_t *
 gasnetc_select_port(gex_Rank_t node, int qpi) {
-    if (gasnetc_non_ib(node)) {
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(node)) {
       return NULL;
     }
     if (GASNETC_QPI_IS_REQ(qpi)) {
@@ -1702,7 +1702,7 @@ gasnetc_connect_to(gex_Rank_t node)
     conn->start_active = 1;
   #endif
 
-    if_pf (node >= gasneti_nodes || gasnetc_non_ib(node)) {
+    if_pf (node >= gasneti_nodes || GASNETI_NBRHD_JOBRANK_IS_LOCAL(node)) {
       gasneti_fatalerror("Connection requested to invalid node %d", (int)node);
       break;
     }
@@ -2136,7 +2136,7 @@ gasnetc_connect_static(void)
       { uint8_t *transposed_mask = gasneti_malloc(gasneti_nodes * sizeof(uint8_t));
         gasneti_bootstrapAlltoall(peer_mask, sizeof(uint8_t), transposed_mask);
         for (static_nodes = node = 0; node < gasneti_nodes; ++node) {
-          peer_mask[node] = !gasnetc_non_ib(node) && (peer_mask[node] || transposed_mask[node]);
+          peer_mask[node] = !GASNETI_NBRHD_JOBRANK_IS_LOCAL(node) && (peer_mask[node] || transposed_mask[node]);
           gasneti_assert((peer_mask[node] == 0) || (peer_mask[node] == 1));
           static_nodes += peer_mask[node];
        }
@@ -2160,7 +2160,7 @@ gasnetc_connect_static(void)
   }
 
   #define GASNETC_IS_REMOTE_NODE(_node) \
-    (peer_mask ? peer_mask[_node] : !gasnetc_non_ib(_node))
+    (peer_mask ? peer_mask[_node] : !GASNETI_NBRHD_JOBRANK_IS_LOCAL(_node))
 
   #define GASNETC_FOR_EACH_REMOTE_NODE(_node) \
     for ((_node) = 0; (_node) < gasneti_nodes; ++(_node)) \

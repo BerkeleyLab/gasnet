@@ -574,13 +574,6 @@ void gasnetc_deregister_gpd(gasnetc_post_descriptor_t *gpd)
 }
 
 /*-------------------------------------------------*/
-/* We don't allocate resources for comms w/ self or PSHM-reachable peers */
-
-#if GASNET_PSHM
-  #define node_is_local(_i) gasneti_pshm_in_supernode(_i)
-#else
-  #define node_is_local(_i) ((_i) == gasneti_mynode)
-#endif
 
 /* From point-of-view of a remote node, what is MY index in the mailbox array */
 GASNETI_INLINE(my_mb_index)
@@ -900,7 +893,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
   for (i = 0; i < gasneti_nodes; i += 1) {
   #if !GASNETC_BUILD_GNIRATOMIC
-    if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) continue; /* no connection to self or PSHM-reachable peers */
   #endif
    status = GNI_EpCreate(DOMAIN_SPECIFIC_VAL(nic_handle), DOMAIN_SPECIFIC_VAL(bound_cq_handle), 
                         &DOMAIN_SPECIFIC_VAL(peer_data[i].ep_handle));
@@ -1174,7 +1167,7 @@ uintptr_t gasnetc_init_messaging(void)
     #endif
 
     #if !GASNETC_BUILD_GNIRATOMIC
-      if (!node_is_local(i)) /* no connection to self or PSHM-reachable peers */
+      if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) /* no connection to self or PSHM-reachable peers */
     #endif
       {
         status = GNI_EpCreate(nic_handle, bound_cq_handle, &peer_data[i].ep_handle);
@@ -1184,7 +1177,7 @@ uintptr_t gasnetc_init_messaging(void)
         peer_data[i].pe = i;
       }
 
-      if (!node_is_local(i)) { /* no AMs to self or PSHM-reachable peers */
+      if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) { /* no AMs to self or PSHM-reachable peers */
         peer_struct_t * const peer = &peer_data[i];
         uint8_t *remote_peer_base = all_am_exchg[i].addr + peer_stride * my_mb_index(i) + reply_region_length;
 
@@ -1288,7 +1281,7 @@ void gasnetc_shutdown(void)
     for (tries=0; tries<10; ++tries) {
       for (i = 0; i < gasneti_nodes; i += 1) {
       #if !GASNETC_BUILD_GNIRATOMIC
-          if_pf (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
+          if_pf (GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) continue; /* no connection to self or PSHM-reachable peers */
       #endif
           if_pt (peer_data[i].ep_handle != NULL) {
             status = GNI_EpUnbind( peer_data[i].ep_handle);
@@ -2367,7 +2360,7 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2441,7 +2434,7 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2535,7 +2528,7 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
   gni_return_t status;
 
 #if !GASNETC_BUILD_GNIRATOMIC
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 #endif
 
   /* confirm that the destination is in-segment on the far end */
@@ -2598,7 +2591,7 @@ size_t gasnetc_rdma_get(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
 
 #if !GASNETC_BUILD_GNIRATOMIC
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 #endif
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
@@ -2667,7 +2660,7 @@ void gasnetc_rdma_get_unaligned(gex_Rank_t node,
   size_t       length = GASNETI_ALIGNUP(nbytes + pre, 4);
   unsigned int overfetch = length - nbytes;
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
   gasneti_assert(length <= gasnetc_max_get_unaligned);
 
   gasneti_assert(0 == (overfetch & ~GC_POST_COPY_TRIM));
@@ -2720,7 +2713,7 @@ int gasnetc_rdma_get_buff(gex_Rank_t node,
   unsigned int pre = (uintptr_t) source_addr & 3;
   size_t       length = GASNETI_ALIGNUP(nbytes + pre, 4);
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
   gasneti_assert(nbytes  <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
 
   /* confirm that the source is in-segment on the far end */

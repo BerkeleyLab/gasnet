@@ -1210,7 +1210,7 @@ int gasnetc_AMRequestShort(
                 int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval = GASNET_OK;
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
     retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, tm, rank, handler,
                                           NULL, 0, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
@@ -1273,7 +1273,7 @@ int gasnetc_AMRequestMedium(
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
     retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, rank, handler,
                                           source_addr, nbytes, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
@@ -1372,7 +1372,7 @@ int gasnetc_AMRequestLong(
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
+  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
     retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, tm, rank, handler,
                                           source_addr, nbytes, dest_addr,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
