@@ -1051,6 +1051,9 @@ uintptr_t gasnetc_init_messaging(void)
                                                GASNETC_NETWORKDEPTH_TOTAL_DEFAULT, 0);
   reply_count = MAX(1, reply_count); /* Min is 1 */
 
+  /* reply destination is also request source.  So, must fit largest *outgoing* message */
+  size_t am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
+
   /* Max number of AM Requests outstanding may be constrained by available Reply buffers: */
   am_maxcredit = MIN(am_maxcredit, reply_count);
 
@@ -1092,7 +1095,7 @@ uintptr_t gasnetc_init_messaging(void)
    * Set up an mmap region to contain all of my mailboxes.
    */
 
-  reply_region_length = reply_count * GASNETC_MSG_MAXSIZE;
+  reply_region_length = reply_count * am_replysz;
   peer_stride = request_region_length + notify_ring_size * sizeof(gasnetc_notify_t);
 
   /* TODO: remove MAX(1,) while still avoiding "issues" on single-(super)node runs */
@@ -1135,7 +1138,7 @@ uintptr_t gasnetc_init_messaging(void)
   reply_pool = gasneti_malloc(reply_count * sizeof(reply_pool_t));
   for (i = 0; i < reply_count; i++) {
     reply_pool[i].u.next = &reply_pool[i + 1];
-    reply_pool[i].packet = (gasnetc_packet_t *)((uintptr_t)am_mmap_ptr + i * GASNETC_MSG_MAXSIZE);
+    reply_pool[i].packet = (gasnetc_packet_t *)((uintptr_t)am_mmap_ptr + i * am_replysz);
   }
   reply_freelist = reply_pool;
   reply_pool[reply_count - 1].u.next = NULL;
