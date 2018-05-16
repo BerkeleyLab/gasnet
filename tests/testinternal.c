@@ -56,8 +56,10 @@ int main(int argc, char **argv) {
   if (peer == numrank) peer = myrank;
 
   BARRIER();
+  void *myseg = TEST_SEG(myrank);
+  void *peerseg = TEST_SEG(peer);
   test_errs = gasnett_run_diagnostics(iters, threads, test_sections, myteam,
-                                      TEST_SEG(myrank), peer, TEST_SEG(peer));
+                                      myseg, peer, peerseg);
   BARRIER();
 
   if (test_errs) ERR("gasnett_run_diagnostics(%i) failed.", iters);
