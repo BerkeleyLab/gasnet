@@ -56,7 +56,7 @@ void gasneti_free_ad(gasneti_AD_t ad);
     &prefix##_FMIN, &prefix##_FMAX,                  \
     &prefix##_FINC, &prefix##_FDEC,                  \
     &prefix##_SET,  &prefix##_GET,                   \
-    &prefix##_SWAP, &prefix##_CSWAP }
+    &prefix##_SWAP, &prefix##_FCAS, &prefix##_CAS }
 #define _GASNETE_RATOMIC_FN_TBL_INIT_INT1(prefix)    \
   { &prefix##_AND,  &prefix##_OR,   &prefix##_XOR,   \
     &prefix##_ADD,  &prefix##_SUB,  &prefix##_MULT,  \
@@ -67,7 +67,7 @@ void gasneti_free_ad(gasneti_AD_t ad);
     &prefix##_FMIN, &prefix##_FMAX,                  \
     &prefix##_FINC, &prefix##_FDEC,                  \
     &prefix##_SET,  &prefix##_GET,                   \
-    &prefix##_SWAP, &prefix##_CSWAP }
+    &prefix##_SWAP, &prefix##_FCAS, &prefix##_CAS }
 
 /*---------------------------------------------------------------------------------*/
 //

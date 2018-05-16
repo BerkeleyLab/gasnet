@@ -1602,12 +1602,15 @@ typedef [some integer type] gex_DT_t;
 //   Valid for all specified GEX_DT_* types
 //    - Non-fetching Accessor
 //        GEX_OP_SET   expr = op1  (writes 'op1' to the target location)
+//        GEX_OP_CAS   expr = ((op0 == op1) ? op2 : op0)
+//                     With a guarantee to be free of spurious failures as from
+//                     cache events.
 //    - Fetching Accessors (fetch 'op0' as the result of the atomic)
 //        GEX_OP_GET   expr = op0  (does not modify the target location)
 //        GEX_OP_SWAP  expr = op1  (swaps 'op1' with the target location)
-//        GEX_OP_CSWAP expr = ((op0 == op1) ? op2 : op0)
-//                     With a guarantee to be free of spurious failures as from
-//                     cache events.
+//        GEX_OP_FCAS  Fetching variant of GEX_OP_CAS
+//
+// NOTE: GEX_OP_CSWAP is a deprecated alias for GEX_OP_FCAS
 //
 // It is guaranteed that all GEX_OP_* values can be combined via bit-wise OR without
 // loss of information.
@@ -1619,16 +1622,16 @@ typedef [some integer type] gex_OP_t;
 //
 // The macro GEX_OP_TO_FETCHING(op) takes a non-fetching opcode as an argument
 // and returns the corresponding fetching opcode.  The value of 'op' must be
-// either GEX_OP_SET or an opcode listed under "Non-fetching Operations", above.
-// All other values return undefined results.
+// GEX_OP_SET, GEX_OP_CAS or an opcode listed under "Non-fetching Operations",
+// above.  All other values return undefined results.
 //
 // The macro GEX_OP_TO_NONFETCHING(op) takes a fetching opcode as an argument
 // and returns the corresponding non-fetching opcode.  The value of 'op' must be
-// either GEX_OP_SWAP or an opcode listed under "Fetching Operations", above.
-// All other values return undefined results.
+// GEX_OP_SWAP, GEX_OP_FCAS or an opcode listed under "Fetching Operations",
+// above.  All other values return undefined results.
 //
-// In addition to the natural result when applied to the arithmetic opcodes,
-// SWAP/SET are considered to be a fetching/non-fetching pair:
+// In addition to the natural result when applied to the arithmetic opcodes and
+// (F)CAS, SWAP/SET are considered to be a fetching/non-fetching pair:
 //    GEX_OP_TO_FETCHING(GEX_OP_SET)     == GEX_OP_SWAP
 //    GEX_OP_TO_NONFETCHING(GEX_OP_SWAP) == GEX_OP_SET
 
@@ -1994,7 +1997,7 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //   rules in the IEEE 754 standard even when the C float and double types
 //   otherwise do conform.  Deviations from IEEE 754 include (at least):
 //     - Operations on signalling NaNs have undefined behavior.
-//     - CSWAP *may* be performed as if on integers of the same width.
+//     - (F)CAS *may* be performed as if on integers of the same width.
 //       This could result in non-conforming behavior with quiet NaNs
 //       or negative zero.
 //     - MIN, MAX, FMIN and FMAX *may* be performed as if on "sign

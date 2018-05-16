@@ -239,9 +239,10 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_ARITH_OP(DEC,  not_reduce, fp);
 
   CHECK_ACCESSOR(SET,   not_fetch);
+  CHECK_ACCESSOR(CAS,   not_fetch);
   CHECK_ACCESSOR(GET,   fetch);
   CHECK_ACCESSOR(SWAP,  fetch);
-  CHECK_ACCESSOR(CSWAP, fetch);
+  CHECK_ACCESSOR(FCAS,  fetch);
 
   #undef _CHECK_OP
   #undef CHECK_ARITH_OP

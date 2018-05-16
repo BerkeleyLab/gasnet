@@ -76,7 +76,8 @@ typedef uint32_t gex_OP_t;
 #define GEX_OP_SET   (1 << _GEX_OP_SET)
 #define GEX_OP_GET   (1 << _GEX_OP_GET)
 #define GEX_OP_SWAP  (1 << _GEX_OP_SWAP)
-#define GEX_OP_CSWAP (1 << _GEX_OP_CSWAP)
+#define GEX_OP_FCAS  (1 << _GEX_OP_FCAS)
+#define GEX_OP_CAS   (1 << _GEX_OP_CAS)
 
 // Non-fetching bitwise operators
 #define GEX_OP_AND   (1 << _GEX_OP_AND)
@@ -105,6 +106,9 @@ typedef uint32_t gex_OP_t;
 #define GEX_OP_FMAX  (1 << _GEX_OP_FMAX)
 #define GEX_OP_FINC  (1 << _GEX_OP_FINC)
 #define GEX_OP_FDEC  (1 << _GEX_OP_FDEC)
+
+// DEPRECATED alias
+#define GEX_OP_CSWAP GEX_OP_FCAS
 
 // Convert between fetching and non-fetching variants
 // Undefined result if input is not in the appropriate range.
@@ -183,7 +187,7 @@ typedef uint32_t gex_Flags_t;
 #define _GEX_OP_FINC  8
 #define _GEX_OP_FDEC  9
 #define _GEX_OP_SWAP  10
-#define _GEX_OP_CSWAP 11
+#define _GEX_OP_FCAS  11
 #define _GEX_OP_GET   12
 
 // Non-fetching in same order
@@ -198,7 +202,7 @@ typedef uint32_t gex_Flags_t;
 #define _GEX_OP_INC   21
 #define _GEX_OP_DEC   22
 #define _GEX_OP_SET   23  // This is non-fetching SWAP in UPC 1.3
-// slot 24 is GEX_OP_TO_NONFETCHING(GEX_OP_CSWAP), which is invalid
+#define _GEX_OP_CAS   24  // This is non-fetching CSWAP in UPC 1.3
 // slot 25 is GEX_OP_TO_NONFETCHING(GEX_OP_GET), which is invalid
 
 #if defined(__cplusplus) && !defined(_IN_GASNETEX_H)

@@ -564,7 +564,8 @@ typedef enum {
   _GEX_MAKE_OP_ENUM(SET),
   _GEX_MAKE_OP_ENUM(GET),
   _GEX_MAKE_OP_ENUM(SWAP),
-  _GEX_MAKE_OP_ENUM(CSWAP)
+  _GEX_MAKE_OP_ENUM(FCAS),
+  _GEX_MAKE_OP_ENUM(CAS)
 } gasneti_op_idx_t;
 #undef _GEX_MAKE_OP_ENUM
 

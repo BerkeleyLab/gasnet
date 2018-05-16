@@ -1192,9 +1192,9 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 #define _GEX_OP_FETCH_BITWISE \
         (GEX_OP_FAND|GEX_OP_FOR|GEX_OP_FXOR)
 #define _GEX_OP_ACCESSOR \
-        (GEX_OP_SET)
+        (GEX_OP_SET|GEX_OP_CAS)
 #define _GEX_OP_FETCH_ACCESSOR \
-        (GEX_OP_GET|GEX_OP_SWAP|GEX_OP_CSWAP)
+        (GEX_OP_GET|GEX_OP_SWAP|GEX_OP_FCAS)
 
 // Masks for various properties:
 
@@ -1230,7 +1230,7 @@ size_t gasneti_dt_size(gex_DT_t dt) {
          _GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
          _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE)
 #define _GEX_OP_2ARG \
-        GEX_OP_CSWAP
+        (GEX_OP_FCAS | GEX_OP_CAS)
 
 
 // Predicates for use with single-bit arguments:
