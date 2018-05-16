@@ -594,6 +594,10 @@ extern void gasneti_fatalerror(const char *msg, ...) {
   if (!gasneti_print_backtrace_ifenabled(STDERR_FILENO)) 
     gasneti_atomic_set(&gasneti_backtrace_enabled,0,GASNETI_ATOMIC_REL);
 
+  // Try to flush I/O (especially the tracefile) before crashing
+  signal(SIGALRM, _exit); alarm(5); 
+  gasneti_flush_streams();
+
   abort();
 }
 /* ------------------------------------------------------------------------------------ */
