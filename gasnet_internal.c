@@ -413,6 +413,11 @@ void gasneti_defaultSignalHandler(int sig) {
 
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
 
+      // Try to flush I/O (especially the tracefile) before crashing
+      signal(SIGALRM, _exit); alarm(5); 
+      gasneti_flush_streams();
+      alarm(0);
+
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
       GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig); /* conduit hook to kill the job */
