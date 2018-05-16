@@ -624,7 +624,9 @@ extern void gasneti_killmyprocess(int exitcode) {
   gasneti_fatalerror("gasneti_killmyprocess failed to kill the process!");
 }
 extern void gasneti_filesystem_sync(void) {
-  if ( gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0) ) {
+  static int enabled = -1;
+  if (enabled == -1) enabled = gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0);
+  if (enabled) {
     sync();
   }
 }

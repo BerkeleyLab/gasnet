@@ -336,6 +336,8 @@ extern void gasneti_check_config_postattach(void) {
     }
   }
   gasneti_memcheck_all();
+
+  gasneti_flush_streams();  // flush above messages, and ensure FS_SYNC envvar is initted
 }
 
 /* ------------------------------------------------------------------------------------ */
