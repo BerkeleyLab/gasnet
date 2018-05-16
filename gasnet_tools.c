@@ -563,7 +563,12 @@ extern double gasneti_tick_metric(int idx) {
   return _gasneti_tick_metric[idx];
 }
 /* ------------------------------------------------------------------------------------ */
-FILE *gasneti_tracefile; // intentional tentative defn
+#if GASNET_TRACE
+  FILE *gasneti_tracefile; // intentional tentative defn
+  #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
+#else
+  #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
+#endif
 volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
@@ -581,19 +586,19 @@ extern void gasneti_fatalerror(const char *msg, ...) {
       strncat(expandedmsg, msg, maxmsg);
       if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
       vfprintf(stderr, expandedmsg, argptr);
-      if (gasneti_tracefile) vfprintf(gasneti_tracefile, expandedmsg, argptr);
+      if (GASNETI_MAYBE_TRACEFILE) vfprintf(GASNETI_MAYBE_TRACEFILE, expandedmsg, argptr);
     } else { /* long format msg */
       fprintf(stderr, prefix);
       vfprintf(stderr, msg, argptr);
       if (msg[strlen(msg)-1] != '\n') fprintf(stderr, "\n");
-      if (gasneti_tracefile) {
-        fprintf(gasneti_tracefile, prefix);
-        vfprintf(gasneti_tracefile, msg, argptr);
-        if (msg[strlen(msg)-1] != '\n') fprintf(gasneti_tracefile, "\n");
+      if (GASNETI_MAYBE_TRACEFILE) {
+        fprintf(GASNETI_MAYBE_TRACEFILE, prefix);
+        vfprintf(GASNETI_MAYBE_TRACEFILE, msg, argptr);
+        if (msg[strlen(msg)-1] != '\n') fprintf(GASNETI_MAYBE_TRACEFILE, "\n");
       }
     }
     fflush(stderr);
-    if (gasneti_tracefile) fflush(gasneti_tracefile);
+    if (GASNETI_MAYBE_TRACEFILE) fflush(GASNETI_MAYBE_TRACEFILE);
   va_end(argptr);
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */

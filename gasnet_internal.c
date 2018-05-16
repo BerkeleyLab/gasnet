@@ -409,9 +409,9 @@ void gasneti_defaultSignalHandler(int sig) {
                         signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()
       fprintf(stderr, CRASH_ERR);
       fflush(stderr);
-      if (gasneti_tracefile) {
-        fprintf(gasneti_tracefile,CRASH_ERR);
-        fflush(gasneti_tracefile);
+      if (GASNETI_MAYBE_TRACEFILE) {
+        fprintf(GASNETI_MAYBE_TRACEFILE,CRASH_ERR);
+        fflush(GASNETI_MAYBE_TRACEFILE);
       }
       #undef CRASH_ERR
 
