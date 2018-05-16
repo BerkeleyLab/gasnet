@@ -563,6 +563,7 @@ extern double gasneti_tick_metric(int idx) {
   return _gasneti_tick_metric[idx];
 }
 /* ------------------------------------------------------------------------------------ */
+FILE *gasneti_tracefile; // intentional tentative defn
 volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
@@ -580,12 +581,19 @@ extern void gasneti_fatalerror(const char *msg, ...) {
       strncat(expandedmsg, msg, maxmsg);
       if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
       vfprintf(stderr, expandedmsg, argptr);
+      if (gasneti_tracefile) vfprintf(gasneti_tracefile, expandedmsg, argptr);
     } else { /* long format msg */
       fprintf(stderr, prefix);
       vfprintf(stderr, msg, argptr);
       if (msg[strlen(msg)-1] != '\n') fprintf(stderr, "\n");
+      if (gasneti_tracefile) {
+        fprintf(gasneti_tracefile, prefix);
+        vfprintf(gasneti_tracefile, msg, argptr);
+        if (msg[strlen(msg)-1] != '\n') fprintf(gasneti_tracefile, "\n");
+      }
     }
     fflush(stderr);
+    if (gasneti_tracefile) fflush(gasneti_tracefile);
   va_end(argptr);
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */

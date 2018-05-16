@@ -405,9 +405,15 @@ void gasneti_defaultSignalHandler(int sig) {
       oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
 
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
-      fprintf(stderr,"*** Caught a fatal signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
+      #define CRASH_ERR "*** Caught a fatal signal: %s(%i) on node %i/%i\n", \
+                        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()
+      fprintf(stderr, CRASH_ERR);
       fflush(stderr);
+      if (gasneti_tracefile) {
+        fprintf(gasneti_tracefile,CRASH_ERR);
+        fflush(gasneti_tracefile);
+      }
+      #undef CRASH_ERR
 
       gasnett_freezeForDebuggerErr(); /* allow freeze */
 
