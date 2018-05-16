@@ -2125,7 +2125,7 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
     /* Send payload using AMMedium(s) */
     do {
       const size_t to_xfer = MIN(nbytes, gex_AM_LUBRequestMedium());
-      gex_AM_RequestMedium(NULL, peer, _hidx_gasnetc_exchg_reqh,
+      gex_AM_RequestMedium(gasneti_THUNK_TM, peer, _hidx_gasnetc_exchg_reqh,
                                data + offset, to_xfer, GEX_EVENT_NOW, 0,
                                phase | (step << 1) | (seq << 6), (uint32_t)elemsz);
       ++seq;

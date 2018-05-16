@@ -742,7 +742,7 @@ static void gasnete_amdbarrier_notify_reqh(gex_Token_t token,
 GASNETI_INLINE(gasnete_amdbarrier_send)
 void gasnete_amdbarrier_send(gasnete_coll_team_t team, int phase, int step, int value, int flags) {
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
-  gex_AM_RequestShort5(NULL, barrier_data->amdbarrier_peers[step],
+  gex_AM_RequestShort5(gasneti_THUNK_TM, barrier_data->amdbarrier_peers[step],
                            gasneti_handleridx(gasnete_amdbarrier_notify_reqh), 0,
                            team->team_id, phase, step, value, flags);
 }
@@ -1253,7 +1253,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
-    gasnete_put_nbi(NULL, node, addr, payload, sizeof(*payload),
+    gasnete_put_nbi(gasneti_THUNK_TM, node, addr, payload, sizeof(*payload),
                     GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
   }
   event = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
@@ -1803,7 +1803,7 @@ void gasnete_amcbarrier_send(gasnete_coll_team_t team, int phase, int value, int
 #if GASNETI_PSHM_BARRIER_HIER
     if (!barrier_data->amcbarrier_passive)
 #endif
-    gex_AM_RequestShort4(NULL, barrier_data->amcbarrier_master,
+    gex_AM_RequestShort4(gasneti_THUNK_TM, barrier_data->amcbarrier_master,
                              gasneti_handleridx(gasnete_amcbarrier_notify_reqh), 0,
                              team->team_id, phase, value, flags);
   }
@@ -1874,7 +1874,7 @@ void gasnete_amcbarrier_kick(gasnete_coll_team_t team) {
 
       /*  inform the active nodes */
       for (i=0; i < barrier_data->amcbarrier_max; i++) {
-        gex_AM_RequestShort4(NULL, barrier_data->amcbarrier_active[i],
+        gex_AM_RequestShort4(gasneti_THUNK_TM, barrier_data->amcbarrier_active[i],
                                  gasneti_handleridx(gasnete_amcbarrier_done_reqh), 0,
                                  team->team_id, phase, flags, value);
       }
