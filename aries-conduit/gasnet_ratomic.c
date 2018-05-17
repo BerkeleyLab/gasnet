@@ -18,8 +18,10 @@
 //
 // Notes on mapping from GEX to GNI opcodes:
 //  + INC, DEC and SUB are mapped to ADD w/ the appropriate operand
-//  + CSWAP operations use 32- and 64-bit integer types with the result
+//  + (F)CAS operations use 32- and 64-bit integer types with the result
 //    that IEEE +0 and -0 will *not* compare as equal
+//  + Since non-fetching CAS ops require "doubled" alignment, we need to
+//    use the fetching ops and ignore the result.
 //  + Atomic SET is implemented as a non-fetching integer SWAP (follows [1])
 //  + Atomic GET is implemented as an integer FAND(~0) (follows [1])
 // TODO: Follow up w/ Howard Prichard regarding the rationale behind the
@@ -75,7 +77,8 @@ gni_fma_cmd_type_t amo_cmd_map_gex_dt_I32(gasneti_op_idx_t op_idx) {
         case gasneti_op_idx_SET:   return GNI_FMA_ATOMIC2_SWAP_S;  // SET: via (non-fetching) SWAP
         case gasneti_op_idx_GET:   return GNI_FMA_ATOMIC2_FAND_S;  // GET: via FAND(~0)
         case gasneti_op_idx_SWAP:  return GNI_FMA_ATOMIC2_FSWAP_S;
-        case gasneti_op_idx_CSWAP: return GNI_FMA_ATOMIC2_FCSWAP_S;
+        case gasneti_op_idx_FCAS:  return GNI_FMA_ATOMIC2_FCSWAP_S;
+        case gasneti_op_idx_CAS:   return GNI_FMA_ATOMIC2_FCSWAP_S; // CAS via FCAS and ignore result
         default: gasneti_unreachable();
     }
     return GASNETC_INVALID_ATOMIC;
@@ -106,7 +109,8 @@ gni_fma_cmd_type_t amo_cmd_map_gex_dt_I64(gasneti_op_idx_t op_idx) {
         case gasneti_op_idx_SET:   return GNI_FMA_ATOMIC2_SWAP;  // SET: via (non-fetching) SWAP
         case gasneti_op_idx_GET:   return GNI_FMA_ATOMIC2_FAND;  // GET: via FAND(~0)
         case gasneti_op_idx_SWAP:  return GNI_FMA_ATOMIC2_FSWAP;
-        case gasneti_op_idx_CSWAP: return GNI_FMA_ATOMIC2_FCSWAP;
+        case gasneti_op_idx_FCAS:  return GNI_FMA_ATOMIC2_FCSWAP;
+        case gasneti_op_idx_CAS:   return GNI_FMA_ATOMIC2_FCSWAP; // CAS via FCAS and ignore result
         default: gasneti_unreachable();
     }
     return GASNETC_INVALID_ATOMIC;
@@ -131,7 +135,8 @@ gni_fma_cmd_type_t amo_cmd_map_gex_dt_FLT(gasneti_op_idx_t op_idx) {
         case gasneti_op_idx_SET:   return GNI_FMA_ATOMIC2_SWAP_S;   // SET: via (non-fetching) SWAP
         case gasneti_op_idx_GET:   return GNI_FMA_ATOMIC2_FAND_S;   // GET: via FAND(~0)
         case gasneti_op_idx_SWAP:  return GNI_FMA_ATOMIC2_FSWAP_S;
-        case gasneti_op_idx_CSWAP: return GNI_FMA_ATOMIC2_FCSWAP_S;
+        case gasneti_op_idx_FCAS:  return GNI_FMA_ATOMIC2_FCSWAP_S;
+        case gasneti_op_idx_CAS:   return GNI_FMA_ATOMIC2_FCSWAP_S; // CAS via FCAS and ignore result
         default: gasneti_unreachable();
     }
     return GASNETC_INVALID_ATOMIC;
@@ -155,7 +160,8 @@ gni_fma_cmd_type_t amo_cmd_map_gex_dt_DBL(gasneti_op_idx_t op_idx) {
         case gasneti_op_idx_SET:   return GNI_FMA_ATOMIC2_SWAP;   // SET: via (non-fetching) SWAP
         case gasneti_op_idx_GET:   return GNI_FMA_ATOMIC2_FAND;   // GET: via FAND(~0)
         case gasneti_op_idx_SWAP:  return GNI_FMA_ATOMIC2_FSWAP;
-        case gasneti_op_idx_CSWAP: return GNI_FMA_ATOMIC2_FCSWAP;
+        case gasneti_op_idx_FCAS:  return GNI_FMA_ATOMIC2_FCSWAP;
+        case gasneti_op_idx_CAS:   return GNI_FMA_ATOMIC2_FCSWAP; // CAS via FCAS and ignore result
         default: gasneti_unreachable();
     }
     return GASNETC_INVALID_ATOMIC;
@@ -281,6 +287,21 @@ int gasnete_ratomic_nbi(
                                   cmd, op1, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
+    GASNETI_INLINE(prefix##_NB_N2)                                \
+    gex_Event_t prefix##_NB_N2(                                   \
+                gasneti_op_idx_t op_idx,  gasneti_AD_t      ad,   \
+                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
+                type           operand1,  type        operand2,   \
+                gex_Flags_t       flags   GASNETI_THREAD_FARG)    \
+    {                                                             \
+        gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
+        _GASNETE_GNIRATOMIC_PREP_CAS##isint(type);                \
+        gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
+        return gasnete_ratomic_nb(0, 2, sizeof(type),             \
+                                  NULL, tgt_rank, tgt_addr,       \
+                                  cmd, op1, op2,                  \
+                                  flags GASNETI_THREAD_PASS);     \
+    } \
     GASNETI_INLINE(prefix##_NB_F0)                                \
     gex_Event_t prefix##_NB_F0(                                   \
                 gasneti_op_idx_t op_idx,  gasneti_AD_t      ad,   \
@@ -383,6 +404,21 @@ int gasnete_ratomic_nbi(
         return gasnete_ratomic_nbi(0, 1, sizeof(type),            \
                                    NULL, tgt_rank, tgt_addr,      \
                                    cmd, op1, 0,                   \
+                                   flags GASNETI_THREAD_PASS);    \
+    } \
+    GASNETI_INLINE(prefix##_NBI_N2)                               \
+    int prefix##_NBI_N2(                                          \
+                gasneti_op_idx_t op_idx,  gasneti_AD_t      ad,   \
+                gex_Rank_t     tgt_rank,  void       *tgt_addr,   \
+                type           operand1,  type        operand2,   \
+                gex_Flags_t       flags   GASNETI_THREAD_FARG)    \
+    {                                                             \
+        gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
+        _GASNETE_GNIRATOMIC_PREP_CAS##isint(type);                \
+        gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
+        return gasnete_ratomic_nbi(0, 2, sizeof(type),            \
+                                   NULL, tgt_rank, tgt_addr,      \
+                                   cmd, op1, op2,                 \
                                    flags GASNETI_THREAD_PASS);    \
     } \
     GASNETI_INLINE(prefix##_NBI_F0)                               \
@@ -550,7 +586,8 @@ GASNETE_DT_APPLY(GASNETE_GNIRATOMIC_MID)
     _GASNETE_GNIRATOMIC_DEFN1(dtcode,SET,S1)          \
     _GASNETE_GNIRATOMIC_DEFN1(dtcode,GET,G0)          \
     _GASNETE_GNIRATOMIC_DEFN1(dtcode,SWAP,F1)         \
-    _GASNETE_GNIRATOMIC_DEFN1(dtcode,CSWAP,F2)
+    _GASNETE_GNIRATOMIC_DEFN1(dtcode,FCAS,F2)         \
+    _GASNETE_GNIRATOMIC_DEFN1(dtcode,CAS,N2)
 //
 #define _GASNETE_GNIRATOMIC_DEFN_INT0(dtcode,opname,nargs) /*empty*/
 #define _GASNETE_GNIRATOMIC_DEFN_INT1 _GASNETE_GNIRATOMIC_DEFN2

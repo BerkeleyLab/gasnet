@@ -340,12 +340,12 @@ size_t gasneti_format_op(char *buf, gex_OP_t op) {
     "FADD", "FSUB",  "FMULT",
     "FMIN", "FMAX",
     "FINC", "FDEC",
-    "SWAP", "CSWAP", "GET",
+    "SWAP", "FCAS",  "GET",
     "AND",  "OR",    "XOR",
     "ADD",  "SUB",   "MULT",
     "MIN",  "MAX",
     "INC",  "DEC",
-    "SET"
+    "SET",  "CAS"
   };
   return gasneti_format_mask(buf,op,sizeof(names)/sizeof(char *),names,"GEX_OP_");
 }
