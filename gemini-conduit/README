@@ -37,6 +37,8 @@ by "aries" or "gemini" (without the quotes), as approptiate.
    64 bytes reserved for up to 16 handler arguments.  This configure
    option allows control over the value of gasnet_AMMaxMedium().
    The value must be a multiple of 64, and cannot be less than 512.
+   It is recommended to use values that are 64-bytes less than a
+   power-of-two, to preserve efficient memory use.
    The default value is 4032.
 
 --enable-[CONDUIT]-multi-domain
