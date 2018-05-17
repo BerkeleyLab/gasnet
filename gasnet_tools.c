@@ -563,15 +563,16 @@ extern double gasneti_tick_metric(int idx) {
   return _gasneti_tick_metric[idx];
 }
 /* ------------------------------------------------------------------------------------ */
-#if GASNET_TRACE
-  FILE *gasneti_tracefile; // intentional tentative defn
-  #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
-#else
-  #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
+#ifndef GASNETI_MAYBE_TRACEFILE
+  #if GASNET_TRACE
+    FILE *gasneti_tracefile; // intentional tentative defn
+    #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
+  #else
+    #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
+  #endif
 #endif
 volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
-  va_list argptr;
   #ifndef GASNETI_FATALERROR_LEN
   #define GASNETI_FATALERROR_LEN 80
   #endif
@@ -580,26 +581,26 @@ extern void gasneti_fatalerror(const char *msg, ...) {
   const size_t maxmsg = sizeof(expandedmsg)-sizeof(prefix)-4;
   const size_t msglen = strlen(msg);
 
-  va_start(argptr, msg); /*  pass in last argument */
-    if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
-      strcpy(expandedmsg, prefix);
-      strncat(expandedmsg, msg, maxmsg);
-      if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
-      vfprintf(stderr, expandedmsg, argptr);
-      if (GASNETI_MAYBE_TRACEFILE) vfprintf(GASNETI_MAYBE_TRACEFILE, expandedmsg, argptr);
-    } else { /* long format msg */
-      fprintf(stderr, prefix);
-      vfprintf(stderr, msg, argptr);
-      if (msg[strlen(msg)-1] != '\n') fprintf(stderr, "\n");
-      if (GASNETI_MAYBE_TRACEFILE) {
-        fprintf(GASNETI_MAYBE_TRACEFILE, prefix);
-        vfprintf(GASNETI_MAYBE_TRACEFILE, msg, argptr);
-        if (msg[strlen(msg)-1] != '\n') fprintf(GASNETI_MAYBE_TRACEFILE, "\n");
-      }
+  FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
+  for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
+    FILE *stream = streams[s];
+    if (stream) {
+      va_list argptr;
+      va_start(argptr, msg); /*  pass in last argument */
+        if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+          strcpy(expandedmsg, prefix);
+          strncat(expandedmsg, msg, maxmsg);
+          if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
+          vfprintf(stream, expandedmsg, argptr);
+        } else { /* long format msg */
+          fprintf(stream, prefix);
+          vfprintf(stream, msg, argptr);
+          if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
+        }
+      va_end(argptr);
+      fflush(stream);
     }
-    fflush(stderr);
-    if (GASNETI_MAYBE_TRACEFILE) fflush(GASNETI_MAYBE_TRACEFILE);
-  va_end(argptr);
+  }
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
