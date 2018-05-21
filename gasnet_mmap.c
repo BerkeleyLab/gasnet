@@ -1377,7 +1377,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 static gasnet_seginfo_t gasneti_presegment = {0,0};
 #endif
 #if GASNET_ALIGNED_SEGMENTS
-uintptr_t gasneti_maxbase;
+static uintptr_t gasneti_maxbase;
 #endif
 
 /* do the work necessary for initing a standard segment map in arbitrary memory 
@@ -1822,10 +1822,12 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
           gasneti_assert(gasneti_seginfo[i].addr == 0);
         } else {
           #if GASNET_ALIGNED_SEGMENTS
+          if (gasneti_maxbase) { // non-zero IFF gasneti_segmentInit() passed GASNETI_FLAG_INIT_LEGACY
             /*  sanity check that segments are aligned */
             if (!segbase) segbase = gasneti_seginfo[i].addr;
             else if (gasneti_seginfo[i].addr != segbase)
               gasneti_fatalerror("Failed sanity check for aligned segments with GASNET_ALIGNED_SEGMENTS");
+          }
           #endif
           /*  sanity check that client and aux segments do not overlap */
           if (gasneti_seginfo[i].size > 0) {
