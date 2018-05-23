@@ -526,12 +526,17 @@ int gex_Segment_QueryBound(
                 uintptr_t   *size_p);
 
 // Collective allocation and creation of Segments
-// Analogous to gasnet_attach
+// Analogous to gasnet_attach (but see below)
 // Must be called collectively over tm.
 // The current release allows up to one call per process.
 // * length is the size of the local segment to allocate and bind to the
 //   local Endpoint represented by tm. length is permitted to differ 
 //   across team members, and must be in [0 .. gasnet_getMaxLocalSegmentSize()].
+//
+// NOTE: gex_Segment_Attach() does not provide alignment of segments across ranks.
+// Use of --enable-aligned-segments at configure time and definition of
+// GASNET_ALIGNED_SEGMENTS at compile time are relevant only to the legacy
+// gasnet_attach() interface.
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               tm,
