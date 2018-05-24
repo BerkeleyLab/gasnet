@@ -79,8 +79,21 @@
 
 // Hybrid/transitional client support:
 //
-// To enable clients that mix GASNet-1 and GASNet-EX, the following API is
-// provided to allow jobs that initialize GASNet using the legacy
+// Clients who are incrementally adopting GASNet-EX may have a period of time
+// when they are using both GASNet-1 and GASNet-EX APIs in the same process. 
+// Such clients should initialize GASNet using *either* the legacy 
+// gasnet_init()/gasnet_attach() calls, or the new gex_Client_Init() call
+// (described in a subsequent section).
+//
+// Note that gasnet_init()/gasnet_attach() may only be called once per process,
+// and currently only one client per process can use GASNet-1 APIs.
+//
+// Hybrid/transitional clients who initialize using gex_Client_Init() should
+// pass the following flag to that function to request the use of GASNet-1 services.
+// 
+#define GEX_FLAG_USES_GASNET1 ((gex_Flags_t)???)
+//
+// The following API allows jobs that initialize GASNet using the legacy
 // gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
 // created by those operations.  The types and usage of these objects are
 // described below.  This call is defined in gasnet.h (not gasnetex.h).
@@ -467,7 +480,10 @@ const char * gex_Client_QueryName(gex_Client_t client);
 //   newly-created Client, the primordial (thread-safe) Endpoint for this process/client,
 //   and the primordial Team (which contains all the primordial Endpoints, one
 //   for every process in this job).
-// * flags control the creation of the primordial objects, and must currently be 0
+// * flags control the creation of the primordial objects. Supported flags:
+//   + GEX_FLAG_USES_GASNET1 - created client requests the use of GASNet-1 APIs
+//     (defined in gasnet.h). Only permitted for use in one client per process.
+//   Otherwise must be 0
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
