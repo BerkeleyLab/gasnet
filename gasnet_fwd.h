@@ -157,6 +157,7 @@ typedef uint32_t gex_Flags_t;
 
 #define GEX_FLAG_VIS_WITH_LC            (1U <<  9)
 
+#define GEX_FLAG_USES_GASNET1           (1U <<  0)
 
 //--------------------------------------------------------
 // Private definitions

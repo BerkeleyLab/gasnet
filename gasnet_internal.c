@@ -557,6 +557,8 @@ extern gasneti_TM_t gasneti_alloc_tm(
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
 #endif
+  
+  gasneti_legacy_alloc_tm_hook(tm); // init g2ex layer if appropriate
 
   // TODO-EX: Please remove this!
   gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
@@ -574,7 +576,6 @@ void gasneti_free_tm(gasneti_TM_t tm)
   gasneti_free(tm);
 }
 #endif // _GEX_TM_T
-
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1805,19 +1806,6 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 
   return res;
 }
-
-/* ------------------------------------------------------------------------------------ */
-/* G2EX (legacy GASNet-1 compatibility) support: */
-// TODO-EX: relocate to a distinct gasnet_legacy.c?
-
-#undef gasneti_thunk_client
-gex_Client_t      gasneti_thunk_client   = NULL;
-#undef gasneti_thunk_endpoint
-gex_EP_t          gasneti_thunk_endpoint = NULL;
-#undef gasneti_thunk_tm
-gex_TM_t          gasneti_thunk_tm       = NULL;
-#undef gasneti_thunk_segment
-gex_Segment_t     gasneti_thunk_segment  = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* Buffer management
