@@ -403,7 +403,7 @@ void gasneti_defaultSignalHandler(int sig) {
     case SIGILL:
     case SIGSEGV:
     case SIGBUS:
-    case SIGFPE:
+    case SIGFPE: {
       oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
 
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
@@ -434,6 +434,7 @@ void gasneti_defaultSignalHandler(int sig) {
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
       do_raise(sig);
       break;
+    }
     default: 
       /* translate signal to SIGQUIT */
       { static int sigquit_raised = 0;
