@@ -66,26 +66,28 @@ typedef struct {
 
 GASNETT_INLINE(gasnet_init)
 int gasnet_init(int *_argc, char ***_argv) {
-  return gex_Client_Init (     &gasneti_thunk_client,
-                               &gasneti_thunk_endpoint,
-                               &gasneti_thunk_tm,
-                               "LEGACY", _argc, _argv,
-                               GASNETI_FLAG_INIT_LEGACY);
+  gex_Client_t _g2ex_client;
+  gex_EP_t     _g2ex_ep;
+  gex_TM_t     _g2ex_tm;
+  return gex_Client_Init (&_g2ex_client, 
+                          &_g2ex_ep, 
+                          &_g2ex_tm,
+                          "LEGACY", _argc, _argv,
+                           GASNETI_FLAG_INIT_LEGACY | GEX_FLAG_USES_GASNET1);
 }
 
-extern int gasnetc_attach( gex_Client_t           *_client_p,
-                           gex_EP_t               *_endpoint_p,
-                           gex_TM_t               *_tm_p,
-                           gex_Segment_t          *_segment_p,
+extern int gasnetc_attach( gex_TM_t               _tm,
                            gasnet_handlerentry_t  *_table,
                            int                    _numentries,
                            uintptr_t              _segsize);
+extern void gasneti_legacy_attach_checks(int _checksegment);
 GASNETT_INLINE(gasnet_attach)
 int gasnet_attach( gasnet_handlerentry_t *_table, int _numentries,
                    uintptr_t _segsize, uintptr_t _minheapoffset ) {
-  return gasnetc_attach( &gasneti_thunk_client, &gasneti_thunk_endpoint,
-                         &gasneti_thunk_tm, &gasneti_thunk_segment,
-                         _table, _numentries, _segsize);
+  gasneti_legacy_attach_checks(0);
+  int _result = gasnetc_attach( gasneti_thunk_tm, _table, _numentries, _segsize);
+  gasneti_legacy_attach_checks(1);
+  return _result;
 }
 
 GASNETT_INLINE(gasnet_QueryGexObjects)

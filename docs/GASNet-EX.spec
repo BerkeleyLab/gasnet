@@ -1,3 +1,7 @@
+///////////////////////////////
+// GASNet-EX API Description //
+///////////////////////////////
+//
 // This is *not* a final normative document.
 // This is "beta documentation" for a beta release.
 //
@@ -10,6 +14,17 @@
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
 
+// Document Conventions
+//
+// This document includes the annotation [UNIMPLEMENTED] in several places
+// where we feel we have a suitable design ready for consideration, but
+// have yet to provide a complete and/or correct implementation.
+//
+// This document includes the annotation [EXPERIMENTAL] in several places
+// where we feel we have a suitable design and an implementation which is
+// sufficiently complete to be used.  However, based on feedback received
+// from early use, the design may change in non-trivial ways (to the degree
+// that client code may need to change).
 
 //
 // Specification and release versioning:
@@ -61,16 +76,40 @@
 // Where a gex_/GEX_ identifier is interoperable or synonymous with
 // a gasnet_/GASNET_ identifier, that is noted below.
 //
-// This document includes the annotation [UNIMPLEMENTED] in several places
-// where we feel we have a suitable design ready for consideration, but
-// have yet to provide a complete and/or correct implementation.
-//
-// This document includes the annotation [EXPERIMENTAL] in several places
-// where we feel we have a suitable design and an implementation which is
-// sufficiently complete to be used.  However, based on feedback received
-// from early use, the design may change in non-trivial ways (to the degree
-// that client code may need to change).
 
+// Hybrid/transitional client support:
+//
+// Clients who are incrementally adopting GASNet-EX may have a period of time
+// when they are using both GASNet-1 and GASNet-EX APIs in the same process. 
+// Such clients should initialize GASNet using *either* the legacy 
+// gasnet_init()/gasnet_attach() calls, or the new gex_Client_Init() call
+// (described in a subsequent section).
+//
+// Note that gasnet_init()/gasnet_attach() may only be called once per process,
+// and currently only one client per process can use GASNet-1 APIs.
+//
+// Hybrid/transitional clients who initialize using gex_Client_Init() should
+// pass the following flag to that function to request the use of GASNet-1 services.
+// 
+#define GEX_FLAG_USES_GASNET1 ((gex_Flags_t)???)
+//
+// The following API allows jobs that initialize GASNet using the legacy
+// gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
+// created by those operations.  The types and usage of these objects are
+// described below.  This call is defined in gasnet.h (not gasnetex.h).
+//
+// The arguments are all pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+//     client_p: receives the gex_Client_t created implicitly by gasnet_init()
+//   endpoint_p: receives the gex_EP_t created implicitly by gasnet_init()
+//         tm_p: receives the gex_TM_t created implicitly by gasnet_init()
+//    segment_p: receives the gex_Segment created implicitly by gasnet_attach()
+//
+extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
+                                   gex_EP_t          *endpoint_p,
+                                   gex_TM_t          *tm_p,
+                                   gex_Segment_t     *segment_p);
 
 // Calls from restricted context
 //
@@ -91,27 +130,6 @@
 // dynamic context of an AM handler, or while holding a handler-safe lock.
 // This prohibition notably prohibits all communication initiation (aside from Reply 
 // injection from a Request handler), explicit polling and test/wait operations on handles/events.
-
-// Hybrid/transitional client support:
-//
-// To enable clients that mix GASNet-1 and GASNet-EX, the following API is
-// provided to allow jobs that initialize GASNet using the legacy
-// gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
-// created by those operations.  The types and usage of these objects are
-// described below.  This call is defined in gasnet.h (not gasnetex.h).
-//
-// The arguments are all pointers to locations for outputs, each of which
-// may be NULL if the caller does not need a particular value.
-//
-//     client_p: receives the gex_Client_t created implicitly by gasnet_init()
-//   endpoint_p: receives the gex_EP_t created implicitly by gasnet_init()
-//         tm_p: receives the gex_TM_t created implicitly by gasnet_init()
-//    segment_p: receives the gex_Segment created implicitly by gasnet_attach()
-//
-extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
-                                   gex_EP_t          *endpoint_p,
-                                   gex_TM_t          *tm_p,
-                                   gex_Segment_t     *segment_p);
 
 //
 // Basic types:
@@ -462,7 +480,10 @@ const char * gex_Client_QueryName(gex_Client_t client);
 //   newly-created Client, the primordial (thread-safe) Endpoint for this process/client,
 //   and the primordial Team (which contains all the primordial Endpoints, one
 //   for every process in this job).
-// * flags control the creation of the primordial objects, and must currently be 0
+// * flags control the creation of the primordial objects. Supported flags:
+//   + GEX_FLAG_USES_GASNET1 - created client requests the use of GASNet-1 APIs
+//     (defined in gasnet.h). Only permitted for use in one client per process.
+//   Otherwise must be 0
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,

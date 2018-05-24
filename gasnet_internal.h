@@ -446,6 +446,9 @@ void gasneti_segmentAttach(uintptr_t segsize,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags);
 
+extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep);
+extern void gasneti_legacy_alloc_tm_hook(gasneti_TM_t _tm);
+
 void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);

@@ -215,6 +215,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
+  gasneti_legacy_segment_attach_hook(ep);
   *segment_p = gasneti_export_segment(ep->_segment);
 
   /* After local segment is attached, call optional client-provided hook
@@ -239,17 +240,15 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetc_attach( gex_Client_t           *client_p,
-                           gex_EP_t               *ep_p,
-                           gex_TM_t               *tm_p,
-                           gex_Segment_t          *segment_p,
+extern int gasnetc_attach( gex_TM_t               _tm,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
                            uintptr_t              segsize)
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
-  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+  gasneti_TM_t tm = gasneti_import_tm(_tm);
+  gasneti_EP_t ep = tm->_ep;
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -272,8 +271,10 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
+    gex_Segment_t seg; // g2ex segment is automatically saved by a hook
     /*  (###) may replace gasneti_defaultExchange with a conduit-specific exchange if available */
-    if (GASNET_OK != gasnetc_attach_segment(segment_p, *tm_p, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
+
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -348,13 +349,8 @@ extern int gasnetc_Segment_Attach(
   gasneti_assert(segment_p);
 
   /* (###) add code to create a segment collectively */
-
-  void *segbase = (###);
-  uintptr_t segsize = (###);
-  const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
-  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
-  *segment_p = gasneti_export_segment(ep->_segment);
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;
 }
