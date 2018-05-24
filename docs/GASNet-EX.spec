@@ -1,3 +1,7 @@
+///////////////////////////////
+// GASNet-EX API Description //
+///////////////////////////////
+//
 // This is *not* a final normative document.
 // This is "beta documentation" for a beta release.
 //
@@ -10,6 +14,17 @@
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
 
+// Document Conventions
+//
+// This document includes the annotation [UNIMPLEMENTED] in several places
+// where we feel we have a suitable design ready for consideration, but
+// have yet to provide a complete and/or correct implementation.
+//
+// This document includes the annotation [EXPERIMENTAL] in several places
+// where we feel we have a suitable design and an implementation which is
+// sufficiently complete to be used.  However, based on feedback received
+// from early use, the design may change in non-trivial ways (to the degree
+// that client code may need to change).
 
 //
 // Specification and release versioning:
@@ -61,36 +76,6 @@
 // Where a gex_/GEX_ identifier is interoperable or synonymous with
 // a gasnet_/GASNET_ identifier, that is noted below.
 //
-// This document includes the annotation [UNIMPLEMENTED] in several places
-// where we feel we have a suitable design ready for consideration, but
-// have yet to provide a complete and/or correct implementation.
-//
-// This document includes the annotation [EXPERIMENTAL] in several places
-// where we feel we have a suitable design and an implementation which is
-// sufficiently complete to be used.  However, based on feedback received
-// from early use, the design may change in non-trivial ways (to the degree
-// that client code may need to change).
-
-
-// Calls from restricted context
-//
-// The only GASNet functions which may be called within AM handler context,
-// or while holding a GASNet handler-safe lock are as follows:
-//
-// gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
-// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_HSL_*()
-// gex_System_QueryJob*(), gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
-// gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
-// 
-// The following are conditionally permitted in handler context, the condition being the 
-// caller must be within an AMRequest handler and not holding a handler-safe lock:
-//
-// gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
-//
-// All other functions are prohibited to be called from a thread within the 
-// dynamic context of an AM handler, or while holding a handler-safe lock.
-// This prohibition notably prohibits all communication initiation (aside from Reply 
-// injection from a Request handler), explicit polling and test/wait operations on handles/events.
 
 // Hybrid/transitional client support:
 //
@@ -112,6 +97,26 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
                                    gex_EP_t          *endpoint_p,
                                    gex_TM_t          *tm_p,
                                    gex_Segment_t     *segment_p);
+
+// Calls from restricted context
+//
+// The only GASNet functions which may be called within AM handler context,
+// or while holding a GASNet handler-safe lock are as follows:
+//
+// gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
+// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_HSL_*()
+// gex_System_QueryJob*(), gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
+// gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
+// 
+// The following are conditionally permitted in handler context, the condition being the 
+// caller must be within an AMRequest handler and not holding a handler-safe lock:
+//
+// gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
+//
+// All other functions are prohibited to be called from a thread within the 
+// dynamic context of an AM handler, or while holding a handler-safe lock.
+// This prohibition notably prohibits all communication initiation (aside from Reply 
+// injection from a Request handler), explicit polling and test/wait operations on handles/events.
 
 //
 // Basic types:
