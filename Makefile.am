@@ -45,8 +45,9 @@ CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
 	template-conduit  	\
-	gasnet_event.c 	\
-	gasnet_event_internal.h 	\
+	gasnet_legacy.c         \
+	gasnet_event.c 	        \
+	gasnet_event_internal.h \
 	gasnet_handler_internal.h \
 	gasnet_internal.h 	\
 	gasnet_internal.c 	\
