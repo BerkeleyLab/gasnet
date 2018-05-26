@@ -86,7 +86,11 @@ int gasnet_attach( gasnet_handlerentry_t *_table, int _numentries,
                    uintptr_t _segsize, uintptr_t _minheapoffset ) {
   gasneti_legacy_attach_checks(0);
   int _result = gasnetc_attach( gasneti_thunk_tm, _table, _numentries, _segsize);
-  gasneti_legacy_attach_checks(1);
+  #if GASNET_SEGMENT_EVERYTHING
+    gasneti_legacy_attach_checks(0);
+  #else
+    gasneti_legacy_attach_checks(1);
+  #endif
   return _result;
 }
 
