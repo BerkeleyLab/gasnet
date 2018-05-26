@@ -3050,7 +3050,7 @@
         GASNETI_NEVER_INLINE(stem##tbl_init,                              \
                              extern void stem##tbl_init(void)) {          \
           static type##t stem##tbl_lock = _gasneti_atomic_lock_initializer; \
-          type##lock(&stem##tbl_lock);                                    \
+          _gasneti_atomic_lock_lock(&stem##tbl_lock);                     \
           if (stem##tbl_mask == 0) {                                      \
             int i;                                                        \
             int stem##tbl_size = gasnett_getenv_int_withdefault(          \
@@ -3066,7 +3066,7 @@
             gasneti_local_wmb(); /* enforce locks init before mask is written */ \
             stem##tbl_mask = (stem##tbl_size - 1);                        \
           }                                                               \
-          type##unlock(&stem##tbl_lock);                                  \
+          _gasneti_atomic_lock_unlock(&stem##tbl_lock);                   \
         }
   #endif
 #endif
