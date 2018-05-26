@@ -33,10 +33,14 @@ int gasneti_VerboseErrors = 1;
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
     #define _gasneti_atomic_lock_initializer	GASNET_HSL_INITIALIZER
     #define _gasneti_atomic_lock_init(x)	gasnet_hsl_init(x)
+    #define _gasneti_atomic_lock_lock(x)	gasnet_hsl_lock(x)
+    #define _gasneti_atomic_lock_unlock(x)	gasnet_hsl_unlock(x)
     #define _gasneti_atomic_lock_malloc		gasneti_malloc
     GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_hsl_atomic_, gasnet_hsl_)
     #undef _gasneti_atomic_lock_initializer
     #undef _gasneti_atomic_lock_init
+    #undef _gasneti_atomic_lock_lock
+    #undef _gasneti_atomic_lock_unlock
     #undef _gasneti_atomic_lock_malloc
   #endif
   #ifdef GASNETI_GENATOMIC32_DEFN
