@@ -20,7 +20,7 @@ CONDUITMODE_SUBDIRS = \
 	fca	   
 
 CONDUITMODE_EXTRADIST = \
-	amxtests    \
+	amx         \
 	ssh-spawner \
 	mpi-spawner \
 	pmi-spawner \

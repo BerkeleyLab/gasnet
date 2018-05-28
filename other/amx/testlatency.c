@@ -1,11 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testlatencyM.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testlatency.c $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 #include "apputils.h"
 
-/* non-pipelined version of ping tester, using AMMediums of a given size */
+/* non-pipelined version of ping tester */
 
 #define PING_REQ_HANDLER 1
 #define PING_REP_HANDLER 2
@@ -17,7 +17,7 @@ int numprocs;
 eb_t eb;
 ep_t ep;
 
-static void ping_request_handler(void *token, void *msg, int nbytes) {
+static void ping_request_handler(void *token) {
   numleft--;
 
   #if VERBOSE
@@ -50,7 +50,7 @@ void mywait(int polling) {
   }
 }
 
-/* usage: testlatency  numprocs  spawnfn  iters  P/B msgsz
+/* usage: testlatency  numprocs  spawnfn  iters  P/B
  */
 int main(int argc, char **argv) {
   uint64_t networkpid;
@@ -58,10 +58,8 @@ int main(int argc, char **argv) {
   int polling = 1;
   int k;
   int iters = 0;
-  int msgsz = 0;
-  char *msg=NULL;
 
-  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 3, "iters (Poll/Block) (msgsize)");
+  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 2, "iters (Poll/Block)");
 
   /* setup handlers */
   AM_Safe(AM_SetHandler(ep, PING_REQ_HANDLER, ping_request_handler));
@@ -83,18 +81,13 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (argc > 3) msgsz = atoi(argv[3]);
-  if (!msgsz) msgsz = 1;
-
   outputTimerStats();
 
   AM_Safe(AMX_SPMDBarrier());
 
-  if (myproc == 0) printf("Running %i iterations of latency test (MSGSZ=%i)...\n", iters, msgsz);
+  if (myproc == 0) printf("Running %i iterations of latency test...\n", iters);
   if (myproc == 0 && numprocs > 1) numleft = (numprocs-1)*iters;
   AM_Safe(AMX_SPMDBarrier());
-
-  msg = (char *)calloc(1,msgsz);
 
   begin = getCurrentTimeMicrosec();
 
@@ -107,7 +100,7 @@ int main(int argc, char **argv) {
       #if VERBOSE
         printf("%i: sending request...", myproc); fflush(stdout);
       #endif
-      AM_Safe(AM_RequestI0(ep, 0, PING_REQ_HANDLER, msg, msgsz));
+      AM_Safe(AM_Request0(ep, 0, PING_REQ_HANDLER));
       mywait(polling);
     }
   }

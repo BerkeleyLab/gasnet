@@ -27,7 +27,7 @@ platform_defines = @GASNET_EXTRA_DEFINES@ $(BUILDCONFIG_DEFINES) @INTTYPES_DEFIN
 platform_libraries = @LIBS@ @MPI_LIBS@
 
 VPATH = $(srcdir)
-testdir = $(srcdir)/../amxtests
+testdir = $(srcdir)/../amx
 altincdir = $(srcdir)/..
 INCLUDES = -I$(srcdir) -I. -I$(altincdir) $(platform_defines)
 compile = $(CC) $(CFLAGS) $(INCLUDES)

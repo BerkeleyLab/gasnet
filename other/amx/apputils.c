@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/apputils.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/apputils.c $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
