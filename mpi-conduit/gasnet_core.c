@@ -146,7 +146,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     networkdepth = gasnett_getenv_int_withdefault("GASNET_NETWORKDEPTH", GASNETC_DEFAULT_NETWORKDEPTH, 0);
     if (networkdepth <= 1) networkdepth = GASNETC_DEFAULT_NETWORKDEPTH;
 
-    AMMPI_VerboseErrors = gasneti_VerboseErrors;
+    AMX_VerboseErrors = gasneti_VerboseErrors;
     AMMPI_SPMDkillmyprocess = gasneti_killmyprocess;
     #if !GASNETI_DISABLE_MPI_INIT_THREAD
     { // this scope silences a warning on Cray C about INITERR bypassing this initialization:

@@ -22,11 +22,18 @@
 AMMPI_BEGIN_EXTERNC
 
 /* miscellaneous macro helpers */
-#define _STRINGIFY_HELPER(x) #x
-#define _STRINGIFY(x) _STRINGIFY_HELPER(x)
+#ifndef AMX_STRINGIFY
+#define _AMX_STRINGIFY_HELPER(x) #x
+#define AMX_STRINGIFY(x) _AMX_STRINGIFY_HELPER(x)
+#endif
+
+#ifndef AMX_CONCAT
+#define _AMX_CONCAT_HELPER(a,b) a ## b
+#define AMX_CONCAT(a,b) _AMX_CONCAT_HELPER(a,b)
+#endif
 
 #define AMMPI_LIBRARY_VERSION      2.8
-#define AMMPI_LIBRARY_VERSION_STR  _STRINGIFY(AMMPI_LIBRARY_VERSION)
+#define AMMPI_LIBRARY_VERSION_STR  AMX_STRINGIFY(AMMPI_LIBRARY_VERSION)
 
 /* naming policy:
   AM-defined things start with AM_
@@ -163,13 +170,15 @@ typedef int op_t;
 /* ------------------------------------------------------------------------------------ */
 
 /* AMMPI-specific user entry points */
-extern int AMMPI_VerboseErrors; /* set to non-zero for verbose error reporting */
-extern int AMMPI_SilentMode; /* set to non-zero to silence any non-error output */
+// programmatic tuning knobs
+extern int AMX_VerboseErrors; /* set to non-zero for verbose error reporting */
+extern int AMX_SilentMode; /* set to non-zero to silence any non-error output */
+extern const char *AMX_ProcessLabel; /* human-readable label for this process */
 
 #ifdef __GNUC__
 __attribute__((__format__ (__printf__, 1, 2)))
 #endif
-extern void AMMPI_FatalErr(const char *msg, ...);
+extern void AMX_FatalErr(const char *msg, ...);
 
 /* define the communicator to be used as the basis for all
  * subsequent calls to AM_AllocateEndpoint(), which must be called 
@@ -250,14 +259,12 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
 #endif
 
 #define AMX_SetTranslationTag     AMMPI_SetTranslationTag
-#define AMX_VerboseErrors         AMMPI_VerboseErrors
 #define AMX_GetEndpointStatistics AMMPI_GetEndpointStatistics
 #define AMX_DumpStatistics        AMMPI_DumpStatistics
 #define AMX_AggregateStatistics   AMMPI_AggregateStatistics
 #define AMX_initial_stats         AMMPI_initial_stats
 #define amx_stats_t               ammpi_stats_t
 #define amx_handler_fn_t          ammpi_handler_fn_t
-#define AMX_FatalErr              AMMPI_FatalErr
 #define AMX_GetSourceId           AMMPI_GetSourceId
 #define AMX_enEqual               AMMPI_enEqual
 
@@ -289,21 +296,17 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
   #define AMX_NDEBUG AMMPI_NDEBUG
   #define AMMPI_DEBUG_CONFIG _NDEBUG
 #endif
-#ifdef AMMPI_DEBUG_VERBOSE
-  #define AMX_DEBUG_VERBOSE AMMPI_DEBUG_VERBOSE
+#if AMX_DEBUG_VERBOSE || AMMPI_DEBUG_VERBOSE || GASNET_DEBUG_VERBOSE
+  #undef  AMX_DEBUG_VERBOSE
+  #define AMX_DEBUG_VERBOSE 1
 #endif
 
 #if defined(AMMPI_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
     #error Tried to compile AMMPI client code with optimization enabled but also AMMPI_DEBUG (which seriously hurts performance). Disable C and MPI_CC compiler optimization or reconfigure/rebuild without --enable-debug
 #endif
 
-#ifndef _CONCAT
-#define _CONCAT_HELPER(a,b) a ## b
-#define _CONCAT(a,b) _CONCAT_HELPER(a,b)
-#endif
-
 #undef AM_Init
-#define AM_Init _CONCAT(AM_Init_AMMPI,AMMPI_DEBUG_CONFIG)
+#define AM_Init AMX_CONCAT(AM_Init_AMMPI,AMMPI_DEBUG_CONFIG)
 
 /* System parameters */
 #define AM_MaxShort()   AMMPI_MAX_SHORT

@@ -64,7 +64,7 @@ amxdist:
 	    $(altincdir)/portable_inttypes.h $(altincdir)/gasnet_portable_platform.h \
 	    $$distdir && \
 	 cd $$distdir && \
-	 mv gasnet_portable_platform.h amudp_portable_platform.h && \
+	 mv gasnet_portable_platform.h amx_portable_platform.h && \
 	 rm -f Makefile.in Makefile.am Makefile.titanium* && \
          mv Makefile.standalone Makefile && \
 	 cd .. && \
