@@ -37,7 +37,7 @@ platform_defines = @GASNET_EXTRA_DEFINES@ $(BUILDCONFIG_DEFINES) @INTTYPES_DEFIN
 platform_libraries = -L$(top_builddir) -lgasnet_tools-seq @LIBS@ @GASNET_UDP_LIBS@ $(blcr_ldflags)
 
 VPATH = $(srcdir)
-testdir = $(srcdir)/../amxtests
+testdir = $(srcdir)/../amx
 altincdir = $(srcdir)/..
 gasnet_tools = -I$(srcdir)/../.. -I../.. -DHAVE_GASNET_TOOLS
 INCLUDES = -I$(srcdir) -I. -I$(altincdir) $(platform_defines) $(gasnet_tools)

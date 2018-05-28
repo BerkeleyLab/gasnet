@@ -70,14 +70,14 @@ libamudp.a: $(objects)
 tests: banner apputils.o $(testprograms)
 
 # method to convert .cpp to .o (more reliable than ".cpp.o" method)
-test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
-	$(Ccompile) -DAMUDP -I$(testdir) $< -o $@
+test%.o : $(amxdir)/test%.c $(amxdir)/*.h $(headers)
+	$(Ccompile) -DAMUDP -I$(amxdir) $< -o $@
 
 tests-clean:
 	rm -f $(testprograms)
 	
-apputils.o : $(testdir)/apputils.c $(headers)
-	$(Ccompile) -DAMUDP -I$(testdir) $(testdir)/apputils.c -o apputils.o
+apputils.o : $(amxdir)/apputils.c $(headers)
+	$(Ccompile) -DAMUDP -I$(amxdir) $(amxdir)/apputils.c -o apputils.o
 
 amudprun: amudprun.o $(headers) libamudp.a 
 	$(link) -o $@ $< -L. -lamudp $(linkend)

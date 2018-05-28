@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testam.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testam.h $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

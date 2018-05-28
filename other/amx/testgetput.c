@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testreadwrite.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testgetput.c $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,8 +10,6 @@ static uint32_t vals[MAX_PROCS];
 uint32_t *myvals = vals;
 uint32_t *pvals[MAX_PROCS];
 
-static uint32_t readarray[MAX_PROCS];
-
 int main(int argc, char **argv) {
   eb_t eb;
   ep_t ep;
@@ -19,8 +17,8 @@ int main(int argc, char **argv) {
   int myproc;
   int numprocs;
   int k;
-  int iters = 0;
   int errs = 0;
+  int iters = 0;
 
   TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 1, "iters");
 
@@ -34,7 +32,7 @@ int main(int argc, char **argv) {
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 1;
   if (myproc == 0) {
-    printf("Running %i iterations of read/write test...\n", iters);
+    printf("Running %i iterations of get/put test...\n", iters);
     fflush(stdout);
   }
 
@@ -42,38 +40,44 @@ int main(int argc, char **argv) {
   AM_Safe(AMX_SPMDAllGather(&myvals, pvals, sizeof(myvals))); 
 
   for (k=0;k < iters; k++) {
-    /* set left neighbor's array */
+    /* set just my val */
     int i;
-    int leftP = myproc-1;
-    if (leftP == -1) leftP = numprocs-1;
-    for (i=0;i<MAX_PROCS;i++) writeWord(leftP, pvals[leftP]+i, k);
-    writeSync();
+    for (i=0;i<MAX_PROCS;i++) vals[i] = (uint32_t)(-1);
+    vals[myproc] = myproc;
 
     AM_Safe(AMX_SPMDBarrier()); /* barrier */
 
-    { /* read right neighbor's array  */
+    { /* try some gets */
       int i;
-      int rightP = myproc+1;
-      if (rightP == numprocs) rightP = 0;
-
-      for (i=0;i<MAX_PROCS;i++) readWord(&readarray[i], rightP, pvals[rightP]+i);
-      readSync();
-
-      /* verify */
-      for (i=0;i<MAX_PROCS;i++) {
-        if (((int)readarray[i]) != k) {
-          printf("ERROR: Proc %i READ/WRITE TEST FAILED : readarray[%i] = %i   k = %i\n", myproc, i, (int)readarray[i], k);
-          fflush(stdout);
-          errs++;
-          break;
-        }
+      int sum = 0;
+      int verify = 0;
+      for (i = 0; i < numprocs; i++) {
+        sum += getWord(i, pvals[i]+i); /*  get each peer's value and add them up */
+        verify += i;
+      }
+      if (verify != sum) {
+        printf("ERROR: Proc %i GET TEST FAILED : sum = %i   verify = %i\n", myproc, sum, verify);
+        fflush(stdout);
       }
     }
 
     AM_Safe(AMX_SPMDBarrier()); /* barrier */
 
+    { /* try some puts */
+      int i;
+      for (i = 0; i < numprocs; i++) {
+        putWord(i, pvals[i]+myproc, myproc); /*  push our value to correct position on each peer */
+      }
+      AM_Safe(AMX_SPMDBarrier()); /* barrier */
+      for (i = 0; i < numprocs; i++) {
+        if (((int)vals[i]) != i) {
+          printf("ERROR: Proc %i PUT TEST FAILED : i = %i   vals[i] = %i\n", myproc, i, (int)vals[i]);
+          break;
+        }
+      }
+    }
   }
-
+  
   if (!errs) {
     printf("Proc %i verified.\n", myproc);
     fflush(stdout);
