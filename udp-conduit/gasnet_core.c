@@ -217,7 +217,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     gasneti_freezeForDebugger();
 
-    AMUDP_VerboseErrors = gasneti_VerboseErrors;
+    AMX_VerboseErrors = gasneti_VerboseErrors;
     AMUDP_SPMDkillmyprocess = gasneti_killmyprocess;
 
 #if GASNETI_CALIBRATE_TSC

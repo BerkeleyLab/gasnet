@@ -47,7 +47,8 @@ typedef uint32_t amudp_node_t;
 typedef struct sockaddr_in en_t;
 
 /* CPU ticks */
-typedef uint64_t amudp_cputick_t; 
+#define _AMX_TICK_T
+typedef uint64_t amx_tick_t; 
 
 typedef enum {
   amudp_Short=0,
@@ -70,9 +71,9 @@ typedef struct {
   uint64_t ReturnedMessages;
   uint64_t OutOfOrderRequests;
   uint64_t OutOfOrderReplies;
-  amudp_cputick_t RequestMinLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
-  amudp_cputick_t RequestMaxLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
-  amudp_cputick_t RequestSumLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
+  amx_tick_t RequestMinLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
+  amx_tick_t RequestMaxLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
+  amx_tick_t RequestSumLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
   uint64_t RequestDataBytesSent[amudp_NumCategories];  /* total of args + data payload */
   uint64_t ReplyDataBytesSent[amudp_NumCategories];  /* total of args + data payload */
   uint64_t RequestTotalBytesSent[amudp_NumCategories];  /* total of args + data payload */
@@ -113,15 +114,16 @@ typedef int op_t;
 /* ------------------------------------------------------------------------------------ */
 /* AMUDP-specific user entry points */
 
-extern int AMUDP_VerboseErrors; /* set to non-zero for verbose error reporting */
+// programmatic tuning knobs
 extern int AMUDP_PoliteSync; /* set to non-zero for polite blocking while awaiting send resources */
-extern int AMUDP_SilentMode; /* set to non-zero to silence any non-error output */
-extern const char *AMUDP_ProcessLabel; /* human-readable label for this process */
+extern int AMX_VerboseErrors; /* set to non-zero for verbose error reporting */
+extern int AMX_SilentMode; /* set to non-zero to silence any non-error output */
+extern const char *AMX_ProcessLabel; /* human-readable label for this process */
 
 #ifdef __GNUC__
 __attribute__((__format__ (__printf__, 1, 2)))
 #endif
-extern void AMUDP_FatalErr(const char *msg, ...);
+extern void AMX_FatalErr(const char *msg, ...);
 
 /* set the UDP interface (local IP address) to be used for new endpoints -
  * it's necessary to call this on multi-homed hosts, otherwise endpoint creation will fail
@@ -164,7 +166,7 @@ extern int AMUDP_SPMDHandleControlTraffic(int *controlMessagesServiced);
 #ifdef AMUDP_COEXIST_WITH_AM
   /* allow linking with another library that also implements AM - rename entry points 
    * note this still does not allow the same .c file to use both AM implementations
-   * (any given source file should #include at most one AM header file)
+   * (any given  file should #include at most one AM header file)
    */
   #define AM_Init                 AMUDP_Init
   #define AM_Terminate            AMUDP_Terminate
@@ -200,19 +202,17 @@ extern int AMUDP_SPMDHandleControlTraffic(int *controlMessagesServiced);
 
 /* standardized AM-2 extensions */
 #define AMX_SetTranslationTag     AMUDP_SetTranslationTag
-#define AMX_VerboseErrors         AMUDP_VerboseErrors
 #define AMX_GetEndpointStatistics AMUDP_GetEndpointStatistics
 #define AMX_DumpStatistics        AMUDP_DumpStatistics
 #define AMX_AggregateStatistics   AMUDP_AggregateStatistics
 #define AMX_initial_stats         AMUDP_initial_stats
 #define amx_stats_t               amudp_stats_t
 #define amx_handler_fn_t          amudp_handler_fn_t
-#define AMX_FatalErr              AMUDP_FatalErr
 #define AMX_GetSourceId           AMUDP_GetSourceId
 #define AMX_enEqual               AMUDP_enEqual
 
 #undef AM_Init
-#define AM_Init AMUDP_CONCAT(AM_Init_AMUDP,AMUDP_DEBUG_CONFIG)
+#define AM_Init AMX_CONCAT(AM_Init_AMUDP,AMUDP_DEBUG_CONFIG)
 
 /* System parameters */
 extern int AM_MaxSegLength(uintptr_t* nbytes);
