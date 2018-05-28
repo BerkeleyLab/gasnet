@@ -348,7 +348,7 @@
       snprintf(_fname, sizeof(_fname), "/proc/device-tree/cpus/%.*s/timebase-frequency", 24, _de->d_name);
       closedir(_dp);
       _fp = fopen(_fname, "r");
-      if (!_fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
+      if (!_fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",_fname,strerror(errno));
       if (fread((void *)(&_freq), sizeof(uint32_t), 1, _fp) != 1) 
         gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", _fname, strerror(errno));
     #if PLATFORM_ARCH_LITTLE_ENDIAN /* value is always big-endian */
