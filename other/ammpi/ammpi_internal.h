@@ -419,15 +419,7 @@ extern int AMMPI_PostRecvBuffer(ammpi_buf_t *rxBuf, MPI_Request *prxHandle, MPI_
 #endif
 /* ------------------------------------------------------------------------------------ */
 
-/*  handler prototypes */
-typedef void (*AMMPI_HandlerShort)(void *token, ...);
-typedef void (*AMMPI_HandlerMedium)(void *token, void *buf, int nbytes, ...);
-typedef void (*AMMPI_HandlerLong)(void *token, void *buf, int nbytes, ...);
-typedef void (*AMMPI_HandlerReturned)(int status, op_t opcode, void *token);
-
-
 /* system message type field */
-
 typedef enum {
   ammpi_system_user=0,      /*  not a system message */
   ammpi_system_autoreply,   /*  automatically generated reply */
