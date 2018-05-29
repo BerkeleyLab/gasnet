@@ -164,69 +164,6 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-#define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
-    AMX_assert(phandlerfn);                                                             \
-    if (numargs == 0) (*(AMMPI_HandlerShort)phandlerfn)((void *)token);                   \
-    else {                                                                                \
-      uint32_t *args = (uint32_t *)(pArgs); /* eval only once */                          \
-      switch (numargs) {                                                                  \
-        case 1:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0]); break;         \
-        case 2:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1]); break;\
-        case 3:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2]); break; \
-        case 4:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3]); break; \
-        case 5:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4]); break; \
-        case 6:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-        case 7:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-        case 8:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-        case 9:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-        case 10: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-        case 11: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-        case 12: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-        case 13: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-        case 14: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-        case 15: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-        case 16: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-        default: AMX_unreachable();                                                     \
-      }                                                                                 \
-    }                                                                                   \
-  } while (0)
-/* ------------------------------------------------------------------------------------ */
-#define _RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {   \
-    AMX_assert(phandlerfn);                                                   \
-    if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
-    else {                                                                      \
-      uint32_t *args = (uint32_t *)(pArgs); /* eval only once */                \
-      switch (numargs) {                                                        \
-        case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;           \
-        case 2:  (*phandlerfn)(token, pData, datalen, args[0], args[1]); break;  \
-        case 3:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2]); break; \
-        case 4:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3]); break; \
-        case 5:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4]); break; \
-        case 6:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-        case 7:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-        case 8:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-        case 9:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-        case 10: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-        case 11: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-        case 12: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-        case 13: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-        case 14: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-        case 15: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-        case 16: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-        default: AMX_unreachable();                                                     \
-      }                                                                                 \
-    }                                                                                   \
-  } while (0)
-#define RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
-    void *_pData = (void *)(pData); /* expand only once to help codegen */              \
-    AMX_assert(((uintptr_t)_pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
-    _RUN_HANDLER_MEDLONG((AMMPI_HandlerMedium)phandlerfn, (void *)token, pArgs, numargs, _pData, (int)datalen); \
-  } while(0)
-#define RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {        \
-    void *_pData = (void *)(pData); /* expand only once to help codegen */              \
-    _RUN_HANDLER_MEDLONG((AMMPI_HandlerLong)phandlerfn, (void *)token, pArgs, numargs, _pData, (int)datalen); \
-  } while(0)
-/* ------------------------------------------------------------------------------------ */
 #if AMX_DEBUG
   #define REFUSE_NOTICE(reason) AMX_Err("I just refused a message and returned to sender. Reason: %s", reason)
 #else
@@ -259,7 +196,7 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
   if_pf (issystemmsg) { 
     ammpi_system_messagetype_t type = ((ammpi_system_messagetype_t)msg->systemMessageType);
     if (type == ammpi_system_returnedmessage) { 
-      AMMPI_HandlerReturned handlerfn = (AMMPI_HandlerReturned)ep->handler[0];
+      amx_returned_handler_fn_t handlerfn = (amx_returned_handler_fn_t)ep->handler[0];
       op_t opcode;
       if (sourceId == (ammpi_node_t)-1) return; /*  unknown source, ignore message */
       opcode = AMMPI_GetOpcode(isrequest, cat);
@@ -344,6 +281,7 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
   /*  run the handler */
   status->replyIssued = FALSE;
   status->handlerRunning = TRUE;
+  uint32_t * const pargs = GET_PACKET_ARGS(buf);
   if_pf (issystemmsg) { /* an AMMPI system message */
     ammpi_system_messagetype_t type = ((ammpi_system_messagetype_t)(msg->systemMessageType & 0xF));
     switch (type) {
@@ -360,8 +298,7 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
         if (ep->controlMessageHandler == NULL || ep->controlMessageHandler == amx_unused_handler)
           AMX_Err("got an AMMPI control message, but no controlMessageHandler is registered. Ignoring...");
         else {
-          RUN_HANDLER_SHORT(ep->controlMessageHandler, buf, 
-                            GET_PACKET_ARGS(buf), numargs);
+          AMX_RUN_HANDLER_SHORT(ep->controlMessageHandler, buf, pargs, numargs);
         }
         break;
       default: AMX_unreachable();
@@ -376,37 +313,35 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
       }
     #endif
 
+    handler_t const hid = msg->handlerId;
     switch (cat) {
       case ammpi_Short: 
         if (ep->preHandlerCallback) 
-          ep->preHandlerCallback(ammpi_Short, isrequest, msg->handlerId, buf, 
-                                 NULL, 0, numargs, GET_PACKET_ARGS(buf));
-        RUN_HANDLER_SHORT(ep->handler[msg->handlerId], buf, 
-                          GET_PACKET_ARGS(buf), numargs);
+          ep->preHandlerCallback(ammpi_Short, isrequest, hid, buf, 
+                                 NULL, 0, numargs, pargs);
+        AMX_RUN_HANDLER_SHORT(ep->handler[hid], buf, pargs, numargs);
         if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
         break;
-      case ammpi_Medium: 
+      case ammpi_Medium: {
+        uint8_t * const pData = GET_PACKET_DATA(buf);
         if (ep->preHandlerCallback) 
-          ep->preHandlerCallback(ammpi_Medium, isrequest, msg->handlerId, buf, 
-                                 GET_PACKET_DATA(buf), msg->nBytes, numargs, GET_PACKET_ARGS(buf));
-        RUN_HANDLER_MEDIUM(ep->handler[msg->handlerId], buf, 
-                           GET_PACKET_ARGS(buf), numargs, 
-                           GET_PACKET_DATA(buf), msg->nBytes);
+          ep->preHandlerCallback(ammpi_Medium, isrequest, hid, buf, 
+                                 pData, msg->nBytes, numargs, pargs);
+        AMX_RUN_HANDLER_MEDIUM(ep->handler[hid], buf, pargs, numargs, pData, msg->nBytes);
         if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
         break;
+      }
       case ammpi_Long: {
-        int8_t *pData = ((int8_t *)ep->segAddr) + msg->destOffset;
+        int8_t * const pData = ((int8_t *)ep->segAddr) + msg->destOffset;
         if (!isloopback) /*  a single-message bulk transfer. do the copy */
           memcpy(pData, GET_PACKET_DATA(buf), msg->nBytes);
         if (ep->preHandlerCallback) 
-          ep->preHandlerCallback(ammpi_Long, isrequest, msg->handlerId, buf, 
-                                 pData, msg->nBytes, numargs, GET_PACKET_ARGS(buf));
-        RUN_HANDLER_LONG(ep->handler[msg->handlerId], buf, 
-                           GET_PACKET_ARGS(buf), numargs, 
-                           pData, msg->nBytes);
+          ep->preHandlerCallback(ammpi_Long, isrequest, hid, buf, 
+                                 pData, msg->nBytes, numargs, pargs);
+        AMX_RUN_HANDLER_LONG(ep->handler[hid], buf, pargs, numargs, pData, msg->nBytes);
         if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
         break;
-        }
+      }
       default: AMX_unreachable();
     }
   }

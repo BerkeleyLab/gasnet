@@ -149,67 +149,6 @@ static amudp_node_t sourceAddrToId(ep_t ep, en_t sourceAddr, amudp_node_t hint) 
   return INVALID_NODE;
 }
 /* ------------------------------------------------------------------------------------ */
-#define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
-  AMX_assert(phandlerfn != NULL);                                                       \
-  if (numargs == 0) (*(AMUDP_HandlerShort)phandlerfn)((void *)token);                   \
-  else {                                                                                \
-    uint32_t const * const args = (uint32_t *)(pArgs); /* eval only once */             \
-    switch (numargs) {                                                                  \
-      case 1:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0]); break;         \
-      case 2:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1]); break;\
-      case 3:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2]); break; \
-      case 4:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3]); break; \
-      case 5:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4]); break; \
-      case 6:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-      case 7:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-      case 8:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-      case 9:  (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-      case 10: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-      case 11: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-      case 12: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-      case 13: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-      case 14: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-      case 15: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-      case 16: (*(AMUDP_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-      default: AMX_unreachable();                                                       \
-    }                                                                                   \
-  }                                                                                     \
-} while (0)
-/* ------------------------------------------------------------------------------------ */
-#define _RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {   \
-  AMX_assert(phandlerfn != NULL);                                                         \
-  if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
-  else {                                                                      \
-    uint32_t const * const args = (uint32_t *)(pArgs); /* eval only once */   \
-    switch (numargs) {                                                        \
-      case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;         \
-      case 2:  (*phandlerfn)(token, pData, datalen, args[0], args[1]); break;\
-      case 3:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2]); break; \
-      case 4:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3]); break; \
-      case 5:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4]); break; \
-      case 6:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-      case 7:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-      case 8:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-      case 9:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-      case 10: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-      case 11: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-      case 12: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-      case 13: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-      case 14: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-      case 15: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-      case 16: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-      default: AMX_unreachable();                                                       \
-    }                                                                                   \
-  }                                                                                     \
-} while (0)
-#define RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
-    AMX_assert(((int)(uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
-    AMUDP_HandlerMedium pfn = (AMUDP_HandlerMedium)phandlerfn; /* temp var to work-around a Clang bug */ \
-    _RUN_HANDLER_MEDLONG(pfn, (void *)token, pArgs, numargs, (void *)pData, (int)datalen); \
-    } while(0)
-#define RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen)             \
-  _RUN_HANDLER_MEDLONG((AMUDP_HandlerLong)phandlerfn, (void *)token, pArgs, numargs, (void *)pData, (int)datalen)
-/* ------------------------------------------------------------------------------------ */
 /* ioctl UDP fiasco:
  * According to POSIX, ioctl(I_NREAD) on a SOCK_DGRAM should report the EXACT size of
  * the next message waiting (or 0), not the number of bytes available on the socket. 
@@ -496,7 +435,7 @@ static int AMUDP_HandleRequestTimeouts(ep_t ep, int numtocheck) {
 
       if_pf (buf->status.tx.retryCount >= max_retryCount) {
         /* we already waited too long - request is undeliverable */
-        AMUDP_HandlerReturned handlerfn = (AMUDP_HandlerReturned)ep->handler[0];
+        amx_returned_handler_fn_t handlerfn = (amx_returned_handler_fn_t)ep->handler[0];
         int opcode = AMUDP_GetOpcode(1, cat);
 
         AMUDP_DequeueTxBuffer(ep, buf);
@@ -653,7 +592,7 @@ void AMUDP_processPacket(amudp_buf_t * const buf, int isloopback) {
   if_pf (issystemmsg) { 
     amudp_system_messagetype_t type = ((amudp_system_messagetype_t)msg->systemMessageType);
     if_pf (type == amudp_system_returnedmessage) { 
-      AMUDP_HandlerReturned handlerfn = (AMUDP_HandlerReturned)ep->handler[0];
+      amx_returned_handler_fn_t handlerfn = (amx_returned_handler_fn_t)ep->handler[0];
       if (sourceID == INVALID_NODE) return; /*  unknown source, ignore message */
       if (isrequest && !isloopback) { /*  the returned message is a request, so free that request buffer */
         amudp_bufdesc_t * const desc = GET_REQ_DESC(ep, sourceID, instance);
@@ -838,21 +777,21 @@ void AMUDP_processPacket(amudp_buf_t * const buf, int isloopback) {
       }
     } else { /* a user message */
       uint32_t * const pargs = GET_MSG_ARGS(msg);
-      amudp_handler_fn_t const phandler = ep->handler[msg->handlerId];
+      handler_t const hid = msg->handlerId;
       switch (cat) {
         case amudp_Short: 
           if (ep->preHandlerCallback) 
-            ep->preHandlerCallback(amudp_Short, isrequest, msg->handlerId, buf, 
+            ep->preHandlerCallback(amudp_Short, isrequest, hid, buf, 
                                    NULL, 0, numargs, pargs);
-          RUN_HANDLER_SHORT(phandler, buf, pargs, numargs);
+          AMX_RUN_HANDLER_SHORT(ep->handler[hid], buf, pargs, numargs);
           if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
           break;
         case amudp_Medium: {
           uint8_t * const pData = GET_MSG_DATA(msg);
           if (ep->preHandlerCallback) 
-            ep->preHandlerCallback(amudp_Medium, isrequest, msg->handlerId, buf, 
+            ep->preHandlerCallback(amudp_Medium, isrequest, hid, buf, 
                                    pData, msg->nBytes, numargs, pargs);
-          RUN_HANDLER_MEDIUM(phandler, buf, pargs, numargs, pData, msg->nBytes);
+          AMX_RUN_HANDLER_MEDIUM(ep->handler[hid], buf, pargs, numargs, pData, msg->nBytes);
           if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
           break;
         }
@@ -861,9 +800,9 @@ void AMUDP_processPacket(amudp_buf_t * const buf, int isloopback) {
           /*  a single-message bulk transfer. do the copy */
           if (!isloopback) memcpy(pData, GET_MSG_DATA(msg), msg->nBytes);
           if (ep->preHandlerCallback) 
-            ep->preHandlerCallback(amudp_Long, isrequest, msg->handlerId, buf, 
+            ep->preHandlerCallback(amudp_Long, isrequest, hid, buf, 
                                    pData, msg->nBytes, numargs, pargs);
-          RUN_HANDLER_LONG(phandler, buf, pargs, numargs, pData, msg->nBytes);
+          AMX_RUN_HANDLER_LONG(ep->handler[hid], buf, pargs, numargs, pData, msg->nBytes);
           if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
           break;
         }

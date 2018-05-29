@@ -404,13 +404,6 @@ extern int AMUDP_SPMDwakeupOnControlActivity; /* true if waitForEndpointActivity
 extern volatile int AMUDP_SPMDIsActiveControlSocket; 
 //------------------------------------------------------------------------------------
 
-// handler prototypes
-typedef void (*AMUDP_HandlerShort)(void *token, ...);
-typedef void (*AMUDP_HandlerMedium)(void *token, void *buf, int nbytes, ...);
-typedef void (*AMUDP_HandlerLong)(void *token, void *buf, int nbytes, ...);
-typedef void (*AMUDP_HandlerReturned)(int status, op_t opcode, void *token);
-
-
 /* system message type field:
  *  low  4 bits are actual type
  *  high 4 bits are bulk transfer slot (all zero for non-bulk messages)

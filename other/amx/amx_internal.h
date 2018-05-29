@@ -345,16 +345,67 @@ extern int AMX_Init();
 extern int AMX_Terminate();
 
 //------------------------------------------------------------------------------------
-
-// handler prototypes
-typedef void (*AMX_HandlerShort)(void *token, ...);
-typedef void (*AMX_HandlerMedium)(void *token, void *buf, int nbytes, ...);
-typedef void (*AMX_HandlerLong)(void *token, void *buf, int nbytes, ...);
-typedef void (*AMX_HandlerReturned)(int status, op_t opcode, void *token);
+// shared variables
 
 extern amx_handler_fn_t amx_unused_handler;
 
 extern const char *AMX_ProcessLabel;
+
+//------------------------------------------------------------------------------------
+// handler dispatch
+
+typedef void (*amx_returned_handler_fn_t)(int status, op_t opcode, void *token);
+
+#define _AMX_EMPTY(a,b,c)
+#define _AMX_harg(a,b,c) ,int32_t
+#define _AMX_harg_pass(Nm1,N,Np1) ,_args[Nm1]
+
+#define _AMX_Short_handlerfn_typedefN(Nm1,N,Np1) \
+  typedef void (*AMX_Short_handlerfn_type_##N)(void * AMX_META_DES##N(_AMX_EMPTY,_AMX_harg));
+AMX_META_ASC16(_AMX_Short_handlerfn_typedefN,_AMX_Short_handlerfn_typedefN)
+
+#define _AMX_Short_RunCaseN(Nm1,N,Np1) \
+  case N: ((AMX_Short_handlerfn_type_##N)_phandlerfn)(_token AMX_META_ASC##N(_AMX_EMPTY,_AMX_harg_pass)); break;
+
+#define AMX_RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {         \
+  amx_handler_fn_t const _phandlerfn = (amx_handler_fn_t)phandlerfn;          \
+  void * const _token = (void *)token;                                        \
+  int32_t const * const _args = (int32_t *)(pArgs);                           \
+  AMX_assert(_phandlerfn); AMX_assert(_token); AMX_assert(_args || !numargs); \
+  switch (numargs) {                                                          \
+    AMX_META_DES16(_AMX_Short_RunCaseN,_AMX_Short_RunCaseN)                   \
+    default: AMX_unreachable();                                               \
+  }                                                                           \
+} while (0)
+
+#define _AMX_MedLong_handlerfn_typedefN(Nm1,N,Np1) \
+  typedef void (*AMX_MedLong_handlerfn_type_##N)(void *, void *, size_t AMX_META_DES##N(_AMX_EMPTY,_AMX_harg));
+AMX_META_ASC16(_AMX_MedLong_handlerfn_typedefN,_AMX_MedLong_handlerfn_typedefN)
+
+#define _AMX_MedLong_RunCaseN(Nm1,N,Np1) \
+  case N: ((AMX_MedLong_handlerfn_type_##N)_phandlerfn)(_token, _pData, _datalen AMX_META_ASC##N(_AMX_EMPTY,_AMX_harg_pass)); break;
+
+#define _AMX_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen, extrachecks) do { \
+  amx_handler_fn_t const _phandlerfn = (amx_handler_fn_t)phandlerfn;          \
+  void * const _token = (void *)token;                                        \
+  int32_t const * const _args = (int32_t *)(pArgs);                           \
+  void * const _pData = (void *)pData;                                        \
+  size_t const _datalen = datalen;                                            \
+  AMX_assert(_phandlerfn); AMX_assert(_token); AMX_assert(_args || !numargs); \
+  AMX_assert(_pData || !_datalen);                                            \
+  extrachecks;                                                                \
+  switch (numargs) {                                                          \
+    AMX_META_DES16(_AMX_MedLong_RunCaseN,_AMX_MedLong_RunCaseN)               \
+    default: AMX_unreachable();                                               \
+  }                                                                           \
+} while (0)
+
+#define AMX_RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) \
+      _AMX_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen, \
+                               AMX_assert(((uintptr_t)pData) % 8 == 0)) // ensure medium align
+
+#define AMX_RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen)   \
+    _AMX_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen, ((void)0))
 
 //------------------------------------------------------------------------------------
 #ifndef AMX_ENV_PREFIX_STR // AMX_ENV_PREFIX_STR is the safest define, to avoid conflicting defns
