@@ -2675,7 +2675,7 @@
       int _gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *_p, uint32_t _oldval, uint32_t _newval) {
         int _retval;
         #if defined(_MIPS_SIM) && (_MIPS_SIM >= 2) /* N32 or 64-bit ABI */
-        if (!__builtin_constant_p(oldval)) {
+        if (!__builtin_constant_p(_oldval)) {
           /* Ensure oldval is properly sign-extended for comparison to read value */
           __asm__ __volatile__("sll %0,%0,0" : "+r" (_oldval));
         }
