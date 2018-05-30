@@ -5,6 +5,7 @@
 
 #include "apputils.h"
 #if HAVE_GASNET_TOOLS
+  #define GASNETT_LITE_MODE
   #include <gasnet_tools.h>
 #else
   #include <time.h>
