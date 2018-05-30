@@ -38,6 +38,9 @@ static void gasnetc_atexit(void);
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
+// gex_TM_t used for AM-based bootstrap collectives and exit handling
+static gex_TM_t gasnetc_bootstrap_tm = NULL;
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -203,7 +206,7 @@ void gasnetc_bootstrapBarrier_gni(void))
     for (i = 0; i < gasnetc_dissem_peers; ++i) { /* EMPTY for all but first per supernode */
       const uint32_t mask = 2 << i; /* (distance << 1) */
 
-      gex_AM_RequestShort1(gasneti_THUNK_TM, gasnetc_dissem_peer[i],
+      gex_AM_RequestShort1(gasnetc_bootstrap_tm, gasnetc_dissem_peer[i],
                                gasneti_handleridx(gasnetc_sys_barrier_reqh),
                                0, phase | mask);
 
@@ -284,7 +287,7 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
       do {
         const size_t to_xfer = MIN(nbytes, GASNETC_SYS_EXCHANGE_MAX);
 
-        gex_AM_RequestMedium2(gasneti_THUNK_TM, gasnetc_dissem_peer[step],
+        gex_AM_RequestMedium2(gasnetc_bootstrap_tm, gasnetc_dissem_peer[step],
                                   gasneti_handleridx(gasnetc_sys_exchange_reqh),
                                   temp + offset, to_xfer, GEX_EVENT_NOW, 0,
                                   phase | (step << 1) | (seq << 6), len);
@@ -654,7 +657,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasnetc_exitcodes[gasneti_nodemap_local_rank].present = 0;
   #endif
 
-  //  Create first Client and EP *here*, for use in subsequent bootstrap collectives
+  //  Create first Client, EP and TM *here*, for use in subsequent bootstrap collectives
   {
     //  allocate the client object
     gasneti_Client_t client = gasneti_alloc_client(clientName, flags, 0);
@@ -665,6 +668,9 @@ static int gasnetc_init( gex_Client_t            *client_p,
       GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
     gasneti_EP_t ep = gasneti_import_ep(*ep_p);
     gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
+
+    gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+    gasnetc_bootstrap_tm = gasneti_export_tm(tm);
   }
 
   #if GASNET_DEBUG_VERBOSE
@@ -878,9 +884,11 @@ extern int gasnetc_Client_Init(
   gasneti_assert(argv);
 #endif
 
+  int first_client = !gasneti_init_done;
+
   //  main init
   // TODO-EX: must split off per-client and per-endpoint portions
-  if (!gasneti_init_done) { // First client
+  if (first_client) { // First client
     // NOTE: gasnetc_init() creates the first Client and EP for use in bootstrap comms
     int retval = gasnetc_init(client_p, ep_p, clientName, argc, argv, flags);
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
@@ -900,7 +908,9 @@ extern int gasnetc_Client_Init(
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+  gasneti_TM_t tm = first_client
+                    ? gasneti_import_tm(gasnetc_bootstrap_tm) // gasnetc_init() creates very first TM
+                    : gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -1113,7 +1123,7 @@ extern void gasnetc_exit(int exitcode) {
       gex_Rank_t peer = (distance >= gasneti_nodes - gasneti_mynode)
                                 ? gasneti_mynode - (gasneti_nodes - distance)
                                 : gasneti_mynode + distance;
-      gex_AM_RequestShort1(gasneti_THUNK_TM, peer, gasneti_handleridx(gasnetc_exit_reqh), 0, exitcode);
+      gex_AM_RequestShort1(gasnetc_bootstrap_tm, peer, gasneti_handleridx(gasnetc_exit_reqh), 0, exitcode);
     }
     if (pre_attach) gasneti_attach_done = 0;
 
@@ -1181,12 +1191,13 @@ extern gex_TI_t gasnetc_Token_Info(
   gasneti_assert(info->gex_srcrank < gasneti_nodes);
   result |= GEX_TI_SRCRANK;
 
-#if GASNET_TRACE
-  // TRACE of source of bootstrap AMs can reach here before gasneti_THUNK_TM is set
-  info->gex_ep = gasneti_THUNK_TM ? gasneti_THUNK_EP : NULL;
-#else
+  // TRACE of source of bootstrap AMs can reach here before gasnetc_init()
+  // returns control to gex_Client_Init().  However we can be assured
+  // gasneti_THUNK_TM (and thus gasneti_THUNK_EP) are initialized "early"
+  // when gasnetc_bootstrap_tm is allocated.
+  gasneti_assert(gasneti_THUNK_TM);
+
   info->gex_ep = gasneti_THUNK_EP;
-#endif
   result |= GEX_TI_EP;
 
   info->gex_entry = real_token->entry;
@@ -1569,8 +1580,7 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(tm,dest,handler,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
 
-  gasneti_assert(tm || (handler == gasneti_handleridx(gasnetc_sys_barrier_reqh))
-                    || (handler == gasneti_handleridx(gasnetc_exit_reqh)));
+  gasneti_assert(tm);
 
   va_list argptr;
   va_start(argptr, numargs);
@@ -1593,7 +1603,7 @@ extern int gasnetc_AMRequestMediumM(
 
   gasneti_leaf_finish(lc_opt); // lack of gather-send prevents async local completion
 
-  gasneti_assert(tm || (handler == gasneti_handleridx(gasnetc_sys_exchange_reqh)));
+  gasneti_assert(tm);
 
   va_list argptr;
   va_start(argptr, numargs);
