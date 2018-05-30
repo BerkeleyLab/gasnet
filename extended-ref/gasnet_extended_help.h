@@ -436,31 +436,31 @@ typedef union {
     } } while(0)
 #if GASNET_PSHM
   #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes) do {                   \
-    if (gasneti_pshm_in_supernode(rank)) {                                      \
-      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes);         \
+    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
+      GASNETI_MEMCPY(dest, gasneti_pshm_addr2local(tm,rank,src), nbytes);       \
       gasnete_loopbackget_memsync();                                            \
       return 0;                                                                 \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes) do {                   \
-    if (gasneti_pshm_in_supernode(rank)) {                                      \
-      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes);         \
+    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(tm,rank,dest), src, nbytes);       \
       gasnete_loopbackput_memsync();                                            \
       gasneti_leaf_finish(lc_opt);                                              \
       return 0;                                                                 \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) do {              \
-    if (gasneti_pshm_in_supernode(rank)) {                                      \
-      GASNETI_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes);         \
+    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
+      GASNETI_MEMCPY(gasneti_pshm_addr2local(tm,rank,dest), src, nbytes);       \
       gasnete_loopbackput_memsync();                                            \
       return 0;                                                                 \
     }} while(0)
   #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes) do {                     \
-    if (gasneti_pshm_in_supernode(rank)) {                                      \
-      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(rank, src), nbytes);         \
+    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
+      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(tm,rank,src), nbytes);       \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) do {              \
-    if (gasneti_pshm_in_supernode(rank)) {                                      \
-      GASNETE_VALUE_ASSIGN(gasneti_pshm_addr2local(rank, dest), value, nbytes); \
+    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
+      GASNETE_VALUE_ASSIGN(gasneti_pshm_addr2local(tm,rank,dest), value, nbytes); \
       gasnete_loopbackput_memsync();                                            \
       return 0;                                                                 \
     }} while(0)
@@ -472,31 +472,74 @@ typedef union {
   #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) ((void)0)
 #endif
 
-// GASNETI_SUPERNODE_* convenience macros (same semantics w/ and w/o PSHM)
-//    LOCAL(node)                   -> non-zero iff node is in the supernode
-//    LOCAL_ADDR(node,addr)         -> local address if in supernode, undefined otherwise
-//    LOCAL_ADDR_OR_NULL(node,addr) -> local address if in supernode, NULL otherwise
+// GASNETI_NBRHD_* convenience macros (same semantics w/ and w/o PSHM)
+//    LOCAL(tm,rank)                   -> non-zero iff the indicated rank is in caller's neighborhood
+//    LOCAL_ADDR(tm,rank,addr)         -> address in caller's address space if the indicated rank is
+//                                        in caller's neighborhood, and undefined otherwise.
+//                                        input addr must be non-NULL
+//    LOCAL_ADDR_OR_NULL(tm,rank,addr) -> address in caller's address space if the indicated rank is
+//                                        in caller's neighborhood, and NULL otherwise.
+//                                        input addr must be non-NULL
+// Equivalents for callers using jobrank:
+//    JOBRANK_IS_LOCAL(jobrank)
+//    JOBRANK_LOCAL_ADDR(jobrank,addr)
+//    JOBRANK_LOCAL_ADDR_OR_NULL(jobrank,addr)
 // TODO-EX:
-//   + Need (tm,rank) in place of node in all three
 //   + LOCAL_ADDR might be made smarter?
 //
 #if GASNET_PSHM
-  #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node)
-  #define GASNETI_SUPERNODE_LOCAL_ADDR(node,addr) gasneti_pshm_addr2local(node,addr)
+  #define _GASNETI_NBRHD_LOCAL(tm,rank) gasneti_pshm_in_supernode(tm,rank)
+  #define _GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr) gasneti_pshm_addr2local(tm,rank,addr)
+  #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) gasneti_pshm_jobrank_in_supernode(jobrank)
+  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) gasneti_pshm_jobrank_addr2local(jobrank,addr)
 #else
   #if GASNET_CONDUIT_SMP
-    #define GASNETI_SUPERNODE_LOCAL(node)    (1)
+    #define _GASNETI_NBRHD_LOCAL(tm,rank)               (1)
+    #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)    (1)
   #else 
-    #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasneti_mynode) 
+    // TODO-EX: "real" TM support will require  ((rank) == gex_TM_QueryRank(tm))
+    //          but ideally w/o any pointer-chase for the important case tm == TM0.
+    #define _GASNETI_NBRHD_LOCAL(tm,rank)               ((rank) == gasneti_mynode)
+    #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)    ((jobrank) == gasneti_mynode)
   #endif
-  #define GASNETI_SUPERNODE_LOCAL_ADDR(node,addr)  (addr)
+  #define _GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr)          (addr)
+  #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)  (addr)
 #endif
-GASNETI_INLINE(gasneti_supernode_addr_or_null) GASNETI_PURE
-void *gasneti_supernode_addr_or_null(gex_Rank_t _node, void *_addr) {
-  return GASNETI_SUPERNODE_LOCAL(_node) ? GASNETI_SUPERNODE_LOCAL_ADDR(_node,_addr) : NULL;
+
+GASNETI_INLINE(gasneti_nbrhd_jobrank_local_addr_or_null) GASNETI_PURE
+void *gasneti_nbrhd_jobrank_local_addr_or_null(gex_Rank_t _jobrank, void *_addr) {
+  return _GASNETI_NBRHD_JOBRANK_IS_LOCAL(_jobrank)
+             ? _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(_jobrank,_addr)
+             : NULL;
 }
-GASNETI_PUREP(gasneti_supernode_addr_or_null)
-#define GASNETI_SUPERNODE_LOCAL_ADDR_OR_NULL(node,addr) gasneti_supernode_addr_or_null(node,addr)
+GASNETI_PUREP(gasneti_nbrhd_jobrank_local_addr_or_null)
+
+GASNETI_INLINE(gasneti_nbrhd_local_addr_or_null) GASNETI_PURE
+void *gasneti_nbrhd_local_addr_or_null(gex_TM_t _tm, gex_Rank_t _rank, void *_addr) {
+  gex_Rank_t _jobrank = _rank; // TODO-EX: real TM support
+  return gasneti_nbrhd_jobrank_local_addr_or_null(_jobrank, _addr);
+}
+GASNETI_PUREP(gasneti_nbrhd_local_addr_or_null)
+
+#define GASNETI_NBRHD_LOCAL(tm,rank) \
+        (gasneti_assert((rank) < gex_TM_QuerySize(tm)), \
+         _GASNETI_NBRHD_LOCAL(tm,rank))
+#define GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr)\
+        (gasneti_assert((rank) < gex_TM_QuerySize(tm)), gasneti_assert(addr), \
+         _GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr))
+#define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(tm,rank,addr) \
+        (gasneti_assert((rank) < gex_TM_QuerySize(tm)), gasneti_assert(addr), \
+         gasneti_nbrhd_local_addr_or_null(tm,rank,addr))
+
+#define GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)\
+        (gasneti_assert((jobrank) < gasneti_nodes), \
+         _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank))
+#define GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)\
+        (gasneti_assert((jobrank) < gasneti_nodes), gasneti_assert(addr), \
+         _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr))
+#define GASNETI_NBRHD_JOBRANK_LOCAL_ADDR_OR_NULL(jobrank,addr) \
+        (gasneti_assert((jobrank) < gasneti_nodes), gasneti_assert(addr), \
+         gasneti_nbrhd_jobrank_local_addr_or_null(jobrank,addr))
 
 /* ------------------------------------------------------------------------------------ */
 

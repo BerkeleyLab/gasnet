@@ -585,7 +585,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
     }
 #define _GASNETE_RATOMIC_DISP_WARN_gex_nb  GASNETI_WARN_UNUSED_RESULT
 #define _GASNETE_RATOMIC_DISP_WARN_gex_nbi /*empty*/
-// TODO-EX: Must add TM argument to GASNETI_SUPERNODE_LOCAL*()
 // Note that _GASNETE_RATOMIC_DISP_TOOLS_SAFE has unusually "flow" in that it
 // EITHER completes the operation synchronously using tools and *returns*
 // OR it continues through to the next statement.
@@ -608,11 +607,13 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         /* Will use tools */                                             \
     } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode) {                       \
         if (_flags & GEX_FLAG_AD_MY_NBRHD) {                             \
-            gasneti_assert(GASNETI_SUPERNODE_LOCAL(_tgt_rank));          \
-            _tgt_addr = GASNETI_SUPERNODE_LOCAL_ADDR(_tgt_rank,_tgt_addr);\
+            gex_TM_t _tm = gasneti_export_tm(_real_ad->_tm);             \
+            gasneti_assert(GASNETI_NBRHD_LOCAL(_tm,_tgt_rank));      \
+            _tgt_addr = GASNETI_NBRHD_LOCAL_ADDR(_tm,_tgt_rank,_tgt_addr);\
             /* Will use tools */                                         \
         } else {                                                         \
-            void *_tmp_addr = GASNETI_SUPERNODE_LOCAL_ADDR_OR_NULL(_tgt_rank,_tgt_addr); \
+            gex_TM_t _tm = gasneti_export_tm(_real_ad->_tm);             \
+            void *_tmp_addr = GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(_tm,_tgt_rank,_tgt_addr);\
             if (!_tmp_addr) break; /* Leave enclosing do/while w/o using tools */ \
             _tgt_addr = (dtcode##_type *)_tmp_addr;                      \
             /* Will use tools */                                         \

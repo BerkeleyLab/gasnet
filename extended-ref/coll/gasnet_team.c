@@ -233,7 +233,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
     node_vector = gasneti_malloc(2 * total_ranks * sizeof(gex_Rank_t));
     for (i = 0; i < total_ranks; ++i) {
       gex_Rank_t n = rel2act_map[i];
-      if (gasneti_pshm_in_supernode(n)) {
+      if (gasneti_pshm_jobrank_in_supernode(n)) {
         if (n == gasneti_mynode) rank = count;
         ++count;
       }

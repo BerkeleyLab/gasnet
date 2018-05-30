@@ -398,7 +398,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
     const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
-    if (gasneti_pshm_in_supernode(node)) {
+    if (gasneti_pshm_jobrank_in_supernode(node)) {
       *(volatile gasnete_coll_rmdbarrier_inbox_t *)addr = *payload;
     } else
 #endif
@@ -793,8 +793,8 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
       void *addr = gasnete_rdmabarrier_auxseg[node].addr;
       barrier_data->barrier_peers[1+step].node = node;
     #if GASNET_PSHM
-      if (gasneti_pshm_in_supernode(node)) {
-        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_addr2local(node, addr);
+      if (gasneti_pshm_jobrank_in_supernode(node)) {
+        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_jobrank_addr2local(node, addr);
       } else
     #endif
       barrier_data->barrier_peers[1+step].addr = (uintptr_t)addr;
