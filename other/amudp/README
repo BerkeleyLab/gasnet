@@ -66,6 +66,15 @@ AMUDP has a few notable departures from the AM-2 specification:
 
 Change Log
 ----------
+AMUDP 3.15 (PENDING)
+- New AMUDP_LIBRARY_VERSION_{MAJOR,MINOR} defines
+- Fix compatibility issues with PGI C++ 17+
+- Significant rearrangement of internal files and utilities
+- AM Handler dispatching code is now strictly spec-compliant
+- AMX_ENV_PREFIX_STR is now the preferred define for setting a client ENV prefix
+- Several pseudo-public programmatic knobs renamed into the AMX_ namespace
+- Fix an unreported cosmetic output bug in AMX_RETURN error reporting
+
 AMUDP 3.14 (03/2017)
 - Fix AM_{Get,Set}NumHandlers and AM_MoveEndpoint
 - Fix bug 3379: workaround a PGI optimizer bug on Darwin

@@ -50,8 +50,8 @@ run-tests: tests
 
 # make a distribution
 amxdist:
-	@sh -x -c ' \
-         VERSION=`grep "#define AMMPI_LIBRARY_VERSION" $(srcdir)/ammpi.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
+	@set -x ; \
+	 VERSION=`grep "#define AMMPI_LIBRARY_VERSION" $(srcdir)/ammpi.h | head -2 | $(PERL) -e '$$/=undef; my @a=split(/\s+/,<>); print "$$a[2].$$a[5]"'` ; \
          export VERSION ; \
 	 distdir=ammpi$${VERSION} ; \
          echo "+++ Building distribution for AMMPI version $${VERSION} +++" && \
@@ -67,6 +67,5 @@ amxdist:
 	 cd .. && \
          tar -cvhf $$distdir.tar $$distdir && gzip -9 $$distdir.tar && \
          rm -Rf $$distdir && \
-         echo "+++ $$distdir.tar.gz is ready for distribution +++" \
-        '
+         echo "+++ $$distdir.tar.gz is ready for distribution +++" 
 
