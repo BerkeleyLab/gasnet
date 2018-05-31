@@ -53,9 +53,8 @@ run-tests: tests
 
 # make a distribution
 amxdist:
-	@bash -x -c ' \
-         VERSION=`grep "#define AMUDP_LIBRARY_VERSION" $(srcdir)/amudp_const.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
-         export VERSION ; \
+	@set -x ; \
+         VERSION=`grep "#define AMUDP_LIBRARY_VERSION" $(srcdir)/amudp_const.h | head -2 | $(PERL) -e '$$/=undef; my @a=split(/\s+/,<>); print "$$a[2].$$a[5]"'` ; \
 	 distdir=amudp$${VERSION} ; \
          echo "+++ Building distribution for AMUDP version $${VERSION} +++" && \
 	 rm -Rf $$distdir.tar.gz $$distdir && \
@@ -70,5 +69,4 @@ amxdist:
 	 cd .. && \
          tar -cvhf $$distdir.tar $$distdir && gzip -9 $$distdir.tar && \
          rm -Rf $$distdir && \
-         echo "+++ $$distdir.tar.gz is ready for distribution +++" \
-        '
+         echo "+++ $$distdir.tar.gz is ready for distribution +++" 
