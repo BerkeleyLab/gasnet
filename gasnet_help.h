@@ -115,6 +115,18 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 #define gasneti_leak_aligned(ptr) _gasneti_leak_aligned((ptr) GASNETI_CURLOCAARG)
 
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
+
+#define gasneti_check_tm_rank(tm,rank) gasneti_assert((tm) && ((rank) < gex_TM_QuerySize(tm)))
+        
+GASNETI_INLINE(gasneti_i_tm_rank_to_jobrank)
+gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
+  // TODO-EX: real lookup w/ special case for TM0
+  gasneti_assert(_i_tm && (_rank < _i_tm->_size));
+  return _rank;
+}
+#define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
+        gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
+
 #if GASNET_SEGMENT_EVERYTHING
   #define gasneti_in_clientsegment(tm,rank,ptr,nbytes) (gasneti_assert((rank) < gasneti_nodes), 1)
   #define gasneti_in_auxsegment(tm,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
