@@ -1443,9 +1443,6 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 // AM Request/Reply external interface
 //
 // TODO-EX: GASNETI_THREAD_FARG
-// TODO-EX: Request interfaces are all missing real TM support:
-//   FP Request interfaces take only a jobrank argument
-//   NP Request interfaces do take a tm argument, but ignore it
 //
 
 int gasneti_AMPSHM_RequestShort(gex_Rank_t jobrank, gex_AM_Index_t handler,
@@ -1503,8 +1500,7 @@ int gasneti_AMPSHM_ReplyLong(gex_Token_t token, gex_AM_Index_t handler,
 
 int gasnetc_AMPSHM_PrepareRequestMedium(
                         gasneti_AM_SrcDesc_t sd,
-                        gex_TM_t             tm, // TODO-EX: ignored!
-                        gex_Rank_t           dest,
+                        gex_Rank_t           jobrank,
                         const void          *client_buf,
                         size_t               least_payload,
                         size_t               most_payload,
@@ -1513,7 +1509,6 @@ int gasnetc_AMPSHM_PrepareRequestMedium(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gex_Rank_t jobrank = dest;
   return ampshm_prepare(sd, 1, gasneti_Medium, jobrank, client_buf, least_payload, most_payload,
                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
@@ -1539,8 +1534,7 @@ int gasnetc_AMPSHM_PrepareReplyMedium(
 
 int gasnetc_AMPSHM_PrepareRequestLong(
                         gasneti_AM_SrcDesc_t sd,
-                        gex_TM_t             tm, // TODO-EX: ignored!
-                        gex_Rank_t           dest,
+                        gex_Rank_t           jobrank,
                         const void          *client_buf,
                         size_t               least_payload,
                         size_t               most_payload,
@@ -1550,7 +1544,6 @@ int gasnetc_AMPSHM_PrepareRequestLong(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gex_Rank_t jobrank = dest;
   return ampshm_prepare(sd, 1, gasneti_Long, jobrank, client_buf, least_payload, most_payload,
                         dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }

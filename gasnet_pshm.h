@@ -234,8 +234,7 @@ extern int gasneti_AMPSHM_ReplyLong(
                         gex_Flags_t flags, int numargs, va_list argptr);
 
 int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
-                                        gex_TM_t             tm,
-                                        gex_Rank_t           dest,
+                                        gex_Rank_t           jobrank,
                                         const void          *client_buf,
                                         size_t               least_payload,
                                         size_t               most_payload,
@@ -247,8 +246,7 @@ void gasnetc_AMPSHM_CommitRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         gex_AM_Index_t handler, size_t nbytes,
                                         va_list argptr);
 int gasnetc_AMPSHM_PrepareRequestLong(gasneti_AM_SrcDesc_t sd,
-                                      gex_TM_t             tm,
-                                      gex_Rank_t           dest,
+                                      gex_Rank_t           jobrank,
                                       const void          *client_buf,
                                       size_t               least_payload,
                                       size_t               most_payload,

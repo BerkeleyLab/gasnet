@@ -517,8 +517,10 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
-    retval = gasneti_nbrhd_RequestGeneric( gasneti_Short, rank, handler,
+   */
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasneti_nbrhd_RequestGeneric( gasneti_Short, jobrank, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -571,9 +573,11 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
+   */
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasneti_nbrhd_RequestGeneric( gasneti_Medium, rank, handler,
+    retval = gasneti_nbrhd_RequestGeneric( gasneti_Medium, jobrank, handler,
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -638,7 +642,7 @@ int gasnetc_prepare_req_medium(
                        gasneti_AM_SrcDesc_t    sd,
                        const int               isFixed,
                        gex_TM_t                tm,
-                       gex_Rank_t              dest,
+                       gex_Rank_t              rank,
                        const void             *client_buf,
                        size_t                  least_payload,
                        size_t                  most_payload,
@@ -683,28 +687,29 @@ void gasnetc_commit_req_medium(
 
 extern int gasnetc_AMRequestMediumM(
                     gex_TM_t tm,                      /* local context */
-                    gex_Rank_t dest,                  /* with tm, defines remote context */
+                    gex_Rank_t rank,                  /* with tm, defines remote context */
                     gex_AM_Index_t handler,           /* index into destination ep's handler table */
                     void *source_addr, size_t nbytes, /* data payload */
                     gex_Event_t *lc_opt,              /* local completion of payload */
                     gex_Flags_t flags
                     GASNETI_THREAD_FARG,
                     int numargs, ...) {
-  GASNETI_COMMON_AMREQUESTMEDIUM(tm,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs);
 
   int retval;
-  if_pt (GASNETI_NBRHD_LOCAL(tm, dest)) {
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, jobrank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, dest, handler,
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, jobrank, handler,
                                           source_addr, nbytes, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     struct gasneti_AM_SrcDesc the_sd;
-    retval = gasnetc_prepare_req_medium(&the_sd,1,tm,dest,source_addr,0,nbytes,
+    retval = gasnetc_prepare_req_medium(&the_sd,1,jobrank,source_addr,0,nbytes,
                                         lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
       gasnetc_commit_req_medium(&the_sd,1,handler,nbytes,argptr);
@@ -717,7 +722,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
-                       gex_Rank_t         dest,
+                       gex_Rank_t         rank,
                        const void        *client_buf,
                        size_t             least_payload,
                        size_t             most_payload,
@@ -727,19 +732,20 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
 
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
     int imm;
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
-        imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
+    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
+        imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                            client_buf, least_payload, most_payload,
                                            NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
     } else {
-        imm = gasnetc_prepare_req_medium(sd,0,tm,dest,client_buf,least_payload,most_payload,
+        imm = gasnetc_prepare_req_medium(sd,0,jobrank,client_buf,least_payload,most_payload,
                                          lc_opt,flags,nargs GASNETI_THREAD_PASS);
     }
 
@@ -789,9 +795,11 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
+   */
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasneti_nbrhd_RequestGeneric( gasneti_Long, rank, handler,
+    retval = gasneti_nbrhd_RequestGeneric( gasneti_Long, jobrank, handler,
                                            source_addr, nbytes, dest_addr,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
