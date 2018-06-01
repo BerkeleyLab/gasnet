@@ -65,14 +65,14 @@ libammpi.a: $(objects)
 tests: banner apputils.o $(testprograms)
 
 # method to convert .cpp to .o (more reliable than ".cpp.o" method)
-test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
-	$(Ccompile) -DAMMPI -I$(testdir) $< -o $@
+test%.o : $(amxdir)/test%.c $(amxdir)/*.h $(headers)
+	$(Ccompile) -DAMMPI -I$(amxdir) $< -o $@
 
 tests-clean:
 	rm -f $(testprograms)
 
-apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
-	$(Ccompile) -DAMMPI -I$(testdir) $(testdir)/apputils.c -o apputils.o
+apputils.o : $(amxdir)/apputils.c $(amxdir)/apputils.h $(headers)
+	$(Ccompile) -DAMMPI -I$(amxdir) $(amxdir)/apputils.c -o apputils.o
 
 %.o : $(srcdir)/%.c $(headers)
 	$(Ccompile) $< -o $@

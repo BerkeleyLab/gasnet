@@ -1,10 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/apputils.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/apputils.c $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
 #include "apputils.h"
 #if HAVE_GASNET_TOOLS
+  #define GASNETT_LITE_MODE
   #include <gasnet_tools.h>
 #else
   #include <time.h>
@@ -39,7 +40,7 @@ static eb_t eb = NULL;
 /* ------------------------------------------------------------------------------------ */
 static int statscalls = 0;
 static amx_stats_t globalStats;
-static void stats_request_handler(void *token, void *buf, int nbytes, int32_t procnum) {
+static void stats_request_handler(void *token, void *buf, size_t nbytes, int32_t procnum) {
   assert(nbytes == sizeof(amx_stats_t));
   AM_Safe(AMX_AggregateStatistics(&globalStats, (amx_stats_t *)buf));
   statscalls++;

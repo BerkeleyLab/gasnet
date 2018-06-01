@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testbounce.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testbounce.c $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@ volatile int count = 0;
 volatile int done = 0;
 uint32_t *VMseg;
 
-static void large_request_handler(void *token, void *buf, int nbytes, int arg) {
+static void large_request_handler(void *token, void *buf, size_t nbytes, int arg) {
   uint32_t *recvdbuf = (uint32_t *)buf;
   #if VERBOSE
     printf("%i: large_request_handler(). starting...\n", myproc); fflush(stdout);
@@ -54,7 +54,7 @@ static void large_request_handler(void *token, void *buf, int nbytes, int arg) {
   done++;
 }
 
-static void large_reply_handler(void *token, void *buf, int nbytes, int arg) {
+static void large_reply_handler(void *token, void *buf, size_t nbytes, int arg) {
   uint32_t *recvdbuf = (uint32_t *)buf;
   /* assert(done < 2*nummsgs); */
 

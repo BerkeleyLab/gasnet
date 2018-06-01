@@ -1,9 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testping.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testlatency.c $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 #include "apputils.h"
+
+/* non-pipelined version of ping tester */
 
 #define PING_REQ_HANDLER 1
 #define PING_REP_HANDLER 2
@@ -12,6 +14,8 @@ static volatile int numleft;
 
 int myproc;
 int numprocs;
+eb_t eb;
+ep_t ep;
 
 static void ping_request_handler(void *token) {
   numleft--;
@@ -32,11 +36,23 @@ static void ping_reply_handler(void *token) {
   numleft--;
 }
 
-/* usage: testping  numprocs  spawnfn  iters  P/B
+void mywait(int polling) {
+  if (polling) { /* poll until everyone done */
+    while (numleft) {
+      AM_Safe(AM_Poll(eb));
+    }
+  } else {
+    while (numleft) {
+      AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
+      AM_Safe(AM_WaitSema(eb));
+      AM_Safe(AM_Poll(eb));
+    }
+  }
+}
+
+/* usage: testlatency  numprocs  spawnfn  iters  P/B
  */
 int main(int argc, char **argv) {
-  eb_t eb;
-  ep_t ep;
   uint64_t networkpid;
   int64_t begin, end, total;
   int polling = 1;
@@ -65,51 +81,30 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (numprocs == 1) numleft = 2*iters;
-  else if (myproc == 0) numleft = (numprocs-1)*iters;
-  else numleft = iters;
+  outputTimerStats();
 
   AM_Safe(AMX_SPMDBarrier());
 
-  if (myproc == 0) printf("Running %i iterations of ping test...\n", iters);
+  if (myproc == 0) printf("Running %i iterations of latency test...\n", iters);
+  if (myproc == 0 && numprocs > 1) numleft = (numprocs-1)*iters;
+  AM_Safe(AMX_SPMDBarrier());
 
   begin = getCurrentTimeMicrosec();
 
- #if ONE_TO_ALL
-  if (myproc == 0) { /* 0 sends to everyone */
-    for (k=0; k < iters; k++) {
-      int peer;
-      for (peer=(numprocs==1?0:1); peer < numprocs; peer++) {
-        #if VERBOSE
-          printf("%i: sending request %i to %i...", myproc, k, peer); fflush(stdout);
-        #endif
-        AM_Safe(AM_Request0(ep, peer, PING_REQ_HANDLER));
-      }
-    }
-  }
- #else /* all-to-one */
-  if (myproc != 0 || numprocs == 1) { /* everybody sends packets to 0 */
+  if (myproc == 0 && numprocs > 1) {
+    mywait(polling);
+  } else { /* everybody sends packets to 0 */
+    int expect = (numprocs > 1 ? 1 : 2);
     for (k=0;k < iters; k++) {
+      numleft = expect;
       #if VERBOSE
-        printf("%i: sending request %i...", myproc, k); fflush(stdout);
+        printf("%i: sending request...", myproc); fflush(stdout);
       #endif
       AM_Safe(AM_Request0(ep, 0, PING_REQ_HANDLER));
+      mywait(polling);
     }
   }
- #endif
-
-  if (polling) { /* poll until everyone done */
-    while (numleft) {
-      AM_Safe(AM_Poll(eb));
-    }
-  } else {
-    while (numleft) {
-      AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
-      AM_Safe(AM_WaitSema(eb));
-      AM_Safe(AM_Poll(eb));
-    }
-  }
-
+  
   end = getCurrentTimeMicrosec();
 
   total = end - begin;

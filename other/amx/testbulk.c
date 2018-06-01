@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testbulk.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testbulk.c $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@ int nummsgs = 0;
 int done = 0;
 uint32_t *VMseg;
 
-static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
+static void bulk_request_handler(void *token, void *buf, size_t nbytes, int arg) {
   #if DEBUG
   uint32_t *recvdbuf = (uint32_t *)buf;
   #endif
