@@ -56,6 +56,8 @@ AMMPI has a few notable departures from the AM-2 specification:
   not provide thread safety, but can be used in a thread-funnelled mode with
   locking at the client level.
 
+* The nbytes argument to Medium and Long AM handlers has type `size_t`
+
 * AM_GetXferM is not implemented.
 
 * Clients should not take the address of AM_ entry point "functions", because
@@ -64,6 +66,8 @@ AMMPI has a few notable departures from the AM-2 specification:
 Change Log
 ----------
 AMMPI 2.9 (PENDING)
+- Medium and Long AM handlers change in signature on 64-bit platforms: 
+  the nbytes argument now has type size_t instead of int
 - New AMMPI_LIBRARY_VERSION_{MAJOR,MINOR} defines
 - Significant rearrangement of internal files and utilities
 - AM Handler dispatching code is now strictly spec-compliant

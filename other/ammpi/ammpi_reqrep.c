@@ -15,12 +15,12 @@
 /* forward decls */
 static int AMMPI_RequestGeneric(ammpi_category_t category, 
                           ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr,
                           uint8_t systemType, uint8_t systemArg);
 static int AMMPI_ReplyGeneric(ammpi_category_t category, 
                           ammpi_buf_t *requestbuf, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr,
                           uint8_t systemType, uint8_t systemArg);
 /* ------------------------------------------------------------------------------------ */
@@ -621,7 +621,7 @@ extern int AMMPI_Block(eb_t eb) {
  *------------------------------------------------------------------------------------ */
 static int AMMPI_RequestGeneric(ammpi_category_t category, 
                           ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr, 
                           uint8_t systemType, uint8_t systemArg) {
   static char _stagingbuf[sizeof(ammpi_buf_t)+8];
@@ -735,7 +735,7 @@ static int AMMPI_RequestGeneric(ammpi_category_t category,
 /* ------------------------------------------------------------------------------------ */
 static int AMMPI_ReplyGeneric(ammpi_category_t category, 
                           ammpi_buf_t *requestbuf, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr,
                           uint8_t systemType, uint8_t systemArg) {
   static char _stagingbuf[sizeof(ammpi_buf_t)+8];
@@ -876,7 +876,7 @@ extern int AMMPI_Request(ep_t request_endpoint, ammpi_node_t reply_endpoint, han
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_RequestIVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr) {
   AMX_CHECKINIT();
   AMX_CHECK_ERR((!request_endpoint),BAD_ARG);
@@ -896,7 +896,7 @@ extern int AMMPI_RequestIVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, 
                                 ammpi_system_user, 0);
 }
 extern int AMMPI_RequestI(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...) {
     int retval;
     va_list argptr;
@@ -909,7 +909,7 @@ extern int AMMPI_RequestI(ep_t request_endpoint, ammpi_node_t reply_endpoint, ha
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_RequestXferVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async, 
                           int numargs, va_list argptr) {
   AMX_CHECKINIT();
@@ -942,7 +942,7 @@ extern int AMMPI_RequestXferVA(ep_t request_endpoint, ammpi_node_t reply_endpoin
                                 ammpi_system_user, 0);
 }
 extern int AMMPI_RequestXfer(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async, 
                           int numargs, ...) {
     int retval;
@@ -995,7 +995,7 @@ extern int AMMPI_Reply(void *token, handler_t handler,
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_ReplyIVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr) {
   ammpi_buf_t *requestbuf;
 
@@ -1023,7 +1023,7 @@ extern int AMMPI_ReplyIVA(void *token, handler_t handler,
                                 ammpi_system_user, 0);
 }
 extern int AMMPI_ReplyI(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...) {
     int retval;
     va_list argptr;
@@ -1067,7 +1067,7 @@ extern int AMMPI_SendControlMessage(ep_t from, en_t to, int numargs, ...) {
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_ReplyXferVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr) {
   ammpi_buf_t *requestbuf;
 
@@ -1097,7 +1097,7 @@ extern int AMMPI_ReplyXferVA(void *token, handler_t handler,
                                 ammpi_system_user, 0);
 }
 extern int AMMPI_ReplyXfer(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, ...) {
     int retval;
     va_list argptr;

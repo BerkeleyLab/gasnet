@@ -40,7 +40,7 @@ static eb_t eb = NULL;
 /* ------------------------------------------------------------------------------------ */
 static int statscalls = 0;
 static amx_stats_t globalStats;
-static void stats_request_handler(void *token, void *buf, int nbytes, int32_t procnum) {
+static void stats_request_handler(void *token, void *buf, size_t nbytes, int32_t procnum) {
   assert(nbytes == sizeof(amx_stats_t));
   AM_Safe(AMX_AggregateStatistics(&globalStats, (amx_stats_t *)buf));
   statscalls++;

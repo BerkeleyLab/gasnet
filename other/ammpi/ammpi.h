@@ -383,40 +383,40 @@ extern int AM_Poll(eb_t bundle);
 extern int AMMPI_Request(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
                          int numargs, ...);
 extern int AMMPI_RequestI (ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...);
 extern int AMMPI_RequestXfer(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async,
                           int numargs, ...);
 
 extern int AMMPI_Reply(void *token, handler_t handler, 
                          int numargs, ...);
 extern int AMMPI_ReplyI(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...);
 extern int AMMPI_ReplyXfer(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, ...);
 
 /* alternate forms that take va_list ptr to support GASNet */
 extern int AMMPI_RequestVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
                          int numargs, va_list argptr);
 extern int AMMPI_RequestIVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr);
 extern int AMMPI_RequestXferVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async,
                           int numargs, va_list argptr);
 
 extern int AMMPI_ReplyVA(void *token, handler_t handler, 
                          int numargs, va_list argptr);
 extern int AMMPI_ReplyIVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr);
 extern int AMMPI_ReplyXferVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr);
 
 
