@@ -1084,13 +1084,13 @@ static gex_Rank_t _test_firstnode;
 static int _test_localprocs(void) { /* First call is not thread safe */
   static int count = 0;
   if (!count) {
-    gex_Rank_t my_supernode;
+    gex_Rank_t my_host;
     gex_Rank_t i;
 
     assert(_test_nodeinfo);
-    my_supernode = _test_nodeinfo[TEST_MYPROC].supernode;
+    my_host = _test_nodeinfo[TEST_MYPROC].host;
     for (i=0; i < TEST_PROCS; i++) {
-      if (_test_nodeinfo[i].supernode == my_supernode) {
+      if (_test_nodeinfo[i].host == my_host) {
         if (!count) _test_firstnode = i;
         count++;
       }
