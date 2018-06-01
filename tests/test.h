@@ -1033,13 +1033,13 @@ static gasnet_node_t _test_firstnode;
 static int _test_localprocs(void) { /* First call is not thread safe */
   static int count = 0;
   if (!count) {
-    gasnet_node_t my_supernode;
+    gasnet_node_t my_host;
     gasnet_node_t i;
 
     assert(_test_nodeinfo);
-    my_supernode = _test_nodeinfo[gasnet_mynode()].supernode;
+    my_host = _test_nodeinfo[gasnet_mynode()].host;
     for (i=0; i < gasnet_nodes(); i++) {
-      if (_test_nodeinfo[i].supernode == my_supernode) {
+      if (_test_nodeinfo[i].host == my_host) {
         if (!count) _test_firstnode = i;
         count++;
       }
