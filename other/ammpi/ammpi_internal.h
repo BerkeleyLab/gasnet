@@ -349,7 +349,8 @@ static const char *MPI_ErrorName(int errval) {
 /* ------------------------------------------------------------------------------------ */
 
 /* make an MPI call - if it fails, print error message and return */
-#define MPI_SAFE(fncall) do {                                                                     \
+#if AMX_DEBUG || AMX_ENABLE_ERRCHECKS
+ #define MPI_SAFE(fncall) do {                                                                    \
    int retcode = (fncall);                                                                        \
    if_pf (retcode != MPI_SUCCESS) {                                                               \
      char msg[1024];                                                                              \
@@ -357,14 +358,21 @@ static const char *MPI_ErrorName(int errval) {
      AMX_RETURN_ERRFR(RESOURCE, fncall, msg);                                                     \
    }                                                                                              \
  } while (0)
+#else
+ #define MPI_SAFE(fncall) (fncall)
+#endif
 
 /* make an MPI call - 
  * if it fails, print error message and value of expression is FALSE, 
  * otherwise, the value of this expression will be TRUE 
  */
-#define MPI_SAFE_NORETURN(fncall) (AMX_VerboseErrors ?                                   \
+#if AMX_DEBUG || AMX_ENABLE_ERRCHECKS
+ #define MPI_SAFE_NORETURN(fncall) (AMX_VerboseErrors ?                                  \
       AMMPI_checkMPIreturn(fncall, #fncall, AMX_CURRENT_FUNCTION, __FILE__, __LINE__):   \
       (fncall) == MPI_SUCCESS)
+#else
+ #define MPI_SAFE_NORETURN(fncall) ((fncall),TRUE)
+#endif
 static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr, 
                                 const char *context, const char *file, int line) {
    if_pf (retcode != MPI_SUCCESS) {  

@@ -30,7 +30,6 @@ static int AMMPI_ReplyGeneric(ammpi_category_t category,
 extern int AMMPI_syncsend_thresh;
 static int sendPacket(ep_t ep, ammpi_virtual_network_t *activeNet, void *packet, int packetlength, 
                       en_t destaddress, MPI_Request *mpihandle) {
-  int retval;
   AMX_assert(ep && activeNet && packet && packetlength > 0);
   AMX_assert(packetlength <= AMMPI_MAX_NETWORK_MSG);
 
@@ -46,17 +45,15 @@ static int sendPacket(ep_t ep, ammpi_virtual_network_t *activeNet, void *packet,
            exceed the syncsend threshold - limit is one depth of such messages
            (and an unlimited number of messages smaller than the threshold)
          */
-        retval = MPI_Issend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm, mpihandle);
+        MPI_SAFE(MPI_Issend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm, mpihandle));
       } else {
-        retval = MPI_Isend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm, mpihandle);
+        MPI_SAFE(MPI_Isend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm, mpihandle));
       }
     } else
   #endif
     {
-      retval = MPI_Bsend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm);
+      MPI_SAFE(MPI_Bsend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm));
     }
-  if_pf (retval != MPI_SUCCESS) 
-     AMX_RETURN_ERRFR(RESOURCE, sendPacket, MPI_ErrorName(retval));        
 
   AMMPI_STATS(ep->stats.TotalBytesSent += packetlength);
 
