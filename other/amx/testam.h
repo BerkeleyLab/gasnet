@@ -42,7 +42,6 @@
   typedef gex_AM_Fn_t handler_fn_t;
  GASNETT_END_EXTERNC
   typedef gex_Token_t token_t;
-  typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
   #define INCREQ() gasnett_atomic_increment(&numreq,0)

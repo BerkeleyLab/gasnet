@@ -771,8 +771,6 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
-    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
-
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
                AMMPI_RequestIVA(gasnetc_endpoint, rank, handler, 
@@ -832,8 +830,6 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
 #else
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[rank].addr);
 #endif
-
-    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
@@ -922,8 +918,6 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                                             source_addr, nbytes, 0,
                                             flags, numargs, argptr);
   } else {
-    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
-
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMMPI_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
@@ -979,8 +973,6 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     gex_Rank_t dest = gasnetc_msgsource(token);
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 #endif
-
-    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
