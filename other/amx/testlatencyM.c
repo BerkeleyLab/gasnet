@@ -17,7 +17,7 @@ int numprocs;
 eb_t eb;
 ep_t ep;
 
-static void ping_request_handler(void *token, void *msg, int nbytes) {
+static void ping_request_handler(void *token, void *msg, size_t nbytes) {
   numleft--;
 
   #if VERBOSE

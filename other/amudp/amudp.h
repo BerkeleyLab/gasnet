@@ -275,40 +275,40 @@ extern int AM_Poll(eb_t bundle);
 extern int AMUDP_Request(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
                          int numargs, ...);
 extern int AMUDP_RequestI (ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...);
 extern int AMUDP_RequestXfer(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async,
                           int numargs, ...);
 
 extern int AMUDP_Reply(void *token, handler_t handler, 
                          int numargs, ...);
 extern int AMUDP_ReplyI(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...);
 extern int AMUDP_ReplyXfer(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, ...);
 
 /* alternate forms that take va_list ptr to support GASNet */
 extern int AMUDP_RequestVA(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
                          int numargs, va_list argptr);
 extern int AMUDP_RequestIVA(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr);
 extern int AMUDP_RequestXferVA(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async,
                           int numargs, va_list argptr);
 
 extern int AMUDP_ReplyVA(void *token, handler_t handler, 
                          int numargs, va_list argptr);
 extern int AMUDP_ReplyIVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr);
 extern int AMUDP_ReplyXferVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr);
 
 /* we cast to int32_t here to simulate function call - AM says these functions take 32-bit int args, 

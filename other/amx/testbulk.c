@@ -20,7 +20,7 @@ int nummsgs = 0;
 int done = 0;
 uint32_t *VMseg;
 
-static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
+static void bulk_request_handler(void *token, void *buf, size_t nbytes, int arg) {
   #if DEBUG
   uint32_t *recvdbuf = (uint32_t *)buf;
   #endif

@@ -16,12 +16,12 @@
 /* forward decls */
 static int AMUDP_RequestGeneric(amudp_category_t category, 
                           ep_t ep, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr,
                           uint8_t systemType, uint8_t systemArg);
 static int AMUDP_ReplyGeneric(amudp_category_t category, 
                           amudp_buf_t *requestbuf, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr,
                           uint8_t systemType, uint8_t systemArg);
 
@@ -917,7 +917,7 @@ extern int AM_Poll(eb_t eb) {
  *------------------------------------------------------------------------------------ */
 static int AMUDP_RequestGeneric(amudp_category_t category, 
                           ep_t ep, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr, 
                           uint8_t systemType, uint8_t systemArg) {
 
@@ -1069,7 +1069,7 @@ static int AMUDP_RequestGeneric(amudp_category_t category,
 /* ------------------------------------------------------------------------------------ */
 static int AMUDP_ReplyGeneric(amudp_category_t category, 
                           amudp_buf_t *requestbuf, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr,
                           uint8_t systemType, uint8_t systemArg) {
   ep_t const ep = requestbuf->status.rx.dest;
@@ -1202,7 +1202,7 @@ extern int AMUDP_Request(ep_t request_endpoint, amudp_node_t reply_endpoint, han
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_RequestIVA(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr) {
   AMX_CHECKINIT();
   AMX_CHECK_ERR(!request_endpoint, BAD_ARG);
@@ -1212,7 +1212,7 @@ extern int AMUDP_RequestIVA(ep_t request_endpoint, amudp_node_t reply_endpoint, 
   AMX_CHECK_ERR(request_endpoint->translation && !request_endpoint->translation[reply_endpoint].inuse, BAD_ARG);
   AMX_CHECK_ERR(!request_endpoint->translation && reply_endpoint >= request_endpoint->P, BAD_ARG);
   AMX_CHECK_ERR(!source_addr, BAD_ARG);
-  AMX_CHECK_ERR(nbytes < 0 || nbytes > AMUDP_MAX_MEDIUM, BAD_ARG);
+  AMX_CHECK_ERR(nbytes > AMUDP_MAX_MEDIUM, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
 
   return AMUDP_RequestGeneric(amudp_Medium, 
@@ -1222,7 +1222,7 @@ extern int AMUDP_RequestIVA(ep_t request_endpoint, amudp_node_t reply_endpoint, 
                                   amudp_system_user, 0);
 }
 extern int AMUDP_RequestI(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...) {
     int retval;
     va_list argptr;
@@ -1235,7 +1235,7 @@ extern int AMUDP_RequestI(ep_t request_endpoint, amudp_node_t reply_endpoint, ha
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_RequestXferVA(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async, 
                           int numargs, va_list argptr) {
   AMX_CHECKINIT();
@@ -1246,7 +1246,7 @@ extern int AMUDP_RequestXferVA(ep_t request_endpoint, amudp_node_t reply_endpoin
   AMX_CHECK_ERR(request_endpoint->translation && !request_endpoint->translation[reply_endpoint].inuse, BAD_ARG);
   AMX_CHECK_ERR(!request_endpoint->translation && reply_endpoint >= request_endpoint->P, BAD_ARG);
   AMX_CHECK_ERR(!source_addr, BAD_ARG);
-  AMX_CHECK_ERR(nbytes < 0 || nbytes > AMUDP_MAX_LONG, BAD_ARG);
+  AMX_CHECK_ERR(nbytes > AMUDP_MAX_LONG, BAD_ARG);
   AMX_CHECK_ERR(dest_offset > AMUDP_MAX_SEGLENGTH, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
 
@@ -1288,7 +1288,7 @@ extern int AMUDP_RequestXferVA(ep_t request_endpoint, amudp_node_t reply_endpoin
                                   amudp_system_user, 0);
 }
 extern int AMUDP_RequestXfer(ep_t request_endpoint, amudp_node_t reply_endpoint, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int async, 
                           int numargs, ...) {
       int retval;
@@ -1339,13 +1339,13 @@ extern int AMUDP_Reply(void *token, handler_t handler,
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_ReplyIVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, va_list argptr) {
   AMX_CHECKINIT();
   AMX_CHECK_ERR(!token, BAD_ARG);
   AMX_CHECK_ERR(AMUDP_BADHANDLERVAL(handler), BAD_ARG);
   AMX_CHECK_ERR(!source_addr, BAD_ARG);
-  AMX_CHECK_ERR(nbytes < 0 || nbytes > AMUDP_MAX_MEDIUM, BAD_ARG);
+  AMX_CHECK_ERR(nbytes > AMUDP_MAX_MEDIUM, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
 
   amudp_buf_t * const buf = (amudp_buf_t *)token;
@@ -1365,7 +1365,7 @@ extern int AMUDP_ReplyIVA(void *token, handler_t handler,
                                   amudp_system_user, 0);
 }
 extern int AMUDP_ReplyI(void *token, handler_t handler, 
-                          void *source_addr, int nbytes,
+                          void *source_addr, size_t nbytes,
                           int numargs, ...) {
     int retval;
     va_list argptr;
@@ -1378,13 +1378,13 @@ extern int AMUDP_ReplyI(void *token, handler_t handler,
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_ReplyXferVA(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, va_list argptr) {
   AMX_CHECKINIT();
   AMX_CHECK_ERR(!token, BAD_ARG);
   AMX_CHECK_ERR(AMUDP_BADHANDLERVAL(handler), BAD_ARG);
   AMX_CHECK_ERR(!source_addr, BAD_ARG);
-  AMX_CHECK_ERR(nbytes < 0 || nbytes > AMUDP_MAX_LONG, BAD_ARG);
+  AMX_CHECK_ERR(nbytes > AMUDP_MAX_LONG, BAD_ARG);
   AMX_CHECK_ERR(dest_offset > AMUDP_MAX_SEGLENGTH, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
 
@@ -1405,7 +1405,7 @@ extern int AMUDP_ReplyXferVA(void *token, handler_t handler,
                                   amudp_system_user, 0);
 }
 extern int AMUDP_ReplyXfer(void *token, handler_t handler, 
-                          void *source_addr, int nbytes, uintptr_t dest_offset, 
+                          void *source_addr, size_t nbytes, uintptr_t dest_offset, 
                           int numargs, ...) {
     int retval;
     va_list argptr;
