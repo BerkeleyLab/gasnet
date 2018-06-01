@@ -884,7 +884,7 @@ extern int AMMPI_RequestIVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, 
   AMX_CHECK_ERR((request_endpoint->depth == -1),NOT_INIT); /* it's an error to call before AM_SetExpectedResources */
   AMX_CHECK_ERR((reply_endpoint >= request_endpoint->translationsz ||
      !request_endpoint->translation[reply_endpoint].inuse),BAD_ARG);
-  AMX_CHECK_ERR((!source_addr),BAD_ARG);
+  AMX_CHECK_ERR((!source_addr && nbytes > 0),BAD_ARG);
   AMX_CHECK_ERR((nbytes < 0 || nbytes > AMMPI_MAX_MEDIUM),BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);
 
@@ -918,7 +918,7 @@ extern int AMMPI_RequestXferVA(ep_t request_endpoint, ammpi_node_t reply_endpoin
   AMX_CHECK_ERR((request_endpoint->depth == -1),NOT_INIT); /* it's an error to call before AM_SetExpectedResources */
   AMX_CHECK_ERR((reply_endpoint >= request_endpoint->translationsz ||
      !request_endpoint->translation[reply_endpoint].inuse),BAD_ARG);
-  AMX_CHECK_ERR((!source_addr),BAD_ARG);
+  AMX_CHECK_ERR((!source_addr && nbytes > 0),BAD_ARG);
   AMX_CHECK_ERR((nbytes < 0 || nbytes > AMMPI_MAX_LONG),BAD_ARG);
   AMX_CHECK_ERR((dest_offset > AMMPI_MAX_SEGLENGTH),BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);
@@ -1002,7 +1002,7 @@ extern int AMMPI_ReplyIVA(void *token, handler_t handler,
   AMX_CHECKINIT();
   AMX_CHECK_ERR((!token),BAD_ARG);
   AMX_CHECK_ERR((AMMPI_BADHANDLERVAL(handler)),BAD_ARG);
-  AMX_CHECK_ERR((!source_addr),BAD_ARG);
+  AMX_CHECK_ERR((!source_addr && nbytes > 0),BAD_ARG);
   AMX_CHECK_ERR((nbytes < 0 || nbytes > AMMPI_MAX_MEDIUM),BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);
 
@@ -1074,7 +1074,7 @@ extern int AMMPI_ReplyXferVA(void *token, handler_t handler,
   AMX_CHECKINIT();
   AMX_CHECK_ERR((!token),BAD_ARG);
   AMX_CHECK_ERR((AMMPI_BADHANDLERVAL(handler)),BAD_ARG);
-  AMX_CHECK_ERR((!source_addr),BAD_ARG);
+  AMX_CHECK_ERR((!source_addr && nbytes > 0),BAD_ARG);
   AMX_CHECK_ERR((nbytes < 0 || nbytes > AMMPI_MAX_LONG),BAD_ARG);
   AMX_CHECK_ERR((dest_offset > AMMPI_MAX_SEGLENGTH),BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);

@@ -77,6 +77,7 @@ AMUDP 3.15 (PENDING)
 - AM Handler dispatching code is now strictly spec-compliant
 - AMX_ENV_PREFIX_STR is now the preferred define for setting a client ENV prefix
 - Several pseudo-public programmatic knobs renamed into the AMX_ namespace
+- Bug 2774: source_addr to Med/Long injection is now ignored for nbytes=0
 - Fix an unreported cosmetic output bug in AMX_RETURN error reporting
 
 AMUDP 3.14 (03/2017)

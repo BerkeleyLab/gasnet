@@ -1211,7 +1211,7 @@ extern int AMUDP_RequestIVA(ep_t request_endpoint, amudp_node_t reply_endpoint, 
   AMX_CHECK_ERR(reply_endpoint >= request_endpoint->translationsz, BAD_ARG);
   AMX_CHECK_ERR(request_endpoint->translation && !request_endpoint->translation[reply_endpoint].inuse, BAD_ARG);
   AMX_CHECK_ERR(!request_endpoint->translation && reply_endpoint >= request_endpoint->P, BAD_ARG);
-  AMX_CHECK_ERR(!source_addr, BAD_ARG);
+  AMX_CHECK_ERR(!source_addr && nbytes > 0, BAD_ARG);
   AMX_CHECK_ERR(nbytes > AMUDP_MAX_MEDIUM, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
 
@@ -1245,7 +1245,7 @@ extern int AMUDP_RequestXferVA(ep_t request_endpoint, amudp_node_t reply_endpoin
   AMX_CHECK_ERR(reply_endpoint >= request_endpoint->translationsz, BAD_ARG);
   AMX_CHECK_ERR(request_endpoint->translation && !request_endpoint->translation[reply_endpoint].inuse, BAD_ARG);
   AMX_CHECK_ERR(!request_endpoint->translation && reply_endpoint >= request_endpoint->P, BAD_ARG);
-  AMX_CHECK_ERR(!source_addr, BAD_ARG);
+  AMX_CHECK_ERR(!source_addr && nbytes > 0, BAD_ARG);
   AMX_CHECK_ERR(nbytes > AMUDP_MAX_LONG, BAD_ARG);
   AMX_CHECK_ERR(dest_offset > AMUDP_MAX_SEGLENGTH, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
@@ -1344,7 +1344,7 @@ extern int AMUDP_ReplyIVA(void *token, handler_t handler,
   AMX_CHECKINIT();
   AMX_CHECK_ERR(!token, BAD_ARG);
   AMX_CHECK_ERR(AMUDP_BADHANDLERVAL(handler), BAD_ARG);
-  AMX_CHECK_ERR(!source_addr, BAD_ARG);
+  AMX_CHECK_ERR(!source_addr && nbytes > 0, BAD_ARG);
   AMX_CHECK_ERR(nbytes > AMUDP_MAX_MEDIUM, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);
 
@@ -1383,7 +1383,7 @@ extern int AMUDP_ReplyXferVA(void *token, handler_t handler,
   AMX_CHECKINIT();
   AMX_CHECK_ERR(!token, BAD_ARG);
   AMX_CHECK_ERR(AMUDP_BADHANDLERVAL(handler), BAD_ARG);
-  AMX_CHECK_ERR(!source_addr, BAD_ARG);
+  AMX_CHECK_ERR(!source_addr && nbytes > 0, BAD_ARG);
   AMX_CHECK_ERR(nbytes > AMUDP_MAX_LONG, BAD_ARG);
   AMX_CHECK_ERR(dest_offset > AMUDP_MAX_SEGLENGTH, BAD_ARG);
   AMX_assert(numargs >= 0 && numargs <= AMUDP_MAX_SHORT);

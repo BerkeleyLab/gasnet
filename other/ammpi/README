@@ -73,6 +73,7 @@ AMMPI 2.9 (PENDING)
 - AM Handler dispatching code is now strictly spec-compliant
 - Several pseudo-public programmatic knobs renamed into the AMX_ namespace
 - AMX_ProcessLabel now supported for labelling per-node library output
+- Bug 2774: source_addr to Med/Long injection is now ignored for nbytes=0
 - Fix an unreported cosmetic output bug in AMX_RETURN error reporting
 
 AMMPI 2.8 (03/2017)
