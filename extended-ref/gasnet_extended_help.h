@@ -141,17 +141,18 @@ extern int gasnete_maxthreadidx;
 } while (0)
 
 /* gasnete_islocal() is used by put/get fns to decide whether shared memory on 
-   a given node is "local". By default this is based on comparing the nodeid to
-   the local node id, but clients can override this to remove the check overhead
+   a given rank is "local". By default this is based on comparing the jobrank to
+   the local one, but clients can override this to remove the check overhead
    by defining either GASNETE_PUTGET_ALWAYSLOCAL or GASNETE_PUTGET_ALWAYSREMOTE
  */
 #if defined(GASNETE_PUTGET_ALWAYSLOCAL)
-  #define gasnete_islocal(nodeid) (1) /* always local */
+  #define gasnete_islocal(tm,rank) (1) /* always local */
 #elif defined(GASNETE_PUTGET_ALWAYSREMOTE)
-  #define gasnete_islocal(nodeid) (0) /* always remote */
+  #define gasnete_islocal(tm,rank) (0) /* always remote */
 #else
   /* "0 != " avoids warnings from some compilers about assign-vs-compare ambiguity */
-  #define gasnete_islocal(nodeid) (0 != (nodeid == gasneti_mynode))
+  // TODO-EX: "real" TM support
+  #define gasnete_islocal(tm,rank) (gasneti_assert(tm), (0 != (rank == gasneti_mynode)))
 #endif
 
 /* ------------------------------------------------------------------------------------ */
