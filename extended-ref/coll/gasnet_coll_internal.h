@@ -398,13 +398,6 @@ struct gasnete_coll_op_t_ {
   /* a list of the ops for the scratch list management*/
   gasnete_coll_op_t *scratch_next, *scratch_prev;
   
-  /* Linkage used by aggregation.
-    * Access is serialized by specification+client: */
-#ifndef GASNETE_COLL_AGG_OVERRIDE
-  /* Defaule implementation of ops aggregation */
-  gasnete_coll_op_t		*agg_next, *agg_prev, *agg_head;
-#endif
-  
 #if GASNET_PAR
   struct {
     uint32_t			sequence;
@@ -815,7 +808,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
 extern void
 gasnete_coll_op_destroy(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 
-/* Aggregation interface: */
+/* Active list management */
 extern gasnete_coll_eop_t
 gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnete_coll_eop_t eop GASNETE_THREAD_FARG);
 extern void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THREAD_FARG);
@@ -874,13 +867,12 @@ GASNETE_COLL_VALIDATE(T,(gasnet_image_t)(-1),D,(N)*gasneti_nodes,1,(gasnet_image
 #define GASNETE_COLL_FORWARD_FLAGS(flags) \
 (((flags) & ~(GASNET_COLL_IN_ALLSYNC|GASNET_COLL_IN_MYSYNC|\
               GASNET_COLL_OUT_ALLSYNC|GASNET_COLL_OUT_MYSYNC|\
-              GASNET_COLL_AGGREGATE|GASNETE_COLL_THREAD_LOCAL)) \
+              GASNETE_COLL_THREAD_LOCAL)) \
  | (GASNET_COLL_IN_NOSYNC|GASNET_COLL_OUT_NOSYNC|GASNETE_COLL_SUBORDINATE))
 #else
 #define GASNETE_COLL_FORWARD_FLAGS(flags) \
 (((flags) & ~(GASNET_COLL_IN_ALLSYNC|GASNET_COLL_IN_MYSYNC|\
-              GASNET_COLL_OUT_ALLSYNC|GASNET_COLL_OUT_MYSYNC|\
-              GASNET_COLL_AGGREGATE)) \
+              GASNET_COLL_OUT_ALLSYNC|GASNET_COLL_OUT_MYSYNC)) \
  | (GASNET_COLL_IN_NOSYNC|GASNET_COLL_OUT_NOSYNC|GASNETE_COLL_SUBORDINATE))
 #endif
 

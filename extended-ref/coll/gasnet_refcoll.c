@@ -687,82 +687,11 @@ void gasnete_coll_wait_multi_addr_collective(gasnete_coll_team_t team, int flags
 
 
 /*---------------------------------------------------------------------------------*/
-/* Aggregation/filtering */
-
-/* interface:
- *   gex_Event_t gasnete_coll_op_submit(op, handle, th)
- *	Place coll_op in active list or not, as desired/required.
- *   void gasnete_coll_op_complete(op, poll_result);
- *	Completion hook
- *
- */
-
-#ifndef GASNETE_COLL_AGG_OVERRIDE
-/* Default implementation of aggregation/filtering */
-
-/* XXX: how will teams interact w/ aggregation? */
-
-static gasnete_coll_op_t *gasnete_coll_agg = NULL;
-
+/* Active list management */
 
 gasnete_coll_eop_t
 gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnete_coll_eop_t eop GASNETE_THREAD_FARG) {  
-  op->agg_head = NULL;
-  op->eop = eop;
-  
-
-  if_pf (op->flags & GASNET_COLL_AGGREGATE) {
-    gasnete_coll_op_t *head = gasnete_coll_agg;
-
-    gasneti_assert(eop == NULL);	/* check for handle leak */
-
-    if (head == NULL) {
-      /* Build a container to hold the aggregate.
-       * The team, sequence and flags don't matter.
-       */
-      head = gasnete_coll_agg = gasnete_coll_op_create(op->team, 0, 0 GASNETE_THREAD_PASS);
-      head->agg_next = head->agg_prev = head;
-    }
-
-    /* Aggregate members go in a circular list */
-    op->agg_next = head;
-    op->agg_prev = head->agg_prev;
-    head->agg_prev->agg_next = op;
-    head->agg_prev = op;
-
-    /* We don't set the agg_head yet.
-     * If the aggregation list becomes empty now it is
-     * only temporary and should not signal 'done'.
-     */
-  } else if_pf (gasnete_coll_agg) {
-    gasnete_coll_op_t *tmp;
-
-    /* End of aggregate, place final op in the list */
-    tmp = gasnete_coll_agg;
-    op->agg_next = tmp;
-    op->agg_prev = tmp->agg_prev;
-    tmp->agg_prev->agg_next = op;
-    tmp->agg_prev = op;
-
-    /* Set all of the agg_head fields so we can signal
-     * the container op when the list becomes empty.
-     */
-    gasneti_assert(tmp == gasnete_coll_agg);
-    tmp = tmp->agg_next;
-    do {
-      tmp->agg_head = gasnete_coll_agg;
-      tmp = tmp->agg_next;
-    } while (tmp != gasnete_coll_agg);
-
-    /* Return the container in place of the ops */
-    gasneti_assert(tmp == gasnete_coll_agg);
-    gasnete_coll_agg = NULL;
-    tmp->eop = op->eop;
-    op->eop = NULL;
-  } else {
-    /* An isolated coll_op (the normal case) */
-    op->agg_next = NULL;
-  }
+    op->eop = eop;
 
     /* All ops go onto the active list */
     gasneti_mutex_lock(&gasnete_coll_active_lock);
@@ -773,27 +702,11 @@ gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnete_coll_eop_t eop GASNETE_THR
 }
 
 void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THREAD_FARG) {
-
   if (poll_result & GASNETE_COLL_OP_COMPLETE) {
     if_pt (op->eop != NULL) {
 	    /* Normal case, just signal the eop */
 	    gasnete_coll_eop_signal(op->eop GASNETE_THREAD_PASS);
 	    op->eop = NULL;
-	    gasneti_assert(op->agg_head == NULL);
-    } else if (op->agg_next) {
-      gasnete_coll_op_t *head;
-
-      /* Remove this member from the aggregate */
-      op->agg_next->agg_prev = op->agg_prev;
-      op->agg_prev->agg_next = op->agg_next;
-
-      /* If the container op exists and is now empty, mark it's eop as done. */
-      head = op->agg_head;
-      if (head && (head->agg_next == head)) {
-        gasnete_coll_eop_signal(head->eop GASNETE_THREAD_PASS);
-        head->eop = NULL;
-        gasnete_coll_op_destroy(head GASNETE_THREAD_PASS);
-      }
     }
   }
 
@@ -803,7 +716,6 @@ void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THR
     gasnete_coll_op_destroy(op GASNETE_THREAD_PASS);
   }
 }
-#endif
 
 /*---------------------------------------------------------------------------------*/
 gasnete_coll_op_t *
@@ -828,7 +740,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
     op->poll_fn  = (gasnete_coll_poll_fn)NULL;
     op->scratchpos = NULL;
 
-    /* The aggregation and 'data' fields are setup elsewhere */
+    /* The 'data' field is setup elsewhere */
 
     return op;
 }
@@ -1859,7 +1771,7 @@ extern void gasnete_coll_generic_free(gasnete_coll_team_t team, gasnete_coll_gen
 
 /* Generic routine to create an op and enter it in the active list, etc..
  * Caller provides 'data' and 'poll_fn' specific to the operation.
- * Handle is allocated automatically if flags don't indicate aggregation.
+ * Event is allocated automatically.
  *
  * 'sequence' can have two meanings:
  *  w/ GASNETE_COLL_SUBORDINATE it is the pre-allocated sequence number to assign
@@ -1898,15 +1810,10 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
   }
 #endif
 
-  if_pf (flags & GASNETE_COLL_SUBORDINATE) {
-    /* Subordinates can't AGGREGATE (but maybe they should?) */
-    gasneti_assert(!(flags & GASNET_COLL_AGGREGATE));
-  } else {
-    /* XXX: need team scope for sequence numbers */
+  if_pf (!(flags & GASNETE_COLL_SUBORDINATE)) {
     uint32_t tmp = team->sequence;
     team->sequence += (1 + sequence);
     sequence = tmp;
-	
   }
 
     /* Conditionally allocate data for point-to-point syncs */
@@ -1914,10 +1821,8 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
       data->p2p = gasnete_coll_p2p_get(gasnete_coll_team_id(team), sequence);
     }
 
-    /* Conditionally allocate an eop */
-    if_pt (!(flags & GASNET_COLL_AGGREGATE)) {
-      result = gasnete_coll_eop_create(GASNETE_THREAD_PASS_ALONE);
-    }
+    /* Unconditionally allocate an eop */
+    result = gasnete_coll_eop_create(GASNETE_THREAD_PASS_ALONE);
 
     /* Create the op */
     op = gasnete_coll_op_create(team, sequence, flags GASNETE_THREAD_PASS);
@@ -1949,7 +1854,6 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
                                         GASNETE_COLL_GENERIC_OPT_OUTSYNC)));
     } else {
       /* Conditionally allocate barriers */
-      /* XXX: this is where we could do some aggregation of syncs */
       if (data->options & GASNETE_COLL_GENERIC_OPT_INSYNC) {
         data->in_barrier = gasnete_coll_consensus_create(team);
       }
@@ -1967,9 +1871,8 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
     op->num_coll_params = num_params;
     GASNETI_MEMCPY_SAFE_EMPTY(op->param_list, param_list, sizeof(uint32_t)*num_params);
     op->tree_info = tree_info;
-    /* Submit the op via aggregation filter */
+
     result = gasnete_coll_op_submit(op, result GASNETE_THREAD_PASS);
-  
     return GASNETE_COLL_EOP_TO_EVENT(result);
 }
 
