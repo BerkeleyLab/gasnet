@@ -127,24 +127,41 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
 
+// Variants to allow tm=NULL to substitute for TM0
+// TODO-EX: These will necessarily be superceeded when multi-{EP,segment}
+// support is added.  So, avoid creating new callers.
+#define _gasneti_check_tm_rank_allownull(tm,rank) gasneti_assert(!(tm) || ((rank) < gex_TM_QuerySize(tm)))
+GASNETI_INLINE(_gasneti_e_tm_rank_to_jobrank_allownull)
+gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  // TODO-EX: real lookup w/ special cases for TM0 and NULL
+  gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
+  gasneti_assert(!_i_tm || (_rank < _i_tm->_size));
+  return _rank;
+}
+
+// These in-segment checks accept e_tm=NULL to indicate rank is a jobrank
+// (NULL,gasneti_mynode) is a common case for this.
+// NOTE: This behavior will no logner work when multi-{EP,segment} support is
+// added.  So avoid adding new callers which depend upon it.
 #if GASNET_SEGMENT_EVERYTHING
-  #define gasneti_in_clientsegment(tm,rank,ptr,nbytes) (gasneti_assert((rank) < gasneti_nodes), 1)
-  #define gasneti_in_auxsegment(tm,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
-  #define gasneti_in_fullsegment(tm,rank,ptr,nbytes)   (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes)  (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+  #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes)     (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes)    (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
 #else
-  #define gasneti_in_clientsegment(tm,rank,ptr,nbytes) \
-    (gasneti_assert((rank) < gasneti_nodes),        \
-     ((ptr) >= gasneti_seginfo[rank].addr && \
-      ((((uintptr_t)(ptr))+(nbytes)) <=      \
-       (((uintptr_t)gasneti_seginfo[rank].addr)+gasneti_seginfo[rank].size))))
-  #define gasneti_in_auxsegment(tm,rank,ptr,nbytes) \
-    (gasneti_assert((rank) < gasneti_nodes),      \
-     ((ptr) >= gasneti_seginfo_aux[rank].addr &&      \
-      ((((uintptr_t)(ptr))+(nbytes)) <=      \
-       (((uintptr_t)gasneti_seginfo_aux[rank].addr)+gasneti_seginfo_aux[rank].size))))
-  // TODO: following defn asserts the rank check twice
-  #define gasneti_in_fullsegment(tm,rank,ptr,nbytes) \
-    (gasneti_in_clientsegment(tm,rank,ptr,nbytes) || gasneti_in_auxsegment(tm,rank,ptr,nbytes))
+  GASNETI_INLINE(_gasneti_in_seg)
+  int _gasneti_in_seg(gex_TM_t _e_tm, gex_Rank_t _rank,
+                      const void *_ptr, size_t _nbytes, gasnet_seginfo_t *_seg) {
+    gex_Rank_t _jobrank = _gasneti_e_tm_rank_to_jobrank_allownull(_e_tm,_rank);
+    return ((_ptr) >= _seg[_jobrank].addr &&
+            ((((uintptr_t)(_ptr))+(_nbytes)) <=
+             (((uintptr_t)_seg[_jobrank].addr)+_seg[_jobrank].size)));
+  }
+  #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) \
+          _gasneti_in_seg(e_tm,rank,ptr,nbytes,gasneti_seginfo)
+  #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes) \
+          _gasneti_in_seg(e_tm,rank,ptr,nbytes,gasneti_seginfo_aux)
+  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes) \
+    (gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) || gasneti_in_auxsegment(e_tm,rank,ptr,nbytes))
 #endif
 
 #ifdef _INCLUDED_GASNET_INTERNAL_H
@@ -157,47 +174,59 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 
 #ifdef GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET
   /* in-segment check for internal put/gets that may exploit outofseg support */
-  #define gasneti_in_segment_allowoutseg(tm,rank,ptr,nbytes) \
-          (gasneti_assert((rank) < gasneti_nodes), 1)
+  #define gasneti_in_segment_allowoutseg(e_tm,rank,ptr,nbytes) \
+          (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
 #else
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
-#define _gasneti_boundscheck(tm,rank,ptr,nbytes,segtest) do {         \
-    gex_TM_t _gex_bc_tm = (tm);                                                \
-    gex_Rank_t _gex_bc_node = (rank); /* TODO-EX: team support */              \
+#define _gasneti_boundscheck(e_tm,rank,ptr,nbytes,segtest) do {         \
+    gex_TM_t _gex_bc_tm = (e_tm);                                              \
+    gex_Rank_t _gex_bc_rank = (rank);                                          \
+    gex_Rank_t _gex_bc_size = _gex_bc_tm ? gex_TM_QuerySize(_gex_bc_tm)        \
+                                         : gasneti_nodes;                      \
     const void *_gex_bc_ptr = (const void *)(ptr);                             \
     size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
-    if_pf (_gex_bc_node >= gasneti_nodes)                                      \
-      gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
-              (unsigned long)_gex_bc_node, (unsigned long)gasneti_nodes,       \
+    if_pf (_gex_bc_rank >= _gex_bc_size)                                       \
+      gasneti_fatalerror("Rank out of range (%lu >= %lu) at %s",               \
+              (unsigned long)_gex_bc_rank, (unsigned long)(_gex_bc_size),      \
               gasneti_current_loc);                                            \
     if_pf (_gex_bc_ptr == NULL ||                                              \
-           !segtest(_gex_bc_tm,_gex_bc_node,_gex_bc_ptr,_gex_bc_nbytes))       \
-      gasneti_fatalerror("Remote address out of range "                        \
-         "(node=%lu ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"        \
+           !segtest(_gex_bc_tm,_gex_bc_rank,_gex_bc_ptr,_gex_bc_nbytes)) {     \
+      gex_Rank_t _gex_bc_jbrk =                                                \
+               _gasneti_e_tm_rank_to_jobrank_allownull(_gex_bc_tm,_gex_bc_rank); \
+      gasneti_fatalerror("Remote address out of range (" GASNETI_TMRANKFMT     \
+         " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"                 \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
          "\n     auxsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")",      \
-         (unsigned long)_gex_bc_node, GASNETI_LADDRSTR(_gex_bc_ptr),           \
+         GASNETI_TMRANKSTR(_gex_bc_tm,_gex_bc_rank),                           \
+         GASNETI_LADDRSTR(_gex_bc_ptr),                                        \
          (uintptr_t)_gex_bc_nbytes,                                            \
          gasneti_current_loc,                                                  \
-         GASNETI_LADDRSTR(gasneti_seginfo[_gex_bc_node].addr),                 \
-         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo[_gex_bc_node].addr +      \
-                                     gasneti_seginfo[_gex_bc_node].size),      \
-         GASNETI_LADDRSTR(gasneti_seginfo_aux[_gex_bc_node].addr),             \
-         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo_aux[_gex_bc_node].addr +  \
-                                     gasneti_seginfo_aux[_gex_bc_node].size)   \
+         GASNETI_LADDRSTR(gasneti_seginfo[_gex_bc_jbrk].addr),                 \
+         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo[_gex_bc_jbrk].addr +      \
+                                     gasneti_seginfo[_gex_bc_jbrk].size),      \
+         GASNETI_LADDRSTR(gasneti_seginfo_aux[_gex_bc_jbrk].addr),             \
+         GASNETI_LADDRSTR((uintptr_t)gasneti_seginfo_aux[_gex_bc_jbrk].addr +  \
+                                     gasneti_seginfo_aux[_gex_bc_jbrk].size)   \
          );                                                                    \
+    }                                                                          \
   } while(0)
 
+
+// gasneti_boundscheck() and gasneti_boundscheck_allowoutseg()
+// both accept e_tm=NULL to indicate rank is a jobrank
+// (NULL,gasneti_mynode) is a common case for this.
+// NOTE: This behavior will no logner work when multi-{EP,segment} support is
+// added.  So avoid adding new callers which depend upon it.
 #if GASNET_NDEBUG
-  #define gasneti_boundscheck(tm,rank,ptr,nbytes) ((void)0)
-  #define gasneti_boundscheck_allowoutseg(tm,rank,ptr,nbytes) ((void)0)
+  #define gasneti_boundscheck(e_tm,rank,ptr,nbytes) ((void)0)
+  #define gasneti_boundscheck_allowoutseg(e_tm,rank,ptr,nbytes) ((void)0)
 #else
-  #define gasneti_boundscheck(tm,rank,ptr,nbytes) \
-         _gasneti_boundscheck(tm,rank,ptr,nbytes,gasneti_in_segment)
-  #define gasneti_boundscheck_allowoutseg(tm,rank,ptr,nbytes) \
-         _gasneti_boundscheck(tm,rank,ptr,nbytes,gasneti_in_segment_allowoutseg)
+  #define gasneti_boundscheck(e_tm,rank,ptr,nbytes) \
+         _gasneti_boundscheck(e_tm,rank,ptr,nbytes,gasneti_in_segment)
+  #define gasneti_boundscheck_allowoutseg(e_tm,rank,ptr,nbytes) \
+         _gasneti_boundscheck(e_tm,rank,ptr,nbytes,gasneti_in_segment_allowoutseg)
 #endif
 
 /* make a GASNet core API call - if it fails, print error message and abort */
