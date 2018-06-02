@@ -1052,7 +1052,6 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
   
   if(data->state == 1) {
     gex_Rank_t dst;
-    if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     
     if_pt(op->team->total_ranks > 1) {
       {
@@ -1232,7 +1231,6 @@ static int gasnete_coll_pf_gallM_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THRE
   if(data->state == 1) {
     gex_Rank_t dst;
     int8_t* mydata;
-    if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     /*Gather the data into the start of the scratch space*/
     
     gasnete_coll_local_gather(op->team->my_images, 

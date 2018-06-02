@@ -16,7 +16,7 @@
 #include <gasnet_vis.h>
 
 #define USE_CONSENSUS_BARRIER 1
-typedef struct {int num_handles; gasnet_coll_handle_t *handles;} gasnete_coll_handle_vec_t;
+typedef struct {int num_handles; gex_Event_t *handles;} gasnete_coll_handle_vec_t;
 /*for the segmented algorithms limit the maximum number of subcollectives to 2048*/
 
 
@@ -41,10 +41,9 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       if (op->team->myrank == args->srcnode) {
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->src,
                                            args->nbytes, 0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -66,7 +65,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 
 gasnete_coll_bcast_Get(gasnet_team_handle_t team,
                        void * dst,
@@ -107,7 +106,6 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         void   *src   = args->src;
         void   *dst   = args->dst;
         size_t nbytes = args->nbytes;
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue PUTS in an NBI access region */
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -124,7 +122,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           }
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, src, nbytes);
@@ -148,7 +146,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcast_Put(gasnet_team_handle_t team,
                        void * dst,
                        gasnet_image_t srcimage, void *src,
@@ -198,7 +196,6 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
       if (op->team->myrank == args->srcnode) {
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         for (child = 0; child < child_count; child++) {
@@ -215,7 +212,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
           }
         }
         data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
       } else if (child_count == 0) {
         /* leaves fall right through*/
@@ -236,7 +233,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
           }
         }
         data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);        
+        gasnete_coll_save_event(&data->handle);        
       } else {
         break;	/* Internal node waiting for parent to push data and signal */
       }
@@ -268,7 +265,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
                            void *dst,
                            gasnet_image_t srcimage, void *src,
@@ -372,7 +369,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
                                   void *dst,
                                   gasnet_image_t srcimage, void *src,
@@ -412,7 +409,6 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
     {
       gasnete_coll_handle_vec_t *handle_vec;
       size_t seg_size;
@@ -442,7 +438,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
       handle_vec = data->private_data;
       handle_vec->num_handles = num_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_segs);
       
       /*
        the TreePut routines only work w/ the single address mode and therefore we need ensure choose 
@@ -453,27 +449,27 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
           handle_vec->handles[i] = gasnete_coll_bcast_TreePut(op->team, gasnete_coll_scale_ptr(args->dst, sent_bytes, 1), 
                                                               srcproc, gasnete_coll_scale_ptr(args->src, sent_bytes, 1), seg_size, flags, 
                                                               impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-          gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&handle_vec->handles[i]);
           sent_bytes+=seg_size;
         }
         handle_vec->handles[i] = gasnete_coll_bcast_TreePut(op->team, gasnete_coll_scale_ptr(args->dst, sent_bytes, 1), 
                                                             srcproc, 
                                                             gasnete_coll_scale_ptr(args->src, sent_bytes, 1), args->nbytes-sent_bytes, flags, 
                                                             impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
       } else {
         for(i=0; i<num_segs-1; i++) {
           handle_vec->handles[i] = gasnete_coll_bcast_TreePutScratch(op->team, gasnete_coll_scale_ptr(args->dst, sent_bytes, 1), 
                                                                      srcproc, gasnete_coll_scale_ptr(args->src, sent_bytes, 1), seg_size, flags, 
                                                                      impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-          gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&handle_vec->handles[i]);
           sent_bytes+=seg_size;
         }
         handle_vec->handles[i] = gasnete_coll_bcast_TreePutScratch(op->team, gasnete_coll_scale_ptr(args->dst, sent_bytes, 1), 
                                                                    srcproc, 
                                                                    gasnete_coll_scale_ptr(args->src, sent_bytes, 1), args->nbytes-sent_bytes, flags, 
                                                                    impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);          
+        gasnete_coll_save_event(&handle_vec->handles[i]);          
       }
       gasnete_coll_free_implementation(impl);
     }
@@ -503,7 +499,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
                               void * dst,
                               gasnet_image_t srcimage, void *src,
@@ -548,9 +544,8 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
       data->state = 1; GASNETI_FALLTHROUGH
       
   case 1:	/* Initiate Scatter */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
       {
-        gasnet_coll_handle_t *handle;
+        gex_Event_t *handle;
         uint8_t *tempspace;
         size_t seg_size = (args->nbytes)/op->team->total_ranks;
         size_t remainder = (args->nbytes) % op->team->total_ranks;
@@ -561,13 +556,13 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
         gex_Rank_t srcproc = args->srcnode;
 #endif 
        
-        data->private_data = gasneti_malloc(sizeof(gasnet_coll_handle_t)*2+seg_size);
-        handle = (gasnet_coll_handle_t*) data->private_data;
+        data->private_data = gasneti_malloc(sizeof(gex_Event_t)*2+seg_size);
+        handle = (gex_Event_t*) data->private_data;
         
-        tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t)*2; 
+        tempspace = ((uint8_t*) data->private_data) + sizeof(gex_Event_t)*2; 
 
         handle[0] = gasnete_coll_scatter_nb_default(op->team, tempspace, srcproc, args->src, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle[0]);
         
         if(remainder > 0) {
 
@@ -577,38 +572,38 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
                                                         gasnete_coll_scale_ptr(args->src,op->team->total_ranks,seg_size), 
                                                         remainder, flags, op->sequence+2 GASNETE_THREAD_PASS);
         } else {
-          handle[1] = GASNET_COLL_INVALID_HANDLE;
+          handle[1] = GEX_EVENT_INVALID;
         }
-        gasnete_coll_save_coll_handle(&handle[1] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle[1]);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
   case 2:	/* Initiate all gather*/
       
       /*we only need the scatter to be done before we initiate the allgather*/
-      if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 1 GASNETE_THREAD_PASS)) {
+      if (!gasnete_coll_generic_coll_sync((gex_Event_t*) data->private_data, 1 GASNETE_THREAD_PASS)) {
         break;
       } else {
-        gasnet_coll_handle_t *handle;
+        gex_Event_t *handle;
         uint8_t *tempspace;
         size_t seg_size = (args->nbytes)/op->team->total_ranks;
         int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
         
-        handle = (gasnet_coll_handle_t*) data->private_data;
+        handle = (gex_Event_t*) data->private_data;
       
-        tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t)*2; 
+        tempspace = ((uint8_t*) data->private_data) + sizeof(gex_Event_t)*2; 
         if(seg_size) {
           handle[0] = gasnete_coll_gather_all_nb_default(op->team, args->dst, tempspace, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+3 GASNETE_THREAD_PASS);
         } else {
-          handle[0] = GASNET_COLL_INVALID_HANDLE;
+          handle[0] = GEX_EVENT_INVALID;
         }
-        gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle[0]);
       }
       data->state = 3; GASNETI_FALLTHROUGH
       
   case 3:
       /*sync both the allgather and broadcast*/
-      if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 2 GASNETE_THREAD_PASS)) {
+      if (!gasnete_coll_generic_coll_sync((gex_Event_t*) data->private_data, 2 GASNETE_THREAD_PASS)) {
         break;
       }
       data->state = 4; GASNETI_FALLTHROUGH
@@ -627,7 +622,7 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcast_ScatterAllgather(gasnet_team_handle_t team,
                               void * dst,
                               gasnet_image_t srcimage, void *src,
@@ -675,11 +670,10 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
                                      args->src, args->nbytes);
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         /* Get only the 1st local image */
         data->handle = gasnete_get_nb(gasneti_THUNK_TM, GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
                                            GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->src, args->nbytes, 0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -704,7 +698,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcastM_Get(gasnet_team_handle_t team,
                         void * const dstlist[],
                         gasnet_image_t srcimage, void *src,
@@ -746,7 +740,6 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         size_t nbytes = args->nbytes;
         int i, j, limit;
         void * const *p;
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue PUTS in an NBI access region */
         /* We don't use VIS here, since that would send the same data multiple times */
@@ -776,7 +769,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
           }
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
         gasnete_coll_local_broadcast(op->team->my_images,
@@ -802,7 +795,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcastM_Put(gasnet_team_handle_t team,
                         void * const dstlist[],
                         gasnet_image_t srcimage, void *src,
@@ -843,7 +836,6 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       data->state = 2; GASNETI_FALLTHROUGH
       
       case 2:
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
       if (op->team->myrank == args->srcnode) {
         gasneti_sync_reads();
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -861,7 +853,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
           }
         }
         data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         gasnete_coll_local_broadcast(op->team->my_images,
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
                                      args->src, args->nbytes);
@@ -886,7 +878,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
           }
         }
         data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);  
+        gasnete_coll_save_event(&data->handle);  
         /** XXX: Here we might do extra work by copying from teh same source and dest **/
         gasnete_coll_local_broadcast(op->team->my_images,
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags),
@@ -957,7 +949,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcastM_TreePut(gasnet_team_handle_t team,
                             void * const dstlist[],
                             gasnet_image_t srcimage, void *src,
@@ -1108,7 +1100,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcastM_TreePutScratch(gasnet_team_handle_t team,
                                    void * const dstlist[],
                                    gasnet_image_t srcimage, void *src,
@@ -1148,7 +1140,6 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
     {
       gasnete_coll_handle_vec_t *handle_vec;
       gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
@@ -1179,7 +1170,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
       handle_vec = data->private_data;
       handle_vec->num_handles = num_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_segs);
       dstlist = (void**) ((int8_t*) data->private_data + sizeof(gasnete_coll_handle_vec_t));
       
       if(flags & GASNET_COLL_SINGLE) {
@@ -1187,25 +1178,25 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
           gasnete_coll_scale_ptrM(dstlist, args->dstlist, sent_bytes, 1, numaddrs); 
           handle_vec->handles[i] = gasnete_coll_bcastM_TreePut(op->team, dstlist, srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes), seg_size, flags, 
                                                                impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-          gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&handle_vec->handles[i]);
           sent_bytes+=seg_size;
         }
         gasnete_coll_scale_ptrM(dstlist, args->dstlist, sent_bytes, 1, numaddrs); 
         handle_vec->handles[i] = gasnete_coll_bcastM_TreePut(op->team, dstlist, srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes),  args->nbytes-sent_bytes, flags, 
                                                              impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
       } else {
         for(i=0; i<num_segs-1; i++) {
           gasnete_coll_scale_ptrM(dstlist, args->dstlist, sent_bytes, 1, numaddrs); 
           handle_vec->handles[i] = gasnete_coll_bcastM_TreePutScratch(op->team, dstlist, srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes),  seg_size, flags, 
                                                                       impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-          gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&handle_vec->handles[i]);
           sent_bytes+=seg_size;
         }
         gasnete_coll_scale_ptrM(dstlist, args->dstlist, sent_bytes, 1, numaddrs); 
         handle_vec->handles[i] = gasnete_coll_bcastM_TreePutScratch(op->team, dstlist, srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes), args->nbytes-sent_bytes, flags, 
                                                                     impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
       }
       gasnete_coll_free_implementation(impl);
     }
@@ -1235,7 +1226,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
                                void * const dstlist[],
                                gasnet_image_t srcimage, void *src,
@@ -1280,9 +1271,8 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
       data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Initiate Scatter */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
     {
-      gasnet_coll_handle_t *handle;
+      gex_Event_t *handle;
       uint8_t *tempspace;
       size_t seg_size = (args->nbytes)/op->team->total_ranks;
       size_t remainder = (args->nbytes) % op->team->total_ranks;
@@ -1294,17 +1284,17 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
 #endif 
       
       
-      data->private_data = gasneti_malloc(sizeof(gasnet_coll_handle_t)*2+seg_size);
-      handle = (gasnet_coll_handle_t*) data->private_data;
+      data->private_data = gasneti_malloc(sizeof(gex_Event_t)*2+seg_size);
+      handle = (gex_Event_t*) data->private_data;
       
-      tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t)*2;
+      tempspace = ((uint8_t*) data->private_data) + sizeof(gex_Event_t)*2;
       
       if(seg_size > 0) {
         handle[0] = gasnete_coll_scatter_nb_default(op->team, tempspace, srcproc, args->src, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+1 GASNETE_THREAD_PASS);
       } else {
-        handle[0] = GASNET_COLL_INVALID_HANDLE;
+        handle[0] = GEX_EVENT_INVALID;
       }
-      gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle[0]);
       
       if(remainder > 0) {
         
@@ -1314,39 +1304,39 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
                                                       gasnete_coll_scale_ptr(args->src,op->team->total_ranks,seg_size), 
                                                       remainder, flags, op->sequence+2 GASNETE_THREAD_PASS);
       } else {
-        handle[1] = GASNET_COLL_INVALID_HANDLE;
+        handle[1] = GEX_EVENT_INVALID;
       }
-      gasnete_coll_save_coll_handle(&handle[1] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle[1]);
     }
       data->state = 2; GASNETI_FALLTHROUGH
       
     case 2:	/* Initiate all gather*/
       
       /*we only need the scatter to be done before we initiate the allgather*/
-      if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 1 GASNETE_THREAD_PASS)) {
+      if (!gasnete_coll_generic_coll_sync((gex_Event_t*) data->private_data, 1 GASNETE_THREAD_PASS)) {
         break;
       } else {
-        gasnet_coll_handle_t *handle;
+        gex_Event_t *handle;
         uint8_t *tempspace;
         size_t seg_size = (args->nbytes)/op->team->total_ranks;
         int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
         
-        handle = (gasnet_coll_handle_t*) data->private_data;
+        handle = (gex_Event_t*) data->private_data;
         
-        tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t)*2;
+        tempspace = ((uint8_t*) data->private_data) + sizeof(gex_Event_t)*2;
         if(seg_size) {
           handle[0] = gasnete_coll_gather_all_nb_default(op->team, GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags), tempspace, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+3 GASNETE_THREAD_PASS);
         } else {
-          handle[0] = GASNET_COLL_INVALID_HANDLE;
+          handle[0] = GEX_EVENT_INVALID;
         }
-        gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle[0]);
       }
       data->state = 3; GASNETI_FALLTHROUGH
       
       
     case 3:
       /*sync both the allgather and broadcast*/
-      if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 2 GASNETE_THREAD_PASS)) {
+      if (!gasnete_coll_generic_coll_sync((gex_Event_t*) data->private_data, 2 GASNETE_THREAD_PASS)) {
         break;
       }
       gasnete_coll_local_broadcast(op->team->my_images,
@@ -1367,7 +1357,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
   return result;
 }
   
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_bcastM_ScatterAllgather(gasnet_team_handle_t team,
                                void * const dstlist[],
                                gasnet_image_t srcimage, void *src,
@@ -1416,11 +1406,10 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
                                             gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
                                             args->nbytes);
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode),
                                            gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
                                            args->nbytes, 0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -1441,7 +1430,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scat_Get(gasnet_team_handle_t team,
                       void *dst,
                       gasnet_image_t srcimage, void *src,
@@ -1482,7 +1471,6 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         void   *dst   = args->dst;
         size_t nbytes = args->nbytes;
         uintptr_t p;
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue PUTS in an NBI access region */
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -1501,7 +1489,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
           }
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst,
@@ -1528,7 +1516,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scat_Put(gasnet_team_handle_t team,
                       void *dst,
                       gasnet_image_t srcimage, void *src,
@@ -1583,7 +1571,6 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
       if (op->team->myrank == args->srcnode) {
         if(args->dist!=args->nbytes) {
           int8_t *myscratchpos = (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
@@ -1625,7 +1612,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
               
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
           data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-          gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&data->handle);
         } else {
           int8_t* src_arr;
           int8_t* scratch_space= (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
@@ -1672,7 +1659,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src_arr, args->nbytes);
           data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-          gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&data->handle);
         }
       } else if(child_count == 0  && direct_put_ok) {
         /* for leaves with out no/all sync ... fall through right through*/
@@ -1700,7 +1687,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         
         /* In the case of Mysync the data is always sent to the scratch space so copy it out*/
@@ -1733,7 +1720,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
                           void *dst,
                           gasnet_image_t srcimage, void *src,
@@ -1789,7 +1776,6 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       data->state = 3; GASNETI_FALLTHROUGH
       
       case 3:
-     if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
      
       if (op->team->myrank == args->srcnode) {
         if(args->dist!=args->nbytes) {
@@ -1834,7 +1820,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
             }
           }
           data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-          gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&data->handle);
         }
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
       } else if(child_count == 0  && direct_put_ok) {
@@ -1866,7 +1852,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         }
         
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* In the case of Mysync or being an intermediate node  the data is always sent to the scratch space so copy it out*/
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, scratchspace, args->nbytes);
@@ -1899,7 +1885,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scat_TreePutNoCopy(gasnet_team_handle_t team,
                           void *dst,
                           gasnet_image_t srcimage, void *src,
@@ -1939,7 +1925,6 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
     {
       gasnete_coll_handle_vec_t *handle_vec;
       size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNET_COLL_SCATTER_OP, op->flags);
@@ -1958,7 +1943,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
       handle_vec = data->private_data;
       handle_vec->num_handles = num_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_segs);
       impl->fn_ptr = NULL;
       /*strip the last argument off which contains the pipeline segment size*/
       impl->num_params = op->num_coll_params;
@@ -1969,13 +1954,13 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
         /*ignore the handle returned*/
         handle_vec->handles[i] = gasnete_coll_scat_TreePut(op->team, gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                            seg_size, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_bytes += seg_size;
       }
       
       handle_vec->handles[i] = gasnete_coll_scat_TreePut(op->team, gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                          args->nbytes-sent_bytes, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-      gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle_vec->handles[i]);
       gasnete_coll_free_implementation(impl);
 
     }
@@ -2005,7 +1990,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
                              void *dst,
                              gasnet_image_t srcimage, void *src,
@@ -2062,13 +2047,12 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                    gasnete_coll_scale_ptr(args->src, op->team->my_offset, args->nbytes),
                                    args->nbytes);
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->private_data = gasnete_coll_scale_ptr(args->src, op->team->my_offset, args->nbytes),
         data->handle = _gex_VIS_IndexedGetNB(gasneti_THUNK_TM, op->team->my_images,
                                     &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0), args->nbytes,
                                     GASNETE_COLL_REL2ACT(op->team, args->srcnode), 1, &(data->private_data),
                                     op->team->my_images * args->nbytes,0/*flags*/ GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -2089,7 +2073,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scatM_Get(gasnet_team_handle_t team,
                        void * const dstlist[],
                        gasnet_image_t srcimage, void *src,
@@ -2131,7 +2115,6 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         int i;
         void ** srclist;
         void * const *p;
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Allocate a source vector for puti */
         /* XXX: Use freelist? */
@@ -2173,7 +2156,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           }
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
         gasnete_coll_local_scatter(op->team->my_images,
@@ -2203,7 +2186,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scatM_Put(gasnet_team_handle_t team,
                        void * const dstlist[],
                        gasnet_image_t srcimage, void *src,
@@ -2398,7 +2381,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scatM_TreePut(gasnet_team_handle_t team,
                            void * const dstlist[],
                            gasnet_image_t srcimage, void *src,
@@ -2555,7 +2538,7 @@ static int gasnete_coll_pf_scatM_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THR
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scatM_TreePutNoCopy(gasnet_team_handle_t team,
                                  void * const dstlist[],
                                  gasnet_image_t srcimage, void *src,
@@ -2592,7 +2575,6 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
     {
       
       gasnete_coll_handle_vec_t *handle_vec;
@@ -2621,7 +2603,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
       handle_vec = data->private_data;
       handle_vec->num_handles = num_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_segs);
       dstlist = (void**) ((int8_t*) data->private_data + sizeof(gasnete_coll_handle_vec_t));
       
       for(i=0; i<num_segs - 1; i++) {
@@ -2629,13 +2611,13 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         gasnete_coll_scale_ptrM(dstlist, args->dstlist, sent_bytes, 1, numaddrs); 
         handle_vec->handles[i] = gasnete_coll_scatM_TreePut(op->team, dstlist, srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                             seg_size, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_bytes += seg_size;
       }
       gasnete_coll_scale_ptrM(dstlist, args->dstlist, sent_bytes, 1, numaddrs); 
       handle_vec->handles[i] = gasnete_coll_scatM_TreePut(op->team, dstlist, srcproc, gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                           args->nbytes-sent_bytes, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-      gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle_vec->handles[i]);
       gasnete_coll_free_implementation(impl);
 
     }
@@ -2665,7 +2647,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
                               void * const dstlist[],
                               gasnet_image_t srcimage, void *src,
@@ -2718,7 +2700,6 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       if (op->team->myrank != args->dstnode) {
         /* Nothing to do */
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         /* Queue GETs in an NBI access region */
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
@@ -2737,7 +2718,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
           }
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
@@ -2795,12 +2776,11 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->handle = gasnete_put_nb(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode), 
                                            gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                            args->src, args->nbytes, GEX_EVENT_DEFER, 0
                                            GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -2951,7 +2931,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
             data->handle = gasnete_put_nb(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, parent), gasnete_coll_scale_ptr(args->dst,(tree->geom->sibling_offset+1),args->nbytes),
                                                src_addr, args->nbytes*tree->geom->mysubtree_size,
                                                GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
-            gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+            gasnete_coll_save_event(&data->handle);
           }
         } else {
           /*data is going into the scratch space*/
@@ -3073,7 +3053,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
                                              args->src,
                                              args->nbytes, GEX_EVENT_DEFER, 0
                                              GASNETE_THREAD_PASS);
-          gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&data->handle);
         }
       } else {
 
@@ -3178,7 +3158,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
                                              src_addr,
                                               args->nbytes*(tree->geom->mysubtree_size-1),
                                               GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
-          gasnete_coll_save_handle(&data->handle2 GASNETE_THREAD_PASS);
+          gasnete_coll_save_event(&data->handle2);
         }
       } else {
 
@@ -3274,7 +3254,6 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
     {
       gasnete_coll_handle_vec_t *handle_vec;
       size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNET_COLL_GATHER_OP, op->flags);
@@ -3298,21 +3277,21 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
       handle_vec = data->private_data;
       handle_vec->num_handles = num_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_segs);
       
       for(i=0; i<num_segs - 1; i++) {
         /*ignore the handle returned*/
         handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, GASNETE_COLL_REL2ACT(op->team, dstproc), gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , 
                                                            gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                            seg_size, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_bytes += seg_size;
       }
       
       handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, GASNETE_COLL_REL2ACT(op->team, dstproc), gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , 
                                                          gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                          args->nbytes-sent_bytes, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-      gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle_vec->handles[i]);
       gasnete_coll_free_implementation(impl);
     }
       data->state = 2; GASNETI_FALLTHROUGH
@@ -3389,7 +3368,6 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         /* Nothing to do */
       } else {
         size_t nbytes = args->nbytes;
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue GETIs in an NBI access region */
         gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -3432,7 +3410,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
           }
         }
         data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
         gasnete_coll_local_gather(op->team->my_images,
@@ -3494,14 +3472,13 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
                                   gasnete_coll_scale_ptr(args->dst, op->team->my_offset, args->nbytes),
                                   &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, 0), args->nbytes);
       } else {
-        if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->private_data = gasnete_coll_scale_ptr(args->dst, op->team->my_offset, args->nbytes);
         /* use a vis operation to stride through all the local data*/
         data->handle = _gex_VIS_IndexedPutNB(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
                                     1, &(data->private_data), op->team->my_images * args->nbytes,
                                     op->team->my_images, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, 0),
                                     args->nbytes,0/*flags*/ GASNETE_THREAD_PASS);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&data->handle);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -3650,7 +3627,6 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->state = 1; GASNETI_FALLTHROUGH
       
       case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
     {
       
       gasnete_coll_handle_vec_t *handle_vec;
@@ -3678,7 +3654,7 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
       handle_vec = data->private_data;
       handle_vec->num_handles = num_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_segs);
       srclist = (void**) ((int8_t*) data->private_data + sizeof(gasnete_coll_handle_vec_t));
       
       for(i=0; i<num_segs - 1; i++) {
@@ -3686,13 +3662,13 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         gasnete_coll_scale_ptrM(srclist, args->srclist, sent_bytes, 1, numaddrs); 
         handle_vec->handles[i] = gasnete_coll_gathM_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes), srclist,
                                                             seg_size, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_bytes += seg_size;
       }
       gasnete_coll_scale_ptrM(srclist, args->srclist, sent_bytes, 1, numaddrs); 
       handle_vec->handles[i] = gasnete_coll_gathM_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes), srclist, 
                                                           args->nbytes-sent_bytes, args->nbytes, flags, impl, op->sequence+i+1 GASNETE_THREAD_PASS);   
-      gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle_vec->handles[i]);
       gasnete_coll_free_implementation(impl);
     }
       data->state = 2; GASNETI_FALLTHROUGH
@@ -3874,7 +3850,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
                           void *dst, void *src,
                           size_t nbytes, int flags, gasnete_coll_tree_type_t tree_type, uint32_t sequence
@@ -3969,7 +3945,7 @@ static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 #undef GASNETE_COLL_MYDECMOD
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
                           void *dst, void *src,
                           size_t nbytes, int flags, 
@@ -4010,7 +3986,6 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   if(data->state == 1) {
     gex_Rank_t dst;
-    if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     
     if_pt(op->team->total_ranks > 1) {
       gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -4025,7 +4000,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         }
       }
       data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-      gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&data->handle);
     }
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         args->src, args->nbytes);
@@ -4055,7 +4030,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gall_FlatPut(gasnet_team_handle_t team,
                           void *dst, void *src,
                           size_t nbytes, int flags, 
@@ -4094,7 +4069,6 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   if(data->state == 1) {
     gex_Rank_t srcnode;
-    if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     
     if_pt(op->team->total_ranks > 1) {
       gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
@@ -4113,7 +4087,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         }
       }
       data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-      gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&data->handle);
     }
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         args->src, args->nbytes);
@@ -4143,7 +4117,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gall_FlatGet(gasnet_team_handle_t team,
                           void *dst, void *src,
                           size_t nbytes, int flags, 
@@ -4260,7 +4234,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
                          void *dst, void *src,
                          size_t nbytes, int flags, 
@@ -4369,7 +4343,7 @@ static int gasnete_coll_pf_gall_DissemNoScratch(gasnete_coll_op_t *op GASNETE_TH
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gall_DissemNoScratch(gasnet_team_handle_t team,
                          void *dst, void *src,
                          size_t nbytes, int flags, 
@@ -4462,7 +4436,7 @@ static int gasnete_coll_pf_gallM_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gallM_FlatPut(gasnet_team_handle_t team,
                            void * const dstlist[], void * const srclist[],
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, 
@@ -4591,7 +4565,7 @@ static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gallM_Dissem(gasnet_team_handle_t team,
                           void * const dstlist[], void * const srclist[],
                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -4709,7 +4683,7 @@ static int gasnete_coll_pf_gallM_DissemNoScratch(gasnete_coll_op_t *op GASNETE_T
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gallM_DissemNoScratch(gasnet_team_handle_t team,
                           void * const dstlist[], void * const srclist[],
                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -4769,7 +4743,7 @@ static int gasnete_coll_pf_gallM_DissemNoScratchSeg(gasnete_coll_op_t *op GASNET
                                          (int8_t*)GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags),
                                          curr_len, GEX_EVENT_DEFER, 0
                                          GASNETE_THREAD_PASS);
-      gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&data->handle);
 #if 0
       gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_REL2ACT(op->team,dstnode), 
                                       (int8_t*)GASNETE_COLL_1ST_IMAGE(op->team, args->dstlist, dstnode)+curr_len,
@@ -4805,7 +4779,7 @@ static int gasnete_coll_pf_gallM_DissemNoScratchSeg(gasnete_coll_op_t *op GASNET
                                        (int8_t*)GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags),
                                        curr_len, GEX_EVENT_DEFER, 0
                                        GASNETE_THREAD_PASS);
-    gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+    gasnete_coll_save_event(&data->handle);
 
 #if 0
     gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_REL2ACT(op->team,dstnode), 
@@ -4860,7 +4834,7 @@ static int gasnete_coll_pf_gallM_DissemNoScratchSeg(gasnete_coll_op_t *op GASNET
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_gallM_DissemNoScratchSeg(gasnet_team_handle_t team,
                           void * const dstlist[], void * const srclist[],
                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5079,7 +5053,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchg_Dissem2(gasnet_team_handle_t team,
                           void *dst, void *src,
                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5096,7 +5070,7 @@ gasnete_coll_exchg_Dissem2(gasnet_team_handle_t team,
                                           &gasnete_coll_pf_exchg_Dissem, options,
                                           NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchg_Dissem3(gasnet_team_handle_t team,
                            void *dst, void *src,
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5113,7 +5087,7 @@ gasnete_coll_exchg_Dissem3(gasnet_team_handle_t team,
                                           &gasnete_coll_pf_exchg_Dissem, options,
                                           NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchg_Dissem4(gasnet_team_handle_t team,
                            void *dst, void *src,
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5131,7 +5105,7 @@ gasnete_coll_exchg_Dissem4(gasnet_team_handle_t team,
                                           NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchg_Dissem8(gasnet_team_handle_t team,
                            void *dst, void *src,
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5149,7 +5123,7 @@ gasnete_coll_exchg_Dissem8(gasnet_team_handle_t team,
                                           NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchg_FlatScratch(gasnet_team_handle_t team,
                            void *dst, void *src,
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5196,7 +5170,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       gasnete_put_nbi(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team,i), ((int8_t*) args->dst) + op->team->myrank*args->nbytes, ((int8_t*) args->src)+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     }
     data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-    gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+    gasnete_coll_save_event(&data->handle);
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
     data->state = 2; GASNETI_FALLTHROUGH
@@ -5221,7 +5195,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchg_Put(gasnet_team_handle_t team,
                        void *dst, void *src,
                        size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5396,7 +5370,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_Dissem2(gasnet_team_handle_t team,
                            void * const dstlist[], void * const srclist[],
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5413,7 +5387,7 @@ gasnete_coll_exchgM_Dissem2(gasnet_team_handle_t team,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_Dissem3(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5430,7 +5404,7 @@ gasnete_coll_exchgM_Dissem3(gasnet_team_handle_t team,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_Dissem4(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5446,7 +5420,7 @@ gasnete_coll_exchgM_Dissem4(gasnet_team_handle_t team,
                                            &gasnete_coll_pf_exchgM_Dissem, options,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_Dissem8(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5462,7 +5436,7 @@ gasnete_coll_exchgM_Dissem8(gasnet_team_handle_t team,
                                            &gasnete_coll_pf_exchgM_Dissem, options,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_FlatScratch(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5581,7 +5555,7 @@ static int gasnete_coll_pf_exchgM_Dissem_Segmented(gasnete_coll_op_t *op GASNETE
       /*once all the change the state and return 0*/
       /*let the poll function bring us back here*/
       data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
-      gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&data->handle);
       data->state++;
     }
     
@@ -5649,7 +5623,7 @@ static int gasnete_coll_pf_exchgM_Dissem_Segmented(gasnete_coll_op_t *op GASNETE
   
   return result;
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_DissemSeg2(gasnet_team_handle_t team,
                            void * const dstlist[], void * const srclist[],
                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5666,7 +5640,7 @@ gasnete_coll_exchgM_DissemSeg2(gasnet_team_handle_t team,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_DissemSeg3(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5683,7 +5657,7 @@ gasnete_coll_exchgM_DissemSeg3(gasnet_team_handle_t team,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_DissemSeg4(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5699,7 +5673,7 @@ gasnete_coll_exchgM_DissemSeg4(gasnet_team_handle_t team,
                                            &gasnete_coll_pf_exchgM_Dissem_Segmented, options,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_DissemSeg8(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5715,7 +5689,7 @@ gasnete_coll_exchgM_DissemSeg8(gasnet_team_handle_t team,
                                            &gasnete_coll_pf_exchgM_Dissem_Segmented, options,
                                            NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_exchgM_FlatScratchSeg(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
@@ -5858,7 +5832,7 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
   return result;
 }  
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_reduce_TreePut(gasnet_team_handle_t team,
                               gasnet_image_t dstimage, void *dst,
                               void *src, size_t src_blksz, size_t src_offset,
@@ -5985,7 +5959,7 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
               }
               ((gex_Event_t*) data->private_data)[i] = gasnete_get_nb(gasneti_THUNK_TM, (void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
                                                                                child_scratch, args->nbytes, 0 GASNETE_THREAD_PASS);
-              gasnete_coll_save_handle(&((gex_Event_t*) data->private_data)[i] GASNETE_THREAD_PASS);
+              gasnete_coll_save_event(&((gex_Event_t*) data->private_data)[i]);
               
             }
             state[i]++; GASNETI_FALLTHROUGH
@@ -6064,7 +6038,7 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
 }
            
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_reduce_TreeGet(gasnet_team_handle_t team,
                             gasnet_image_t dstimage, void *dst,
                             void *src, size_t src_blksz, size_t src_offset,
@@ -6136,7 +6110,6 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
     {
       gasnete_coll_handle_vec_t *handle_vec;
       size_t seg_size_elem;
@@ -6168,7 +6141,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
       handle_vec = data->private_data;
       handle_vec->num_handles = num_elem_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_elem_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_elem_segs);
       
       /*
        the TreePut routines only work w/ the single address mode and therefore we need ensure choose 
@@ -6182,7 +6155,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
                                                              args->src_blksz, args->src_offset, args->elem_size, seg_size_elem,
                                                              args->func, args->func_arg, flags, 
                                                             impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_elem+=seg_size_elem;
       }
       handle_vec->handles[i] = gasnete_coll_reduce_TreePut(op->team, dstproc, 
@@ -6191,7 +6164,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
                                                            args->src_blksz, args->src_offset, args->elem_size, args->elem_count - sent_elem,
                                                            args->func, args->func_arg, flags, 
                                                            impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-      gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle_vec->handles[i]);
       gasnete_coll_free_implementation(impl);
     }
       data->state = 2; GASNETI_FALLTHROUGH
@@ -6219,7 +6192,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_reduce_TreePutSeg(gasnet_team_handle_t team,
                             gasnet_image_t dstimage, void *dst,
                             void *src, size_t src_blksz, size_t src_offset,
@@ -6390,7 +6363,7 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
   return result;
 }  
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_reduceM_TreePut(gasnet_team_handle_t team,
                             gasnet_image_t dstimage, void *dst,
                             void * const srclist[], size_t src_blksz, size_t src_offset,
@@ -6525,7 +6498,7 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
               child_scratch = ((int8_t*)op->team->scratch_segs[children[i]].addr)+op->scratchpos[i];
               ((gex_Event_t*) data->private_data)[i] = gasnete_get_nb(gasneti_THUNK_TM, (void*) src_addr, GASNETE_COLL_REL2ACT(op->team, children[i]), 
                                                                                child_scratch, args->nbytes, 0 GASNETE_THREAD_PASS);
-              gasnete_coll_save_handle(&((gex_Event_t*) data->private_data)[i] GASNETE_THREAD_PASS);
+              gasnete_coll_save_event(&((gex_Event_t*) data->private_data)[i]);
             }
             state[i]++; GASNETI_FALLTHROUGH
 
@@ -6598,7 +6571,7 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
 }
 
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_reduceM_TreeGet(gasnet_team_handle_t team,
                             gasnet_image_t dstimage, void *dst,
                             void * const srclist[], size_t src_blksz, size_t src_offset,
@@ -6673,7 +6646,6 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
       data->state = 1; GASNETI_FALLTHROUGH
       
     case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
     {
       gasnete_coll_handle_vec_t *handle_vec;
       size_t seg_size_elem;
@@ -6708,7 +6680,7 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
       handle_vec = data->private_data;
       handle_vec->num_handles = num_elem_segs;
-      handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_elem_segs);
+      handle_vec->handles = gasneti_malloc(sizeof(gex_Event_t)*num_elem_segs);
       addrs = (void**) ((int8_t*) data->private_data + sizeof(gasnete_coll_handle_vec_t));
             
       /*
@@ -6724,7 +6696,7 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
                                                              args->src_blksz, args->src_offset, args->elem_size, seg_size_elem,
                                                              args->func, args->func_arg, flags, 
                                                              impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+        gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_elem+=seg_size_elem;
       }
       gasnete_coll_scale_ptrM(addrs, args->srclist, sent_elem, args->elem_size, numaddrs); 
@@ -6734,7 +6706,7 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
                                                            args->src_blksz, args->src_offset, args->elem_size, args->elem_count - sent_elem,
                                                            args->func, args->func_arg, flags, 
                                                            impl, op->sequence+i+1 GASNETE_THREAD_PASS);
-      gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      gasnete_coll_save_event(&handle_vec->handles[i]);
       gasnete_coll_free_implementation(impl);
     }
       data->state = 2; GASNETI_FALLTHROUGH
@@ -6762,7 +6734,7 @@ static int gasnete_coll_pf_reduceM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THRE
   return result;
 }
 
-extern gasnet_coll_handle_t
+extern gex_Event_t
 gasnete_coll_reduceM_TreePutSeg(gasnet_team_handle_t team,
                                gasnet_image_t dstimage, void *dst,
                                void * const srclist[], size_t src_blksz, size_t src_offset,

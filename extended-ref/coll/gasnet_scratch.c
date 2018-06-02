@@ -42,7 +42,7 @@ struct gasnete_coll_op_info_t_ {
   
     gasnete_coll_op_t *op;
   /* a pointer to the actual op handle so that we can do a wait sync on it */
-  gasnet_coll_handle_t op_handle; 
+  gex_Event_t op_handle; 
   
   /*amount of scratch space used locally*/
   uint32_t local_scratch_used;

@@ -172,7 +172,7 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list, 
-                                                                  gasnet_coll_handle_t (*coll_fnptr)(),
+                                                                  gex_Event_t (*coll_fnptr)(),
                                                                   const char *name_str) {
   gasnete_coll_algorithm_t ret;
   int i;
@@ -1882,7 +1882,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
                                            gasnete_coll_implementation_t impl, gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg GASNETE_THREAD_FARG) {
   int iter, niters;
   gasnett_tick_t start, total;
-  gasnet_coll_handle_t handle;
+  gex_Event_t handle;
 
   niters = team->autotune_info->perf_iters;
   if (coll_args.nbytes <= 1024)
@@ -1899,62 +1899,62 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
         handle = (*((gasnete_coll_bcast_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, 
                                                                    coll_args.src[0], coll_args.nbytes, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_BROADCASTM_OP:
         handle = (*((gasnete_coll_bcastM_fn_ptr_t) (impl->fn_ptr)))(team, (void * const *) coll_args.dst, coll_args.rootimg, 
                             coll_args.src[0], coll_args.nbytes, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
       case GASNET_COLL_SCATTER_OP:
         handle = (*((gasnete_coll_scatter_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, 
                                                                    coll_args.src[0], coll_args.nbytes, coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_SCATTERM_OP:
         handle = (*((gasnete_coll_scatterM_fn_ptr_t) (impl->fn_ptr)))(team, (void * const *) coll_args.dst, coll_args.rootimg, 
                                                                     coll_args.src[0], coll_args.nbytes, coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
       case GASNET_COLL_GATHER_OP:
         handle = (*((gasnete_coll_gather_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.rootimg, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                     coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_GATHERM_OP:
         handle = (*((gasnete_coll_gatherM_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.rootimg, coll_args.dst[0], (void * const*) coll_args.src, coll_args.nbytes,
                                                                     coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_ALL_OP:
         handle = (*((gasnete_coll_gather_all_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                         flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_ALLM_OP:
         handle = (*((gasnete_coll_gather_allM_fn_ptr_t) (impl->fn_ptr)))(team,   (void * const*) coll_args.dst, (void * const*) coll_args.src, coll_args.nbytes,
                                                                          flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
         
       case GASNET_COLL_EXCHANGE_OP:
         handle = (*((gasnete_coll_exchange_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                       flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_EXCHANGEM_OP:
         handle = (*((gasnete_coll_exchangeM_fn_ptr_t) (impl->fn_ptr)))(team,   (void * const*) coll_args.dst, (void * const*) coll_args.src, coll_args.nbytes,
                                                                        flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
         
         
@@ -1964,7 +1964,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
                                                                     coll_args.elem_size, coll_args.nbytes/coll_args.elem_size,
                                                                     coll_args.func, coll_args.func_arg, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
       case GASNET_COLL_REDUCEM_OP:
         handle = (*((gasnete_coll_reduceM_fn_ptr_t) (impl->fn_ptr)))(team,  coll_args.rootimg, coll_args.dst[0], 
@@ -1972,7 +1972,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
                                                                     coll_args.elem_size, coll_args.nbytes/coll_args.elem_size,
                                                                     coll_args.func, coll_args.func_arg, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
         
       default:
@@ -1989,64 +1989,64 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
         handle = (*((gasnete_coll_bcast_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, coll_args.src[0], 
                                                                    coll_args.nbytes, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
         
       case GASNET_COLL_BROADCASTM_OP:
         handle = (*((gasnete_coll_bcastM_fn_ptr_t) (impl->fn_ptr)))(team, (void * const *) coll_args.dst, coll_args.rootimg, coll_args.src[0], 
                                                                     coll_args.nbytes, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;  
         
       case GASNET_COLL_SCATTER_OP:
         handle = (*((gasnete_coll_scatter_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.rootimg, 
                                                                      coll_args.src[0], coll_args.nbytes, coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
         
       case GASNET_COLL_SCATTERM_OP:
         handle = (*((gasnete_coll_scatterM_fn_ptr_t) (impl->fn_ptr)))(team, (void * const *) coll_args.dst, coll_args.rootimg, 
                                                                       coll_args.src[0], coll_args.nbytes, coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
       case GASNET_COLL_GATHER_OP:
         handle = (*((gasnete_coll_gather_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.rootimg, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                     coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_GATHERM_OP:
         handle = (*((gasnete_coll_gatherM_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.rootimg, coll_args.dst[0], (void * const*)coll_args.src, coll_args.nbytes,
                                                                      coll_args.dist, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_ALL_OP:
         handle = (*((gasnete_coll_gather_all_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                         flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_GATHER_ALLM_OP:
         handle = (*((gasnete_coll_gather_allM_fn_ptr_t) (impl->fn_ptr)))(team,   (void * const*) coll_args.dst, (void * const*) coll_args.src, coll_args.nbytes,
                                                                          flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_EXCHANGE_OP:
         handle = (*((gasnete_coll_exchange_fn_ptr_t) (impl->fn_ptr)))(team, coll_args.dst[0], coll_args.src[0], coll_args.nbytes,
                                                                       flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
       case GASNET_COLL_EXCHANGEM_OP:
         handle = (*((gasnete_coll_exchangeM_fn_ptr_t) (impl->fn_ptr)))(team,   (void * const*) coll_args.dst, (void * const*) coll_args.src, coll_args.nbytes,
                                                                        flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break;
         
       case GASNET_COLL_REDUCE_OP:
@@ -2055,7 +2055,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
                                                                     coll_args.elem_size, coll_args.nbytes/coll_args.elem_size,
                                                                     coll_args.func, coll_args.func_arg, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
         
       case GASNET_COLL_REDUCEM_OP:
@@ -2064,7 +2064,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
                                                                      coll_args.elem_size, coll_args.nbytes/coll_args.elem_size,
                                                                      coll_args.func, coll_args.func_arg, flags, impl, 0 GASNETE_THREAD_PASS);
         if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        gasnete_wait(handle GASNETE_THREAD_PASS);
         break; 
       default:
         gasneti_fatalerror("collective not yet implemented");  
