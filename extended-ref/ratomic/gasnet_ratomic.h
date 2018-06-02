@@ -496,7 +496,6 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
         snprintf(_trat_resultstr, sizeof(_trat_resultstr),              \
                  " " GASNETI_LADDRFMT " <-",GASNETI_LADDRSTR(result_p));\
       }                                                                 \
-      /* TODO-EX: real team support */                                  \
       GASNETI_TRACE_PRINTF(R,(#prefix "%s: %s%s " GASNETI_RADDRFMT " flags=0x%x",\
                            _trat_suffix,_trat_opstr,_trat_resultstr,    \
                            GASNETI_RADDRSTR(gex_AD_QueryTM(ad),tgt_rank,tgt_addr),flags)); \
