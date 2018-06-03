@@ -140,11 +140,17 @@ extern int gasnete_maxthreadidx;
    the local node id, but clients can override this to remove the check overhead
    by defining either GASNETE_PUTGET_ALWAYSLOCAL or GASNETE_PUTGET_ALWAYSREMOTE
  */
-#if defined(GASNETE_PUTGET_ALWAYSLOCAL)
-  #define gasnete_islocal(nodeid) (1) /* always local */
-#elif defined(GASNETE_PUTGET_ALWAYSREMOTE)
-  #define gasnete_islocal(nodeid) (0) /* always remote */
-#else
+#if GASNET_CONDUIT_SMP
+  #if GASNET_PSHM // smp w/pshm: the PSHM support handles smp loopback
+    #define gasnete_islocal(nodeid) (gasneti_assert(nodeid < gasneti_nodes),0) 
+  #else           // smp nopshm: single-process loopback handled in header
+    #define gasnete_islocal(nodeid) (gasneti_assert(nodeid == 0),1)
+  #endif
+#elif defined(GASNETE_PUTGET_ALWAYSLOCAL)  // always local
+  #define gasnete_islocal(nodeid) (gasneti_assert(nodeid == gasneti_mynode),1)
+#elif defined(GASNETE_PUTGET_ALWAYSREMOTE) // always remote
+  #define gasnete_islocal(nodeid) (gasneti_assert(nodeid != gasneti_mynode),0)
+#else // general case
   /* "0 != " avoids warnings from some compilers about assign-vs-compare ambiguity */
   #define gasnete_islocal(nodeid) (0 != (nodeid == gasneti_mynode))
 #endif
