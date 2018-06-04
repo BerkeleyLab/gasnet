@@ -758,28 +758,31 @@ extern void gasneti_coll_progressfn(void) {
   GASNETE_THREAD_LOOKUP /* TODO: remove this lookup */
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
+#if !ALL_THREADS_POLL
+  if (td->my_local_image != 0) return;
+#endif
+
   if (td->in_poll) return; /* prevent recursion */
   td->in_poll = 1;
 
-  /* First try to make progress on any events this thread has initiated */
-  if(td->my_local_image==0 || ALL_THREADS_POLL) {
-    gasnete_coll_sync_saved_events(GASNETE_THREAD_PASS_ALONE);
-  }
-  /* XXX: We'd also like to have multiple pollers walk the list polling
-   * distinct entries.
-   */
-#if ALL_THREADS_POLL
   static gasneti_mutex_t poll_lock = GASNETI_MUTEX_INITIALIZER;
   if (gasneti_mutex_trylock(&poll_lock) == 0)
-#else
-  if(td->my_local_image==0)
-#endif
   {
-    gasnete_coll_op_t *op;
+    /* First try to make progress on any pending events */
+    if(td->my_local_image==0 || ALL_THREADS_POLL) {
+      gasnete_coll_sync_saved_events(GASNETE_THREAD_PASS_ALONE);
+    }
 
-
-    op = gasnete_coll_active_first();
-
+    /* NOTE regarding thread safety of active list:
+     * We traverse the active list here, possibly deleting elements.
+     * However, this basic block is the *only* place that deletions can
+     * occur AND execution of this block is serialized by 'poll_lock'.
+     * Meanwhile, the only other modification that can be made is the
+     * insertion (at the list tail) of new entries.  Therefore, we can
+     * safely call gasnete_coll_active_{first,next}() without the lock
+     * held.  However, we must hold if for deletions.
+     */
+    gasnete_coll_op_t *op = gasnete_coll_active_first();
 
     while (op != NULL) {
       gasnete_coll_op_t *next;
@@ -806,10 +809,7 @@ extern void gasneti_coll_progressfn(void) {
       /* Next... */
       op = next;
     }
-#if ALL_THREADS_POLL
     gasneti_mutex_unlock(&poll_lock);
-#endif
-  
   }
   td->in_poll = 0;
 }
