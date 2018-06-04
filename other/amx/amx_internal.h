@@ -242,14 +242,6 @@ static char *_AMX_strndup(const char *s, size_t sz, const char *curloc) {
 /*------------------------------------------------------------------------------------
  * Error reporting
  *------------------------------------------------------------------------------------ */
-#if PLATFORM_COMPILER_MICROSOFT
-  #pragma warning(disable: 4127)
-#endif
-#if PLATFORM_COMPILER_SUN
-  #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
-  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
-#endif
-
 static const char *AMX_ErrorName(int errval) {
   switch (errval) {
     case AM_ERR_NOT_INIT: return "AM_ERR_NOT_INIT";      
