@@ -344,6 +344,7 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t rank,
                        gex_Rank_t size,
                        gex_Flags_t flags,
+                       int is_tm0,
                        size_t alloc_size);
 void gasneti_free_tm(gasneti_TM_t tm);
 

@@ -279,19 +279,6 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
 }
 
 /* ------------------------------------------------------------------------------------ */
-/* TM trace formatting - legal even without STATS/TRACE */
-
-// Format a gex_TM_t as a GUID
-// TODO-EX: Stringify real GUIDs when we have a team-split
-extern const char *gasneti_formattm(gex_TM_t tm) {
-  if (tm == gasneti_THUNK_TM) return "TM0";  // Team0
-  if ((uintptr_t)tm == 1)     return "N/A";  // GASNet-1 collectives team
-  if (tm == NULL)             return "JOB";  // JobRank, as with token
-  gasneti_fatalerror("Invalid TM");
-  return NULL;
-}
-
-/* ------------------------------------------------------------------------------------ */
 /* Enum/mask trace formatting - these are legal even without STATS/TRACE */
 
 // Returns number of bytes written (or "would have been" for buf == NULL), including the '\0'.

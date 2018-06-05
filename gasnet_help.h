@@ -116,13 +116,32 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
+// We can detect TM0 by its better alignment than other tm's
+#ifdef GASNETI_TM0_ALIGN
+  // Keep existing value
+#elif (GASNETI_CACHE_LINE_BYTES < 8)
+  #define GASNETI_TM0_ALIGN 16
+#else
+  #define GASNETI_TM0_ALIGN (2*GASNETI_CACHE_LINE_BYTES)
+#endif
+GASNETI_INLINE(gasneti_is_tm0)
+int gasneti_is_tm0(gasneti_TM_t _i_tm) {
+  return (!((uintptr_t)(_i_tm) & (GASNETI_TM0_ALIGN-1)));
+}
+
+// Given (tm,rank) return the jobrank
+extern gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank);
+
+// Given (tm,jobrank) return the rank of jobrank in tm, or GEX_RANK_INVALID
+extern gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank);
+
 #define gasneti_check_tm_rank(tm,rank) gasneti_assert((tm) && ((rank) < gex_TM_QuerySize(tm)))
         
 GASNETI_INLINE(gasneti_i_tm_rank_to_jobrank)
 gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
-  // TODO-EX: real lookup w/ special case for TM0
   gasneti_assert(_i_tm && (_rank < _i_tm->_size));
-  return _rank;
+  if (gasneti_is_tm0(_i_tm)) return _rank;
+  return gasneti_tm_fwd_lookup(_i_tm, _rank);
 }
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
@@ -133,10 +152,11 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 #define _gasneti_check_tm_rank_allownull(tm,rank) gasneti_assert(!(tm) || ((rank) < gex_TM_QuerySize(tm)))
 GASNETI_INLINE(_gasneti_e_tm_rank_to_jobrank_allownull)
 gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  // TODO-EX: real lookup w/ special cases for TM0 and NULL
   gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
   gasneti_assert(!_i_tm || (_rank < _i_tm->_size));
-  return _rank;
+  if (gasneti_is_tm0(_i_tm)) return _rank; // gasneti_is_tm0(NULL) true by construction
+  gasneti_assert(_i_tm);
+  return gasneti_tm_fwd_lookup(_i_tm, _rank);
 }
 
 // These in-segment checks accept e_tm=NULL to indicate rank is a jobrank

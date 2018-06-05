@@ -546,27 +546,37 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t rank,
                        gex_Rank_t size,
                        gex_Flags_t flags,
-                       size_t alloc_size)
+                       int is_tm0,
+                       size_t requested_sz)
 {
   gasneti_assert(rank < size);
   gasneti_assert(size > 0);
-  gasneti_TM_t tm = gasneti_malloc(alloc_size ? alloc_size : sizeof(*tm));
-  gasneti_assert(!alloc_size || alloc_size >= sizeof(*tm));
+
+  // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
+  gasneti_TM_t tm;
+  gasneti_assert(!requested_sz || requested_sz >= sizeof(*tm));
+  size_t disalign = (is_tm0 ? 0 : GASNETI_TM0_ALIGN/2);
+  size_t actual_sz = (requested_sz ? requested_sz : sizeof(*tm)) + disalign;
+  tm = (gasneti_TM_t)(disalign + (uintptr_t)gasneti_malloc_aligned(GASNETI_TM0_ALIGN, actual_sz));
+
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
   tm->_ep = ep;
   tm->_cdata = NULL;
   tm->_flags = flags;
   tm->_rank = rank;
   tm->_size = size;
+  tm->_coll_team = NULL;
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
 #endif
   
-  gasneti_legacy_alloc_tm_hook(tm); // init g2ex layer if appropriate
+  if (is_tm0) {
+    gasneti_legacy_alloc_tm_hook(tm); // init g2ex layer if appropriate
 
-  // TODO-EX: Please remove this!
-  gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
-  gasneti_thing_that_goes_thunk_in_the_dark = tm;
+    // TODO-EX: Please remove this!
+    gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
+    gasneti_thing_that_goes_thunk_in_the_dark = tm;
+  }
 
   return tm;
 }
@@ -577,7 +587,7 @@ void gasneti_free_tm(gasneti_TM_t tm)
   GASNETI_TM_FREE_EXTRA(tm);
 #endif
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_BAD_MAGIC);
-  gasneti_free(tm);
+  gasneti_free_aligned((void*)((uintptr_t)tm & (GASNETI_TM0_ALIGN-1)));
 }
 #endif // _GEX_TM_T
 
