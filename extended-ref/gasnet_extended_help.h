@@ -146,20 +146,18 @@ extern int gasnete_maxthreadidx;
    by defining either GASNETE_PUTGET_ALWAYSLOCAL or GASNETE_PUTGET_ALWAYSREMOTE
  */
 // TODO-EX: REMOVE THE GASNETE_PUTGET_ALWAYS* DEFINES ENTIRELY
-// TODO-EX: "real" TM support
 #if GASNET_CONDUIT_SMP
   #if GASNET_PSHM // smp w/pshm: the PSHM support handles smp loopback
-    #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank < gasneti_nodes),0) 
+    #define gasnete_islocal(e_tm,rank) (gasneti_check_tm_rank(e_tm,rank),0)
   #else           // smp nopshm: single-process loopback handled in header
-    #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank == 0),1)
+    #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == 0),1)
   #endif
 #elif defined(GASNETE_PUTGET_ALWAYSLOCAL)  // always local
-  #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank == gasneti_mynode),1)
+  #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode),1)
 #elif defined(GASNETE_PUTGET_ALWAYSREMOTE) // always remote
-  #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank != gasneti_mynode),0)
+  #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) != gasneti_mynode),0)
 #else // general case
-  /* "0 != " avoids warnings from some compilers about assign-vs-compare ambiguity */
-  #define gasnete_islocal(tm,rank) (gasneti_assert(tm), (0 != (rank == gasneti_mynode)))
+  #define gasnete_islocal(e_tm,rank) (gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
