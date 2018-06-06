@@ -475,7 +475,7 @@ gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
 #ifndef GASNETC_HAVE_NP_REQ_MEDIUM
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
-                       gex_Rank_t         dest,
+                       gex_Rank_t         rank,
                        const void        *client_buf,
                        size_t             least_payload,
                        size_t             most_payload,
@@ -485,13 +485,14 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
-        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
+        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                                client_buf, least_payload, most_payload,
                                                NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) {
@@ -505,9 +506,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         #else
             GASNETC_IMMEDIATE_MAYBE_POLL(flags);
         #endif
-        size_t limit = gex_AM_MaxRequestMedium(tm, dest, lc_opt, flags, nargs);
+        size_t limit = gex_AM_MaxRequestMedium(tm, rank, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
-        gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
+        gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
         gasneti_init_sd_poison(sd);
     }
 
@@ -555,7 +556,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 #ifndef GASNETC_HAVE_NP_REQ_LONG
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        gex_TM_t           tm,
-                       gex_Rank_t         dest,
+                       gex_Rank_t         rank,
                        const void        *client_buf,
                        size_t             least_payload,
                        size_t             most_payload,
@@ -566,13 +567,14 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
+    GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
 
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
-        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, tm, dest,
+        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, jobrank,
                                                client_buf, least_payload, most_payload,
                                                dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
         if (imm) {
@@ -586,9 +588,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         #else
             GASNETC_IMMEDIATE_MAYBE_POLL(flags);
         #endif
-        size_t limit = gex_AM_MaxRequestLong(tm, dest, lc_opt, flags, nargs);
+        size_t limit = gex_AM_MaxRequestLong(tm, rank, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
-        gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
+        gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
         gasneti_init_sd_poison(sd);
     }
@@ -656,7 +658,7 @@ void gasnetc_AM_CommitRequestMediumM(
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
         gex_TM_t   tm          = sd->_dest._request._tm;
-        gex_Rank_t dest        = sd->_dest._request._rank;
+        gex_Rank_t rank        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
         gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
@@ -664,7 +666,7 @@ void gasnetc_AM_CommitRequestMediumM(
                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+        int rc = gasneti_AMRequestMediumV(tm, rank, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     }
     va_end(argptr);
@@ -729,7 +731,7 @@ void gasnetc_AM_CommitRequestLongM(
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Long, handler, nbytes, dest_addr, argptr);
     } else {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
         gex_TM_t   tm          = sd->_dest._request._tm;
-        gex_Rank_t dest        = sd->_dest._request._rank;
+        gex_Rank_t rank        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
         gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
@@ -737,7 +739,7 @@ void gasnetc_AM_CommitRequestLongM(
                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+        int rc = gasneti_AMRequestLongV(tm, rank, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     }
     va_end(argptr);

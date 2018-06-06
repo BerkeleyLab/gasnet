@@ -4405,7 +4405,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   gasnetc_EP_t ep = gasnetc_ep0;
   va_start(argptr, numargs);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, gasneti_THUNK_TM, jobrank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_GET);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
@@ -4437,7 +4437,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   gasnetc_EP_t ep = gasnetc_ep0;
   va_start(argptr, numargs);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, gasneti_THUNK_TM, jobrank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, jobrank, handler,
                                             source_addr, nbytes, NULL,
                                             0, numargs, argptr GASNETI_THREAD_GET);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
@@ -4520,12 +4520,13 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gasneti_assert(tm);
   gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm));
   gasneti_assert(ep == gasnetc_ep0);
-  if (GASNETI_NBRHD_LOCAL(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
                                             0, numargs, argptr GASNETI_THREAD_GET);
   } else {
-    retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, NULL, rank, handler,
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, NULL, jobrank, handler,
                                    NULL, 0, NULL,
                                    flags, numargs, NULL, NULL, NULL,
                                    argptr GASNETI_THREAD_PASS);
@@ -4543,9 +4544,10 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gasneti_assert(tm);
   gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm));
   gasneti_assert(ep == gasnetc_ep0);
-  if (GASNETI_NBRHD_LOCAL(tm, rank)) {
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, tm, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, jobrank, handler,
                                             source_addr, nbytes, NULL,
                                             flags, numargs, argptr GASNETI_THREAD_GET);
   } else {
@@ -4573,7 +4575,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       gasneti_fatalerror("Invalid lc_opt argument to RequestMedium");
     }
 
-    retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, NULL, rank, handler,
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, NULL, jobrank, handler,
                                    source_addr, nbytes, NULL,
                                    flags, numargs, local_cnt, local_cb, NULL,
                                    argptr GASNETI_THREAD_PASS);
@@ -4606,9 +4608,10 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gasneti_assert(tm);
   gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_ep(gex_TM_QueryEP(tm));
   gasneti_assert(ep == gasnetc_ep0);
-  if (GASNETI_NBRHD_LOCAL(tm, rank)) {
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
-    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Long, tm, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Long, jobrank, handler,
                                             source_addr, nbytes, dest_addr,
                                             flags, numargs, argptr GASNETI_THREAD_GET);
   } else {
@@ -4654,7 +4657,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       gasneti_fatalerror("Invalid lc_opt argument to RequestLong");
     }
 
-    retval = gasnetc_ReqRepGeneric(ep, gasneti_Long, NULL, rank, handler,
+    retval = gasnetc_ReqRepGeneric(ep, gasneti_Long, NULL, jobrank, handler,
                                    source_addr, nbytes, dest_addr,
                                    flags, numargs, local_cnt, local_cb, NULL,
                                    argptr GASNETI_THREAD_PASS);

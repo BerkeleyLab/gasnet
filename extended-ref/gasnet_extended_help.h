@@ -146,20 +146,18 @@ extern int gasnete_maxthreadidx;
    by defining either GASNETE_PUTGET_ALWAYSLOCAL or GASNETE_PUTGET_ALWAYSREMOTE
  */
 // TODO-EX: REMOVE THE GASNETE_PUTGET_ALWAYS* DEFINES ENTIRELY
-// TODO-EX: "real" TM support
 #if GASNET_CONDUIT_SMP
   #if GASNET_PSHM // smp w/pshm: the PSHM support handles smp loopback
-    #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank < gasneti_nodes),0) 
+    #define gasnete_islocal(e_tm,rank) (gasneti_check_tm_rank(e_tm,rank),0)
   #else           // smp nopshm: single-process loopback handled in header
-    #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank == 0),1)
+    #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == 0),1)
   #endif
 #elif defined(GASNETE_PUTGET_ALWAYSLOCAL)  // always local
-  #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank == gasneti_mynode),1)
+  #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode),1)
 #elif defined(GASNETE_PUTGET_ALWAYSREMOTE) // always remote
-  #define gasnete_islocal(tm,rank) (gasneti_assert(tm),gasneti_assert(rank != gasneti_mynode),0)
+  #define gasnete_islocal(e_tm,rank) (gasneti_assert(gasneti_e_tm_rank_to_jobrank(e_tm,rank) != gasneti_mynode),0)
 #else // general case
-  /* "0 != " avoids warnings from some compilers about assign-vs-compare ambiguity */
-  #define gasnete_islocal(tm,rank) (gasneti_assert(tm), (0 != (rank == gasneti_mynode)))
+  #define gasnete_islocal(e_tm,rank) (gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -481,11 +479,11 @@ typedef union {
 #endif
 
 // GASNETI_NBRHD_* convenience macros (same semantics w/ and w/o PSHM)
-//    LOCAL(tm,rank)                   -> non-zero iff the indicated rank is in caller's neighborhood
-//    LOCAL_ADDR(tm,rank,addr)         -> address in caller's address space if the indicated rank is
+//    LOCAL(e_tm,rank)                   -> non-zero iff the indicated rank is in caller's neighborhood
+//    LOCAL_ADDR(e_tm,rank,addr)         -> address in caller's address space if the indicated rank is
 //                                        in caller's neighborhood, and undefined otherwise.
 //                                        input addr must be non-NULL
-//    LOCAL_ADDR_OR_NULL(tm,rank,addr) -> address in caller's address space if the indicated rank is
+//    LOCAL_ADDR_OR_NULL(e_tm,rank,addr) -> address in caller's address space if the indicated rank is
 //                                        in caller's neighborhood, and NULL otherwise.
 //                                        input addr must be non-NULL
 // Equivalents for callers using jobrank:
@@ -496,21 +494,19 @@ typedef union {
 //   + LOCAL_ADDR might be made smarter?
 //
 #if GASNET_PSHM
-  #define _GASNETI_NBRHD_LOCAL(tm,rank) gasneti_pshm_in_supernode(tm,rank)
-  #define _GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr) gasneti_pshm_addr2local(tm,rank,addr)
+  #define _GASNETI_NBRHD_LOCAL(e_tm,rank) gasneti_pshm_in_supernode(e_tm,rank)
+  #define _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr) gasneti_pshm_addr2local(e_tm,rank,addr)
   #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank) gasneti_pshm_jobrank_in_supernode(jobrank)
   #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr) gasneti_pshm_jobrank_addr2local(jobrank,addr)
 #else
   #if GASNET_CONDUIT_SMP
-    #define _GASNETI_NBRHD_LOCAL(tm,rank)               (1)
+    #define _GASNETI_NBRHD_LOCAL(e_tm,rank)             (1)
     #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)    (1)
   #else 
-    // TODO-EX: "real" TM support will require  ((rank) == gex_TM_QueryRank(tm))
-    //          but ideally w/o any pointer-chase for the important case tm == TM0.
-    #define _GASNETI_NBRHD_LOCAL(tm,rank)               ((rank) == gasneti_mynode)
+    #define _GASNETI_NBRHD_LOCAL(e_tm,rank)             (gasneti_e_tm_rank_to_jobrank(e_tm,rank) == gasneti_mynode)
     #define _GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)    ((jobrank) == gasneti_mynode)
   #endif
-  #define _GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr)          (addr)
+  #define _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)        (addr)
   #define _GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,addr)  (addr)
 #endif
 
@@ -523,21 +519,21 @@ void *gasneti_nbrhd_jobrank_local_addr_or_null(gex_Rank_t _jobrank, void *_addr)
 GASNETI_PUREP(gasneti_nbrhd_jobrank_local_addr_or_null)
 
 GASNETI_INLINE(gasneti_nbrhd_local_addr_or_null) GASNETI_PURE
-void *gasneti_nbrhd_local_addr_or_null(gex_TM_t _tm, gex_Rank_t _rank, void *_addr) {
-  gex_Rank_t _jobrank = _rank; // TODO-EX: real TM support
+void *gasneti_nbrhd_local_addr_or_null(gex_TM_t _e_tm, gex_Rank_t _rank, void *_addr) {
+  gex_Rank_t _jobrank = gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
   return gasneti_nbrhd_jobrank_local_addr_or_null(_jobrank, _addr);
 }
 GASNETI_PUREP(gasneti_nbrhd_local_addr_or_null)
 
-#define GASNETI_NBRHD_LOCAL(tm,rank) \
-        (gasneti_assert((rank) < gex_TM_QuerySize(tm)), \
-         _GASNETI_NBRHD_LOCAL(tm,rank))
-#define GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr)\
-        (gasneti_assert((rank) < gex_TM_QuerySize(tm)), gasneti_assert(addr), \
-         _GASNETI_NBRHD_LOCAL_ADDR(tm,rank,addr))
-#define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(tm,rank,addr) \
-        (gasneti_assert((rank) < gex_TM_QuerySize(tm)), gasneti_assert(addr), \
-         gasneti_nbrhd_local_addr_or_null(tm,rank,addr))
+#define GASNETI_NBRHD_LOCAL(e_tm,rank) \
+        (gasneti_assert((rank) < gex_TM_QuerySize(e_tm)), \
+         _GASNETI_NBRHD_LOCAL(e_tm,rank))
+#define GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr)\
+        (gasneti_assert((rank) < gex_TM_QuerySize(e_tm)), gasneti_assert(addr), \
+         _GASNETI_NBRHD_LOCAL_ADDR(e_tm,rank,addr))
+#define GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(e_tm,rank,addr) \
+        (gasneti_assert((rank) < gex_TM_QuerySize(e_tm)), gasneti_assert(addr), \
+         gasneti_nbrhd_local_addr_or_null(e_tm,rank,addr))
 
 #define GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)\
         (gasneti_assert((jobrank) < gasneti_nodes), \

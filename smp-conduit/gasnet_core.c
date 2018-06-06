@@ -1004,9 +1004,10 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Short,
-                                  tm, rank, handler, 
+                                  jobrank, handler, 
                                   0, 0, 0,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);
@@ -1032,9 +1033,10 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Medium,
-                                  tm, rank, handler, 
+                                  jobrank, handler, 
                                   source_addr, nbytes, 0,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);
@@ -1061,9 +1063,10 @@ extern int gasnetc_AMRequestLongM(
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Long,
-                                  tm, rank, handler, 
+                                  jobrank, handler, 
                                   source_addr, nbytes, dest_addr,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);

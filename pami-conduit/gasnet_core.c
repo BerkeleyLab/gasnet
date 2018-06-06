@@ -1210,8 +1210,9 @@ int gasnetc_AMRequestShort(
                 int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval = GASNET_OK;
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, jobrank, handler,
                                           NULL, 0, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1228,7 +1229,7 @@ int gasnetc_AMRequestShort(
     cmd.header.iov_len = GASNETC_ARGSEND(short, numargs);
     cmd.data.iov_base = NULL;
     cmd.data.iov_len = 0;
-    cmd.dest = gasnetc_endpoint(rank);
+    cmd.dest = gasnetc_endpoint(jobrank);
     cmd.dispatch = GASNETC_DISP_SHORT;
     cmd.hints = gasnetc_null_send_hint;
 
@@ -1273,8 +1274,9 @@ int gasnetc_AMRequestMedium(
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, jobrank, handler,
                                           source_addr, nbytes, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1310,7 +1312,7 @@ int gasnetc_AMRequestMedium(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_MED;
     cmd.send.hints = gasnetc_null_send_hint;
 
@@ -1372,8 +1374,9 @@ int gasnetc_AMRequestLong(
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, jobrank, handler,
                                           source_addr, nbytes, dest_addr,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1403,7 +1406,7 @@ int gasnetc_AMRequestLong(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = (char *)source_addr;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_LONG;
     cmd.send.hints = gasnetc_null_send_hint;
 
@@ -1477,7 +1480,7 @@ int gasnetc_AMReplyShort(
     pami_result_t rc;
     gasnetc_shortmsg_t msg;
 
-    gex_Rank_t rank = gasnetc_msgsource(token);
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(short, token);
     GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
@@ -1486,7 +1489,7 @@ int gasnetc_AMReplyShort(
     cmd.header.iov_len = GASNETC_ARGSEND(short, numargs);
     cmd.data.iov_base = NULL;
     cmd.data.iov_len = 0;
-    cmd.dest = gasnetc_endpoint(rank);
+    cmd.dest = gasnetc_endpoint(jobrank);
     cmd.dispatch = GASNETC_DISP_SHORT;
     cmd.hints = gasnetc_null_send_hint;
 
@@ -1550,7 +1553,7 @@ int gasnetc_AMReplyMedium(
         cmd.events.remote_fn = NULL;
     }
 
-    gex_Rank_t rank = gasnetc_msgsource(token);
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(med, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
@@ -1561,7 +1564,7 @@ int gasnetc_AMReplyMedium(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_MED;
     cmd.send.hints = gasnetc_null_send_hint;
 
@@ -1642,7 +1645,7 @@ int gasnetc_AMReplyLong(
         cmd.events.remote_fn = NULL;
     }
 
-    gex_Rank_t rank = gasnetc_msgsource(token);
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(long, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
@@ -1654,7 +1657,7 @@ int gasnetc_AMReplyLong(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_LONG;
     cmd.send.hints = gasnetc_null_send_hint;
 

@@ -1855,36 +1855,34 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 }
 
 int gasneti_Segment_QueryBound(
-                        gex_TM_t tm_arg,
+                        gex_TM_t tm,
                         gex_Rank_t rank,
                         void **owneraddr_p,
                         void **localaddr_p,
                         uintptr_t *size_p)
 {
-  gasneti_TM_t tm = gasneti_import_tm(tm_arg);
-  gasneti_assert(rank < tm->_size);
-
   // Trivial implementation using legacy data structures and assumptions.
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
   // TODO-EX: cannot yet tell no segment from zero-length segment
   gasneti_assert(gasneti_seginfo);
-  if (!gasneti_seginfo[rank].addr) return 1; // No (bound) segment
+  if (!gasneti_seginfo[jobrank].addr) return 1; // No (bound) segment
 
   if (owneraddr_p) {
-    *owneraddr_p = gasneti_seginfo[rank].addr;
+    *owneraddr_p = gasneti_seginfo[jobrank].addr;
   }
 
   if (size_p){
-    *size_p = gasneti_seginfo[rank].size;
+    *size_p = gasneti_seginfo[jobrank].size;
   }
 
   if (localaddr_p) {
-    if (GASNETI_NBRHD_LOCAL(tm_arg,rank)) {
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     #if GASNET_PSHM
       gasneti_assert(gasneti_nodeinfo);
-      *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[rank].addr + gasneti_nodeinfo[rank].offset);
+      *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[jobrank].addr + gasneti_nodeinfo[jobrank].offset);
     #else
-      *localaddr_p = gasneti_seginfo[rank].addr;
+      *localaddr_p = gasneti_seginfo[jobrank].addr;
     #endif
     } else {
       *localaddr_p = NULL;

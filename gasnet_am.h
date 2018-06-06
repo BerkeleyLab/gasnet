@@ -455,7 +455,7 @@ GASNETI_INLINE(gasneti_prepare_request_common)
 void gasneti_prepare_request_common(
                        gasneti_AM_SrcDesc_t sd,
                        gex_TM_t             tm,
-                       gex_Rank_t           dest,
+                       gex_Rank_t           rank,
                        const void          *client_buf,
                        size_t               size,
                        gex_Event_t         *lc_opt,
@@ -463,7 +463,7 @@ void gasneti_prepare_request_common(
                        unsigned int         nargs)
 {
     sd->_dest._request._tm   = tm;
-    sd->_dest._request._rank = dest;
+    sd->_dest._request._rank = rank;
     gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
 }
 
@@ -844,12 +844,12 @@ int gasnetc_loopback_ReqRepGeneric(
 GASNETI_INLINE(gasnetc_nbrhd_RequestGeneric)
 int gasnetc_nbrhd_RequestGeneric(
                          gasneti_category_t category,
-                         gex_TM_t tm, gex_Rank_t dest, gex_AM_Index_t handler, 
+                         gex_Rank_t jobrank, gex_AM_Index_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gex_Flags_t flags, int numargs, va_list argptr
-                         GASNETI_THREAD_FARG) {
-  // TODO-EX: real team support
-  gex_Rank_t jobrank = dest;
+                         GASNETI_THREAD_FARG)
+{
+  gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 #if GASNET_PSHM
   switch(category) {
     case gasneti_Short:
@@ -957,8 +957,8 @@ void gasnetc_loopback_Commit(
 #else
   #define _GASNETC_IS_NBRHD_FIELD _loopback
 #endif
-#define GASNETC_IS_NBRHD_PREPARE_REQ(sd,tm,dest) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = GASNETI_NBRHD_LOCAL(tm,dest)))
+#define GASNETC_IS_NBRHD_PREPARE_REQ(sd,jobrank) \
+    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)))
 #define GASNETC_IS_NBRHD_PREPARE_REP(sd,token) \
     (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_token_in_nbrhd(token)))
 #define GASNETC_IS_NBRHD_COMMIT(sd) \
@@ -970,8 +970,7 @@ GASNETI_INLINE(gasnetc_nbrhd_PrepareRequest)
 int gasnetc_nbrhd_PrepareRequest(
                         gasneti_AM_SrcDesc_t sd,
                         gasneti_category_t   category,
-                        gex_TM_t             tm,
-                        gex_Rank_t           dest,
+                        gex_Rank_t           jobrank,
                         const void          *client_buf,
                         size_t               least_payload,
                         size_t               most_payload,
@@ -981,13 +980,13 @@ int gasnetc_nbrhd_PrepareRequest(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(GASNETI_NBRHD_LOCAL(tm,dest));
+  gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    return gasnetc_AMPSHM_PrepareRequestMedium(sd, tm, dest, client_buf, least_payload, most_payload,
+    return gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
                                                lc_opt, flags, nargs GASNETI_THREAD_PASS);
   } else {
-    return gasnetc_AMPSHM_PrepareRequestLong(sd, tm, dest, client_buf, least_payload, most_payload,
+    return gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
                                              dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
   }
 #else

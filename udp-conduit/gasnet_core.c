@@ -813,15 +813,16 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
-    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, tm, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, jobrank, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestVA(gasnetc_endpoint, rank, handler, 
+               AMUDP_RequestVA(gasnetc_endpoint, jobrank, handler, 
                                numargs, argptr));
     AMUNLOCK();
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
@@ -853,15 +854,16 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
 {
   int retval;
   gasneti_leaf_finish(lc_opt); // always locally completed
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
-    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, tm, rank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, jobrank, handler,
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestIVA(gasnetc_endpoint, rank, handler, 
+               AMUDP_RequestIVA(gasnetc_endpoint, jobrank, handler, 
                                 source_addr, nbytes, 
                                 numargs, argptr));
     AMUNLOCK();
@@ -905,9 +907,10 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
 {
   int retval;
   gasneti_leaf_finish(lc_opt); // always locally completed
-  if_pt (GASNETI_NBRHD_LOCAL(tm, rank)) {
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
       GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* poll at least once, to assure forward progress */
-      retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, tm, rank, handler,
+      retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, jobrank, handler,
                                              source_addr, nbytes, dest_addr,
                                              flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -920,7 +923,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestXferVA(gasnetc_endpoint, rank, handler, 
+               AMUDP_RequestXferVA(gasnetc_endpoint, jobrank, handler, 
                                    source_addr, nbytes, 
                                    dest_offset, 0,
                                    numargs, argptr));
