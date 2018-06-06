@@ -463,6 +463,15 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   /* collect the relrank information */
   gasnet_coll_gather_all(team, relranks, &myrelrank, sizeof(gex_Rank_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
 
+  /* short-circuit if excluded */
+  if (mycolor == -1) {
+    gasneti_free(colors);
+    gasneti_free(relranks);
+    gasneti_free(allsegs);
+    gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+    gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+    return NULL;
+  }
 
   /* pass 1: just count */
   new_total_ranks = 0;
