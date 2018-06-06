@@ -434,7 +434,8 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
                                              GASNETE_THREAD_FARG)
 {
   gasnet_team_handle_t newteam;
-  gex_Rank_t new_total_ranks, new_myrank;
+  gex_Rank_t new_total_ranks;
+  gex_Rank_t new_myrank = GEX_RANK_INVALID;
   gex_Rank_t *rel2act_map;
   gasnet_seginfo_t *segments;
   gex_Rank_t i, j;
@@ -492,6 +493,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
     rel2act_map[i] = team->rel2act_map[j];
     segments[i] = all_args[j].segment;
   }
+  gasneti_assert(new_myrank != GEX_RANK_INVALID);
   gasneti_free(members);
   gasneti_free(all_args);
   
