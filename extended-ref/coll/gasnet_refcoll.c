@@ -2934,8 +2934,8 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
   gex_Event_t ret;
   
 #if GASNET_PAR
-  /* Thread-local addr(s) - forward to bcastM_nb() */
-  if (flags & GASNET_COLL_LOCAL  && !(flags & GASNETE_COLL_SUBORDINATE) && !(flags & GASNET_COLL_NO_IMAGES)) {
+  /* Thread-local addrs - forward to bcastM_nb() */
+  if (flags & GASNET_COLL_LOCAL && team->multi_images_any && !(flags & GASNETE_COLL_SUBORDINATE) && !(flags & GASNET_COLL_NO_IMAGES)) {
     return gasnete_coll_broadcastM_nb(team, &dst, srcimage, src, nbytes,
                                       flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                       GASNETE_THREAD_PASS);
@@ -3303,8 +3303,8 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   gasnete_coll_implementation_t impl;
   gex_Event_t ret;
 #if GASNET_PAR
-  /* Thread-local addr(s) - forward to scatM_nb() */
-  if (flags & GASNET_COLL_LOCAL && !(flags & GASNETE_COLL_SUBORDINATE)) {
+  /* Thread-local addrs - forward to scatM_nb() */
+  if (flags & GASNET_COLL_LOCAL && team->multi_images_any && !(flags & GASNETE_COLL_SUBORDINATE)) {
     return gasnete_coll_scatterM_nb(team, &dst, srcimage, src, nbytes,
                                     flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                     GASNETE_THREAD_PASS);
@@ -3667,8 +3667,8 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   gasnete_coll_implementation_t impl;
   gex_Event_t ret;
 #if GASNET_PAR
-  /* Thread-local addr(s) - forward to gathM_nb() */
-  if (flags & GASNET_COLL_LOCAL && !(flags & GASNETE_COLL_SUBORDINATE))  {
+  /* Thread-local addrs - forward to gathM_nb() */
+  if (flags & GASNET_COLL_LOCAL && team->multi_images_any && !(flags & GASNETE_COLL_SUBORDINATE))  {
     return gasnete_coll_gatherM_nb(team, dstimage, dst, &src, nbytes,
                                    flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                    GASNETE_THREAD_PASS);
@@ -4098,8 +4098,8 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
   gasnete_coll_implementation_t impl;
   gex_Event_t ret;
 #if GASNET_PAR
-  /* Thread-local addr(s) - forward to gallM_nb() */
-  if (flags & GASNET_COLL_LOCAL  && !(flags & GASNETE_COLL_SUBORDINATE)) {
+  /* Thread-local addrs - forward to gallM_nb() */
+  if (flags & GASNET_COLL_LOCAL && team->multi_images_any && !(flags & GASNETE_COLL_SUBORDINATE)) {
     return gasnete_coll_gather_allM_nb(team, &dst, &src, nbytes,
                                        flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                        GASNETE_THREAD_PASS);
@@ -4541,8 +4541,8 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
   gasnete_coll_implementation_t impl;
   gex_Event_t ret;
 #if GASNET_PAR
-  /* Thread-local addr(s) - forward to exchgM_nb() */
-  if (flags & GASNET_COLL_LOCAL  && !(flags & GASNETE_COLL_SUBORDINATE)) {
+  /* Thread-local addrs - forward to exchgM_nb() */
+  if (flags & GASNET_COLL_LOCAL && team->multi_images_any && !(flags & GASNETE_COLL_SUBORDINATE)) {
     return gasnete_coll_exchangeM_nb(team, &dst, &src, nbytes,
                                      flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                      GASNETE_THREAD_PASS);
@@ -4918,7 +4918,8 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
   gasneti_assert(src_offset == 0);
   
 #if GASNET_PAR
-  if(flags & GASNET_COLL_LOCAL && !(flags & GASNETE_COLL_SUBORDINATE)) {
+  /* Thread-local addrs - forward to reduceM_nb() */
+  if(flags & GASNET_COLL_LOCAL && team->multi_images_any && !(flags & GASNETE_COLL_SUBORDINATE)) {
     return gasnete_coll_reduceM_nb(team, dstimage, dst, &src, src_blksz, src_offset, elem_size, elem_count, func, func_arg,
                                    flags | GASNETE_COLL_THREAD_LOCAL, sequence GASNETE_THREAD_PASS);
   }
