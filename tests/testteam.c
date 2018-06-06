@@ -94,7 +94,7 @@ int main(int argc, char **argv)
                  
   my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
                                         my_row,
-                                        my_col,
+                                        1+2*my_col, // Gaps
                                         &teamA_scratch);
 
   my_col_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
