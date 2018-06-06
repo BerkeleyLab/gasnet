@@ -824,6 +824,9 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_AM_REQREP,
 
     GEX_FLAG_ENABLE_LEAF_LC,
+
+    GEX_FLAG_TM_SCRATCH_SIZE_MIN,
+    GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
@@ -869,6 +872,11 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_ENABLE_LEAF_LC,
   };
   assert_arr_unaliased(gex_Flags_t, flags_vis);
+  static gex_Flags_t const flags_tm[] = { // gex_TM_Split
+    GEX_FLAG_TM_SCRATCH_SIZE_MIN,
+    GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_tm);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;

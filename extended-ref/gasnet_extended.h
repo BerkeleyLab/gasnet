@@ -640,6 +640,17 @@ extern int gasnet_barrier_try(int _id, int _flags);
 extern int gasnet_barrier(int _id, int _flags);
 extern int gasnet_barrier_result(int *_id);
 /* ------------------------------------------------------------------------------------ */
+/*
+  Teams:
+  ======
+*/
+
+extern size_t gasneti_TM_Split(gex_TM_t *_new_tm_p, gex_TM_t _parent_tm,
+                               int _color, int _key,
+                               void *_addr, size_t _len, gex_Flags_t _flags
+                               GASNETI_THREAD_FARG);
+#define gex_TM_Split(n,p,c,k,a,l,f) gasneti_TM_Split(n,p,c,k,a,l,f GASNETI_THREAD_GET)
+/* ------------------------------------------------------------------------------------ */
 
 // TODO-EX: remove these checks for conduits using legacy internal APIs
 #if GASNETI_DIRECT_GET

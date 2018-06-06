@@ -174,6 +174,9 @@
 #define GASNETI_TMSTR(tm) gasneti_formattm(tm)
 #define GASNETI_TMRANKFMT GASNETI_TMFMT ":%i"
 #define GASNETI_TMRANKSTR(tm,rank) GASNETI_TMSTR(tm),(rank)
+// Team and *self* rank (note multiple evaluation of tm):
+#define GASNETI_TMSELFFMT GASNETI_TMRANKFMT
+#define GASNETI_TMSELFSTR(tm) GASNETI_TMRANKSTR(tm,gex_TM_QueryRank(tm))
 
 #if PLATFORM_ARCH_32 
   #define GASNETI_LADDRFMT "0x%08" PRIxPTR
