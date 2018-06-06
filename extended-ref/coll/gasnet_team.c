@@ -418,7 +418,7 @@ void gasnete_coll_team_free(gasnet_team_handle_t team)
 }
 
 typedef struct {
-  gex_Rank_t relrank;
+  int relrank;
   gex_Rank_t parent_rank;
 } gasnete_coll_split_sort_t;
 
@@ -431,8 +431,8 @@ int gasnete_coll_split_sort_fn(const void *x, const void *y) {
 }
 
 gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
-                                             gex_Rank_t mycolor,
-                                             gex_Rank_t myrelrank,
+                                             int mycolor,
+                                             int myrelrank,
                                              void *clientdata
                                              GASNETE_THREAD_FARG)
 {
