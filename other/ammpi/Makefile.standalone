@@ -21,7 +21,8 @@ set_opt_ccflags =   -DAMMPI_NDEBUG=1 $(ccoptflags)   $(MANUAL_CFLAGS) $(MANUAL_M
 VPATH = $(srcdir)
 includes = -I$(srcdir) -I$(altincdir)
 libraries = $(platform_libraries)
-Ccompile = $(CC) -c $(ccflags) $(platform_defines) $(includes) $(MANUAL_DEFINES)
+defines = -D_GNU_SOURCE=1
+Ccompile = $(CC) -c $(ccflags) $(defines) $(platform_defines) $(includes) $(MANUAL_DEFINES)
 link = $(CC) $(ccflags) $(platform_ldflags) $(MANUAL_LDFLAGS) $(platform_defines) $(includes) 
 linkend = $(libraries) $(MANUAL_LIBS)
 
