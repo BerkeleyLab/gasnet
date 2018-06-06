@@ -466,6 +466,8 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
     }
   }
   gasneti_free(allsegs);
+  gasneti_free(relranks);
+  gasneti_free(colors);
 
   
   /* It would be better to add some sanity check for team correctness here. */
