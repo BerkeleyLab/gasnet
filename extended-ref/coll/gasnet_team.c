@@ -438,10 +438,8 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
 {
   gasnet_team_handle_t newteam;
   gex_Rank_t new_total_ranks, new_myrank;
-  gex_Rank_t *colors; /* gasnet_image_t for PAR mode*/
-  gex_Rank_t *relranks; /* gasnet_image_t for PAR mode */
   gex_Rank_t *rel2act_map;
-  gasnet_seginfo_t *allsegs, *segments;
+  gasnet_seginfo_t *segments;
   gex_Rank_t i, j;
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_split: team rank %u, parent team handle %p, mycolor %u, myrank %u\n",
@@ -449,25 +447,22 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   fflush(stderr);
 #endif
 
-  colors = (gex_Rank_t *)gasneti_malloc(sizeof(mycolor)*team->total_ranks);
-  relranks = (gex_Rank_t *)gasneti_malloc(sizeof(myrelrank)*team->total_ranks);
-  allsegs = (gasnet_seginfo_t*) gasneti_malloc(sizeof(gasnet_seginfo_t)*team->total_ranks);
- 
-  
-  gasnet_coll_gather_all(team, allsegs, (gasnet_seginfo_t*) clientdata, 
-                         sizeof(gasnet_seginfo_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
-  /* collect the color information */
-  gasnet_coll_gather_all(team, colors, &mycolor, sizeof(gex_Rank_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
-
-  
-  /* collect the relrank information */
-  gasnet_coll_gather_all(team, relranks, &myrelrank, sizeof(gex_Rank_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  /* collect the arguments */
+  struct {
+    gex_Rank_t color;
+    gex_Rank_t relrank;
+    gasnet_seginfo_t segment;
+  } my_args, *all_args;
+  my_args.color = mycolor;
+  my_args.relrank = myrelrank;
+  my_args.segment = *(gasnet_seginfo_t*)clientdata;
+  all_args = gasneti_malloc(sizeof(my_args) * team->total_ranks);
+  gasnet_coll_gather_all(team, all_args, &my_args, sizeof(my_args),
+                         GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
 
   /* short-circuit if excluded */
   if (mycolor == -1) {
-    gasneti_free(colors);
-    gasneti_free(relranks);
-    gasneti_free(allsegs);
+    gasneti_free(all_args);
     gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
     gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
     return NULL;
@@ -476,15 +471,15 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   /* pass 1: just count */
   new_total_ranks = 0;
   for (i=0; i<team->total_ranks; i++) {
-    new_total_ranks += (mycolor == colors[i]);
+    new_total_ranks += (mycolor == all_args[i].color);
   }
 
   /* pass 2: collect and rank the members */
   gasnete_coll_split_sort_t *members = gasneti_malloc(new_total_ranks*sizeof(gasnete_coll_split_sort_t));
   for (i=j=0; i<team->total_ranks; i++) {
-    if (mycolor == colors[i]) {
+    if (mycolor == all_args[i].color) {
       members[j].parent_rank = i;
-      members[j].relrank = relranks[i];
+      members[j].relrank = all_args[i].relrank;
       j += 1;
     }
   }
@@ -498,13 +493,10 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
     j = members[i].parent_rank;
     if (j == team->myrank) new_myrank = i;
     rel2act_map[i] = team->rel2act_map[j];
-    segments[i] = allsegs[j];
+    segments[i] = all_args[j].segment;
   }
   gasneti_free(members);
-  gasneti_free(allsegs);
-  gasneti_free(relranks);
-  gasneti_free(colors);
-
+  gasneti_free(all_args);
   
   /* It would be better to add some sanity check for team correctness here. */
   
