@@ -97,6 +97,7 @@ testprograms_seq =      \
         testratomic     \
         testfaddperf    \
         testimm         \
+        testsplit       \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
