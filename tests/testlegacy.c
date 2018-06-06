@@ -349,29 +349,50 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_System_QueryJobRank() == gasnet_mynode());
   assert_always(gex_System_QueryJobSize() == gasnet_nodes());
 
-  // Neighborhood-vs-NodeInfo
+  // {Nbrhd,Host}Info vs getNodeInfo
   {
     gasnet_nodeinfo_t *nodeinfo = (gasnet_nodeinfo_t *)
                                   test_malloc(gasnet_nodes() * sizeof(gasnet_nodeinfo_t));
     GASNET_Safe(gasnet_getNodeInfo(nodeinfo, gasnet_nodes()));
-    gasnet_node_t mysupernode_id = nodeinfo[gasnet_mynode()].supernode;
+    gasnet_node_t mysupernode_id = nodeinfo[mynode].supernode;
     gasnet_node_t mysupernode_size = 0;
     gasnet_node_t mysupernode_rank = GEX_RANK_INVALID;
+    gasnet_node_t myhost_id = nodeinfo[mynode].host;
+    gasnet_node_t myhost_size = 0;
+    gasnet_node_t myhost_rank = GEX_RANK_INVALID;
     for (gasnet_node_t i = 0; i < gasnet_nodes(); ++i) {
-      if (i == gasnet_mynode()) mysupernode_rank = mysupernode_size;
+      if (i == mynode) {
+        mysupernode_rank = mysupernode_size;
+        myhost_rank = myhost_size;
+      }
       if (nodeinfo[i].supernode == mysupernode_id) mysupernode_size += 1;
+      if (nodeinfo[i].host      == myhost_id)      myhost_size      += 1;
     }
     assert_always(mysupernode_size >= 1);
     assert_always(mysupernode_rank != GEX_RANK_INVALID);
+    assert_always(myhost_size >= 1);
+    assert_always(myhost_rank != GEX_RANK_INVALID);
 
     gex_RankInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
     gex_System_QueryNbrhdInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
     assert_always(neighbor_size == mysupernode_size);
     assert_always(neighbor_rank == mysupernode_rank);
+    assert_always(neighbor_array != NULL);
     for (gasnet_node_t i = 0; i < mysupernode_size; ++i) {
       assert_always(nodeinfo[neighbor_array[i].gex_jobrank].supernode == mysupernode_id);
     }
+
+    gex_RankInfo_t *host_array;
+    gex_Rank_t host_size, host_rank;
+    gex_System_QueryHostInfo(&host_array, &host_size, &host_rank);
+    assert_always(host_size == myhost_size);
+    assert_always(host_rank == myhost_rank);
+    assert_always(host_array != NULL);
+    for (gasnet_node_t i = 0; i < myhost_size; ++i) {
+      assert_always(nodeinfo[host_array[i].gex_jobrank].host == myhost_id);
+    }
+
     test_free(nodeinfo);
   }
 

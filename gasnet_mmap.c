@@ -1798,6 +1798,28 @@ extern void gex_System_QueryNbrhdInfo(
 #endif
 }
 
+// Provides information about compute-node peers (same O/S image, files system, etc.)
+//
+// TODO: Could improve "safety" by not exposing addr of critical internal data
+// TODO: Could reduce memory use if array lived in shared memory
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p)
+{
+  GASNETI_CHECKINIT();
+  if (info_p) {
+    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_RankInfo_t *) gasneti_myhost.nodes;
+  }
+  if (info_count_p) {
+    *info_count_p = gasneti_myhost.node_count;
+  }
+  if (my_info_index_p) {
+    *my_info_index_p = gasneti_myhost.node_rank;
+  }
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* seginfo initialization and manipulation */
 extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {

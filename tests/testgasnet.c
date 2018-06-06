@@ -494,6 +494,29 @@ void doit(int partner, int *partnerseg) {
       assert_always(!i || (neighbor_array[i].gex_jobrank > neighbor_array[i-1].gex_jobrank));
     }
 
+    gex_RankInfo_t *host_array;
+    gex_Rank_t host_size, host_rank;
+    gex_System_QueryHostInfo(&host_array, &host_size, &host_rank);
+
+    assert_always(host_array != NULL);
+    assert_always((host_size > 0) && (host_size <= gex_System_QueryJobSize()));
+    assert_always(host_rank < host_size);
+    assert_always(host_array[host_rank].gex_jobrank == gex_System_QueryJobRank());
+
+    for (gex_Rank_t i = 0; i < host_size; ++i) {
+      // Check sort:
+      assert_always(!i || (host_array[i].gex_jobrank > host_array[i-1].gex_jobrank));
+    }
+
+    // Nbrhd must be a subset of Host:
+    // Note that since both arrays are sorted this check is linear in time
+    for (gex_Rank_t nidx = 0, hidx = 0; nidx < neighbor_size; ++nidx) {
+      for (/*empty*/; hidx < host_size; ++hidx) {
+        if (neighbor_array[nidx].gex_jobrank == host_array[hidx].gex_jobrank) break;
+      }
+      assert_always(hidx < host_size);  // fail if nbrhd member not found in host_array
+    }
+
   #if !GASNET_SEGMENT_EVERYTHING
     // Exercise sharing to validate ranks in neighbor_array
     BARRIER();

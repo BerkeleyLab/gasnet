@@ -1079,22 +1079,11 @@ static gex_TM_t _test_tm0;
 
 /* ------------------------------------------------------------------------------------ */
 /* local process and thread count management */
-static gasnet_nodeinfo_t *_test_nodeinfo = NULL;
 static gex_Rank_t _test_firstnode;
 static int _test_localprocs(void) { /* First call is not thread safe */
-  static int count = 0;
+  static gex_Rank_t count = 0;
   if (!count) {
-    gex_Rank_t my_host;
-    gex_Rank_t i;
-
-    assert(_test_nodeinfo);
-    my_host = _test_nodeinfo[TEST_MYPROC].host;
-    for (i=0; i < TEST_PROCS; i++) {
-      if (_test_nodeinfo[i].host == my_host) {
-        if (!count) _test_firstnode = i;
-        count++;
-      }
-    }
+    gex_System_QueryHostInfo(NULL, &count, NULL);
   }
   assert(count > 0);
   return count;
@@ -1233,15 +1222,15 @@ static void _test_init(const char *testname, int reports_performance, int early,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     fflush(NULL);
-    assert(_test_nodeinfo == NULL);
     /* must use malloc here, pre-attach if "early" */
-    _test_nodeinfo = (gasnet_nodeinfo_t *)malloc(TEST_PROCS*sizeof(gasnet_nodeinfo_t));
-    GASNET_Safe(gasnet_getNodeInfo(_test_nodeinfo, TEST_PROCS));
+    gasnet_nodeinfo_t * nodeinfo = (gasnet_nodeinfo_t *)malloc(TEST_PROCS*sizeof(gasnet_nodeinfo_t));
+    GASNET_Safe(gasnet_getNodeInfo(nodeinfo, TEST_PROCS));
     if (!early) {
       BARRIER();
     } else gasnett_nsleep(250000);
-    MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[TEST_MYPROC].supernode, (int)getpid());
+    MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)nodeinfo[TEST_MYPROC].supernode, (int)getpid());
     fflush(NULL);
+    free(nodeinfo);
     if (!early) BARRIER();
   #else
     MSG0("=====> %s config=%s compiler=%s/%s sys=%s",

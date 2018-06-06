@@ -515,6 +515,11 @@ extern void gex_System_QueryNbrhdInfo(
             gex_Rank_t             *_info_count_p,
             gex_Rank_t             *_my_info_index_p);
 
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **_info_p,
+            gex_Rank_t             *_info_count_p,
+            gex_Rank_t             *_my_info_index_p);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
