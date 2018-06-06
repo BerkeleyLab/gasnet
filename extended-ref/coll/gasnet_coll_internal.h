@@ -330,6 +330,9 @@ struct gasnete_coll_team_t_ {
 #if GASNET_PAR
   int multi_images;	/* count of local images > 1 */
   int multi_images_any;	/* count of any node's images > 1 */
+
+  gasneti_mutex_t threads_mutex;
+  volatile uint32_t threads_sequence; /* volatile due to bug 2646 */
 #endif
   
   /*Stuff for consensus*/
@@ -1279,9 +1282,9 @@ extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data);
 
 #if GASNET_PAR
 extern void gasnete_coll_threads_lock(gasnete_coll_team_t team, int flags GASNETE_THREAD_FARG);
-extern void gasnete_coll_threads_unlock(GASNETE_THREAD_FARG_ALONE);
-extern int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE);
-extern gex_Event_t gasnete_coll_threads_get_handle(GASNETE_THREAD_FARG_ALONE);
+extern void gasnete_coll_threads_unlock(gasnete_coll_team_t team GASNETE_THREAD_FARG);
+extern int gasnete_coll_threads_first(gasnete_coll_team_t team GASNETE_THREAD_FARG);
+extern gex_Event_t gasnete_coll_threads_get_handle(gasnete_coll_team_t team GASNETE_THREAD_FARG);
 extern void gasnete_coll_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern void gasnete_coll_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 GASNETI_INLINE(gasnete_coll_generic_all_threads)

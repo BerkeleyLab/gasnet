@@ -89,8 +89,9 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->my_offset = team->all_offset[myrank];
   
 #if GASNET_PAR
-  /*can only be allocating team all if PAR MODE*/
-  
+  gasneti_mutex_init(&team->threads_mutex);
+  team->threads_sequence = 0;
+
   if (!images) {
     team->multi_images = 0;
     team->multi_images_any = 0;
