@@ -412,13 +412,9 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
   #endif
 #endif
 
-#if GASNETI_STATS_OR_TRACE
-  #define BUILD_STATS(type,name,desc) { #type, #name, #desc },
-  gasneti_statinfo_t gasneti_stats[] = {
-    GASNETI_ALL_STATS(BUILD_STATS, BUILD_STATS, BUILD_STATS)
-    {NULL, NULL, NULL}
-  };
-
+// gasneti_dynsprintf() available even w/o TRACE/STATS
+// For instance, for generating portions of error messages
+#if 1
   #define BUFSZ     8192
   #define NUMBUFS   4
   typedef struct {
@@ -430,16 +426,6 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
       gasneti_threadkey_set(gasneti_printbuf_key, NULL);
       gasneti_free(_td);
   }
-
-  /* give gcc enough information to type-check our format strings */
-  GASNETI_FORMAT_PRINTF(gasneti_file_vprintf,2,0,
-  static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr));
-  GASNETI_FORMAT_PRINTF(gasneti_trace_printf,1,2,
-  static void gasneti_trace_printf(const char *format, ...));
-  GASNETI_FORMAT_PRINTF(gasneti_stats_printf,1,2,
-  static void gasneti_stats_printf(const char *format, ...));
-  GASNETI_FORMAT_PRINTF(gasneti_tracestats_printf,1,2,
-  static void gasneti_tracestats_printf(const char *format, ...));
 
   static char *gasneti_getbuf(void) {
     gasneti_printbuf_t * printbuf;
@@ -469,6 +455,24 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
     va_end(argptr);
     return output;
   }
+#endif
+
+#if GASNETI_STATS_OR_TRACE
+  #define BUILD_STATS(type,name,desc) { #type, #name, #desc },
+  gasneti_statinfo_t gasneti_stats[] = {
+    GASNETI_ALL_STATS(BUILD_STATS, BUILD_STATS, BUILD_STATS)
+    {NULL, NULL, NULL}
+  };
+
+  /* give gcc enough information to type-check our format strings */
+  GASNETI_FORMAT_PRINTF(gasneti_file_vprintf,2,0,
+  static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr));
+  GASNETI_FORMAT_PRINTF(gasneti_trace_printf,1,2,
+  static void gasneti_trace_printf(const char *format, ...));
+  GASNETI_FORMAT_PRINTF(gasneti_stats_printf,1,2,
+  static void gasneti_stats_printf(const char *format, ...));
+  GASNETI_FORMAT_PRINTF(gasneti_tracestats_printf,1,2,
+  static void gasneti_tracestats_printf(const char *format, ...));
 
   #define BYTES_PER_LINE 16
   #define MAX_LINES 10
