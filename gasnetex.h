@@ -505,10 +505,13 @@ typedef const struct {
   // Avert your eyes - space below is reserved for internal use
 
   // Nothing to see here (yet)
-} gex_NbrhdInfo_t;
+} gex_RankInfo_t;
+
+// TODO-EX: Temporary backwards compat, Remove this!
+#define gex_NbrhdInfo_t gex_RankInfo_t
 
 extern void gex_System_QueryNbrhdInfo(
-            gex_NbrhdInfo_t        **_info_p,
+            gex_RankInfo_t         **_info_p,
             gex_Rank_t             *_info_count_p,
             gex_Rank_t             *_my_info_index_p);
 

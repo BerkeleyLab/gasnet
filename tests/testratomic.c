@@ -770,7 +770,7 @@ int main(int argc, char **argv) {
   peerseg = TEST_SEG(peer);
 
   {
-    gex_NbrhdInfo_t *info;
+    gex_RankInfo_t *info;
     gex_System_QueryNbrhdInfo(&info, &nbrhdsize, &nbrhdrank);
     neighbor = info[(nbrhdrank + 1) % nbrhdsize].gex_jobrank;
   }

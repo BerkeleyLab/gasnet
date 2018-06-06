@@ -480,7 +480,7 @@ void doit(int partner, int *partnerseg) {
 #endif
 
   {
-    gex_NbrhdInfo_t *neighbor_array;
+    gex_RankInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
     gex_System_QueryNbrhdInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
 
@@ -968,7 +968,7 @@ void doit0(int partner, int *partnerseg) {
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
-  assert_field_constint(gex_NbrhdInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
+  assert_field_constint(gex_RankInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
   MSG("*** passed object test!!");
 
