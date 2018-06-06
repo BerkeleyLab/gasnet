@@ -396,9 +396,6 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
 
   /* create the team locally */
   team = (gasnet_team_handle_t)gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
-#if GASNET_PAR
-  gasneti_fatalerror("can't call team_init in PAR Builds yet");
-#endif
   gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETE_THREAD_PASS);
   new_team_id = 0;
   
@@ -511,6 +508,11 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   fflush(stderr);
 #endif
 
+#if GASNET_PAR
+  if (team->multi_images_any) {
+    gasneti_fatalerror("can't yet call team_init when using multiple images");
+  }
+#endif
   newteam = gasnete_coll_team_create(new_total_ranks, new_myrank, rel2act_map, segments GASNETE_THREAD_PASS);
   
   gasneti_free(rel2act_map);
