@@ -7,10 +7,7 @@
 
 #define GASNET_COLL_TREE_DEBUG 0
 
-/*having exactly 1 thread poll signifcantly helps performance by avoiding lock contention*/
-/*#define ALL_THREADS_POLL 1*/
-
-#define ALL_THREADS_POLL 0
+#define ALL_THREADS_POLL 1
 
 #include <gasnet_internal.h>
 
