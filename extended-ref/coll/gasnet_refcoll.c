@@ -212,6 +212,8 @@ extern void gasnete_coll_eop_signal(gasnete_coll_eop_t eop GASNETE_THREAD_FARG) 
 /*---------------------------------------------------------------------------------*/
 /* Code for list of events to test in progress */
 
+static gasneti_mutex_t gasnete_coll_poll_lock = GASNETI_MUTEX_INITIALIZER;
+
 static struct {
   gex_Event_t  **addrs;
   gex_Event_t  *events;
@@ -219,6 +221,7 @@ static struct {
 } gasnete_coll_event_list = {NULL, NULL, 0, 0};
 
 void gasnete_coll_save_event(gex_Event_t *event_p) {
+  gasneti_mutex_assertlocked(&gasnete_coll_poll_lock);
   if (*event_p != GEX_EVENT_INVALID) {
     int allocated = gasnete_coll_event_list.allocated;
     int used = gasnete_coll_event_list.used;
@@ -240,6 +243,7 @@ void gasnete_coll_save_event(gex_Event_t *event_p) {
 void gasnete_coll_sync_saved_events(GASNETE_THREAD_FARG_ALONE) {
   int used = gasnete_coll_event_list.used;
 
+  gasneti_mutex_assertlocked(&gasnete_coll_poll_lock);
   if (used) {
     gex_Event_t *events = gasnete_coll_event_list.events;
     if (! gasnete_test_some(events, used GASNETI_THREAD_PASS)) {
@@ -559,17 +563,19 @@ gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
  * Iteration over the active list is based on a linked list (queue).
  * Iteration starts from the head and new ops are added at the tail.
  *
+ * Callers to ins and del must always hold the active lock.
+ * Traversal and ins may run concurrently.
+ * See comment in gasneti_coll_progressfn() for more info.
+ *
  * XXX: use list macros?
  */
 static gasnete_coll_op_t	*gasnete_coll_active_head;
 static gasnete_coll_op_t	**gasnete_coll_active_tail_p;
 
-/* Caller must obtain lock */
 gasnete_coll_op_t *gasnete_coll_active_first(void) {
   return gasnete_coll_active_head;
 }
 
-/* Caller must obtain lock */
 gasnete_coll_op_t *gasnete_coll_active_next(gasnete_coll_op_t *op) {
   return op->active_next;
 }
@@ -580,16 +586,17 @@ void gasnete_coll_active_new(gasnete_coll_op_t *op) {
   op->active_prev_p = &(op->active_next);
 }
 
-/* Caller must obtain lock */
 void gasnete_coll_active_ins(gasnete_coll_op_t *op) {
+  gasneti_mutex_assertlocked(&gasnete_coll_active_lock);
   if (! gasnete_coll_active_head) GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_coll,BOOLEAN);
+  gasneti_assert(op->active_next == NULL);
   *(gasnete_coll_active_tail_p) = op;
   op->active_prev_p = gasnete_coll_active_tail_p;
   gasnete_coll_active_tail_p = &(op->active_next);
 }
 
-/* Caller must obtain lock */
 void gasnete_coll_active_del(gasnete_coll_op_t *op) {
+  gasneti_mutex_assertlocked(&gasnete_coll_active_lock);
   gasnete_coll_op_t *next = op->active_next;
   *(op->active_prev_p) = next;
   if (next) {
@@ -752,8 +759,7 @@ extern void gasneti_coll_progressfn(void) {
   if (td->in_poll) return; /* prevent recursion */
   td->in_poll = 1;
 
-  static gasneti_mutex_t poll_lock = GASNETI_MUTEX_INITIALIZER;
-  if (gasneti_mutex_trylock(&poll_lock) == 0)
+  if (gasneti_mutex_trylock(&gasnete_coll_poll_lock) == 0)
   {
     /* First try to make progress on any pending events */
     if(td->my_local_image==0 || ALL_THREADS_POLL) {
@@ -796,7 +802,7 @@ extern void gasneti_coll_progressfn(void) {
       /* Next... */
       op = next;
     }
-    gasneti_mutex_unlock(&poll_lock);
+    gasneti_mutex_unlock(&gasnete_coll_poll_lock);
   }
   td->in_poll = 0;
 }
@@ -4190,6 +4196,13 @@ gasnete_coll_gallM_Gath(gasnet_team_handle_t team,
                         size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                         GASNETE_THREAD_FARG)
 {
+#if ALL_THREADS_POLL && GASNET_PAR
+  if ((flags & GASNET_COLL_SYNC_FLAG_MASK) == (GASNET_COLL_IN_NOSYNC|GASNET_COLL_OUT_NOSYNC)) {
+   // Change NO/NO to NO/MY to work around a not-yet-understood thread safety bug
+   flags ^= (GASNET_COLL_OUT_NOSYNC|GASNET_COLL_OUT_MYSYNC);
+  }
+#endif
+
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
   if((flags & GASNETE_COLL_SUBORDINATE)) {
@@ -4647,6 +4660,13 @@ gasnete_coll_exchgM_Gath(gasnet_team_handle_t team,
                          size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                          GASNETE_THREAD_FARG)
 {
+#if ALL_THREADS_POLL && GASNET_PAR
+  if ((flags & GASNET_COLL_SYNC_FLAG_MASK) == (GASNET_COLL_IN_NOSYNC|GASNET_COLL_OUT_NOSYNC)) {
+   // Change NO/NO to NO/MY to work around a not-yet-understood thread safety bug
+   flags ^= (GASNET_COLL_OUT_NOSYNC|GASNET_COLL_OUT_MYSYNC);
+  }
+#endif
+
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
