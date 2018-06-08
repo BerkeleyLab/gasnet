@@ -154,6 +154,14 @@ extern int gasnete_maxthreadidx;
   #define gasnete_islocal(nodeid) (gasneti_assert(nodeid < gasneti_nodes),(nodeid == gasneti_mynode))
 #endif
 
+#if PLATFORM_COMPILER_CLANG // workaround bug 3763
+  GASNETI_INLINE(_gasnete_islocal)
+  int _gasnete_islocal(gasnet_node_t _nodeid) {
+    return gasnete_islocal(_nodeid);
+  }
+  #undef gasnete_islocal
+  #define gasnete_islocal(nodeid) _gasnete_islocal(nodeid)
+#endif
 /* ------------------------------------------------------------------------------------ */
 /* bug 1389: need to prevent bad optimizations on GASNETE_FAST_ALIGNED_MEMCPY due to
    ansi-aliasing rules added in C99 that foolishly outlaw type-punning. 
