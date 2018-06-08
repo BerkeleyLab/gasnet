@@ -544,6 +544,8 @@ int gasnete_coll_threads_ready2(gasnete_coll_op_t *op, void **list1, void **list
  *   void gasnete_coll_active_fini()
  *   gasnete_coll_op_t *gasnete_coll_active_first()
  *	Return the first coll op in the active list.
+ *   gasnete_coll_op_t *gasnete_coll_active_last()
+ *	Return the last coll op in the active list.
  *   gasnete_coll_op_t *gasnete_coll_active_next(op)
  *	Iterate over the coll ops in the active list.
  *   void gasnete_coll_active_new(op)
@@ -574,6 +576,11 @@ static gasnete_coll_op_t	**gasnete_coll_active_tail_p;
 
 gasnete_coll_op_t *gasnete_coll_active_first(void) {
   return gasnete_coll_active_head;
+}
+
+gasnete_coll_op_t *gasnete_coll_active_last(void) {
+  return (gasnete_coll_op_t*)((uintptr_t)gasnete_coll_active_tail_p -
+                              offsetof(gasnete_coll_op_t,active_next));
 }
 
 gasnete_coll_op_t *gasnete_coll_active_next(gasnete_coll_op_t *op) {
@@ -696,6 +703,8 @@ gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnete_coll_eop_t eop GASNETE_THR
 }
 
 void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THREAD_FARG) {
+  gasneti_mutex_assertlocked(&gasnete_coll_active_lock);
+
   if (poll_result & GASNETE_COLL_OP_COMPLETE) {
     if_pt (op->eop != NULL) {
 	    /* Normal case, just signal the eop */
@@ -772,36 +781,34 @@ extern void gasneti_coll_progressfn(void) {
      * occur AND execution of this block is serialized by 'poll_lock'.
      * Meanwhile, the only other modification that can be made is the
      * insertion (at the list tail) of new entries.  Therefore, we can
-     * safely call gasnete_coll_active_{first,next}() without the lock
-     * held.  However, we must hold if for deletions.
+     * safely call gasnete_coll_active_next() without the lock held.
+     * However, we must hold it for deletions.
      */
-    gasnete_coll_op_t *op = gasnete_coll_active_first();
+    gasneti_mutex_lock(&gasnete_coll_active_lock);
+    gasnete_coll_op_t *next = gasnete_coll_active_first();
+    gasnete_coll_op_t *last = gasnete_coll_active_last();
+    gasneti_mutex_unlock(&gasnete_coll_active_lock);
 
-    while (op != NULL) {
-      gasnete_coll_op_t *next;
-      int poll_result = 0;
+    gasnete_coll_op_t *op;
+    if (next) {
+      do {
+        gasneti_assert(next);
+        op = next;
+        next = gasnete_coll_active_next(op);
 
-      /* Poll/kick the op */
-      gasneti_assert(op->poll_fn != (gasnete_coll_poll_fn)NULL);
-      poll_result = (*op->poll_fn)(op GASNETE_THREAD_PASS);
+        // Poll/kick the op
+        gasneti_assert(op->poll_fn);
+        int poll_result = (*op->poll_fn)(op GASNETE_THREAD_PASS);
 
-      next = gasnete_coll_active_next(op);
-      /* Advance down the list, possibly deleting this current element */
-      
-      
-      if (poll_result != 0) {
-        /*if the op was using any scratch space indicate that the scratch is free to overwrite*/
-        /*update my head and tail of the scratch space*/
-        gasneti_mutex_lock(&gasnete_coll_active_lock);
-        gasnete_coll_op_complete(op, poll_result GASNETE_THREAD_PASS);
-        gasneti_mutex_unlock(&gasnete_coll_active_lock);
-      }
-
-      
-
-      /* Next... */
-      op = next;
+        if (poll_result != 0) {
+          // signal and/or destroy the op
+          gasneti_mutex_lock(&gasnete_coll_active_lock);
+          gasnete_coll_op_complete(op, poll_result GASNETE_THREAD_PASS);
+          gasneti_mutex_unlock(&gasnete_coll_active_lock);
+        }
+      } while (op != last); // Stop at original end, not at NULL, due to lack of fences
     }
+
     gasneti_mutex_unlock(&gasnete_coll_poll_lock);
   }
   td->in_poll = 0;
