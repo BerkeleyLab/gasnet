@@ -195,8 +195,8 @@ extern void gasnete_coll_eop_signal(gasnete_coll_eop_t eop GASNETE_THREAD_FARG) 
   gasneti_assert(eop != NULL);
   gasneti_mutex_assertlocked(&gasnete_coll_active_lock);
 #if GASNET_PAR
+  gasneti_sync_writes();
   for (gasnete_coll_eop_t curr = eop; ; curr = curr->next) {
-    gasneti_sync_writes(); /* XXX? */
     gasneti_eop_markdone(GASNETE_COLL_REAL_EOP(curr));
     if (! curr->next) {
       gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
