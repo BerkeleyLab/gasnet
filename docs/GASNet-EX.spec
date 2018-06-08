@@ -647,6 +647,28 @@ size_t gex_TM_Split(gex_TM_t *new_tm_p, gex_TM_t parent_tm, int color, int key,
                     void *scratch_addr, size_t scratch_size, 
                     gex_Flags_t flags);
 
+// Translations between (tm,rank) and jobrank
+//
+// These functions provide translations in either direction between a
+// (tm,rank) pair and a jobrank.
+//
+// gex_Rank_t gex_TM_TranslateRankToJobrank(tm, rank)
+//    Returns the jobrank of the endpoint in 'tm' with the given 'rank'.
+//    Requires 0 <= rank < gex_TM_QuerySize(tm)
+// gex_Rank_t gex_TM_TranslateJobrankToRank(tm, jobrank)
+//    If there is an endpoint in 'tm' with the given 'jobrank', return its
+//    rank in 'tm'.  Otherwise, returns GEX_RANK_INVALID.
+//    Requires 0 <= jobrank < gex_System_QueryJobSize()
+//
+// These queries MAY communicate.
+// [TBD: exception for 'self' in one both directions?]
+// These calls are not legal in contexts which prohibit communication,
+// including (but not limited to) AM Handler context or when holding an HSL.
+//
+gex_Rank_t gex_TM_TranslateRankToJobrank(gex_TM_t tm, gex_Rank_t rank);
+gex_Rank_t gex_TM_TranslateJobrankToRank(gex_TM_t tm, gex_Rank_t jobrank);
+
+
 //
 // Operations on gex_EP_t
 // NOTE: currently gex_Client_Init() is the only way to create an EP.
