@@ -22,10 +22,10 @@ gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank) {
 }
 
 // Given (tm,jobrank) return the rank or GEX_RANK_INVALID
-// TODO-EX: Should at least avoid letting TM0 reach here
 // TODO-EX: THIS IS A HORRIBLE O(size(tm)) SCAN!
 gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank) {
   gasnete_coll_team_t team = tm->_coll_team;
+  gasneti_assert(team != GASNET_TEAM_ALL); // TM0 should not reach here
   gex_Rank_t size = tm->_size;
   gasneti_assert(size == team->total_ranks);
   for (gex_Rank_t rank = 0; rank < size; ++rank) {

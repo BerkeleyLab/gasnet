@@ -146,6 +146,8 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
 
+// NOTE: gasneti_[ei]_tm_jobrank_to_rank() appear later, after defn of gasneti_nodes
+
 // Variants to allow tm=NULL to substitute for TM0
 // TODO-EX: These will necessarily be superceeded when multi-{EP,segment}
 // support is added.  So, avoid creating new callers.
@@ -900,6 +902,16 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #else
   #error "Unsupported define of _GASNET_NODES"  
 #endif
+
+// This is not the naturual place for these, but they must follow defn of gex_System_QueryJobSize()
+GASNETI_INLINE(gasneti_i_tm_jobrank_to_rank)
+gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank) {
+  gasneti_assert(_i_tm && (_jobrank < gex_System_QueryJobSize()));
+  if (gasneti_is_tm0(_i_tm)) return _jobrank;
+  return gasneti_tm_rev_lookup(_i_tm, _jobrank);
+}
+#define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
+        gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)
 
 #ifndef _GASNET_GETMAXSEGMENTSIZE
 #define _GASNET_GETMAXSEGMENTSIZE
