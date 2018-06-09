@@ -51,7 +51,7 @@ typedef enum {GASNETE_COLL_NONO=0, GASNETE_COLL_NOMY, GASNETE_COLL_NOALL,
 GASNETE_COLL_ALLNO, GASNETE_COLL_ALLMY, GASNETE_COLL_ALLALL, GASNETE_COLL_NUM_SYNCMODES}
   gasnete_coll_syncmode_t;
 
-typedef enum {GASNETE_COLL_SINGLE_MODE=0, GASNETE_COLL_LOCAL_MODE, GASNETE_COLL_THREAD_LOCAL_MODE, 
+typedef enum {GASNETE_COLL_SINGLE_MODE=0, GASNETE_COLL_LOCAL_MODE,
   GASNETE_COLL_NUM_ADDRMODES} gasnete_coll_addr_mode_t;
 
 
@@ -392,7 +392,6 @@ typedef struct gasnete_coll_allgorithm_t_ {
   uint32_t requirements;
   
   /*A list of flags (if present) the algorithm will not work for
-    (a good example is GASNETE_COLL_THREAD_LOCAL)
    */
   uint32_t n_requirements;
   
@@ -517,23 +516,11 @@ gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, void *dst, 
                                           size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
 
 gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_bcastM_algorithm(gasnet_team_handle_t team, void * const dstlist[],
-                                           gasnet_image_t srcimage, void *src, size_t nbytes, uint32_t flags GASNETE_THREAD_FARG);
-
-gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
 
 gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_scatterM_algorithm(gasnet_team_handle_t team, void * const dstlist[], gasnet_image_t srcimage, 
-                                             void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
-gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_image_t dstimage, void *dst, void *src, 
                                            size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
-
-gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_gatherM_algorithm(gasnet_team_handle_t team,gasnet_image_t dstimage, void *dst, void * const srclist[], 
-                                            size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
-
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
@@ -541,31 +528,14 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
 
 
 gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_gather_allM_algorithm(gasnet_team_handle_t team, void * const dstlist[], void * const srclist[], 
-                                                size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
-
-gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
                                              size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
-
-gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_exchangeM_algorithm(gasnet_team_handle_t team, void * const dstlist[], void * const srclist[], 
-                                              size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
-
-
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_reduce_algorithm(gasnet_team_handle_t team, gasnet_image_t dstimage, void *dst, void *src,
                                            size_t src_blksz, size_t src_offset, size_t elem_size, size_t elem_count,
                                            gasnet_coll_fn_handle_t func, int func_arg,
                                            uint32_t flags GASNETE_THREAD_FARG);
-
-gasnete_coll_implementation_t
-gasnete_coll_autotune_get_reduceM_algorithm(gasnet_team_handle_t team, gasnet_image_t dstimage, void *dst, void * const srclist[],
-                                            size_t src_blksz, size_t src_offset, size_t elem_size, size_t elem_count,
-                                            gasnet_coll_fn_handle_t func, int func_arg,
-                                            uint32_t flags GASNETE_THREAD_FARG);
-
 
 
 gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_autotune_info_t* autotune_info, 
