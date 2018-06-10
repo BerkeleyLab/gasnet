@@ -1540,6 +1540,44 @@ extern void gex_System_QueryHostInfo(
             gex_Rank_t             *info_count_p,
             gex_Rank_t             *my_info_index_p);
 
+// Query information about the sets of Neighborhoods and Hosts
+//
+// All arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// nbrhd_set_size_p:
+//        Receives the number of neighborhoods in the job.
+// nbrhd_set_rank_p:
+//        Receives the 0-based rank of the caller's neighborhood within
+//        the set of neighborhoods in the job (a value between 0 and
+//        nbrhd_set_size-1, inclusive).
+// host_set_size_p:
+//        Receives the number of hosts in the job.
+// host_set_rank_p:
+//        Receives the 0-based rank of the caller's host within the
+//        set of host in the job (a value between 0 and host_set_size-1,
+//        inclusive).
+//
+// In a non-resilient build, the values returned by this query are constant for
+// any given caller over the lifetime of the job.  Semantics in a resilient
+// build will be defined in a later release.
+//
+// Information returned by this query is guaranteed to be self consistent:
+//   + All callers receive identical nbrhd_set_size.
+//   + Callers in the same neighborhood receive identical nbrhd_set_rank.
+//   + Callers in distinct neighborhoods receive distinct nbrhd_set_rank.
+//   + All callers receive identical host_set_size.
+//   + Callers on the same host receive identical host_set_rank.
+//   + Callers on distinct hosts receive distinct host_set_rank.
+// Other than these rules, and the [0,set_size) ranges, there are no other
+// guarantees as to how the ranks are assigned.
+
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *nbrhd_set_size,
+            gex_Rank_t *nbrhd_set_rank,
+            gex_Rank_t *host_set_size,
+            gex_Rank_t *host_set_rank);
+
 //
 // Handler-safe locks (HSLs)
 // Lock semantics are identical to those in GASNet-1
