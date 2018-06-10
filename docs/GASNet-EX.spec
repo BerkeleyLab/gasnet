@@ -2268,10 +2268,10 @@ int gex_AD_OpNBI_[DATATYPE](
 // For NBI/Blocking variants, the return type is int which is non-zero *only* in the
 // "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
 //
-// By default, all client-owned buffers (ie payload buffers and metadata
-// arrays) passed to the non-blocking initiation functions are implicitly
-// treated as GEX_EVENT_DEFER semantics, and thus must remain 
-// valid until the operation is fully completed (as in GASNet-1).
+// By default, local completion of all client-owned input buffers (ie payload
+// buffers and metadata arrays) passed to non-blocking initiation functions
+// can occur as late as operation completion, and thus must remain valid until
+// that time (as in GASNet-1).
 // As an exception, the metadata arrays passed to Strided variants ({src,dst}strides[] and count[])
 // are guaranteed to be consumed synchronously before return from initiation.
 // gex_VIS_*Put{NB,NBI} optionally expose local completion of data payload buffers -
@@ -2386,6 +2386,99 @@ int gex_AD_OpNBI_[DATATYPE](
         gex_Flags_t flags);
 
 // End of section describing APIs provided by gasnet_vis.h
+//----------------------------------------------------------------------
+//
+// Collectives (Coll) [EXPERIMENTAL]
+//
+// With the exception of gex_Coll_Barrier(), APIs in this section are provided
+// by gasnet_coll.h
+//
+
+// This API is an updated and expanded version of the collectives prototype
+// offered in GASNet-1, and previously documented in docs/collective_notes.txt.
+// As these APIs are fully specified and implemented, the corresponding
+// portions of the GASNet-1 collectives prototype will be removed from
+// gasnet_coll.h and replaced with GEX variants.  The GASNet-1 collectives API
+// signatures will not be supported in future releases."
+
+// The following semantics apply to all Coll functions:
+
+// For NB variants, return type for all functions in this section is gex_Event_t.
+// There are no NBI or Blocking variants at this time.
+
+// All functions in this section are collective, meaning that for any given
+// team the sequence of these operations (and all others documented as
+// "collective") must agree across all members of the team.  Additionally,
+// calls over distinct teams must be ordered such that no deadlock would occur
+// if all such calls were replaced by blocking barriers.  A formal
+// specification of this constraint will appear in a future revision of this
+// document.
+
+// Multiple collective operations from this section may be active
+// concurrently, over multiple teams or over a single team, with the exception
+// of Barrier.  See gex_Coll_BarrierNB() for more information.
+// [This restriction may be relaxed in a future release]
+
+// In contrast to the UPC-influenced design of the GASNet-1 collectives, the
+// GASNet-EX collectives do not support "NOSYNC" or "ALLSYNC" flags (they
+// behave as if IN_MYSYNC|OUT_MYSYNC), nor single-valued address information.
+// [A future release may re-introduce single-valued addressing for symmetric
+// heaps via offset-based addressing]
+// In this respect, the intuition one may hold from MPI-3 non-blocking
+// collectives is largely applicable.
+
+// By default, local completion of all client-owned input buffers ('src'
+// arguments) passed to the collective initiation functions can occur as late
+// as operation completion, and thus must remain valid until that time.
+//
+// A future revision may expose intermediate completion events [UNIMPLEMENTED]
+
+// Upon operation completion (synchronization of the gex_Event_t returned at
+// initiation) the following will hold:
+// + Any input buffer ('src' argument) will be locally complete (analogous
+//   to the source of a gex_RMA_PutNB() with GEX_EVENT_DEFER).
+// + Any output buffer ('dst' argument) is ready to be examined by the thread
+//   performing the sync of the gex_Event_t (analogous to the destination of
+//   a gex_RMA_GetNB()).
+// + Unless otherwise noted in the description of a given operation, there are
+//   no guarantees regarding the state on other ranks participating in the
+//   collective operation nor their associated input and output buffers.
+
+// Unless noted explicitly, no API in this section, other than a Barrier, is
+// required to synchronize the calling ranks.  However, the implementation is
+// *permitted* to do so in any call in this section.
+
+// NOTE: All of the (void *) types for source and destination buffers in these
+// APIs will eventually be gex_Addr_t [UNIMPLEMENTED]
+
+//
+// Collectives Part I.  Barrier
+//
+
+// Split-phase barrier over a Team
+//
+// This call is collective over a team, and initiates a split-phase
+// (non-blocking) barrier over its members.
+//
+// + The return value is a root event which can be successfully synchronized
+//   (return from gex_Event_Wait*() or zero return from gex_Event_Test*())
+//   only after all members of the team have issued a corresponding call.
+// + This call is non-blocking (does not stall waiting for other team members
+//   to issue a corresponding call).
+// + Barriers may not operate concurrently with any other collective
+//   operations over the same team, including other barriers.
+//   - Collective operations over a team issued prior to a barrier over the same
+//     team must be complete/synchronized prior to initiating the barrier.
+//   - No collective call may be initiated over a team between the initiation
+//     and completion/synchronization of any barrier over the same team.
+//   [This restriction may be relaxed in a future release]
+//
+// tm:      The call is collective over the associated team.
+// flags:   Flags are reserved for future use and must currently be zero
+//
+gex_Event_t gex_Coll_BarrierNB(gex_TM_t tm, gex_Flags_t flags);
+
+// End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
 
 // vim: syntax=c
