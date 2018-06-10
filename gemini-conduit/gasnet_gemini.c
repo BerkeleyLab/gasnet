@@ -7,15 +7,6 @@
 #include <signal.h>
 #include <string.h>
 
-#ifndef container_of
-/* Convert from address of a member to address of the containing structure
- * ptr = member pointer
- * type = container's type
- * field = member's field name
- */
-  #define container_of(ptr,type,field) ((type*) ((uintptr_t)(ptr) - offsetof(type,field)))
-#endif
-
 #define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 
@@ -1885,7 +1876,7 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(gni_cq_handle_t bound_cq_handle
     gasnetc_GNIT_Abort("bound CqGetEvent %s", gasnetc_gni_rc_string(status));
   }
 
-  return result ? container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
+  return result ? gasneti_container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
 }
 
 GASNETI_NEVER_INLINE(gasnetc_poll_local_queue,

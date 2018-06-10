@@ -833,19 +833,19 @@ void gasnetc_ofi_handle_rdma(void *buf)
 		case OFI_TYPE_EGET:
 		case OFI_TYPE_EPUT:
 			{
-				gasnete_eop_t *eop = (gasnete_eop_t *)container_of(ptr, gasnete_eop_t, ofi);
+				gasnete_eop_t *eop = gasneti_container_of(ptr, gasnete_eop_t, ofi);
 				GASNETE_EOP_MARKDONE(eop);
 			}
 			break;
 		case OFI_TYPE_IGET:
 			{
-				gasnete_iop_t *iop = (gasnete_iop_t *)container_of(ptr, gasnete_iop_t, get_ofi);
+				gasnete_iop_t *iop = gasneti_container_of(ptr, gasnete_iop_t, get_ofi);
 				gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
 			}
 			break;
 		case OFI_TYPE_IPUT:
 			{
-				gasnete_iop_t *iop = (gasnete_iop_t *)container_of(ptr, gasnete_iop_t, put_ofi);
+				gasnete_iop_t *iop = gasneti_container_of(ptr, gasnete_iop_t, put_ofi);
 				gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
 			}
 			break;

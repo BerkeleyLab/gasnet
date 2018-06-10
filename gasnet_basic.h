@@ -228,6 +228,15 @@
   #define gasneti_offsetof offsetof
 #endif
 
+// gasneti_container_of()
+// Given address of a structure member, recreate a pointer to the structure.
+// Use of gasneti_offsetof() allows 'field' to be a non-constant expression.
+//   ptr = member pointer
+//   type = container's type
+//   field = member's field name
+#define gasneti_container_of(ptr,type,field) \
+          ((type*) ((uintptr_t)(ptr) - gasneti_offsetof(type,field)))
+
 /* splitting and reassembling 64-bit quantities */
 #define GASNETI_MAKEWORD(hi,lo) ((((uint64_t)(hi)) << 32) | (((uint64_t)(lo)) & 0xFFFFFFFF))
 #define GASNETI_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
