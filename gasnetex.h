@@ -262,7 +262,6 @@ GASNETI_BEGIN_NOWARN
   /* barrier flags */
   #define GASNET_BARRIERFLAG_ANONYMOUS 1
   #define GASNET_BARRIERFLAG_MISMATCH  2
-  #define GASNET_BARRIERFLAG_IMAGES 4
 
   /* UNNAMED includes ANONYMOUS to yield a trivial default implementation: */
   #define GASNETE_BARRIERFLAG_UNNAMED 8

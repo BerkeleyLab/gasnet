@@ -27,8 +27,6 @@
 */
 #include <coll/gasnet_autotune.c>
 #include <coll/gasnet_scratch.c>
-#include <smp-collectives/smp_coll.c>
-#include <smp-collectives/smp_coll_barrier.c>
 
 size_t gasnete_coll_p2p_eager_min = 0;
 size_t gasnete_coll_p2p_eager_scale = 0;
@@ -892,20 +890,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   if (images) {
     td->my_local_image = my_image - GASNET_TEAM_ALL->my_offset;
     gasneti_assert(td->my_local_image < GASNET_TEAM_ALL->my_images);
-    {
-      int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 0);
-      td->smp_coll_handle = smp_coll_init(1024*1024, 
-                                          (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), 
-                                          images[gasneti_mynode], td->my_local_image);
-    }
   } else {
     td->my_local_image = 0;  
-    {
-      int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 0);
-      td->smp_coll_handle = smp_coll_init(1024*1024, 
-                                          (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), 
-                                          1, 0);
-    }
   }
 
 #if GASNET_DEBUG

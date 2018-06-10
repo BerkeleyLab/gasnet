@@ -80,11 +80,7 @@ size_t max_data_size;
 #define TEST_USE_PRIMORDIAL_THREAD 1
 #include "test.h"
 
-#if 0
-#define COLL_BARRIER() do{  gasnet_coll_barrier_notify(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES); gasnet_coll_barrier_wait(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);} while(0)
-#else
 #define COLL_BARRIER() PTHREAD_BARRIER(threads_per_node)
-#endif
 
 typedef struct {
   int my_local_thread;
