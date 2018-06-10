@@ -520,6 +520,12 @@ extern void gex_System_QueryHostInfo(
             gex_Rank_t             *_info_count_p,
             gex_Rank_t             *_my_info_index_p);
 
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *_nbrhd_set_size_p,
+            gex_Rank_t *_nbrhd_set_rank_p,
+            gex_Rank_t *_host_set_size_p,
+            gex_Rank_t *_host_set_rank_p);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 

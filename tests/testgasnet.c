@@ -536,6 +536,17 @@ void doit(int partner, int *partnerseg) {
   #endif
   }
 
+  {
+    gex_Rank_t n_proc = gex_System_QueryJobSize();
+    gex_Rank_t n_size, n_rank, h_size, h_rank;
+    gex_System_QueryMyPosition(&n_size, &n_rank, &h_size, &h_rank);
+    // Ranks in both sets must be less than set size:
+    assert_always(n_size > n_rank);
+    assert_always(h_size > h_rank);
+    // #proc >= #nbrhd >= #host:
+    assert_always(n_proc >= n_size && n_size >= h_size);
+  }
+
   /* width-independent computation of an integer variable with unknown unsigned type */
   #if PLATFORM_ARCH_LITTLE_ENDIAN
     #define compute_uint_val(lval_u64,var) do {          \

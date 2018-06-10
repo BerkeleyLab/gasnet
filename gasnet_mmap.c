@@ -1820,6 +1820,27 @@ extern void gex_System_QueryHostInfo(
   }
 }
 
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *nbrhd_set_size_p,
+            gex_Rank_t *nbrhd_set_rank_p,
+            gex_Rank_t *host_set_size_p,
+            gex_Rank_t *host_set_rank_p)
+{
+  GASNETI_CHECKINIT();
+  if (nbrhd_set_size_p) {
+    *nbrhd_set_size_p = gasneti_mysupernode.grp_count;
+  }
+  if (nbrhd_set_rank_p) {
+    *nbrhd_set_rank_p = gasneti_mysupernode.grp_rank;
+  }
+  if (host_set_size_p) {
+    *host_set_size_p = gasneti_myhost.grp_count;
+  }
+  if (host_set_rank_p) {
+    *host_set_rank_p = gasneti_myhost.grp_rank;
+  }
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* seginfo initialization and manipulation */
 extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {

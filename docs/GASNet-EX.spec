@@ -117,8 +117,9 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // or while holding a GASNet handler-safe lock are as follows:
 //
 // gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
-// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_System_QueryHostInfo(), gex_HSL_*()
-// gex_System_QueryJob*(), gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
+// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_System_QueryHostInfo(),
+// gex_System_QueryMyPosition(), gex_System_QueryJob{Rank,Size}(), gex_HSL_*(),
+// gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
 // gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
 // 
 // The following are conditionally permitted in handler context, the condition being the 

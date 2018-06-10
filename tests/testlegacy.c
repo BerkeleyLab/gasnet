@@ -349,7 +349,7 @@ void doit(int partner, int *partnerseg) {
   assert_always(gex_System_QueryJobRank() == gasnet_mynode());
   assert_always(gex_System_QueryJobSize() == gasnet_nodes());
 
-  // {Nbrhd,Host}Info vs getNodeInfo
+  // {Nbrhd,Host}Info and MyPosition vs getNodeInfo
   {
     gasnet_nodeinfo_t *nodeinfo = (gasnet_nodeinfo_t *)
                                   test_malloc(gasnet_nodes() * sizeof(gasnet_nodeinfo_t));
@@ -392,6 +392,19 @@ void doit(int partner, int *partnerseg) {
     for (gasnet_node_t i = 0; i < myhost_size; ++i) {
       assert_always(nodeinfo[host_array[i].gex_jobrank].host == myhost_id);
     }
+
+    gasnet_node_t max_supernode = 0;
+    gasnet_node_t max_host = 0;
+    for (gasnet_node_t i = 0; i < gasnet_nodes(); ++i) {
+      max_supernode = MAX(max_supernode, nodeinfo[i].supernode);
+      max_host      = MAX(max_host     , nodeinfo[i].host     );
+    }
+    gex_Rank_t n_size, n_rank, h_size, h_rank;
+    gex_System_QueryMyPosition(&n_size, &n_rank, &h_size, &h_rank);
+    assert_always(n_size == 1 + max_supernode);
+    assert_always(n_rank == nodeinfo[gasneti_mynode].supernode);
+    assert_always(h_size == 1 + max_host);
+    assert_always(h_rank == nodeinfo[gasneti_mynode].host);
 
     test_free(nodeinfo);
   }

@@ -1223,14 +1223,13 @@ static void _test_init(const char *testname, int reports_performance, int early,
         GASNETT_SYSTEM_TUPLE);
     fflush(NULL);
     /* must use malloc here, pre-attach if "early" */
-    gasnet_nodeinfo_t * nodeinfo = (gasnet_nodeinfo_t *)malloc(TEST_PROCS*sizeof(gasnet_nodeinfo_t));
-    GASNET_Safe(gasnet_getNodeInfo(nodeinfo, TEST_PROCS));
+    gex_Rank_t nbrhd_rank;
+    gex_System_QueryMyPosition(NULL,&nbrhd_rank,NULL,NULL);
     if (!early) {
       BARRIER();
     } else gasnett_nsleep(250000);
-    MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)nodeinfo[TEST_MYPROC].supernode, (int)getpid());
+    MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)nbrhd_rank, (int)getpid());
     fflush(NULL);
-    free(nodeinfo);
     if (!early) BARRIER();
   #else
     MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
