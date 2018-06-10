@@ -43,8 +43,6 @@ size_t gasnete_coll_fn_count;
 
 /*declarations for gasnet team all*/
 gasnet_team_handle_t gasnete_coll_team_all;
-gasnet_team_handle_t gasnete_coll_teamA;
-gasnet_team_handle_t gasnete_coll_teamB;
 /*---------------------------------------------------------------------------------*/
 
 static gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
@@ -462,57 +460,6 @@ gasnete_coll_threads_get_handle(gasnete_coll_team_t team GASNETE_THREAD_FARG) {
   gasneti_mutex_unlock(&gasnete_coll_active_lock);
 
   return result;
-}
-
-/* Thread-arrival function when collecting thread-local addrs */
-gex_Event_t
-gasnete_coll_threads_get_handle_and_data(gasnete_coll_team_t team, gasnete_coll_generic_data_t **data_p GASNETE_THREAD_FARG) {
-  gasnete_coll_op_t *op;
-  gex_Event_t result = GEX_EVENT_INVALID;
-
-#if !ALL_THREADS_POLL && GASNET_PAR
-  {
-    int first_thread=gasnete_coll_threads_first(team GASNETE_THREAD_PASS);
-    gasneti_assert(first_thread==0);
-  }
-#endif
-  
-  gasneti_mutex_lock(&gasnete_coll_active_lock);
-  op = gasnete_coll_threads_get_op(GASNETE_THREAD_PASS_ALONE);
-  gasneti_assert(op != NULL);
-  if (op->flags & (GASNET_COLL_OUT_ALLSYNC | GASNET_COLL_OUT_MYSYNC)) {
-    gasnete_coll_eop_t eop = gasnete_coll_threads_add_eop(op GASNETE_THREAD_PASS);
-    result = GASNETE_COLL_EOP_TO_EVENT(eop);
-  }
-  gasneti_mutex_unlock(&gasnete_coll_active_lock);
-
-  *data_p = op->data;
-
-  return result;
-}
-
-int gasnete_coll_threads_addrs_ready(gasnete_coll_team_t team, void * volatile *list GASNETE_THREAD_FARG) {
-  /* The idea is to scan a list of thread-local addresses to see that they have all
-   * been set to non-NULL values.  This function tries to lessen the amount of ping-
-   * ponging of cache lines by eliminating the potential "hot spot" at the beginning
-   * of the list.  This only ends up making a difference if the list spans cachelines.
-   *
-   * Note that non-application threads are OK, and will have my_local_image == 0.
-   */
-  const gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-  int i;
-  gasneti_assert(team == GASNET_TEAM_ALL);
-  for (i = td->my_local_image; i < team->my_images; ++i) { /* >= self */
-    if (list[i] == NULL) {
-      return 0;
-    }
-  }
-  for (i = 0; i < td->my_local_image; ++i) { /* < self */
-    if (list[i] == NULL) {
-      return 0;
-    }
-  }
-  return 1;
 }
 #endif
 
