@@ -47,6 +47,14 @@ gasnet_team_handle_t gasnete_coll_teamA;
 gasnet_team_handle_t gasnete_coll_teamB;
 /*---------------------------------------------------------------------------------*/
 
+static gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
+static gasnete_coll_op_t *gasnete_coll_active_first(void);
+static gasnete_coll_op_t *gasnete_coll_active_next(gasnete_coll_op_t *op);
+static void gasnete_coll_active_new(gasnete_coll_op_t *op);
+static void gasnete_coll_active_ins(gasnete_coll_op_t *op);
+static void gasnete_coll_active_del(gasnete_coll_op_t *op);
+
+/*---------------------------------------------------------------------------------*/
 int gasnete_coll_init_done = 0;
 
 void gasnete_coll_validate(gasnet_team_handle_t team,
@@ -532,8 +540,6 @@ int gasnete_coll_threads_addrs_ready(gasnete_coll_team_t team, void * volatile *
  *
  */
 
-gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
-
 #ifndef GASNETE_COLL_LIST_OVERRIDE
 /* Default implementation of coll_ops active list:
  *
@@ -549,25 +555,30 @@ gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
 static gasnete_coll_op_t	*gasnete_coll_active_head;
 static gasnete_coll_op_t	**gasnete_coll_active_tail_p;
 
+static
 gasnete_coll_op_t *gasnete_coll_active_first(void) {
   return gasnete_coll_active_head;
 }
 
+static
 gasnete_coll_op_t *gasnete_coll_active_last(void) {
   return (gasnete_coll_op_t*)((uintptr_t)gasnete_coll_active_tail_p -
                               offsetof(gasnete_coll_op_t,active_next));
 }
 
+static
 gasnete_coll_op_t *gasnete_coll_active_next(gasnete_coll_op_t *op) {
   return op->active_next;
 }
 
 /* No lock needed */
+static
 void gasnete_coll_active_new(gasnete_coll_op_t *op) {
   op->active_next = NULL;
   op->active_prev_p = &(op->active_next);
 }
 
+static
 void gasnete_coll_active_ins(gasnete_coll_op_t *op) {
   gasneti_mutex_assertlocked(&gasnete_coll_active_lock);
   if (! gasnete_coll_active_head) GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_coll,BOOLEAN);
@@ -577,6 +588,7 @@ void gasnete_coll_active_ins(gasnete_coll_op_t *op) {
   gasnete_coll_active_tail_p = &(op->active_next);
 }
 
+static
 void gasnete_coll_active_del(gasnete_coll_op_t *op) {
   gasneti_mutex_assertlocked(&gasnete_coll_active_lock);
   gasnete_coll_op_t *next = op->active_next;

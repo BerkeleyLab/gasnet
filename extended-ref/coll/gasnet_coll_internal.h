@@ -158,14 +158,8 @@ extern void gasnete_coll_eop_signal(gasnete_coll_eop_t eop GASNETE_THREAD_FARG);
 /*---------------------------------------------------------------------------------*/
 /* Operations of the active list */
 
-extern gasneti_mutex_t gasnete_coll_active_lock;
 extern void gasnete_coll_active_init(void);
 extern void gasnete_coll_active_fini(void);
-extern gasnete_coll_op_t *gasnete_coll_active_first(void);
-extern gasnete_coll_op_t *gasnete_coll_active_next(gasnete_coll_op_t *op);
-extern void gasnete_coll_active_new(gasnete_coll_op_t *op);
-extern void gasnete_coll_active_ins(gasnete_coll_op_t *op);
-extern void gasnete_coll_active_del(gasnete_coll_op_t *op);
 /*---------------------------------------------------------------------------------*/
 
 
