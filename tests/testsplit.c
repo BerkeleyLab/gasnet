@@ -3,7 +3,6 @@
  */
 
 #include <gasnetex.h>
-#include <gasnet_coll.h>
 
 #define SCRATCH_SIZE (2*1024*1024)
 
@@ -78,8 +77,6 @@ int main(int argc, char **argv)
   gex_Rank_t peer;
 
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testsplit", &argc, &argv, 0));
-
-  gasnet_coll_init(NULL, 0, NULL, 0, 0);
 
   test_init("testsplit", 1, "(nrows) (ncols)");
 

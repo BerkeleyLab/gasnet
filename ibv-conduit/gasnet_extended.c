@@ -64,6 +64,9 @@ extern void gasnete_init(void) {
   /* Initialize barrier resources */
   gasnete_barrier_init();
 
+  /* Initialize team/collectives */
+  gasnete_coll_init_subsystem();
+
   /* Initialize VIS subsystem */
   gasnete_vis_init();
 }

@@ -775,17 +775,19 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
 }
   
 
-
-
-
+// Legacy gasnet_coll_int() support.
+//
+// With the removal of multi-image support this interface exists
+// only to support registration of the fn_tbl.
+// TODO-EX: remove when gex_Coll_Reduce() is available.
 extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
                               gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
                               int init_flags GASNETE_THREAD_FARG) {
+  static int init_done = 0;
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   static gasneti_cond_t init_cond = GASNETI_COND_INITIALIZER;
   static gasneti_mutex_t init_lock = GASNETI_MUTEX_INITIALIZER;
   static gasnet_image_t remain = 0;
-  gasnet_image_t gasnete_coll_total_images;
   int first;
   int i;
   
@@ -794,15 +796,15 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   /* Sanity checks - performed only for debug builds */
   
 #if GASNET_DEBUG
-  if (gasnete_coll_init_done) {
+  if (init_done) {
     gasneti_fatalerror("Multiple calls to gasnet_coll_init()\n");
   }
   if (init_flags) {
     gasneti_fatalerror("Invalid call to gasnet_coll_init() with non-zero flags\n");
   }
-#if GASNET_SEQ
+  #if GASNET_SEQ
   gasneti_assert(images == NULL);
-#endif
+  #endif
 #endif
 
   if (images) {
@@ -822,24 +824,16 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   }
 
   if (first) {
-    gasnete_coll_p2p_eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
-                                                                GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
-    gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
-                                                                  GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT, 0);
-    
-    gasnete_coll_active_init();
-    if(images) {
-      gasnete_coll_total_images = 0;
-      
-      for(i=0; i<gasneti_nodes; i++) {
-        gasnete_coll_total_images+=images[i];
+    if (images) {
+      GASNET_TEAM_ALL->my_images = images[gasneti_mynode];
+      GASNET_TEAM_ALL->my_offset = 0;
+      for (gex_Rank_t r = 0; r < gasneti_mynode; ++r) {
+        GASNET_TEAM_ALL->my_offset += images[r];
       }
     } else {
-      gasnete_coll_total_images = gasneti_nodes;
+      gasneti_assert(GASNET_TEAM_ALL->my_images == 1);
+      gasneti_assert(GASNET_TEAM_ALL->my_offset == gasneti_mynode);
     }
-    gasnete_coll_p2p_eager_buffersz = MAX(gasnete_coll_p2p_eager_min,
-                                          gasnete_coll_total_images * gasnete_coll_p2p_eager_scale);
-    
     
     gasnete_coll_fn_count = fn_count;
     if (fn_count != 0) {
@@ -854,20 +848,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       }
 #endif
     }
-
-#ifdef gasnete_coll_init_conduit
-    /* initialization of conduit specific collectives */
-    gasnete_coll_init_conduit();
-#endif
-
-    /* setup information for the global team */
-    gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode, GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save, images GASNETE_THREAD_PASS);
-
-    gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
-
-    /* This barrier, together with the thread barrier that follows, ensures all global
-       collectives initialization is complete before any collectives can be called. */
-    gasnet_barrier((int)GASNET_TEAM_ALL->sequence,0);
   }
 
   if (images) {
@@ -883,7 +863,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     }
     gasneti_mutex_unlock(&init_lock);
   }
-  if(td->my_local_image == 0) gasnete_coll_init_done = 1;
 
   /* Only thread-local data initialization may follow this point */
 
@@ -903,9 +882,46 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   }
 #endif
 
-#ifdef GASNETI_USE_FCA
-  gasnet_team_fca_enable(GASNET_TEAM_ALL);
+  if (first) init_done = 1;
+}
+
+
+// Initialize legacy coll_team subsystem for use by gex_TM/gex_Coll
+// TODO-EX: remove any portions displaced by gex-ification
+extern void gasnete_coll_init_subsystem(void)
+{
+    GASNETE_THREAD_LOOKUP
+
+    gasnete_coll_p2p_eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
+                                                                GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
+    gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
+                                                                  GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT, 0);
+    gasnete_coll_p2p_eager_buffersz = MAX(gasnete_coll_p2p_eager_min,
+                                          gasneti_nodes * gasnete_coll_p2p_eager_scale);
+
+    gasnete_coll_active_init();
+
+#ifdef gasnete_coll_init_conduit
+    /* initialization of conduit specific collectives */
+    gasnete_coll_init_conduit();
 #endif
+
+    /* setup information for TM0 */
+    gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode,
+                           GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save,
+                           NULL GASNETE_THREAD_PASS);
+    gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
+
+#ifdef GASNETI_USE_FCA
+    gasnet_team_fca_enable(GASNET_TEAM_ALL);
+#endif
+
+    // TODO-EX: remove images-related init when certain no legacy dependencies remain
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    td->my_image = gasneti_mynode;
+    td->my_local_image = 0;  
+
+    gasnete_coll_init_done = 1;
 }
 
 /*---------------------------------------------------------------------------------*/

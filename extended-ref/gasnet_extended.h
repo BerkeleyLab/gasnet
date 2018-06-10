@@ -625,11 +625,6 @@ gex_RMA_Value_t _gex_RMA_GetBlockingVal (
   =========
 */
 
-// initialize the barriers for GASNET_TEAM_ALL
-// other teams are handled by gasnete_coll_barrier_init
-extern void gasnete_barrier_init(void);
-
-
 #if GASNETI_STATS_OR_TRACE
 extern gasneti_tick_t gasnete_barrier_notifytime;
 #endif
