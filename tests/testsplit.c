@@ -231,7 +231,7 @@ int main(int argc, char **argv)
   peer = (mycol+1)%ncols; // mycol and ncols are position in, and length of, the row
   rank_ptr = (gex_Rank_t *)TEST_SEG_TM(rowtm, peer);
   gex_Event_Wait(gex_RMA_PutNB(rowtm, peer, rank_ptr+1, &myrank, sizeof(myrank), GEX_EVENT_NOW, 0));
-  BARRIER(); // TODO: use team-scoped barrier
+  gex_Event_Wait(gex_Coll_BarrierNB(rowtm, 0));
   assert_always(rank_arr[1] == gex_TM_TranslateRankToJobrank(rowtm, (mycol+ncols-1)%ncols));
 
   // PutNBI on col ring
@@ -239,7 +239,7 @@ int main(int argc, char **argv)
   rank_ptr = (gex_Rank_t *)TEST_SEG_TM(coltm, peer);
   gex_RMA_PutNBI(coltm, peer, rank_ptr+2, &myrank, sizeof(myrank), GEX_EVENT_NOW, 0);
   gex_NBI_Wait(GEX_EC_GET, 0);
-  BARRIER(); // TODO: use team-scoped barrier
+  gex_Event_Wait(gex_Coll_BarrierNB(coltm, 0));
   assert_always(rank_arr[2] == gex_TM_TranslateRankToJobrank(coltm, (myrow+nrows-1)%nrows));
 
   // AM tests
