@@ -634,6 +634,33 @@ extern int gasnet_barrier_wait(int _id, int _flags);
 extern int gasnet_barrier_try(int _id, int _flags);
 extern int gasnet_barrier(int _id, int _flags);
 extern int gasnet_barrier_result(int *_id);
+
+#ifndef gasnete_tm_barrier
+  extern void
+  gasnete_tm_barrier(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FARG);
+#endif
+GASNETI_INLINE(_gex_Coll_BarrierBlocking)
+void _gex_Coll_BarrierBlocking(gex_TM_t _tm, gex_Flags_t _flags GASNETI_THREAD_FARG)
+{
+  GASNETI_TRACE_BARRIER1(_tm,_flags);
+  gasnete_tm_barrier(_tm, _flags GASNETI_THREAD_PASS);
+}
+#define gex_Coll_BarrierBlocking(tm,flags) \
+       _gex_Coll_BarrierBlocking(tm,flags GASNETI_THREAD_GET)
+
+#ifndef gasnete_tm_barrier_nb
+  extern gex_Event_t
+  gasnete_tm_barrier_nb(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FARG);
+#endif
+GASNETI_INLINE(_gex_Coll_BarrierNB) GASNETI_WARN_UNUSED_RESULT
+gex_Event_t _gex_Coll_BarrierNB(gex_TM_t _tm, gex_Flags_t _flags GASNETI_THREAD_FARG)
+{
+  GASNETI_TRACE_BARRIER2(_tm,_flags);
+  return gasnete_tm_barrier_nb(_tm, _flags GASNETI_THREAD_PASS);
+}
+#define gex_Coll_BarrierNB(tm,flags) \
+       _gex_Coll_BarrierNB(tm,flags GASNETI_THREAD_GET)
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Teams:

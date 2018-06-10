@@ -2993,6 +2993,54 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
   return ret;
 }
 
+/*---------------------------------------------------------------------------------*/
+// Barrier
+
+#ifndef gasnete_tm_barrier
+  // In absence of conduit override we drop the _default suffix
+  #define gasnete_tm_barrier_default gasnete_tm_barrier
+#endif
+extern void
+gasnete_tm_barrier_default(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FARG)
+{
+  gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
+  gasneti_assert(team->barrier);
+  (*team->barrier)(team, 0, GASNET_BARRIERFLAG_UNNAMED);
+}
+
+#ifndef gasnete_tm_barrier_nb
+  // In absence of conduit override we drop the _default suffix
+  #define gasnete_tm_barrier_nb_default gasnete_tm_barrier_nb
+#endif
+static int gasnete_coll_pf_barrier(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnet_team_handle_t team = op->team;
+  gasneti_assert(team->barrier_try);
+  return (*team->barrier_try)(team, 0, GASNET_BARRIERFLAG_UNNAMED)
+            ? 0 : (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+}
+extern gex_Event_t
+gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FARG)
+{
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
+  gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
+  const int coll_flags = 0;
+
+  gasneti_assert(team->barrier_notify);
+  (*team->barrier_notify)(team, 0, GASNET_BARRIERFLAG_UNNAMED);
+
+  gasnete_coll_threads_lock(team, coll_flags GASNETE_THREAD_PASS);
+
+  gasnete_coll_op_t *op = gasnete_coll_op_create(team, 0, coll_flags GASNETE_THREAD_PASS);
+  op->poll_fn = &gasnete_coll_pf_barrier;
+  op->flags = coll_flags;
+
+  gasnete_coll_eop_t eop = gasnete_coll_eop_create(GASNETE_THREAD_PASS_ALONE);
+  eop = gasnete_coll_op_submit(op, eop GASNETE_THREAD_PASS);
+
+  gasnete_coll_threads_unlock(team GASNETE_THREAD_PASS);
+
+  return GASNETE_COLL_EOP_TO_EVENT(eop);
+}
 
 /*---------------------------------------------------------------------------------*/
 
