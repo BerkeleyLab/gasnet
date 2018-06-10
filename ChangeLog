@@ -14,6 +14,8 @@ PENDING: GASNet-EX 2018.6.0 Release
 
 * GASNet-EX Spec v0.5:
   - Add GEX_OP_TO_(NON)FETCHING()
+  - Add gex_System_QueryHostInfo() and gex_System_QueryMyPosition()
+  - Rename gex_NbrhdInfo_t to gex_RankInfo_t
 
 * Notable bugs fixed in this release:
   - Bug3749: assertion failure in PSHM's NP-AM
