@@ -22,7 +22,7 @@
 
 // Upon implementing GASNETI_MEMCPY() (with assertions), it was discovered
 // that the collectives have been using GASNETE_FAST_UNALIGNED_MEMCPY() in
-// at least some places where GASNETE_FAST_UNALIGNED_MEMCPY_CHECK() should
+// at least some places where GASNETI_MEMCPY_SAFE_IDENTICAL() should
 // have been used instead (to allow for src == dst for in-place collectives).
 //
 // TODO: audit/update the individual calls to GASNETE_FAST_UNALIGNED_MEMCPY
@@ -673,7 +673,7 @@ GASNETI_INLINE(gasnete_coll_local_broadcast)
 void gasnete_coll_local_broadcast(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
   /* XXX: this could/should be segemented to cache reuse */
   while (count>0) {
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(*dstlist, src, nbytes);
+    GASNETI_MEMCPY_SAFE_IDENTICAL(*dstlist, src, nbytes);
     dstlist++;
     count--;
   }
@@ -686,7 +686,7 @@ void gasnete_coll_local_scatter(size_t count, void * const dstlist[], const void
   const uint8_t *src_addr = (const uint8_t *)src;
   
   while (count>0) {
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(*dstlist, src_addr, nbytes);
+    GASNETI_MEMCPY_SAFE_IDENTICAL(*dstlist, src_addr, nbytes);
     dstlist++;
     src_addr += nbytes;
     count --;
@@ -700,7 +700,7 @@ void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[],
   uint8_t *dst_addr = (uint8_t *)dst;
   gasneti_sync_reads();
   while (count>0) {
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst_addr, *srclist, nbytes);
+    GASNETI_MEMCPY_SAFE_IDENTICAL(dst_addr, *srclist, nbytes);
     dst_addr += nbytes;
     srclist++;
     count--;
@@ -718,7 +718,7 @@ void gasnete_coll_local_reduce(size_t count, void * dst, void * const srclist[],
   int i;
   
   gasneti_sync_reads();
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, srclist[0], nbytes);
+  GASNETI_MEMCPY_SAFE_IDENTICAL(dst, srclist[0], nbytes);
   for(i=1; i<count; i++) {
     (*reduce_fn)(dst, elem_count, dst, elem_count, srclist[i], elem_size, red_fn_flags, reduce_args);
   }

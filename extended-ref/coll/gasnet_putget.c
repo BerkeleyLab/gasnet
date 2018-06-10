@@ -39,7 +39,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else {
         data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->src,
                                            args->nbytes, 0 GASNETE_THREAD_PASS);
@@ -125,7 +125,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, src, nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(dst, src, nbytes);
       }
       data->state = 2; GASNETI_FALLTHROUGH
       
@@ -213,7 +213,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         }
         data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_event(&data->handle);
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else if (child_count == 0) {
         /* leaves fall right through*/
       } else if (data->p2p->state[0]) {
@@ -429,7 +429,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       impl->fn_ptr = NULL;
       /*strip the last argument off which contains the pipeline segment size*/
       impl->num_params = op->num_coll_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
       impl->tree_type = op->tree_info->geom->tree_type;
     
       seg_size = (size_t) op->param_list[0];
@@ -667,7 +667,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst,
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst,
                                             gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
                                             args->nbytes);
       } else {
@@ -757,7 +757,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst,
+        GASNETI_MEMCPY_SAFE_IDENTICAL(dst,
                                             gasnete_coll_scale_ptr(args->src, op->team->myrank, nbytes),
                                             nbytes);
       }
@@ -1212,7 +1212,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       impl->fn_ptr = NULL;
       /*strip the last argument off which contains the pipeline segment size*/
       impl->num_params = op->num_coll_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
       impl->tree_type = op->tree_info->geom->tree_type;
       
       for(i=0; i<num_segs - 1; i++) {
@@ -1330,7 +1330,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         gasnete_coll_save_event(&data->handle);
         
         /* Do local copy LAST, perhaps overlapping with communication */
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
+        GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
       }
       data->state = 2; GASNETI_FALLTHROUGH
@@ -1382,7 +1382,7 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->dstnode) {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
+        GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
       } else {
         data->handle = gasnete_put_nb(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode), 
@@ -1880,7 +1880,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       impl->fn_ptr = NULL;
       /*strip the last argument off which contains the pipeline segment size*/
       impl->num_params = op->num_coll_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
       impl->tree_type = op->tree_info->geom->tree_type;
       
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
@@ -2232,7 +2232,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
       gasnete_coll_save_event(&data->handle);
     }
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         args->src, args->nbytes);
     
     data->state++;
@@ -2319,7 +2319,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
       gasnete_coll_save_event(&data->handle);
     }
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         args->src, args->nbytes);
     
     data->state++;
@@ -2440,10 +2440,10 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     if(data->p2p->state[phase] !=1) return 0; /*wait for the last transfer to finish*/
     
     /*rotate the data around*/
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*)args->dst+args->nbytes*op->team->myrank, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*)args->dst+args->nbytes*op->team->myrank, 
                                         (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, 
                                         args->nbytes*(op->team->total_ranks-op->team->myrank));
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, 
                                         (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+args->nbytes*(op->team->total_ranks-op->team->myrank), 
                                         args->nbytes*op->team->myrank);
     data->state++;
@@ -2912,7 +2912,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
     }
     data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
     gasnete_coll_save_event(&data->handle);
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
     data->state = 2; GASNETI_FALLTHROUGH
 
@@ -3376,7 +3376,7 @@ static int gasnete_coll_pf_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       impl->fn_ptr = NULL;
       /*strip the last argument off which contains the pipeline segment size*/
       impl->num_params = op->num_coll_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
       impl->tree_type = op->tree_info->geom->tree_type;
       
       gasneti_assert((size_t) op->param_list[0] % args->elem_size == 0);

@@ -314,7 +314,6 @@ typedef union {
 
 // TODO-EX: remove these if/when all uses are updated
 #define GASNETE_FAST_UNALIGNED_MEMCPY(d,s,n)       GASNETI_MEMCPY(d,s,n)
-#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(d,s,n) GASNETI_MEMCPY_SAFE_IDENTICAL(d,s,n)
 
 /* given the address of a gex_RMA_Value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */

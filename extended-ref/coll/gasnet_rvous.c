@@ -35,7 +35,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     case 1:	/* Data movement */
       if (op->team->myrank == args->srcnode) {
         gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1, op->team);	/* broadcast src address */
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
         data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode),
@@ -130,7 +130,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
         gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(op->team, children[child]), args->src, 0, 1);	/* broadcast src address to all the children*/
       }
       
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
     } else if (data->p2p->state[0]) {
       gasneti_sync_reads();
       data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),
@@ -226,7 +226,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     
   case 1:	/* Rendevous w/ root to pass addr */
     if (op->team->myrank == args->srcnode) {
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
     } else {
       /* Send our addr to root */
       gasnete_coll_p2p_send_rtr(op, data->p2p, op->team->myrank, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes);
@@ -301,7 +301,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
 	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1, op->team);	/* broadcast src address */
-	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, 
+	GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, 
 				      gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
 				      args->nbytes);
       } else if (data->p2p->state[0]) {
@@ -368,7 +368,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
     case 1:	/* Rendevous w/ root to pass addr */
       if (op->team->myrank == args->srcnode) {
-	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, 
+	GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, 
 				      gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
 				      args->nbytes);
       } else {
@@ -446,7 +446,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->dstnode) {
 	gasnete_coll_p2p_eager_addr_all(op, args->dst, 0, 1, op->team);	/* broadcast dst address */
-	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
+	GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
 				      args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
@@ -513,7 +513,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 				    gasnete_coll_scale_ptr(args->dst, i, args->nbytes),
 				    GASNETE_COLL_REL2ACT(op->team, i), args->nbytes);
 	}
-	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
+	GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
 				      args->src, args->nbytes);
       }
       data->state = 2; GASNETI_FALLTHROUGH
@@ -596,7 +596,7 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     }
     data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
     gasnete_coll_save_event(&data->handle);
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
     data->state = 4; GASNETI_FALLTHROUGH
   case 4: /* sync all the handles for the puts*/

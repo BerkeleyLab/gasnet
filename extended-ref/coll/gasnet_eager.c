@@ -46,7 +46,7 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
           gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, i), args->src, args->nbytes, 0, 1);
         }
         
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
@@ -115,7 +115,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
           gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]), args->src, args->nbytes);
         }
         
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
         
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
@@ -196,7 +196,7 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
           gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, i), (void *)src_addr, args->nbytes, 0, 1);
         }
         
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst,
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst,
                                             gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
                                             args->nbytes);
       } else if (data->p2p->state[0]) {
@@ -270,7 +270,7 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
                                           send_arr, args->nbytes*tree->geom->subtree_sizes[child]);
         }
         
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, src, args->nbytes);
       } else if (data->p2p->state[0]) {
         uint8_t *src;
         gasneti_sync_reads();
@@ -343,7 +343,7 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       if (op->team->myrank != args->dstnode) {
         gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, args->dstnode), args->src, args->nbytes, op->team->myrank, 1);
       } else {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
+        GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
         data->p2p->state[op->team->myrank] = 2;
       }
@@ -423,7 +423,7 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
       }
       
       if (child_count > 0) {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(data->p2p->data, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(data->p2p->data, args->src, args->nbytes);
       }  
       
       data->state = 1; GASNETI_FALLTHROUGH
@@ -447,7 +447,7 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
         gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), args->src,
                                    args->nbytes, args->nbytes, (tree->geom->sibling_offset+1),0);
       } else {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       }
         
       data->state = 2; GASNETI_FALLTHROUGH
@@ -528,7 +528,7 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
         }
       }
     }
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) data->p2p->data + op->team->myrank*args->nbytes, 
+    GASNETI_MEMCPY_SAFE_IDENTICAL((int8_t*) data->p2p->data + op->team->myrank*args->nbytes, 
                                         args->src, args->nbytes);
     
     data->state++;
@@ -539,7 +539,7 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
     if (op->team->total_ranks > 1 && (gasneti_weakatomic_read(&data->p2p->counter[0], 0) != (op->team->total_ranks-1))) {
       return 0;
     }
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, data->p2p->data, args->nbytes*op->team->total_ranks);
+    GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, data->p2p->data, args->nbytes*op->team->total_ranks);
     data->state++;
   }
   
