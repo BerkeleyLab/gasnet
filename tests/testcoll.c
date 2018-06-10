@@ -369,26 +369,10 @@ DEFN(testSS, "SINGLE/single-addr", GASNET_COLL_SINGLE, EMPTY)
 #undef ROOTi
 #undef REMOTEi
 
-#define ALLi(i,X)	(void*const*)X##v[i]
-#define ROOTi(i,X)	root, X##v[i][root]
-#define REMOTEi(i,X,N)	(X##v[i][N])
-DEFN(testSM, "SINGLE/multi-addr", GASNET_COLL_SINGLE, M)
-#undef ALLi
-#undef ROOTi
-#undef REMOTEi
-
 #define ALLi(i,X)	X##v[i][mythread]
 #define ROOTi(i,X)	root, (mythread==root)?X##v[i][root]:NULL
 #define REMOTEi(i,X,N)	(X##v[i][N])
 DEFN(testLS, "LOCAL/single-addr", GASNET_COLL_LOCAL, EMPTY)
-#undef ALLi
-#undef ROOTi
-#undef REMOTEi
-
-#define ALLi(i,X)	(void*const*)(X##v[i]+(myproc*threads))
-#define ROOTi(i,X)	root, (myproc==(root/threads))?X##v[i][root]:NULL
-#define REMOTEi(i,X,N)	(X##v[i][N])
-DEFN(testLM, "LOCAL/multi-addr", GASNET_COLL_LOCAL, M)
 #undef ALLi
 #undef ROOTi
 #undef REMOTEi
@@ -460,22 +444,11 @@ void *thread_main(void *arg) {
       testSS_ALLALL(root, td);
       testSS_NB(root, td);
     }
-    testSM_NONO(root, td);
-    testSM_MYMY(root, td);
-    testSM_ALLALL(root, td);
-    testSM_NB(root, td);
 
-#if 1
     testLS_NONO(root, td);
     testLS_MYMY(root, td);
     testLS_ALLALL(root, td);
     testLS_NB(root, td);
-
-    testLM_NONO(root, td);
-    testLM_MYMY(root, td);
-    testLM_ALLALL(root, td);
-    testLM_NB(root, td);
-#endif
   }
   
   test_free(td->hndl);
@@ -536,6 +509,11 @@ int main(int argc, char **argv)
     if (threads < 1) {
       printf("ERROR: Threads must be between 1 and %d\n", TEST_MAXTHREADS);
       exit(EXIT_FAILURE);
+    }
+    // NO MULTI-IMAGE SUPPORT IN CURRENT COLLECTIVES
+    if (threads > 1) {
+      MSG0("WARNING: thread count reduced to 1 (no multi-image support)");
+      threads = 1;
     }
 #endif
 

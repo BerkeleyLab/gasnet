@@ -39,7 +39,7 @@ static int split_string(char ***split_strs, char *str, char *delim) {
   
   /*since the strtok function is desructive we have to
     create a copy of the string first to preserve the orignal*/
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(copy, str, sizeof(char)*(strlen(str)+1));
+  GASNETI_MEMCPY_SAFE_IDENTICAL(copy, str, sizeof(char)*(strlen(str)+1));
   gasneti_mutex_lock(&lock);
   *split_strs = (char **) gasneti_malloc(sizeof(char*) * malloc_len);
   temp = strtok(copy, delim);
@@ -174,7 +174,7 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_class,  int *param
 #endif  
   ret->tree_class = (gasnete_coll_tree_class_t) tree_class;
   ret->params = (int*) gasneti_malloc(sizeof(int)*num_params);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ret->params, params, num_params*sizeof(int));
+  GASNETI_MEMCPY_SAFE_IDENTICAL(ret->params, params, num_params*sizeof(int));
   ret->num_params = num_params;
   
   return ret;
@@ -285,12 +285,12 @@ static tree_node_t preappend_children(tree_node_t main_node, tree_node_t *child_
   if(num_nodes > 0) {
     if(main_node->num_children == 0) {
       main_node->children = gasneti_malloc(num_nodes * sizeof(tree_node_t));
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(main_node->children, child_nodes, sizeof(tree_node_t)*num_nodes);
+      GASNETI_MEMCPY_SAFE_IDENTICAL(main_node->children, child_nodes, sizeof(tree_node_t)*num_nodes);
     } else {
       tree_node_t *new_children = gasneti_malloc(sizeof(tree_node_t)*
                                          (main_node->num_children+num_nodes));
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(new_children, child_nodes, num_nodes*sizeof(tree_node_t));
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(new_children+num_nodes, main_node->children, 
+      GASNETI_MEMCPY_SAFE_IDENTICAL(new_children, child_nodes, num_nodes*sizeof(tree_node_t));
+      GASNETI_MEMCPY_SAFE_IDENTICAL(new_children+num_nodes, main_node->children, 
              main_node->num_children*(sizeof(tree_node_t)));
       
       gasneti_free(main_node->children);
