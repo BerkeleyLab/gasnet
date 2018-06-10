@@ -488,9 +488,9 @@ extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
                 gex_TM_t               *tm_p,
+                const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
-                const char             *clientName,
                 gex_Flags_t            flags);
 
 //
