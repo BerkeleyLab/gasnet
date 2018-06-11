@@ -117,8 +117,9 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // or while holding a GASNet handler-safe lock are as follows:
 //
 // gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
-// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_HSL_*()
-// gex_System_QueryJob*(), gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
+// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_System_QueryHostInfo(),
+// gex_System_QueryMyPosition(), gex_System_QueryJob{Rank,Size}(), gex_HSL_*(),
+// gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
 // gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
 // 
 // The following are conditionally permitted in handler context, the condition being the 
@@ -137,7 +138,8 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 
 // Rank
 
-// A "rank" is a position within a team
+// The type gex_Rank_t is used for a position within, or size of, an ordered
+// set (such as a team).
 // Guaranteed to be an unsigned integer type
 // This type is interoperable with gasnet_node_t
 typedef [some unsigned integer type] gex_Rank_t;
@@ -1471,16 +1473,29 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 //
-// Neighborhood: [EXPERIMENTAL]
+// Neighborhood and Host: [EXPERIMENTAL]
+//
 // A "neighborhood" is defined as a set of GEX processes that can share
 // memory via the GASNet PSHM feature, and is abbreviated to Nbrhd.
 //
+// A "host" is an abstract boundary in the system hierarchy that is guaranteed
+// to be a superset of the neighborhood, but the exact definition may be
+// system-specific.  Generally it encompasses processing resources associated
+// with a single physical address space and OS kernel image.  When using
+// GASNet-Tools from the same release, it is guaranteed that the definition
+// for "host" is consistent with the following:
+//   gasnett_cpu_count(), gasnett_getPhysMemSz()
+// However, there is no guarantee of correspondence to gasnett_gethostname().
+//
+// As with all functions in the gex_System_*() namespace, the following queries
+// return information about the global GASNet job, independent of any
+// particular client, team or endpoint.
 
 // Const-qualified struct type for describing a member of a neighborhood
 typedef const struct {
     gex_Rank_t gex_jobrank; // the Job Rank (as defined above)
     // Reserved for future expansion and/or internal-use fields
-} gex_NbrhdInfo_t;
+} gex_RankInfo_t;
 
 // Query information about the neighborhood of the calling process.
 //
@@ -1489,7 +1504,7 @@ typedef const struct {
 //
 // info_p:
 //        Receives the address of an array with elements of type
-//        gex_NbrhdInfo_t (defined above), which includes one entry
+//        gex_RankInfo_t (defined above), which includes one entry
 //        for each process in the neighborhood of the calling process.
 //        Entries are sorted by increasing gex_jobrank.
 //        The storage of this array is owned by GASNet and must not be
@@ -1507,10 +1522,62 @@ typedef const struct {
 //
 // Semantics in a resilient build will be defined in a later release.
 extern void gex_System_QueryNbrhdInfo(
-            gex_NbrhdInfo_t        **info_p,
+            gex_RankInfo_t         **info_p,
             gex_Rank_t             *info_count_p,
             gex_Rank_t             *my_info_index_p);
 
+// Query information about the Host of the calling process.
+//
+// Operates analogously to gex_System_QueryNbrhdInfo, except that instead of
+// querying information about the neighborhood, this function instead queries
+// information about the "host" enclosing the calling process and its 
+// neighborhood.
+// 
+// Argument semantics are identical to gex_System_QueryNbrhdInfo with
+// "neighborhood" replaced with "host".
+
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p);
+
+// Query information about the sets of Neighborhoods and Hosts
+//
+// All arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// nbrhd_set_size_p:
+//        Receives the number of neighborhoods in the job.
+// nbrhd_set_rank_p:
+//        Receives the 0-based rank of the caller's neighborhood within
+//        the set of neighborhoods in the job (a value between 0 and
+//        nbrhd_set_size-1, inclusive).
+// host_set_size_p:
+//        Receives the number of hosts in the job.
+// host_set_rank_p:
+//        Receives the 0-based rank of the caller's host within the
+//        set of host in the job (a value between 0 and host_set_size-1,
+//        inclusive).
+//
+// In a non-resilient build, the values returned by this query are constant for
+// any given caller over the lifetime of the job.  Semantics in a resilient
+// build will be defined in a later release.
+//
+// Information returned by this query is guaranteed to be self consistent:
+//   + All callers receive identical nbrhd_set_size.
+//   + Callers in the same neighborhood receive identical nbrhd_set_rank.
+//   + Callers in distinct neighborhoods receive distinct nbrhd_set_rank.
+//   + All callers receive identical host_set_size.
+//   + Callers on the same host receive identical host_set_rank.
+//   + Callers on distinct hosts receive distinct host_set_rank.
+// Other than these rules, and the [0,set_size) ranges, there are no other
+// guarantees as to how the ranks are assigned.
+
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *nbrhd_set_size,
+            gex_Rank_t *nbrhd_set_rank,
+            gex_Rank_t *host_set_size,
+            gex_Rank_t *host_set_rank);
 
 //
 // Handler-safe locks (HSLs)

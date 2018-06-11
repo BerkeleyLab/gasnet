@@ -1612,6 +1612,7 @@ extern void gasneti_nodemapParse(void) {
   /* Second pass: Construct arrays of local nodes */
   gasneti_assert(gasneti_myhost.node_count >= gasneti_mysupernode.node_count);
   gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gex_Rank_t));
+  gasneti_leak(gasneti_myhost.nodes);
   for (i = initial, j = 0; j < gasneti_myhost.node_count; ++i) {
     gasneti_assert(i < gasneti_nodes);
     if (s[i].h_lead == initial) {
@@ -1690,7 +1691,6 @@ extern void gasneti_nodemapFini(void) {
 #if GASNET_DEBUG
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;
-  gasneti_myhost.nodes = NULL;
 #endif
 }
 
