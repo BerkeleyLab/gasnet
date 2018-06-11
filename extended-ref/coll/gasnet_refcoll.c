@@ -509,8 +509,7 @@ gasnete_coll_op_t *gasnete_coll_active_first(void) {
 
 static
 gasnete_coll_op_t *gasnete_coll_active_last(void) {
-  return (gasnete_coll_op_t*)((uintptr_t)gasnete_coll_active_tail_p -
-                              offsetof(gasnete_coll_op_t,active_next));
+  return gasneti_container_of(gasnete_coll_active_tail_p, gasnete_coll_op_t, active_next);
 }
 
 static
