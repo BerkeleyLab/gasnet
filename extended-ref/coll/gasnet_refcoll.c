@@ -3043,6 +3043,30 @@ gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FA
 }
 
 /*---------------------------------------------------------------------------------*/
+// GEX Broadcast
+//
+// TODO-EX: replace this THUNK w/ something implementing only the GEX
+// semantics (e.g. no sync flags or single-valued addr) and using GEX-ified
+// poll_fn (e.g. use of IMMEDIATE and NP-AM).
+
+#ifndef gasnete_tm_broadcast_nb
+  // In absence of conduit override we drop the _default suffix
+  #define gasnete_tm_broadcast_nb_default gasnete_tm_broadcast_nb
+#endif
+gex_Event_t
+gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
+                                void *dst, const void *src,
+                                size_t nbytes, gex_Flags_t flags
+                                GASNETE_THREAD_FARG)
+{
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
+  gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
+  int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
+  return _gasnet_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
+                                   nbytes, coll_flags GASNETE_THREAD_PASS);
+}
+
+/*---------------------------------------------------------------------------------*/
 
 #if GASNET_DEBUG
 void gasnete_coll_stat_(GASNETE_THREAD_FARG_ALONE) {
