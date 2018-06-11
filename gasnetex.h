@@ -302,6 +302,7 @@ typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
 typedef struct gasneti_team_member_s *gex_TM_t;
+#define GEX_TM_INVALID ((gex_TM_t)(uintptr_t)0)
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
