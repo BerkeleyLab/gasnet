@@ -2507,6 +2507,26 @@ gex_Event_t gex_Coll_BarrierNB(gex_TM_t tm, gex_Flags_t flags);
 //      Individual flags bits may or may not be single-valued, as will
 //      be documented with each supported flag.
 
+// Broadcast
+//
+// This operation copies 'nbytes' bytes of data starting at 'src' on rank
+// 'root' of 'tm', to 'dst' on every rank within the 'tm'.
+//
+// The value of 'src' is ignored on all ranks other than 'root'.
+//
+// On the 'root' rank, the data is copied from 'src' to 'dst' except in the
+// case these pointers are equal.  However, any other overlap between 'src'
+// and 'dst' buffers on the root rank yields undefined behavior.
+
+gex_Event_t gex_Coll_BroadcastNB(
+            gex_TM_t        tm,            // The team
+            gex_Rank_t      root,          // Root rank (single-valued)
+            void *          dst            // Destination (all ranks)
+            const void *    src,           // Source (root rank only)
+            size_t          nbytes,        // Length of data (single-valued)
+            gex_Flags_t     flags);        // Flags (partially single-valued)
+
+
 // End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
 
