@@ -696,9 +696,15 @@ static gex_Rank_t test_msgsource(gex_Token_t token) {
 
 /* ------------------------------------------------------------------------------------ */
 /* barriers */
-#define BARRIER() do {                                              \
-  gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            \
-  GASNET_Safe(gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS)); \
+
+static gex_TM_t _test_tm0;
+// TODO-EX: need tm0 earlier to get rid of the branch here
+#define BARRIER() do {                                        \
+ if (_test_tm0 == GEX_TM_INVALID) {                           \
+   GASNET_Safe(gasnet_barrier(0,GASNET_BARRIERFLAG_UNNAMED)); \
+ } else {                                                     \
+   gex_Event_Wait(gex_Coll_BarrierNB(_test_tm0,0));           \
+ }                                                            \
 } while (0)
 
 #if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
@@ -890,7 +896,6 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 #endif
 
 static size_t test_num_am_handlers = 0;
-static gex_TM_t _test_tm0;
 #ifdef GASNET_SEGMENT_EVERYTHING
   /* following trivially handles the case where static data is aligned
      across the nodes, and also works on X-1 where the static data is
