@@ -3067,6 +3067,98 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
 }
 
 /*---------------------------------------------------------------------------------*/
+// GEX Reduce
+
+gex_Event_t
+gasnete_tm_generic_reduce_nb(gasneti_TM_t tm, gex_Rank_t root, void *dst, const void *src,
+                             gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                             gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
+                             int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
+                             gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                             int num_params, uint32_t *param_list,
+                             gasnete_coll_scratch_req_t *scratch_req
+                             GASNETE_THREAD_FARG)
+{
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
+  gasnet_team_handle_t team = tm->_coll_team;
+  gex_Event_t result;
+
+  gasnete_coll_threads_lock(team, coll_flags GASNETE_THREAD_PASS);
+
+  gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+  GASNETE_COLL_GENERIC_SET_TAG(data, tm_reduce);
+
+  data->args.tm_reduce.root    = root;
+  data->args.tm_reduce.dst     = dst;
+  data->args.tm_reduce.src     = src;
+
+  data->args.tm_reduce.dt      = dt;
+  data->args.tm_reduce.dt_sz   = dt_sz;
+  data->args.tm_reduce.dt_cnt  = dt_cnt;
+
+  switch (opcode) {
+    case GEX_OP_USER_NC:
+      gasneti_fatalerror("Support for GEX_OP_USER_NC reductions is UNIMPLEMENTED");
+      break;
+
+    case GEX_OP_USER:
+      data->args.tm_reduce.op_fnptr  = fnptr;
+      data->args.tm_reduce.op_cdata  = cdata;
+      break;
+
+    default:
+      // TODO-EX: convert DT/OP pair to an *internal* fnptr and cdata
+      break;
+  }
+
+  data->options      = options;
+  data->private_data = NULL;
+  data->tree_info    = tree_info;
+
+  result = gasnete_coll_op_generic_init_with_scratch(team, coll_flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
+
+  gasnete_coll_threads_unlock(team GASNETE_THREAD_PASS);
+
+  return result;
+}
+
+
+#ifndef gasnete_tm_reduce_nb
+  // In absence of conduit override we drop the _default suffix
+  #define gasnete_tm_reduce_nb_default gasnete_tm_reduce_nb
+#endif
+gex_Event_t
+gasnete_tm_reduce_nb_default(
+                gex_TM_t e_tm, gex_Rank_t root,
+                void *dst, const void *src,
+                gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
+                gex_Flags_t flags GASNETE_THREAD_FARG)
+{
+  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+
+  // TODO-EX:  TRACE here or in gasnet_coll.h?
+
+  // Argument validation
+  // TODO-EX: factor to avoid cloning this logic to conduit collectives
+  // TODO-EX: informative fatalerror() in place of assertion failure
+  gasneti_assert(root < i_tm->_size);
+  gasneti_assert((root != i_tm->_rank) || dst);
+  gasneti_assert(src);
+  gasneti_assert(dt_sz != 0);
+  gasneti_assert(dt_cnt != 0);
+  gasneti_assert((dt == GEX_DT_USER) || (dt_sz == gasneti_dt_size(dt)));
+  gasneti_assert(gasneti_dt_valid_reduce(dt));
+  gasneti_assert(gasneti_op_valid_reduce(opcode));
+  gasneti_assert((dt == GEX_DT_USER) ||
+                 (gasneti_dt_int(dt) && gasneti_op_int(opcode)) ||
+                 (gasneti_dt_fp(dt)  && gasneti_op_fp(opcode)));
+
+  gasneti_fatalerror("gex_Coll_ReduceToOneNB() is UNIMPLEMENTED");
+  return 0;
+}
+
+/*---------------------------------------------------------------------------------*/
 
 #if GASNET_DEBUG
 void gasnete_coll_stat_(GASNETE_THREAD_FARG_ALONE) {

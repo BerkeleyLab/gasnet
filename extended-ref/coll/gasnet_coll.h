@@ -165,6 +165,14 @@ typedef struct {
     unsigned int		flags;
 } gasnet_coll_fn_entry_t;
 
+// Callback function for GEX Reduce/Scan:
+typedef 
+void (*gex_Coll_ReduceFn_t)(
+            const void * _arg1,
+            void *       _arg2_and_out,
+            size_t       _count,
+            const void * _cdata);
+
 /* Handle type for collective teams: */
 #ifndef GASNETE_COLL_TEAMS_OVERRIDE
 struct gasnete_coll_team_t_;
@@ -654,6 +662,18 @@ void _gasnet_coll_reduce(gasnet_team_handle_t _team,
 #endif
 #define gex_Coll_BroadcastNB(tm,root,dst,src,nbytes,flags) \
         gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETE_THREAD_GET)
+
+/*---------------------------------------------------------------------------------*/
+
+#ifndef gasnete_tm_reduce_nb
+  extern gex_Event_t
+  gasnete_tm_reduce_nb(gex_TM_t _tm, gex_Rank_t _root, void *_dst, const void *_src,
+                       gex_DT_t _dt, size_t _dt_sz, size_t _dt_cnt,
+                       gex_OP_t _op, gex_Coll_ReduceFn_t _user_op, void * _user_cdata,
+                       gex_Flags_t _flags GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+#endif
+#define gex_Coll_ReduceToOneNB(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags) \
+        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
