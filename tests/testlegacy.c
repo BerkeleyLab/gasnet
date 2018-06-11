@@ -361,7 +361,7 @@ void doit(int partner, int *partnerseg) {
     gasnet_node_t myhost_size = 0;
     gasnet_node_t myhost_rank = GEX_RANK_INVALID;
     for (gasnet_node_t i = 0; i < gasnet_nodes(); ++i) {
-      if (i == mynode) {
+      if (i == gasnet_mynode()) {
         mysupernode_rank = mysupernode_size;
         myhost_rank = myhost_size;
       }
