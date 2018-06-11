@@ -796,9 +796,8 @@ static int test_collinit = 0;
   } while(0)
 /* cheap and simple broadcast operation */
 #define TEST_BCAST(dst, rootid, src, sz) do {                         \
-  TEST_COLL_INIT();                                                   \
-  gasnet_coll_broadcast(GASNET_TEAM_ALL, (dst), (rootid), (src), (sz),\
-   GASNET_COLL_LOCAL|GASNET_COLL_IN_ALLSYNC|GASNET_COLL_OUT_ALLSYNC); \
+  assert_always(_test_tm0 != GEX_TM_INVALID);                         \
+  gex_Event_Wait(gex_Coll_BroadcastNB(_test_tm0, (rootid), (dst), (src), (sz), 0)); \
 } while (0)
 
 /* ------------------------------------------------------------------------------------ */
