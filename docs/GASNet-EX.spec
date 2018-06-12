@@ -2478,6 +2478,35 @@ int gex_AD_OpNBI_[DATATYPE](
 //
 gex_Event_t gex_Coll_BarrierNB(gex_TM_t tm, gex_Flags_t flags);
 
+//
+// Collectives Part II.  Data Movement
+//
+// The following argument descriptions are applicable to all collective data
+// movement APIs in this section using arguments with these names.
+//
+// root:
+//      The rank within 'tm' of one distinguished endpoint.  More information
+//      on the distinguishing role of the root is provided with the detailed
+//      description of each such collective.
+//      This is always a single-valued parameter.
+// src:
+//      The local address of the caller's input buffer, if any.
+//      This is not a single-valued parameter.
+// dst:
+//      The local address of the caller's output buffer, if any.
+//      This is not a single-valued parameter.
+// nbytes:
+//      The length in bytes of one element of data.
+//      This is a single-valued parameter.
+// flags:
+//      A bitwise OR of zero or more of permitted GEX_FLAG_* constants.
+//      Currently no flags are defined for data-movement collectives, and the
+//      value zero should be passed.
+//      However, a future release will support the "segment disposition"
+//      flags [UNIMPLEMENTED].
+//      Individual flags bits may or may not be single-valued, as will
+//      be documented with each supported flag.
+
 // End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
 
