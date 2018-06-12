@@ -2190,7 +2190,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // As an exception, the metadata arrays passed to Strided variants ({src,dst}strides[] and count[])
 // are guaranteed to be consumed synchronously before return from initiation.
 // gex_VIS_*Put{NB,NBI} optionally expose local completion of data payload buffers -
-// this functionality must be requested using the GEX_FLAG_VIS_WITH_LC flag (see below).
+// this functionality must be requested using the GEX_FLAG_ENABLE_LEAF_LC flag (see below).
 //
 // A future revision may expose other intermediate completion events [UNIMPLEMENTED]
 //
@@ -2201,7 +2201,7 @@ int gex_AD_OpNBI_[DATATYPE](
 //   could determine that it would need to block temporarily to obtain the
 //   necessary resources.  The Blocking and NBI calls return a non-zero value
 //   (only) in this "no op" case, while the NB calls will return GEX_EVENT_NO_OP.
-// - GEX_FLAG_VIS_WITH_LC: (gex_VIS_*Put{NB,NBI} only) This flag requests
+// - GEX_FLAG_ENABLE_LEAF_LC: (gex_VIS_*Put{NB,NBI} only) This flag requests
 //   asynchronous local completion indication for the local data payload buffers 
 //   comprising the source region(s) of the VIS Put operation. Without this flag,
 //   local completion behaves as GEX_EVENT_DEFER, i.e. folded into operation completion.
@@ -2212,9 +2212,9 @@ int gex_AD_OpNBI_[DATATYPE](
 //   In the latter case, the client should retrieve the gex_Event_t corresponding to
 //   local completion by passing the root gex_Event_t returned by the Put initiation
 //   call to gex_Event_QueryLeaf(), for example:
-//     gex_Event_t VISput_RC = gex_VIS_VectorPutNB(..., GEX_FLAG_VIS_WITH_LC);
+//     gex_Event_t VISput_RC = gex_VIS_VectorPutNB(..., GEX_FLAG_ENABLE_LEAF_LC);
 //     gex_Event_t VISput_LC = gex_Event_QueryLeaf(VISput_RC, GEX_EC_LC);
-//   The second call is only valid when GEX_FLAG_VIS_WITH_LC was passed to the _VIS_*PutNB()
+//   The second call is only valid when GEX_FLAG_ENABLE_LEAF_LC was passed to the _VIS_*PutNB()
 //   call, and otherwise has undefined behavior.
 
 // NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]

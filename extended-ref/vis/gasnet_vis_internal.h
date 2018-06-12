@@ -243,13 +243,13 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
       case gasnete_synctype_nb: {                                                   \
         gex_Event_t _lc_dummy;                                                      \
         (retval) = _gex_RMA_PutNB ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                    (((flags) & GEX_FLAG_VIS_WITH_LC) ? &_lc_dummy : GEX_EVENT_DEFER), \
+                    (((flags) & GEX_FLAG_ENABLE_LEAF_LC) ? &_lc_dummy : GEX_EVENT_DEFER), \
                     (flags) GASNETE_THREAD_PASS);                                   \
         break; }                                                                    \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
                    _gex_RMA_PutNBI((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                    (((flags) & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER),\
+                    (((flags) & GEX_FLAG_ENABLE_LEAF_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER),\
                     (flags) GASNETE_THREAD_PASS);                                   \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \

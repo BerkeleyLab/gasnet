@@ -1147,7 +1147,7 @@ void doit(int iters, int runtests) {
         if (src_area == my_heap_read_area && TEST_RAND_ONEIN(2)) { // LC overwrite test
           gex_Event_t RC = GEX_EVENT_INVALID;
           gex_Event_t LC = GEX_EVENT_INVALID;
-          flags = GEX_FLAG_VIS_WITH_LC;
+          flags = GEX_FLAG_ENABLE_LEAF_LC;
           int const flavor = TEST_RAND(1,3);
           switch (flavor) {
             case 1: // NB
@@ -1251,7 +1251,7 @@ void doit(int iters, int runtests) {
         if (src_area == my_heap_read_area && TEST_RAND_ONEIN(2)) { // LC overwrite test
           gex_Event_t RC = GEX_EVENT_INVALID;
           gex_Event_t LC = GEX_EVENT_INVALID;
-          flags = GEX_FLAG_VIS_WITH_LC;
+          flags = GEX_FLAG_ENABLE_LEAF_LC;
           int const flavor = TEST_RAND(1,3);
           switch (flavor) {
             case 1: // NB
@@ -1355,7 +1355,7 @@ void doit(int iters, int runtests) {
         if (srcarea == my_heap_read_area && TEST_RAND_ONEIN(2) && desc->totalsz > 0) { // LC overwrite test
           gex_Event_t RC = GEX_EVENT_INVALID;
           gex_Event_t LC = GEX_EVENT_INVALID;
-          flags = GEX_FLAG_VIS_WITH_LC;
+          flags = GEX_FLAG_ENABLE_LEAF_LC;
           int const flavor = TEST_RAND(1,3);
           switch (flavor) {
             case 1: // NB

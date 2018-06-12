@@ -823,7 +823,7 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_AM_REPLY,
     GEX_FLAG_AM_REQREP,
 
-    GEX_FLAG_VIS_WITH_LC,
+    GEX_FLAG_ENABLE_LEAF_LC,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
@@ -866,7 +866,7 @@ void doit0(int partner, int *partnerseg) {
   static gex_Flags_t const flags_vis[] = { // gex_VIS_* initiation
     COMM_INIT_FLAGS
 
-    GEX_FLAG_VIS_WITH_LC,
+    GEX_FLAG_ENABLE_LEAF_LC,
   };
   assert_arr_unaliased(gex_Flags_t, flags_vis);
 

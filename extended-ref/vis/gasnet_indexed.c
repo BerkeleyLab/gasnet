@@ -599,7 +599,7 @@ gex_Event_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank));
-  gex_Event_t * const lc_opt = (flags & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
+  gex_Event_t * const lc_opt = (flags & GEX_FLAG_ENABLE_LEAF_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
   GASNETE_START_NBIREGION(synctype);
 
   #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len, lc_opt)

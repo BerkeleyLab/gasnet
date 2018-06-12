@@ -155,7 +155,10 @@ typedef uint32_t gex_Flags_t;
 #define GEX_FLAG_AM_REPLY               (1U <<  4)
 #define GEX_FLAG_AM_REQREP              (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY)
 
-#define GEX_FLAG_VIS_WITH_LC            (1U <<  9)
+#define GEX_FLAG_ENABLE_LEAF_LC         (1U <<  9)
+
+// TODO-EX: Deprecated rename thunk to be removed next release:
+#define GEX_FLAG_VIS_WITH_LC  GEX_FLAG_ENABLE_LEAF_LC
 
 #define GEX_FLAG_USES_GASNET1           (1U <<  0)
 
