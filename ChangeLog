@@ -25,6 +25,10 @@ PENDING: GASNet-EX 2018.6.0 Release
     declarations, suitable for inclusion into application-level code.
 
 * Feature implementation status in this release:
+  - Collectives: 
+    + ...
+  - Non-contiguous RMA: Vector, Indexed, Strided (VIS)
+    + VIS Puts now offer local completion support. See spec for GEX_FLAG_ENABLE_LEAF_LC
   - ...
 
 * This release implements the following conduits only:
