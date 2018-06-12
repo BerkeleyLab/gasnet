@@ -70,6 +70,108 @@ extern void gasnete_vis_init(void) {
   GASNETE_VIS_ENV_YN(gasnete_vis_use_remotecontig,GASNET_VIS_REMOTECONTIG, GASNETE_USE_REMOTECONTIG_GATHER_SCATTER);
 }
 /*---------------------------------------------------------------------------------*/
+// Peer completion support
+//
+
+#include <gasnet_am.h>
+
+typedef struct {
+  gasneti_vis_op_t visop;  // must be first
+
+  gex_TM_t tm;
+  gex_Rank_t rank;
+} gasneti_vispc_op_t;
+
+extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
+        const void *source_addr, size_t nbytes, gex_Flags_t flags GASNETE_THREAD_FARG) {
+  GASNETI_TRACE_PRINTF(A,("gex_VIS_SetPeerCompletionHandler(handler=%i, source_addr="GASNETI_LADDRFMT", nbytes=%"PRIuSZ")",
+                          (int)handler, GASNETI_LADDRSTR(source_addr),nbytes)); 
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
+  gasnete_vis_pcinfo_t * const pcinfo = &(td->pcinfo);
+  if (!handler) { // disarm
+    pcinfo->_handler = 0; 
+  } else { // arm
+    gasneti_assert(nbytes <= GEX_VIS_MAX_PEERCOMPLETION);
+    gasneti_assert(!nbytes || source_addr);
+    pcinfo->_handler = handler; 
+    pcinfo->_nbytes = nbytes; 
+    pcinfo->_srcaddr = source_addr; 
+  }
+}
+GASNETI_INLINE(gasnete_VIS_pcwrap)
+gex_Event_t gasnete_VIS_pcwrap(gasnete_synctype_t const synctype, // manifest constant
+                               gex_TM_t tm, gex_Rank_t rank,
+                               gex_Event_t const evt GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
+  gasnete_vis_pcinfo_t * const pcinfo = &(td->pcinfo);
+  gasneti_assert(pcinfo->_handler);
+
+  if (evt == GEX_EVENT_INVALID || // synchronously complete
+      (synctype == gasnete_synctype_b && (gex_Event_Wait(evt),1))) { // blocking
+    gex_Event_t lc;
+    gex_Event_t *lc_opt;
+    switch (synctype) {
+      case gasnete_synctype_b:   lc_opt = GEX_EVENT_NOW; lc = 0; break;
+      case gasnete_synctype_nb:  lc_opt = &lc; break;
+      case gasnete_synctype_nbi: lc_opt = GEX_EVENT_GROUP; lc = 0; break;
+      default: gasneti_unreachable();
+    }
+    gex_AM_RequestMedium1(tm, rank, _hidx_gasnete_vis_pcthunk_reqh, (void *)(pcinfo->_srcaddr), pcinfo->_nbytes, lc_opt, 0, pcinfo->_handler);
+    pcinfo->_handler = 0; // reset
+    return lc;
+  } else { // schedule deferred initiator-chaining
+    gasneti_vispc_op_t * const vispcop = gasneti_malloc(sizeof(gasneti_vispc_op_t));
+    gasneti_vis_op_t * const visop = &(vispcop->visop);
+    vispcop->tm =   tm; 
+    vispcop->rank = rank; 
+    visop->type = GASNETI_VIS_CAT_PUTPC_CHAIN;
+    visop->addr =   (void*)pcinfo->_srcaddr;
+    visop->len =    pcinfo->_nbytes;
+    visop->count =  pcinfo->_handler;
+    visop->event =  evt;
+    pcinfo->_handler = 0; // reset
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+  }
+}
+extern int         gasnete_VIS_pcwrapBlocking(gex_TM_t tm, gex_Rank_t rank, gex_Event_t evt GASNETE_THREAD_FARG) {
+  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_b, tm, rank, evt GASNETE_THREAD_PASS);
+}
+extern int         gasnete_VIS_pcwrapNBI     (gex_TM_t tm, gex_Rank_t rank, gex_Event_t evt GASNETE_THREAD_FARG) {
+  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_nbi, tm, rank, evt GASNETE_THREAD_PASS);
+}
+extern gex_Event_t gasnete_VIS_pcwrapNB      (gex_TM_t tm, gex_Rank_t rank, gex_Event_t evt GASNETE_THREAD_FARG) {
+  return gasnete_VIS_pcwrap(gasnete_synctype_nb, tm, rank, evt GASNETE_THREAD_PASS);
+}
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_vis_run_pchandler)
+void gasnete_vis_run_pchandler(gex_Token_t token, void *addr, size_t nbytes, gex_AM_Index_t handler_id) {
+
+  gex_Token_Info_t info;
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_SRCRANK|GEX_TI_EP);
+  gasneti_assert((rc & GEX_TI_SRCRANK) && (rc & GEX_TI_EP));
+
+  gex_AM_Entry_t *entry = gasnetc_get_hentry(info.gex_ep,handler_id);
+  gasneti_amtbl_check(entry, 0, gasneti_Medium, 0);
+
+  gasnetc_nbrhd_token_t my_token;
+  gex_Token_t thunk_token = gasnetc_nbrhd_token_init(&my_token, info.gex_srcrank, entry, 0);
+  my_token.ti.gex_is_long = 0;
+
+  gex_AM_Fn_t handler_fn = entry->gex_fnptr;
+
+  GASNETI_RUN_HANDLER_MEDIUM(0,handler_id,handler_fn,thunk_token,NULL,0,addr,nbytes);
+}
+ 
+GASNETI_INLINE(gasnete_vis_pcthunk_reqh_inner)
+void gasnete_vis_pcthunk_reqh_inner(gex_Token_t token, void *addr, size_t nbytes, gex_AM_Arg_t _chandler) {
+  gex_AM_Index_t handler_id = (gex_AM_Index_t)_chandler;
+  gasneti_assert(handler_id == _chandler);
+  gasnete_vis_run_pchandler(token, addr, nbytes, handler_id);
+}
+MEDIUM_HANDLER(gasnete_vis_pcthunk_reqh,1,1,
+              (token,addr,nbytes, a0),
+              (token,addr,nbytes, a0));
+/*---------------------------------------------------------------------------------*/
 
 #define GASNETI_GASNET_REFVIS_C 1
 
@@ -93,6 +195,8 @@ GASNETI_IDENT(gasneti_IdentString_VISMinPackBuf,   "$GASNetVISMinPackBuffer: " _
 /*---------------------------------------------------------------------------------*/
 /* ***  Progress Function *** */
 /*---------------------------------------------------------------------------------*/
+gasnete_vis_epdata_t gasnete_vis_epdata_THUNK;
+
 /* signal a visop dummy eop/iop, unlink it and free it */
 #define GASNETE_VISOP_SIGNAL_AND_FREE(visop, isget) do { \
     GASNETE_VISOP_SIGNAL(visop, isget);                  \
@@ -118,6 +222,16 @@ extern void gasneti_vis_progressfn(void) {
            GASNETE_VIS_PROGRESSFN_EXTRA(visop, lastp)
     #endif
     switch (visop->type) {
+      case GASNETI_VIS_CAT_PUTPC_CHAIN:
+        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+          // TODO-EX: lack a mechanism to bind LC of this AM injection to an existing eop
+          gasneti_vispc_op_t * const vispcop = (gasneti_vispc_op_t *)visop;
+          
+          gex_AM_RequestMedium1(vispcop->tm, vispcop->rank, _hidx_gasnete_vis_pcthunk_reqh, 
+                                visop->addr, visop->len, GEX_EVENT_NOW, 0, (uint8_t)visop->count);
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
+        }
+      break;
     #ifdef GASNETE_PUTV_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTV_GATHER:
         if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {

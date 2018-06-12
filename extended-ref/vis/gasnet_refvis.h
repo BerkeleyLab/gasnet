@@ -88,6 +88,8 @@
 #define _hidx_gasnete_gets_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+10)
 #define _hidx_gasnete_gets_AMPipeline_reph    (GASNETE_VIS_HANDLER_BASE+11)
 
+#define _hidx_gasnete_vis_pcthunk_reqh        (GASNETE_VIS_HANDLER_BASE+12)
+
 /*---------------------------------------------------------------------------------*/
 
 #if GASNETE_USE_AMPIPELINE
@@ -135,10 +137,11 @@
   #define GASNETE_VIS_AMPIPELINE_HANDLERS()
 #endif
 
-#if GASNETE_USE_AMPIPELINE
-  #define GASNETE_REFVIS_HANDLERS()                            \
+MEDIUM_HANDLER_DECL(gasnete_vis_pcthunk_reqh,1,1);
+
+#define GASNETE_REFVIS_HANDLERS()                                                              \
+    gasneti_handler_tableentry_with_bits(gasnete_vis_pcthunk_reqh,1,1,REQUEST,MEDIUM,0),       \
     GASNETE_VIS_AMPIPELINE_HANDLERS()                        
-#endif
 
 /*---------------------------------------------------------------------------------*/
 

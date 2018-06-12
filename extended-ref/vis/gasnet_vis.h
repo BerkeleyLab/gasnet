@@ -222,6 +222,43 @@ typedef enum _gasnete_synctype_t {
   gasnete_synctype_nbi
 } gasnete_synctype_t;
 
+/*---------------------------------------------------------------------------------*/
+// Peer completion support
+
+#ifndef GEX_VIS_MAX_PEERCOMPLETION
+#define GEX_VIS_MAX_PEERCOMPLETION 127
+#endif
+
+extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t _handler,
+        const void *_source_addr, size_t _nbytes, gex_Flags_t _flags GASNETE_THREAD_FARG);
+#define gex_VIS_SetPeerCompletionHandler(handler, source_addr, nbytes, flags) \
+    gasnete_VIS_SetPeerCompletionHandler(handler, source_addr, nbytes, flags GASNETI_THREAD_GET)
+
+// For this release, VIS PC is implemented as a functionally correct proof-of-concept 
+// that uses initiator-chaining in the public header for expedience.
+// TODO-EX: Replace this prototype with pipelined PC
+// This is a really gross macro hack, but it's strictly temporary.
+GASNETI_INLINE(_gasnete_vis_havepc)
+int _gasnete_vis_havepc(const void * const _ti) {
+  gasneti_assert(_ti);
+  gasnete_vis_pcinfo_t const * const _vis_ti = ((gasnete_vis_pcinfo_t const * const *)_ti)[2];
+  return _vis_ti && _vis_ti->_handler;
+}
+// TODO-EX: comment out GASNETI_MYTHREAD_GET_OR_LOOKUP defn once we remove this sole use
+#define GASNETE_VIS_HAVEPC() _gasnete_vis_havepc(GASNETI_MYTHREAD_GET_OR_LOOKUP)
+#define _GASNETE_VIS_PCWRAP(tm,rank,fnbase,syncmode,opargs) (                      \
+    GASNETE_VIS_HAVEPC() ?                                                         \
+      gasnete_VIS_pcwrap##syncmode(tm,rank,(fnbase##NB opargs) GASNETE_THREAD_GET) \
+    : fnbase##syncmode opargs                                                      \
+)
+extern int         gasnete_VIS_pcwrapBlocking(gex_TM_t _tm, gex_Rank_t _rank, gex_Event_t _evt GASNETE_THREAD_FARG);
+extern int         gasnete_VIS_pcwrapNBI     (gex_TM_t _tm, gex_Rank_t _rank, gex_Event_t _evt GASNETE_THREAD_FARG);
+extern gex_Event_t gasnete_VIS_pcwrapNB      (gex_TM_t _tm, gex_Rank_t _rank, gex_Event_t _evt GASNETE_THREAD_FARG)
+                                             GASNETI_WARN_UNUSED_RESULT;
+
+/*---------------------------------------------------------------------------------*/
+// Degenerate contiguous RMA support
+
 #if GASNETE_PUTGET_ALWAYSREMOTE
   // TODO-EX: This disgusting hack is brought to you by the revolting GASNETE_PUTGET_ALWAYSREMOTE option
   // that breaks loopback operation of the contiguous RMA APIs. Remove that option and this hack!
@@ -292,6 +329,7 @@ typedef enum _gasnete_synctype_t {
 
 #define _GASNETE_VECTOR_COMMON_GET(degencontigop) \
   gasneti_assert(!(_flags & GEX_FLAG_ENABLE_LEAF_LC)); \
+  gasneti_assert(!GASNETE_VIS_HAVEPC());               \
   gasnete_boundscheck_memveclist(_tm, _srcrank, _srccount, _srclist); \
   _GASNETE_VECTOR_COMMON(degencontigop, GETV_DEGENERATE)
 #define _GASNETE_VECTOR_COMMON_PUT(degencontigop) \
@@ -323,7 +361,8 @@ int _gex_VIS_VectorPutBlocking(
   return (int)(intptr_t)gasnete_putv(gasnete_synctype_b,_tm,_dstrank,_dstcount,_dstlist,_srccount,_srclist,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_VectorPutBlocking(tm,dstrank,dstcount,dstlist,srccount,srclist,flags) \
-       _gex_VIS_VectorPutBlocking(tm,dstrank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_VectorPut,Blocking,(tm,dstrank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_VectorGetBlocking)
 int _gex_VIS_VectorGetBlocking(
@@ -350,7 +389,8 @@ gex_Event_t _gex_VIS_VectorPutNB(
   return gasnete_putv(gasnete_synctype_nb,_tm,_dstrank,_dstcount,_dstlist,_srccount,_srclist,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_VectorPutNB(tm,dstrank,dstcount,dstlist,srccount,srclist,flags) \
-       _gex_VIS_VectorPutNB(tm,dstrank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_VectorPut,NB,(tm,dstrank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_VectorGetNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_VIS_VectorGetNB(
@@ -377,7 +417,8 @@ int _gex_VIS_VectorPutNBI(
   return (int)(intptr_t)gasnete_putv(gasnete_synctype_nbi,_tm,_dstrank,_dstcount,_dstlist,_srccount,_srclist,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_VectorPutNBI(tm,dstrank,dstcount,dstlist,srccount,srclist,flags) \
-       _gex_VIS_VectorPutNBI(tm,dstrank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_VectorPut,NBI,(tm,dstrank,dstcount,dstlist,srccount,srclist,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_VectorGetNBI)
 int _gex_VIS_VectorGetNBI(
@@ -419,6 +460,7 @@ int _gex_VIS_VectorGetNBI(
 
 #define _GASNETE_INDEXED_COMMON_GET(degencontigop) \
   gasneti_assert(!(_flags & GEX_FLAG_ENABLE_LEAF_LC)); \
+  gasneti_assert(!GASNETE_VIS_HAVEPC());               \
   gasnete_boundscheck_addrlist(_tm, _srcrank, _srccount, _srclist, _srclen); \
   _GASNETE_INDEXED_COMMON(degencontigop, GETI_DEGENERATE)
 #define _GASNETE_INDEXED_COMMON_PUT(degencontigop) \
@@ -451,7 +493,8 @@ int _gex_VIS_IndexedPutBlocking(
   return (int)(intptr_t)gasnete_puti(gasnete_synctype_b,_tm,_dstrank,_dstcount,_dstlist,_dstlen,_srccount,_srclist,_srclen,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_IndexedPutBlocking(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
-       _gex_VIS_IndexedPutBlocking(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_IndexedPut,Blocking,(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_IndexedGetBlocking)
 int _gex_VIS_IndexedGetBlocking(
@@ -478,7 +521,8 @@ gex_Event_t _gex_VIS_IndexedPutNB(
   return gasnete_puti(gasnete_synctype_nb,_tm,_dstrank,_dstcount,_dstlist,_dstlen,_srccount,_srclist,_srclen,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_IndexedPutNB(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
-       _gex_VIS_IndexedPutNB(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_IndexedPut,NB,(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_IndexedGetNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_VIS_IndexedGetNB(
@@ -505,7 +549,8 @@ int _gex_VIS_IndexedPutNBI(
   return (int)(intptr_t)gasnete_puti(gasnete_synctype_nbi,_tm,_dstrank,_dstcount,_dstlist,_dstlen,_srccount,_srclist,_srclen,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_IndexedPutNBI(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
-       _gex_VIS_IndexedPutNBI(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_IndexedPut,NBI,(tm,dstrank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_IndexedGetNBI)
 int _gex_VIS_IndexedGetNBI(
@@ -551,6 +596,7 @@ int _gex_VIS_IndexedGetNBI(
 
 #define _GASNETE_STRIDED_COMMON_GET(degencontigop)  \
   gasneti_assert(!(_flags & GEX_FLAG_ENABLE_LEAF_LC)); \
+  gasneti_assert(!GASNETE_VIS_HAVEPC());               \
   _GASNETE_STRIDED_COMMON(degencontigop, GETS_DEGENERATE)
 #define _GASNETE_STRIDED_COMMON_PUT(degencontigop)  \
   gex_Event_t _lc_dummy;                            \
@@ -581,7 +627,8 @@ int _gex_VIS_StridedPutBlocking(
   return (int)(intptr_t)gasnete_puts(gasnete_synctype_b,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_StridedPutBlocking(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
-       _gex_VIS_StridedPutBlocking(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_StridedPut,Blocking,(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_StridedGetBlocking)
 int _gex_VIS_StridedGetBlocking(
@@ -610,7 +657,8 @@ gex_Event_t _gex_VIS_StridedPutNB(
   return gasnete_puts(gasnete_synctype_nb,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_StridedPutNB(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
-       _gex_VIS_StridedPutNB(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_StridedPut,NB,(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_StridedGetNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_VIS_StridedGetNB(
@@ -639,7 +687,8 @@ int _gex_VIS_StridedPutNBI(
   return (int)(intptr_t)gasnete_puts(gasnete_synctype_nbi,_tm,_dstrank,_dstaddr,_dststrides,_srcaddr,_srcstrides,_elemsz,_count,_stridelevels,_flags GASNETE_THREAD_PASS);
 }
 #define gex_VIS_StridedPutNBI(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags) \
-       _gex_VIS_StridedPutNBI(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET)
+    _GASNETE_VIS_PCWRAP(tm,dstrank, \
+       _gex_VIS_StridedPut,NBI,(tm,dstrank,dstaddr,dststrides,srcaddr,srcstrides,elemsz,count,stridelevels,flags GASNETE_THREAD_GET))
 
 GASNETI_INLINE(_gex_VIS_StridedGetNBI)
 int _gex_VIS_StridedGetNBI(
