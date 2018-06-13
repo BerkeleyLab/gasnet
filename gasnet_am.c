@@ -6,7 +6,6 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_am.h>
 
 /* ------------------------------------------------------------------------------------ */
@@ -451,24 +450,24 @@ gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
 }
 #endif
 
-gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
+void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  gasneti_assert(isreq == !!isreq); // 0 or 1
-  gasneti_AM_SrcDesc_t sd = &(GASNETI_MYTHREAD->gasneti_sds[isreq]);
-  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Yes, we start "BAD"
-  sd->_thread = GASNETI_MYTHREAD;
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_assert(! mythread->sd_is_init);
+
+  // Yes, we start "BAD":
+  GASNETI_INIT_MAGIC(&mythread->request_sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+  GASNETI_INIT_MAGIC(&mythread->reply_sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+
+  mythread->request_sd._thread = mythread;
+  mythread->reply_sd._thread = mythread;
+
 #if GASNET_DEBUG
-  sd->_isreq  = isreq;
+  mythread->request_sd._isreq = 1;
+  mythread->reply_sd._isreq = 0;
 #endif
-  // Code in gasnet_am.h finds the structs by pointers at known offsets:
-  gasneti_assert((void**)(&GASNETI_MYTHREAD->gasneti_req_sd) == ((void**)GASNETI_MYTHREAD)+4);
-  gasneti_assert((void**)(&GASNETI_MYTHREAD->gasneti_rep_sd) == ((void**)GASNETI_MYTHREAD)+3);
-  if (isreq) {
-     GASNETI_MYTHREAD->gasneti_req_sd = sd;
-  } else {
-     GASNETI_MYTHREAD->gasneti_rep_sd = sd;
-  }
-  return sd;
+
+  mythread->sd_is_init = 1;
 }
 #endif // _GEX_AM_SRCDESC_T
 

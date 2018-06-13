@@ -377,15 +377,14 @@ void gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
     sd->_gex_buf = sd->_tofree = sd->_addr = gasneti_malloc(size);
 }
 
-extern gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG);
+void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE);
 
 // Get the thread-specfic SD for Requests, initializing on first call
 GASNETI_INLINE(gasneti_init_request_srcdesc)
 gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
-  gasneti_AM_SrcDesc_t sd = mythread_ptrs[4]; // 5th pointer (gasneti_req_sd)
-  if_pf (!sd) { sd = gasneti_init_srcdesc(1 GASNETI_THREAD_PASS); }
+  if_pf (! GASNETI_MYTHREAD->sd_is_init) gasneti_init_srcdesc(GASNETI_THREAD_PASS_ALONE);
+  gasneti_AM_SrcDesc_t sd = &GASNETI_MYTHREAD->request_sd;
 #if GASNET_DEBUG
   if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
     gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareRequest*() calls");
@@ -401,9 +400,8 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
 GASNETI_INLINE(gasneti_init_reply_srcdesc)
 gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  void ** const mythread_ptrs = (void **)GASNETI_MYTHREAD;
-  gasneti_AM_SrcDesc_t sd = mythread_ptrs[3]; // 4th pointer (gasneti_rep_sd)
-  if_pf (!sd) { sd = gasneti_init_srcdesc(0 GASNETI_THREAD_PASS); }
+  if_pf (! GASNETI_MYTHREAD->sd_is_init) gasneti_init_srcdesc(GASNETI_THREAD_PASS_ALONE);
+  gasneti_AM_SrcDesc_t sd = &GASNETI_MYTHREAD->reply_sd;
 #if GASNET_DEBUG
   if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
     gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_PrepareReply*() calls");

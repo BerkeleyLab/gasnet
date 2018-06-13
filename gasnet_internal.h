@@ -736,12 +736,12 @@ typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */
-  gasneti_AM_SrcDesc_t gasneti_rep_sd, gasneti_req_sd; /* ptrs for NP-AM */
 
   gasnete_threadidx_t threadidx;
 
   /* Negotiated Payload data */
-  struct gasneti_AM_SrcDesc gasneti_sds[2];
+  int sd_is_init;
+  struct gasneti_AM_SrcDesc request_sd, reply_sd;
 
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */
   int thread_cleanup_delay;
