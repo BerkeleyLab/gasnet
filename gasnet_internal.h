@@ -779,15 +779,28 @@ typedef union _gasnete_eopaddr_t {
 } gasnete_eopaddr_t;
 
 typedef struct _gasnete_threaddata_t {
-  /* fields that should appear first in the threaddata struct for all conduits */
+  //
+  // Fixed fields that should appear first in the threaddata struct for all conduits
+  // NOTE: it is critical that these not change postition or order
+  // TODO: eventually these might be replaced with inlined fields
+  //
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */
 
+  //
+  // Thread mangement fields
+  // Owned by gasnet_extended_help.h
+  //
   gasnete_threadidx_t threadidx;
 
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */
   int thread_cleanup_delay;
+
+  //
+  // Extended API data
+  // Owned by multiple Extended API files (potentially conduit-specific)
+  //
 
   GASNETE_VALGET_FIELDS
 
@@ -800,6 +813,10 @@ typedef struct _gasnete_threaddata_t {
 
   gasnete_iop_t *iop_free;      /*  free list of iops */
 
+  //
+  // Conduit-specific data
+  // Owned by [CONDUIT]-conduie/gasnet_extended_fwd.h
+  //
   #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
   GASNETE_CONDUIT_THREADDATA_FIELDS
   #endif
