@@ -732,20 +732,35 @@ typedef struct _gasnete_eop_t gasnete_eop_t;
 typedef struct _gasnete_iop_t gasnete_iop_t;
 
 typedef struct _gasnete_threaddata_t {
-  /* fields that should appear first in the threaddata struct for all conduits */
+  //
+  // Fixed fields that should appear first in the threaddata struct for all conduits
+  // NOTE: it is critical that these not change postition or order
+  // TODO: eventually these might be replaced with inlined fields
+  //
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */
 
+  //
+  // Thread mangement fields
+  // Owned by gasnet_extended_help.h
+  //
   gasnete_threadidx_t threadidx;
-
-  /* Negotiated Payload data */
-  int sd_is_init;
-  struct gasneti_AM_SrcDesc request_sd, reply_sd;
 
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */
   int thread_cleanup_delay;
 
+  //
+  // Negotiated Payload data
+  // Owned by gasnet_am.[ch]
+  //
+  int sd_is_init;
+  struct gasneti_AM_SrcDesc request_sd, reply_sd;
+
+  //
+  // Event data
+  // Owned by gasnet_event_internal.h
+  //
   void *eop_bufs;               /*  linked list of eop chunk buffers */
   int eop_num_bufs;             /*  number of valid buffer entries */
   gasnete_eop_t *eop_free;      /*  free list of eops */
@@ -761,6 +776,10 @@ typedef struct _gasnete_threaddata_t {
   gasnete_eop_t *foreign_eops;
   gasnete_iop_t *foreign_iops;
 
+  //
+  // Conduit-specific data
+  // Owned by [CONDUIT]-conduie/gasnet_extended_fwd.h
+  //
   #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
   GASNETE_CONDUIT_THREADDATA_FIELDS
   #endif
