@@ -46,7 +46,7 @@ typedef struct _gasnete_op_t {
   gasnete_threadidx_t threadidx;  /*  thread that owns me (16-bit by default) */
 } gasnete_op_t;
 
-typedef struct _gasnete_eop_t {
+struct _gasnete_eop_t {
   uint8_t event[GASNETE_OP_EVENTS];
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   //----------------------------------
@@ -54,9 +54,9 @@ typedef struct _gasnete_eop_t {
   #ifdef GASNETE_CONDUIT_EOP_FIELDS
   GASNETE_CONDUIT_EOP_FIELDS
   #endif
-} gasnete_eop_t;
+};
 
-typedef struct _gasnete_iop_t {
+struct _gasnete_iop_t {
   uint8_t event[GASNETE_OP_EVENTS];
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   //----------------------------------
@@ -86,7 +86,7 @@ typedef struct _gasnete_iop_t {
   #ifdef GASNETE_CONDUIT_IOP_FIELDS
   GASNETE_CONDUIT_IOP_FIELDS
   #endif
-} gasnete_iop_t;
+};
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -334,33 +334,6 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 
 // Convert root (op) to any leaf (event)
 #define gasneti_op_event(_op,_idx) ((gex_Event_t)&((_op)->event[_idx]))
-
-/* ------------------------------------------------------------------------------------ */
-// TODO-EX: This really should move.
-// However, relocating to any existing header creates a circular dependency
-
-typedef struct _gasnete_threaddata_t {
-  GASNETE_COMMON_THREADDATA_FIELDS /* MUST come first, for reserved ptrs */
-
-  void *eop_bufs;               /*  linked list of eop chunk buffers */
-  int eop_num_bufs;             /*  number of valid buffer entries */
-  gasnete_eop_t *eop_free;      /*  free list of eops */
-
-  /*  stack of iops - head is active iop servicing new implicit ops */
-  gasnete_iop_t *current_iop;  
-  int iop_num;                  /*  number of allocated iops */
-  gasnete_iop_t *iop_free;      /*  free list of iops */
-
-  /*  lists of eops and iops freed by other threads */
-  // TODO-EX: lock-free queues
-  gasneti_mutex_t foreign_lock;
-  gasnete_eop_t *foreign_eops;
-  gasnete_iop_t *foreign_iops;
-
-  #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
-  GASNETE_CONDUIT_THREADDATA_FIELDS
-  #endif
-} gasnete_threaddata_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* Reference implementation of eop and iop */
