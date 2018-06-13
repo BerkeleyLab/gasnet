@@ -764,6 +764,48 @@ extern void gasneti_nodemapFini(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Thread-local data
+
+// Subsystems and conduits should use gasnet_*_fwd.h files to provide type definitions.
+// However, some don't have any better home:
+typedef struct _gasnete_eop_t gasnete_eop_t;
+typedef struct _gasnete_iop_t gasnete_iop_t;
+typedef union _gasnete_eopaddr_t {
+  struct {
+    uint8_t _bufferidx;
+    uint8_t _eopidx;
+  } compaddr;
+  uint16_t fulladdr;
+} gasnete_eopaddr_t;
+
+typedef struct _gasnete_threaddata_t {
+  /* fields that should appear first in the threaddata struct for all conduits */
+  void *gasnetc_threaddata;     /* ptr reserved for use by the core */
+  void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */
+  void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */
+
+  gasnete_threadidx_t threadidx;
+
+  gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */
+  int thread_cleanup_delay;
+
+  GASNETE_VALGET_FIELDS
+
+  gasnete_eop_t *eop_bufs[256]; /*  buffers of eops for memory management */
+  int eop_num_bufs;             /*  number of valid buffer entries */
+  gasnete_eopaddr_t eop_free;   /*  free list of eops */
+
+  /*  stack of iops - head is active iop servicing new implicit ops */
+  gasnete_iop_t *current_iop;  
+
+  gasnete_iop_t *iop_free;      /*  free list of iops */
+
+  #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
+  GASNETE_CONDUIT_THREADDATA_FIELDS
+  #endif
+} gasnete_threaddata_t;
+
+/* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 

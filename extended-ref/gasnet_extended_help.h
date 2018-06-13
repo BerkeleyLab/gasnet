@@ -113,19 +113,6 @@ typedef struct _gasnete_thread_cleanup {
 } gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
 
 
-/* fields that should appear first in the threaddata struct for all conduits */
-#define GASNETE_COMMON_THREADDATA_FIELDS                                      \
-  void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
-  void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
-  void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
-                                                                              \
-  gasnete_threadidx_t threadidx;                                              \
-                                                                              \
-  gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
-  int thread_cleanup_delay;                                                   \
-                                                                              \
-  GASNETE_VALGET_FIELDS
-
 /* high-water mark on highest thread index allocated thus far */
 extern int gasnete_maxthreadidx;
 #define gasnete_assert_valid_threadid(threadidx) do {   \

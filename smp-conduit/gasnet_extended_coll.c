@@ -4,7 +4,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_extended_internal.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_autotune_internal.h>
 #include <smp-collectives/smp_coll.h>
