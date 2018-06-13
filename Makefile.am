@@ -54,6 +54,7 @@ CONDUITMODE_EXTRA_DIST =    	\
 	gasnet_am.h 	        \
 	gasnet_am.c 	        \
 	gasnet_mmap.c  	  	\
+	gasnet_tm.c 	  	\
 	gasnet_diagnostic.c 	\
 	gasnet_pshm.h		\
 	gasnet_pshm.c		\

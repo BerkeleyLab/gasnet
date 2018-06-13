@@ -405,7 +405,8 @@ typedef struct {
     GASNETI_OBJECT_HEADER              \
     gasneti_EP_t       _ep;            \
     gex_Rank_t         _rank;          \
-    gex_Rank_t         _size;
+    gex_Rank_t         _size;          \
+    void *             _coll_team;
   typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);

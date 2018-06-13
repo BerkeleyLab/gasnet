@@ -756,11 +756,18 @@ application-specific support.
  scatter gets - i.e. cases that are locally non-contiguous but remotely
  contiguous. The default is conduit-dependent.
 
-* GASNET_COLL_SCRATCH_SIZE - specifies the size of the GASNet auxiliary scratch space 
- per node. Most of the optimized collectives rely on this auxiliary space to enable 
- optimized communication schedules. If the size is set too low, then the collectives 
- will send a lot more control messages which could adversely affect performance. 
- Defaults to 2MB per node.
+* GASNET_COLL_SCRATCH_SIZE - Specifies the size of the scratch space allocated
+ on each rank for internal use in collective communications.  This is the
+ preferred size allocated for the initial team, and is the value returned from
+ a query using GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED.
+ If the size is set too low, then the performance of collectives may suffer.
+ Defaults to 2MB per rank.
+
+* GASNET_COLL_MIN_SCRATCH_SIZE - Specifies the minimum size of the scratch
+ space allocated on each rank for internal use in collective communications.
+ This is the minimum size permitted for the initial team (or job startup will
+ fail), and is the value returned from a query using GEX_FLAG_TM_SCRATCH_SIZE_MIN.
+ Defaults to 1KB per rank.
 
 * GASNET_COLL_ENABLE_SEARCH - enable autotuning of collectives
 * GASNET_COLL_TUNING_FILE - file to read and/or write collective autotuning data

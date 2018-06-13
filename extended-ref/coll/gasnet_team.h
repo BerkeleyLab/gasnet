@@ -37,8 +37,8 @@ void gasnete_coll_team_free(gasnet_team_handle_t team);
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 
 gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
-                                             gex_Rank_t mycolor,
-                                             gex_Rank_t myrelrank,
+                                             int mycolor,
+                                             int myrelrank,
                                              void *clientdata
                                              GASNETE_THREAD_FARG);
 

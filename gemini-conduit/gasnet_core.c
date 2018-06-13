@@ -669,7 +669,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasneti_EP_t ep = gasneti_import_ep(*ep_p);
     gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
-    gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+    gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
     gasnetc_bootstrap_tm = gasneti_export_tm(tm);
   }
 
@@ -910,7 +910,7 @@ extern int gasnetc_Client_Init(
   // TODO-EX: create team
   gasneti_TM_t tm = first_client
                     ? gasneti_import_tm(gasnetc_bootstrap_tm) // gasnetc_init() creates very first TM
-                    : gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+                    : gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {

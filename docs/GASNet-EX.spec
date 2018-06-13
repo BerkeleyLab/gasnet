@@ -442,6 +442,9 @@ typedef ... gex_Segment_t;
 // and a local gex_EP_t, a local representative of that team.
 typedef ... gex_TM_t;
 
+// Pre-defined value of type gex_TM_t
+#define GEX_TM_INVALID ((gex_TM_t)0)
+
 //
 // Client-Data (CData)
 //
@@ -567,8 +570,6 @@ extern int gex_Segment_Attach(
 
 //
 // Operations on gex_TM_t
-// NOTE: currently gex_Client_Init() is the only way to create a TM.
-// However, additional APIs for TM creation will be added.
 //
 
 // Query owning client
@@ -583,6 +584,90 @@ gex_Flags_t  gex_TM_QueryFlags(gex_TM_t tm);
 // Query rank of team member, and size of team
 gex_Rank_t   gex_TM_QueryRank(gex_TM_t tm);
 gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
+
+// Split a Team into zero or more disjoint teams
+//
+// This call is collective over an existing team, and creates zero or more new
+// teams.  While this call is collective, the arguments are NOT required to be
+// single-valued except as noted for certain bits in 'flags'.
+//
+// + When passing any of the GEX_FLAG_TM_SCRATCH_SIZE_* family of flags, this
+//   call is a collective query to determine the minimum or recommended value
+//   for the 'scratch_size' argument, based on the other parameters (excluding
+//   scratch_addr and scratch_len).  No teams are created and nothing is
+//   written into `new_tm_p`.  Otherwise, this call creates zero or more teams
+//   as described in the remaining semantics.
+// + When not operating as a query, the return value is currently undefined.
+// + Callers passing NULL for 'new_tm_p' do not participate in team creation.
+//   This assists in following the collective call requirement without the
+//   need to create teams that are not needed by the client.
+// + For callers passing non-NULL for 'new_tm_p', this call creates a new team
+//   consisting of the associated endpoints of all such callers passing the
+//   same value of 'color'.
+// + Within each newly created team, ranks are assigned (contiguously from
+//   zero) by increasing order of the 'key' argument of the members.  In the
+//   case of equal 'key', ties are broken by ranks in the 'parent_tm' team.
+//   In particular this implies that if all ranks pass the same 'key' value,
+//   then relative rank order from the 'parent_tm' is preserved in all created
+//   teams.
+// + The client may optionally provide scratch space within the bound segment
+//   of the endpoint corresponding to 'parent_tm', for use by the
+//   implementation.  No portion of this memory may be written by the client
+//   or passed to any GASNet function, nor may the segment be destroyed, for
+//   the lifetime of the newly created team.  When the team is destroyed,
+//   ownership of this memory is returned to the client.
+//   [NOTE: this release *requires* the caller to provide this space, but it
+//    is intended that this be optional in a future release.]
+//   [TBD: what about Unbind of the segment w/o destroying it?]
+//
+// new_tm_p:  An OUT parameter that receives the gex_TM_t representing the
+//            newly-created team, if any.
+// parent_tm: The call is collective over this team.
+// color:     A non-negative integer used to match callers to belong to the
+//            same new team.
+// key:       An integer used to order the ranks within newly created teams.
+// scratch_addr, scratch_size:
+//            If scratch_addr is non-NULL, then the memory
+//               [scratch_addr, scratch_addr+scratch_size)
+//            is granted to the implementation for internal use.
+// flags:
+//   Single valued:
+//       GEX_FLAG_TM_SCRATCH_SIZE_*
+//         These mutually exclusive flags convert this call into a collective query.
+//         No team is created in the presence of any flag in this family.
+//         Note that the return value is not guaranteed to be single-valued.
+//         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
+//           {minimum permissible, recommended optimal} value to be passed in 
+//           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
+//            value for the other arguments.
+//   Non-single valued:
+//        None currently defined 
+//
+size_t gex_TM_Split(gex_TM_t *new_tm_p, gex_TM_t parent_tm, int color, int key,
+                    void *scratch_addr, size_t scratch_size, 
+                    gex_Flags_t flags);
+
+// Translations between (tm,rank) and jobrank
+//
+// These functions provide translations in either direction between a
+// (tm,rank) pair and a jobrank.
+//
+// gex_Rank_t gex_TM_TranslateRankToJobrank(tm, rank)
+//    Returns the jobrank of the endpoint in 'tm' with the given 'rank'.
+//    Requires 0 <= rank < gex_TM_QuerySize(tm)
+// gex_Rank_t gex_TM_TranslateJobrankToRank(tm, jobrank)
+//    If there is an endpoint in 'tm' with the given 'jobrank', return its
+//    rank in 'tm'.  Otherwise, returns GEX_RANK_INVALID.
+//    Requires 0 <= jobrank < gex_System_QueryJobSize()
+//
+// These queries MAY communicate.
+// [TBD: exception for 'self' in one both directions?]
+// These calls are not legal in contexts which prohibit communication,
+// including (but not limited to) AM Handler context or when holding an HSL.
+//
+gex_Rank_t gex_TM_TranslateRankToJobrank(gex_TM_t tm, gex_Rank_t rank);
+gex_Rank_t gex_TM_TranslateJobrankToRank(gex_TM_t tm, gex_Rank_t jobrank);
+
 
 //
 // Operations on gex_EP_t

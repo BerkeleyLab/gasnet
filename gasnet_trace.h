@@ -174,6 +174,9 @@
 #define GASNETI_TMSTR(tm) gasneti_formattm(tm)
 #define GASNETI_TMRANKFMT GASNETI_TMFMT ":%i"
 #define GASNETI_TMRANKSTR(tm,rank) GASNETI_TMSTR(tm),(rank)
+// Team and *self* rank (note multiple evaluation of tm):
+#define GASNETI_TMSELFFMT GASNETI_TMRANKFMT
+#define GASNETI_TMSELFSTR(tm) GASNETI_TMRANKSTR(tm,gex_TM_QueryRank(tm))
 
 #if PLATFORM_ARCH_32 
   #define GASNETI_LADDRFMT "0x%08" PRIxPTR
@@ -811,6 +814,8 @@ extern size_t gasneti_format_dt(char *_buf, gex_DT_t _dt);
 extern size_t gasneti_format_op(char *_buf, gex_OP_t _op);
 extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
 
+GASNETI_FORMAT_PRINTF(gasneti_dynsprintf,1,2,
+extern char *gasneti_dynsprintf(const char *_format,...));
 
 #if GASNETI_STATS_OR_TRACE
   #define _GASNETI_BUILD_ENUM(type,name,desc) GASNETI_STAT_##name,
@@ -828,8 +833,6 @@ extern size_t gasneti_format_ti(char *_buf, gex_TI_t _ti);
 
   extern FILE *gasneti_tracefile;
   extern FILE *gasneti_statsfile;
-  GASNETI_FORMAT_PRINTF(gasneti_dynsprintf,1,2,
-  extern char *gasneti_dynsprintf(const char *_format,...));
   extern char *gasneti_formatdata(void *_p, size_t _nbytes);
   extern void gasneti_trace_output(const char *_type, const char *_msg, int _traceheader);
   extern void gasneti_stats_output(const char *_type, const char *_msg, int _traceheader);
