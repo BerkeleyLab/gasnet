@@ -119,8 +119,8 @@ typedef uint32_t gex_OP_t;
 
 // Convert between fetching and non-fetching variants
 // Undefined result if input is not in the appropriate range.
-#define GEX_OP_TO_FETCHING(op)    ((op) >> (_GEX_OP_AND - _GEX_OP_FAND))
-#define GEX_OP_TO_NONFETCHING(op) ((op) << (_GEX_OP_AND - _GEX_OP_FAND))
+#define GEX_OP_TO_FETCHING(op)    ((op) << (_GEX_OP_FAND - _GEX_OP_AND))
+#define GEX_OP_TO_NONFETCHING(op) ((op) >> (_GEX_OP_FAND - _GEX_OP_AND))
 
 //================================================
 // GEX_FLAG_*
@@ -187,38 +187,42 @@ typedef uint32_t gex_Flags_t;
 
 // NOTE:
 // The order of OPs is key to making the TO_FETCHING and TO_NONFETCHING
-// macros work.  Additionally, the fetching values defined in UPC 1.3
-// must use only values less than 16.
+// macros work.  Additionally, the non-fetching ops defined in UPC 1.3
+// (plus a "shadow" for GET) must use only values less than 16.
 
-// Fetching
-#define _GEX_OP_FAND  0
-#define _GEX_OP_FOR   1
-#define _GEX_OP_FXOR  2
-#define _GEX_OP_FADD  3
-#define _GEX_OP_FSUB  4
-#define _GEX_OP_FMULT 5
-#define _GEX_OP_FMIN  6
-#define _GEX_OP_FMAX  7
-#define _GEX_OP_FINC  8
-#define _GEX_OP_FDEC  9
-#define _GEX_OP_SWAP  10
-#define _GEX_OP_FCAS  11
-#define _GEX_OP_GET   12
+// Non-fetching:
+#define _GEX_OP_AND   0
+#define _GEX_OP_OR    1
+#define _GEX_OP_XOR   2
+#define _GEX_OP_ADD   3
+#define _GEX_OP_SUB   4
+#define _GEX_OP_MULT  5
+#define _GEX_OP_MIN   6
+#define _GEX_OP_MAX   7
+#define _GEX_OP_INC   8
+#define _GEX_OP_DEC   9
+#define _GEX_OP_SET   10  // This is non-fetching SWAP in UPC 1.3
+#define _GEX_OP_CAS   11  // This is non-fetching CSWAP in UPC 1.3
+// Bit 12 is reserved to correspond to GEX_OP_TO_NONFETCHING(GEX_OP_GET), which is invalid
+// Bit 13 is reserved for _GEX_OP_LOGAND
+// Bit 14 is reserved for _GEX_OP_LOGOR
 
-// Non-fetching in same order
-#define _GEX_OP_AND   13
-#define _GEX_OP_OR    14
-#define _GEX_OP_XOR   15
-#define _GEX_OP_ADD   16
-#define _GEX_OP_SUB   17
-#define _GEX_OP_MULT  18
-#define _GEX_OP_MIN   19
-#define _GEX_OP_MAX   20
-#define _GEX_OP_INC   21
-#define _GEX_OP_DEC   22
-#define _GEX_OP_SET   23  // This is non-fetching SWAP in UPC 1.3
-#define _GEX_OP_CAS   24  // This is non-fetching CSWAP in UPC 1.3
-// slot 25 is GEX_OP_TO_NONFETCHING(GEX_OP_GET), which is invalid
+// Fetching:
+#define _GEX_OP_FAND  15
+#define _GEX_OP_FOR   16
+#define _GEX_OP_FXOR  17
+#define _GEX_OP_FADD  18
+#define _GEX_OP_FSUB  19
+#define _GEX_OP_FMULT 20
+#define _GEX_OP_FMIN  21
+#define _GEX_OP_FMAX  22
+#define _GEX_OP_FINC  23
+#define _GEX_OP_FDEC  24
+#define _GEX_OP_SWAP  25
+#define _GEX_OP_FCAS  26
+#define _GEX_OP_GET   27
+// Bit 28 is reserved to correspond to GEX_OP_TO_FETCHING(GEX_OP_LOGAND), which is invalid
+// Bit 29 is reserved to correspond to GEX_OP_TO_FETCHING(GEX_OP_LOGOR), which is invalid
 
 // User-defined operations:
 #define _GEX_OP_USER    30
