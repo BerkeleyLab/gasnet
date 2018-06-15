@@ -1535,7 +1535,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                           source_addr, nbytes, dest_addr,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
-    GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
+    GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
@@ -1761,7 +1761,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                                         source_addr, nbytes, dest_addr,
                                         flags, numargs, argptr);
   } else {
-    GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
+    GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
