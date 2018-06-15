@@ -785,7 +785,10 @@ void gasnetc_AM_CommitReplyLongM(
 
 /* ------------------------------------------------------------------------------------ */
 
-gasneti_lifo_head_t gasnetc_loopback_medium_pool = GASNETI_LIFO_INITIALIZER;
+// gasneti_free_aligned() is a macro, preventing direct registration as a cleanupfn
+void gasneti_loopback_cleanup_threaddata(void *buf) {
+  gasneti_free_aligned(buf);
+}
 
 extern gex_TI_t gasnetc_nbrhd_Token_Info(
                 gex_Token_t         token,

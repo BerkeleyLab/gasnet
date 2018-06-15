@@ -751,11 +751,12 @@ typedef struct _gasnete_threaddata_t {
   int thread_cleanup_delay;
 
   //
-  // Negotiated Payload data
+  // Active Message fields
   // Owned by gasnet_am.[ch]
   //
   int sd_is_init;
   struct gasneti_AM_SrcDesc request_sd, reply_sd;
+  void *loopback_requestBuf, *loopback_replyBuf;
 
   //
   // Event data

@@ -27,10 +27,6 @@ static void gasnetc_on_exit(int, void*);
 static void gasnetc_atexit(void);
 #endif
 
-#if !GASNETI_CLIENT_THREADS
-  void *_gasnetc_mythread = NULL;
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -980,14 +976,6 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   Active Message Request Functions
   ================================
 */
-
-void gasnetc_smp_cleanup_threaddata(void *_td) {
-  void **corethreadinfo = (void **)_td;
-  gasneti_free_aligned(*corethreadinfo);
-  *corethreadinfo = NULL;
-}
-
-/* ------------------------------------------------------------------------------------ */
 
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
