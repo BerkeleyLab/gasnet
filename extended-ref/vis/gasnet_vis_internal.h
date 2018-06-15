@@ -7,8 +7,8 @@
 #ifndef _GASNET_VIS_INTERNAL_H
 #define _GASNET_VIS_INTERNAL_H
 
+#define GASNETI_NEED_GASNET_VIS_H 1
 #include <gasnet_internal.h>
-#include <gasnet_vis.h>
 
 /*---------------------------------------------------------------------------------*/
 /* ***  VIS state *** */

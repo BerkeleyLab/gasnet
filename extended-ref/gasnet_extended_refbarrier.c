@@ -9,7 +9,6 @@
 #endif
 
 #include <limits.h>
-#include <gasnet_coll_internal.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* state shared between barrier implementations */

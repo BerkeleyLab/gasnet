@@ -4,10 +4,10 @@
  * Terms of use are as specified in license.txt
  */
 
+#define GASNETI_NEED_GASNET_VIS_H 1
+#define GASNETI_NEED_GASNET_COLL_H 1
 #include <gasnet_internal.h>
 #include <gasnet_tools.h>
-#include <gasnet_vis.h>
-#include <gasnet_coll.h>
 
 #include <time.h>
 #include <sys/time.h>

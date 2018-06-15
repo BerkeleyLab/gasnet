@@ -5,10 +5,13 @@
  * Terms of use are as specified in license.txt
  */
 
+// for team->pami, used in conduit-specific barrier:
+#define GASNETI_NEED_GASNET_COLL_H 1
+
 #include <gasnet_internal.h>
+#include <gasnet_coll_internal.h> // for refbarrier.c
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_coll.h>
 
 static pami_send_hint_t gasnete_null_send_hint;
 

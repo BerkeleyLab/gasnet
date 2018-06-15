@@ -6,9 +6,10 @@
 #define GASNET_FCA_H
 
 #ifndef _INCLUDED_GASNETEX_H
-#include <gasnet_internal.h>
-#endif
+#include <gasnet_coll_internal.h>
+#else
 #include <gasnet_coll.h>
+#endif
 
 #if defined(GASNET_SEQ) && (GASNET_CONDUIT_MXM || GASNET_CONDUIT_IBV)
 

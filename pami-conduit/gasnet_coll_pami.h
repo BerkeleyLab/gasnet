@@ -8,12 +8,12 @@
 #ifndef _GASNET_COLL_PAMI_H
 #define _GASNET_COLL_PAMI_H
 
+#define GASNETI_NEED_GASNET_COLL_H 1
 #include <gasnet_core_internal.h>
 
 #if GASNET_PAMI_NATIVE_COLL
 
 #include <gasnet_refcoll.h>
-#include <gasnet_coll.h>
 #include <gasnet_coll_internal.h>
 
 /* Flags for enable/disable each operation: */

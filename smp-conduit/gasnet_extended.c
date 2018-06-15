@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#include <gasnet_coll_internal.h> // for refbarrier.c
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 

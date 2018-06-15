@@ -4,7 +4,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_internal.h>
 #include <gasnet_coll_internal.h>
 
 // TODO-EX:

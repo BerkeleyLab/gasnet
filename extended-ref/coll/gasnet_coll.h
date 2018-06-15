@@ -7,6 +7,10 @@
 #ifndef _GASNET_COLL_H
 #define _GASNET_COLL_H
 
+#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_IN_GASNET_INTERNAL_H)
+  #error Internal GASNet code should not directly include gasnet_coll.h, just gasnet_internal.h
+#endif
+
 #include <gasnetex.h>
 
 GASNETI_BEGIN_EXTERNC

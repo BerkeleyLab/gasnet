@@ -15,7 +15,6 @@
 #include <coll/gasnet_scratch.h>
 #include <coll/gasnet_trees.h>
 #include <coll/gasnet_refcoll.h>
-#include <gasnet_vis.h>
 
 /*TEMPORARY (Need to eventually change it such that 
   the files are compiled under their own .o files)*/
