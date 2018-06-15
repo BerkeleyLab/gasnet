@@ -133,6 +133,46 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 // injection from a Request handler), explicit polling and test/wait operations on handles/events.
 
 //
+// Glossary:
+// The following terms will be used with specific meanings in this document.
+//
+
+// "Collective Call"
+//
+// Several APIs in this specification are described as being "collective
+// calls".  All collective calls are collective with respect to a specific
+// ordered set of participants, which is usually specified by an argument
+// naming a team (discussed later in detail).  The designation of a call
+// as collective over a given team means:
+//  + For every given team that exists in an execution of the program, all
+//    collective calls made over that team are initiated "in the same order"
+//    by all team members -- otherwise behavior is undefined.
+//  + Here "in the same order" means that for every member of a given team,
+//    the calls over that team and their arguments are "compatible" across all
+//    members at every point in their respective sequence of collective calls
+//    over the team.
+//  + The definition of "compatible" as used here may vary slightly as
+//    defined individually for each call.  However, in the absence of per-call
+//    documentation to the contrary the following rules apply:
+//    - The function called must be the same, or from a related group of calls
+//      explicitly documented as mutually compatible.
+//    - Any arguments documented as "single-valued" must be identical across
+//      all callers.
+//    - Any additional argument compatibility constraints documented for a
+//      given call must be satisfied.
+//
+// In addition to the requirement on compatibility of collective calls over
+// any given team, all collective calls over *distinct* teams must be ordered
+// such that no deadlock would occur if all such calls were replaced by
+// blocking barriers.  A formal specification of this constraint will appear
+// in a future revision of this document.
+
+// "Single-valued"
+//
+// This term is used to designate an argument to a collective call as one that
+// must have the same value on all callers participating in the collective.
+
+//
 // Basic types:
 //
 
@@ -2406,13 +2446,8 @@ int gex_AD_OpNBI_[DATATYPE](
 // For NB variants, return type for all functions in this section is gex_Event_t.
 // There are no NBI or Blocking variants at this time.
 
-// All functions in this section are collective, meaning that for any given
-// team the sequence of these operations (and all others documented as
-// "collective") must agree across all members of the team.  Additionally,
-// calls over distinct teams must be ordered such that no deadlock would occur
-// if all such calls were replaced by blocking barriers.  A formal
-// specification of this constraint will appear in a future revision of this
-// document.
+// All functions in this section are "Collective Calls" as defined in the
+// Glossary.
 
 // Multiple collective operations from this section may be active
 // concurrently, over multiple teams or over a single team, with the exception
