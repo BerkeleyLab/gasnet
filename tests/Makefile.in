@@ -89,7 +89,8 @@ testprograms_seq =      \
         testvis         \
         testcoll        \
         testcollperf    \
-        testteambarrier       \
+        testteambarrier \
+        testteambcast   \
         testteam        \
         testnbr         \
         testvisperf     \
