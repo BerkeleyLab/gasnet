@@ -14,7 +14,6 @@
 #if defined(GASNET_SEQ) && (GASNET_CONDUIT_MXM || GASNET_CONDUIT_IBV)
 
 #include "gasnet_fca_api.h"
-#define GASNETI_USE_FCA 1
 #define GASNET_FCA_ERROR -1
 #define GASNET_FCA_SUCCESS 0
 

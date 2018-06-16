@@ -11,15 +11,15 @@
 
 #define GASNETI_NEED_GASNET_COLL_H 1
 #define GASNETI_NEED_GASNET_VIS_H 1
+#include <gasnet_internal.h>
 
 #ifdef GASNETE_COLL_NEEDS_CORE
 #include <gasnet_core_internal.h>
 #endif
-#ifdef GASNET_FCA_ENABLED
+
+#if GASNETI_USE_FCA
 #include <other/fca/gasnet_fca.h>
 #endif
-
-#include <gasnet_internal.h>
 
 #include <coll/gasnet_team.h>
 

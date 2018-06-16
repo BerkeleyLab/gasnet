@@ -281,7 +281,7 @@
 #undef GASNETI_USE_HUGETLBFS
 
 /* Have Mellanox FCA support?  Where? */
-#undef GASNET_FCA_ENABLED
+#undef GASNETI_FCA_ENABLED
 #undef GASNETI_FCA_HOME
 
 /* BLCR support, path and features */
