@@ -5148,7 +5148,7 @@ if test "$enable_fca" != "no"; then
 fi
 if test "$have_fca" = yes; then
     AC_DEFINE_UNQUOTED(GASNETI_FCA_HOME, "$FCA_HOME")
-    AC_DEFINE(GASNET_FCA_ENABLED)
+    AC_DEFINE(GASNETI_FCA_ENABLED)
 elif test "$enable_fca" = yes; then
     GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found. Perhaps you need to pass --with-fca-home=/path/to/fca ?])
 else

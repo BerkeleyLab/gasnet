@@ -51,4 +51,9 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
                    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 #define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc,
 
+// Enable inclusion of FCA in support extended-ref/coll/gasnet_coll_internal.h
+#if GASNETI_FCA_ENABLED && GASNET_SEQ
+#define GASNETI_USE_FCA 1
+#endif
+
 #endif /* _GASNET_EXTENDED_FWD_H */

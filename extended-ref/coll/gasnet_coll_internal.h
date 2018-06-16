@@ -13,7 +13,8 @@
 #ifdef GASNETE_COLL_NEEDS_CORE
 #include <gasnet_core_internal.h>
 #endif
-#ifdef GASNET_FCA_ENABLED
+
+#if GASNETI_USE_FCA
 #include <other/fca/gasnet_fca.h>
 #endif
 #include <coll/gasnet_coll.h>
