@@ -5,7 +5,6 @@
  */
 
 #include <gasnetex.h>
-#include <gasnet_coll.h>
 
 #include <test.h>
 
@@ -53,8 +52,6 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testbarrierconf", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, 1));
-
-  TEST_COLL_INIT();
 
 #if GASNET_PAR
   test_init("testbarrierconf", 0, "[-t] [-p polling_threads] (iters)\n"

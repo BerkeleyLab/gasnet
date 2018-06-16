@@ -645,6 +645,18 @@ void _gasnet_coll_reduce(gasnet_team_handle_t _team,
 
 /*---------------------------------------------------------------------------------*/
 
+#ifndef gasnete_tm_broadcast_nb
+  extern gex_Event_t
+  gasnete_tm_broadcast_nb(gex_TM_t _tm, gex_Rank_t _root,
+                          void *_dst, const void *_src,
+                          size_t _nbytes, gex_Flags_t _flags
+                          GASNETE_THREAD_FARG);
+#endif
+#define gex_Coll_BroadcastNB(tm,root,dst,src,nbytes,flags) \
+        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETE_THREAD_GET)
+
+/*---------------------------------------------------------------------------------*/
+
 #undef GASNETI_COLL_FN_HEADER
 
 GASNETI_END_NOWARN

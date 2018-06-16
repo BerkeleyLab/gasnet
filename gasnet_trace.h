@@ -243,6 +243,28 @@
   GASNETI_TRACE_PUT_NAMED(PUT_##variety##_LOCAL,LOCAL,tm,rank,dest,src,nbytes)   
 
 /*------------------------------------------------------------------------------------*/
+
+#if GASNET_TRACE
+  #define GASNETI_TRACE_BARRIER1(tm, flags) do { \
+    /* TODO-EX: _GASNETI_STAT_EVENT for TM barrier */                   \
+    GASNETI_TRACE_PRINTF(B,("Blocking Barrier: TM=" GASNETI_TMFMT " flags=%d",   \
+                            GASNETI_TMSTR(tm), flags));                 \
+  } while (0)
+  #define GASNETI_TRACE_BARRIER2(tm, flags) do { \
+    /* TODO-EX: _GASNETI_STAT_EVENT for TM barrier */                   \
+    GASNETI_TRACE_PRINTF(B,("Non-blocking Barrier: TM=" GASNETI_TMFMT " flags=%d",   \
+                            GASNETI_TMSTR(tm), flags));                 \
+  } while (0)
+#elif GASNET_STATS
+  // TODO-EX: _GASNETI_STAT_EVENT for TM barrier
+  #define GASNETI_TRACE_BARRIER1(tm, flags) ((void)0)
+  #define GASNETI_TRACE_BARRIER2(tm, flags) ((void)0)
+#else
+  #define GASNETI_TRACE_BARRIER1(tm, flags) ((void)0)
+  #define GASNETI_TRACE_BARRIER2(tm, flags) ((void)0)
+#endif
+
+/*------------------------------------------------------------------------------------*/
 #define GASNETI_TRACE_TRYSYNC(name,success) \
   GASNETI_TRACE_EVENT_VAL(S,name,((success) == GASNET_OK?1:0))
 

@@ -17,8 +17,7 @@
 /* Flags bits that are valid for use by the client */
 #define GASNETE_BARRIERFLAGS_CLIENT_ALL \
     (GASNET_BARRIERFLAG_MISMATCH | GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_UNNAMED)
-#define GASNETE_BARRIERFLAGS_CLIENT_COLL \
-    (GASNETE_BARRIERFLAGS_CLIENT_ALL | GASNET_BARRIERFLAG_IMAGES)
+#define GASNETE_BARRIERFLAGS_CLIENT_COLL GASNETE_BARRIERFLAGS_CLIENT_ALL
 
 #ifndef GASNETE_BARRIER_DEFAULT
 /* conduit plugin for default barrier mechanism */
@@ -2106,74 +2105,26 @@ int gasnete_barrier_result_common(gasnete_coll_team_t team, int *id) {
 
 /* ------------------------------------------------------------------------------------ */
 /* gasnete_coll_barrier* layer which calls the generic layer, above.
- * These implement GASNET_BARRIERFLAG_IMAGES before calling the generic layer.
+ * These check flags before calling the generic layer.
  */
 
 void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
-#if GASNET_PAR
-  if(flags & GASNET_BARRIERFLAG_IMAGES) {
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    if(team->total_ranks >1) smp_coll_barrier(td->smp_coll_handle, 0);
-    if(td->my_local_image == 0) gasnete_barrier_notify_common(team, id, flags);
-    return;
-  }
-#endif
   gasnete_barrier_notify_common(team, id, flags);
 }
 
 int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
-  /* currently there's no try version of the smp_coll_barriers*/
-  /* so the try is not yet supported over the images*/
-#if GASNET_PAR && 0
-  {
-    int ret;
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    if(td->my_local_image == 0) ret = gasnete_barrier_try_common(team, id, flags);
-    /*even if the barrier didn't succeed call the local smp barrier on the way out*/
-    /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
-    if(flags & GASNET_BARRIERFLAG_IMAGES && team->total_ranks > 1) {
-      smp_coll_barrier(td->smp_coll_handle, 0);
-    } 
-    return ret;
-  }
-#else
-  gasneti_assert(!(flags & GASNET_BARRIERFLAG_IMAGES));
-#endif
   return gasnete_barrier_try_common(team, id, flags);
 }
 
 int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
-#if GASNET_PAR 
-  if(flags & GASNET_BARRIERFLAG_IMAGES){
-    int ret;
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    if(td->my_local_image == 0) ret = gasnete_barrier_wait_common(team, id, flags);
-    else ret = GASNET_OK; /* XXX: not precisely true! */
-    /*even if the barrier didn't succeed call the local smp barrier on the way out*/
-    /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
-    if(team->total_ranks >1) smp_coll_barrier(td->smp_coll_handle, 0);
-    return ret;
-  }
-#endif
   return gasnete_barrier_wait_common(team, id, flags);
 }
 
 int gasnete_coll_barrier(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
-#if GASNET_PAR 
-  if(flags & GASNET_BARRIERFLAG_IMAGES) {
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    int ret;
-    if(team->total_ranks >1) smp_coll_barrier(td->smp_coll_handle, 0);
-    if(td->my_local_image == 0) ret = gasnete_barrier_common(team, id, flags);
-    else ret = GASNET_OK; /* XXX: not precisely true! */
-    if(team->total_ranks >1) smp_coll_barrier(td->smp_coll_handle, 0);
-    return ret;
-  }
-#endif
   return gasnete_barrier_common(team, id, flags);
 }
 

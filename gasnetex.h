@@ -262,7 +262,6 @@ GASNETI_BEGIN_NOWARN
   /* barrier flags */
   #define GASNET_BARRIERFLAG_ANONYMOUS 1
   #define GASNET_BARRIERFLAG_MISMATCH  2
-  #define GASNET_BARRIERFLAG_IMAGES 4
 
   /* UNNAMED includes ANONYMOUS to yield a trivial default implementation: */
   #define GASNETE_BARRIERFLAG_UNNAMED 8
@@ -302,6 +301,7 @@ typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
 typedef struct gasneti_team_member_s *gex_TM_t;
+#define GEX_TM_INVALID ((gex_TM_t)(uintptr_t)0)
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;

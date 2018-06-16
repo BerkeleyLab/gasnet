@@ -1270,7 +1270,8 @@ gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnet
 /*run the given op on the given arguments*/
 /*and return the best one*/
 int gasnete_coll_autotune_barrier(gasnete_coll_team_t team) {
-  int ret = gasnet_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED | GASNET_BARRIERFLAG_IMAGES);
+  gasneti_assert_always(! team->my_images);
+  int ret = gasnet_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED);
   gasneti_assert_always(ret == GASNET_OK);
   return ret;
 }

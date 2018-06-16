@@ -18,7 +18,6 @@
 #include <coll/gasnet_coll.h>
 
 #include <coll/gasnet_team.h>
-#include <smp-collectives/smp_coll.h>
 
 // Upon implementing GASNETI_MEMCPY() (with assertions), it was discovered
 // that the collectives have been using GASNETE_FAST_UNALIGNED_MEMCPY() in
@@ -755,7 +754,6 @@ typedef struct {
   
   /* XXX: more fields to come */
   gasneti_atomic_val_t num_multi_addr_collectives_started;
-  smp_coll_t smp_coll_handle;
   
   /* Recursion control */
   int in_poll;
