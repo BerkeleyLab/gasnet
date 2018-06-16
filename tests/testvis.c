@@ -1042,6 +1042,137 @@ void restore_heap_read_area(VEC_T *addr, size_t cnt) {
     *(addr++) = HEAP_VALUE(mynode, offset+i);
 }
 
+/* ------------------------------------------------------------------------------------ */
+typedef struct {
+  uint32_t packetsz; // entire packet
+  gex_Rank_t srcjobrank;
+} test_pcheader_t;
+
+#define PC_VALUE(node, idx)   ((((uint8_t)(node)&0xF) << 4) | (((uint8_t)(idx))&0xF))
+
+size_t pcsend_cnt = 0;
+test_pcheader_t *rand_pcheader(size_t *packetsz) {
+  size_t sz;
+  if (TEST_RAND_ONEIN(8)) sz = 0;
+  else if (TEST_RAND_ONEIN(8)) sz = GEX_VIS_MAX_PEERCOMPLETION;
+  else sz = TEST_RAND(0,GEX_VIS_MAX_PEERCOMPLETION);
+  assert_always(sz <= GEX_VIS_MAX_PEERCOMPLETION);
+  *packetsz = sz;
+  pcsend_cnt++;
+  if (sz == 0) return NULL;
+  test_pcheader_t *pcheader = test_malloc(sz);
+  if (sz < sizeof(test_pcheader_t)) { // degenerate header
+    memset(pcheader, (uint8_t)sz, sz);
+  } else {
+    pcheader->packetsz = sz;
+    pcheader->srcjobrank = mynode;
+    uint8_t *payload = (uint8_t*)(pcheader+1);
+    size_t payloadsz = sz-sizeof(test_pcheader_t);
+    for (size_t i=0; i < payloadsz; i++) {
+      payload[i] = PC_VALUE(mynode, i);
+    }
+  }
+  return pcheader;
+}
+
+void verify_pcheader(test_pcheader_t *pcheader, size_t sz, gex_Rank_t srcjobrank) {
+  assert_always(sz <= GEX_VIS_MAX_PEERCOMPLETION);
+  if (!verify) return;
+  if (sz < sizeof(test_pcheader_t)) { // degenerate header
+    uint8_t *payload = (uint8_t*)pcheader;
+    for (size_t i=0; i < sz; i++) {
+      uint8_t actual = payload[i];
+      uint8_t expect = sz;
+      if (actual != sz) 
+        ERR("peer completion payload (sz=%i) mismatch at element %i: expect=0x%02x actual=0x%02x\n",
+            (int)sz,(int)i,expect,actual);
+    }
+  } else {
+    assert_always(pcheader->packetsz == sz);
+    assert_always(pcheader->srcjobrank == srcjobrank);
+    uint8_t *payload = (uint8_t*)(pcheader+1);
+    size_t payloadsz = sz-sizeof(test_pcheader_t);
+    for (size_t i=0; i < payloadsz; i++) {
+      uint8_t expect = PC_VALUE(srcjobrank, i);
+      uint8_t actual = payload[i];
+      if (expect != actual)
+        ERR("peer completion payload (sz=%i) mismatch at element %i: expect=0x%02x actual=0x%02x\n",
+            (int)sz,(int)i,expect,actual);
+    }
+  }
+}
+
+#define hidx_pcverify 250
+gasnett_atomic_t pcarrival_cnt = gasnett_atomic_init(0);
+GASNETT_EXTERNC void pcverify_reph(gex_Token_t token, void *buf, size_t nbytes);
+gex_AM_Entry_t pcverify_reph_entry = 
+  { hidx_pcverify, (gex_AM_Fn_t)pcverify_reph, GEX_FLAG_AM_REPLY|GEX_FLAG_AM_MEDIUM, 
+    0, (void *)&pcarrival_cnt, "testvis_pcverify_reph" };
+void pcverify_reph(gex_Token_t token, void *buf, size_t nbytes) {
+  gasnett_atomic_increment(&pcarrival_cnt,0);
+  gex_Rank_t nranks = gex_TM_QuerySize(myteam);
+  gex_Rank_t mysender = (mynode + nranks - 1) % nranks;
+
+  // check all token properties are legit
+  gex_Token_Info_t info;
+  gex_TI_t rc = gex_Token_Info(token, &info, GEX_TI_ALL);
+  assert_always(rc & GEX_TI_SRCRANK); 
+  assert_always(info.gex_srcrank == mysender);
+  assert_always(rc & GEX_TI_EP); 
+  assert_always(info.gex_ep == myep);
+  if (rc & GEX_TI_IS_REQ)  assert_always(info.gex_is_req == 0);
+  if (rc & GEX_TI_IS_LONG) assert_always(info.gex_is_long == 0);
+  if (rc & GEX_TI_ENTRY) {
+    #define CHECK_FIELD(fname) assert_always(info.gex_entry->fname == pcverify_reph_entry.fname)
+    CHECK_FIELD(gex_index);
+    CHECK_FIELD(gex_fnptr);
+    CHECK_FIELD(gex_flags);
+    CHECK_FIELD(gex_nargs);
+    CHECK_FIELD(gex_cdata);
+    CHECK_FIELD(gex_name);
+    #undef CHECK_FIELD
+  }
+
+  verify_pcheader(buf, nbytes, mysender);
+}
+
+#ifndef PC_FREQ // 1 = always, 0 = never
+#define PC_FREQ 8
+#endif
+
+// schedule a peer completion handler for next VIS injection, if the Fates deem
+#define PC_SCHEDULE(p_pcheader) do {                                     \
+  if (PC_FREQ == 0 || !TEST_RAND_ONEIN(PC_FREQ)) *(p_pcheader) = 0;      \
+  else {                                                                 \
+    size_t _pcsz;                                                        \
+    test_pcheader_t *_pcaddr = rand_pcheader(&_pcsz);                    \
+    gex_VIS_SetPeerCompletionHandler(hidx_pcverify, _pcaddr, _pcsz, 0);  \
+    *(p_pcheader) = _pcaddr;                                             \
+  }                                                                      \
+} while (0)
+
+// release any temp storage used for peer completion injection
+#define PC_FREE(p_pcheader) (test_free(*(p_pcheader)),*(p_pcheader) = 0)
+
+// collective operation to check all peer completions have arrived globally
+void verify_pc_arrivals(void) {
+  BARRIER();
+  if (!verify) return;
+  gex_RMA_PutBlocking(myteam, partner, partner_seg_remotewrite_area, &pcsend_cnt, sizeof(pcsend_cnt), 0);
+  BARRIER();
+  size_t expect = *(size_t*)my_seg_remotewrite_area;
+  size_t actual = gasnett_atomic_read(&pcarrival_cnt,0);
+  for (int i=0; i < 5 && actual < expect; i++) { // bounded stall for global quiescence of PC
+    sleep(1); 
+    actual = gasnett_atomic_read(&pcarrival_cnt,0);
+  }
+  if (actual != expect) {
+    ERR("peer completion arrival mismatch expect=%i actual=%i\n", (int)expect,(int)actual);
+  }
+  BARRIER();
+}
+/* ------------------------------------------------------------------------------------ */
+
 typedef struct {
   test_memvec_list *vsrc;
   test_memvec_list *vdst;
@@ -1052,6 +1183,7 @@ typedef struct {
   test_strided_desc *sdesc;
   VEC_T *stmpbuf;
   test_xpose_desc *xdesc;
+  test_pcheader_t *pcheader;
 } test_op;
 
 #define TIME_DECL()                               \
@@ -1104,6 +1236,7 @@ typedef struct {
 
 void doit(int iters, int runtests) {
   GASNET_BEGIN_FUNCTION();
+  test_pcheader_t *pcheader = 0;
   /* break up the segments and hook up our area pointers */
   my_seg_read_area = myseg;
   my_seg_write1_area = myseg+areasz;
@@ -1144,6 +1277,7 @@ void doit(int iters, int runtests) {
 
         #define CALL(fn) fn(myteam, partner, dst->count, dst->list, src->count, src->list, flags)
         gex_Flags_t flags = 0;
+        PC_SCHEDULE(&pcheader);
         if (src_area == my_heap_read_area && TEST_RAND_ONEIN(2)) { // LC overwrite test
           gex_Event_t RC = GEX_EVENT_INVALID;
           gex_Event_t LC = GEX_EVENT_INVALID;
@@ -1191,6 +1325,7 @@ void doit(int iters, int runtests) {
         test_free(src);
         test_free(dst);
         test_free(tmp);
+        PC_FREE(&pcheader);
       }
 
       /* get test */
@@ -1226,6 +1361,7 @@ void doit(int iters, int runtests) {
     checkmem();
     TIME_OUTPUT(v);
   } else BARRIER();
+  verify_pc_arrivals();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_INDEXED) { 
@@ -1248,6 +1384,7 @@ void doit(int iters, int runtests) {
 
         #define CALL(fn) fn(myteam, partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen, flags)
         gex_Flags_t flags = 0;
+        PC_SCHEDULE(&pcheader);
         if (src_area == my_heap_read_area && TEST_RAND_ONEIN(2)) { // LC overwrite test
           gex_Event_t RC = GEX_EVENT_INVALID;
           gex_Event_t LC = GEX_EVENT_INVALID;
@@ -1295,6 +1432,7 @@ void doit(int iters, int runtests) {
         test_free(src);
         test_free(dst);
         test_free(tmp);
+        PC_FREE(&pcheader);
       }
 
       /* get test */
@@ -1332,6 +1470,7 @@ void doit(int iters, int runtests) {
     checkmem();
     TIME_OUTPUT(i);
   } else BARRIER();
+  verify_pc_arrivals();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_STRIDED) { 
@@ -1352,6 +1491,7 @@ void doit(int iters, int runtests) {
         // push strided local data to strided peer segment
         #define CALL(fn) fn(myteam, partner, desc->dstaddr, (ptrdiff_t*)desc->dststrides, desc->srcaddr, (ptrdiff_t*)desc->srcstrides, desc->count[0], desc->count+1, desc->stridelevels, flags)
         gex_Flags_t flags = 0;
+        PC_SCHEDULE(&pcheader);
         if (srcarea == my_heap_read_area && TEST_RAND_ONEIN(2) && desc->totalsz > 0) { // LC overwrite test
           gex_Event_t RC = GEX_EVENT_INVALID;
           gex_Event_t LC = GEX_EVENT_INVALID;
@@ -1394,6 +1534,7 @@ void doit(int iters, int runtests) {
         verify_strided_desc(desc);
         verify_strided_desc_data(desc, tmpbuf, "gex_VIS_Strided{Put,Get}Blocking linear test");
         test_free(desc);
+        PC_FREE(&pcheader);
       }
 
       /* get test */
@@ -1425,6 +1566,7 @@ void doit(int iters, int runtests) {
     checkmem();
     TIME_OUTPUT(s);
   } else BARRIER();
+  verify_pc_arrivals();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if ((runtests & RUN_TRANSPOSE) && max_stridedim >= 2) { 
@@ -1454,6 +1596,7 @@ void doit(int iters, int runtests) {
         test_xpose_desc *desc = rand_xpose_desc(srcarea, dstarea, tmparea, areasz);
 
         // push strided local data to strided peer segment
+        PC_SCHEDULE(&pcheader);
         TIMED_PUT(gex_VIS_StridedPutBlocking(myteam, partner, desc->dstaddr, desc->dststrides, desc->srcaddr, desc->srcstrides, desc->elemsz, desc->count, desc->stridelevels, 0),desc->totalsz);
         verify_xpose_desc(desc);
         // pull it back to contiguous local tmp
@@ -1461,6 +1604,7 @@ void doit(int iters, int runtests) {
         verify_xpose_desc(desc);
         verify_xpose_desc_data(desc, "gex_VIS_Strided{Put,Get}Blocking transpose test");
         test_free(desc);
+        PC_FREE(&pcheader);
       }
 
       /* get/pack test */
@@ -1489,6 +1633,7 @@ void doit(int iters, int runtests) {
     checkmem();
     TIME_OUTPUT(x);
   } else BARRIER();
+  verify_pc_arrivals();
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_NB) { 
@@ -1512,6 +1657,7 @@ void doit(int iters, int runtests) {
         int last_case = 4;
         if (max_stridedim < 2) last_case = 3;
         gex_Flags_t flags = TEST_RAND_PICK(0,GEX_FLAG_IMMEDIATE); 
+        if (!(flags & GEX_FLAG_IMMEDIATE)) PC_SCHEDULE(&(ops[i].pcheader)); // peer completion currently prohibited with IMMEDIATE
         int fail;
         switch (TEST_RAND(1,last_case)) {
           case 1: {
@@ -1588,6 +1734,8 @@ void doit(int iters, int runtests) {
       /* sync */
       gex_Event_WaitAll(events, numops, 0);
       gex_NBI_Wait(GEX_EC_ALL,0);
+
+      for(i=0; i < numops; i++) PC_FREE(&(ops[i].pcheader)); 
 
       /* gets */
       for(i=0; i < numops; i++) {
@@ -1685,6 +1833,7 @@ void doit(int iters, int runtests) {
     BARRIER();
     checkmem();
   } else BARRIER();
+  verify_pc_arrivals();
   /*---------------------------------------------------------------------------------*/
   BARRIER();
 }
@@ -1763,6 +1912,8 @@ int main(int argc, char **argv) {
   partnerseg = TEST_SEG(partner);
   heapseg = (VEC_T *)test_malloc(TEST_SEGSZ);
 
+  assert_always(gex_EP_RegisterHandlers(myep, &pcverify_reph_entry, 1) == GASNET_OK);
+
   if (seedoffset == 0) {
     seedoffset = (((unsigned int)TIME()) & 0xFFFF);
     TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
@@ -1770,7 +1921,7 @@ int main(int argc, char **argv) {
   TEST_SRAND(mynode+seedoffset);
   char segstr[64];
   gasnett_format_number(segsz, segstr, sizeof(segstr), 1);
-  MSG("running %i iterations of %s%s%s%s%s%s test (VEC_SZ=%i, seed=%i, segsz=%s)%s...", 
+  MSG("running %i iterations of %s%s%s%s%s%s test (seed=%i, VEC_SZ=%i, PC_FREQ=%i, segsz=%s)%s...", 
     iters, 
     (halfduplex?"half-duplex ":""),
     (runtests&RUN_VECTOR?"V":""), 
@@ -1778,9 +1929,7 @@ int main(int argc, char **argv) {
     (runtests&RUN_STRIDED?"S":""),
     (runtests&RUN_TRANSPOSE?"X":""),
     (runtests&RUN_NB?"N":""),
-    VEC_SZ,
-    mynode+seedoffset,
-    segstr,
+    mynode+seedoffset, VEC_SZ, PC_FREQ, segstr,
     (verify?"":" (verification disabled)")
     );
 
