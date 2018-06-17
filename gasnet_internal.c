@@ -250,7 +250,7 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_ARITH_OP(OR,   reduce, not_fp);
   CHECK_ARITH_OP(XOR,  reduce, not_fp);
   CHECK_ARITH_OP(ADD,  reduce,     fp);
-  CHECK_ARITH_OP(SUB,  reduce,     fp);
+  CHECK_ARITH_OP(SUB,  not_reduce, fp);
   CHECK_ARITH_OP(MULT, reduce,     fp);
   CHECK_ARITH_OP(MIN,  reduce,     fp);
   CHECK_ARITH_OP(MAX,  reduce,     fp);

@@ -1788,10 +1788,13 @@ typedef [some integer type] gex_DT_t;
 //      Valid for Atomics and Reductions
 //      Valid for all built-in data types
 //        GEX_OP_ADD   expr = (op0 + op1)
-//        GEX_OP_SUB   expr = (op0 - op1)
 //        GEX_OP_MULT  expr = (op0 * op1)
 //        GEX_OP_MIN   expr = ((op0 < op1) ? op0 : op1)
 //        GEX_OP_MAX   expr = ((op0 > op1) ? op0 : op1)
+//    - Non-commutative Binary Arithmetic Operations
+//      Valid only for Atomics
+//      Valid for all built-in data types
+//        GEX_OP_SUB   expr = (op0 - op1)
 //    - Unary Arithmetic Operations
 //      Valid only for Atomics
 //      Valid for all built-in data types
@@ -1810,10 +1813,11 @@ typedef [some integer type] gex_DT_t;
 //   Additionally these operations fetch 'op0' as the result of the atomic.
 //    - Binary Arithmetic Operations
 //        GEX_OP_FADD
-//        GEX_OP_FSUB
 //        GEX_OP_FMULT
 //        GEX_OP_FMIN
 //        GEX_OP_FMAX
+//    - Non-commutative Binary Arithmetic Operations
+//        GEX_OP_FSUB
 //    - Unary Arithmetic Operations
 //        GEX_OP_FINC
 //        GEX_OP_FDEC

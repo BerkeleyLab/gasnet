@@ -1268,13 +1268,17 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 
 // Masks (disjoint):
 #define _GEX_OP_ARITH_BINARY \
-        (GEX_OP_ADD|GEX_OP_SUB|GEX_OP_MULT|GEX_OP_MIN|GEX_OP_MAX)
+        (GEX_OP_ADD|GEX_OP_MULT|GEX_OP_MIN|GEX_OP_MAX)
+#define _GEX_OP_NC_ARITH_BINARY \
+         GEX_OP_SUB
 #define _GEX_OP_ARITH_UNARY \
         (GEX_OP_INC|GEX_OP_DEC)
 #define _GEX_OP_BITWISE \
         (GEX_OP_AND|GEX_OP_OR|GEX_OP_XOR)
 #define _GEX_OP_FETCH_ARITH_BINARY \
-        (GEX_OP_FADD|GEX_OP_FSUB|GEX_OP_FMULT|GEX_OP_FMIN|GEX_OP_FMAX)
+        (GEX_OP_FADD|GEX_OP_FMULT|GEX_OP_FMIN|GEX_OP_FMAX)
+#define _GEX_OP_FETCH_NC_ARITH_BINARY \
+         GEX_OP_FSUB
 #define _GEX_OP_FETCH_ARITH_UNARY \
         (GEX_OP_FINC|GEX_OP_FDEC)
 #define _GEX_OP_FETCH_BITWISE \
@@ -1292,6 +1296,7 @@ size_t gasneti_dt_size(gex_DT_t dt) {
         (_GEX_OP_ARITH_BINARY|_GEX_OP_BITWISE|_GEX_OP_USER_REDUCE)
 #define _GEX_OP_ATOMIC \
         (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_NC_ARITH_BINARY | _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
          _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE      | \
          _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
@@ -1302,12 +1307,14 @@ size_t gasneti_dt_size(gex_DT_t dt) {
         _GEX_OP_VALID
 #define _GEX_OP_FP  \
         (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_NC_ARITH_BINARY | _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
          _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR | \
          _GEX_OP_USER_REDUCE)
 
 #define _GEX_OP_FETCH \
         (_GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_FETCH_ARITH_UNARY  | \
          _GEX_OP_FETCH_BITWISE      | \
          _GEX_OP_FETCH_ACCESSOR)
@@ -1318,6 +1325,7 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 #define _GEX_OP_1ARG \
         (GEX_OP_SET | GEX_OP_SWAP |\
          _GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_NC_ARITH_BINARY | _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE)
 #define _GEX_OP_2ARG \
         (GEX_OP_FCAS | GEX_OP_CAS)
