@@ -650,7 +650,7 @@ void _gasnet_coll_reduce(gasnet_team_handle_t _team,
   gasnete_tm_broadcast_nb(gex_TM_t _tm, gex_Rank_t _root,
                           void *_dst, const void *_src,
                           size_t _nbytes, gex_Flags_t _flags
-                          GASNETE_THREAD_FARG);
+                          GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_BroadcastNB(tm,root,dst,src,nbytes,flags) \
         gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETE_THREAD_GET)
