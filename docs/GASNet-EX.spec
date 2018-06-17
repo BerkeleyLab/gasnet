@@ -1730,6 +1730,7 @@ int  gex_HSL_Trylock(gex_HSL_t *hsl);
 //
 // GASNet-EX defines (as preprocess-time constants) at least the following
 // data types codes for use with remote atomic and reduction operations.
+// These are known as the "built-in data types".
 //
 //     GEX Constant  C Data Type
 //     ------------  -----------
@@ -1742,10 +1743,14 @@ int  gex_HSL_Trylock(gex_HSL_t *hsl);
 //     GEX_DT_FLT    float
 //     GEX_DT_DBL    double
 //
+// In addition to the built-in data types, the following is used to denote an
+// opaque user-defined data type in the context of a reduction operation.
+//     GEX_DT_USER
+//
 // It is guaranteed that all GEX_DT_* values can be combined via bit-wise OR
 // without loss of information.
 //
-// Currently, Remote Atomics support all six data types listed above.
+// Currently, Remote Atomics support all six built-in data types listed above.
 // Currently, Reductions are unimplemented.
 //
 // Note that GASNet-EX supports signed and unsigned exact-width integer types.
@@ -1777,10 +1782,11 @@ typedef [some integer type] gex_DT_t;
 // Except where otherwise noted, the expressions below are evaluated according
 // to C language rules.
 //
+// The following are known as the "built-in operations":
 // + Non-fetching Operations
 //    - Binary Arithmetic Operations
 //      Valid for Atomics and Reductions
-//      Valid for all specified GEX_DT_* types
+//      Valid for all built-in data types
 //        GEX_OP_ADD   expr = (op0 + op1)
 //        GEX_OP_SUB   expr = (op0 - op1)
 //        GEX_OP_MULT  expr = (op0 * op1)
@@ -1788,12 +1794,12 @@ typedef [some integer type] gex_DT_t;
 //        GEX_OP_MAX   expr = ((op0 > op1) ? op0 : op1)
 //    - Unary Arithmetic Operations
 //      Valid only for Atomics
-//      Valid for all specified GEX_DT_* types
+//      Valid for all built-in data types
 //        GEX_OP_INC   expr = (op0 + 1)
 //        GEX_OP_DEC   expr = (op0 - 1)
 //    - Bit-wise Operations
 //      Valid for Atomics and Reductions
-//      Valid only for Integer types
+//      Valid only for Integer built-in types
 //        GEX_OP_AND   expr = (op0 & op1)
 //        GEX_OP_OR    expr = (op0 | op1)
 //        GEX_OP_XOR   expr = (op0 ^ op1)
@@ -1817,7 +1823,7 @@ typedef [some integer type] gex_DT_t;
 //        GEX_OP_FXOR
 // + Accessor Operations
 //   Valid only for Atomics
-//   Valid for all specified GEX_DT_* types
+//   Valid for all built-in data types
 //    - Non-fetching Accessor
 //        GEX_OP_SET   expr = op1  (writes 'op1' to the target location)
 //        GEX_OP_CAS   expr = ((op0 == op1) ? op2 : op0)
@@ -1829,6 +1835,16 @@ typedef [some integer type] gex_DT_t;
 //        GEX_OP_FCAS  Fetching variant of GEX_OP_CAS
 //
 // NOTE: GEX_OP_CSWAP is a deprecated alias for GEX_OP_FCAS
+//
+// In addition to the built-in operations, the following contants are defined:
+// + User-defined Operations
+//   Valid only for Reductions
+//   Valid for all built-in data types and GEX_DT_USER
+//   The client code, not this specification, determines the operation.
+//    - Commutative User-Defined Reduction Operation
+//        GEX_OP_USER
+//    - Non-commutative User-Defined Reduction Operation
+//        GEX_OP_USER_NC
 //
 // It is guaranteed that all GEX_OP_* values can be combined via bit-wise OR without
 // loss of information.
