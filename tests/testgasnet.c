@@ -918,7 +918,8 @@ void doit0(int partner, int *partnerseg) {
   static gex_DT_t const datatypes_arr[] = { // ensure all the specified values exist
     GEX_DT_I32, GEX_DT_U32,
     GEX_DT_I64, GEX_DT_U64,
-    GEX_DT_FLT, GEX_DT_DBL
+    GEX_DT_FLT, GEX_DT_DBL,
+    GEX_DT_USER
   };
   assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
   test_format(gex_DT_t, datatypes_arr, gasnett_format_dt);
@@ -937,7 +938,8 @@ void doit0(int partner, int *partnerseg) {
     GEX_OP_FINC, GEX_OP_FDEC,
     GEX_OP_SWAP, GEX_OP_FCAS,
 
-    GEX_OP_GET
+    GEX_OP_GET,
+    GEX_OP_USER, GEX_OP_USER_NC
   };
   assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
   test_format(gex_OP_t, ops_arr, gasnett_format_op);

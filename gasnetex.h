@@ -550,7 +550,8 @@ typedef enum {
   _GEX_MAKE_DT_ENUM(I64),
   _GEX_MAKE_DT_ENUM(U64),
   _GEX_MAKE_DT_ENUM(FLT),
-  _GEX_MAKE_DT_ENUM(DBL)
+  _GEX_MAKE_DT_ENUM(DBL),
+  _GEX_MAKE_DT_ENUM(USER)
 } gasneti_dt_idx_t;
 #undef _GEX_MAKE_DT_ENUM
 
@@ -580,7 +581,9 @@ typedef enum {
   _GEX_MAKE_OP_ENUM(GET),
   _GEX_MAKE_OP_ENUM(SWAP),
   _GEX_MAKE_OP_ENUM(FCAS),
-  _GEX_MAKE_OP_ENUM(CAS)
+  _GEX_MAKE_OP_ENUM(CAS),
+  _GEX_MAKE_OP_ENUM(USER),
+  _GEX_MAKE_OP_ENUM(USER_NC)
 } gasneti_op_idx_t;
 #undef _GEX_MAKE_OP_ENUM
 

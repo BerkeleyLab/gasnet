@@ -1226,7 +1226,7 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 
 // Union of all:
 
-#define _GEX_DT_VALID  (_GEX_DT_INT | _GEX_DT_FP)
+#define _GEX_DT_VALID  (_GEX_DT_INT | _GEX_DT_FP | GEX_DT_USER)
 
 // Predicates:
 
@@ -1278,26 +1278,28 @@ size_t gasneti_dt_size(gex_DT_t dt) {
         (GEX_OP_SET|GEX_OP_CAS)
 #define _GEX_OP_FETCH_ACCESSOR \
         (GEX_OP_GET|GEX_OP_SWAP|GEX_OP_FCAS)
+#define _GEX_OP_USER_REDUCE \
+        (GEX_OP_USER|GEX_OP_USER_NC)
 
 // Masks for various properties:
 
-#define _GEX_OP_VALID \
+#define _GEX_OP_REDUCE \
+        (_GEX_OP_ARITH_BINARY|_GEX_OP_BITWISE|_GEX_OP_USER_REDUCE)
+#define _GEX_OP_ATOMIC \
         (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
          _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
          _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE      | \
          _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
-
-#define _GEX_OP_REDUCE \
-        (_GEX_OP_ARITH_BINARY|_GEX_OP_BITWISE)
-#define _GEX_OP_ATOMIC \
-         _GEX_OP_VALID
+#define _GEX_OP_VALID \
+         (_GEX_OP_REDUCE | _GEX_OP_ATOMIC)
 
 #define _GEX_OP_INT \
         _GEX_OP_VALID
 #define _GEX_OP_FP  \
         (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
          _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
-         _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
+         _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR | \
+         _GEX_OP_USER_REDUCE)
 
 #define _GEX_OP_FETCH \
         (_GEX_OP_FETCH_ARITH_BINARY | \

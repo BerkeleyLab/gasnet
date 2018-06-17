@@ -65,6 +65,9 @@ typedef uint32_t gex_DT_t;
 #define GEX_DT_FLT   (1 << _GEX_DT_FLT)
 #define GEX_DT_DBL   (1 << _GEX_DT_DBL)
 
+// User-defined type:
+#define GEX_DT_USER  (1 << _GEX_DT_USER)
+
 //================================================
 // GEX_OP_*
 // Operation codes for atomics and reductions
@@ -106,6 +109,10 @@ typedef uint32_t gex_OP_t;
 #define GEX_OP_FMAX  (1 << _GEX_OP_FMAX)
 #define GEX_OP_FINC  (1 << _GEX_OP_FINC)
 #define GEX_OP_FDEC  (1 << _GEX_OP_FDEC)
+
+// User-defined reduction operators:
+#define GEX_OP_USER          (1 << _GEX_OP_USER)
+#define GEX_OP_USER_NC       (1U << _GEX_OP_USER_NC)
 
 // DEPRECATED alias
 #define GEX_OP_CSWAP GEX_OP_FCAS
@@ -176,6 +183,7 @@ typedef uint32_t gex_Flags_t;
 #define _GEX_DT_U64   3
 #define _GEX_DT_FLT   4
 #define _GEX_DT_DBL   5
+#define _GEX_DT_USER  6
 
 // NOTE:
 // The order of OPs is key to making the TO_FETCHING and TO_NONFETCHING
@@ -211,6 +219,10 @@ typedef uint32_t gex_Flags_t;
 #define _GEX_OP_SET   23  // This is non-fetching SWAP in UPC 1.3
 #define _GEX_OP_CAS   24  // This is non-fetching CSWAP in UPC 1.3
 // slot 25 is GEX_OP_TO_NONFETCHING(GEX_OP_GET), which is invalid
+
+// User-defined operations:
+#define _GEX_OP_USER    30
+#define _GEX_OP_USER_NC 31
 
 #if defined(__cplusplus) && !defined(_IN_GASNETEX_H)
 }  // ends extern "C"
