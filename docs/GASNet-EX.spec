@@ -2577,6 +2577,246 @@ gex_Event_t gex_Coll_BroadcastNB(
             size_t          nbytes,        // Length of data (single-valued)
             gex_Flags_t     flags);        // Flags (partially single-valued)
 
+//
+// Collectives Part III.  Computational
+//
+
+// User-Defined Reduction Operations
+//
+// GASNet provides a set of useful built-in reduction operations.  These
+// should be favored whenever possible in performance-critical reductions,
+// because using a built-in operator is generally a prerequisite to leveraging
+// hardware-offload support for reductions which is available in some network
+// hardware.  However for situations where none of the provided built-in
+// operations fit client requirements, GASNet also allows clients to provide
+// code for their own reduction operation.
+//
+// Reduction operations which do not correspond to a built-in opcode
+// (GEX_OP_*) constant are supported by passing GEX_OP_USER or GEX_OP_USER_NC
+// as the 'op' when initiating a reduction.
+// + GEX_OP_USER: denotes a user-defined operation that is both
+//   associative and commutative.
+// + GEX_OP_USER_NC: denotes a user-defined operation that is
+//   associative but NOT commutative. [UNIMPLEMENTED]
+//
+// The implementation will invoke the user-provided function an unspecified
+// number of times to perform the user's operation on a pair of vectors of
+// operands.
+//
+// The user-defined reduction operation is passed to the initiation call using
+// a function pointer with type gex_Coll_ReduceFn_t:
+    typedef void (*gex_Coll_ReduceFn_t)(
+            const void * arg1,         // "Left" operands
+            void *       arg2_and_out, // "Right" operands and result
+            size_t       count,        // Operand count
+            const void * cdata);       // Client-data
+// These arguments are defined as follows, with additional semantics below:
+//   arg1:
+//     This is a pointer to memory containing 'count' consecutive operands.
+//     These may be caller-provided input values or intermediate results.
+//     In the case of a non-commutative operation, these are the operands on
+//     the "left-hand side" of the nominal operator.
+//     The reduction operation is not permitted to write to this memory.
+//   arg2_and_out:
+//     This is a pointer to memory containing 'count' consecutive operands.
+//     These may be caller-provided input values or intermediate results.
+//     In the case of a non-commutative operation, these are the operands on
+//     the "right-hand side" of the nominal operator.
+//     The reduction operation must write the result(s) to this memory, as
+//     described below.
+//   count:
+//     This is the number of "fields" on which to perform the reduction, and
+//     thus the length of the accessible memory at 'arg1' and 'arg2_and_out'
+//     is equal to 'count' times the size of each element (passed as 'dt_sz'
+//     at initiation of the reduction).
+//     Note that this argument may take on any positive value, which may be
+//     either smaller or larger than the 'dt_cnt' passed at initiation of
+//     the reduction.
+//   cdata:
+//     This is the value of the 'user_cdata' argument passed locally at
+//     initiation of the reduction, and is intended to assist in implementing
+//     more than a single data type and/or operation with a common C function.
+//
+// The function implementing a user-defined reduction operation:
+// + May use the 'cdata' argument to receive information (such as the
+//   operation or data type) not provided by the other arguments.
+// + May assume 'arg1' and 'arg2_and_out' do not overlap each other.  However,
+//   they can overlap the 'src' buffer (and 'dst' buffer, if any) passed at
+//   operation initiation.
+// + May perform the element-wise operations in any order, and parallel
+//   computation is explicitly permitted.
+// + Shall interpret the 'arg1' and 'arg2_and_out' as arrays of length 'count'
+//   with an element type corresponding to the data type passed at initiation
+//   of the reduction.
+// + Shall apply the desired operation element-wise to each of the 'count'
+//   pairs of operands, storing the result in the location from which the
+//   second (right-hand) operand is retrieved.  Here "element-wise"
+//   application can be expressed in pseudo-code as follows, using 'T' to
+//   denote the C data type and '(+)' to denote the operator:
+//     T* x = (T*)arg1;
+//     T* y = (T*)arg2_and_out;
+//     For all i in [0..count) y[i] = x[i] (+) y[i];
+// + Shall not assume 'count' is equal to the 'dt_cnt' passed at operation
+//   initiation, since the implementation is free to process the 'dt_cnt'
+//   elements passed in at initiation in smaller groups, or to group more
+//   than 'dt_cnt' pairs of operands into a single call to the user's
+//   function.
+// + Shall not block pending any condition the satisfaction of which is
+//   dependent on progress in GASNet (whether local or global).
+// + Shall not make any GASNet calls other than those enumerated as permitted
+//   while holding a handler-safe lock, in the section "Calls from restricted
+//   context"
+// + Shall not assume that the executing thread was created by the client.
+// + Shall allow for the possibility that the implementation invokes the
+//   function concurrent with itself, even if the client has not spawned
+//   threads.  Use of handler-safe locks or GASNet-Tools atomics are
+//   recommended mechanisms to deal with any access to global/persistent
+//   state.
+
+// User-Defined Data Types
+//
+// Reductions on types without a corresponding built-in data type (GEX_DT_*)
+// constant are supported by passing GEX_DT_USER as the 'dt' when initiating a
+// reduction.  In this case data elements are treated as indivisible byte
+// sequences with length given as 'dt_sz' at initiation of the reduction.
+// Reduction operations passing GEX_DT_USER for the data type must pass either
+// GEX_OP_USER or GEX_OP_USER_NC for the operation.
+
+// Limitations for Built-in Data Types
+//
+// + Operations on floating-point data types are not guaranteed to obey all
+//   rules in the IEEE 754 standard even when the C float and double types
+//   otherwise do conform.  Deviations from IEEE 754 include (at least):
+//     - Operations on signalling NaNs have undefined behavior.
+//     - MIN and MAX *may* be performed as if on "sign and magnitude
+//       representation integers" of the same width, resulting in
+//       non-conforming behavior with quiet NaNs.
+//       (See https://en.wikipedia.org/wiki/IEEE_754-1985, and especially
+//       the section "Comparing_floating-point_numbers")
+//   [THIS PARAGRAPH MAY NOT BE A COMPLETE LIST OF NON-IEEE BEHAVIORS]
+
+//
+// The following argument descriptions are applicable to all computational
+// collective APIs in this section using arguments with these names.
+//
+// src:
+//      The local address of the caller's input buffer.
+//      This is not a single-valued parameter.
+// dst:
+//      The local address of the caller's output buffer, if any.
+//      This is not a single-valued parameter.
+// dt:
+//      The data type for the reduction operation.
+//      Must be a GEX_DT_* constant documented as valid for Reductions.
+//      This is a single-valued parameter.
+// dt_sz:
+//      The length in bytes of one element of data.
+//      When 'dt' is a built-in type, this value must be the size in bytes of
+//      the corresponding built-in C type.  When 'dt' is GEX_DT_USER, this
+//      value must be the size in bytes of the user-defined data type.
+//      This length must be non-zero.
+//      This is a single-valued parameter.
+// dt_cnt:
+//      The per-rank count of data elements to reduce (not a length in bytes).
+//      This count must be non-zero.
+//      This is a single-valued parameter.
+// op:
+//      The opcode, of type gex_OP_t, naming the reduction operator.
+//      Must be a GEX_OP_* constant documented as valid for Reductions.
+//      This is a single-valued parameter.
+// user_op, user_cdata:
+//      If 'op' is neither GEX_OP_USER nor GEX_OP_USER_NC, then these two
+//      arguments are ignored.  Otherwise 'user_op' is a local function
+//      pointer of type gex_Coll_ReduceFn_t (described above), and
+//      'user_cdata' is a client data pointer to be passed to each local
+//      invocation of 'user_op'.  The 'user_cdata' is treated as opaque by the
+//      implementation and therefore is not required to be a pointer to valid
+//      memory.  In particular, it may be NULL.
+// flags:
+//      A bitwise OR of zero or more of permitted GEX_FLAG_* constants.
+//      Currently no flags are defined for computational collectives, and
+//      the value zero should be passed.
+//      However, a future release will support the "segment disposition"
+//      flags [UNIMPLEMENTED].
+//      Individual flags bits may or may not be single-valued, as will
+//      be documented with each supported flag.
+
+// Common Semantics
+//
+// All reductions are performed via an unspecified pattern of applications of
+// the operator to pairs of operands, under the assumptions that (1) all
+// operations are mathematically associative and (2) operations other than
+// GEX_OP_USER_NC are mathematically commutative.
+//
+// The implementation is not required to take measures to accommodate any
+// divergence (for instance of IEEE floating-point arithmetic) from the
+// assumptions in the preceding paragraph.  Specifically, in the presence of
+// such divergence, the implementation is not required to provide equality of
+// the results of calls with mathematically equivalent arguments; neither
+// between distinct calls in the same execution, nor between the same call in
+// distinct executions.  However, high-quality implementations will provide
+// reproducibility among calls with the same parameters within a single
+// execution (e.g. by applying the operation in a deterministic order).
+//
+// The implementation is not required to preserve the vector of 'dt_cnt'
+// elements as an indivisible unit.  It is permitted not only to break the
+// vector into shorter ones, but may also concatenate multiple vectors to
+// lessen the number of calls to a user-defined reduction operator.
+//
+// This specification does not require that a user-defined function applies
+// the semantically equivalent operation to every pair of inputs.  Nothing in
+// this specification prohibits passing a different user-defined operator on
+// each caller, nor does it prohibit a user-defined operator from applying a
+// different operation depending on an element's location in the argument
+// vectors.  However, both behaviors are strongly discouraged.  Since this
+// specification explicitly permits the implementation freedom in the order of
+// reductions in both rank and vector dimensions, either of these behaviors
+// will result in unpredictable output values.  Nothing in this paragraph is
+// intended to prohibit, or discourage use of, user-defined operations with
+// behaviors which depend on characteristics encoded in a user-defined data
+// type (which may include position in the rank or vector dimensions); the
+// intent is to discourage operators which *infer* such position information.
+
+
+// Reduction to one
+//
+// This API is a collective call over 'tm', that applies the operation denoted
+// by 'op' repeatedly to reduce a collection of operands of type denoted by
+// 'dt'.  Each member of 'tm' provides a 'src' vector of length 'dt_cnt' (in
+// elements), and the elements are reduced element-wise such that the i'th
+// element of the output vector is the reduction over the i'th elements of the
+// 'src' vectors of all team members.  The result is written to the 'dst' of
+// one 'root' rank.
+//
+// Using `(+)` to represent the nominal reduction operator, and `src_i[j]` to
+// denote the i'th element of the 'src' vector passed by rank 'j', the result
+// produced on the 'root' rank can be expressed as:
+//     dst_i = src_i[0] (+) src_i[1] ... (+) src_i[N-1]
+// where `N = gex_TM_QuerySize(tm)`.
+//
+// On the 'root' rank the 'dst' buffer has length in bytes of 'dt_sz * dt_cnt'.
+// The value of 'dst' is ignored on all other ranks.
+//
+// On all ranks the 'src' buffer has length in bytes of 'dt_sz * dt_cnt'.
+//
+// On the 'root' rank, it is permitted that 'src' and 'dst' be equal.
+// However, any other overlap between 'src' and 'dst' buffers on the root rank
+// yields undefined behavior.
+//
+
+gex_Event_t gex_Coll_ReduceToOneNB(
+            gex_TM_t            tm,           // The team
+            gex_Rank_t          root,         // Root rank (single-valued)
+            void *              dst,          // NOT single-valued
+            const void *        src,          // NOT single-valued
+            gex_DT_t            dt,           // Data type (single-valued)
+            size_t              dt_sz,        // Data type size (single-valued)
+            size_t              dt_cnt,       // Element count (single-valued)
+            gex_OP_t            op,           // Operation (single-valued)
+            gex_Coll_ReduceFn_t user_op,      // NOT single-valued
+            void *              user_cdata,   // NOT single-valued
+            gex_Flags_t         flags);       // Flags (partially single-valued)
+
 
 // End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
