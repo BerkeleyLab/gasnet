@@ -101,7 +101,7 @@ void gasneti_AD_Create(
   }
 
   // Does the 'dt' arument name a single valid data type?
-  gasneti_assert(gasneti_dt_valid(dt));
+  gasneti_assert(gasneti_dt_valid_atomic(dt));
 
   // Does ops specify a non-empty set with ALL members valid for remote atomics on the data type?
   gasneti_assert(ops); // Not empty
@@ -176,7 +176,7 @@ void gasnete_ratomic_validate(
     }
 
     // Opcode must be exactly 1 bit and valid for AD
-    if (! gasneti_op_valid(opcode)) {
+    if (! gasneti_op_valid_atomic(opcode)) {
       char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
       gasneti_format_op(str1, opcode);
       gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode 0x%x (%s)",

@@ -1235,6 +1235,11 @@ GASNETI_INLINE(gasneti_dt_valid) GASNETI_PURE
 int gasneti_dt_valid(gex_DT_t dt) {
   return (((dt) & _GEX_DT_VALID) && GASNETI_POWEROFTWO(dt));
 }
+GASNETI_INLINE(gasneti_dt_valid_atomic) GASNETI_PURE
+int gasneti_dt_valid_atomic(gex_DT_t dt) {
+  return gasneti_dt_valid(dt) && (dt != GEX_DT_USER);
+}
+#define gasneti_dt_valid_reduce gasneti_dt_valid
 
 // Is the argument a (possibly empty) mask consisting of only valid data types?
 #define gasneti_dt_valid_mask(dts) (!((dts) & ~_GEX_DT_VALID))
@@ -1332,6 +1337,14 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 GASNETI_INLINE(gasneti_op_valid) GASNETI_PURE
 int gasneti_op_valid(gex_OP_t op) {
   return (((op) & _GEX_OP_VALID) && GASNETI_POWEROFTWO(op));
+}
+GASNETI_INLINE(gasneti_op_valid_atomic) GASNETI_PURE
+int gasneti_op_valid_atomic(gex_OP_t op) {
+  return gasneti_op_valid(op) && gasneti_op_atomic(op);
+}
+GASNETI_INLINE(gasneti_op_valid_reduce) GASNETI_PURE
+int gasneti_op_valid_reduce(gex_OP_t op) {
+  return gasneti_op_valid(op) && gasneti_op_reduce(op);
 }
 
 // Predicates on masks:
