@@ -203,6 +203,13 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_FP_DT(GEX_DT_FLT,  float);
   CHECK_FP_DT(GEX_DT_DBL, double);
 
+  gasneti_assert_always(gasneti_dt_valid_reduce(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_valid_atomic(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_int(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_fp(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_signed(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_unsigned(GEX_DT_USER));
+
   #undef CHECK_DT
   #undef CHECK_INT_DT
   #undef CHECK_FP_DT
@@ -227,6 +234,14 @@ extern void gasneti_check_config_preinit(void) {
       gasneti_assert_always(gasneti_op_valid(GEX_OP_##stem)); \
       _CHECK_OP(GEX_OP_##stem, fp, not_reduce, pred); \
     } while (0)
+  #define CHECK_USER(stem) do { \
+      gasneti_assert_always(gasneti_op_valid(GEX_OP_##stem)); \
+      gasneti_assert_always(gasneti_op_valid_reduce(GEX_OP_##stem)); \
+      gasneti_assert_always(!gasneti_op_valid_atomic(GEX_OP_##stem)); \
+      gasneti_assert_always(gasneti_op_int(GEX_OP_##stem)); \
+      gasneti_assert_always(gasneti_op_fp(GEX_OP_##stem)); \
+    } while (0)
+
   #define gasneti_op_not_reduce !gasneti_op_reduce
   #define gasneti_op_not_fetch  !gasneti_op_fetch
   #define gasneti_op_not_fp     !gasneti_op_fp
@@ -248,9 +263,13 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_ACCESSOR(SWAP,  fetch);
   CHECK_ACCESSOR(FCAS,  fetch);
 
+  CHECK_USER(USER);
+  CHECK_USER(USER_NC);
+
   #undef _CHECK_OP
   #undef CHECK_ARITH_OP
   #undef CHECK_ACCESSOR
+  #undef CHECK_USER
   #undef gasneti_op_not_reduce
   #undef gasneti_op_not_fetch
   #undef gasneti_op_not_fp
