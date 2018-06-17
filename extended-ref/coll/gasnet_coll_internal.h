@@ -1513,6 +1513,20 @@ typedef gex_Event_t (*gasnete_tm_reduce_fn_ptr_t)(GASNETE_TM_REDUCE_ARGS);
 // NONE yet
 
 /*---------------------------------------------------------------------------------*/
+// Reduction operators
+// TODO-EX: this is not intended to be the final implemenation (or naming)
+
+#define GASNETE_TM_REDUCE_FOREACH_DT(FN) \
+  FN(I32) FN(U32) FN(I64) FN(U64) FN(FLT) FN(DBL)
+#define GASNETE_SHRINKRAY_DECL(DT) \
+    extern void gasnete_shrinkray_gex_dt_##DT (        \
+            const void * arg1,         \
+            void *       arg2_and_out, \
+            size_t       count ,       \
+            const void * cdata);
+GASNETE_TM_REDUCE_FOREACH_DT(GASNETE_SHRINKRAY_DECL)
+
+/*---------------------------------------------------------------------------------*/
 /* Conduit specific extension hooks: */
 /* These may be unused, but there is no harm in prototyping them. */
 

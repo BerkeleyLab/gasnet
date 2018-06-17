@@ -3106,8 +3106,21 @@ gasnete_tm_generic_reduce_nb(gasneti_TM_t tm, gex_Rank_t root, void *dst, const 
       data->args.tm_reduce.op_cdata  = cdata;
       break;
 
+    // Otherwise convert DT/OP pair to an *internal* fnptr and cdata
+    // TODO-EX: this just selects on DT and smuggles the opcode in the
+    // cdata, which then leaves a switch(opcode) in the critical path.
     default:
-      // TODO-EX: convert DT/OP pair to an *internal* fnptr and cdata
+      data->args.tm_reduce.op_cdata = (void*)(uintptr_t)opcode;
+      switch (dt) {
+        #define REDUCE_OP_CASE(DT) \
+          case GEX_DT_##DT:                                                  \
+             data->args.tm_reduce.op_fnptr =  gasnete_shrinkray_gex_dt_##DT; \
+             break;
+        GASNETE_TM_REDUCE_FOREACH_DT(REDUCE_OP_CASE)
+        #undef REDUCE_OP_CASE
+
+        default: gasneti_unreachable();
+      }
       break;
   }
 
