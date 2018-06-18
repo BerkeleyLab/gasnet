@@ -139,15 +139,16 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
       if (child_cnt) {
         gex_Coll_ReduceFn_t const op_fnptr = args->op_fnptr;
         void * const op_cdata = args->op_cdata;
-        size_t const dt_sz = args->dt_sz;
+        size_t const dt_cnt = args->dt_cnt;
+        size_t const nbytes = dt_cnt * args->dt_sz;
         const void *prev = args->src;
         void *curr = p2p->data;
         for (gex_Rank_t r = 0; r < child_cnt; ++r) {
-          (*op_fnptr)(prev, curr, 1, op_cdata);
+          (*op_fnptr)(prev, curr, dt_cnt, op_cdata);
           prev = curr;
-          curr = (void*)(dt_sz + (uintptr_t)curr);
+          curr = (void*)(nbytes + (uintptr_t)curr);
         }
-        gasneti_assert(prev == gasnete_coll_scale_ptr(p2p->data, child_cnt-1, dt_sz));
+        gasneti_assert(prev == gasnete_coll_scale_ptr(p2p->data, child_cnt-1, nbytes));
         data->private_data = (/*non-const*/ void*) prev;
       } else {
         data->private_data = (/*non-const*/ void*) args->src;
@@ -159,13 +160,13 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
     case 2: {   // Data movement, either to parent or 'dst'
                 // TODO-EX: use IMMEDIATE to avoid stalling on back-pressure
       /*const*/ void *payload = data->private_data; // TODO-EX: gasnete_coll_p2p_eager_put lacks 'const'
-      const size_t dt_sz = args->dt_sz;
+      const size_t nbytes = args->dt_sz * args->dt_cnt;
       if (! rel_rank) { // I am root
-        GASNETI_MEMCPY(args->dst, payload, dt_sz);
+        GASNETI_MEMCPY(args->dst, payload, nbytes);
       } else {
         gex_Rank_t parent = gasnete_coll_binom_parent(rel_rank, op->team);
         gex_Rank_t index = gasnete_coll_binom_age(rel_rank, op->team);
-        gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), payload, dt_sz, index, 1);
+        gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), payload, nbytes, index, 1);
       }
 
       // Done
@@ -179,12 +180,14 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
 
 GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
 {
-  // TODO-EX: should be DEBUG only once implementation supports additional algorithms
   gasnet_team_handle_t team = tm->_coll_team;
+
+#if GASNET_DEBUG // make sure this is a valid choice of algorithm
   gex_Rank_t rel_rank = gasnete_coll_binom_rel_root(root, team);
   gex_Rank_t child_cnt = gasnete_coll_binom_children(rel_rank, team);
-  gasneti_assert_always(gasnete_coll_p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
-  gasneti_assert_always(dt_cnt == 1);
+  gasneti_assert(gasnete_coll_p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
+  gasneti_assert(gex_AM_LUBRequestMedium() >= dt_sz * dt_cnt );
+#endif
 
   const int options = GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
   return gasnete_tm_generic_reduce_nb(tm, root, dst, src, dt, dt_sz, dt_cnt,

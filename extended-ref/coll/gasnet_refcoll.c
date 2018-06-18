@@ -3177,11 +3177,11 @@ gasnete_tm_reduce_nb_default(
   // Only one implementation available currently
   // So, even in a NDEBUG build, we validate the args against its limitations
   // TODO-EX: these will become factors in algorithm selection
-  if_pf (dt_cnt != 1) {
-    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_cnt != 1) is UNIMPLEMENTED");
-  }
-  if_pf (dt_sz * gasnete_coll_log2(i_tm->_size) > gasnete_coll_p2p_eager_buffersz) {
-    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation", dt_sz);
+  const size_t nbytes = dt_sz * dt_cnt;
+  if_pf ((nbytes * gasnete_coll_log2(i_tm->_size) > gasnete_coll_p2p_eager_buffersz) ||
+         (nbytes > gex_AM_LUBRequestMedium())) {
+    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz*dt_cnt == %"PRIuSZ") is TOO LARGE for this implementation",
+                       dt_sz*dt_cnt);
   }
   gasnete_tm_reduce_fn_ptr_t alg = &gasnete_tm_reduce_BinomialEager;
   
