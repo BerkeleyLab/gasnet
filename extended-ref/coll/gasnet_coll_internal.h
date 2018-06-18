@@ -1527,6 +1527,84 @@ typedef gex_Event_t (*gasnete_tm_reduce_fn_ptr_t)(GASNETE_TM_REDUCE_ARGS);
 GASNETE_TM_REDUCE_FOREACH_DT(GASNETE_SHRINKRAY_DECL)
 
 /*---------------------------------------------------------------------------------*/
+// Binomial geometry helpers
+// In these 'rel_rank' is '(self - root) % nranks'
+
+// Count consectitive zero bits from the right (least-significant) end */
+GASNETI_INLINE(gasnete_coll_ctz) GASNETI_CONST
+unsigned int gasnete_coll_ctz(const uint32_t v) {
+#if HAVE_BUILTIN_CTZ
+  return v ? __builtin_ctz(v) : 32;
+#elif HAVE_FFS
+  return v ? (ffs(v)-1) : 32;
+#else
+  unsigned int c = 32;
+  if (v) {
+    for (c=0; !(v&1); ++c) v >>= 1;
+  }
+  return c;
+#endif
+}
+GASNETI_CONSTP(gasnete_coll_ctz)
+
+// floor(log_2(v)) OR -1 for v=0
+GASNETI_INLINE(gasnete_coll_log2) GASNETI_CONST
+int gasnete_coll_log2(uint32_t v) {
+#if HAVE_BUILTIN_CLZ
+  return v ? (31 - __builtin_clz(v)) : -1;
+#else
+  int c;
+  for (c = -1; v; ++c) v >>= 1;
+  return c;
+#endif
+}
+GASNETI_CONSTP(gasnete_coll_log2)
+
+// Relative rank in binomial tree rooted at 'root'
+GASNETI_INLINE(gasnete_coll_binom_rel_root) GASNETI_PURE
+gex_Rank_t gasnete_coll_binom_rel_root(const gex_Rank_t root, gasnete_coll_team_t const team) {
+  const gex_Rank_t self = team->myrank;
+  return (self >= root) ? (self - root) : (self + team->total_ranks - root);
+}
+GASNETI_PUREP(gasnete_coll_binom_rel_root)
+
+// Size of local binomial subtree, including self
+// TODO-EX: broken for teams of size 2^31 or larger
+GASNETI_INLINE(gasnete_coll_binom_subtree_size) GASNETI_PURE
+gex_Rank_t gasnete_coll_binom_subtree_size(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
+  gasneti_assert(team->total_ranks < 0x80000000);
+  const gex_Rank_t remain = team->total_ranks - rel_rank;
+  const gex_Rank_t size = (rel_rank & (-rel_rank));
+  return (!size || (size > remain)) ? remain : size;
+}
+GASNETI_PUREP(gasnete_coll_binom_subtree_size)
+
+// Count of direct children in binomial subtree
+GASNETI_INLINE(gasnete_coll_binom_children) GASNETI_PURE
+gex_Rank_t gasnete_coll_binom_children(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
+  return 1 + gasnete_coll_log2(gasnete_coll_binom_subtree_size(rel_rank, team) - 1);
+}
+GASNETI_PUREP(gasnete_coll_binom_children)
+
+// Rank (not relative) of parent
+// TODO-EX: broken for teams of size 2^31 or larger
+GASNETI_INLINE(gasnete_coll_binom_parent) GASNETI_PURE
+gex_Rank_t gasnete_coll_binom_parent(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
+  gasneti_assert(team->total_ranks < 0x80000000);
+  const gex_Rank_t size = (rel_rank & (-rel_rank));
+  const gex_Rank_t self = team->myrank;
+  return (self >= size) ? (self - size) : (self + team->total_ranks - size);
+}
+GASNETI_PUREP(gasnete_coll_binom_parent)
+
+// Rank among siblings (e.g. 0 for first child, 1 for second, etc.)
+GASNETI_INLINE(gasnete_coll_binom_age) GASNETI_PURE
+gex_Rank_t gasnete_coll_binom_age(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
+  return gasnete_coll_ctz(rel_rank);
+}
+GASNETI_PUREP(gasnete_coll_binom_age)
+
+/*---------------------------------------------------------------------------------*/
 /* Conduit specific extension hooks: */
 /* These may be unused, but there is no harm in prototyping them. */
 
