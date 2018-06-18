@@ -329,6 +329,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #endif 
   // TODO-EX: Remove this work-around for fact that collective's "team" is not a "tm"
   #define GASNETI_RADDRSTR_COLL(root,ptr) GASNETI_RADDRSTR((gex_TM_t)(uintptr_t)1,root,ptr)
+  // Legacy Collective OPs
   #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags) do {                           \
     GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
@@ -443,8 +444,34 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
     GASNETI_TRACE_EVENT_VAL(W,name,elem_count);                                                            \
     /* XXX: No detail implemented */                                                                       \
   } while (0)
+  // Legacy Collective Sync
   #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
 	        gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(X)
+  // GEX Collective Ops
+  #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags) do { \
+    GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt);                                                             \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                     \
+      char *_tr_dtstr = (char *)gasneti_extern_malloc(gasneti_format_dt(NULL,(dt)));                    \
+      gasneti_format_dt(_tr_dtstr,(dt));                                                                \
+      char *_tr_opstr = (char *)gasneti_extern_malloc(gasneti_format_op(NULL,(op)));                    \
+      gasneti_format_op(_tr_opstr,(op));                                                                \
+      GASNETI_TRACE_PRINTF(D, (#name ": root = " GASNETI_TMRANKFMT ", dt = %" PRIuSZ "*%s, op = %s",    \
+                               GASNETI_TMRANKSTR((tm),(root)),                                          \
+                               (size_t)(dt_cnt), 7+_tr_dtstr, 7+_tr_opstr));                            \
+      if ((root) == gex_TM_QueryRank(tm)) {                                                             \
+        GASNETI_TRACE_PRINTF(D, (#name ": src = " GASNETI_LADDRFMT ", dst = " GASNETI_LADDRFMT,         \
+                                 GASNETI_LADDRSTR(src), GASNETI_LADDRSTR(dst)));                        \
+      } else {                                                                                          \
+        GASNETI_TRACE_PRINTF(D, (#name ": src = " GASNETI_LADDRFMT, GASNETI_LADDRSTR(src)));            \
+      }                                                                                                 \
+      if (op == GEX_OP_USER || op == GEX_OP_USER_NC) {                                                  \
+        GASNETI_TRACE_PRINTF(D, (#name ": User-defined (fnptr, cdata) = (%p, %p)",                      \
+                                 (void*)(op_fnptr), (op_cdata)));                                       \
+      }                                                                                                 \
+      gasneti_extern_free(_tr_dtstr);                                                                   \
+      gasneti_extern_free(_tr_opstr);                                                                   \
+    }                                                                                                   \
+  } while (0)
 #else
   #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_BROADCAST_M(name,team,dstlist,root,src,nbytes,flags)
@@ -462,6 +489,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_SCAN_M(name,team,dstlist,dst_blksz,dst_offset,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags)
   #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
 		static char _dummy_COLL_WAITSYNC = (char)sizeof(_dummy_COLL_WAITSYNC)
+  #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
 #endif
 #define GASNETI_TRACE_COLL_TRYSYNC(name,success) \
 	GASNETI_TRACE_EVENT_VAL(X,name,((success) == GASNET_OK?1:0))

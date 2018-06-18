@@ -3153,7 +3153,7 @@ gasnete_tm_reduce_nb_default(
 {
   gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
 
-  // TODO-EX:  TRACE here or in gasnet_coll.h?
+  GASNETI_TRACE_TM_REDUCE(COLL_REDUCE_NB,e_tm,root,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
 
   // Argument validation
   // TODO-EX: factor to avoid cloning this logic to conduit collectives
