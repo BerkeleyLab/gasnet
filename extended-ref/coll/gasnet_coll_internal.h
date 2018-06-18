@@ -117,6 +117,7 @@ typedef struct gasnete_coll_implementation_t_ *gasnete_coll_implementation_t;
 
 extern size_t gasnete_coll_p2p_eager_min;
 extern size_t gasnete_coll_p2p_eager_scale;
+extern size_t gasnete_coll_p2p_eager_buffersz;
 
 
 #ifndef GASNETE_COLL_IMAGE_OVERRIDE
@@ -1510,7 +1511,7 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(TreeGet);
     extern gex_Event_t gasnete_tm_reduce_##FUNC_EXT(GASNETE_TM_REDUCE_ARGS)
 typedef gex_Event_t (*gasnete_tm_reduce_fn_ptr_t)(GASNETE_TM_REDUCE_ARGS);
 
-// NONE yet
+GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager);
 
 /*---------------------------------------------------------------------------------*/
 // Reduction operators

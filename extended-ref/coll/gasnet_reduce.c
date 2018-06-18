@@ -102,3 +102,94 @@ void gasnete_shrinkray##dtcode (                            \
 GASNETE_DT_APPLY(GASNETE_SHRINKRAY_DEFN)
 #undef GASNETE_SHRINKRAY_CASE
 #undef GASNETE_SHRINKRAY_DEFN
+
+/*---------------------------------------------------------------------------------*/
+
+// GEX Reduce-to-one via Eager messages on a binomial tree
+// TODO-EX: need to shift from 'team' to 'tm' (gasneti_TM_t).
+static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_tm_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, tm_reduce);
+  gasnete_coll_p2p_t *p2p = data->p2p;
+  int result = 0;
+
+  // TODO-EX: pre-compute quantities such as these and (dt_sz*dt_cnt) once
+  //          at injection, rather than repeatedly upon every poll.
+  gex_Rank_t rel_rank = gasnete_coll_binom_rel_root(args->root, op->team);
+  gex_Rank_t child_cnt = gasnete_coll_binom_children(rel_rank, op->team);
+
+  gasneti_assert(p2p != NULL);
+  gasneti_assert(p2p->state != NULL);
+  gasneti_assert(p2p->data != NULL);
+  
+  switch (data->state) {
+    case 0: {   // Wait for arrival of data from children, if any
+      volatile uint32_t *state = p2p->state;
+      for (gex_Rank_t r = 0; r < child_cnt; ++r) {
+        if (! state[r]) return 0; // At least one child has not contributed their value
+      } 
+      gasneti_sync_reads();
+      
+      data->state = 1; GASNETI_FALLTHROUGH
+    }
+      
+    case 1: {   // Compute reduction (if any) - result stored at data->private_data
+                // TODO-EX: can perform fewer (log(child_cnt)) calls w/ longer counts
+      void *payload;
+      if (child_cnt) {
+        gex_Coll_ReduceFn_t const op_fnptr = args->op_fnptr;
+        void * const op_cdata = args->op_cdata;
+        size_t const dt_sz = args->dt_sz;
+        const void *prev = args->src;
+        void *curr = p2p->data;
+        for (gex_Rank_t r = 0; r < child_cnt; ++r) {
+          (*op_fnptr)(prev, curr, 1, op_cdata);
+          prev = curr;
+          curr = (void*)(dt_sz + (uintptr_t)curr);
+        }
+        gasneti_assert(prev == gasnete_coll_scale_ptr(p2p->data, child_cnt-1, dt_sz));
+        data->private_data = (/*non-const*/ void*) prev;
+      } else {
+        data->private_data = (/*non-const*/ void*) args->src;
+      }
+
+      data->state = 2; GASNETI_FALLTHROUGH
+    }
+
+    case 2: {   // Data movement, either to parent or 'dst'
+                // TODO-EX: use IMMEDIATE to avoid stalling on back-pressure
+      /*const*/ void *payload = data->private_data; // TODO-EX: gasnete_coll_p2p_eager_put lacks 'const'
+      const size_t dt_sz = args->dt_sz;
+      if (! rel_rank) { // I am root
+        GASNETI_MEMCPY(args->dst, payload, dt_sz);
+      } else {
+        gex_Rank_t parent = gasnete_coll_binom_parent(rel_rank, op->team);
+        gex_Rank_t index = gasnete_coll_binom_age(rel_rank, op->team);
+        gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), payload, dt_sz, index, 1);
+      }
+
+      // Done
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+    }
+  }
+  
+  return result;
+}
+
+GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
+{
+  // TODO-EX: should be DEBUG only once implementation supports additional algorithms
+  gasnet_team_handle_t team = tm->_coll_team;
+  gex_Rank_t rel_rank = gasnete_coll_binom_rel_root(root, team);
+  gex_Rank_t child_cnt = gasnete_coll_binom_children(rel_rank, team);
+  gasneti_assert_always(gasnete_coll_p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
+  gasneti_assert_always(dt_cnt == 1);
+
+  const int options = GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
+  return gasnete_tm_generic_reduce_nb(tm, root, dst, src, dt, dt_sz, dt_cnt,
+                                      op, op_fnptr, op_cdata, coll_flags,
+                                      &gasnete_coll_pf_tm_reduce_BinomialEager,
+                                      options, NULL, 0, 0, NULL, NULL
+                                      GASNETE_THREAD_PASS);
+}

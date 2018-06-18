@@ -30,7 +30,7 @@
 
 size_t gasnete_coll_p2p_eager_min = 0;
 size_t gasnete_coll_p2p_eager_scale = 0;
-static size_t gasnete_coll_p2p_eager_buffersz = 0;
+size_t gasnete_coll_p2p_eager_buffersz = 0;
 /*set a std segment size of 1024 bytes*/
 
 /*---------------------------------------------------------------------------------*/
@@ -3167,8 +3167,28 @@ gasnete_tm_reduce_nb_default(
                  (gasneti_dt_int(dt) && gasneti_op_int(opcode)) ||
                  (gasneti_dt_fp(dt)  && gasneti_op_fp(opcode)));
 
-  gasneti_fatalerror("gex_Coll_ReduceToOneNB() is UNIMPLEMENTED");
-  return 0;
+  // Short-circuit singleton
+  // TODO-EX:  hoist to gasnet_coll.h?
+  if (i_tm->_size == 1) {
+    GASNETI_MEMCPY_SAFE_IDENTICAL(dst, src, dt_sz * dt_cnt);
+    return GEX_EVENT_INVALID;
+  }
+
+  // Only one implementation available currently
+  // So, even in a NDEBUG build, we validate the args against its limitations
+  // TODO-EX: these will become factors in algorithm selection
+  if_pf (dt_cnt != 1) {
+    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_cnt != 1) is UNIMPLEMENTED");
+  }
+  if_pf (dt_sz * gasnete_coll_log2(i_tm->_size) > gasnete_coll_p2p_eager_buffersz) {
+    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation", dt_sz);
+  }
+  gasnete_tm_reduce_fn_ptr_t alg = &gasnete_tm_reduce_BinomialEager;
+  
+  return (*alg)(i_tm, root, dst, src,
+                dt, dt_sz, dt_cnt,
+                opcode, user_fnptr, user_cdata,
+                0, NULL, 0 GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
