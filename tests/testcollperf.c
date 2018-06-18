@@ -173,8 +173,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   char output_str[8];
   gasnett_tick_t begin, end;
   char flag_str[8];
-  gasnet_coll_handle_t *handles;
-  handles = performance_iters ? test_malloc(sizeof(gasnet_coll_handle_t)*performance_iters) : NULL;
+  gex_Event_t *handles = performance_iters ? test_malloc(sizeof(gasnet_coll_handle_t)*performance_iters) : NULL;
 
   fill_flag_str(flags, flag_str);
   if(flags & GASNET_COLL_SINGLE) {
@@ -202,7 +201,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     
     if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
     for(i=0; i<inner_verification_iters; i++) { 
-      gasnet_coll_broadcast(GASNET_TEAM_ALL, dst+i*nelem, root_thread, src+i*nelem, sizeof(int)*nelem, flags);
+      gex_Event_Wait(gex_Coll_BroadcastNB(myteam, root_thread,
+                                          dst+i*nelem, src+i*nelem,
+                                          sizeof(int) * nelem, 0));
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
    
@@ -219,7 +220,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
-    gasnet_coll_broadcast(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*nelem, flags);
+    gex_Event_Wait(gex_Coll_BroadcastNB(myteam, root_thread, dst, src, sizeof(int) * nelem, 0));
   }
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
@@ -232,11 +233,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   {
     for(i=0; i<performance_iters; i++) { 
-      handles[i] = gasnet_coll_broadcast_nb(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*nelem, flags);
+      handles[i] = gex_Coll_BroadcastNB(myteam, root_thread, dst, src, sizeof(int) * nelem, 0);
     }
-    for(i=0; i<performance_iters; i++) {
-      gasnet_coll_wait_sync(handles[i]);
-    }
+    if (handles) gex_Event_WaitAll(handles, performance_iters, 0);
   }
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
@@ -486,6 +485,12 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     }
     if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();} 
     for(i=0; i<inner_verification_iters; i++) {
+      if (nelem == 1) {
+        gex_Event_Wait(gex_Coll_ReduceToOneNB(myteam, root_thread,
+                                         dst+i*nelem, src+i*nelem,
+                                         GEX_DT_I32, sizeof(int), nelem,
+                                         GEX_OP_ADD, NULL, NULL, 0));
+      } else
       gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst+i*nelem, src+i*nelem, 0,0, sizeof(int), nelem, 0, 0, flags);
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
@@ -510,6 +515,11 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
+    if (nelem == 1) {
+      gex_Event_Wait(gex_Coll_ReduceToOneNB(myteam, root_thread, dst, src,
+                                       GEX_DT_I32, sizeof(int), nelem,
+                                       GEX_OP_ADD, NULL, NULL, 0));
+    } else
     gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
@@ -523,11 +533,14 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
+    if (nelem == 1) {
+      handles[i] = gex_Coll_ReduceToOneNB(myteam, root_thread, dst, src,
+                                     GEX_DT_I32, sizeof(int), nelem,
+                                     GEX_OP_ADD, NULL, NULL, 0);
+    } else
     handles[i] = gasnet_coll_reduce_nb(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
-  for(i=0; i<performance_iters; i++) { 
-    gasnet_coll_wait_sync(handles[i]);
-  }
+  if (handles) gex_Event_WaitAll(handles, performance_iters, 0);
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
