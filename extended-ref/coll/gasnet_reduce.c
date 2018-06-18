@@ -106,8 +106,8 @@ GASNETE_DT_APPLY(GASNETE_SHRINKRAY_DEFN)
 /*---------------------------------------------------------------------------------*/
 
 // GEX Reduce-to-one via Eager messages on a binomial tree
-// TODO-EX: need to shift from 'team' to 'tm' (gasneti_TM_t).
 static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gex_TM_t const tm = op->e_tm;
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_tm_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, tm_reduce);
   gasnete_coll_p2p_t *p2p = data->p2p;
@@ -115,8 +115,8 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
 
   // TODO-EX: pre-compute quantities such as these and (dt_sz*dt_cnt) once
   //          at injection, rather than repeatedly upon every poll.
-  gex_Rank_t rel_rank = gasnete_coll_binom_rel_root(args->root, op->team);
-  gex_Rank_t child_cnt = gasnete_coll_binom_children(rel_rank, op->team);
+  gex_Rank_t rel_rank = gasnete_tm_binom_rel_root(tm, args->root);
+  gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
 
   gasneti_assert(p2p != NULL);
   gasneti_assert(p2p->state != NULL);
@@ -164,9 +164,9 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
       if (! rel_rank) { // I am root
         GASNETI_MEMCPY(args->dst, payload, nbytes);
       } else {
-        gex_Rank_t parent = gasnete_coll_binom_parent(rel_rank, op->team);
-        gex_Rank_t index = gasnete_coll_binom_age(rel_rank, op->team);
-        gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), payload, nbytes, index, 1);
+        gex_Rank_t parent = gasnete_tm_binom_parent(tm, rel_rank);
+        gex_Rank_t index = gasnete_tm_binom_age(tm, rel_rank);
+        gasnete_tm_p2p_eager_put(op, tm, parent, payload, nbytes, index, 1);
       }
 
       // Done
@@ -180,11 +180,9 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
 
 GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
 {
-  gasnet_team_handle_t team = tm->_coll_team;
-
 #if GASNET_DEBUG // make sure this is a valid choice of algorithm
-  gex_Rank_t rel_rank = gasnete_coll_binom_rel_root(root, team);
-  gex_Rank_t child_cnt = gasnete_coll_binom_children(rel_rank, team);
+  gex_Rank_t rel_rank = gasnete_tm_binom_rel_root(tm, root);
+  gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
   gasneti_assert(gasnete_coll_p2p_eager_buffersz >= dt_sz * dt_cnt * child_cnt);
   gasneti_assert(gex_AM_LUBRequestMedium() >= dt_sz * dt_cnt );
 #endif

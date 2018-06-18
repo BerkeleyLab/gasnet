@@ -668,6 +668,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
 
     gasnete_coll_active_new(op);
     op->team     = team;
+    op->e_tm     = team->e_tm;
     op->sequence = sequence;
     op->flags    = flags;
     op->eop      = NULL;
@@ -911,6 +912,7 @@ extern void gasnete_coll_init_subsystem(void)
                            GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save,
                            NULL GASNETE_THREAD_PASS);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
+    GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 
 #ifdef GASNETI_USE_FCA
     gasnet_team_fca_enable(GASNET_TEAM_ALL);
@@ -1516,9 +1518,10 @@ void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, voi
 
 
 /* Send data to be buffered by the recipient */
-void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                 void *src, uint32_t count, size_t size,
-                                 uint32_t offset, uint32_t state) {
+void gasnete_tm_p2p_eager_putM(gasnete_coll_op_t *op,
+                               gex_TM_t tm, gex_Rank_t rank,
+                               void *src, uint32_t count, size_t size,
+                               uint32_t offset, uint32_t state) {
   uint32_t team_id = gasnete_coll_team_id(op->team);
   size_t limit;
 
@@ -1527,7 +1530,7 @@ void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
     size_t nbytes = limit * size;
 
     do {
-      gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+      gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                src, nbytes, GEX_EVENT_NOW, 0, team_id, op->sequence, limit, offset, state, size);
       offset += limit;
       src = (void *)((uintptr_t)src + nbytes);
@@ -1535,7 +1538,7 @@ void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
     } while (count > limit);
   }
 
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+  gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                            src, count * size, GEX_EVENT_NOW, 0, team_id, op->sequence, count, offset, state, size);
 }
     
@@ -3070,7 +3073,7 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
 // GEX Reduce
 
 gex_Event_t
-gasnete_tm_generic_reduce_nb(gasneti_TM_t tm, gex_Rank_t root, void *dst, const void *src,
+gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void *src,
                              gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
                              gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
                              int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
@@ -3080,7 +3083,7 @@ gasnete_tm_generic_reduce_nb(gasneti_TM_t tm, gex_Rank_t root, void *dst, const 
                              GASNETE_THREAD_FARG)
 {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
-  gasnet_team_handle_t team = tm->_coll_team;
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
   gex_Event_t result;
 
   gasnete_coll_threads_lock(team, coll_flags GASNETE_THREAD_PASS);
@@ -3174,18 +3177,18 @@ gasnete_tm_reduce_nb_default(
     return GEX_EVENT_INVALID;
   }
 
-  // Only one implementation available currently
-  // So, even in a NDEBUG build, we validate the args against its limitations
-  // TODO-EX: these will become factors in algorithm selection
   const size_t nbytes = dt_sz * dt_cnt;
-  if_pf ((nbytes * gasnete_coll_log2(i_tm->_size) > gasnete_coll_p2p_eager_buffersz) ||
-         (nbytes > gex_AM_LUBRequestMedium())) {
+  gasnete_tm_reduce_fn_ptr_t alg;
+  if_pf ((nbytes * gasnete_coll_log2(i_tm->_size) <= gasnete_coll_p2p_eager_buffersz) &&
+         (nbytes <= gex_AM_LUBRequestMedium())) {
+    // TODO-EX: this is the implementation available currently
+    alg = &gasnete_tm_reduce_BinomialEager;
+  } else {
     gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz*dt_cnt == %"PRIuSZ") is TOO LARGE for this implementation",
                        dt_sz*dt_cnt);
   }
-  gasnete_tm_reduce_fn_ptr_t alg = &gasnete_tm_reduce_BinomialEager;
   
-  return (*alg)(i_tm, root, dst, src,
+  return (*alg)(e_tm, root, dst, src,
                 dt, dt_sz, dt_cnt,
                 opcode, user_fnptr, user_cdata,
                 0, NULL, 0 GASNETE_THREAD_PASS);

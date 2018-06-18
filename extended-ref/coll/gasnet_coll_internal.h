@@ -254,6 +254,7 @@ struct gasnete_coll_team_t_ {
   /* read-only fields: */
   uint32_t			team_id;
   int					global_team;
+  gex_TM_t                      e_tm;
   
   gasneti_weakatomic_t num_multi_addr_collectives_started;
 		
@@ -402,6 +403,7 @@ struct gasnete_coll_op_t_ {
   
   /* Read-only fields: */
   gasnete_coll_team_t		team;
+  gex_TM_t                      e_tm;
   uint32_t			sequence;
   int				flags;
   gasnete_coll_eop_t            eop; // a container of eops for PAR
@@ -513,22 +515,38 @@ extern  int gasnete_coll_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t
                                        gex_Rank_t node, uint32_t offset,
                                        const void *src, size_t nbytes);
 struct gasnete_coll_p2p_send_struct { void *addr; size_t sent; };
+
 /* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
 * Set the corresponding entries of the state array to 'state'.
 */
-extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                        void *src, uint32_t count, size_t size,
-                                        uint32_t offset, uint32_t state);
+extern void gasnete_tm_p2p_eager_putM(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        void *src, uint32_t count, size_t size,
+                        uint32_t offset, uint32_t state);
+
+// Shorthand for gasnete_tm_p2p_eager_putM with count == 1
+#define gasnete_tm_p2p_eager_put(op,tm,rank,src,size,offset,state) \
+        gasnete_tm_p2p_eager_putM(op,tm,rank,src,1,size,offset,state)
 
 
+// TODO-EX: deprecate and remove
+GASNETI_INLINE(gasnete_coll_p2p_eager_putM)
+void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
+                                 void *src, uint32_t count, size_t size,
+                                 uint32_t offset, uint32_t state)
+{
+  gasnete_tm_p2p_eager_putM(op, gasneti_THUNK_TM, dstnode, src, count, size, offset, state);
+}
 
 /* Shorthand for gasnete_coll_p2p_eager_putM with count == 1 */
+// TODO-EX: deprecate and remove
 #ifndef gasnete_coll_p2p_eager_put
 GASNETI_INLINE(gasnete_coll_p2p_eager_put)
 void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
                                 void *src, size_t size, uint32_t offset, uint32_t state) {
-  gasnete_coll_p2p_eager_putM(op, dstnode, src, 1, size, offset, state);
+  gasnete_tm_p2p_eager_putM(op, gasneti_THUNK_TM, dstnode, src, 1, size, offset, state);
 }
 #endif
 
@@ -1360,7 +1378,7 @@ extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD
 // GEX "generic" layer
 
 extern gex_Event_t
-gasnete_tm_generic_reduce_nb(gasneti_TM_t tm, gex_Rank_t root, void *dst, const void *src,
+gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void *src,
                              gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
                              gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
                              int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
@@ -1499,7 +1517,7 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(TreeGet);
 /*---------------------------------------------------------------------------------*/
 
 #define GASNETE_TM_REDUCE_ARGS \
-                             gasneti_TM_t tm, gex_Rank_t root,\
+                             gex_TM_t tm, gex_Rank_t root,\
                              void *dst, const void *src,\
                              gex_DT_t dt, size_t dt_sz, size_t dt_cnt,\
                              gex_OP_t op, gex_Coll_ReduceFn_t op_fnptr, void *op_cdata,\
@@ -1562,48 +1580,51 @@ int gasnete_coll_log2(uint32_t v) {
 GASNETI_CONSTP(gasnete_coll_log2)
 
 // Relative rank in binomial tree rooted at 'root'
-GASNETI_INLINE(gasnete_coll_binom_rel_root) GASNETI_PURE
-gex_Rank_t gasnete_coll_binom_rel_root(const gex_Rank_t root, gasnete_coll_team_t const team) {
-  const gex_Rank_t self = team->myrank;
-  return (self >= root) ? (self - root) : (self + team->total_ranks - root);
+GASNETI_INLINE(gasnete_tm_binom_rel_root) GASNETI_PURE
+gex_Rank_t gasnete_tm_binom_rel_root(gex_TM_t const tm, const gex_Rank_t root) {
+  const gex_Rank_t self = gex_TM_QueryRank(tm);
+  const gex_Rank_t size = gex_TM_QuerySize(tm);
+  return (self >= root) ? (self - root) : (self + size - root);
 }
-GASNETI_PUREP(gasnete_coll_binom_rel_root)
+GASNETI_PUREP(gasnete_tm_binom_rel_root)
 
 // Size of local binomial subtree, including self
 // TODO-EX: broken for teams of size 2^31 or larger
-GASNETI_INLINE(gasnete_coll_binom_subtree_size) GASNETI_PURE
-gex_Rank_t gasnete_coll_binom_subtree_size(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
-  gasneti_assert(team->total_ranks < 0x80000000);
-  const gex_Rank_t remain = team->total_ranks - rel_rank;
-  const gex_Rank_t size = (rel_rank & (-rel_rank));
-  return (!size || (size > remain)) ? remain : size;
+GASNETI_INLINE(gasnete_tm_binom_subtree_size) GASNETI_PURE
+gex_Rank_t gasnete_tm_binom_subtree_size(gex_TM_t const tm, const gex_Rank_t rel_rank) {
+  const gex_Rank_t size = gex_TM_QuerySize(tm);
+  gasneti_assert(size < 0x80000000);
+  const gex_Rank_t remain = size - rel_rank;
+  const gex_Rank_t fullsize = (rel_rank & (-rel_rank));
+  return (!fullsize || (fullsize > remain)) ? remain : fullsize;
 }
-GASNETI_PUREP(gasnete_coll_binom_subtree_size)
+GASNETI_PUREP(gasnete_tm_binom_subtree_size)
 
 // Count of direct children in binomial subtree
-GASNETI_INLINE(gasnete_coll_binom_children) GASNETI_PURE
-gex_Rank_t gasnete_coll_binom_children(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
-  return 1 + gasnete_coll_log2(gasnete_coll_binom_subtree_size(rel_rank, team) - 1);
+GASNETI_INLINE(gasnete_tm_binom_children) GASNETI_PURE
+gex_Rank_t gasnete_tm_binom_children(gex_TM_t const tm, const gex_Rank_t rel_rank) {
+  return 1 + gasnete_coll_log2(gasnete_tm_binom_subtree_size(tm, rel_rank) - 1);
 }
-GASNETI_PUREP(gasnete_coll_binom_children)
+GASNETI_PUREP(gasnete_tm_binom_children)
 
 // Rank (not relative) of parent
 // TODO-EX: broken for teams of size 2^31 or larger
-GASNETI_INLINE(gasnete_coll_binom_parent) GASNETI_PURE
-gex_Rank_t gasnete_coll_binom_parent(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
-  gasneti_assert(team->total_ranks < 0x80000000);
-  const gex_Rank_t size = (rel_rank & (-rel_rank));
-  const gex_Rank_t self = team->myrank;
-  return (self >= size) ? (self - size) : (self + team->total_ranks - size);
+GASNETI_INLINE(gasnete_tm_binom_parent) GASNETI_PURE
+gex_Rank_t gasnete_tm_binom_parent(gex_TM_t const tm, const gex_Rank_t rel_rank) {
+  const gex_Rank_t self = gex_TM_QueryRank(tm);
+  const gex_Rank_t size = gex_TM_QuerySize(tm);
+  gasneti_assert(size < 0x80000000);
+  const gex_Rank_t fullsize = (rel_rank & (-rel_rank));
+  return (self >= fullsize) ? (self - fullsize) : (self + size - fullsize);
 }
-GASNETI_PUREP(gasnete_coll_binom_parent)
+GASNETI_PUREP(gasnete_tm_binom_parent)
 
 // Rank among siblings (e.g. 0 for first child, 1 for second, etc.)
-GASNETI_INLINE(gasnete_coll_binom_age) GASNETI_PURE
-gex_Rank_t gasnete_coll_binom_age(const gex_Rank_t rel_rank, gasnete_coll_team_t const team) {
+GASNETI_INLINE(gasnete_tm_binom_age) GASNETI_PURE
+gex_Rank_t gasnete_tm_binom_age(gex_TM_t const tm, const gex_Rank_t rel_rank) {
   return gasnete_coll_ctz(rel_rank);
 }
-GASNETI_PUREP(gasnete_coll_binom_age)
+GASNETI_PUREP(gasnete_tm_binom_age)
 
 /*---------------------------------------------------------------------------------*/
 /* Conduit specific extension hooks: */
