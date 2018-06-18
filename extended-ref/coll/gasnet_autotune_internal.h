@@ -68,15 +68,6 @@ typedef gex_Event_t
                                GASNETE_THREAD_FARG);
 
 typedef gex_Event_t 
-(*gasnete_coll_bcastM_fn_ptr_t)(gasnet_team_handle_t team,
-                                void * const dstlist[],
-                                gasnet_image_t srcimage, void *src,
-                                size_t nbytes, int flags, 
-                                gasnete_coll_implementation_t coll_params, 
-                                uint32_t sequence
-                                GASNETE_THREAD_FARG);
-
-typedef gex_Event_t 
 (*gasnete_coll_scatter_fn_ptr_t)(gasnet_team_handle_t team,
                                  void *dst,
                                  gasnet_image_t srcimage, void *src,
@@ -85,15 +76,6 @@ typedef gex_Event_t
                                  uint32_t sequence
                                  GASNETE_THREAD_FARG);
 
-
-typedef gex_Event_t 
-(*gasnete_coll_scatterM_fn_ptr_t)(gasnet_team_handle_t team,
-                                  void * const dstlist[],
-                                  gasnet_image_t srcimage, void *src,
-                                  size_t nbytes, size_t dist, int flags,
-                                  gasnete_coll_implementation_t coll_params,
-                                  uint32_t sequence
-                                  GASNETE_THREAD_FARG);
 
 typedef gex_Event_t 
 (*gasnete_coll_gather_fn_ptr_t)(gasnet_team_handle_t team,
@@ -105,25 +87,8 @@ typedef gex_Event_t
                                 GASNETE_THREAD_FARG);
 
 typedef gex_Event_t 
-(*gasnete_coll_gatherM_fn_ptr_t)(gasnet_team_handle_t team,
-                                 gasnet_image_t dstimage, void *dst,
-                                 void * const * srclist,
-                                 size_t nbytes, size_t dist, int flags, 
-                                 gasnete_coll_implementation_t coll_params,
-                                 uint32_t sequence
-                                 GASNETE_THREAD_FARG);
-
-typedef gex_Event_t
 (*gasnete_coll_gather_all_fn_ptr_t)(gasnet_team_handle_t team,
                                     void *dst, void *src,
-                                    size_t nbytes, int flags, 
-                                    gasnete_coll_implementation_t coll_params,
-                                    uint32_t sequence
-                                    GASNETE_THREAD_FARG);
-
-typedef gex_Event_t
-(*gasnete_coll_gather_allM_fn_ptr_t)(gasnet_team_handle_t team,
-                                    void * const dstlist[], void * const srclist[],
                                     size_t nbytes, int flags, 
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
@@ -138,14 +103,6 @@ typedef gex_Event_t
                                     GASNETE_THREAD_FARG);
 
 typedef gex_Event_t
-(*gasnete_coll_exchangeM_fn_ptr_t)(gasnet_team_handle_t team,
-                                   void * const dstlist[], void * const srclist[],
-                                   size_t nbytes, int flags, 
-                                   gasnete_coll_implementation_t coll_params,
-                                   uint32_t sequence
-                                   GASNETE_THREAD_FARG);
-
-typedef gex_Event_t 
 (*gasnete_coll_reduce_fn_ptr_t)(gasnet_team_handle_t team,
                                  gasnet_image_t dstimage, void *dst,
                                  void * src, size_t src_blksz, size_t src_offset,
@@ -155,17 +112,6 @@ typedef gex_Event_t
                                  gasnete_coll_implementation_t coll_params,
                                  uint32_t sequence
                                  GASNETE_THREAD_FARG);
-
-typedef gex_Event_t 
-(*gasnete_coll_reduceM_fn_ptr_t)(gasnet_team_handle_t team,
-                                  gasnet_image_t dstimage, void *dst,
-                                  void * const srclist[], size_t src_blksz, size_t src_offset,
-                                  size_t elem_size, size_t elem_count,
-                                  gasnet_coll_fn_handle_t func, int func_arg,
-                                  int flags, 
-                                  gasnete_coll_implementation_t coll_params,
-                                  uint32_t sequence
-                                  GASNETE_THREAD_FARG);
 
 typedef enum {GASNETE_COLL_BROADCAST_GET=0, 
   GASNETE_COLL_BROADCAST_PUT,
@@ -414,17 +360,11 @@ typedef struct gasnete_coll_allgorithm_t_ {
   union {
     gex_Event_t (*generic_coll_fn_ptr)();
     gasnete_coll_bcast_fn_ptr_t bcast_fn;
-    gasnete_coll_bcastM_fn_ptr_t bcastM_fn;
     gasnete_coll_scatter_fn_ptr_t scatter_fn;
-    gasnete_coll_scatterM_fn_ptr_t scatterM_fn;
     gasnete_coll_gather_fn_ptr_t gather_fn;
-    gasnete_coll_gatherM_fn_ptr_t gatherM_fn;
     gasnete_coll_gather_all_fn_ptr_t gather_all_fn;
-    gasnete_coll_gather_allM_fn_ptr_t gather_allM_fn;
     gasnete_coll_exchange_fn_ptr_t exchange_fn;
-    gasnete_coll_exchangeM_fn_ptr_t exchangeM_fn;
     gasnete_coll_reduce_fn_ptr_t reduce_fn;
-    gasnete_coll_reduceM_fn_ptr_t reduceM_fn;
   } fn_ptr;
   
   const char *name_str;
