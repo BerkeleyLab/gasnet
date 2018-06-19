@@ -1726,7 +1726,7 @@ void gex_HSL_Unlock (gex_HSL_t *hsl);
 int  gex_HSL_Trylock(gex_HSL_t *hsl);
 
 //
-// Data types for atomics and reductions [EXPERIMENTAL]
+// Data types for atomics and reductions
 //
 // GASNet-EX defines (as preprocess-time constants) at least the following
 // data types codes for use with remote atomic and reduction operations.
@@ -1750,8 +1750,9 @@ int  gex_HSL_Trylock(gex_HSL_t *hsl);
 // It is guaranteed that all GEX_DT_* values can be combined via bit-wise OR
 // without loss of information.
 //
-// Currently, Remote Atomics support all six built-in data types listed above.
-// Currently, Reductions are unimplemented.
+// Currently, Remote Atomics support all built-in data types listed above.
+// Currently, Reductions support all data types (built-in and user-defined)
+// listed above.
 //
 // Note that GASNet-EX supports signed and unsigned exact-width integer types.
 // Any mapping to types such as 'int', 'long' and 'long long' is the
@@ -1761,7 +1762,7 @@ typedef [some integer type] gex_DT_t;
 #define GEX_DT_??? ((gex_DT_t)???) // For each GEX_DT_* above
 
 //
-// Operation codes (opcodes) for atomics and reductions [EXPERIMENTAL]
+// Operation codes (opcodes) for atomics and reductions
 //
 // GASNet-EX defines (as preprocess-time constants) at least the following
 // operation codes for use with atomic and reduction operations.  Not all
@@ -1840,7 +1841,7 @@ typedef [some integer type] gex_DT_t;
 //
 // NOTE: GEX_OP_CSWAP is a deprecated alias for GEX_OP_FCAS
 //
-// In addition to the built-in operations, the following contants are defined:
+// In addition to the built-in operations, the following constants are defined:
 // + User-defined Operations
 //   Valid only for Reductions
 //   Valid for all built-in data types and GEX_DT_USER
