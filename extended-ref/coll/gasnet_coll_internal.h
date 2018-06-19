@@ -126,14 +126,7 @@ extern size_t gasnete_coll_p2p_eager_buffersz;
 * However, types larger than 32-bits won't pass as AM handler args.  So, for
 * a larger type, many default things will require overrides.
 */
-#if GASNET_SEQ
-#define gasnete_coll_image_node(TEAM, I)	I
-#else
-extern gex_Rank_t *gasnete_coll_image_to_node;
-#define gasnete_coll_image_node(TEAM, I)                               \
-  (gasneti_assert((TEAM)->image_to_node != NULL), (TEAM)->image_to_node[I])
-#endif
-#define gasnete_coll_image_is_local(TEAM, I)	((TEAM)->myrank == gasnete_coll_image_node(TEAM, I))
+#define gasnete_coll_image_is_local(TEAM, I)	((TEAM)->myrank == (I))
 #endif
 
 // gasnete_coll_eop_t is either an eop or linked-list thereof
@@ -256,8 +249,6 @@ struct gasnete_coll_team_t_ {
   int					global_team;
   gex_TM_t                      e_tm;
   
-  gasneti_weakatomic_t num_multi_addr_collectives_started;
-		
   /* tree geometry cache, each team should have its own cache .... */
   gasnete_coll_tree_geom_t *tree_geom_cache_head;
   gasnete_coll_tree_geom_t *tree_geom_cache_tail;
@@ -304,29 +295,10 @@ struct gasnete_coll_team_t_ {
   /*autotuning info*/
   gasnete_coll_autotune_info_t* autotune_info;
   
-  /*map of relative nodes in this team to actual nodes*/
-  /*for TEAM_ALL this will just be a one-to-one mapping */
-  /*not worrying about this yet*/
-  /*gex_Rank_t *node_map; */
-  /* XXX: Design not complete yet */
-  
   uint32_t sequence;	/* arbitrary non-zero starting value */
-  gasnet_image_t *all_images;
-  gasnet_image_t *all_offset;
-  uint8_t fixed_image_count; /* 1 if all the nodes have teh same number of images and 0 else*/ 
-  gasnet_image_t total_images;
-  gasnet_image_t max_images;
-  gasnet_image_t my_images;	/* count of local images */
-  gasnet_image_t my_offset;	/* count of images before my first image */
-#if !GASNET_SEQ
-  gex_Rank_t *image_to_node;
-#endif
-#if GASNET_PAR
-  int multi_images;	/* count of local images > 1 */
-  int multi_images_any;	/* count of any node's images > 1 */
 
+#if GASNET_PAR && GASNET_DEBUG
   gasneti_mutex_t threads_mutex;
-  volatile uint32_t threads_sequence; /* volatile due to bug 2646 */
 #endif
   
   /*Stuff for consensus*/
@@ -365,18 +337,6 @@ struct gasnete_coll_team_t_ {
 #endif
 };
 
-#if 0
-extern gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node);
-#endif
-
-extern gex_Rank_t gasnete_coll_team_size(gasnete_coll_team_t team);
-
-#if 0
-gasnete_coll_team_t gasnete_coll_make_team(int allocating_team_all, 
-                                           const gasnet_image_t images[], gex_Rank_t myrank, gex_Rank_t num_members,
-                                           gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG);
-#endif
 #define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
 
 /*---------------------------------------------------------------------------------*/
@@ -394,12 +354,6 @@ struct gasnete_coll_op_t_ {
   
   /* a list of the ops for the scratch list management*/
   gasnete_coll_op_t *scratch_next, *scratch_prev;
-  
-#if GASNET_PAR
-  struct {
-    uint32_t			sequence;
-  } threads;
-#endif
   
   /* Read-only fields: */
   gasnete_coll_team_t		team;
@@ -644,11 +598,6 @@ gasnete_coll_p2p_change_states(op, dstnode, 1, offset, state)
 extern gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
 extern size_t gasnete_coll_fn_count;
 
-#define GASNETE_COLL_1ST_IMAGE(TEAM,LIST,NODE)              \
-(((void * const *)(LIST))[(TEAM)->all_offset[(NODE)]])
-#define GASNETE_COLL_MY_1ST_IMAGE(TEAM,LIST,FLAGS)                      \
-(((void * const *)(LIST))[((FLAGS) & GASNET_COLL_LOCAL) ? 0 : (TEAM)->my_offset])
-
 /*---------------------------------------------------------------------------------*/
 
 /* Helper for scaling of void pointers */
@@ -747,8 +696,6 @@ void gasnete_coll_local_reduce(size_t count, void * dst, void * const srclist[],
 /*---------------------------------------------------------------------------------*/
 /* Thread-specific data: */
 typedef struct {
-  gasnet_image_t			my_image;
-  gasnet_image_t			my_local_image;
   gasnete_coll_op_t			*op_freelist;
   gasnete_coll_generic_data_t 	*generic_data_freelist;
   gasnete_coll_tree_data_t	 	*tree_data_freelist;
@@ -765,14 +712,6 @@ typedef struct {
 #ifndef GASNETE_COLL_LIST_OVERRIDE
   /* Default implementation of coll_ops active list */
 #endif
-  
-  struct {
-    uint32_t				sequence;
-    int					hold_lock;
-  } threads;
-  
-  /* XXX: more fields to come */
-  gasneti_atomic_val_t num_multi_addr_collectives_started;
   
   /* Recursion control */
   int in_poll;
@@ -821,40 +760,35 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
 extern void
 gasnete_coll_op_destroy(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 
-/* Active list management */
-extern gasnete_coll_eop_t
-gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnete_coll_eop_t eop GASNETE_THREAD_FARG);
-extern void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THREAD_FARG);
-
 /*---------------------------------------------------------------------------------*/
 /* Debugging and tracing macros */
 
 #if GASNET_DEBUG
 /* Argument validation */
 extern void gasnete_coll_validate(gasnet_team_handle_t team,
-                                  gasnet_image_t dstimage, const void *dstaddr, size_t dstlen, int dstisv,
-                                  gasnet_image_t srcimage, const void *srcaddr, size_t srclen, int srcisv,
+                                  gex_Rank_t dstrank, const void *dstaddr, size_t dstlen,
+                                  gex_Rank_t srcrank, const void *srcaddr, size_t srclen,
                                   int flags GASNETE_THREAD_FARG);
-#define GASNETE_COLL_VALIDATE(T,DI,DA,DL,DV,SI,SA,SL,SV,F) \
-gasnete_coll_validate(T,DI,DA,DL,DV,SI,SA,SL,SV,F GASNETE_THREAD_PASS)
+#define GASNETE_COLL_VALIDATE(T,DI,DA,DL,SI,SA,SL,F) \
+gasnete_coll_validate(T,DI,DA,DL,SI,SA,SL,F GASNETE_THREAD_PASS)
 #else
-#define GASNETE_COLL_VALIDATE(T,DI,DA,DL,DV,SI,SA,SL,SV,F)
+#define GASNETE_COLL_VALIDATE(T,DI,DA,DL,SI,SA,SL,F)
 #endif
 
 #define GASNETE_COLL_VALIDATE_BROADCAST(T,D,R,S,N,F)   \
-GASNETE_COLL_VALIDATE(T,(gasnet_image_t)(-1),D,N,0,R,S,N,0,F)
+GASNETE_COLL_VALIDATE(T,GEX_RANK_INVALID,D,N,R,S,N,F)
 
 #define GASNETE_COLL_VALIDATE_SCATTER(T,D,R,S,N,F)   \
-GASNETE_COLL_VALIDATE(T,(gasnet_image_t)(-1),D,N,0,R,S,(N)*gasneti_nodes,0,F)
+GASNETE_COLL_VALIDATE(T,GEX_RANK_INVALID,D,N,R,S,(N)*gasneti_nodes,F)
 
 #define GASNETE_COLL_VALIDATE_GATHER(T,R,D,S,N,F)     \
-GASNETE_COLL_VALIDATE(T,R,D,(N)*gasneti_nodes,0,(gasnet_image_t)(-1),S,N,0,F)
+GASNETE_COLL_VALIDATE(T,R,D,(N)*gasneti_nodes,GEX_RANK_INVALID,S,N,F)
 
 #define GASNETE_COLL_VALIDATE_GATHER_ALL(T,D,S,N,F)                \
-GASNETE_COLL_VALIDATE(T,(gasnet_image_t)(-1),D,(N)*gasneti_nodes,0,(gasnet_image_t)(-1),S,N,0,F)
+GASNETE_COLL_VALIDATE(T,GEX_RANK_INVALID,D,(N)*gasneti_nodes,GEX_RANK_INVALID,S,N,F)
 
 #define GASNETE_COLL_VALIDATE_EXCHANGE(T,D,S,N,F)                  \
-GASNETE_COLL_VALIDATE(T,(gasnet_image_t)(-1),D,(N)*gasneti_nodes,0,(gasnet_image_t)(-1),S,(N)*gasneti_nodes,0,F)
+GASNETE_COLL_VALIDATE(T,GEX_RANK_INVALID,D,(N)*gasneti_nodes,GEX_RANK_INVALID,S,(N)*gasneti_nodes,F)
 
 /* XXX: following arg validation unimplemented */
 #define GASNETE_COLL_VALIDATE_REDUCE(T,DI,D,S,SB,SO,ES,EC,FN,FA,F)
@@ -895,7 +829,7 @@ gasneti_in_fullsegment(NULL/*team*/, _node, _addr, _len)
 * assertions from the caller.  If they are NOT set, we will try to determine (when
 * possible) if the addresses are in-segment to allow a one-sided implementation
 * to be used.
-* gasnete_coll_segment_check and gasnete_coll_segment_checkM return a new set of flags.
+* gasnete_coll_segment_check returns a new set of flags.
 */
 #ifndef gasnete_coll_segment_check
 #if GASNETE_COLL_ALWAYS_IN_SEGMENT
@@ -911,7 +845,7 @@ GASNETI_INLINE(_gasnete_coll_segment_check_aux)
 int _gasnete_coll_segment_check_aux(gasnete_coll_team_t team, int rooted, gasnet_image_t root, const void *addr, size_t len) {
   if (rooted) {
     /* Check the given address against the given node only */
-    return gasnete_coll_in_segment(gasnete_coll_image_node(team, root), addr, len);
+    return gasnete_coll_in_segment(root, addr, len);
   } else {
     /* Check the given address against ALL nodes */
     gex_Rank_t i;
@@ -949,61 +883,6 @@ int gasnete_coll_segment_check(gasnete_coll_team_t team, int flags,
 #endif
 #endif
 
-#ifndef gasnete_coll_segment_checkM
-#if GASNETE_COLL_ALWAYS_IN_SEGMENT
-GASNETI_INLINE(gasnete_coll_segment_checkM)
-int gasnete_coll_segment_checkM(gasnete_coll_team_t team, int flags, 
-                                int dstrooted, gasnet_image_t dstimage, const void *dst, size_t dstlen,
-                                int srcrooted, gasnet_image_t srcimage, const void *src, size_t srclen) {
-  /* Everything is reachable via get/put, regardless of segment */
-  return (flags | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SRC_IN_SEGMENT);
-}
-#else
-GASNETI_INLINE(_gasnete_coll_segment_checkM_aux)
-int _gasnete_coll_segment_checkM_aux(gasnete_coll_team_t team, int rooted, gasnet_image_t root, const void *addr, size_t len) {
-  if (rooted) {
-    /* Check the given address against the given node only */
-    return gasnete_coll_in_segment(gasnete_coll_image_node(team, root), addr, len);
-  } else {
-    /* Check the given addresses against ALL nodes */
-    void * const *addrlist = (void * const *)addr;
-    gex_Rank_t i;
-    for (i = 0; i < team->total_ranks; ++i) {
-      if (!gasnete_coll_in_segment(i, addrlist[i], len)) {
-        return 0;
-      }
-    }
-    return 1;
-  }
-}
-
-GASNETI_INLINE(gasnete_coll_segment_checkM)
-int gasnete_coll_segment_checkM(gasnete_coll_team_t team, int flags, 
-                                int dstrooted, gasnet_image_t dstimage, const void *dst, size_t dstlen,
-                                int srcrooted, gasnet_image_t srcimage, const void *src, size_t srclen) {
-  /* Check destination if caller hasn't asserted that it is in-segment */
-  if_pf (!(flags & GASNET_COLL_DST_IN_SEGMENT)) {
-    if ((flags & GASNET_COLL_SINGLE) && _gasnete_coll_segment_checkM_aux(team, dstrooted, dstimage, dst, dstlen)) {
-      flags |= GASNET_COLL_DST_IN_SEGMENT;
-    }
-  } else {
-    /* Cannot gasneti_assert(gasnete_coll_in_segment()) here, since dst might be in AUX segment */
-  }
-  /* Check source if caller hasn't asserted that it is in-segment */
-  if_pf (!(flags & GASNET_COLL_SRC_IN_SEGMENT)) {
-    if ((flags & GASNET_COLL_SINGLE) && _gasnete_coll_segment_checkM_aux(team, srcrooted, srcimage, src, srclen)) {
-      flags |= GASNET_COLL_SRC_IN_SEGMENT;
-    }
-  } else {
-    /* Cannot gasneti_assert(gasnete_coll_in_segment()) here, since src might be in AUX segment */
-  }
-  return flags;
-}
-#endif
-#endif
-
-
-
 /*---------------------------------------------------------------------------------*/
 /* Events to test for progress */
 
@@ -1016,9 +895,6 @@ extern void gasnete_coll_sync_saved_events(GASNETE_THREAD_FARG_ALONE);
 
 typedef struct {
   void *dst;
-#if !GASNET_SEQ
-  gasnet_image_t srcimage;
-#endif
   gex_Rank_t srcnode;
   void *src;
   size_t nbytes;
@@ -1026,9 +902,6 @@ typedef struct {
 
 typedef struct {
   void *dst;
-#if !GASNET_SEQ
-  gasnet_image_t srcimage;
-#endif
   gex_Rank_t srcnode;
   void *src;
   size_t nbytes;
@@ -1036,9 +909,6 @@ typedef struct {
 } gasnete_coll_scatter_args_t;
 
 typedef struct {
-#if !GASNET_SEQ
-  gasnet_image_t dstimage;
-#endif
   gex_Rank_t dstnode;
   void *dst;
   void *src;
@@ -1059,9 +929,6 @@ typedef struct {
 } gasnete_coll_exchange_args_t;
 
 typedef struct {
-#if !GASNET_SEQ
-  gasnet_image_t dstimage;
-#endif
   gex_Rank_t dstnode;
   void *dst;
   void *src;
@@ -1132,16 +999,6 @@ struct gasnete_coll_generic_data_t_ {
   gex_Event_t		coll_handle;
   void				*private_data;
   
-  
-#if GASNET_PAR
-  struct {
-    gasneti_atomic_t			remaining;
-    void				*data;
-  }					threads;
-#else
-  void *addrs;
-#endif
-  
   /* Hook for conduit-specific extension */
 #ifdef GASNETE_COLL_GENERIC_EXTRA
   GASNETE_COLL_GENERIC_EXTRA
@@ -1191,38 +1048,18 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 
 extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data);
 
-#if GASNET_PAR
-extern void gasnete_coll_threads_lock(gasnete_coll_team_t team, int flags GASNETE_THREAD_FARG);
-extern void gasnete_coll_threads_unlock(gasnete_coll_team_t team GASNETE_THREAD_FARG);
-extern int gasnete_coll_threads_first(gasnete_coll_team_t team GASNETE_THREAD_FARG);
-extern gex_Event_t gasnete_coll_threads_get_handle(gasnete_coll_team_t team GASNETE_THREAD_FARG);
-extern void gasnete_coll_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-extern void gasnete_coll_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-GASNETI_INLINE(gasnete_coll_generic_all_threads)
-int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
-  int result;
-  /*no other threads will be calling this so trivially true*/
-  gasneti_assert(data != NULL);
-  /*make sure we are reading a positive value*/
-  gasneti_assert((int)gasneti_atomic_read(&data->threads.remaining, 0) >= 0);
-  result = (gasneti_atomic_read(&data->threads.remaining, 0) == 0);
-  if (result) {
-    gasneti_sync_reads();
-  }
-  return result;
-}
+// TODO-EX: to be replaced with multi-EP equivalents:
+#if GASNET_PAR && GASNET_DEBUG
+  extern void gasnete_coll_threads_lock(gasnete_coll_team_t team, int flags GASNETE_THREAD_FARG);
+  extern void gasnete_coll_threads_unlock(gasnete_coll_team_t team GASNETE_THREAD_FARG);
 #else
-#define gasnete_coll_threads_lock(team, flags)		do { } while (0)
-#define gasnete_coll_threads_unlock(thrarg)	do { } while (0)
-#define gasnete_coll_threads_first(thrarg)		1
-#define gasnete_coll_threads_get_handle(thrarg)	\
-(gasneti_fatalerror("Call to gasnete_coll_threads_get_handle() in non-PAR build"), \
- GEX_EVENT_INVALID)
-#define gasnete_coll_threads_insert(op)		\
-gasneti_fatalerror("Call to gasnete_coll_threads_insert() in non-PAR build")
-#define gasnete_coll_threads_delete(op)		do { } while (0)
-#define gasnete_coll_generic_all_threads(data)	(1)
+  #define gasnete_coll_threads_lock(team, flags)  do { } while (0)
+  #define gasnete_coll_threads_unlock(thrarg)     do { } while (0)
 #endif
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_threads_get_handle(thrarg) (gasneti_unreachable(), GEX_EVENT_INVALID)
+#define gasnete_coll_generic_all_threads(data)  (1)
 
 
 GASNETI_INLINE(gasnete_coll_generic_insync)

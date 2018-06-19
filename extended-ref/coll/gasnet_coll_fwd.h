@@ -20,40 +20,19 @@
 /* stats needed by the COLL reference implementation */
 #ifndef GASNETI_COLL_STATS
   #define GASNETI_COLL_STATS(CNT,VAL,TIME)    \
-        VAL(X, COLL_TRY_SYNC, success)        \
-        VAL(X, COLL_TRY_SYNC_ALL, success)    \
-        VAL(X, COLL_TRY_SYNC_SOME, success)   \
-        TIME(X, COLL_WAIT_SYNC, waittime)     \
-        TIME(X, COLL_WAIT_SYNC_ALL, waittime) \
-        TIME(X, COLL_WAIT_SYNC_SOME, waittime)\
         VAL(W, COLL_BROADCAST, sz)            \
         VAL(W, COLL_BROADCAST_NB, sz)         \
-        VAL(W, COLL_BROADCAST_M, sz)          \
-        VAL(W, COLL_BROADCAST_M_NB, sz)       \
         VAL(W, COLL_SCATTER, sz)              \
         VAL(W, COLL_SCATTER_NB, sz)           \
-        VAL(W, COLL_SCATTER_M, sz)            \
-        VAL(W, COLL_SCATTER_M_NB, sz)         \
         VAL(W, COLL_GATHER, sz)               \
         VAL(W, COLL_GATHER_NB, sz)            \
-        VAL(W, COLL_GATHER_M, sz)             \
-        VAL(W, COLL_GATHER_M_NB, sz)          \
         VAL(W, COLL_GATHER_ALL, sz)           \
         VAL(W, COLL_GATHER_ALL_NB, sz)        \
-        VAL(W, COLL_GATHER_ALL_M, sz)         \
-        VAL(W, COLL_GATHER_ALL_M_NB, sz)      \
         VAL(W, COLL_EXCHANGE, sz)             \
         VAL(W, COLL_EXCHANGE_NB, sz)          \
-        VAL(W, COLL_EXCHANGE_M, sz)           \
-        VAL(W, COLL_EXCHANGE_M_NB, sz)        \
         VAL(W, COLL_REDUCE, cnt)              \
         VAL(W, COLL_REDUCE_NB, cnt)           \
-        VAL(W, COLL_REDUCE_M, cnt)            \
-        VAL(W, COLL_REDUCE_M_NB, cnt)         \
-        VAL(W, COLL_SCAN, cnt)                \
-        VAL(W, COLL_SCAN_NB, cnt)             \
-        VAL(W, COLL_SCAN_M, cnt)              \
-        VAL(W, COLL_SCAN_M_NB, cnt)
+        /*END*/
 #endif
 
 #define GASNETE_COLL_AUXSEG_DECLS \
