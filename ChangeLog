@@ -16,19 +16,26 @@ PENDING: GASNet-EX 2018.6.0 Release
   - Add GEX_OP_TO_(NON)FETCHING()
   - Add gex_System_QueryHostInfo() and gex_System_QueryMyPosition()
   - Rename gex_NbrhdInfo_t to gex_RankInfo_t
+  - Add gex_TM_Split() and gex_TM_Translate{RankToJobrank,JobrankToRank}()
+  - Add initial collectives: gex_Coll_{Barrier,Broadcast,ReduceToOne}NB()
+     Additional collective operations will be added in future releases
+  - Add user-defined data types and operators for Reductions
 
 * Notable bugs fixed in this release:
   - Bug3749: assertion failure in PSHM's NP-AM
 
 * Major new features implemented in this release:
-  - gasnet_fwd.h now provides a dependency-free useful subset of the API 
-    declarations, suitable for inclusion into application-level code.
-
-* Feature implementation status in this release:
+  - Teams:
+    + Full multi-team support across the entire specification, including
+      construction of subset teams and rank reordering via gex_TM_Split()
+    + Can translate in either direction between team-relative and job ranks
+    + All APIs taking (tm,rank) pairs interpret 'rank' relative to 'tm'
   - Collectives: 
-    + ...
+    + Non-blocking Barrier, Broadcast, and ReduceToOne
   - Non-contiguous RMA: Vector, Indexed, Strided (VIS)
     + VIS Puts now offer local completion support. See spec for GEX_FLAG_ENABLE_LEAF_LC
+  - gasnet_fwd.h now provides a dependency-free useful subset of the API 
+    declarations, suitable for inclusion into application-level code.
   - ...
 
 * This release implements the following conduits only:
