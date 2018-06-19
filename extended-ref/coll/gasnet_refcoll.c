@@ -30,7 +30,7 @@
 
 size_t gasnete_coll_p2p_eager_min = 0;
 size_t gasnete_coll_p2p_eager_scale = 0;
-static size_t gasnete_coll_p2p_eager_buffersz = 0;
+size_t gasnete_coll_p2p_eager_buffersz = 0;
 /*set a std segment size of 1024 bytes*/
 
 /*---------------------------------------------------------------------------------*/
@@ -668,6 +668,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
 
     gasnete_coll_active_new(op);
     op->team     = team;
+    op->e_tm     = team->e_tm;
     op->sequence = sequence;
     op->flags    = flags;
     op->eop      = NULL;
@@ -911,6 +912,7 @@ extern void gasnete_coll_init_subsystem(void)
                            GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save,
                            NULL GASNETE_THREAD_PASS);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
+    GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 
 #ifdef GASNETI_USE_FCA
     gasnet_team_fca_enable(GASNET_TEAM_ALL);
@@ -1516,9 +1518,10 @@ void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, voi
 
 
 /* Send data to be buffered by the recipient */
-void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                 void *src, uint32_t count, size_t size,
-                                 uint32_t offset, uint32_t state) {
+void gasnete_tm_p2p_eager_putM(gasnete_coll_op_t *op,
+                               gex_TM_t tm, gex_Rank_t rank,
+                               void *src, uint32_t count, size_t size,
+                               uint32_t offset, uint32_t state) {
   uint32_t team_id = gasnete_coll_team_id(op->team);
   size_t limit;
 
@@ -1527,7 +1530,7 @@ void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
     size_t nbytes = limit * size;
 
     do {
-      gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+      gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                src, nbytes, GEX_EVENT_NOW, 0, team_id, op->sequence, limit, offset, state, size);
       offset += limit;
       src = (void *)((uintptr_t)src + nbytes);
@@ -1535,7 +1538,7 @@ void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
     } while (count > limit);
   }
 
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+  gex_AM_RequestMedium(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                            src, count * size, GEX_EVENT_NOW, 0, team_id, op->sequence, count, offset, state, size);
 }
     
@@ -3064,6 +3067,131 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
   return _gasnet_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
                                    nbytes, coll_flags GASNETE_THREAD_PASS);
+}
+
+/*---------------------------------------------------------------------------------*/
+// GEX Reduce
+
+gex_Event_t
+gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void *src,
+                             gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                             gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
+                             int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
+                             gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                             int num_params, uint32_t *param_list,
+                             gasnete_coll_scratch_req_t *scratch_req
+                             GASNETE_THREAD_FARG)
+{
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gex_Event_t result;
+
+  gasnete_coll_threads_lock(team, coll_flags GASNETE_THREAD_PASS);
+
+  gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+  GASNETE_COLL_GENERIC_SET_TAG(data, tm_reduce);
+
+  data->args.tm_reduce.root    = root;
+  data->args.tm_reduce.dst     = dst;
+  data->args.tm_reduce.src     = src;
+
+  data->args.tm_reduce.dt      = dt;
+  data->args.tm_reduce.dt_sz   = dt_sz;
+  data->args.tm_reduce.dt_cnt  = dt_cnt;
+
+  switch (opcode) {
+    case GEX_OP_USER_NC:
+      gasneti_fatalerror("Support for GEX_OP_USER_NC reductions is UNIMPLEMENTED");
+      break;
+
+    case GEX_OP_USER:
+      data->args.tm_reduce.op_fnptr  = fnptr;
+      data->args.tm_reduce.op_cdata  = cdata;
+      break;
+
+    // Otherwise convert DT/OP pair to an *internal* fnptr and cdata
+    // TODO-EX: this just selects on DT and smuggles the opcode in the
+    // cdata, which then leaves a switch(opcode) in the critical path.
+    default:
+      data->args.tm_reduce.op_cdata = (void*)(uintptr_t)opcode;
+      switch (dt) {
+        #define REDUCE_OP_CASE(DT) \
+          case GEX_DT_##DT:                                                  \
+             data->args.tm_reduce.op_fnptr =  gasnete_shrinkray_gex_dt_##DT; \
+             break;
+        GASNETE_TM_REDUCE_FOREACH_DT(REDUCE_OP_CASE)
+        #undef REDUCE_OP_CASE
+
+        default: gasneti_unreachable();
+      }
+      break;
+  }
+
+  data->options      = options;
+  data->private_data = NULL;
+  data->tree_info    = tree_info;
+
+  result = gasnete_coll_op_generic_init_with_scratch(team, coll_flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
+
+  gasnete_coll_threads_unlock(team GASNETE_THREAD_PASS);
+
+  return result;
+}
+
+
+#ifndef gasnete_tm_reduce_nb
+  // In absence of conduit override we drop the _default suffix
+  #define gasnete_tm_reduce_nb_default gasnete_tm_reduce_nb
+#endif
+gex_Event_t
+gasnete_tm_reduce_nb_default(
+                gex_TM_t e_tm, gex_Rank_t root,
+                void *dst, const void *src,
+                gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
+                gex_Flags_t flags GASNETE_THREAD_FARG)
+{
+  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+
+  GASNETI_TRACE_TM_REDUCE(COLL_REDUCE_NB,e_tm,root,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
+
+  // Argument validation
+  // TODO-EX: factor to avoid cloning this logic to conduit collectives
+  // TODO-EX: informative fatalerror() in place of assertion failure
+  gasneti_assert(root < i_tm->_size);
+  gasneti_assert((root != i_tm->_rank) || dst);
+  gasneti_assert(src);
+  gasneti_assert(dt_sz != 0);
+  gasneti_assert(dt_cnt != 0);
+  gasneti_assert((dt == GEX_DT_USER) || (dt_sz == gasneti_dt_size(dt)));
+  gasneti_assert(gasneti_dt_valid_reduce(dt));
+  gasneti_assert(gasneti_op_valid_reduce(opcode));
+  gasneti_assert((dt == GEX_DT_USER) ||
+                 (gasneti_dt_int(dt) && gasneti_op_int(opcode)) ||
+                 (gasneti_dt_fp(dt)  && gasneti_op_fp(opcode)));
+
+  // Short-circuit singleton
+  // TODO-EX:  hoist to gasnet_coll.h?
+  if (i_tm->_size == 1) {
+    GASNETI_MEMCPY_SAFE_IDENTICAL(dst, src, dt_sz * dt_cnt);
+    return GEX_EVENT_INVALID;
+  }
+
+  const size_t nbytes = dt_sz * dt_cnt;
+  gasnete_tm_reduce_fn_ptr_t alg;
+  if_pf ((nbytes * gasnete_coll_log2(i_tm->_size) <= gasnete_coll_p2p_eager_buffersz) &&
+         (nbytes <= gex_AM_LUBRequestMedium())) {
+    // TODO-EX: this is the implementation available currently
+    alg = &gasnete_tm_reduce_BinomialEager;
+  } else {
+    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz*dt_cnt == %"PRIuSZ") is TOO LARGE for this implementation",
+                       dt_sz*dt_cnt);
+  }
+  
+  return (*alg)(e_tm, root, dst, src,
+                dt, dt_sz, dt_cnt,
+                opcode, user_fnptr, user_cdata,
+                0, NULL, 0 GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

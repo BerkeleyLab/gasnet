@@ -317,7 +317,7 @@ gasneti_format_mask(char *buf, uint64_t val, int count, const char **names, cons
 }
 
 size_t gasneti_format_dt(char *buf, gex_DT_t dt) {
-  static const char* names[] = {"I32", "U32", "I64", "U64", "FLT", "DBL"};
+  static const char* names[] = {"I32", "U32", "I64", "U64", "FLT", "DBL", "USER"};
   return gasneti_format_mask(buf,dt,sizeof(names)/sizeof(char *),names,"GEX_DT_");
 }
 
@@ -332,7 +332,9 @@ size_t gasneti_format_op(char *buf, gex_OP_t op) {
     "ADD",  "SUB",   "MULT",
     "MIN",  "MAX",
     "INC",  "DEC",
-    "SET",  "CAS"
+    "SET",  "CAS",
+    "UNK25", "UNK26", "UNK27", "UNK28", "UNK29", // 25 - 29 unsed
+    "USER", "USER_NC"
   };
   return gasneti_format_mask(buf,op,sizeof(names)/sizeof(char *),names,"GEX_OP_");
 }

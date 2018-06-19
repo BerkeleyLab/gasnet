@@ -508,7 +508,7 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
       GASNETI_TRACE_PRINTF(D,(#prefix "%s: oldval = " fmt               \
                               ", newval = " fmt,                        \
                               _trat_suffix, cast op1, cast op2));       \
-    } else gasneti_assert(gasneti_op_0arg(opcode) || !gasneti_op_valid(opcode)); \
+    } else gasneti_assert(gasneti_op_0arg(opcode) || !gasneti_op_valid_atomic(opcode)); \
   } while (0)
   #define GASNETE_TRACE_RATOMIC_gex_nb(ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2) \
           _GASNETE_TRACE_RATOMIC(RATOMIC_NB_,ad,dtype,result_p,tgt_rank,tgt_addr,opcode,flags,fmt,cast,op1,op2)

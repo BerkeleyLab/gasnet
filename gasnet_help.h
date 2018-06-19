@@ -1226,7 +1226,7 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 
 // Union of all:
 
-#define _GEX_DT_VALID  (_GEX_DT_INT | _GEX_DT_FP)
+#define _GEX_DT_VALID  (_GEX_DT_INT | _GEX_DT_FP | GEX_DT_USER)
 
 // Predicates:
 
@@ -1235,6 +1235,11 @@ GASNETI_INLINE(gasneti_dt_valid) GASNETI_PURE
 int gasneti_dt_valid(gex_DT_t dt) {
   return (((dt) & _GEX_DT_VALID) && GASNETI_POWEROFTWO(dt));
 }
+GASNETI_INLINE(gasneti_dt_valid_atomic) GASNETI_PURE
+int gasneti_dt_valid_atomic(gex_DT_t dt) {
+  return gasneti_dt_valid(dt) && (dt != GEX_DT_USER);
+}
+#define gasneti_dt_valid_reduce gasneti_dt_valid
 
 // Is the argument a (possibly empty) mask consisting of only valid data types?
 #define gasneti_dt_valid_mask(dts) (!((dts) & ~_GEX_DT_VALID))
@@ -1263,13 +1268,17 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 
 // Masks (disjoint):
 #define _GEX_OP_ARITH_BINARY \
-        (GEX_OP_ADD|GEX_OP_SUB|GEX_OP_MULT|GEX_OP_MIN|GEX_OP_MAX)
+        (GEX_OP_ADD|GEX_OP_MULT|GEX_OP_MIN|GEX_OP_MAX)
+#define _GEX_OP_NC_ARITH_BINARY \
+         GEX_OP_SUB
 #define _GEX_OP_ARITH_UNARY \
         (GEX_OP_INC|GEX_OP_DEC)
 #define _GEX_OP_BITWISE \
         (GEX_OP_AND|GEX_OP_OR|GEX_OP_XOR)
 #define _GEX_OP_FETCH_ARITH_BINARY \
-        (GEX_OP_FADD|GEX_OP_FSUB|GEX_OP_FMULT|GEX_OP_FMIN|GEX_OP_FMAX)
+        (GEX_OP_FADD|GEX_OP_FMULT|GEX_OP_FMIN|GEX_OP_FMAX)
+#define _GEX_OP_FETCH_NC_ARITH_BINARY \
+         GEX_OP_FSUB
 #define _GEX_OP_FETCH_ARITH_UNARY \
         (GEX_OP_FINC|GEX_OP_FDEC)
 #define _GEX_OP_FETCH_BITWISE \
@@ -1278,29 +1287,34 @@ size_t gasneti_dt_size(gex_DT_t dt) {
         (GEX_OP_SET|GEX_OP_CAS)
 #define _GEX_OP_FETCH_ACCESSOR \
         (GEX_OP_GET|GEX_OP_SWAP|GEX_OP_FCAS)
+#define _GEX_OP_USER_REDUCE \
+        (GEX_OP_USER|GEX_OP_USER_NC)
 
 // Masks for various properties:
 
-#define _GEX_OP_VALID \
+#define _GEX_OP_REDUCE \
+        (_GEX_OP_ARITH_BINARY|_GEX_OP_BITWISE|_GEX_OP_USER_REDUCE)
+#define _GEX_OP_ATOMIC \
         (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_NC_ARITH_BINARY | _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
          _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE      | \
          _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
-
-#define _GEX_OP_REDUCE \
-        (_GEX_OP_ARITH_BINARY|_GEX_OP_BITWISE)
-#define _GEX_OP_ATOMIC \
-         _GEX_OP_VALID
+#define _GEX_OP_VALID \
+         (_GEX_OP_REDUCE | _GEX_OP_ATOMIC)
 
 #define _GEX_OP_INT \
         _GEX_OP_VALID
 #define _GEX_OP_FP  \
         (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_NC_ARITH_BINARY | _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
-         _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
+         _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR | \
+         _GEX_OP_USER_REDUCE)
 
 #define _GEX_OP_FETCH \
         (_GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_FETCH_ARITH_UNARY  | \
          _GEX_OP_FETCH_BITWISE      | \
          _GEX_OP_FETCH_ACCESSOR)
@@ -1311,6 +1325,7 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 #define _GEX_OP_1ARG \
         (GEX_OP_SET | GEX_OP_SWAP |\
          _GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
+         _GEX_OP_NC_ARITH_BINARY | _GEX_OP_FETCH_NC_ARITH_BINARY | \
          _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE)
 #define _GEX_OP_2ARG \
         (GEX_OP_FCAS | GEX_OP_CAS)
@@ -1330,6 +1345,14 @@ size_t gasneti_dt_size(gex_DT_t dt) {
 GASNETI_INLINE(gasneti_op_valid) GASNETI_PURE
 int gasneti_op_valid(gex_OP_t op) {
   return (((op) & _GEX_OP_VALID) && GASNETI_POWEROFTWO(op));
+}
+GASNETI_INLINE(gasneti_op_valid_atomic) GASNETI_PURE
+int gasneti_op_valid_atomic(gex_OP_t op) {
+  return gasneti_op_valid(op) && gasneti_op_atomic(op);
+}
+GASNETI_INLINE(gasneti_op_valid_reduce) GASNETI_PURE
+int gasneti_op_valid_reduce(gex_OP_t op) {
+  return gasneti_op_valid(op) && gasneti_op_reduce(op);
 }
 
 // Predicates on masks:
