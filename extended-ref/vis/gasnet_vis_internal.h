@@ -197,11 +197,12 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 /* do GASNETE_VISOP_SETUP, push the visop on the thread-specific list 
    and do GASNETE_VISOP_RETURN */
-#define GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, isget) do {   \
+#define GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, isget, extra) do {   \
     GASNETE_VISOP_SETUP(visop, synctype, isget);                     \
     GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_vis,COUNTED);              \
     visop->next = td->active_ops; /* push on thread-specific list */ \
     td->active_ops = visop;                                          \
+    extra;                                                           \
     GASNETE_VISOP_RETURN(visop, synctype);                           \
 } while (0)
 /*---------------------------------------------------------------------------------*/

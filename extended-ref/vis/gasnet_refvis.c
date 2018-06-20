@@ -75,11 +75,16 @@ extern void gasnete_vis_init(void) {
 
 #include <gasnet_am.h>
 
+#include "gasnet_event_internal.h" // TODO-EX: REMOVE THIS
+// VILE HACK: internal op interface lacks the capability to manipulate op ALC that we need 
+// for correct interoperation of peer completion and ALC on the same VIS put
+
 typedef struct {
   gasneti_vis_op_t visop;  // must be first
 
   gex_TM_t tm;
   gex_Rank_t rank;
+  gex_Event_t lc;
 } gasneti_vispc_op_t;
 
 extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
@@ -100,7 +105,7 @@ extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 }
 GASNETI_INLINE(gasnete_VIS_pcwrap)
 gex_Event_t gasnete_VIS_pcwrap(gasnete_synctype_t const synctype, // manifest constant
-                               gex_TM_t tm, gex_Rank_t rank,
+                               gex_TM_t tm, gex_Rank_t rank, gex_Flags_t flags,
                                gex_Event_t const evt GASNETE_THREAD_FARG) {
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
   gasnete_vis_pcinfo_t * const pcinfo = &(td->pcinfo);
@@ -111,36 +116,63 @@ gex_Event_t gasnete_VIS_pcwrap(gasnete_synctype_t const synctype, // manifest co
     gex_Event_t lc;
     gex_Event_t *lc_opt;
     switch (synctype) {
-      case gasnete_synctype_b:   lc_opt = GEX_EVENT_NOW; lc = 0; break;
+      case gasnete_synctype_b:   lc_opt = GEX_EVENT_NOW; lc = GEX_EVENT_INVALID; break;
       case gasnete_synctype_nb:  lc_opt = &lc; break;
-      case gasnete_synctype_nbi: lc_opt = GEX_EVENT_GROUP; lc = 0; break;
+      case gasnete_synctype_nbi: lc_opt = GEX_EVENT_GROUP; lc = GEX_EVENT_INVALID; break;
       default: gasneti_unreachable();
     }
     gex_AM_RequestMedium1(tm, rank, _hidx_gasnete_vis_pcthunk_reqh, (void *)(pcinfo->_srcaddr), pcinfo->_nbytes, lc_opt, 0, pcinfo->_handler);
     pcinfo->_handler = 0; // reset
     return lc;
   } else { // schedule deferred initiator-chaining
-    gasneti_vispc_op_t * const vispcop = gasneti_malloc(sizeof(gasneti_vispc_op_t));
+    gasneti_vispc_op_t * const vispcop = gasneti_malloc(sizeof(gasneti_vispc_op_t)+GEX_VIS_MAX_PEERCOMPLETION);
     gasneti_vis_op_t * const visop = &(vispcop->visop);
     vispcop->tm =   tm; 
     vispcop->rank = rank; 
     visop->type = GASNETI_VIS_CAT_PUTPC_CHAIN;
-    visop->addr =   (void*)pcinfo->_srcaddr;
-    visop->len =    pcinfo->_nbytes;
     visop->count =  pcinfo->_handler;
-    visop->event =  evt;
     pcinfo->_handler = 0; // reset
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+    visop->len =    pcinfo->_nbytes;
+    visop->event =  evt;
+    if (flags & GEX_FLAG_ENABLE_LEAF_LC) { // client also requesting LC
+      #if GASNETE_HAVE_LC 
+        vispcop->lc = gex_Event_QueryLeaf(evt, GEX_EC_LC);
+        // TODO-EX: remove this event_internal vileness
+        // set ALC in-flight for the client's op
+        #define VISOP_EXTRA do {                                                                      \
+          if (vispcop->lc) {                                                                          \
+            if (synctype == gasnete_synctype_nb) GASNETE_EOP_LC_START((gasnete_eop_t *)(visop->eop)); \
+            else                                 GASNETE_IOP_LC_START((gasnete_iop_t *)visop->iop);   \
+          }                                                                                           \
+        } while (0)
+      #else
+        #if GASNET_DEBUG
+          vispcop->lc = GEX_EVENT_INVALID; // for assertions only
+        #endif
+        #define VISOP_EXTRA ((void)0)
+      #endif
+      // bounce-buffer the PC payload if the client requested LC
+      // this is REQUIRED for conduits lacking ALC signalling support, to correctly implement synchronous LC
+      // this is an optimization for other conduits, to ensure we can report VIS payload LC to the client when it happens
+      void *pcpayload = vispcop+1;
+      GASNETI_MEMCPY_SAFE_EMPTY(pcpayload, pcinfo->_srcaddr, pcinfo->_nbytes);
+      visop->addr = pcpayload;
+    } else {
+      visop->addr =   (void*)pcinfo->_srcaddr;
+      vispcop->lc = GEX_EVENT_INVALID;
+    }
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0, VISOP_EXTRA);
+    #undef VISOP_EXTRA
   }
 }
-extern int         gasnete_VIS_pcwrapBlocking(gex_TM_t tm, gex_Rank_t rank, gex_Event_t evt GASNETE_THREAD_FARG) {
-  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_b, tm, rank, evt GASNETE_THREAD_PASS);
+extern int         gasnete_VIS_pcwrapBlocking(_GASNETE_VIS_PCWRAP_ARGS) {
+  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_b, _tm, _rank, _flags, _evt GASNETE_THREAD_PASS);
 }
-extern int         gasnete_VIS_pcwrapNBI     (gex_TM_t tm, gex_Rank_t rank, gex_Event_t evt GASNETE_THREAD_FARG) {
-  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_nbi, tm, rank, evt GASNETE_THREAD_PASS);
+extern int         gasnete_VIS_pcwrapNBI     (_GASNETE_VIS_PCWRAP_ARGS) {
+  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_nbi, _tm, _rank, _flags, _evt GASNETE_THREAD_PASS);
 }
-extern gex_Event_t gasnete_VIS_pcwrapNB      (gex_TM_t tm, gex_Rank_t rank, gex_Event_t evt GASNETE_THREAD_FARG) {
-  return gasnete_VIS_pcwrap(gasnete_synctype_nb, tm, rank, evt GASNETE_THREAD_PASS);
+extern gex_Event_t gasnete_VIS_pcwrapNB      (_GASNETE_VIS_PCWRAP_ARGS) {
+  return gasnete_VIS_pcwrap(gasnete_synctype_nb, _tm, _rank, _flags, _evt GASNETE_THREAD_PASS);
 }
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_vis_run_pchandler)
@@ -222,16 +254,28 @@ extern void gasneti_vis_progressfn(void) {
            GASNETE_VIS_PROGRESSFN_EXTRA(visop, lastp)
     #endif
     switch (visop->type) {
-      case GASNETI_VIS_CAT_PUTPC_CHAIN:
+      case GASNETI_VIS_CAT_PUTPC_CHAIN: {
+        gasneti_vispc_op_t * const vispcop = (gasneti_vispc_op_t *)visop;
+        #if GASNETE_HAVE_LC 
+          // forward ALC if it exists and the client requested it
+          if (vispcop->lc) {
+            if (gasnete_test(vispcop->lc GASNETE_THREAD_PASS) == GASNET_OK) {
+              vispcop->lc = GEX_EVENT_INVALID;
+              if (visop->eop) GASNETE_EOP_LC_FINISH((gasnete_eop_t *)(visop->eop));
+              else            GASNETE_IOP_LC_FINISH((gasnete_iop_t *)(visop->iop));  
+            } else break; // no ALC yet, so cannot have operation completion
+          }
+        #endif
         if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
-          // TODO-EX: lack a mechanism to bind LC of this AM injection to an existing eop
-          gasneti_vispc_op_t * const vispcop = (gasneti_vispc_op_t *)visop;
-          
+          // could potentially delay visop free until ALC of this medium payload,
+          // but given the small size it's probably synchronously complete for most conduits anyhow
+          gasneti_assert(!vispcop->lc);
           gex_AM_RequestMedium1(vispcop->tm, vispcop->rank, _hidx_gasnete_vis_pcthunk_reqh, 
                                 visop->addr, visop->len, GEX_EVENT_NOW, 0, (uint8_t)visop->count);
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
+    }
     #ifdef GASNETE_PUTV_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTV_GATHER:
         if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
