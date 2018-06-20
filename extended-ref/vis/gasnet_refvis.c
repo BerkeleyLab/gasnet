@@ -89,7 +89,7 @@ typedef struct {
 
 extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
         const void *source_addr, size_t nbytes, gex_Flags_t flags GASNETE_THREAD_FARG) {
-  GASNETI_TRACE_PRINTF(A,("gex_VIS_SetPeerCompletionHandler(handler=%i, source_addr="GASNETI_LADDRFMT", nbytes=%"PRIuSZ")",
+  GASNETI_TRACE_PRINTF(A,("VIS_SetPeerCompletionHandler: handler=%i, source_addr="GASNETI_LADDRFMT", nbytes=%"PRIuSZ,
                           (int)handler, GASNETI_LADDRSTR(source_addr),nbytes)); 
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
   gasnete_vis_pcinfo_t * const pcinfo = &(td->pcinfo);
@@ -110,6 +110,9 @@ gex_Event_t gasnete_VIS_pcwrap(gasnete_synctype_t const synctype, // manifest co
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
   gasnete_vis_pcinfo_t * const pcinfo = &(td->pcinfo);
   gasneti_assert(pcinfo->_handler);
+
+  GASNETI_TRACE_PRINTF(D,("VIS_PeerCompletionHandler scheduled: handler=%i, source_addr="GASNETI_LADDRFMT", nbytes=%"PRIuSZ,
+                          (int)pcinfo->_handler, GASNETI_LADDRSTR(pcinfo->_srcaddr), pcinfo->_nbytes));
 
   if (evt == GEX_EVENT_INVALID || // synchronously complete
       (synctype == gasnete_synctype_b && (gex_Event_Wait(evt),1))) { // blocking
