@@ -21,9 +21,6 @@ PENDING: GASNet-EX 2018.6.0 Release
      Additional collective operations will be added in future releases
   - Add user-defined data types and operators for Reductions
 
-* Notable bugs fixed in this release:
-  - Bug3749: assertion failure in PSHM's NP-AM
-
 * Major new features implemented in this release:
   - Teams:
     + Full multi-team support across the entire specification, including
@@ -33,10 +30,15 @@ PENDING: GASNet-EX 2018.6.0 Release
   - Collectives: 
     + Non-blocking Barrier, Broadcast, and ReduceToOne
   - Non-contiguous RMA: Vector, Indexed, Strided (VIS)
-    + VIS Puts now offer local completion support. See spec for GEX_FLAG_ENABLE_LEAF_LC
+    + VIS Puts now support notifying (potentially remote) peers of completion.
+      For details, see docs/GASNet-EX.spec for gex_VIS_SetPeerCompletionHandler
+    + VIS Puts now offer local completion support. 
+      For details, see docs/GASNet-EX.spec for GEX_FLAG_ENABLE_LEAF_LC
   - gasnet_fwd.h now provides a dependency-free useful subset of the API 
     declarations, suitable for inclusion into application-level code.
-  - ...
+
+* Notable bugs fixed in this release:
+  - Bug3749: assertion failure in PSHM's NP-AM
 
 * This release implements the following conduits only:
   - InfiniBand Verbs (ibv-conduit)

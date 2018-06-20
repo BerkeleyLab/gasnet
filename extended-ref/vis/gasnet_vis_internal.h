@@ -72,8 +72,19 @@ typedef struct {
   // DO NOT PUT ANYTHING HERE
 } gasneti_strided_op_t;
 
+/* per-EP state for VIS */
+typedef struct {
+  gasneti_mutex_t _poll_lock;
+  gasneti_vis_op_t _active_ops;
+} gasnete_vis_epdata_t;
+extern gasnete_vis_epdata_t gasnete_vis_epdata_THUNK;
+
 /* per-thread state for VIS */
 typedef struct {
+  gasnete_vis_pcinfo_t pcinfo; // must come first for use in public header
+
+  // visop management
+  // TODO-EX: Rework this
   gasneti_vis_op_t *active_ops;
   gasneti_vis_op_t *free_ops;
   int progressfn_active;
@@ -107,9 +118,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 }
 
 /* gasnete_threaddata_t might not be defined yet, but VIS ptr must be 3rd */
-#define GASNETE_VIS_MYTHREAD (((void **)GASNETE_MYTHREAD)[2] ? \
-        ((void **)GASNETE_MYTHREAD)[2] :                       \
-        (((void **)GASNETE_MYTHREAD)[2] = gasnete_vis_new_threaddata()))
+#define GASNETE_VIS_MYTHREAD (((void **)GASNETI_MYTHREAD)[2] ? \
+        ((void **)GASNETI_MYTHREAD)[2] :                       \
+        (((void **)GASNETI_MYTHREAD)[2] = gasnete_vis_new_threaddata()))
 
 #define GASNETI_VIS_CAT_PUTV_GATHER       1
 #define GASNETI_VIS_CAT_GETV_SCATTER      2
@@ -123,6 +134,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETI_VIS_CAT_GETI_AMPIPELINE   10
 #define GASNETI_VIS_CAT_PUTS_AMPIPELINE   11
 #define GASNETI_VIS_CAT_GETS_AMPIPELINE   12
+#define GASNETI_VIS_CAT_PUTPC_CHAIN       13
 
 /*---------------------------------------------------------------------------------*/
 /* VISOP manipulation */
@@ -185,11 +197,12 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 /* do GASNETE_VISOP_SETUP, push the visop on the thread-specific list 
    and do GASNETE_VISOP_RETURN */
-#define GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, isget) do {   \
+#define GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, isget, extra) do {   \
     GASNETE_VISOP_SETUP(visop, synctype, isget);                     \
     GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_vis,COUNTED);              \
     visop->next = td->active_ops; /* push on thread-specific list */ \
     td->active_ops = visop;                                          \
+    extra;                                                           \
     GASNETE_VISOP_RETURN(visop, synctype);                           \
 } while (0)
 /*---------------------------------------------------------------------------------*/

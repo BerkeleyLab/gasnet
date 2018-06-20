@@ -630,7 +630,7 @@ gex_Event_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_sy
     visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
     visop->event = gasnete_put_nb(gasneti_THUNK_TM, dstnode, dstaddr, packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0, (void)0);
   }
 }
   #define GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
@@ -668,7 +668,7 @@ gex_Event_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_s
     visop->len = stridelevels;
     visop->event = gasnete_get_nb(gasneti_THUNK_TM, packedbuf, srcnode, srcaddr, nbytes, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1, (void)0);
   }
 }
   #define GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \

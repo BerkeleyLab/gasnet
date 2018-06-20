@@ -742,9 +742,14 @@ extern int gex_EP_Create(
 // gex_index may either be in the range [GEX_AM_INDEX_BASE .. 255] to register
 // at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
 // more information on this case).
+//
+// The gex_nargs and gex_flags fields are used by the client to supply the implementation 
+// with assertions regarding the future invocations and behavior of each AM handler.
+// If a handler invocation (eg via an AM injection targetting a given handler) or
+// execution of an AM handler violates its registration assertions, behavior is undefined.
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 or in [GEX_AM_INDEX_BASE .. 255]
-    gex_AM_Fn_t             gex_fnptr      // Pointer to the handler on this process
+    gex_AM_Fn_t             gex_fnptr;     // Pointer to the handler on this process
     gex_Flags_t             gex_flags;     // Incl. required S/M/L and REQ/REP, see below
     unsigned int            gex_nargs;     // Required in [0 .. gex_AM_MaxArgs()]
 
@@ -2445,6 +2450,61 @@ int gex_AD_OpNBI_[DATATYPE](
         void *srcaddr, const ptrdiff_t srcstrides[],
         size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
+
+//
+// VIS Put Peer Completion [EXPERIMENTAL]
+//
+
+// The following call "arms" a peer completion callback that will 
+// signal completion of the next VIS operation initiated by the current thread 
+// to the (possibly remote) peer endpoint. When the selected VIS data movement
+// operation is complete with respect to the peer, an Active Message 
+// (with some restrictions defined below) is delivered to the peer endpoint.
+// Currently this feature is only supported for VIS Put operations (not Gets).
+//
+// Argument synopsis:
+//   gex_AM_Index_t  handler
+//     + The AM handler index to invoke at the peer endpoint.
+//   const void *    source_addr 
+//   size_t          nbytes
+//     + The local source address and length of an optional client-provided payload
+//       to be delivered in the AM notification.
+//   gex_Flags_t    flags
+//     + Unused in the current release, should be set to zero.
+//
+// + This call "arms" a peer completion handler and binds it to the next VIS operation
+//   successfully initiated by the current thread. Only the next such operation is affected, after
+//   which the peer completion binding for this thread is automatically "disarmed".
+//   In this release, the VIS operation in question may not be passed GEX_FLAG_IMMEDIATE.
+//   [this restriction may be relaxed in a future release]
+// + If `handler == 0` then any previous gex_VIS_SetPeerCompletionHandler() call from
+//   this thread (if any) is "disarmed" and cancelled.
+// + Otherwise, `handler` specifies a 0-argument AM Medium Reply handler to invoke at the peer 
+//   endpoint selected by the VIS initiation call. The handler is invoked after the data
+//   movement associated with the VIS operation is complete with respect to the peer process.
+// + The selected AM handler must have been registered at the peer endpoint using gex_EP_RegisterHandlers() 
+//   with gex_flags == GEX_FLAG_AM_MEDIUM | GEX_FLAG_AM_REPLY and gex_nargs == 0
+//   [this restriction may be relaxed in a future release]
+//   and must adhere to the signature and restrictions of a 0-argument AM Medium Reply handler.
+// + If `nbytes == 0`, then `source_addr` is ignored.
+// + Otherwise, `nbytes` must be no greater than GEX_VIS_MAX_PEERCOMPLETION.
+// + If `nbytes > 0`, the specified source memory must remain valid and unchanged starting from the
+//   call to gex_VIS_SetPeerCompletionHandler and lasting until the earlier of either operation completion 
+//   or local completion (if enabled) of the VIS operation is signalled to the initiating rank. 
+// + The specified payload is delivered to the invoked AM Medium handler as usual.
+// + The thread running the peer completion AM handler is guaranteed to observe the results 
+//   of the VIS data movement operation upon which it depends. However if it wishes to hand-off 
+//   completion notification to other local threads it should use normal cross-thread 
+//   synchronization mechanisms (including issuing a write memory barrier on most architectures)
+//   to ensure other cores also observe the payload delivery.
+
+void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler, 
+        const void *source_addr, size_t nbytes, gex_Flags_t flags);
+
+// The largest permissable size (in bytes) for a client payload in a VIS peer completion handler.
+// Guaranteed to be at least 127 bytes.
+
+#define GEX_VIS_MAX_PEERCOMPLETION ((size_t)???)
 
 // End of section describing APIs provided by gasnet_vis.h
 //----------------------------------------------------------------------

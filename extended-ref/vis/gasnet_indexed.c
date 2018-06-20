@@ -223,7 +223,7 @@ gex_Event_t gasnete_puti_gather(gasnete_synctype_t synctype,
     visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
     visop->event = gasnete_put_nb(tm, rank, dstlist[0], packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0, (void)0);
   }
 }
   #define GASNETE_PUTI_GATHER_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
@@ -258,7 +258,7 @@ gex_Event_t gasnete_geti_scatter(gasnete_synctype_t synctype,
     visop->len = dstlen;
     visop->event = gasnete_get_nb(tm, packedbuf, rank, srclist[0], nbytes, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1, (void)0);
   }
 }
   #define GASNETE_GETI_SCATTER_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \

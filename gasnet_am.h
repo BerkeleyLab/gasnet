@@ -604,6 +604,11 @@ typedef struct {
 
 #define gasnetc_token_in_nbrhd(tok) ((uintptr_t)(tok)&1)
 
+// gasnetc_nbrhd_token_init is used to forge a conduit-independent nbrhd token that can be used to invoke a client AM handler
+// It currently has three main clients:
+//   Loopback AM delivery, PSHM AM delivery, VIS peer completion callback support
+// NOTE 1: The caller of this function is responsible for populating real_token->ti.gex_is_long after return
+// NOTE 2: src_jobrank is permitted to specify remote ranks, in order to support VIS PC
 GASNETI_INLINE(gasnetc_nbrhd_token_init)
 gex_Token_t gasnetc_nbrhd_token_init(
                         gasnetc_nbrhd_token_t *real_token,
@@ -612,7 +617,7 @@ gex_Token_t gasnetc_nbrhd_token_init(
                         int isReq)
 {
     gasneti_assert(!((uintptr_t)real_token & 1));
-    gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(src_jobrank));
+    //gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(src_jobrank)); // allow VIS PC to fake a remote token using this routine
   #if !PLATFORM_COMPILER_PGI // Bug 3587
     // generic msgsource() requires srcrank first
     gasneti_assert(!offsetof(gasnetc_nbrhd_token_t,ti.gex_srcrank));

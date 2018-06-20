@@ -36,6 +36,12 @@ extern void gasneti_vis_progressfn(void);
   } gasneti_addrlist_stats_t;
 #endif
 
+typedef struct {
+  const void *   _srcaddr;
+  size_t         _nbytes;
+  uint8_t        _handler;
+} gasnete_vis_pcinfo_t;
+
 /* stats needed by the VIS reference implementation */
 #ifndef GASNETI_VIS_STATS
   #define GASNETI_VIS_STATS(CNT,VAL,TIME)    \

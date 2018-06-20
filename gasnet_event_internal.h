@@ -18,7 +18,10 @@
 #  define GASNETE_IOP_LC_DONE(op) 1
 #  define GASNETE_IOP_LC_CNTDONE(op) 1
 #  define GASNETE_EOP_LC_DONE(op) 1
-#  define GASNETE_EOP_LC_FINISH(op)  ERROR
+#  define GASNETE_IOP_LC_START(op)  ERROR
+#  define GASNETE_IOP_LC_FINISH(op) ERROR
+#  define GASNETE_EOP_LC_START(op)  ERROR
+#  define GASNETE_EOP_LC_FINISH(op) ERROR
 #  define GASNETE_HAVE_LC 0
 #endif
 
@@ -234,6 +237,14 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 // gasnete_eop_event_* the child event indexes for the named event in an eop
 #define gasnete_eop_event_alc gasnete_iop_event_alc
 
+// Start == advance an initiated counter for named event in ANY iop by nop
+// note this relies upon gasnete_begin_nbi_accessregion setting live bits for aop
+#ifndef GASNETE_IOP_CNT_START
+  #define GASNETE_IOP_CNT_START(_iop, _name, _nop) do {  \
+    (_iop)->initiated_##_name##_cnt += (_nop);           \
+  } while (0)
+#endif
+
 //
 // "Finish" an iop in an nbi access region
 // NOTE: caller must pass REL flag when required for Gets
@@ -297,6 +308,13 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define GASNETE_EOP_MARKDONE(_eop) SET_EVENT_DONE(_eop,0)
 #endif
 
+// local completion management for aop/iop
+#ifndef GASNETE_IOP_LC_START
+  #define GASNETE_IOP_LC_START(iop)  GASNETE_IOP_CNT_START(iop, alc, 1)
+#endif
+#ifndef GASNETE_IOP_LC_FINISH
+  #define GASNETE_IOP_LC_FINISH(iop) GASNETE_IOP_CNT_FINISH(iop, alc, 1, 0)
+#endif
 
 // event:lc - for local-completion of Put/Med/Long with lc_opt = pointer
 #ifndef GASNETE_EOP_LC_START
