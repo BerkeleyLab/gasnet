@@ -285,34 +285,6 @@ void gasnete_coll_dumpTuningState(char *_filename, gasnete_coll_team_t _team GAS
 void gasnete_coll_dumpProfile(char *_filename, gasnete_coll_team_t _team GASNETE_THREAD_FARG);
 #define gasnet_coll_dumpProfile(FILENAME, TEAM) gasnete_coll_dumpProfile(FILENAME, TEAM GASNETE_THREAD_GET)
 
-#define gasnet_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
-gasnete_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)
-
-#ifdef _GASNET_COLL_INTERNAL_H
-// The fields of this struct violate public header naming conventions,
-// but it is only used internally by the autotuner so hide it from clients
-typedef struct gasnet_coll_args_t_ {
-  uint8_t **dst; 
-  uint8_t **src; 
-  gasnet_image_t rootimg; 
-  size_t src_blksz;
-  size_t src_offset;
-  size_t elem_size; 
-  /*elem count will be nbytes / elem_size*/
-  size_t nbytes;
-  size_t dist;
-  gasnet_coll_fn_handle_t func; 
-  int func_arg;
-} gasnet_coll_args_t;
-#define GASNET_COLL_ARGS_INITIALIZER { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }
-
-void gasnete_coll_tune_generic_op(gasnet_team_handle_t _team, gasnet_coll_optype_t _op, 
-                                  gasnet_coll_args_t _coll_args, int _flags,
-                                  gasnet_coll_overlap_sample_work_t _fnptr, void *_sample_work_arg,
-                                  /*returned by the algorithm*/
-                                  uint32_t *_best_algidx, uint32_t *_num_params, uint32_t **_best_param, char **_best_tree GASNETE_THREAD_FARG);
-#endif // _GASNET_COLL_INTERNAL_H
-
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t _team, gasnet_coll_optype_t _optype);
 extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t _team, int _tree_type, int _fanout, gasnet_coll_optype_t _optype); 
 extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dissemlimit, gasnet_coll_optype_t _optype); 

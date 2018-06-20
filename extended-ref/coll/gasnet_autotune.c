@@ -8,6 +8,20 @@
 /* This is intended as a stub for the autotuner routines*/
 #include <coll/gasnet_autotune_internal.h>
 
+typedef struct gasnet_coll_args_t_ {
+  uint8_t **dst; 
+  uint8_t **src; 
+  gasnet_image_t rootimg; 
+  size_t src_blksz;
+  size_t src_offset;
+  size_t elem_size; 
+  /*elem count will be nbytes / elem_size*/
+  size_t nbytes;
+  size_t dist;
+  gasnet_coll_fn_handle_t func; 
+  int func_arg;
+} gasnet_coll_args_t;
+#define GASNET_COLL_ARGS_INITIALIZER { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }
 
 /*a small library to write and read XML style sheets for the collective tuner*/
 #include <myxml/myxml.h>
