@@ -247,11 +247,10 @@ void gasnete_coll_sync_saved_events(GASNETE_THREAD_FARG_ALONE) {
   if (used) {
     gex_Event_t *events = gasnete_coll_event_list.events;
     if (! gasnete_test_some(events, used GASNETI_THREAD_PASS)) {
+      gasneti_sync_writes(); // TODO-EX: is this really needed given the use of mutexes
       gex_Event_t **addrs = gasnete_coll_event_list.addrs;
-
       for (int i = 0; i < used; ) {
         if (events[i] == GEX_EVENT_INVALID) {
-          gasneti_sync_writes(); // TODO-EX: is this really needed?
           *(addrs[i]) = GEX_EVENT_INVALID;
           used -= 1;
           addrs[i] = addrs[used];
