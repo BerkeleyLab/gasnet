@@ -36,28 +36,6 @@ extern pami_xfer_t gasnete_op_template_gathrvi;
 extern pami_xfer_t gasnete_op_template_scattvi;
 #endif
 
-#if GASNET_PAR
-  /* thread (image) barrier returning non-zero to exactly one caller */
-  GASNETI_INLINE(gasnete_coll_pami_images_barrier)
-  int gasnete_coll_pami_images_barrier(gasnet_team_handle_t team) {
-    const int phase = team->pami.barrier_phase;
-    gasneti_atomic_t * const counter = &team->pami.barrier_counter[phase];
-    const int last = gasneti_atomic_decrement_and_test(counter, GASNETI_ATOMIC_REL);
-    const int goal = phase ^ 1;
-
-    if (last) {
-      gasneti_atomic_set(counter, team->my_images, GASNETI_ATOMIC_MB_POST);
-      team->pami.barrier_phase = goal;
-    } else {
-      gasneti_waituntil( team->pami.barrier_phase == goal );
-    }
-
-    return last;
-  }
-#else
-  #define gasnete_coll_pami_images_barrier(_t) (1)
-#endif
-
 #endif /* GASNET_PAMI_NATIVE_COLL */
 
 #endif /* _GASNET_COLL_PAMI_H */

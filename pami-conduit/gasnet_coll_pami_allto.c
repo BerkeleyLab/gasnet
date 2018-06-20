@@ -13,11 +13,7 @@ gasnete_coll_pami_allto(const gasnet_team_handle_t team,
                         void *dst, const void *src,
                         size_t nbytes, int flags GASNETI_THREAD_FARG)
 {
-  #if GASNET_PAR
-    int i_am_leader = gasnete_coll_pami_images_barrier(team); /* XXX: over-synced for IN_NO and IN_MY */
-  #else
     const int i_am_leader = 1;
-  #endif
 
     if (i_am_leader) {
         volatile unsigned int done = 0;
@@ -44,7 +40,6 @@ gasnete_coll_pami_allto(const gasnet_team_handle_t team,
       
     if (flags & GASNET_COLL_OUT_ALLSYNC) {
         if (i_am_leader) gasnetc_fast_barrier();
-        (void) gasnete_coll_pami_images_barrier(team);
     }
 }
 

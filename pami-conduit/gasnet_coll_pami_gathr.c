@@ -14,19 +14,7 @@ gasnete_coll_pami_gathr(const gasnet_team_handle_t team,
                         const void *src, size_t nbytes,
                         int flags GASNETI_THREAD_FARG)
 {
-    const int i_am_root = gasnete_coll_image_is_local(team, dstimage);
-
-  #if GASNET_PAR
-    int i_am_leader = gasnete_coll_pami_images_barrier(team); /* XXX: over-synced for IN_NO and IN_MY */
-
-    if ((flags & GASNET_COLL_LOCAL) && i_am_root) {
-        /* root thread must be leader for its node */
-        const gasnete_coll_threaddata_t * const td = GASNETE_COLL_MYTHREAD_NOALLOC;
-        i_am_leader = (dstimage == td->my_image);
-    }
-  #else
     const int i_am_leader = 1;
-  #endif
 
     if (i_am_leader) {
         volatile unsigned int done = 0;
@@ -38,7 +26,7 @@ gasnete_coll_pami_gathr(const gasnet_team_handle_t team,
         op = gasnete_op_template_gathr;
         op.cookie = (void *)&done;
         op.algorithm = team->pami.gathr_alg;
-        op.cmd.xfer_gather.root = gasnetc_endpoint(GASNETE_COLL_REL2ACT(team,gasnete_coll_image_node(team, dstimage)));
+        op.cmd.xfer_gather.root = gasnetc_endpoint(GASNETE_COLL_REL2ACT(team, dstimage));
         op.cmd.xfer_gather.sndbuf = (/*not-const*/ void *)src;
         op.cmd.xfer_gather.stypecount = nbytes;
         op.cmd.xfer_gather.rcvbuf = dst;
@@ -54,7 +42,6 @@ gasnete_coll_pami_gathr(const gasnet_team_handle_t team,
       
     if (flags & GASNET_COLL_OUT_ALLSYNC) {
         if (i_am_leader) gasnetc_fast_barrier();
-        (void) gasnete_coll_pami_images_barrier(team);
     }
 }
 
