@@ -430,7 +430,7 @@ mpi-conduit: MPI (Message Passing Interface)
 ofi-conduit: Open Fabrics Interfaces
  GASNet over the Open Fabrics Interface framework (libfabric).
  Rigorously tested and supported over the portable/reference OFI sockets Provider.
- Believed to also work over the Intel Truescale and Omni-Path Providers.
+ Believed to also work over the Intel Omni-Path psm2 Provider.
 
 portals4-conduit: Portals4   *BETA*
  GASNet over the Portals4 network API developed at Sandia National Lab.
