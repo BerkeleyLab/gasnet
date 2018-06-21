@@ -1551,7 +1551,7 @@ GASNETE_TM_REDUCE_FOREACH_DT(GASNETE_SHRINKRAY_DECL)
 
 // Count consectitive zero bits from the right (least-significant) end */
 GASNETI_INLINE(gasnete_coll_ctz) GASNETI_CONST
-unsigned int gasnete_coll_ctz(const uint32_t v) {
+unsigned int gasnete_coll_ctz(uint32_t v) {
 #if HAVE_BUILTIN_CTZ
   return v ? __builtin_ctz(v) : 32;
 #elif HAVE_FFS
