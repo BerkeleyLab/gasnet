@@ -323,18 +323,19 @@ size_t gasneti_format_dt(char *buf, gex_DT_t dt) {
 
 size_t gasneti_format_op(char *buf, gex_OP_t op) {
   static const char* names[] = {
-    "FAND", "FOR",   "FXOR",
-    "FADD", "FSUB",  "FMULT",
-    "FMIN", "FMAX",
-    "FINC", "FDEC",
-    "SWAP", "FCAS",  "GET",
-    "AND",  "OR",    "XOR",
-    "ADD",  "SUB",   "MULT",
-    "MIN",  "MAX",
-    "INC",  "DEC",
-    "SET",  "CAS",
-    "UNK25", "UNK26", "UNK27", "UNK28", "UNK29", // 25 - 29 unsed
-    "USER", "USER_NC"
+    "AND",   "OR",    "XOR",
+    "ADD",   "SUB",   "MULT",
+    "MIN",   "MAX",
+    "INC",   "DEC",
+    "SET",   "CAS",
+    "UNK12", "UNK13", "UNK14", // 12 - 14 reserved
+    "FAND",  "FOR",   "FXOR",
+    "FADD",  "FSUB",  "FMULT",
+    "FMIN",  "FMAX",
+    "FINC",  "FDEC",
+    "SWAP",  "FCAS",  "GET",
+    "UNK28", "UNK29",          // 28 - 29 reserved
+    "USER",  "USER_NC"
   };
   return gasneti_format_mask(buf,op,sizeof(names)/sizeof(char *),names,"GEX_OP_");
 }
