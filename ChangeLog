@@ -10,35 +10,48 @@ GASNet-EX ChangeLog
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
-PENDING: GASNet-EX 2018.6.0 Release
+06-29-2018: GASNet-EX 2018.6.0 Release
 
 * GASNet-EX Spec v0.5:
+  - Specified Teams and Collectives APIs [EXPERIMENTAL]
+  - Add user-defined data types and operators for Reductions
   - Add GEX_OP_TO_(NON)FETCHING()
+  - Specified VIS Peer Completion API [EXPERIMENTAL]
+  - Added a flag to enable VIS Local Completion 
   - Add gex_System_QueryHostInfo() and gex_System_QueryMyPosition()
   - Rename gex_NbrhdInfo_t to gex_RankInfo_t
-  - Add gex_TM_Split() and gex_TM_Translate{RankToJobrank,JobrankToRank}()
-  - Add initial collectives: gex_Coll_{Barrier,Broadcast,ReduceToOne}NB()
-     Additional collective operations will be added in future releases
-  - Add user-defined data types and operators for Reductions
-
+  - Minor clarifications throughout
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+     
 * Major new features implemented in this release:
   - Teams:
     + Full multi-team support across the entire specification, including
       construction of subset teams and rank reordering via gex_TM_Split()
     + Can translate in either direction between team-relative and job ranks
     + All APIs taking (tm,rank) pairs interpret 'rank' relative to 'tm'
-  - Collectives: 
+  - Collectives:
     + Non-blocking Barrier, Broadcast, and ReduceToOne
+   Additional collective operations will be added in future releases
   - Non-contiguous RMA: Vector, Indexed, Strided (VIS)
     + VIS Puts now support notifying (potentially remote) peers of completion.
       For details, see docs/GASNet-EX.spec for gex_VIS_SetPeerCompletionHandler
-    + VIS Puts now offer local completion support. 
+    + VIS Puts now offer local completion support.
       For details, see docs/GASNet-EX.spec for GEX_FLAG_ENABLE_LEAF_LC
-  - gasnet_fwd.h now provides a dependency-free useful subset of the API 
+  - gasnet_fwd.h now provides a dependency-free useful subset of the API
     declarations, suitable for inclusion into application-level code.
+
+* Feature implementation status in this release:
+  - VIS Peer Completion is well-implemented for shared memory. The distributed-memory 
+    implementation is functionally complete and will be tuned in an upcoming release.
+  - Collective operations use "reliable performance" algorithms based on Binomial Trees. 
+    They have not yet been tuned for shared memory or offload.
+  - ReduceToOne supports all operations on built-in types, including user-defined 
+    commutative operations, but currently limits the local size of the operands.
+  - Teams currently use a dense representation, a scalable implementation is forthcoming.
 
 * Notable bugs fixed in this release:
   - Bug3749: assertion failure in PSHM's NP-AM
+  - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
 
 * This release implements the following conduits only:
   - InfiniBand Verbs (ibv-conduit)
