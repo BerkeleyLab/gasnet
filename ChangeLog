@@ -20,6 +20,7 @@ GASNet-EX ChangeLog
   - Added a flag to enable VIS Local Completion 
   - Add gex_System_QueryHostInfo() and gex_System_QueryMyPosition()
   - Rename gex_NbrhdInfo_t to gex_RankInfo_t
+  - New GEX_FLAG_USES_GASNET1 flag enables gex_Client_Init() for legacy GASNet-1 calls
   - Minor clarifications throughout
   - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
      
