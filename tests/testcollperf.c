@@ -37,8 +37,6 @@ options that is covered testcoll
 #ifndef ALL_ADDR_MODE_ENABLED 
 #define ALL_ADDR_MODE_ENABLED 1
 
-
-#define SINGLE_SINGLE_MODE_ENABLED 0
 #define SINGLE_LOCAL_MODE_ENABLED 0
 #endif
 
@@ -181,11 +179,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   gex_Event_t *handles = performance_iters ? test_malloc(sizeof(gasnet_coll_handle_t)*performance_iters) : NULL;
 
   fill_flag_str(flags, flag_str);
-  if(flags & GASNET_COLL_SINGLE) {
-    src = (int*) (src_arr[0]); /* all threads have the same address so just use slot 0*/
-    dst = (int*) (dst_arr[0]); /* all threads have the same address so just use slot 0*/
-    strcpy(output_str, "SINGLE");
-  } else {
+  {
     src = ((int*) td->mysrc);
     dst = ((int*) td->mydest);
     strcpy(output_str, "LOCAL");
@@ -608,20 +602,6 @@ void *thread_main(void *arg) {
       }
     
     COLL_BARRIER();
-#if SINGLE_SINGLE_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
-      if (!TEST_ALIGNED_SEGMENTS()) {
-        if(td->my_local_thread == 0 && !skip_msg_printed)
-          MSG0("Skipping SINGLE/SINGLE test (unaligned segments)");
-      } else if (threads_per_node != 1) { 
-	if(td->my_local_thread == 0 && !skip_msg_printed)
-          MSG0("skipping SINGLE/SINGLE test (multiple threads per node)");
-      } else {
-	for(sz = 1; sz<=max_data_size; sz*=szfactor) {
-	  run_SINGLE_ADDR_test(td, all_dsts, all_srcs, (size_t)sz, root_thread, flags|GASNET_COLL_SINGLE);
-	}
-      }
-      skip_msg_printed =1;
-#endif
 
 #if SINGLE_LOCAL_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
       for(sz = 1; sz<=max_data_size; sz*=szfactor) {
