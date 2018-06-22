@@ -53,90 +53,6 @@ size_t gasnete_coll_nextpower2(size_t n)
   return x;
 }
 
-/*
- the following two functions to find the fast log2 of an int are adapted from:
- http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup (accessed July 10, 2008)
- */
-
-static uint32_t fast_log2_64bit(uint64_t number) {
-	
-	static const char LogTable256[] = 
-  {
-    0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
-  };
-	
-	uint64_t v=number; 
-	uint32_t r;    
-	uint64_t t, tt; 
-	
-	if ((tt = v>>48)) {
-		r = ((t = tt>>8) ? 56 + LogTable256[t] : 48 + LogTable256[tt]); 
-	} else if ((tt = v>>32)) {
-		r = ((t = tt>>8) ? 40 + LogTable256[t] : 32 + LogTable256[tt]); 
-	} else	if ((tt = v >> 16)) {
-		r = ((t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt]);
-	}
-	else {
-		r = ((t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v]);
-	}
-	
-	return r;
-	
-}
-
-static uint32_t fast_log2_32bit(uint32_t number) {
-  
-  static const char LogTable256[] = 
-    {
-      0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
-      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
-    };
-  
-  uint32_t v=number; 
-  uint32_t r;     
-  uint32_t t, tt; 
-  
-  
-  if ((tt = v >> 16)) {
-    r = ((t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt]);
-  }
-  else {
-    r = ((t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v]);
-  }
-  
-  return r;
-  
-}
-
 /*register the collective algorithm
   optype is the type of collective op
   syncflags is an ored list of the valid sync flags for this colelctive
@@ -149,7 +65,7 @@ static uint32_t fast_log2_32bit(uint32_t number) {
 
 int gasnete_coll_autotune_get_num_tree_types(gasnet_team_handle_t team) {
   /*for now only search over the FLAT, NARY, KNOMIAL, and RECURSIVE trees power of two fanouts and the FLAT TREE*/
-  int log2_threads = fast_log2_32bit(MIN((uint32_t) team->total_ranks,128));
+  int log2_threads = gasnete_coll_log2_rank(MIN((uint32_t) team->total_ranks,128));
   
   return (team->autotune_info->allow_flat_tree ? 1 : 0) + /*flat_tree*/
     log2_threads * (GASNETE_COLL_NUM_PLATFORM_INDEP_TREE_CLASSES-1); /*num powers of two for each of the three tree types*/
@@ -158,7 +74,7 @@ int gasnete_coll_autotune_get_num_tree_types(gasnet_team_handle_t team) {
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type_idx(gasnet_team_handle_t team, int idx) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
-  int log2_threads = fast_log2_32bit(MIN((uint32_t) team->total_ranks,128));
+  int log2_threads = gasnete_coll_log2_rank(MIN((uint32_t) team->total_ranks,128));
   int tree_class;
   int radix;
   gasneti_assert(idx < gasnete_coll_autotune_get_num_tree_types(team));
@@ -850,11 +766,7 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_
 	/*first check if we've seen this size*/
 	/*find the log of the transfer size we are interested in*/
 	uint32_t log2_nbytes;
-#if PLATFORM_ARCH_32
-	log2_nbytes = fast_log2_32bit(nbytes);
-#else
-	log2_nbytes = fast_log2_64bit(nbytes);
-#endif
+	log2_nbytes = gasnete_coll_log2_sz(nbytes);
 	
 	if(autotune_info->bcast_tree_radix_limits[log2_nbytes] == -1) {
 		/*perform search across fanouts*/

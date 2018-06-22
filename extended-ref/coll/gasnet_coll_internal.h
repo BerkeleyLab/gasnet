@@ -1383,13 +1383,15 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager);
 GASNETE_TM_REDUCE_FOREACH_DT(GASNETE_SHRINKRAY_DECL)
 
 /*---------------------------------------------------------------------------------*/
-// Binomial geometry helpers
-// In these 'rel_rank' is '(self - root) % nranks'
+// Bit-twiddling helpers
+// TODO: some may still be subject to additional optimization
+//
 
-// Count consectitive zero bits from the right (least-significant) end */
-GASNETI_INLINE(gasnete_coll_ctz) GASNETI_CONST
-unsigned int gasnete_coll_ctz(uint32_t v) {
-#if HAVE_BUILTIN_CTZ
+// Count consecutive zero bits from the right (least-significant) end */
+// TODO: default (no builtins) version can be improved upon
+GASNETI_INLINE(gasnete_coll_ctz_u32) GASNETI_CONST
+unsigned int gasnete_coll_ctz_u32(uint32_t v) {
+#if GASNETI_HAVE_CC_BUILTIN_CTZ
   return v ? __builtin_ctz(v) : 32;
 #elif HAVE_FFS
   return v ? (ffs(v)-1) : 32;
@@ -1401,20 +1403,99 @@ unsigned int gasnete_coll_ctz(uint32_t v) {
   return c;
 #endif
 }
-GASNETI_CONSTP(gasnete_coll_ctz)
+GASNETI_CONSTP(gasnete_coll_ctz_u32)
 
-// floor(log_2(v)) OR -1 for v=0
-GASNETI_INLINE(gasnete_coll_log2) GASNETI_CONST
-int gasnete_coll_log2(uint32_t v) {
-#if HAVE_BUILTIN_CLZ
+//
+// Family of functions for (fast) floor(log_2(v)) OR -1 for v=0
+//
+
+// The compiler-independent (table-lookup) portions of the following
+// function to find the fast log2 of integers are adapted from:
+// http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup
+// (accessed July 10, 2008)
+
+static const char LogTable256[] = {
+     -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+};
+
+GASNETI_INLINE(gasnete_coll_log2_u32) GASNETI_CONST
+int gasnete_coll_log2_u32(uint32_t v) {
+#if GASNETI_HAVE_CC_BUILTIN_CLZ && (SIZEOF_INT == 4)
   return v ? (31 - __builtin_clz(v)) : -1;
+#elif GASNETI_HAVE_CC_BUILTIN_CLZL && (SIZEOF_LONG == 4)
+  return v ? (31 - __builtin_clzl(v)) : -1;
+#elif GASNETI_HAVE_CC_BUILTIN_CLZLL && (SIZEOF_LONG_LONG == 4)
+  return v ? (31 - __builtin_clzll(v)) : -1;
 #else
-  int c;
-  for (c = -1; v; ++c) v >>= 1;
-  return c;
+  int r;
+  uint32_t t, tt;
+
+  if ((tt = v >> 16)) {
+    r = (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
+  } else {
+    r = (t =  v >> 8) ?  8 + LogTable256[t] :      LogTable256[v];
+  }
+
+  return r;
 #endif
 }
-GASNETI_CONSTP(gasnete_coll_log2)
+GASNETI_CONSTP(gasnete_coll_log2_u32)
+
+GASNETI_INLINE(gasnete_coll_log2_u64) GASNETI_CONST
+int gasnete_coll_log2_u64(uint64_t v) {
+#if GASNETI_HAVE_CC_BUILTIN_CLZ && (SIZEOF_INT == 8)
+  return v ? (63 - __builtin_clz(v)) : -1;
+#elif GASNETI_HAVE_CC_BUILTIN_CLZL && (SIZEOF_LONG == 8)
+  return v ? (63 - __builtin_clzl(v)) : -1;
+#elif GASNETI_HAVE_CC_BUILTIN_CLZLL && (SIZEOF_LONG_LONG == 8)
+  return v ? (63 - __builtin_clzll(v)) : -1;
+#else
+  int r;
+  uint64_t t, tt;
+
+  if ((tt = v >> 48)) {
+    r = (t = tt >> 8) ? 56 + LogTable256[t] : 48 + LogTable256[tt];
+  } else if ((tt = v>>32)) {
+    r = (t = tt >> 8) ? 40 + LogTable256[t] : 32 + LogTable256[tt];
+  } else if ((tt = v >> 16)) {
+    r = (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
+  } else {
+    r = (t =  v >> 8) ?  8 + LogTable256[t] :      LogTable256[v]:
+  }
+
+  return r;
+#endif
+}
+GASNETI_CONSTP(gasnete_coll_log2_u64)
+
+// Aliases
+#define gasnete_coll_log2_rank(v) gasnete_coll_log2_u32(v)
+#if (SIZEOF_SIZE_T == 4)
+  #define gasnete_coll_log2_sz(v) gasnete_coll_log2_u32(v)
+#elif (SIZEOF_SIZE_T == 8)
+  #define gasnete_coll_log2_sz(v) gasnete_coll_log2_u64(v)
+#else
+  #error Unknown SIZEOF_SIZE_T
+#endif
+
+/*---------------------------------------------------------------------------------*/
+// Binomial geometry helpers
+// In these 'rel_rank' is '(self - root) % nranks'
 
 // Relative rank in binomial tree rooted at 'root'
 GASNETI_INLINE(gasnete_tm_binom_rel_root) GASNETI_PURE
@@ -1440,7 +1521,7 @@ GASNETI_PUREP(gasnete_tm_binom_subtree_size)
 // Count of direct children in binomial subtree
 GASNETI_INLINE(gasnete_tm_binom_children) GASNETI_PURE
 gex_Rank_t gasnete_tm_binom_children(gex_TM_t const tm, const gex_Rank_t rel_rank) {
-  return 1 + gasnete_coll_log2(gasnete_tm_binom_subtree_size(tm, rel_rank) - 1);
+  return 1 + gasnete_coll_log2_rank(gasnete_tm_binom_subtree_size(tm, rel_rank) - 1);
 }
 GASNETI_PUREP(gasnete_tm_binom_children)
 
@@ -1459,7 +1540,7 @@ GASNETI_PUREP(gasnete_tm_binom_parent)
 // Rank among siblings (e.g. 0 for first child, 1 for second, etc.)
 GASNETI_INLINE(gasnete_tm_binom_age) GASNETI_PURE
 gex_Rank_t gasnete_tm_binom_age(gex_TM_t const tm, const gex_Rank_t rel_rank) {
-  return gasnete_coll_ctz(rel_rank);
+  return gasnete_coll_ctz_u32(rel_rank);
 }
 GASNETI_PUREP(gasnete_tm_binom_age)
 
