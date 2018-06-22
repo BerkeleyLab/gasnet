@@ -1165,8 +1165,12 @@ typedef struct {
 } gasnete_pdbarrier_msg_t;
 #define GASNETE_PDBARRIER_MSG_T offsetof(gasnete_pdbarrier_msg_t, end)
 
+#if 0 // DISABLED due to (not yet explained) errorneous behavior - see bug 3764
 #define GASNETE_PDBARRIER_UNNAMED(_flags,_barr) \
   (((_flags) & GASNETE_BARRIERFLAG_UNNAMED) && (_barr)->barrier_op.cb_done)
+#else
+#define GASNETE_PDBARRIER_UNNAMED(_flags,_barr) 0
+#endif
 
 static pami_send_hint_t gasnete_pdbarrier_send_hint;
 
