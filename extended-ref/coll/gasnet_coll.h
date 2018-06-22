@@ -25,7 +25,7 @@ GASNETI_BEGIN_NOWARN
 
 #define GASNET_COLL_SYNC_FLAG_MASK (0x3F)
 
-#define GASNET_COLL_SINGLE	(1<<6)
+#define GASNET_COLL_SINGLE	%%%ERROR-GASNET_COLL_SINGLE-HAS-BEEN-REMOVED%%%
 #define GASNET_COLL_LOCAL	(1<<7)
 
 #define GASNET_COLL_FIXED_THREADS_PER_NODE (1<<9)
@@ -264,7 +264,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags) do {                           \
     GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
-      if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
+      if (root == gasneti_mynode) {                                                                        \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_LADDRFMT " <- " GASNETI_RADDRFMT                        \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
 			        GASNETI_LADDRSTR(dst), GASNETI_RADDRSTR_COLL(root,src),                    \
@@ -282,7 +282,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_GATHER(name,team,root,dst,src,nbytes,flags) do {                              \
     GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
-      if ((flags & GASNET_COLL_SINGLE) || (root == gasneti_mynode)) {                                      \
+      if (root == gasneti_mynode) {                                                                        \
         GASNETI_TRACE_PRINTF(D,(#name ": " GASNETI_RADDRFMT " <- " GASNETI_LADDRFMT                        \
 				" (nbytes=%" PRIuSZ " team=%p flags=0x%x)\n",                              \
 			        GASNETI_RADDRSTR_COLL(root,dst), GASNETI_LADDRSTR(src),                    \

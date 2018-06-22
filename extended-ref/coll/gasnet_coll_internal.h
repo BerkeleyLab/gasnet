@@ -841,43 +841,11 @@ int gasnete_coll_segment_check(gasnete_coll_team_t team, int flags,
   return (flags | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SRC_IN_SEGMENT);
 }
 #else
-GASNETI_INLINE(_gasnete_coll_segment_check_aux)
-int _gasnete_coll_segment_check_aux(gasnete_coll_team_t team, int rooted, gasnet_image_t root, const void *addr, size_t len) {
-  if (rooted) {
-    /* Check the given address against the given node only */
-    return gasnete_coll_in_segment(root, addr, len);
-  } else {
-    /* Check the given address against ALL nodes */
-    gex_Rank_t i;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      if (!gasnete_coll_in_segment(i, addr, len)) {
-        return 0;
-      }
-    }
-    return 1;
-  }
-}
-
 GASNETI_INLINE(gasnete_coll_segment_check)
 int gasnete_coll_segment_check(gasnete_coll_team_t team, int flags, 
                                int dstrooted, gasnet_image_t dstimage, const void *dst, size_t dstlen,
                                int srcrooted, gasnet_image_t srcimage, const void *src, size_t srclen) {
-  /* Check destination if caller hasn't asserted that it is in-segment */
-  if_pf (!(flags & GASNET_COLL_DST_IN_SEGMENT)) {
-    if ((flags & GASNET_COLL_SINGLE) && _gasnete_coll_segment_check_aux(team, dstrooted, dstimage, dst, dstlen)) {
-      flags |= GASNET_COLL_DST_IN_SEGMENT;
-    }
-  } else {
-    /* Cannot gasneti_assert(gasnete_coll_in_segment()) here, since dst might be in AUX segment */
-  }
-  /* Check source if caller hasn't asserted that it is in-segment */
-  if_pf (!(flags & GASNET_COLL_SRC_IN_SEGMENT)) {
-    if ((flags & GASNET_COLL_SINGLE) && _gasnete_coll_segment_check_aux(team, srcrooted, srcimage, src, srclen)) {
-      flags |= GASNET_COLL_SRC_IN_SEGMENT;
-    }
-  } else {
-    /* Cannot gasneti_assert(gasnete_coll_in_segment()) here, since src might be in AUX segment */
-  }
+  /* Only (removed) single-valued addresing benefited here */
   return flags;
 }
 #endif
@@ -1238,13 +1206,10 @@ gasnete_coll_bcast_##FUNC_EXT(gasnet_team_handle_t team,\
                        uint32_t sequence\
                        GASNETE_THREAD_FARG)
 
-GASNETE_COLL_DECLARE_BCAST_ALG(Get);
-GASNETE_COLL_DECLARE_BCAST_ALG(Put);
 GASNETE_COLL_DECLARE_BCAST_ALG(Eager);
 GASNETE_COLL_DECLARE_BCAST_ALG(RVGet);
 GASNETE_COLL_DECLARE_BCAST_ALG(TreeRVGet);
 GASNETE_COLL_DECLARE_BCAST_ALG(RVous);
-GASNETE_COLL_DECLARE_BCAST_ALG(TreePut);
 GASNETE_COLL_DECLARE_BCAST_ALG(TreePutScratch);
 GASNETE_COLL_DECLARE_BCAST_ALG(TreePutSeg);
 GASNETE_COLL_DECLARE_BCAST_ALG(ScatterAllgather);
@@ -1262,8 +1227,6 @@ gasnete_coll_scat_##FUNC_EXT(gasnet_team_handle_t team,\
                              uint32_t sequence\
                              GASNETE_THREAD_FARG)
 
-GASNETE_COLL_DECLARE_SCATTER_ALG(Get);
-GASNETE_COLL_DECLARE_SCATTER_ALG(Put);
 GASNETE_COLL_DECLARE_SCATTER_ALG(TreePut);
 GASNETE_COLL_DECLARE_SCATTER_ALG(TreePutNoCopy);
 GASNETE_COLL_DECLARE_SCATTER_ALG(TreePutSeg);
@@ -1284,8 +1247,6 @@ gasnete_coll_gath_##FUNC_EXT(gasnet_team_handle_t team,\
                              uint32_t sequence\
                              GASNETE_THREAD_FARG)
 
-GASNETE_COLL_DECLARE_GATHER_ALG(Get);
-GASNETE_COLL_DECLARE_GATHER_ALG(Put);
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePut);
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePutNoCopy);
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePutSeg);
@@ -1308,10 +1269,7 @@ GASNETE_COLL_DECLARE_GATHER_ALG(RVous);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Gath);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Dissem);
-GASNETE_COLL_DECLARE_GATHER_ALL_ALG(DissemNoScratch);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatEagerPut);
-GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatPut);
-GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatGet);
 
 /*---------------------------------------------------------------------------------*/
 
@@ -1328,7 +1286,6 @@ GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem4);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem8);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(FlatScratch);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(Gath);
-GASNETE_COLL_DECLARE_EXCHANGE_ALG(Put);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(RVPut);
 
 /*---------------------------------------------------------------------------------*/

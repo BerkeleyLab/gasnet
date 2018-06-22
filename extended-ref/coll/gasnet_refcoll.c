@@ -99,7 +99,8 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   }
 #endif
 
-  gasneti_assert(((flags & GASNET_COLL_SINGLE)?1:0) ^ ((flags & GASNET_COLL_LOCAL)?1:0));
+  // Only COLL_LOCAL supported
+  gasneti_assert(flags & GASNET_COLL_LOCAL);
 
   /* Bounds check any local portion of dst which user claims is in-segment */
   gasneti_assert(dstlen > 0);
@@ -2102,7 +2103,6 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
-    uint8_t direct_put_ok = ((dstimage == 0) && !(flags & GASNET_COLL_IN_MYSYNC) && !(flags & GASNET_COLL_OUT_MYSYNC) && (flags & GASNET_COLL_SINGLE) && (nbytes==dist));
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
     scratch_req->tree_type = tree_info->geom->tree_type;
@@ -2112,11 +2112,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     scratch_req->team = team;
     scratch_req->op_type = GASNETE_COLL_TREE_OP;
     /*fill out the peer information*/
-    if(direct_put_ok && team->myrank == dstimage) {
-      scratch_req->incoming_size = 0;
-    } else {
-      scratch_req->incoming_size = nbytes*tree_info->geom->mysubtree_size;
-    }
+    scratch_req->incoming_size = nbytes*tree_info->geom->mysubtree_size;
     /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
     scratch_req->num_in_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
     if(scratch_req->num_in_peers > 0) {
@@ -2133,11 +2129,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
       scratch_req->num_out_peers = 1;
       scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
       scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1);
-      if(direct_put_ok && GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom)==dstimage) {
-        scratch_req->out_sizes[0] = 0;
-      } else {
-        scratch_req->out_sizes[0] = nbytes*tree_info->geom->parent_subtree_size;
-      }
+      scratch_req->out_sizes[0] = nbytes*tree_info->geom->parent_subtree_size;
     }
   }
   
