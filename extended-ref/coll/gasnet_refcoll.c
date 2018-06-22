@@ -2016,13 +2016,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
     scratch_req->op_type = GASNETE_COLL_TREE_OP;
     /*fill out the peer information*/
-    /*set incoming size 0 if doing direct put*/
-    if((!((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_OUT_MYSYNC) ||(flags & GASNET_COLL_LOCAL) || (nbytes !=dist))) && tree_info->geom->mysubtree_size ==1) {
-      scratch_req->incoming_size = 0;
-    } else {
-      scratch_req->incoming_size = nbytes*tree_info->geom->mysubtree_size;
-    }
-
+    scratch_req->incoming_size = nbytes*tree_info->geom->mysubtree_size;
 
     
     /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
@@ -2037,13 +2031,8 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
     scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);
     for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom); i++) {
-      if((!((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_OUT_MYSYNC) ||(flags & GASNET_COLL_LOCAL) || (nbytes !=dist))) && tree_info->geom->subtree_sizes[i]==1) {
-        out_sizes[i] = 0;
-      } else {
-        out_sizes[i] = nbytes*tree_info->geom->subtree_sizes[i];
-      }
+      out_sizes[i] = nbytes*tree_info->geom->subtree_sizes[i];
       /*      fprintf(stderr, "%d> requesting %d bytes on %d\n", gasneti_mynode, out_sizes[i], GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom)[i]);*/
-
     }
     scratch_req->out_sizes = out_sizes;
   }

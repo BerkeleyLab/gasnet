@@ -838,11 +838,7 @@ static char* print_op_str(char *buf, gasnet_coll_optype_t op, int flags) {
     
   }
 
-  if(flags & GASNET_COLL_LOCAL) {
-    strncat(buf, "LOCAL", 100);
-  } else {
-    strncat(buf, "SINGLE", 100);
-  }
+  strncat(buf, "LOCAL", 100);
   return buf;
 }
 
@@ -966,11 +962,7 @@ static char * addrmode_to_str(char *buffer, int mode) {
 
 GASNETI_INLINE(get_addrmode_from_flags)
 gasnete_coll_addr_mode_t get_addrmode_from_flags(int flags) { 
-  if(flags & GASNET_COLL_LOCAL) {
-    return GASNETE_COLL_LOCAL_MODE;
-  }
-  
-  return (gasnete_coll_addr_mode_t)(-1);
+  return GASNETE_COLL_LOCAL_MODE;
 }
 
 static gasnet_coll_optype_t get_optype_from_str(char *str) { 
@@ -1821,8 +1813,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
                                                        -1,nbytes, flags);
   
   /*for now encode the original decision tree*/
-  if ((nbytes <= eager_limit) && 
-      (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
+  if (nbytes <= eager_limit) {
     /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
@@ -1838,10 +1829,8 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
       ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_SCATTERALLGATHER].fn_ptr.bcast_fn;
       ret->fn_idx = GASNETE_COLL_BROADCAST_SCATTERALLGATHER;
     } else if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags)) {
-      if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
         ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH].fn_ptr.bcast_fn;
         ret->fn_idx = GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH;
-      }
     } else if(nbytes<=team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SEG].max_num_bytes) {
       ret->num_params = 1;
       ret->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags);  
@@ -1857,14 +1846,12 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
       ret->fn_idx = GASNETE_COLL_BROADCAST_RVOUS;
     }
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
-    if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
        * The Rendezvous is needed for _LOCAL.
        */
       ret->num_params = 0;
       ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVGET].fn_ptr.bcast_fn;
       ret->fn_idx = GASNETE_COLL_BROADCAST_RVGET;
-    }
   }  else {
     /* If we reach here then neither src nor dst is in-segment */
     ret->num_params = 0;
@@ -1995,7 +1982,7 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
         ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_PUT_SEG].fn_ptr.gather_fn;
         ret->fn_idx = GASNETE_COLL_GATHER_TREE_PUT_SEG;
       }
-    } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+    } else {
       if (nbytes <= eager_limit) {
         ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_EAGER].fn_ptr.gather_fn;
         ret->fn_idx = GASNETE_COLL_GATHER_TREE_EAGER;
