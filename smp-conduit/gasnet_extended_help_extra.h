@@ -17,7 +17,7 @@
  */
 
 GASNETI_INLINE(gasnete_get_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(UNALIGNED,H,dest,node,src,nbytes);
   gasneti_unreachable();
@@ -26,7 +26,7 @@ gasnet_handle_t gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src, s
 #define gasnete_get_nb_bulk gasnete_get_nb_bulk
 
 GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(ALIGNED,H,node,dest,src,nbytes);
   gasneti_unreachable();
@@ -35,7 +35,7 @@ gasnet_handle_t gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t
 #define gasnete_put_nb gasnete_put_nb
 
 GASNETI_INLINE(gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H,node,dest,src,nbytes);
   gasneti_unreachable();
@@ -44,7 +44,7 @@ gasnet_handle_t gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, s
 #define gasnete_put_nb_bulk gasnete_put_nb_bulk
 
 GASNETI_INLINE(gasnete_memset_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_MEMSET(H,node,dest,val,nbytes);
   gasneti_unreachable();
@@ -90,7 +90,7 @@ int gasnete_syncnb_array(gasnet_handle_t *phandle, size_t numhandles)
  */
    
 GASNETI_INLINE(gasnete_get_nbi_bulk)
-void gasnete_get_nbi_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_get_nbi_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(UNALIGNED,V,dest,node,src,nbytes);
   gasneti_unreachable();
@@ -98,7 +98,7 @@ void gasnete_get_nbi_bulk(void *dest, gasnet_node_t node, void *src, size_t nbyt
 #define gasnete_get_nbi_bulk gasnete_get_nbi_bulk
 
 GASNETI_INLINE(gasnete_put_nbi)
-void gasnete_put_nbi(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_put_nbi(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(ALIGNED,V,node,dest,src,nbytes);
   gasneti_unreachable();
@@ -106,7 +106,7 @@ void gasnete_put_nbi(gasnet_node_t node, void *dest, void *src, size_t nbytes GA
 #define gasnete_put_nbi gasnete_put_nbi
 
 GASNETI_INLINE(gasnete_put_nbi_bulk)
-void gasnete_put_nbi_bulk(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_put_nbi_bulk(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V,node,dest,src,nbytes);
   gasneti_unreachable();
@@ -114,7 +114,7 @@ void gasnete_put_nbi_bulk(gasnet_node_t node, void *dest, void *src, size_t nbyt
 #define gasnete_put_nbi_bulk gasnete_put_nbi_bulk
 
 GASNETI_INLINE(gasnete_memset_nbi)
-void gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_MEMSET(V,node,dest,val,nbytes);
   gasneti_unreachable();
@@ -127,7 +127,7 @@ void gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes G
   ===========================================================
 */
 GASNETI_INLINE(gasnete_syncnbi)
-int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
+int gasnete_syncnbi(GASNETI_THREAD_FARG_ALONE)
 {
   gasneti_sync_reads();
   return GASNET_OK;
@@ -140,12 +140,12 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 #define gasnete_wait_syncnbi_puts gasnete_syncnbi
 
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
-void gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG)
+void gasnete_begin_nbi_accessregion(int allowrecursion GASNETI_THREAD_FARG)
 { /* empty */ }
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
+gasnet_handle_t gasnete_end_nbi_accessregion(GASNETI_THREAD_FARG_ALONE)
 { return GASNET_INVALID_HANDLE; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
@@ -156,7 +156,7 @@ gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 */
 
 GASNETI_INLINE(gasnete_put_val)
-void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(V,node,dest,value,nbytes);
   gasneti_unreachable();
@@ -164,7 +164,7 @@ void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t val
 #define gasnete_put_val gasnete_put_val
 
 GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H,node,dest,value,nbytes);
   gasneti_unreachable();
@@ -182,7 +182,7 @@ gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_regist
 */
 
 GASNETI_INLINE(gasnete_get_val)
-gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL(node,src,nbytes);
   gasneti_unreachable();
