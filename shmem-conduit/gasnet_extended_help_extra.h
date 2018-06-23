@@ -309,7 +309,7 @@ extern int *	    gasnete_nbisync_cur;
 
 GASNETI_INLINE(_gasnete_try_syncnbi_puts)
 int
-_gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) 
+_gasnete_try_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) 
 {
   #if GASNETE_NBISYNC_ALWAYS_QUIET
     gasnete_nbisync_cur = GASNETE_SYNC_NONE;

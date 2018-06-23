@@ -87,7 +87,7 @@ extern void gasnete_init(void) {
  */
 extern gasnet_handle_t
 gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, 
-		     size_t nbytes GASNETE_THREAD_FARG) 
+		     size_t nbytes GASNETI_THREAD_FARG) 
 {
 #ifdef GASNETE_GLOBAL_ADDRESS
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
@@ -158,7 +158,7 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 /*  This implementation allows recursive access regions, although the spec does not require that */
 /*  operations are associated with the most immediately enclosing access region */
 extern void            
-gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG) 
+gasnete_begin_nbi_accessregion(int allowrecursion GASNETI_THREAD_FARG) 
 {
     GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
     #if GASNET_DEBUG
@@ -169,7 +169,7 @@ gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG)
 }
 
 extern gasnet_handle_t 
-gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) 
+gasnete_end_nbi_accessregion(GASNETI_THREAD_FARG_ALONE) 
 {
     int	*hval;
     hval = gasnete_nbisync_cur;
