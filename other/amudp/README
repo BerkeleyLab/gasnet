@@ -68,7 +68,7 @@ AMUDP has a few notable departures from the AM-2 specification:
 
 Change Log
 ----------
-AMUDP 3.15 (PENDING)
+AMUDP 3.15 (06/2018)
 - Medium and Long AM handlers change in signature on 64-bit platforms: 
   the nbytes argument now has type size_t instead of int
 - New AMUDP_LIBRARY_VERSION_{MAJOR,MINOR} defines
