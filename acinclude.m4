@@ -1186,26 +1186,29 @@ dnl action-none runs for no foo arg given
 dnl GASNET_WITH(foo, description, action-withval, [action-without], [action-none])
 AC_DEFUN([GASNET_WITH],[
 GASNET_FUN_BEGIN([$0($1,...)])
-  pushdef([withname],with_[]patsubst([$1], -, _))
   ifdef([GASNET_SUPPRESSHELP], [], [
     AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=,[$2]))
   ])
+  GASNET_WITH_NOHELP([$1],[$3],[$4],[$5])
+  popdef([withname])
+GASNET_FUN_END([$0($1,...)])
+])
+AC_DEFUN([GASNET_WITH_NOHELP],[
+  pushdef([withname],with_[]patsubst([$1], -, _))
   if test "${withname+set}" = set; then :
     withval=$withname;
     case "$withval" in
       no) :
-          $4
+          $3
       ;;
       *)  :
-          $3
+          $2
       ;;
     esac
   else
     :
-    $5
+    $4
   fi
-  popdef([withname])
-GASNET_FUN_END([$0($1,...)])
 ])
 
 AC_DEFUN([GASNET_IF_ENABLED_NOHELP],[
