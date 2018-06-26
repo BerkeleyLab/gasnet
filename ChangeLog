@@ -1,16 +1,16 @@
 GASNet-EX ChangeLog
 -------------------
 
-  This archive represents a work-in-progress focused on "hardening" the features
-  added by the previous quarter's release, and has been well-tested against the
-  concurrent release of UPC++.
+  This archive represents a lightly-tested snapshot of a work-in-progress.
+
   Many additional new features are coming soon, and are not yet reflected in this
   archive. All new interfaces are subject to change without notice.
 
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
-06-29-2018: GASNet-EX 2018.6.0 Release
+----------------------------------------------------------------------
+06-28-2018: GASNet-EX 2018.6.0 Release
 
 * GASNet-EX Spec v0.5:
   - Specified Teams and Collectives APIs [EXPERIMENTAL]
@@ -64,6 +64,7 @@ GASNet-EX ChangeLog
   Users wishing to use other conduits are recommended to download the GASNet v1.x
   distribution from http://gasnet.lbl.gov.
 
+----------------------------------------------------------------------
 03-28-2018: GASNet-EX 2018.3.0 Release
 
 * GASNet-EX Spec v0.4:
@@ -238,7 +239,7 @@ Note some entries below do not apply to the EX branch.
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-03-28-2018: pending 1.30.2 work @f36ab50
+06-28-2018: pending 1.30.2 work @c919cff
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
