@@ -65,7 +65,7 @@ AMMPI has a few notable departures from the AM-2 specification:
 
 Change Log
 ----------
-AMMPI 2.9 (PENDING)
+AMMPI 2.9 (06/2018)
 - Medium and Long AM handlers change in signature on 64-bit platforms: 
   the nbytes argument now has type size_t instead of int
 - New AMMPI_LIBRARY_VERSION_{MAJOR,MINOR} defines
