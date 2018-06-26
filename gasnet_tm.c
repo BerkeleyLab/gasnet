@@ -77,7 +77,7 @@ static size_t split_scratch_size(gex_TM_t *new_tm_p, gasneti_TM_t i_parent,
 
 size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int key,
                         void *addr, size_t len, gex_Flags_t flags
-                        GASNETE_THREAD_FARG)
+                        GASNETI_THREAD_FARG)
 {
   gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
   gasneti_EP_t ep = i_parent->_ep;

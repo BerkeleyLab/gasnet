@@ -637,7 +637,7 @@ extern int gasnet_barrier_result(int *_id);
 
 #ifndef gasnete_tm_barrier
   extern void
-  gasnete_tm_barrier(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FARG);
+  gasnete_tm_barrier(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 GASNETI_INLINE(_gex_Coll_BarrierBlocking)
 void _gex_Coll_BarrierBlocking(gex_TM_t _tm, gex_Flags_t _flags GASNETI_THREAD_FARG)
@@ -650,7 +650,7 @@ void _gex_Coll_BarrierBlocking(gex_TM_t _tm, gex_Flags_t _flags GASNETI_THREAD_F
 
 #ifndef gasnete_tm_barrier_nb
   extern gex_Event_t
-  gasnete_tm_barrier_nb(gex_TM_t e_tm, gex_Flags_t flags GASNETE_THREAD_FARG);
+  gasnete_tm_barrier_nb(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FARG);
 #endif
 GASNETI_INLINE(_gex_Coll_BarrierNB) GASNETI_WARN_UNUSED_RESULT
 gex_Event_t _gex_Coll_BarrierNB(gex_TM_t _tm, gex_Flags_t _flags GASNETI_THREAD_FARG)

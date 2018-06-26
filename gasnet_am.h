@@ -285,7 +285,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       if (!sd)                                                                                           \
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "passed invalid gex_AM_SrcDesc (GEX_AM_SRCDESC_NO_OP == 0)", _reqrep, nargs); \
-      if (sd->_thread != gasnete_mythread())                                                             \
+      if (sd->_thread != _gasneti_mythread_slow())                                                       \
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "return from Prepare passed to Commit in a different thread", _reqrep, nargs);\
       if (sd->_isreq != is_req)                                                                          \
@@ -574,7 +574,7 @@ extern int gasnetc_AMReplyLongV(
     extern void gasneti_loopback_cleanup_threaddata(void *buf);
     GASNETI_INLINE(gasneti_loopback_alloc_medium_buffer)
     void *gasneti_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
-        gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
         if_pf (! mythread->loopback_requestBuf) {
             // Allocate both buffers, ensuring GASNETI_MEDBUF_ALIGNMENT (dflt 8-byte) alignment of each
             size_t sz = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD,8) + GASNETC_MAX_MEDIUM_NBRHD;

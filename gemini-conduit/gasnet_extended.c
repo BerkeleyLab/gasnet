@@ -71,10 +71,10 @@ extern void gasnete_init(void) {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  { gasnete_threaddata_t *threaddata = NULL;
+  { gasneti_threaddata_t *threaddata = NULL;
   #if GASNETI_MAX_THREADS > 1
     /* register first thread (optimization) */
-    threaddata = gasnete_mythread();
+    threaddata = _gasneti_mythread_slow();
   #else
     /* register only thread (required) */
     threaddata = gasnete_new_threaddata();
@@ -384,7 +384,7 @@ gex_Event_t gasnete_get_nb(
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     int imm;
-    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_eop_t *eop = gasnete_eop_new_cnt(mythread);
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -413,7 +413,7 @@ gex_Event_t gasnete_put_nb(
 {
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
 
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_eop_t *eop = gasnete_eop_new_cnt(mythread);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   GASNETC_DIDX_POST(mythread->domain_idx);
@@ -480,7 +480,7 @@ int gasnete_get_nbi( gex_TM_t tm,
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     int imm;
-    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -505,7 +505,7 @@ int gasnete_put_nbi( gex_TM_t tm,
 {
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
 
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const iop = mythread->current_iop;
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   GASNETC_DIDX_POST(mythread->domain_idx);
@@ -611,7 +611,7 @@ extern gex_Event_t gasnete_put_nb_val(
 {
     GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes);
 
-    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     GASNETC_DIDX_POST(mythread->domain_idx);
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     gasnete_eop_t * const eop = gasnete_eop_new(mythread); // not _cnt
@@ -634,7 +634,7 @@ extern int gasnete_put_nbi_val(
 {
     GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes);
 
-    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     GASNETC_DIDX_POST(mythread->domain_idx);
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     gasnete_iop_t * const iop = mythread->current_iop;
@@ -833,7 +833,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
     } else
 #endif
     {
-      GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
+      GASNETC_DIDX_POST((_gasneti_mythread_slow())->domain_idx);
       gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
       uint64_t * const src = (uint64_t *)GASNETE_STARTOFBITS(gpd->u.immediate, sizeof(uint64_t));
 

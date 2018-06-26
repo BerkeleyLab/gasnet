@@ -438,7 +438,7 @@ DEFN_TOKEN_MAX_FN(Reply,Long)
 gasneti_AM_SrcDesc_t gasneti_import_srcdesc(gex_AM_SrcDesc_t _srcdesc) {
   const gasneti_AM_SrcDesc_t _real_srcdesc = GASNETI_IMPORT_POINTER(gasneti_AM_SrcDesc_t,_srcdesc);
   GASNETI_CHECK_MAGIC(_real_srcdesc, GASNETI_AM_SRCDESC_MAGIC);
-  gasneti_assert(!_real_srcdesc || (_real_srcdesc->_thread == gasnete_mythread()));
+  gasneti_assert(!_real_srcdesc || (_real_srcdesc->_thread == _gasneti_mythread_slow()));
   return _real_srcdesc;
 }
 #endif
@@ -452,7 +452,7 @@ gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
 
 void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasneti_assert(! mythread->sd_is_init);
 
   // Yes, we start "BAD":

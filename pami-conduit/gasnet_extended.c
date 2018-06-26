@@ -132,10 +132,10 @@ extern void gasnete_init(void) {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  { gasnete_threaddata_t *threaddata = NULL;
+  { gasneti_threaddata_t *threaddata = NULL;
     #if GASNETI_MAX_THREADS > 1
       /* register first thread (optimization) */
-      threaddata = gasnete_mythread(); 
+      threaddata = _gasneti_mythread_slow(); 
     #else
       /* register only thread (required) */
       threaddata = gasnete_new_threaddata();
@@ -469,7 +469,7 @@ int gasnete_get_nbi( gex_TM_t tm,
 {
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
-    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
     pami_event_function rdone_fn = op->next ? gasnete_cb_rget_done : gasnete_cb_iget_done;
@@ -488,7 +488,7 @@ int gasnete_put_nbi( gex_TM_t tm,
 {
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   {
-    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     pami_event_function ldone_fn = NULL;
 

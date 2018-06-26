@@ -199,9 +199,9 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
   GASNETI_COLL_FN_HEADER(gasnete_coll_init) 
   void gasnete_coll_init(const gasnet_image_t _images[], gasnet_image_t _my_image,
 		  		gasnet_coll_fn_entry_t _fn_tbl[], size_t _fn_count,
-		  		int _init_flags GASNETE_THREAD_FARG);
+		  		int _init_flags GASNETI_THREAD_FARG);
   #define gasnet_coll_init(im,mi,fn,fc,fl) \
-		gasnete_coll_init(im,mi,fn,fc,fl GASNETE_THREAD_GET)
+		gasnete_coll_init(im,mi,fn,fc,fl GASNETI_THREAD_GET)
 #endif
 
 /*---------------------------------------------------------------------------------*/
@@ -234,15 +234,15 @@ typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, GASNET_COLL_T
 typedef void (*gasnet_coll_overlap_sample_work_t)(void *_arg);
 
 
-void gasnete_coll_loadTuningState(char *_filename, gasnete_coll_team_t _team GASNETE_THREAD_FARG);
-#define gasnet_coll_loadTuningState(FILENAME, TEAM) gasnete_coll_loadTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+void gasnete_coll_loadTuningState(char *_filename, gasnete_coll_team_t _team GASNETI_THREAD_FARG);
+#define gasnet_coll_loadTuningState(FILENAME, TEAM) gasnete_coll_loadTuningState(FILENAME, TEAM GASNETI_THREAD_GET)
 
 
-void gasnete_coll_dumpTuningState(char *_filename, gasnete_coll_team_t _team GASNETE_THREAD_FARG);
-#define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+void gasnete_coll_dumpTuningState(char *_filename, gasnete_coll_team_t _team GASNETI_THREAD_FARG);
+#define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETI_THREAD_GET)
 
-void gasnete_coll_dumpProfile(char *_filename, gasnete_coll_team_t _team GASNETE_THREAD_FARG);
-#define gasnet_coll_dumpProfile(FILENAME, TEAM) gasnete_coll_dumpProfile(FILENAME, TEAM GASNETE_THREAD_GET)
+void gasnete_coll_dumpProfile(char *_filename, gasnete_coll_team_t _team GASNETI_THREAD_FARG);
+#define gasnet_coll_dumpProfile(FILENAME, TEAM) gasnete_coll_dumpProfile(FILENAME, TEAM GASNETI_THREAD_GET)
 
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t _team, gasnet_coll_optype_t _optype);
 extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t _team, int _tree_type, int _fanout, gasnet_coll_optype_t _optype); 
@@ -371,18 +371,18 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
 /*---------------------------------------------------------------------------------*/
 /* Team barrier functions */
 
-extern void gasnete_coll_barrier_notify(gasnete_coll_team_t _team, int _id, int _flags GASNETE_THREAD_FARG);
-extern int gasnete_coll_barrier_try(gasnete_coll_team_t _team, int _id, int _flags GASNETE_THREAD_FARG);
-extern int gasnete_coll_barrier_wait(gasnete_coll_team_t _team, int _id, int _flags GASNETE_THREAD_FARG);
-extern int gasnete_coll_barrier(gasnete_coll_team_t _team, int _id, int _flags GASNETE_THREAD_FARG);
-extern int gasnete_coll_barrier_result(gasnete_coll_team_t _team, int *_id GASNETE_THREAD_FARG);
+extern void gasnete_coll_barrier_notify(gasnete_coll_team_t _team, int _id, int _flags GASNETI_THREAD_FARG);
+extern int gasnete_coll_barrier_try(gasnete_coll_team_t _team, int _id, int _flags GASNETI_THREAD_FARG);
+extern int gasnete_coll_barrier_wait(gasnete_coll_team_t _team, int _id, int _flags GASNETI_THREAD_FARG);
+extern int gasnete_coll_barrier(gasnete_coll_team_t _team, int _id, int _flags GASNETI_THREAD_FARG);
+extern int gasnete_coll_barrier_result(gasnete_coll_team_t _team, int *_id GASNETI_THREAD_FARG);
 
 
-#define gasnet_coll_barrier_notify(team, id, flags) gasnete_coll_barrier_notify(team, id, flags GASNETE_THREAD_GET)
-#define gasnet_coll_barrier_try(team, id, flags) gasnete_coll_barrier_try(team, id, flags GASNETE_THREAD_GET)
-#define gasnet_coll_barrier_wait(team, id, flags) gasnete_coll_barrier_wait(team, id, flags GASNETE_THREAD_GET)
-#define gasnet_coll_barrier(team, id, flags) gasnete_coll_barrier(team, id, flags GASNETE_THREAD_GET)
-#define gasnet_coll_barrier_result(team, id) gasnete_coll_barrier_result(team, id GASNETE_THREAD_GET)
+#define gasnet_coll_barrier_notify(team, id, flags) gasnete_coll_barrier_notify(team, id, flags GASNETI_THREAD_GET)
+#define gasnet_coll_barrier_try(team, id, flags) gasnete_coll_barrier_try(team, id, flags GASNETI_THREAD_GET)
+#define gasnet_coll_barrier_wait(team, id, flags) gasnete_coll_barrier_wait(team, id, flags GASNETI_THREAD_GET)
+#define gasnet_coll_barrier(team, id, flags) gasnete_coll_barrier(team, id, flags GASNETI_THREAD_GET)
+#define gasnet_coll_barrier_result(team, id) gasnete_coll_barrier_result(team, id GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 /* no point trying to inline the collectives since they will involve non trivial communication costs*/
@@ -390,82 +390,82 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcast_nb)
 gex_Event_t _gasnet_coll_broadcast_nb(gasnet_team_handle_t _team,
                           void *_dst,
                           gasnet_image_t _srcimage, void *_src,
-                          size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                          size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 
 #define gasnet_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags) \
-       _gasnet_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcast) 
 void _gasnet_coll_broadcast(gasnet_team_handle_t _team,
                                    void *_dst,
                                    gasnet_image_t _srcimage, void *_src,
-                                   size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                                   size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 #define gasnet_coll_broadcast(team,dst,srcimage,src,nbytes,flags) \
-       _gasnet_coll_broadcast(team,dst,srcimage,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_broadcast(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_COLL_FN_HEADER(_gasnet_coll_scatter_nb) 
 gex_Event_t _gasnet_coll_scatter_nb(gasnet_team_handle_t _team,
                         void *_dst,
                         gasnet_image_t _srcimage, void *_src,
-                        size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                        size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 
 #define gasnet_coll_scatter_nb(team,dst,srcimage,src,nbytes,flags) \
-       _gasnet_coll_scatter_nb(team,dst,srcimage,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_scatter_nb(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_COLL_FN_HEADER(_gasnet_coll_scatter) 
 void _gasnet_coll_scatter(gasnet_team_handle_t _team,
                           void *_dst, gasnet_image_t _srcimage, void *_src,
-                                 size_t _nbytes, int _flags GASNETE_THREAD_FARG); 
+                                 size_t _nbytes, int _flags GASNETI_THREAD_FARG); 
 #define gasnet_coll_scatter(team,dst,srcimage,src,nbytes,flags) \
-       _gasnet_coll_scatter(team,dst,srcimage,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_scatter(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_nb) 
 gex_Event_t _gasnet_coll_gather_nb(gasnet_team_handle_t _team,
                        gasnet_image_t _dstimage, void *_dst,
                        void *_src,
-                       size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                       size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 #define gasnet_coll_gather_nb(team,dstimage,dst,src,nbytes,flags) \
-       _gasnet_coll_gather_nb(team,dstimage,dst,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_gather_nb(team,dstimage,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_COLL_FN_HEADER(_gasnet_coll_gather) 
 void _gasnet_coll_gather(gasnet_team_handle_t _team,
                                 gasnet_image_t _dstimage, void *_dst,
                                 void *_src,
-                                size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                                size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 #define gasnet_coll_gather(team,dstimage,dst,src,nbytes,flags) \
-       _gasnet_coll_gather(team,dstimage,dst,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_gather(team,dstimage,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all_nb) 
 gex_Event_t _gasnet_coll_gather_all_nb(gasnet_team_handle_t _team,
                            void *_dst, void *_src,
-                           size_t _nbytes, int _flags GASNETE_THREAD_FARG) ;
+                           size_t _nbytes, int _flags GASNETI_THREAD_FARG) ;
 #define gasnet_coll_gather_all_nb(team,dst,src,nbytes,flags) \
-       _gasnet_coll_gather_all_nb(team,dst,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_gather_all_nb(team,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all) 
 void _gasnet_coll_gather_all(gasnet_team_handle_t _team,
                                     void *_dst, void *_src,
-                                    size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                                    size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 #define gasnet_coll_gather_all(team,dst,src,nbytes,flags) \
-       _gasnet_coll_gather_all(team,dst,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_gather_all(team,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_COLL_FN_HEADER(_gasnet_coll_exchange_nb) 
 gex_Event_t _gasnet_coll_exchange_nb(gasnet_team_handle_t _team,
                          void *_dst, void *_src,
-                         size_t _nbytes, int _flags GASNETE_THREAD_FARG) ;
+                         size_t _nbytes, int _flags GASNETI_THREAD_FARG) ;
 #define gasnet_coll_exchange_nb(team,dst,src,nbytes,flags) \
-       _gasnet_coll_exchange_nb(team,dst,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_exchange_nb(team,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 GASNETI_COLL_FN_HEADER(_gasnet_coll_exchange) 
 void _gasnet_coll_exchange(gasnet_team_handle_t _team,
                                   void *_dst, void *_src,
-                                  size_t _nbytes, int _flags GASNETE_THREAD_FARG);
+                                  size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 #define gasnet_coll_exchange(team,dst,src,nbytes,flags) \
-       _gasnet_coll_exchange(team,dst,src,nbytes,flags GASNETE_THREAD_GET)
+       _gasnet_coll_exchange(team,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_COLL_FN_HEADER(_gasnet_coll_reduce_nb) 
@@ -474,9 +474,9 @@ gex_Event_t _gasnet_coll_reduce_nb(gasnet_team_handle_t _team,
                        void *_src, size_t _src_blksz, size_t _src_offset,
                        size_t _elem_size, size_t _elem_count,
                        gasnet_coll_fn_handle_t _func, int _func_arg,
-                       int _flags GASNETE_THREAD_FARG) ;
+                       int _flags GASNETI_THREAD_FARG) ;
 #define gasnet_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) \
-       _gasnet_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETE_THREAD_GET)
+       _gasnet_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETI_THREAD_GET)
 
 GASNETI_COLL_FN_HEADER(_gasnet_coll_reduce) 
 void _gasnet_coll_reduce(gasnet_team_handle_t _team,
@@ -484,9 +484,9 @@ void _gasnet_coll_reduce(gasnet_team_handle_t _team,
                                 void *_src, size_t _src_blksz, size_t _src_offset,
                                 size_t _elem_size, size_t _elem_count,
                                 gasnet_coll_fn_handle_t _func, int _func_arg,
-                                int _flags GASNETE_THREAD_FARG) ;
+                                int _flags GASNETI_THREAD_FARG) ;
 #define gasnet_coll_reduce(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) \
-       _gasnet_coll_reduce(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETE_THREAD_GET);
+       _gasnet_coll_reduce(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETI_THREAD_GET);
 
 /*---------------------------------------------------------------------------------*/
 
@@ -495,10 +495,10 @@ void _gasnet_coll_reduce(gasnet_team_handle_t _team,
   gasnete_tm_broadcast_nb(gex_TM_t _tm, gex_Rank_t _root,
                           void *_dst, const void *_src,
                           size_t _nbytes, gex_Flags_t _flags
-                          GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+                          GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_BroadcastNB(tm,root,dst,src,nbytes,flags) \
-        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETE_THREAD_GET)
+        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -507,10 +507,10 @@ void _gasnet_coll_reduce(gasnet_team_handle_t _team,
   gasnete_tm_reduce_nb(gex_TM_t _tm, gex_Rank_t _root, void *_dst, const void *_src,
                        gex_DT_t _dt, size_t _dt_sz, size_t _dt_cnt,
                        gex_OP_t _op, gex_Coll_ReduceFn_t _user_op, void * _user_cdata,
-                       gex_Flags_t _flags GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+                       gex_Flags_t _flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_ReduceToOneNB(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags) \
-        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags GASNETE_THREAD_GET)
+        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 

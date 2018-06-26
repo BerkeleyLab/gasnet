@@ -738,7 +738,7 @@ extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
 typedef struct _gasnete_eop_t gasnete_eop_t;
 typedef struct _gasnete_iop_t gasnete_iop_t;
 
-typedef struct _gasnete_threaddata_t {
+typedef struct _gasneti_threaddata_t {
   //
   // Fixed fields that should appear first in the threaddata struct for all conduits
   // NOTE: it is critical that these not change postition or order
@@ -791,7 +791,7 @@ typedef struct _gasnete_threaddata_t {
   #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
   GASNETE_CONDUIT_THREADDATA_FIELDS
   #endif
-} gasnete_threaddata_t;
+} gasneti_threaddata_t;
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN

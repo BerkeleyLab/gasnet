@@ -65,7 +65,7 @@ typedef gex_Event_t
                                size_t nbytes, int flags,
                                gasnete_coll_implementation_t coll_params,
                                uint32_t sequence
-                               GASNETE_THREAD_FARG);
+                               GASNETI_THREAD_FARG);
 
 typedef gex_Event_t 
 (*gasnete_coll_scatter_fn_ptr_t)(gasnet_team_handle_t team,
@@ -74,7 +74,7 @@ typedef gex_Event_t
                                  size_t nbytes, size_t dist, int flags,
                                  gasnete_coll_implementation_t coll_params,
                                  uint32_t sequence
-                                 GASNETE_THREAD_FARG);
+                                 GASNETI_THREAD_FARG);
 
 
 typedef gex_Event_t 
@@ -84,7 +84,7 @@ typedef gex_Event_t
                                 size_t nbytes, size_t dist, int flags, 
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                                GASNETE_THREAD_FARG);
+                                GASNETI_THREAD_FARG);
 
 typedef gex_Event_t 
 (*gasnete_coll_gather_all_fn_ptr_t)(gasnet_team_handle_t team,
@@ -92,7 +92,7 @@ typedef gex_Event_t
                                     size_t nbytes, int flags, 
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG);
+                                    GASNETI_THREAD_FARG);
 
 typedef gex_Event_t
 (*gasnete_coll_exchange_fn_ptr_t)(gasnet_team_handle_t team,
@@ -100,7 +100,7 @@ typedef gex_Event_t
                                     size_t nbytes, int flags, 
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG);
+                                    GASNETI_THREAD_FARG);
 
 typedef gex_Event_t
 (*gasnete_coll_reduce_fn_ptr_t)(gasnet_team_handle_t team,
@@ -111,7 +111,7 @@ typedef gex_Event_t
                                  int flags, 
                                  gasnete_coll_implementation_t coll_params,
                                  uint32_t sequence
-                                 GASNETE_THREAD_FARG);
+                                 GASNETI_THREAD_FARG);
 
 typedef enum {
   GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH,
@@ -322,7 +322,7 @@ struct gasnete_coll_autotune_info_t_ {
 
 
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, 
-                                                         size_t min_scratch_size GASNETE_THREAD_FARG);
+                                                         size_t min_scratch_size GASNETI_THREAD_FARG);
 /*testing functions*/
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
@@ -353,29 +353,29 @@ int gasnete_coll_get_dissem_radix(gasnete_coll_autotune_info_t* autotune_info, g
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, 
-                                          size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+                                          size_t nbytes, uint32_t flags  GASNETI_THREAD_FARG);
 
 gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
+gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETI_THREAD_FARG);
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_image_t dstimage, void *dst, void *src, 
-                                           size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
+                                           size_t nbytes, size_t dist, uint32_t flags  GASNETI_THREAD_FARG);
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
-                                                size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+                                                size_t nbytes, uint32_t flags  GASNETI_THREAD_FARG);
 
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
-                                             size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+                                             size_t nbytes, uint32_t flags  GASNETI_THREAD_FARG);
 
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_reduce_algorithm(gasnet_team_handle_t team, gasnet_image_t dstimage, void *dst, void *src,
                                            size_t src_blksz, size_t src_offset, size_t elem_size, size_t elem_count,
                                            gasnet_coll_fn_handle_t func, int func_arg,
-                                           uint32_t flags GASNETE_THREAD_FARG);
+                                           uint32_t flags GASNETI_THREAD_FARG);
 
 
 gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_autotune_info_t* autotune_info, 

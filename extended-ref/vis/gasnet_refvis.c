@@ -88,7 +88,7 @@ typedef struct {
 } gasneti_vispc_op_t;
 
 extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
-        const void *source_addr, size_t nbytes, gex_Flags_t flags GASNETE_THREAD_FARG) {
+        const void *source_addr, size_t nbytes, gex_Flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_TRACE_PRINTF(A,("VIS_SetPeerCompletionHandler: handler=%i, source_addr="GASNETI_LADDRFMT", nbytes=%"PRIuSZ,
                           (int)handler, GASNETI_LADDRSTR(source_addr),nbytes)); 
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
@@ -106,7 +106,7 @@ extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 GASNETI_INLINE(gasnete_VIS_pcwrap)
 gex_Event_t gasnete_VIS_pcwrap(gasnete_synctype_t const synctype, // manifest constant
                                gex_TM_t tm, gex_Rank_t rank, gex_Flags_t flags,
-                               gex_Event_t const evt GASNETE_THREAD_FARG) {
+                               gex_Event_t const evt GASNETI_THREAD_FARG) {
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD; 
   gasnete_vis_pcinfo_t * const pcinfo = &(td->pcinfo);
   gasneti_assert(pcinfo->_handler);
@@ -169,13 +169,13 @@ gex_Event_t gasnete_VIS_pcwrap(gasnete_synctype_t const synctype, // manifest co
   }
 }
 extern int         gasnete_VIS_pcwrapBlocking(_GASNETE_VIS_PCWRAP_ARGS) {
-  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_b, _tm, _rank, _flags, _evt GASNETE_THREAD_PASS);
+  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_b, _tm, _rank, _flags, _evt GASNETI_THREAD_PASS);
 }
 extern int         gasnete_VIS_pcwrapNBI     (_GASNETE_VIS_PCWRAP_ARGS) {
-  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_nbi, _tm, _rank, _flags, _evt GASNETE_THREAD_PASS);
+  return (int)(intptr_t)gasnete_VIS_pcwrap(gasnete_synctype_nbi, _tm, _rank, _flags, _evt GASNETI_THREAD_PASS);
 }
 extern gex_Event_t gasnete_VIS_pcwrapNB      (_GASNETE_VIS_PCWRAP_ARGS) {
-  return gasnete_VIS_pcwrap(gasnete_synctype_nb, _tm, _rank, _flags, _evt GASNETE_THREAD_PASS);
+  return gasnete_VIS_pcwrap(gasnete_synctype_nb, _tm, _rank, _flags, _evt GASNETI_THREAD_PASS);
 }
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_vis_run_pchandler)
@@ -246,7 +246,7 @@ extern void gasneti_vis_progressfn(void) {
   /* disable warnings triggered by nesting switch-inside-for */
   #pragma error_messages(off, E_LOOP_NOT_ENTERED_AT_TOP)
 #endif
-  GASNETE_THREAD_LOOKUP /* TODO: remove this lookup */
+  GASNETI_THREAD_LOOKUP /* TODO: remove this lookup */
   gasnete_vis_threaddata_t *td = GASNETE_VIS_MYTHREAD; 
   gasneti_vis_op_t **lastp = &(td->active_ops);
   if (td->progressfn_active) return; /* prevent recursion */
@@ -262,14 +262,14 @@ extern void gasneti_vis_progressfn(void) {
         #if GASNETE_HAVE_LC 
           // forward ALC if it exists and the client requested it
           if (vispcop->lc) {
-            if (gasnete_test(vispcop->lc GASNETE_THREAD_PASS) == GASNET_OK) {
+            if (gasnete_test(vispcop->lc GASNETI_THREAD_PASS) == GASNET_OK) {
               vispcop->lc = GEX_EVENT_INVALID;
               if (visop->eop) GASNETE_EOP_LC_FINISH((gasnete_eop_t *)(visop->eop));
               else            GASNETE_IOP_LC_FINISH((gasnete_iop_t *)(visop->iop));  
             } else break; // no ALC yet, so cannot have operation completion
           }
         #endif
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           // could potentially delay visop free until ALC of this medium payload,
           // but given the small size it's probably synchronously complete for most conduits anyhow
           gasneti_assert(!vispcop->lc);
@@ -281,14 +281,14 @@ extern void gasneti_vis_progressfn(void) {
     }
     #ifdef GASNETE_PUTV_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTV_GATHER:
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
     #endif
     #ifdef GASNETE_GETV_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETV_SCATTER:
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           gex_Memvec_t const * const savedlst = (gex_Memvec_t const *)(visop + 1);
           void const * const packedbuf = savedlst + visop->count;
           gasnete_memvec_unpack(visop->count, savedlst, packedbuf, 0, (size_t)-1);
@@ -298,14 +298,14 @@ extern void gasneti_vis_progressfn(void) {
     #endif
     #ifdef GASNETE_PUTI_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTI_GATHER:
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
     #endif
     #ifdef GASNETE_GETI_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETI_SCATTER:
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           void * const * const savedlst = (void * const *)(visop + 1);
           void const * const packedbuf = savedlst + visop->count;
           gasnete_addrlist_unpack(visop->count, savedlst, visop->len, packedbuf, 0, (size_t)-1);
@@ -315,14 +315,14 @@ extern void gasneti_vis_progressfn(void) {
     #endif
     #ifdef GASNETE_PUTS_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTS_GATHER:
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;
     #endif
     #ifdef GASNETE_GETS_SCATTER_SELECTOR
       case GASNETI_VIS_CAT_GETS_SCATTER:
-        if (gasnete_test(visop->event GASNETE_THREAD_PASS) == GASNET_OK) {
+        if (gasnete_test(visop->event GASNETI_THREAD_PASS) == GASNET_OK) {
           size_t stridelevels = visop->len;
           size_t * const savedstrides = (size_t *)(visop + 1);
           size_t * const savedcount = savedstrides + stridelevels;

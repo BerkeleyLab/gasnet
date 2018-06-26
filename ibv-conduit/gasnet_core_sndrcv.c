@@ -216,7 +216,7 @@ typedef union {
 } gasnetc_am_tmp_buf_t;
 
 /* Per-thread data
- * Unlike gasnete_threaddata_t, this is associated w/ conduit-internal threads as well.
+ * Unlike gasneti_threaddata_t, this is associated w/ conduit-internal threads as well.
  */
 typedef struct {
   /* Thread-local list of sreq's. */
@@ -1896,7 +1896,7 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
   gasnetc_rbuf_t ** const spare_p = &hca->rcv_thread_priv;
 
 #if GASNETI_THREADINFO_OPT
-  if_pf (! hca->rcv_threadinfo) hca->rcv_threadinfo = gasnete_mythread();
+  if_pf (! hca->rcv_threadinfo) hca->rcv_threadinfo = _gasneti_mythread_slow();
   GASNETI_THREAD_POST(hca->rcv_threadinfo)
 #endif
 
@@ -4558,7 +4558,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
     } else if (lc_opt == GEX_EVENT_GROUP) {
-      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+      gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       local_cnt = &op->initiated_alc_cnt;
       local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
@@ -4640,7 +4640,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
     } else if (lc_opt == GEX_EVENT_GROUP) {
-      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+      gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       local_cnt = &op->initiated_alc_cnt;
       local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;

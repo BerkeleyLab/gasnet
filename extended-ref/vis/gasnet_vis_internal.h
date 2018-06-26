@@ -117,7 +117,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
   return result;
 }
 
-/* gasnete_threaddata_t might not be defined yet, but VIS ptr must be 3rd */
+/* gasneti_threaddata_t might not be defined yet, but VIS ptr must be 3rd */
 #define GASNETE_VIS_MYTHREAD (((void **)GASNETI_MYTHREAD)[2] ? \
         ((void **)GASNETI_MYTHREAD)[2] :                       \
         (((void **)GASNETI_MYTHREAD)[2] = gasnete_vis_new_threaddata()))
@@ -143,9 +143,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_SETUP(visop, synctype, isget) do {              \
     if (synctype == gasnete_synctype_nbi) {                           \
       visop->eop = NULL;                                              \
-      visop->iop = gasneti_iop_register(1,isget GASNETE_THREAD_PASS); \
+      visop->iop = gasneti_iop_register(1,isget GASNETI_THREAD_PASS); \
     } else {                                                          \
-      visop->eop = gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);     \
+      visop->eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);     \
       visop->iop = NULL;                                              \
     }                                                                 \
 } while (0)
@@ -180,10 +180,10 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 // ops with a single completion event
 #define GASNETE_START_ONEOP(op, handle, synctype, isget) do {         \
     if (synctype == gasnete_synctype_nbi) {                           \
-      op = (void *)gasneti_iop_register(1,isget GASNETE_THREAD_PASS); \
+      op = (void *)gasneti_iop_register(1,isget GASNETI_THREAD_PASS); \
       handle = GEX_EVENT_INVALID;                                     \
     } else {                                                          \
-      op = (void *)gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);     \
+      op = (void *)gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);     \
       handle = gasneti_eop_to_event((gasneti_eop_t *)op);             \
     }                                                                 \
   } while (0)
@@ -212,16 +212,16 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype) do {               \
   if (synctype != gasnete_synctype_nbi)                      \
-    gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
+    gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate event */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype) do {                               \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);                   \
+        return gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);                   \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS) GASNETE_THREAD_PASS); \
+        gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS) GASNETI_THREAD_PASS); \
         return GEX_EVENT_INVALID;                                                     \
       case gasnete_synctype_nbi:                                                      \
         return GEX_EVENT_INVALID;                                                     \
@@ -234,14 +234,14 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert((nbytes) > 0);                                       \
     gasneti_boundscheck_allowoutseg((tm), (rank), (dstaddr), (nbytes)); \
     gasnete_put_nbi((tm), (rank), (dstaddr), (srcaddr), (nbytes),       \
-                         (lc_opt), 0 GASNETE_THREAD_PASS);              \
+                         (lc_opt), 0 GASNETI_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(tm, rank, dstaddr, srcaddr, nbytes) do {      \
     gasneti_assert((nbytes) > 0);                                       \
     gasneti_boundscheck_allowoutseg((tm), (rank), (srcaddr), (nbytes)); \
     gasnete_get_nbi((tm), (dstaddr), (rank), (srcaddr), (nbytes),       \
-                         0 GASNETE_THREAD_PASS);                        \
+                         0 GASNETI_THREAD_PASS);                        \
   } while (0)
 
 // Put/get for degenerate case, where this single op represents the entire operation
@@ -257,18 +257,18 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         gex_Event_t _lc_dummy;                                                      \
         (retval) = _gex_RMA_PutNB ((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
                     (((flags) & GEX_FLAG_ENABLE_LEAF_LC) ? &_lc_dummy : GEX_EVENT_DEFER), \
-                    (flags) GASNETE_THREAD_PASS);                                   \
+                    (flags) GASNETI_THREAD_PASS);                                   \
         break; }                                                                    \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
                    _gex_RMA_PutNBI((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
                     (((flags) & GEX_FLAG_ENABLE_LEAF_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER),\
-                    (flags) GASNETE_THREAD_PASS);                                   \
+                    (flags) GASNETI_THREAD_PASS);                                   \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \
         (retval) = (gex_Event_t)(intptr_t)                                          \
               _gex_RMA_PutBlocking((tm), (rank), (dstaddr), (srcaddr), (nbytes),    \
-                                          (flags) GASNETE_THREAD_PASS);             \
+                                          (flags) GASNETI_THREAD_PASS);             \
         break;                                                                      \
       default: gasneti_unreachable();                                               \
     }                                                                               \
@@ -280,17 +280,17 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     switch (synctype) {                                                             \
       case gasnete_synctype_nb:                                                     \
         (retval) = _gex_RMA_GetNB ((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
-                                          (flags) GASNETE_THREAD_PASS);             \
+                                          (flags) GASNETI_THREAD_PASS);             \
         break;                                                                      \
       case gasnete_synctype_nbi:                                                    \
         (retval) = (gex_Event_t)(intptr_t)                                          \
                    _gex_RMA_GetNBI((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
-                                          (flags) GASNETE_THREAD_PASS);             \
+                                          (flags) GASNETI_THREAD_PASS);             \
         break;                                                                      \
       case gasnete_synctype_b:                                                      \
         (retval) = (gex_Event_t)(intptr_t)                                          \
               _gex_RMA_GetBlocking((tm), (dstaddr), (rank), (srcaddr), (nbytes),    \
-                                          (flags) GASNETE_THREAD_PASS);             \
+                                          (flags) GASNETI_THREAD_PASS);             \
         break;                                                                      \
       default: gasneti_unreachable();                                               \
     }                                                                               \

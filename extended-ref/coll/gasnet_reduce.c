@@ -106,7 +106,7 @@ GASNETE_DT_APPLY(GASNETE_SHRINKRAY_DEFN)
 /*---------------------------------------------------------------------------------*/
 
 // GEX Reduce-to-one via Eager messages on a binomial tree
-static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gex_TM_t const tm = op->e_tm;
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_tm_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, tm_reduce);
@@ -170,7 +170,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETE
       }
 
       // Done
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     }
   }
@@ -192,5 +192,5 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
                                       op, op_fnptr, op_cdata, coll_flags,
                                       &gasnete_coll_pf_tm_reduce_BinomialEager,
                                       options, NULL, 0, 0, NULL, NULL
-                                      GASNETE_THREAD_PASS);
+                                      GASNETI_THREAD_PASS);
 }

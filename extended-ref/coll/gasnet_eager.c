@@ -22,7 +22,7 @@
 
 /* bcast Eager: root node performs carefully ordered eager puts */
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
-static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   int result = 0;
@@ -60,7 +60,7 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         break;
       }
       
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -77,7 +77,7 @@ GASNETE_COLL_DECLARE_BCAST_ALG(Eager)
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_Eager, options,
-                                           NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+                                           NULL, sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
 
@@ -85,7 +85,7 @@ GASNETE_COLL_DECLARE_BCAST_ALG(Eager)
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
 /* Naturally IN_MYSYNC, OUT_MYSYNC */
 /* Max size is the eager limit */
-static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
@@ -137,7 +137,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 4; GASNETI_FALLTHROUGH
       
       case 4: /*done*/
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -156,9 +156,9 @@ GASNETE_COLL_DECLARE_BCAST_ALG(TreeEager)
                                            &gasnete_coll_pf_bcast_TreeEager, options,
                                            gasnete_coll_tree_init(coll_params->tree_type,
                                                                   srcimage, team
-                                                                  GASNETE_THREAD_PASS),
+                                                                  GASNETI_THREAD_PASS),
                                            sequence, coll_params->num_params, coll_params->param_list
-                                           GASNETE_THREAD_PASS);
+                                           GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -167,7 +167,7 @@ GASNETE_COLL_DECLARE_BCAST_ALG(TreeEager)
 /* scat Eager: root node performs carefully ordered eager puts */
 /* Valid for SINGLE and LOCAL, size <= available eager buffer space */
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
-static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_scatter_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatter);
   int result = 0;
@@ -212,7 +212,7 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         break;
       }
       
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -227,10 +227,10 @@ GASNETE_COLL_DECLARE_SCATTER_ALG(Eager)
   
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
                                          &gasnete_coll_pf_scat_Eager, options,
-                                         NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+                                         NULL, sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
-static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
   const gasnete_coll_scatter_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatter);
@@ -295,7 +295,7 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
       data->state = 4; GASNETI_FALLTHROUGH
       
     case 4: /*done*/
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -315,9 +315,9 @@ GASNETE_COLL_DECLARE_SCATTER_ALG(TreeEager)
                                            &gasnete_coll_pf_scat_TreeEager, options,
                                            gasnete_coll_tree_init(coll_params->tree_type,
                                                                   srcimage, team
-                                                                  GASNETE_THREAD_PASS),
+                                                                  GASNETI_THREAD_PASS),
                                            sequence, coll_params->num_params, coll_params->param_list
-                                           GASNETE_THREAD_PASS);
+                                           GASNETI_THREAD_PASS);
 }
 
 
@@ -327,7 +327,7 @@ GASNETE_COLL_DECLARE_SCATTER_ALG(TreeEager)
 /* gath Eager: all nodes perform uncoordinated eager puts */
 /* Valid for SINGLE and LOCAL, size <= available eager buffer space */
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on root node */
-static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
   int result = 0;
@@ -388,7 +388,7 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         break;
       }
       
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -403,10 +403,10 @@ GASNETE_COLL_DECLARE_GATHER_ALG(Eager)
   
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
                                         &gasnete_coll_pf_gath_Eager, options,
-                                        NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+                                        NULL, sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
-static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
   int result = 0;
@@ -473,7 +473,7 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
         break;
       }
 #endif
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -492,12 +492,12 @@ GASNETE_COLL_DECLARE_GATHER_ALG(TreeEager)
                                         &gasnete_coll_pf_gath_TreeEager, options,
                                         gasnete_coll_tree_init(coll_params->tree_type,
                                                                dstimage, team
-                                                               GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+                                                               GASNETI_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_all_nb() */
-static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
   int result = 0;
@@ -549,7 +549,7 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
       return 0;
     }
     
-    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -571,10 +571,10 @@ GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatEagerPut)
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_FlatEagerPut, options,
                                             NULL, 
-                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
-static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_dissem_info_t *dissem = data->dissem_info;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
@@ -646,7 +646,7 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETE_THREAD
       return 0;
     }
     
-    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -669,7 +669,7 @@ GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem)
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_EagerDissem, options,
                                             NULL, 
-                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -678,7 +678,7 @@ GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem)
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_reduce_nb() */
 
-static int gasnete_coll_pf_reduce_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_reduce_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, reduce);
   int result = 0;
@@ -748,7 +748,7 @@ static int gasnete_coll_pf_reduce_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         break;
       }
       
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -765,10 +765,10 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(Eager)
   return gasnete_coll_generic_reduce_nb(team, dstimage, dst, src, src_blksz, src_offset,
                                         elem_size, elem_count, func, func_arg, flags, 
                                         &gasnete_coll_pf_reduce_Eager, options,
-                                        NULL, sequence, 0, NULL, NULL GASNETE_THREAD_PASS);
+                                        NULL, sequence, 0, NULL, NULL GASNETI_THREAD_PASS);
 }
 
-static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
   gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
@@ -859,7 +859,7 @@ static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
         break;
       }
 #endif
-      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -880,6 +880,6 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(TreeEager)
                                         &gasnete_coll_pf_reduce_TreeEager, options,
                                         gasnete_coll_tree_init(coll_params->tree_type,
                                                                dstimage, team
-                                                               GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list, NULL
-                                        GASNETE_THREAD_PASS);
+                                                               GASNETI_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list, NULL
+                                        GASNETI_THREAD_PASS);
 }

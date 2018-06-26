@@ -667,7 +667,7 @@ int gasnete_amratomic_request_NBI(
         gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();\
         rop->result_p = NULL;                                     \
         rop->eop = NULL;                                          \
-        rop->iop = gasneti_iop_register(1,0 GASNETE_THREAD_PASS); \
+        rop->iop = gasneti_iop_register(1,0 GASNETI_THREAD_PASS); \
         rop->iop_type = GEX_EC_PUT;                               \
         gex_TM_t tm = gasneti_export_tm(ad->_tm);                 \
         const gasneti_op_idx_t op_idx = gasneti_op_idx_SET;       \
@@ -690,7 +690,7 @@ int gasnete_amratomic_request_NBI(
         gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();\
         rop->result_p = result_p;                                 \
         rop->eop = NULL;                                          \
-        rop->iop = gasneti_iop_register(1,1 GASNETE_THREAD_PASS); \
+        rop->iop = gasneti_iop_register(1,1 GASNETI_THREAD_PASS); \
         rop->iop_type = GEX_EC_GET;                               \
         gex_TM_t tm = gasneti_export_tm(ad->_tm);                 \
         const gasneti_op_idx_t op_idx = gasneti_op_idx_GET;       \

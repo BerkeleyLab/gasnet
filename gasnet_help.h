@@ -492,14 +492,14 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
     }
     #define GASNET_GET_THREADINFO()                              \
       ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
-        (gasnet_threadinfo_t)gasnete_mythread() :                \
+        (gasnet_threadinfo_t)_gasneti_mythread_slow() :          \
         (GASNETT_PREDICT_TRUE(gasnete_threadinfo_cache) ? gasnete_threadinfo_cache :   \
-        gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)gasnete_mythread()))  \
+        gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)_gasneti_mythread_slow()))  \
       )
   #else
-    #define GASNET_GET_THREADINFO()                   \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ? \
-        (gasnet_threadinfo_t)gasnete_mythread() :     \
+    #define GASNET_GET_THREADINFO()                     \
+      ( (sizeof(gasnete_threadinfo_available) == 1) ?   \
+        (gasnet_threadinfo_t)_gasneti_mythread_slow() : \
         (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache )
   #endif
 
@@ -550,8 +550,8 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
   // GASNETI_THREAD_PASS(_ALONE): propagate the hidden arg to a callee also declared with GASNETI_THREAD_FARG*
   #define GASNETI_THREAD_PASS_ALONE   (_threadinfo)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
-  // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasnete_threaddata_t *)
-  #define GASNETI_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
+  // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasneti_threaddata_t *)
+  #define GASNETI_MYTHREAD            ((struct _gasneti_threaddata_t *)_threadinfo)
   // -----------------------------------------------------------------------------------------
   // Declaring GASNETI_THREAD_FARG context
   //   The macros in this section declare "GASNETI_THREAD_FARG context" inline for the rest of this basic block
@@ -564,9 +564,9 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
   // GASNETI_THREAD_SWALLOW: Utility to discard an FARG passed to a 0-arg function-like macro
   //   TODO-EX: move and rename this essentially unrelated utility macro
   #define GASNETI_THREAD_SWALLOW(x)
-  // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasnete_threaddata_t *) from a prior GASNET_POST_THREADINFO or lookup
+  // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasneti_threaddata_t *) from a prior GASNET_POST_THREADINFO or lookup
   //   this EXPENSIVE call bypasses the FARG machinery and should ONLY be used for macro expansions directly into client code
-  #define GASNETI_MYTHREAD_GET_OR_LOOKUP ((struct _gasnete_threaddata_t *)GASNET_GET_THREADINFO())
+  #define GASNETI_MYTHREAD_GET_OR_LOOKUP ((struct _gasneti_threaddata_t *)GASNET_GET_THREADINFO())
 #else
   #define GASNETI_THREAD_FARG_ALONE   void
   #define GASNETI_THREAD_FARG         
@@ -577,7 +577,7 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
   #define GASNETI_THREAD_LOOKUP
   #define GASNETI_THREAD_POST(x)
   #define GASNETI_THREAD_SWALLOW(x)
-  #define GASNETI_MYTHREAD            (gasnete_mythread())
+  #define GASNETI_MYTHREAD            (_gasneti_mythread_slow())
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP GASNETI_MYTHREAD
 #endif
 

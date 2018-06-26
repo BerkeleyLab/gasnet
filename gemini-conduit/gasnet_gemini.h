@@ -465,7 +465,7 @@ gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
 
 // Allocate an eop with the initiated_cnt pre-incremented
 GASNETI_INLINE(gasnete_eop_new_cnt)
-gasnete_eop_t *gasnete_eop_new_cnt(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *gasnete_eop_new_cnt(gasneti_threaddata_t * const thread) {
   gasnete_eop_t *eop = gasnete_eop_new(thread);
   eop->initiated_cnt++;
   return eop;
