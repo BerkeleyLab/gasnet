@@ -984,23 +984,6 @@ AM_CONDITIONAL(GASNET_SEGMENT_FAST, test "$segconfig" = fast)
 AM_CONDITIONAL(GASNET_SEGMENT_LARGE, test "$segconfig" = large)
 AM_CONDITIONAL(GASNET_SEGMENT_EVERYTHING, test "$segconfig" = everything)
 
-GASNET_WITH(segment-mmap-max,
-   [Upper bound for mmap-based GASNet segments (ex: "2GB", "1045MB")],
-   [case "$withval" in
-      [[1-9]]*G*) 
-        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
-            [((uint64_t)(`expr "${withval}" : "\([[1-9]][[0-9]]*\)"`ull << 30))]) 
-        ;;
-      [[1-9]]*M*) 
-        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
-            [((uint64_t)(`expr "${withval}" : "\([[1-9]][[0-9]]*\)"`ull << 20))]) 
-        ;;
-      [[1-9]][[0-9]]*) 
-        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
-            [((uint64_t)${withval}ull)]) 
-        ;;
-      *) AC_MSG_ERROR(Illegal value for --with-segment-mmap-max=$withval) ;;
-    esac])
 dnl GASNET_TOOLSONLY_FALSE_END
 
 dnl GASNET_GET_PLATFORM_ID(CCVAR, opt compiler-desc)
@@ -4906,6 +4889,25 @@ else
   esac
 dnl GASNET_TOOLSONLY_FALSE_END
 fi
+
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
+# Determine the default GASNET_MAX_SEGSIZE string
+if test "$with_pshm" = "no" && test "$HAVE_MMAP" = 0 ; then
+  GASNETI_MAX_SEGSIZE_DEFAULT="100MB/P"  # rare malloc-based platforms
+else
+  GASNETI_MAX_SEGSIZE_DEFAULT="0.85/H" # most platforms
+fi
+GASNET_WITH_NOHELP(segment-mmap-max, GASNET_MSG_WARN([Obsolete option --with-segment-mmap-max ignored. See --help for --with-max-segsize]))
+GASNET_WITH(max-segsize,
+   [Upper bound for GASNet segment utilization. Can be absolute size or fraction of physmem. Suffix denotes per-process or per-host limit (ex: "2GB/P", "0.85/H")],
+   [# this is an overly-permissive pattern, just here to detect obviously invalid values
+    if echo "$withval" | $PERL -ne '$_ =~ s@[[\s/]]@@g; exit (m@^\d+(\.\d*)?([[kmgt]]?b?)?[[ph]]?$@i ? 1 : 0)' ; then
+      AC_MSG_ERROR(Illegal value for --with-max-segsize=$withval)
+    fi
+    AC_DEFINE_UNQUOTED(GASNETI_MAX_SEGSIZE_CONFIGURE, "$withval") ], 
+   [AC_MSG_ERROR(--without-max-segsize is not supported)],
+   [AC_DEFINE_UNQUOTED(GASNETI_MAX_SEGSIZE_CONFIGURE, "$GASNETI_MAX_SEGSIZE_DEFAULT")])
+dnl GASNET_TOOLSONLY_FALSE_END
 
 dnl Check for ptmalloc's mallopt() to work aroung bugs 495 and 955
 AC_CHECK_HEADERS([malloc.h])
