@@ -120,7 +120,7 @@ void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */
   #define gasnete_eop_check(eop) do {                                \
-    gasnete_threaddata_t * _th;                                      \
+    gasneti_threaddata_t * _th;                                      \
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                \

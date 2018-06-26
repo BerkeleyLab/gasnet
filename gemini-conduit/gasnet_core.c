@@ -1098,7 +1098,7 @@ extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
 extern int gasnetc_AMPoll(void)
 #endif
 {
-  GASNETC_DIDX_POST(GASNETE_MYTHREAD->domain_idx);
+  GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
@@ -1423,7 +1423,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   } else
 #endif
   {
-    GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
+    GASNETC_DIDX_POST((_gasneti_mythread_slow())->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
@@ -1487,7 +1487,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       retval = gasnetc_general_am_send_request(gpd);
     } else {
       /* Rdma data, then send header as part of completion*/
-      GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
+      GASNETC_DIDX_POST((_gasneti_mythread_slow())->domain_idx);
       retval = gasnetc_put_longasync_payload(dest, dest_addr, source_addr, nbytes, gpd GASNETC_DIDX_PASS);
     }
   }
@@ -1590,7 +1590,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
+    GASNETC_DIDX_POST((_gasneti_mythread_slow())->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
@@ -1627,7 +1627,7 @@ extern int gasnetc_AMReplyLongM(
   See the GASNet spec and http://gasnet.lbl.gov/dist/docs/gasnet.html for
     philosophy and hints on efficiently implementing no-interrupt sections
   Note: the extended-ref implementation provides a thread-specific void* within the 
-    gasnete_threaddata_t data structure which is reserved for use by the core 
+    gasneti_threaddata_t data structure which is reserved for use by the core 
     (and this is one place you'll probably want to use it)
 */
 #if GASNETC_USE_INTERRUPTS

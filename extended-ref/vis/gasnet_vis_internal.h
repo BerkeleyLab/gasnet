@@ -62,10 +62,10 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
   return result;
 }
 
-/* gasnete_threaddata_t might not be defined yet, but VIS ptr must be 3rd */
-#define GASNETE_VIS_MYTHREAD (((void **)GASNETE_MYTHREAD)[2] ? \
-        ((void **)GASNETE_MYTHREAD)[2] :                       \
-        (((void **)GASNETE_MYTHREAD)[2] = gasnete_vis_new_threaddata()))
+/* gasneti_threaddata_t might not be defined yet, but VIS ptr must be 3rd */
+#define GASNETE_VIS_MYTHREAD (((void **)GASNETI_MYTHREAD)[2] ? \
+        ((void **)GASNETI_MYTHREAD)[2] :                       \
+        (((void **)GASNETI_MYTHREAD)[2] = gasnete_vis_new_threaddata()))
 
 #define GASNETI_VIS_CAT_PUTV_GATHER       1
 #define GASNETI_VIS_CAT_GETV_SCATTER      2
@@ -87,9 +87,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_SETUP(visop, synctype, isget) do {              \
     if (synctype == gasnete_synctype_nbi) {                           \
       visop->eop = NULL;                                              \
-      visop->iop = gasneti_iop_register(1,isget GASNETE_THREAD_PASS); \
+      visop->iop = gasneti_iop_register(1,isget GASNETI_THREAD_PASS); \
     } else {                                                          \
-      visop->eop = gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);     \
+      visop->eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);     \
       visop->iop = NULL;                                              \
     }                                                                 \
 } while (0)
@@ -143,7 +143,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype, islocal) do {    \
   if (synctype != gasnete_synctype_nbi && !islocal)        \
-    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS); \
+    gasnete_begin_nbi_accessregion(1 GASNETI_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate handle */
@@ -151,9 +151,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     if (islocal) return GASNET_INVALID_HANDLE;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);               \
+        return gasnete_end_nbi_accessregion(GASNETI_THREAD_PASS_ALONE);               \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE)); \
+        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETI_THREAD_PASS_ALONE)); \
         return GASNET_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
         return GASNET_INVALID_HANDLE;                                                 \
@@ -168,7 +168,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETI_MEMCPY((dstaddr), (srcaddr), (nbytes));                \
     else gasnete_put_nbi_bulk((dstnode), (dstaddr), (srcaddr), (nbytes)         \
-                                GASNETE_THREAD_PASS);                           \
+                                GASNETI_THREAD_PASS);                           \
   } while (0)
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
@@ -177,7 +177,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETI_MEMCPY((dstaddr), (srcaddr), (nbytes));                \
     else gasnete_get_nbi_bulk((dstaddr), (srcnode), (srcaddr), (nbytes)         \
-                                GASNETE_THREAD_PASS);                           \
+                                GASNETI_THREAD_PASS);                           \
   } while (0)
 
 

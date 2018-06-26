@@ -51,9 +51,9 @@ typedef uintptr_t gasnet_register_value_t;
 #endif
 
 #define _GASNETE_MYTHREAD
-struct _gasnete_threaddata_t;
-extern struct _gasnete_threaddata_t * const gasnete_threaddata_ptr;
-#define gasnete_mythread() (gasnete_threaddata_ptr)
+struct _gasneti_threaddata_t;
+extern struct _gasneti_threaddata_t * const gasnete_threaddata_ptr;
+#define _gasneti_mythread_slow() (gasnete_threaddata_ptr)
 #define GASNETI_MAX_THREADS 1
 
 #define GASNETE_COLL_CONDUIT_BARRIERS GASNETE_COLL_BARRIER_SHMEM

@@ -123,7 +123,7 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
 }
 
 
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG) {
+void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETI_THREAD_FARG) {
  /* do nothing for now*/
 }
 
@@ -397,7 +397,7 @@ void gasnete_coll_scratch_make_remote_alloc(gasnete_coll_scratch_req_t *req,
   }  
 }
 
-int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG) {
+int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) {
   gasnete_coll_scratch_req_t *scratch_req = op->scratch_req;
   gasnete_coll_scratch_status_t *stat = scratch_req->team->scratch_status;
 

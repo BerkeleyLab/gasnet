@@ -1229,7 +1229,7 @@ GASNETI_INLINE(gasnete_rmdbarrier_send)
 void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
                              gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
+  GASNETI_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
   unsigned int step = state >> 1;
   gasnet_handle_t handle;
   gasnete_coll_rmdbarrier_inbox_t *payload;
@@ -1250,13 +1250,13 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
    * consuming any of the 65535 explicit handles promised to the client.
    */
 
-  gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+  gasnete_begin_nbi_accessregion(1 GASNETI_THREAD_PASS);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gasnet_node_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
-    gasnete_put_nbi_bulk(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
+    gasnete_put_nbi_bulk(node, addr, payload, sizeof(*payload) GASNETI_THREAD_PASS);
   }
-  handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+  handle = gasnete_end_nbi_accessregion(GASNETI_THREAD_PASS_ALONE);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */
@@ -2111,7 +2111,7 @@ int gasnete_barrier_result_common(gasnete_coll_team_t team, int *id) {
  * These implement GASNET_BARRIERFLAG_IMAGES before calling the generic layer.
  */
 
-void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETI_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
 #if GASNET_PAR
   if(flags & GASNET_BARRIERFLAG_IMAGES) {
@@ -2124,7 +2124,7 @@ void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GAS
   gasnete_barrier_notify_common(team, id, flags);
 }
 
-int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETI_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
   /* currently there's no try version of the smp_coll_barriers*/
   /* so the try is not yet supported over the images*/
@@ -2146,7 +2146,7 @@ int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETE
   return gasnete_barrier_try_common(team, id, flags);
 }
 
-int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNETI_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
 #if GASNET_PAR 
   if(flags & GASNET_BARRIERFLAG_IMAGES){
@@ -2163,7 +2163,7 @@ int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNET
   return gasnete_barrier_wait_common(team, id, flags);
 }
 
-int gasnete_coll_barrier(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+int gasnete_coll_barrier(gasnete_coll_team_t team, int id, int flags GASNETI_THREAD_FARG) {
   gasneti_assert(flags == (flags & GASNETE_BARRIERFLAGS_CLIENT_COLL));
 #if GASNET_PAR 
   if(flags & GASNET_BARRIERFLAG_IMAGES) {
@@ -2179,7 +2179,7 @@ int gasnete_coll_barrier(gasnete_coll_team_t team, int id, int flags GASNETE_THR
   return gasnete_barrier_common(team, id, flags);
 }
 
-int gasnete_coll_barrier_result(gasnete_coll_team_t team, int *id GASNETE_THREAD_FARG) {
+int gasnete_coll_barrier_result(gasnete_coll_team_t team, int *id GASNETI_THREAD_FARG) {
   return gasnete_barrier_result_common(team, id);
 }
 
@@ -2250,7 +2250,7 @@ static int gasnete_barrier_result_default(gasnete_coll_team_t team, int *id) {
 
 /* This is for use by conduits that don't have a specialized version */
 int gasnete_barrier_default(gasnete_coll_team_t team, int id, int flags) {
-  GASNETE_THREAD_LOOKUP
+  GASNETI_THREAD_LOOKUP
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t barrier_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif

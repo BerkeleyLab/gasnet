@@ -36,7 +36,7 @@ volatile uint32_t new_team_id = 0; /* new_team_id is for communication
 /*called by only one thread*/
 static void initialize_team_fields(gasnete_coll_team_t team,  
                                    const gasnet_image_t images[], gasnet_node_t myrank, gasnet_node_t num_members, 
-                                   gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG) {
+                                   gasnet_seginfo_t * scratch_segments GASNETI_THREAD_FARG) {
 
   size_t image_size = num_members*sizeof(gasnet_image_t);
   int i;
@@ -135,7 +135,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->smallest_scratch_seg = smallest_scratch_seg;
   team->autotune_info = gasnete_coll_autotune_init(team, myrank, num_members, 
                                                    team->my_images, team->total_images,
-                                                   smallest_scratch_seg GASNETE_THREAD_PASS);
+                                                   smallest_scratch_seg GASNETI_THREAD_PASS);
   team->consensus_issued_id = 0;
   team->consensus_id = 0;
   gasnete_coll_alloc_new_scratch_status(team);
@@ -176,7 +176,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
                             gasnet_node_t myrank,
                             gasnet_node_t *rel2act_map,
                             gasnet_seginfo_t *scratch_segs,
-                            const gasnet_image_t images[] GASNETE_THREAD_FARG)
+                            const gasnet_image_t images[] GASNETI_THREAD_FARG)
 {
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_init: team %p, team_id %x, total_ranks %u, myrank %u\n", 
@@ -190,7 +190,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   
   gasnet_node_t *supernodes = NULL;
   uint32_t i;
-  initialize_team_fields(team, images, myrank, total_ranks, scratch_segs GASNETE_THREAD_PASS); 
+  initialize_team_fields(team, images, myrank, total_ranks, scratch_segs GASNETI_THREAD_PASS); 
   team->team_id = team_id;
   team->total_ranks = total_ranks;
   team->myrank = myrank;
@@ -351,7 +351,7 @@ void gasnete_coll_teamid_reqh(gasnet_token_t token,
 /* collective function that should be called by all participating nodes */
 gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
                                               gasnet_node_t myrank,
-                                              gasnet_node_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG)
+                                              gasnet_node_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t team;
   gasnet_node_t team_lead = rel2act_map[0];
@@ -398,7 +398,7 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
 #if GASNET_PAR
   gasneti_fatalerror("can't call team_init in PAR Builds yet");
 #endif
-  gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETE_THREAD_PASS);
+  gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETI_THREAD_PASS);
   new_team_id = 0;
   
   /* unlock */
@@ -420,7 +420,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
                                              gasnet_node_t mycolor,
                                              gasnet_node_t myrelrank,
                                              void *clientdata
-                                             GASNETE_THREAD_FARG)
+                                             GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t newteam;
   uint32_t new_total_ranks;
@@ -474,7 +474,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   
   /* create a team */
   new_team_id = 0;
-  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETI_THREAD_PASS);
 
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_split: new_total_ranks %u, myrelrank %u.\n",
@@ -483,10 +483,10 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   fflush(stderr);
 #endif
 
-  newteam = gasnete_coll_team_create(new_total_ranks, myrelrank, rel2act_map, segments GASNETE_THREAD_PASS);
+  newteam = gasnete_coll_team_create(new_total_ranks, myrelrank, rel2act_map, segments GASNETI_THREAD_PASS);
   
   gasneti_free(rel2act_map);
-  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETI_THREAD_PASS);
 #ifdef GASNETI_USE_FCA
   gasnet_team_fca_enable(newteam);
 #endif

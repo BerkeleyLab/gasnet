@@ -58,18 +58,18 @@ extern uint64_t gasneti_max_threads(void);
 extern void gasneti_fatal_threadoverflow(const char *_subsystem);
 
 #ifndef _GASNETE_MYTHREAD
-  struct _gasnete_threaddata_t;
+  struct _gasneti_threaddata_t;
   #if GASNETI_MAX_THREADS <= 256
-    extern struct _gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
+    extern struct _gasneti_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
   #else
-    extern struct _gasnete_threaddata_t **gasnete_threadtable;
+    extern struct _gasneti_threaddata_t **gasnete_threadtable;
   #endif
   #if GASNETI_MAX_THREADS > 1
     #if GASNETI_COMPILER_IS_CC
       GASNETI_THREADKEY_DECLARE(gasnete_threaddata);
       extern void * gasnete_new_threaddata(void);
-      GASNETI_INLINE(gasnete_mythread) GASNETI_CONST
-      struct _gasnete_threaddata_t *gasnete_mythread(void) {
+      GASNETI_INLINE(_gasneti_mythread_slow) GASNETI_CONST
+      struct _gasneti_threaddata_t *_gasneti_mythread_slow(void) {
         void *_threaddata = gasneti_threadkey_get(gasnete_threaddata);
         GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
         if_pf (!_threaddata) { /* first time we've seen this thread - need to set it up */
@@ -80,15 +80,15 @@ extern void gasneti_fatal_threadoverflow(const char *_subsystem);
         gasneti_memcheck(_threaddata);
         return _threaddata;
       }
-      GASNETI_CONSTP(gasnete_mythread)
+      GASNETI_CONSTP(_gasneti_mythread_slow)
     #else // !GASNETI_COMPILER_IS_CC
       // threadkey-get currently incurs a fncall on !CC anyhow, so nothing to save here
-      extern struct _gasnete_threaddata_t *gasnete_slow_mythread(void) GASNETI_CONST;
+      extern struct _gasneti_threaddata_t *gasnete_slow_mythread(void) GASNETI_CONST;
       GASNETI_CONSTP(gasnete_slow_mythread)
-      #define gasnete_mythread() gasnete_slow_mythread()
+      #define _gasneti_mythread_slow() gasnete_slow_mythread()
     #endif
   #else
-    #define gasnete_mythread() (gasnete_threadtable[0])
+    #define _gasneti_mythread_slow() (gasnete_threadtable[0])
   #endif
 #endif
 
@@ -429,17 +429,6 @@ typedef union {
   #define gasnete_loopbackget_memsync()
 #endif
 
-/* ------------------------------------------------------------------------------------ */
-// TODO-EX: remove this name shift and just use GASNETI_ globally
-#define GASNETE_THREAD_FARG_ALONE GASNETI_THREAD_FARG_ALONE 
-#define GASNETE_THREAD_FARG       GASNETI_THREAD_FARG       
-#define GASNETE_THREAD_GET_ALONE  GASNETI_THREAD_GET_ALONE  
-#define GASNETE_THREAD_GET        GASNETI_THREAD_GET        
-#define GASNETE_THREAD_PASS_ALONE GASNETI_THREAD_PASS_ALONE 
-#define GASNETE_THREAD_PASS       GASNETI_THREAD_PASS       
-#define GASNETE_THREAD_LOOKUP     GASNETI_THREAD_LOOKUP
-#define GASNETE_THREAD_SWALLOW(x) GASNETI_THREAD_SWALLOW(x)
-#define GASNETE_MYTHREAD          GASNETI_MYTHREAD 
 
 /* helper macros */
 #define _GASNETI_RETURN_V  return

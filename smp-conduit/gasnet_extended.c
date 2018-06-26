@@ -45,10 +45,10 @@ extern void gasnete_init(void) {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  { gasnete_threaddata_t *threaddata = NULL;
+  { gasneti_threaddata_t *threaddata = NULL;
     #if GASNETI_MAX_THREADS > 1
       /* register first thread (optimization) */
-      threaddata = gasnete_mythread(); 
+      threaddata = _gasneti_mythread_slow(); 
     #else
       /* register only thread (required) */
       threaddata = gasnete_new_threaddata();
