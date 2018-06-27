@@ -191,15 +191,10 @@ or similarly, if you want libgasnet to contain debugging symbols:
       Note that not all conduits and operating systems support this feature.
       For more information, see the section below entitled "GASNet inter-Process
       SHared Memory (PSHM)".
-    --with-segment-mmap-max=<n>GB - configure maximum segment size.
-      Many of the GASNet network conduits obtain memory for the shared segment
-      (in FAST and LARGE segment configurations) using mmap().  By default
-      GASNet will use a very conservative (2GB minus pagesize) maximum value
-      for calls to mmap().  This configure option allows one to raise that
-      to a value more appropriate to your platform.  See also the description
-      below for the GASNET_MAX_SEGSIZE environment variable, for information
-      on the two setings which take precedence over this configure setting.
-
+    --with-max-segment=<val> - configure-time default value for GASNET_MAX_SEGSIZE,
+      which is used when GASNET_MAX_SEGSIZE is not set at runtime. See the description 
+      of the GASNET_MAX_SEGSIZE environment variable below for details.
+      
   Configure will detect various interesting features about your system and
 compilers, including which GASNet conduits are supported.
 
@@ -602,9 +597,23 @@ application-specific support.
  See usage information below.
 
 * GASNET_MAX_SEGSIZE - control the upper limit for FAST/LARGE segment size on most conduits
- This setting defaults to the value passed to configure: --with-segment-mmap-max=XGB
- or the one provided by the GASNet client at link-time with a definition like:
-   uint64_t gasnet_max_segsize = ((uint64_t)8) << 30; /* set to 8GB */
+ This setting defaults to the value passed to configure: --with-max-segsize=<val>
+ In FAST and LARGE segment configurations, GASNet probes each compute node at
+ startup to determine an upper-limit on the available space for use in the
+ GASNet segment (and some other large internal objects). This value provides
+ one upper-limit to that probe, which also has the effect of limiting the 
+ space available for client segments (as reported by gasnet_getMaxLocalSegmentSize()).
+ <val> has the following format: size_spec ( / opt_suffix )
+ where 'size_spec' is either an absolute memory size: [0-9]+{KB,MB,GB}
+ or a fraction of compute node physical memory: 0.85
+ and 'opt_suffix' is one of the following: (or empty, which means "P")
+  "P" : means the limit is per-process and EXCLUDES internal GASNet objects
+  "H" : means the limit is host-wide and INCLUDES internal GASNet objects 
+ Examples:
+  "0.85/H" : limit host-wide use at 85% of physical memory (this is also the default)
+  "4GB/P"  : try to ensure 4GB per process of GASNet shared segment space
+ The default behavior of this option has grown considerably smarter over time, so
+ it's anticipated that most clients will never need to set this.
 
 * GASNET_DISABLE_MUNMAP - requests the use of mallopt() on glibc systems to disable
  mmap-based allocation for satisfying malloc. This can be used to work-around a
