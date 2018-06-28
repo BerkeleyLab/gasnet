@@ -23,7 +23,7 @@ GIT               ?= git
 GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(LEGION_CONDUIT)))
 FRAGMENT=#empty by default
 ifneq ($(FRAGMENT),)
-include $(LEGION_BLDDIR)/gasnet/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
+include $(LEGION_GASNET_INST)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
 echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
 .PHONY: echovars
 endif
@@ -32,7 +32,7 @@ RUNTIME_TARGETS = librealm.a liblegion.a
 SEED_DIR = $(LEGION_BLDDIR)/examples/circuit # NOTE: must not be an OMP or CUDA test
 COMMON_ENV = \
 	LG_RT_DIR="$(LEGION_BLDDIR)/runtime" USE_GASNET=1 \
-	GASNET="$(LEGION_BLDDIR)/gasnet" CONDUIT=$(LEGION_CONDUIT) \
+	GASNET="$(LEGION_GASNET_INST)" CONDUIT=$(LEGION_CONDUIT) \
 	$(GASNET_VARS)
 DO_MAKE = env $(COMMON_ENV) $(LEGION_TEST_ENV) $(MAKE)
 
@@ -91,6 +91,29 @@ legion-patch: force
 	for p in $(legion_patches); do $(WGET) $$p && patch -p1 < `basename $$p`; done
 .PHONY: legion-patch
 
+# Either install GASNet (empty LEGION_GASNET) or use in-place
+ifeq ($(strip $(LEGION_GASNET)),)
+LEGION_GASNET_INST = $(LEGION_BLDDIR)/gasnet
+legion-gasnet: force
+	if test -d "$(LEGION_GASNET_INST)"; then \
+	  rm -Rf "$(LEGION_GASNET_INST)";  \
+	elif test -e "$(LEGION_GASNET_INST)"; then \
+	  rm -f "$(LEGION_GASNET_INST)";  \
+	fi
+	@echo ======== Installing GASNet at $(LEGION_GASNET_INST) ========
+	$(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_GASNET_INST)"
+else
+LEGION_GASNET_INST = $(strip $(LEGION_GASNET))
+legion-gasnet: force
+	@if test -f "$(LEGION_GASNET_INST)/include/gasnet.h"; then \
+	  echo ======== Using GASNet pre-installed at $(LEGION_GASNET_INST) ========; \
+	else \
+	  echo ERROR: No GASNet install at $(LEGION_GASNET_INST) \
+	  exit 1; \
+	fi
+endif
+.PHONY: legion-gasnet
+
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
@@ -98,8 +121,8 @@ launcher:
 	smp) echo '#!/bin/sh' > $@ ; \
 	     echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
 	     chmod +x $@;; \
-	udp) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/amudprun $@;; \
-	  *) ln -s "$(LEGION_BLDDIR)"/gasnet/bin/gasnetrun_$(LEGION_CONDUIT) $@;; \
+	udp) ln -s "$(LEGION_GASNET_INST)/bin/amudprun" $@;; \
+	  *) ln -s "$(LEGION_GASNET_INST)/bin/gasnetrun_$(LEGION_CONDUIT)" $@;; \
 	esac
 
 # Pre-build the runtime libs to separate the output from that of first test build
@@ -121,13 +144,7 @@ _legion: force
 	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
 	$(MAKE) legion-patch 2>&1 | tee -a $(LOGFILE)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
-	if test -f "$(LEGION_GASNET)/include/gasnet.h"; then \
-	  echo ======== GASNet symlinked ========; \
-	  ln -s `cd "$(LEGION_GASNET)" && pwd` $(LEGION_BLDDIR)/gasnet; \
-	else \
-	  echo ======== GASNet install ========; \
-	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_BLDDIR)/gasnet"; \
-	fi $(TO_LOG)
+	$(MAKE) legion-gasnet 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	$(MAKE) launcher rtlibs
 	@touch legion-built
