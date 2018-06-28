@@ -3,6 +3,7 @@ CHAPEL_GIT_COMMIT ?= master
 CHAPEL_MAKE_ARGS  ?= -j4
 CHAPEL_BLDDIR     ?= $(TOP_BUILDDIR)/chapel
 CHAPEL_TMPDIR     ?= $(TOP_BUILDDIR)/chapel-tmp
+CHAPEL_HOME       ?= $(HARNESS_WORKDIR)/chapel
 CHAPEL_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 CHAPEL_PATH_PRE   ?=# empty - if set must end with :
 CHAPEL_PATH_POST  ?=# empty - if set must start with :
@@ -75,6 +76,7 @@ chapel-unpack-tgz:   force
 
 # Save time by building for a single conduit
 CHPL_GASNET_CFG_OPTIONS += --disable-auto-conduit-detect --enable-$(CHAPEL_CONDUIT)
+CHAPEL_MAKE_ARGS += CHPL_GASNET_CFG_OPTIONS="$(CHPL_GASNET_CFG_OPTIONS)"
 
 # Define CHPL_LAUNCHER for some conduits without our desired defaults.
 # Note that these have not necessarily all been tested.
@@ -97,20 +99,28 @@ clone-launcher: force
 	$(PERL) -pi -e 's/_$(SRC_CONDUIT)/_$(DST_CONDUIT)/g' -- $$dst/*
 .PHONY: chapel-launcher clone-launcher
 
+COMMON_ENV = PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST)
 
-COMMON_ENV = CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT) $(chapel_launcher_opt) \
-	PATH=$(CHAPEL_PATH_PRE)$$PATH$(CHAPEL_PATH_POST)
+CONFIG_ENV = $(COMMON_ENV) $(chapel_launcher_opt) \
+             CHPL_COMM=gasnet CHPL_COMM_SUBSTRATE=$(CHAPEL_CONDUIT)
 
-# Build Chapel runtime
+# Build and (optionally) install Chapel compiler and runtime
 _chapel: force
 	rm -f chapel-built
 	$(MAKE) chapel-download 2>&1 | tee $(LOGFILE)
 	$(MAKE) chapel-launcher
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
-	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
-	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) \
-	    $(MAKE) $(CHAPEL_MAKE_ARGS) all >> $(LOGFILE) 2>&1
+	mkdir -p "$(CHAPEL_HOME)"
+	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && (                       \
+	  env $(CONFIG_ENV) $(CHAPEL_BUILD_ENV) ./configure --chpl-home="$(CHAPEL_HOME)" && \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) $(MAKE) $(CHAPEL_MAKE_ARGS) all             \
+	) >> $(LOGFILE) 2>&1
+	if test "$(CHAPEL_HOME)" != "$(CHAPEL_BLDDIR)"; then \
+	  cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) &&                   \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) $(MAKE) $(CHAPEL_MAKE_ARGS) install &&  \
+	  env $(COMMON_ENV) $(CHAPEL_BUILD_ENV) $(MAKE) $(CHAPEL_MAKE_ARGS) clean;      \
+	fi >> $(LOGFILE) 2>&1
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	@touch chapel-built
 
@@ -132,9 +142,9 @@ check: chapel-built
 #
 test_common: chapel-built
 	rm -f $(TEST_EXE) $(TEST_EXE)_real
-	cd $(CHAPEL_BLDDIR) && . util/setchplenv.$(CHAPEL_SHELL) && \
+	. $(CHAPEL_HOME)/util/setchplenv.$(CHAPEL_SHELL) && \
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
-	    $(MAKE) -C $(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
+	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
 	mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
 	if test -e $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real; then \
 	  mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE)_real $(TEST_EXE)_real; \
