@@ -10,7 +10,7 @@ GASNet-EX ChangeLog
   welcomed at: gasnet-devel@lbl.gov
 
 ----------------------------------------------------------------------
-06-28-2018: GASNet-EX 2018.6.0 Release
+06-28-2018: GASNet-EX 2018.6.0 Beta release
 
 * GASNet-EX Spec v0.5:
   - Specified Teams and Collectives APIs [EXPERIMENTAL]
@@ -236,10 +236,10 @@ code base, from which the EX code was branched (and is periodically
 synchronized).
 Note some entries below do not apply to the EX branch.
 ----------------------------------------------------------------------
-GASNet ChangeLog 
-----------------
+GASNet-1 ChangeLog 
+------------------
 ----------------------------------------------------------------------
-06-28-2018: pending 1.30.2 work @c919cff
+06-28-2018: pending 1.32.0 work @c919cff
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
@@ -303,7 +303,7 @@ GASNet ChangeLog
   - Fix bug 3741: misidentification of IBM XL Compilers 13.1.6 and newer (v6)
   - Fix bug 3743: verify correct KNL processor tuning on CNL
   - Fix bug 3679: AMUDP incompatibility with PGI C++ 17+
-  - Public headers are less suceptible to malfunctions when compiled with
+  - Public headers are less susceptible to malfunctions when compiled with
     un-prefixed tokens redefined by the preprocessor. C/C++ keywords remain
     reserved, as do tokens prepended by one or more underscores or one of the
     reserved gasnet prefixes (see 'GASNet coding standards' in README-devel)
