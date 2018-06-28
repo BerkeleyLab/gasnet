@@ -7,6 +7,7 @@
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_ibv.h>
+#include <gasnet_coll.h>
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -63,6 +64,9 @@ extern void gasnete_init(void) {
   /* Initialize barrier resources */
   gasnete_barrier_init();
 
+  /* Initialize team/collectives */
+  gasnete_coll_init_subsystem();
+
   /* Initialize VIS subsystem */
   gasnete_vis_init();
 }
@@ -102,8 +106,9 @@ gex_Event_t gasnete_get_nb(
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   /* XXX check error returns */
-  gasnetc_rdma_get(rank, src, dest, nbytes, flags,
+  gasnetc_rdma_get(jobrank, src, dest, nbytes, flags,
                    &op->initiated_cnt, gasnetc_cb_eop_get
                    GASNETI_THREAD_PASS);
   return (gex_Event_t)op;
@@ -141,8 +146,9 @@ gex_Event_t gasnete_put_nb(
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
 
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   /* XXX check error returns */
-  gasnetc_rdma_put(rank, src, dest, nbytes, flags,
+  gasnetc_rdma_put(jobrank, src, dest, nbytes, flags,
                    local_cnt, local_cb,
                    &op->initiated_cnt, gasnetc_cb_eop_put
                    GASNETI_THREAD_PASS);
@@ -187,8 +193,9 @@ int gasnete_get_nbi (gex_TM_t tm,
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
 
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   /* XXX check error returns */ 
-  gasnetc_rdma_get(rank, src, dest, nbytes, flags,
+  gasnetc_rdma_get(jobrank, src, dest, nbytes, flags,
                    &op->initiated_get_cnt,
                    op->next ? gasnetc_cb_nar_get : gasnetc_cb_iop_get
                    GASNETI_THREAD_PASS);
@@ -211,8 +218,6 @@ int gasnete_put_nbi (gex_TM_t tm,
   gasnetc_atomic_val_t *local_cnt;
   gasnetc_cb_t         local_cb;
 
-  /* XXX check error returns */ 
-
   if (lc_opt == GEX_EVENT_GROUP) {
     local_cnt = &op->initiated_alc_cnt;
     local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
@@ -226,7 +231,9 @@ int gasnete_put_nbi (gex_TM_t tm,
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
 
-  gasnetc_rdma_put(rank, src, dest, nbytes, flags,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  /* XXX check error returns */ 
+  gasnetc_rdma_put(jobrank, src, dest, nbytes, flags,
                    local_cnt, local_cb,
                    &op->initiated_put_cnt,
                    op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put
@@ -251,7 +258,9 @@ extern int gasnete_get  (gex_TM_t tm,
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_rdma_get(rank, src, dest, nbytes, flags,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  /* XXX check error returns */ 
+  gasnetc_rdma_get(jobrank, src, dest, nbytes, flags,
                    &req_oust.initiated, gasnetc_cb_counter_rel
                    GASNETI_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0 GASNETI_THREAD_PASS);
@@ -268,7 +277,9 @@ extern int gasnete_put  (gex_TM_t tm,
   GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_rdma_put(rank, src, dest, nbytes, flags,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  /* XXX check error returns */ 
+  gasnetc_rdma_put(jobrank, src, dest, nbytes, flags,
                    NULL, NULL,
                    &req_oust.initiated, gasnetc_cb_counter
                    GASNETI_THREAD_PASS);
@@ -397,7 +408,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
     const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
-    if (gasneti_pshm_in_supernode(node)) {
+    if (gasneti_pshm_jobrank_in_supernode(node)) {
       *(volatile gasnete_coll_rmdbarrier_inbox_t *)addr = *payload;
     } else
 #endif
@@ -792,8 +803,8 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
       void *addr = gasnete_rdmabarrier_auxseg[node].addr;
       barrier_data->barrier_peers[1+step].node = node;
     #if GASNET_PSHM
-      if (gasneti_pshm_in_supernode(node)) {
-        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_addr2local(node, addr);
+      if (gasneti_pshm_jobrank_in_supernode(node)) {
+        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_jobrank_addr2local(node, addr);
       } else
     #endif
       barrier_data->barrier_peers[1+step].addr = (uintptr_t)addr;

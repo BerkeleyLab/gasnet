@@ -127,7 +127,7 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
 extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount) {
   return 200+dstcount*50+srccount*50;
 }
-extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
+extern size_t gasneti_format_putvgetv(char *buf, gex_TM_t tm, gex_Rank_t rank,
                                     size_t dstcount, gex_Memvec_t const dstlist[], 
                                     size_t srccount, gex_Memvec_t const srclist[]) {
   const int bufsz = gasneti_format_putvgetv_bufsz(dstcount, srccount);
@@ -135,9 +135,9 @@ extern size_t gasneti_format_putvgetv(char *buf, gex_Rank_t node,
   char * srclist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(srccount));
   gasneti_memveclist_stats_t dststats = gasneti_format_memveclist(dstlist_str, dstcount, dstlist);
   (void) gasneti_format_memveclist(srclist_str, srccount, srclist);
-  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i\n"
+  sprintf(buf,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT"\n"
               "dst: %s\nsrc: %s",
-              dststats._totalsz, (int)(node),
+              dststats._totalsz, GASNETI_TMRANKSTR(tm,rank),
               dstlist_str, srclist_str);    
   gasneti_assert(strlen(buf) < bufsz);
   gasneti_free(dstlist_str);
@@ -178,7 +178,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
 extern size_t gasneti_format_putigeti_bufsz(size_t dstcount, size_t srccount) {
   return 500+dstcount*25+srccount*25;
 }
-extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
+extern size_t gasneti_format_putigeti(char *buf, gex_TM_t tm, gex_Rank_t rank,
                                     size_t dstcount, void * const dstlist[], size_t dstlen,
                                     size_t srccount, void * const srclist[], size_t srclen) {
   const int bufsz = gasneti_format_putigeti_bufsz(dstcount, srccount);
@@ -187,9 +187,9 @@ extern size_t gasneti_format_putigeti(char *buf, gex_Rank_t node,
   size_t totalsz = dstcount * dstlen;
   (void) gasneti_format_addrlist(dstlist_str, dstcount, (void * const *)dstlist, dstlen);
   (void) gasneti_format_addrlist(srclist_str, srccount, (void * const *)srclist, srclen);
-  size_t len = snprintf(buf,bufsz,"(%"PRIuSZ" data bytes) node=%i\n"
+  size_t len = snprintf(buf,bufsz,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT"\n"
               "dst: %s\nsrc: %s",
-              totalsz, (int)node,
+              totalsz, GASNETI_TMRANKSTR(tm,rank),
               dstlist_str, srclist_str);    
   gasneti_assert(len < bufsz);
   gasneti_free(dstlist_str);
@@ -218,7 +218,7 @@ extern size_t gasneti_format_putsgets_bufsz(size_t stridelevels) {
   return 500+3*stridelevels*50;
 }
 extern size_t gasneti_format_putsgets(char *buf, void *_pstats, 
-                                    gex_Rank_t node,
+                                    gex_TM_t tm, gex_Rank_t rank,
                                     void *dstaddr, const ptrdiff_t dststrides[],
                                     void *srcaddr, const ptrdiff_t srcstrides[],
                                     size_t elemsz, const size_t count[], size_t stridelevels) {
@@ -231,10 +231,10 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
     return 0;
   }
   if_pf (stridelevels == 0) {
-    sprintf(buf,"(%"PRIuSZ" data bytes) node=%i stridelevels=0 elemsz=%"PRIuSZ"\n"
+    sprintf(buf,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT" stridelevels=0 elemsz=%"PRIuSZ"\n"
               "dst: dstaddr="GASNETI_LADDRFMT"\n"
               "src: srcaddr="GASNETI_LADDRFMT,
-       elemsz, (int)node, elemsz,
+       elemsz, GASNETI_TMRANKSTR(tm,rank), elemsz,
        GASNETI_LADDRSTR(dstaddr),
        GASNETI_LADDRSTR(srcaddr)
     );
@@ -258,13 +258,13 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   gasneti_format_strides(dststrides_str, stridelevels, dststrides);
   gasneti_assert(sizeof(ptrdiff_t) == sizeof(size_t));
   gasneti_format_strides(count_str, stridelevels, (const ptrdiff_t *)count);
-  sprintf(buf,"(%"PRIuSZ" data bytes) node=%i stridelevels=%"PRIuSZ" elemsz=%"PRIuSZ" count=%s\n"
+  sprintf(buf,"(%"PRIuSZ" data bytes) peer="GASNETI_TMRANKFMT" stridelevels=%"PRIuSZ" elemsz=%"PRIuSZ" count=%s\n"
               "dst: dstaddr="GASNETI_LADDRFMT" dststrides=%s\n"
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
               "src: srcaddr="GASNETI_LADDRFMT" srcstrides=%s\n"
               "     extent=%"PRIuSZ" bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
            ,
-              totalsz, (int)(node), stridelevels, elemsz, count_str,
+              totalsz, GASNETI_TMRANKSTR(tm,rank), stridelevels, elemsz, count_str,
               GASNETI_LADDRSTR(dstaddr), dststrides_str, 
               dstextent, GASNETI_LADDRSTR(dstbase), GASNETI_LADDRSTR((uint8_t *)dstbase+dstextent-1),
               GASNETI_LADDRSTR(srcaddr), srcstrides_str,
@@ -317,17 +317,25 @@ gasneti_format_mask(char *buf, uint64_t val, int count, const char **names, cons
 }
 
 size_t gasneti_format_dt(char *buf, gex_DT_t dt) {
-  static const char* names[] = {"I32", "U32", "I64", "U64", "FLT", "DBL"};
+  static const char* names[] = {"I32", "U32", "I64", "U64", "FLT", "DBL", "USER"};
   return gasneti_format_mask(buf,dt,sizeof(names)/sizeof(char *),names,"GEX_DT_");
 }
 
 size_t gasneti_format_op(char *buf, gex_OP_t op) {
   static const char* names[] = {
-    "AND",  "OR",   "XOR",  "ADD",  "SUB",  "MULT",
-    "MIN",  "MAX",  "INC",  "DEC",
-    "FAND", "FOR",  "FXOR", "FADD", "FSUB", "FMULT",
-    "FMIN", "FMAX", "FINC", "FDEC",
-    "SET",  "GET",  "SWAP", "CSWAP"
+    "AND",   "OR",    "XOR",
+    "ADD",   "SUB",   "MULT",
+    "MIN",   "MAX",
+    "INC",   "DEC",
+    "SET",   "CAS",
+    "UNK12", "UNK13", "UNK14", // 12 - 14 reserved
+    "FAND",  "FOR",   "FXOR",
+    "FADD",  "FSUB",  "FMULT",
+    "FMIN",  "FMAX",
+    "FINC",  "FDEC",
+    "SWAP",  "FCAS",  "GET",
+    "UNK28", "UNK29",          // 28 - 29 reserved
+    "USER",  "USER_NC"
   };
   return gasneti_format_mask(buf,op,sizeof(names)/sizeof(char *),names,"GEX_OP_");
 }
@@ -349,6 +357,7 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
       unsigned int frozen;
     } gasneti_srclineinfo_t;
     static void gasneti_srclineinfo_cleanup_threaddata(void *_td) {
+      gasneti_threadkey_set(gasneti_srclineinfo_key, NULL);
       gasneti_free(_td);
     }
     GASNETI_INLINE(gasneti_mysrclineinfo)
@@ -393,13 +402,9 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
   #endif
 #endif
 
-#if GASNETI_STATS_OR_TRACE
-  #define BUILD_STATS(type,name,desc) { #type, #name, #desc },
-  gasneti_statinfo_t gasneti_stats[] = {
-    GASNETI_ALL_STATS(BUILD_STATS, BUILD_STATS, BUILD_STATS)
-    {NULL, NULL, NULL}
-  };
-
+// gasneti_dynsprintf() available even w/o TRACE/STATS
+// For instance, for generating portions of error messages
+#if 1
   #define BUFSZ     8192
   #define NUMBUFS   4
   typedef struct {
@@ -408,18 +413,9 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
   } gasneti_printbuf_t;
   GASNETI_THREADKEY_DEFINE(gasneti_printbuf_key);
   static void gasneti_printbuf_cleanup_threaddata(void *_td) {
+      gasneti_threadkey_set(gasneti_printbuf_key, NULL);
       gasneti_free(_td);
   }
-
-  /* give gcc enough information to type-check our format strings */
-  GASNETI_FORMAT_PRINTF(gasneti_file_vprintf,2,0,
-  static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr));
-  GASNETI_FORMAT_PRINTF(gasneti_trace_printf,1,2,
-  static void gasneti_trace_printf(const char *format, ...));
-  GASNETI_FORMAT_PRINTF(gasneti_stats_printf,1,2,
-  static void gasneti_stats_printf(const char *format, ...));
-  GASNETI_FORMAT_PRINTF(gasneti_tracestats_printf,1,2,
-  static void gasneti_tracestats_printf(const char *format, ...));
 
   static char *gasneti_getbuf(void) {
     gasneti_printbuf_t * printbuf;
@@ -449,6 +445,24 @@ size_t gasneti_format_ti(char *buf, gex_TI_t ti) {
     va_end(argptr);
     return output;
   }
+#endif
+
+#if GASNETI_STATS_OR_TRACE
+  #define BUILD_STATS(type,name,desc) { #type, #name, #desc },
+  gasneti_statinfo_t gasneti_stats[] = {
+    GASNETI_ALL_STATS(BUILD_STATS, BUILD_STATS, BUILD_STATS)
+    {NULL, NULL, NULL}
+  };
+
+  /* give gcc enough information to type-check our format strings */
+  GASNETI_FORMAT_PRINTF(gasneti_file_vprintf,2,0,
+  static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr));
+  GASNETI_FORMAT_PRINTF(gasneti_trace_printf,1,2,
+  static void gasneti_trace_printf(const char *format, ...));
+  GASNETI_FORMAT_PRINTF(gasneti_stats_printf,1,2,
+  static void gasneti_stats_printf(const char *format, ...));
+  GASNETI_FORMAT_PRINTF(gasneti_tracestats_printf,1,2,
+  static void gasneti_tracestats_printf(const char *format, ...));
 
   #define BYTES_PER_LINE 16
   #define MAX_LINES 10
@@ -1259,11 +1273,11 @@ extern void gasneti_trace_finish(void) {
       gasneti_stats_printf("--------------------------------------------------------------------------------");
       gasneti_stats_printf("GASNet Statistical Summary:");
     
-      #define ACCUM(pacc, pintval) do {                                       \
-          pacc->count += pintval->count;                                      \
-          if (pintval->minval < pacc->minval) pacc->minval = pintval->minval; \
-          if (pintval->maxval > pacc->maxval) pacc->maxval = pintval->maxval; \
-          pacc->sumval += pintval->sumval;                                    \
+      #define ACCUM(pacc, pintval) do {                                           \
+          pacc->_count += pintval->_count;                                        \
+          if (pintval->_minval < pacc->_minval) pacc->_minval = pintval->_minval; \
+          if (pintval->_maxval > pacc->_maxval) pacc->_maxval = pintval->_maxval; \
+          pacc->_sumval += pintval->_sumval;                                      \
       } while (0)
       #define CALC_AVG(sum,count) ((count) == 0 ? (gasneti_statctr_t)-1 : (sum) / (count))
       #define DUMP_CTR(type,name,desc)                     \
@@ -1277,30 +1291,30 @@ extern void gasneti_trace_finish(void) {
         if (GASNETI_STATS_ENABLED(type)) {                          \
           gasneti_stat_intval_t *p = &gasneti_stat_intval_##name;   \
           const char *pdesc = #desc;                                \
-          if (!p->count)                                            \
+          if (!p->_count)                                           \
             gasneti_stats_printf(" %-25s %6i", #name":", 0);        \
           else                                                      \
             gasneti_stats_printf(" %-25s %6"PRIu64"  avg/min/max/total"  \
                                  " %s = %"PRIu64"/%"PRIu64"/%"PRIu64"/%"PRIu64, \
-                  #name":", p->count, pdesc,                        \
-                  CALC_AVG(p->sumval,p->count),                     \
-                  p->minval, p->maxval, p->sumval);                 \
+                  #name":", p->_count, pdesc,                       \
+                  CALC_AVG(p->_sumval,p->_count),                   \
+                  p->_minval, p->_maxval, p->_sumval);              \
           ACCUM((&AGGRNAME(intval,type)), p);                       \
         }
       #define DUMP_TIMEVAL(type,name,desc)                                   \
         if (GASNETI_STATS_ENABLED(type)) {                                   \
           gasneti_stat_timeval_t *p = &gasneti_stat_timeval_##name;          \
           const char *pdesc = #desc;                                         \
-          if (!p->count)                                                     \
+          if (!p->_count)                                                    \
             gasneti_stats_printf(" %-25s %6i", #name":", 0);                 \
           else                                                               \
             gasneti_stats_printf(" %-25s %6"PRIu64"  avg/min/max/total"      \
                                  " %s (us) = %.3f/%.3f/%.3f/%.3f",           \
-                  #name":", p->count, pdesc,                                 \
-                  gasneti_ticks_to_ns(CALC_AVG(p->sumval, p->count))/1000.0, \
-                  gasneti_ticks_to_ns(p->minval)/1000.0,                     \
-                  gasneti_ticks_to_ns(p->maxval)/1000.0,                     \
-                  gasneti_ticks_to_ns(p->sumval)/1000.0);                    \
+                  #name":", p->_count, pdesc,                                \
+                  gasneti_ticks_to_ns(CALC_AVG(p->_sumval, p->_count))/1000.0, \
+                  gasneti_ticks_to_ns(p->_minval)/1000.0,                    \
+                  gasneti_ticks_to_ns(p->_maxval)/1000.0,                    \
+                  gasneti_ticks_to_ns(p->_sumval)/1000.0);                   \
           ACCUM((&AGGRNAME(timeval,type)), p);                               \
         }
 
@@ -1311,14 +1325,14 @@ extern void gasneti_trace_finish(void) {
       #define DUMP_AGGR_SZ(type,name) do {                                      \
         if (GASNETI_STATS_ENABLED(type)) {                                      \
           gasneti_stat_intval_t *p = &AGGRNAME(intval,type);                    \
-          if (!p->count)                                                        \
+          if (!p->_count)                                                       \
             gasneti_stats_printf("%-25s  %6i","Total "#name":",0);              \
           else                                                                  \
             gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total"         \
                                  " sz = %"PRIu64"/%"PRIu64"/%"PRIu64"/%"PRIu64, \
                                  "Total "#name":",                              \
-                                 p->count, CALC_AVG(p->sumval,p->count),        \
-                                 p->minval, p->maxval, p->sumval);              \
+                                 p->_count, CALC_AVG(p->_sumval,p->_count),     \
+                                 p->_minval, p->_maxval, p->_sumval);           \
         }                                                                       \
       } while (0)
       DUMP_AGGR_SZ(G,gets);
@@ -1327,40 +1341,40 @@ extern void gasneti_trace_finish(void) {
       if (GASNETI_STATS_ENABLED(S)) {
         gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,S);
         gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,S);
-        if (!try_succ->count)
+        if (!try_succ->_count)
           gasneti_stats_printf("%-25s  %6i","Total try sync. calls:",0);
         else
           gasneti_stats_printf("%-25s  %6"PRIu64"  try success rate = %f%%  \n",
-            "Total try sync. calls:",  try_succ->count,
-            (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
-        if (!wait_time->count)
+            "Total try sync. calls:",  try_succ->_count,
+            (float)(CALC_AVG((float)try_succ->_sumval, try_succ->_count) * 100.0));
+        if (!wait_time->_count)
           gasneti_stats_printf("%-25s  %6i","Total wait sync. calls:",0);
         else
           gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total wait sync. calls:", wait_time->count,
-            gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
-            gasneti_ticks_to_ns(wait_time->minval)/1000.0,
-            gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
-            gasneti_ticks_to_ns(wait_time->sumval)/1000.0);
+            "Total wait sync. calls:", wait_time->_count,
+            gasneti_ticks_to_ns(CALC_AVG(wait_time->_sumval, wait_time->_count))/1000.0,
+            gasneti_ticks_to_ns(wait_time->_minval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->_maxval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->_sumval)/1000.0);
       }
       if (GASNETI_STATS_ENABLED(X)) {
         gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,X);
         gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,X);
-        if (!try_succ->count)
+        if (!try_succ->_count)
           gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
         else
           gasneti_stats_printf("%-25s  %6"PRIu64"  collective try success rate = %f%%  \n",
-            "Total coll. try syncs:",  try_succ->count,
-            (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
-        if (!wait_time->count)
+            "Total coll. try syncs:",  try_succ->_count,
+            (float)(CALC_AVG((float)try_succ->_sumval, try_succ->_count) * 100.0));
+        if (!wait_time->_count)
           gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
         else
           gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total coll. wait syncs:", wait_time->count,
-            gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
-            gasneti_ticks_to_ns(wait_time->minval)/1000.0,
-            gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
-            gasneti_ticks_to_ns(wait_time->sumval)/1000.0);
+            "Total coll. wait syncs:", wait_time->_count,
+            gasneti_ticks_to_ns(CALC_AVG(wait_time->_sumval, wait_time->_count))/1000.0,
+            gasneti_ticks_to_ns(wait_time->_minval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->_maxval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->_sumval)/1000.0);
       }
       if (GASNETI_STATS_ENABLED(A)) 
         gasneti_stats_printf("%-25s  %6"PRIu64, "Total AM's:", AGGRNAME(ctr,A));
@@ -1466,18 +1480,18 @@ extern void gasneti_stat_count_accumulate(gasneti_statctr_t *pctr) {
 }
 extern void gasneti_stat_intval_accumulate(gasneti_stat_intval_t *pintval, gasneti_statctr_t val) {
   GASNETI_STAT_LOCK();
-    pintval->count++;
-    pintval->sumval += val;
-    if_pf (val > pintval->maxval) pintval->maxval = val;
-    if_pf (val < pintval->minval) pintval->minval = val;
+    pintval->_count++;
+    pintval->_sumval += val;
+    if_pf (val > pintval->_maxval) pintval->_maxval = val;
+    if_pf (val < pintval->_minval) pintval->_minval = val;
   GASNETI_STAT_UNLOCK();
 }
 extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gasneti_tick_t val) {
   GASNETI_STAT_LOCK();
-    pintval->count++;
-    pintval->sumval += val;
-    if_pf (val > pintval->maxval) pintval->maxval = val;
-    if_pf (val < pintval->minval) pintval->minval = val;
+    pintval->_count++;
+    pintval->_sumval += val;
+    if_pf (val > pintval->_maxval) pintval->_maxval = val;
+    if_pf (val < pintval->_minval) pintval->_minval = val;
   GASNETI_STAT_UNLOCK();
 }
 #endif

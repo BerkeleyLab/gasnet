@@ -283,6 +283,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
+  gasneti_legacy_segment_attach_hook(ep);
   *segment_p = gasneti_export_segment(ep->_segment);
 
   /* After local segment is attached, call optional client-provided hook
@@ -334,17 +335,15 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetc_attach( gex_Client_t           *client_p,
-                           gex_EP_t               *ep_p,
-                           gex_TM_t               *tm_p,
-                           gex_Segment_t          *segment_p,
+extern int gasnetc_attach( gex_TM_t               _tm,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
                            uintptr_t              segsize)
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
-  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+  gasneti_TM_t tm = gasneti_import_tm(_tm);
+  gasneti_EP_t ep = tm->_ep;
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -367,7 +366,8 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
-    if (GASNET_OK != gasnetc_attach_segment(segment_p, *tm_p, segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
+    gex_Segment_t seg; // g2ex segment is automatically saved by a hook
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -422,7 +422,7 @@ extern int gasnetc_Client_Init(
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -455,13 +455,6 @@ extern int gasnetc_Segment_Attach(
   // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
   if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
-
-  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
-  uintptr_t segsize = gasneti_seginfo[gasneti_mynode].size;
-  const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
-  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
-  *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
 }
@@ -1217,8 +1210,9 @@ int gasnetc_AMRequestShort(
                 int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval = GASNET_OK;
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, jobrank, handler,
                                           NULL, 0, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1235,7 +1229,7 @@ int gasnetc_AMRequestShort(
     cmd.header.iov_len = GASNETC_ARGSEND(short, numargs);
     cmd.data.iov_base = NULL;
     cmd.data.iov_len = 0;
-    cmd.dest = gasnetc_endpoint(rank);
+    cmd.dest = gasnetc_endpoint(jobrank);
     cmd.dispatch = GASNETC_DISP_SHORT;
     cmd.hints = gasnetc_null_send_hint;
 
@@ -1280,8 +1274,9 @@ int gasnetc_AMRequestMedium(
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Medium, jobrank, handler,
                                           source_addr, nbytes, NULL,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1317,7 +1312,7 @@ int gasnetc_AMRequestMedium(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_MED;
     cmd.send.hints = gasnetc_null_send_hint;
 
@@ -1379,8 +1374,9 @@ int gasnetc_AMRequestLong(
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  if_pt (gasnetc_dest_in_nbrhd(tm, rank)) {
-    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, tm, rank, handler,
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Long, jobrank, handler,
                                           source_addr, nbytes, dest_addr,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -1410,7 +1406,7 @@ int gasnetc_AMRequestLong(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = (char *)source_addr;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_LONG;
     cmd.send.hints = gasnetc_null_send_hint;
 
@@ -1484,7 +1480,7 @@ int gasnetc_AMReplyShort(
     pami_result_t rc;
     gasnetc_shortmsg_t msg;
 
-    gex_Rank_t rank = gasnetc_msgsource(token);
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(short, token);
     GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
@@ -1493,7 +1489,7 @@ int gasnetc_AMReplyShort(
     cmd.header.iov_len = GASNETC_ARGSEND(short, numargs);
     cmd.data.iov_base = NULL;
     cmd.data.iov_len = 0;
-    cmd.dest = gasnetc_endpoint(rank);
+    cmd.dest = gasnetc_endpoint(jobrank);
     cmd.dispatch = GASNETC_DISP_SHORT;
     cmd.hints = gasnetc_null_send_hint;
 
@@ -1557,7 +1553,7 @@ int gasnetc_AMReplyMedium(
         cmd.events.remote_fn = NULL;
     }
 
-    gex_Rank_t rank = gasnetc_msgsource(token);
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(med, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
@@ -1568,7 +1564,7 @@ int gasnetc_AMReplyMedium(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_MED;
     cmd.send.hints = gasnetc_null_send_hint;
 
@@ -1649,7 +1645,7 @@ int gasnetc_AMReplyLong(
         cmd.events.remote_fn = NULL;
     }
 
-    gex_Rank_t rank = gasnetc_msgsource(token);
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
 
     GASNETC_AM_VALIDATE_TOKEN(long, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
@@ -1661,7 +1657,7 @@ int gasnetc_AMReplyLong(
     cmd.send.header.iov_len = header_len;
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
-    cmd.send.dest = gasnetc_endpoint(rank);
+    cmd.send.dest = gasnetc_endpoint(jobrank);
     cmd.send.dispatch = GASNETC_DISP_LONG;
     cmd.send.hints = gasnetc_null_send_hint;
 

@@ -46,19 +46,19 @@
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
     union {
-      hrtime_t in;
-      gasneti_tick_t out;
-    } t;
-    t.in = gethrtime();
-    return t.out;
+      hrtime_t _in;
+      gasneti_tick_t _out;
+    } _t;
+    _t._in = gethrtime();
+    return _t._out;
   }
   #define gasneti_ticks_to_ns(st)  (st)
 #else
   typedef hrtime_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     gasneti_assert(sizeof(gasneti_tick_t) == 8);
-    return *(uint64_t*)&st;
+    return *(uint64_t*)&_st;
   }
   #define gasneti_ticks_now()      (gethrtime())
   #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
@@ -92,28 +92,28 @@
   GASNETI_NEVER_INLINE(gasneti_timer_init,
   static volatile uint64_t *gasneti_timer_init(void)) {
     if_pf (!gasneti_tick_p) {
-      int result;
-      uint64_t val = 0;
+      int _result;
+      uint64_t _val = 0;
       if ((gasneti_timer_fd = open(MMTIMER_FULLNAME, O_RDONLY)) == -1) 
          gasneti_fatalerror("failed to open %s", MMTIMER_FULLNAME);
-      if ((result = ioctl(gasneti_timer_fd, MMTIMER_GETFREQ, &val)) == -ENOSYS) 
+      if ((_result = ioctl(gasneti_timer_fd, MMTIMER_GETFREQ, &_val)) == -ENOSYS) 
          gasneti_fatalerror("failed to MMTIMER_GETFREQ");
-      gasneti_assert(val >= 10000000); /* 10 MHz min reqd by spec */
-      gasneti_timer_tick = 1.0E9 / val;
+      gasneti_assert(_val >= 10000000); /* 10 MHz min reqd by spec */
+      gasneti_timer_tick = 1.0E9 / _val;
       gasneti_assert(gasneti_timer_tick != 0.0);
       #if GASNETI_HPET_MMAP
-      { void *loc;
-        int offset; 
+      { void *_loc;
+        int _offset; 
         gasneti_assert_always(ioctl(gasneti_timer_fd, MMTIMER_MMAPAVAIL, 0) == 1);
-        offset = ioctl(gasneti_timer_fd, MMTIMER_GETOFFSET, 0); /* fetch offset of counter in mmap page */
-        gasneti_assert_always(offset >= 0 && offset < GASNETI_PAGESIZE-8);
-        loc = mmap(NULL, GASNETI_PAGESIZE, PROT_READ, MAP_PRIVATE, gasneti_timer_fd, 0);
-        if (loc == NULL || loc == MAP_FAILED) 
+        _offset = ioctl(gasneti_timer_fd, MMTIMER_GETOFFSET, 0); /* fetch offset of counter in mmap page */
+        gasneti_assert_always(_offset >= 0 && _offset < GASNETI_PAGESIZE-8);
+        _loc = mmap(NULL, GASNETI_PAGESIZE, PROT_READ, MAP_PRIVATE, gasneti_timer_fd, 0);
+        if (_loc == NULL || _loc == MAP_FAILED) 
           gasneti_fatalerror("failed to mmap MMTIMER: %s",strerror(errno));
         close(gasneti_timer_fd); /* fd is no longer required */
         gasneti_timer_fd = -1;
         gasneti_sync_writes();
-        gasneti_tick_p = (uint64_t *)(((char*)loc) + offset);
+        gasneti_tick_p = (uint64_t *)(((char*)_loc) + _offset);
       }
       #else
         gasneti_sync_writes();
@@ -124,27 +124,27 @@
   }
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
-    volatile uint64_t *ptr = gasneti_tick_p; 
-    if_pf (!ptr) ptr = gasneti_timer_init();
+    volatile uint64_t *_ptr = gasneti_tick_p; 
+    if_pf (!_ptr) _ptr = gasneti_timer_init();
     #if GASNETI_HPET_MMAP
-      return *ptr;
+      return *_ptr;
     #else /* use ioctl - this works, but is actually slower than gettimeofday */
-    { uint64_t val = 0;
-      int result;
+    { uint64_t _val = 0;
+      int _result;
       #if GASNET_DEBUG
-        result = ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &val);
-        if_pf (result == -ENOSYS) gasneti_fatalerror("failed to MMTIMER_GETCOUNTER: %i %s", result, strerror(result));
+        _result = ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &_val);
+        if_pf (_result == -ENOSYS) gasneti_fatalerror("failed to MMTIMER_GETCOUNTER: %i %s", _result, strerror(_result));
       #else
-        ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &val); 
+        ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &_val); 
       #endif
-      return (gasneti_tick_t)val;
+      return (gasneti_tick_t)_val;
     }
     #endif
   }
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     gasneti_assert(gasneti_tick_p);
-    return (uint64_t)(st * gasneti_timer_tick);
+    return (uint64_t)(_st * gasneti_timer_tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_OPENBSD || \
@@ -155,25 +155,25 @@
  #if GASNETI_HAVE_GCC_ASM
     GASNETI_INLINE(gasneti_ticks_now)
     uint64_t gasneti_ticks_now (void) {
-      uint64_t ret;
+      uint64_t _ret;
     #if (PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC)
-      uint32_t lo, hi;
+      uint32_t _lo, _hi;
       __asm__ __volatile__("rdtsc"
-                           : "=a" (lo), "=d" (hi)
+                           : "=a" (_lo), "=d" (_hi)
                            /* no inputs */); 
-      ret = ((uint64_t)lo) | (((uint64_t)hi)<<32);
+      _ret = ((uint64_t)_lo) | (((uint64_t)_hi)<<32);
     #elif PLATFORM_ARCH_X86
       __asm__ __volatile__("rdtsc"
-                           : "=A" (ret)
+                           : "=A" (_ret)
                            /* no inputs */); 
     #elif PLATFORM_ARCH_IA64
       __asm__ __volatile__("mov %0=ar.itc" 
-                           : "=r"(ret) 
+                           : "=r"(_ret) 
                            /* no inputs */);
     #else
       #error Unreachable
     #endif
-      return ret;
+      return _ret;
     }
  #elif PLATFORM_COMPILER_SUN && GASNETI_ASM_AVAILABLE
    /* The current compiler has asm, but lacks full GNU-style asm() support.
@@ -225,14 +225,14 @@
   extern double gasneti_timer_Tick; /* inverse GHz */
   extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     if_pf (gasneti_timer_firstTime) {
       gasneti_timer_Tick = gasneti_calibrate_tsc(); /* Too much to inline */
       gasneti_assert(gasneti_timer_Tick != 0.0);
       gasneti_sync_writes();
       gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * gasneti_timer_Tick);
+    return (uint64_t)(_st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_POWERPC && ( PLATFORM_OS_LINUX || PLATFORM_OS_BGQ)
@@ -254,25 +254,25 @@
 
   GASNETI_INLINE(gasneti_ticks_now)
   uint64_t gasneti_ticks_now(void) {
-    uint64_t ret;
+    uint64_t _ret;
     #if PLATFORM_ARCH_64
       __asm__ __volatile__(GASNETI_MFTB(0)
-                           : "=r" (ret)
+                           : "=r" (_ret)
                            : /* no inputs */); 
     #else
       /* Note we must read hi twice to protect against wrap of lo */
-      uint32_t o_hi, hi, lo;
+      uint32_t _o_hi, _hi, _lo;
       __asm__ __volatile__("0: \n\t"
 		           GASNETI_MFTBU(0) "\n\t"
 			   GASNETI_MFTBL(1) "\n\t"
 			   GASNETI_MFTBU(2) "\n\t"
 			   "cmpw  %0, %2\n\t"
 			   "bne- 0b\n\t"
-                           : "=r" (o_hi), "=r" (lo), "=r" (hi)
+                           : "=r" (_o_hi), "=r" (_lo), "=r" (_hi)
                            : /* no inputs */); 
-      ret = ((uint64_t)hi << 32) | lo;
+      _ret = ((uint64_t)_hi << 32) | _lo;
     #endif
-    return ret;
+    return _ret;
   } 
 
   #undef GASNETI_MFTB
@@ -303,14 +303,14 @@
       
       GASNETI_INLINE(gasneti_ticks_now)
       uint64_t gasneti_ticks_now(void) {
-        uint32_t hi, hi2, lo;
+        uint32_t _hi, _hi2, _lo;
         /* Note we must read hi twice to protect against wrap of lo */
         do {
-           hi = gasneti_mftb_high();
-           lo = gasneti_mftb_low();        
-           hi2 = gasneti_mftb_high();
-        } while (hi != hi2);
-        return ((uint64_t)hi << 32) | lo;
+           _hi = gasneti_mftb_high();
+           _lo = gasneti_mftb_low();        
+           _hi2 = gasneti_mftb_high();
+        } while (_hi != _hi2);
+        return ((uint64_t)_hi << 32) | _lo;
       } 
    #endif
  #else
@@ -322,61 +322,61 @@
   extern double gasneti_timer_Tick; /* inverse GHz */
   extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     if_pf (gasneti_timer_firstTime) {
-      uint32_t freq;
+      uint32_t _freq;
      #if PLATFORM_OS_BGQ
       /* don't know how to query this, so hard-code it for now */
-      freq = 1600000000;
+      _freq = 1600000000;
      #else 
-      DIR *dp = opendir("/proc/device-tree/cpus");
-      struct dirent *de = NULL;
-      FILE *fp = NULL;
-      double MHz = 0.0;
-      char fname[128];
-      if (!dp) gasneti_fatalerror("*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s",strerror(errno));
+      DIR *_dp = opendir("/proc/device-tree/cpus");
+      struct dirent *_de = NULL;
+      FILE *_fp = NULL;
+      double _MHz = 0.0;
+      char _fname[128];
+      if (!_dp) gasneti_fatalerror("*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s",strerror(errno));
       do {
-        de = readdir(dp);
-	if (de && 
-           ( de->d_name == strstr(de->d_name, "PowerPC,") || /* PowerPC */
-             de->d_name == strstr(de->d_name, "cpu@0") /* IBM cell */
+        _de = readdir(_dp);
+	if (_de && 
+           ( _de->d_name == strstr(_de->d_name, "PowerPC,") || /* PowerPC */
+             _de->d_name == strstr(_de->d_name, "cpu@0") /* IBM cell */
            )) {
 	  break;
 	}
-      } while (de);
-      if (!de) gasneti_fatalerror("*** ERROR: Failure to find a PowerPC CPU in /proc/device-tree/cpus");
-      snprintf(fname, sizeof(fname), "/proc/device-tree/cpus/%.*s/timebase-frequency", 24, de->d_name);
-      closedir(dp);
-      fp = fopen(fname, "r");
-      if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
-      if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) 
-        gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", fname, strerror(errno));
+      } while (_de);
+      if (!_de) gasneti_fatalerror("*** ERROR: Failure to find a PowerPC CPU in /proc/device-tree/cpus");
+      snprintf(_fname, sizeof(_fname), "/proc/device-tree/cpus/%.*s/timebase-frequency", 24, _de->d_name);
+      closedir(_dp);
+      _fp = fopen(_fname, "r");
+      if (!_fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",_fname,strerror(errno));
+      if (fread((void *)(&_freq), sizeof(uint32_t), 1, _fp) != 1) 
+        gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", _fname, strerror(errno));
     #if PLATFORM_ARCH_LITTLE_ENDIAN /* value is always big-endian */
-      freq = ((freq & 0x000000ff) << 24) |
-             ((freq & 0x0000ff00) <<  8) |
-             ((freq & 0x00ff0000) >>  8) |
-             ((freq & 0xff000000) >> 24);
+      _freq = ((_freq & 0x000000ff) << 24) |
+             ((_freq & 0x0000ff00) <<  8) |
+             ((_freq & 0x00ff0000) >>  8) |
+             ((_freq & 0xff000000) >> 24);
     #endif
-      fclose(fp);
-      if (freq == 0) { /* Playstation3 */
-        char input[255];
-        fp = fopen("/proc/cpuinfo", "r");
-        if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
-        while (!feof(fp) && fgets(input, 255, fp)) {
-          if (strstr(input,"timebase")) {
-            char *p = strchr(input,':');
-            if (p) { freq = atoi(p+1); break; }
+      fclose(_fp);
+      if (_freq == 0) { /* Playstation3 */
+        char _input[255];
+        _fp = fopen("/proc/cpuinfo", "r");
+        if (!_fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+        while (!feof(_fp) && fgets(_input, 255, _fp)) {
+          if (strstr(_input,"timebase")) {
+            char *_p = strchr(_input,':');
+            if (_p) { _freq = atoi(_p+1); break; }
           }
         }
-        fclose(fp);
+        fclose(_fp);
       }
      #endif
-      gasneti_assert(freq > 1000000 && freq < 2000000000); /* ensure it looks reasonable (1MHz to 2Ghz) */
-      gasneti_timer_Tick = 1.0e9 / freq;
+      gasneti_assert(_freq > 1000000 && _freq < 2000000000); /* ensure it looks reasonable (1MHz to 2Ghz) */
+      gasneti_timer_Tick = 1.0e9 / _freq;
       gasneti_sync_writes();
       gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * gasneti_timer_Tick);
+    return (uint64_t)(_st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_OS_CYGWIN
@@ -399,21 +399,21 @@
   extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
-    LARGE_INTEGER val;
-    gasneti_assert_nzeroret(QueryPerformanceCounter(&val));
-    gasneti_assert(val.QuadPart > 0);
-    return (gasneti_tick_t)val.QuadPart;
+    LARGE_INTEGER _val;
+    gasneti_assert_nzeroret(QueryPerformanceCounter(&_val));
+    gasneti_assert(_val.QuadPart > 0);
+    return (gasneti_tick_t)_val.QuadPart;
   }
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     if_pf (gasneti_timer_firstTime) {
-      LARGE_INTEGER temp;
-      gasneti_assert_nzeroret(QueryPerformanceFrequency(&temp));
-      gasneti_timer_Tick = 1.0E9 / ((double)temp.QuadPart);
+      LARGE_INTEGER _temp;
+      gasneti_assert_nzeroret(QueryPerformanceFrequency(&_temp));
+      gasneti_timer_Tick = 1.0E9 / ((double)_temp.QuadPart);
       gasneti_sync_writes();
       gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * gasneti_timer_Tick);
+    return (uint64_t)(_st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_OS_DARWIN
@@ -427,15 +427,15 @@
   extern int    gasneti_timer_firstTime;
   #define gasneti_ticks_now() mach_absolute_time()
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     if_pf (gasneti_timer_firstTime) {
-      mach_timebase_info_data_t tb;
-      gasneti_assert_zeroret(mach_timebase_info(&tb));
-      gasneti_timer_Tick = ((double)tb.numer) / ((double)tb.denom);
+      mach_timebase_info_data_t _tb;
+      gasneti_assert_zeroret(mach_timebase_info(&_tb));
+      gasneti_timer_Tick = ((double)_tb.numer) / ((double)_tb.denom);
       gasneti_sync_writes();
       gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * gasneti_timer_Tick);
+    return (uint64_t)(_st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif GASNETI_HAVE_AARCH64_CNTVCT_EL0 /* AARCH64/ARMv8 Virtual Timer Count register */
@@ -449,29 +449,29 @@
  #if GASNETI_HAVE_GCC_ASM
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
-    gasneti_tick_t ret;
+    gasneti_tick_t _ret;
 
     __asm__ __volatile__ ("isb\n\t"
                           "mrs %0,CNTVCT_EL0" :
-                          "=r" (ret) :
+                          "=r" (_ret) :
                           /* no inputs */ :
                           "memory");
-    return ret;
+    return _ret;
   }
  #else
   #define GASNETI_USING_SLOW_TIMERS
  #endif
 
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     if_pf (gasneti_timer_firstTime) {
-      uint64_t freq;
-      __asm__ __volatile__ ("mrs %0,CNTFRQ_EL0" : "=r" (freq));
-      gasneti_timer_Tick = 1.0E9/freq;
+      uint64_t _freq;
+      __asm__ __volatile__ ("mrs %0,CNTFRQ_EL0" : "=r" (_freq));
+      gasneti_timer_Tick = 1.0E9/_freq;
       gasneti_sync_writes();
       gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * gasneti_timer_Tick);
+    return (uint64_t)(_st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_MICROBLAZE && (defined(MB_CC) || defined(MB_FSL_CC))
@@ -479,8 +479,8 @@
   GASNETI_INLINE(gasneti_ticks_now)
  #if GASNETI_HAVE_GCC_ASM
   gasneti_tick_t gasneti_ticks_now(void) {
-    unsigned int msr, tmp;
-    gasneti_tick_t retval;
+    unsigned int _msr, _tmp;
+    gasneti_tick_t _retval;
 
     #if defined(MB_CC)
       __asm__ __volatile__("mfs %0, rmsr\n\t"
@@ -489,7 +489,7 @@
                            "mfchl %M2\n\t"
                            "mfccl %L2\n\t"
                            "mts rmsr, %0\n\t"
-                           : "=r"(msr), "=r"(tmp), "=r"(retval)
+                           : "=r"(_msr), "=r"(_tmp), "=r"(_retval)
                            : /* no inputs */);
     #elif defined(MB_FSL_CC)
       __asm__ __volatile__("mfs %0, rmsr\n\t"
@@ -498,31 +498,31 @@
                            "get %M2, rfsl6\n\t"
                            "cget %L2, rfsl7\n\t"
                            "mts rmsr, %0\n\t"
-                           : "=r"(msr), "=r"(tmp), "=r"(retval)
+                           : "=r"(_msr), "=r"(_tmp), "=r"(_retval)
                            : /* no inputs */);
     #endif
-    return retval;
+    return _retval;
   }
  #else
    #define GASNETI_USING_SLOW_TIMERS 1
  #endif
 
   GASNETI_INLINE(gasneti_ticks_to_us)
-  gasneti_tick_t gasneti_ticks_to_us(gasneti_tick_t st) {
-    unsigned int h0 = (unsigned int) (st >> 32);
-    unsigned int l0 = (unsigned int) (st >>  0);
+  gasneti_tick_t gasneti_ticks_to_us(gasneti_tick_t _st) {
+    unsigned int _h0 = (unsigned int) (_st >> 32);
+    unsigned int _l0 = (unsigned int) (_st >>  0);
 
-    if (h0 == 0) return (((gasneti_tick_t) l0) / MB_TICKS_PER_US);
-    else return (st / MB_TICKS_PER_US);
+    if (_h0 == 0) return (((gasneti_tick_t) _l0) / MB_TICKS_PER_US);
+    else return (_st / MB_TICKS_PER_US);
   }
 
   GASNETI_INLINE(gasneti_ticks_to_ns)
-  gasneti_tick_t gasneti_ticks_to_ns(gasneti_tick_t st) {
-    unsigned int h0 = (unsigned int) (st >> 32);
-    unsigned int l0 = (unsigned int) (st >>  0);
+  gasneti_tick_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
+    unsigned int _h0 = (unsigned int) (_st >> 32);
+    unsigned int _l0 = (unsigned int) (_st >>  0);
 
-    if (h0 == 0) return (((gasneti_tick_t) l0) * (1000 / MB_TICKS_PER_US));
-    else return (st * (1000 / MB_TICKS_PER_US));
+    if (_h0 == 0) return (((gasneti_tick_t) _l0) * (1000 / MB_TICKS_PER_US));
+    else return (_st * (1000 / MB_TICKS_PER_US));
   }
 /* ------------------------------------------------------------------------------------ */
 #elif HAVE_CLOCK_GETTIME
@@ -625,7 +625,7 @@ extern uint64_t gasneti_wallclock_ns(void);
    When measuring an event of length (L) using two surrounding timer calls,
    the measured time interval will be: L + overhead +- granularity
 */
-extern double gasneti_tick_metric(int idx);
+extern double gasneti_tick_metric(int _idx);
 #define gasneti_tick_granularity() gasneti_tick_metric(0)
 #define gasneti_tick_overhead()    gasneti_tick_metric(1)
 /* ------------------------------------------------------------------------------------ */

@@ -1,3 +1,7 @@
+///////////////////////////////
+// GASNet-EX API Description //
+///////////////////////////////
+//
 // This is *not* a final normative document.
 // This is "beta documentation" for a beta release.
 //
@@ -10,6 +14,17 @@
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
 
+// Document Conventions
+//
+// This document includes the annotation [UNIMPLEMENTED] in several places
+// where we feel we have a suitable design ready for consideration, but
+// have yet to provide a complete and/or correct implementation.
+//
+// This document includes the annotation [EXPERIMENTAL] in several places
+// where we feel we have a suitable design and an implementation which is
+// sufficiently complete to be used.  However, based on feedback received
+// from early use, the design may change in non-trivial ways (to the degree
+// that client code may need to change).
 
 //
 // Specification and release versioning:
@@ -20,14 +35,14 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2018
-#define GASNET_RELEASE_VERSION_MINOR 3
-#define GASNET_RELEASE_VERSION_PATCH 1
+#define GASNET_RELEASE_VERSION_MINOR 6
+#define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 4
+#define GEX_SPEC_VERSION_MINOR 5
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -41,7 +56,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 11
+#define GASNETT_SPEC_VERSION_MINOR 12
 
 //
 // Relationship to GASNet-1 APIs:
@@ -61,37 +76,110 @@
 // Where a gex_/GEX_ identifier is interoperable or synonymous with
 // a gasnet_/GASNET_ identifier, that is noted below.
 //
-// This document includes the annotation [UNIMPLEMENTED] in several places
-// where we feel we have a suitable design ready for consideration, but
-// have yet to provide a complete and/or correct implementation.
-//
-// This document includes the annotation [EXPERIMENTAL] in several places
-// where we feel we have a suitable design and an implementation which is
-// sufficiently complete to be used.  However, based on feedback received
-// from early use, the design may change in non-trivial ways (to the degree
-// that client code may need to change).
-
 
 // Hybrid/transitional client support:
 //
-// To enable clients that mix GASNet-1 and GASNet-EX, the following API is
-// provided to allow jobs that initialize GASNet using the legacy
-// gasnet_init()/gasnet_attach() API to access the four key GASNet-EX objects
-// created by those operations.  The types and usage of these objects are
-// described below.  This call is defined in gasnet.h (not gasnetex.h).
+// Clients who are incrementally adopting GASNet-EX may have a period of time
+// when they are using both GASNet-1 and GASNet-EX APIs in the same process. 
+// Such clients should initialize GASNet using *either* the legacy 
+// gasnet_init()/gasnet_attach() calls, or the new gex_Client_Init() call
+// (described in a subsequent section).
+//
+// Note that gasnet_init()/gasnet_attach() may only be called once per process,
+// and currently only one client per process can use GASNet-1 APIs.
+//
+// Hybrid/transitional clients who initialize using gex_Client_Init() should
+// pass the following flag to that function to request the use of GASNet-1 services.
+// 
+#define GEX_FLAG_USES_GASNET1 ((gex_Flags_t)???)
+
+// The following API allows jobs that initialize GASNet for legacy support to
+// access the key GASNet-EX objects created explicitly by gex_Client_Init(), or
+// implicitly by gasnet_init()/gasnet_attach().  The types and usage of these
+// objects are described below.  Initialization for legacy support is either of
+// the following:
+// + Initialization using the legacy gasnet_init()/gasnet_attach() APIs
+// + Initialization using gex_Client_Init() with GEX_FLAG_USES_GASNET1
+//
+// This call is defined in gasnet.h (not gasnetex.h).
 //
 // The arguments are all pointers to locations for outputs, each of which
 // may be NULL if the caller does not need a particular value.
 //
-//     client_p: receives the gex_Client_t created implicitly by gasnet_init()
-//   endpoint_p: receives the gex_EP_t created implicitly by gasnet_init()
-//         tm_p: receives the gex_TM_t created implicitly by gasnet_init()
-//    segment_p: receives the gex_Segment created implicitly by gasnet_attach()
+//     client_p: receives the gex_Client_t
+//   endpoint_p: receives the gex_EP_t
+//         tm_p: receives the gex_TM_t
+//    segment_p: receives the gex_Segment_t, if any
 //
 extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
                                    gex_EP_t          *endpoint_p,
                                    gex_TM_t          *tm_p,
                                    gex_Segment_t     *segment_p);
+
+// Calls from restricted context
+//
+// The only GASNet functions which may be called within AM handler context,
+// or while holding a GASNet handler-safe lock are as follows:
+//
+// gasnet_mynode(), gasnet_nodes(), gasnet_hsl_*(), gasnet_exit(), gasnet_AMReply*(), 
+// gasnet_QueryGexObjects(), gex_System_QueryNbrhdInfo(), gex_System_QueryHostInfo(),
+// gex_System_QueryMyPosition(), gex_System_QueryJob{Rank,Size}(), gex_HSL_*(),
+// gex_*_{Set,Query}CData(), gex_{Client,Segment,EP,TM,AD}_Query*()
+// gex_AM_Max*(), gex_AM_LUB*(), gex_Token_Max*(), gex_Token_Info(),
+// 
+// The following are conditionally permitted in handler context, the condition being the 
+// caller must be within an AMRequest handler and not holding a handler-safe lock:
+//
+// gex_AM_Reply*() gex_AM_{Prepare,Commit}Reply*(), gex_AM_SrcDesc*()
+//
+// All other functions are prohibited to be called from a thread within the 
+// dynamic context of an AM handler, or while holding a handler-safe lock.
+// This prohibition notably prohibits all communication initiation (aside from Reply 
+// injection from a Request handler), explicit polling and test/wait operations on handles/events.
+
+//
+// Glossary:
+// The following terms will be used with specific meanings in this document.
+//
+
+// "Collective Call"
+//
+// Several APIs in this specification are described as being "collective
+// calls".  All collective calls are collective with respect to a specific
+// ordered set of participants, which is usually specified by an argument
+// naming a team (discussed later in detail).  The designation of a call
+// as collective over a given team means:
+//  + For every given team that exists in an execution of the program, all
+//    collective calls made over that team are initiated "in the same order"
+//    by all team members -- otherwise behavior is undefined.
+//  + Here "in the same order" means that for every member of a given team,
+//    the calls over that team and their arguments are "compatible" across all
+//    members at every point in their respective sequence of collective calls
+//    over the team.
+//  + The definition of "compatible" as used here may vary slightly as
+//    defined individually for each call.  However, in the absence of per-call
+//    documentation to the contrary the following rules apply:
+//    - The function called must be the same, or from a related group of calls
+//      explicitly documented as mutually compatible.
+//    - Any arguments documented as "single-valued" must be identical across
+//      all callers.
+//    - Any additional argument compatibility constraints documented for a
+//      given call must be satisfied.
+//
+// In addition to the requirement on compatibility of collective calls over
+// any given team, all collective calls over *distinct* teams must be ordered
+// such that no deadlock would occur if all such calls were replaced by
+// blocking barriers.  A formal specification of this constraint will appear
+// in a future revision of this document.
+
+// "Single-valued"
+//
+// This term is used to designate an argument to a collective call as one that
+// must have the same value on all callers participating in the collective.
+//
+// In the case of 'flags' arguments, this term may be applied in a qualified
+// form as "partially single-valued" when the constraint applies only to some
+// bits (with freedom to differ in the remaining bits).
 
 //
 // Basic types:
@@ -99,7 +187,8 @@ extern void gasnet_QueryGexObjects(gex_Client_t      *client_p,
 
 // Rank
 
-// A "rank" is a position within a team
+// The type gex_Rank_t is used for a position within, or size of, an ordered
+// set (such as a team).
 // Guaranteed to be an unsigned integer type
 // This type is interoperable with gasnet_node_t
 typedef [some unsigned integer type] gex_Rank_t;
@@ -402,6 +491,9 @@ typedef ... gex_Segment_t;
 // and a local gex_EP_t, a local representative of that team.
 typedef ... gex_TM_t;
 
+// Pre-defined value of type gex_TM_t
+#define GEX_TM_INVALID ((gex_TM_t)0)
+
 //
 // Client-Data (CData)
 //
@@ -429,27 +521,37 @@ gex_Flags_t  gex_Client_QueryFlags(gex_Client_t client);
 const char * gex_Client_QueryName(gex_Client_t client);
 
 // Initialize the client
-// Must be called collectively by all processes comprising this GASNet job.
+// This is a collective call over all processes comprising this GASNet job.
 // Currently supports only one call per job.
-// * clientName must be a unique string used to identify this client, and
-//    should match the pattern: [A-Z][A-Z0-9_]+
+// * clientName must reference a string that uniquely identifies this client
+//   within the process, and must match the pattern: [A-Z][A-Z0-9_]+
+//   The contents of the string referenced by clientName must be single-valued.
 //   In future release this string will be used in such contexts as error messages
 //   and naming of environment variables to control per-client aspects of GASNet.
 // * argc/argv are optional references to the command-line arguments received by main().
-//   They are permitted to both be NULL, but providing them may improve portability or
-//   supplementary services.
+//   The caller is permitted to pass NULL for both arguments, if this is done
+//   by all callers.  However, providing pointers to the values received in
+//   main() may improve portability or supplementary services.
 // * client_p, ep_t and tm_p are OUT parameters that receive references to the
 //   newly-created Client, the primordial (thread-safe) Endpoint for this process/client,
 //   and the primordial Team (which contains all the primordial Endpoints, one
 //   for every process in this job).
-// * flags control the creation of the primordial objects, and must currently be 0
+// * flags control the creation of the primordial objects. Supported flags:
+//   + GEX_FLAG_USES_GASNET1 - created client requests the use of GASNet-1 APIs
+//     (defined in gasnet.h). Only permitted for use in one client per process.
+//   Otherwise must be 0.
+//   This is a single-valued parameter.
+//
+// There is an implicit barrier synchronization prior to return from this call
+// to ensure that creation of communications resources has completed on all
+// callers prior to return on any caller.
 extern int gex_Client_Init(
                 gex_Client_t           *client_p,
                 gex_EP_t               *ep_p,
                 gex_TM_t               *tm_p,
+                const char             *clientName,
                 int                    *argc,
                 char                   ***argv,
-                const char             *clientName,
                 gex_Flags_t            flags);
 
 //
@@ -497,7 +599,7 @@ uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 //
 // For rank != gex_TM_QueryRank(tm), this query MAY communicate.
 // This call is not legal in contexts which prohibit communication, including
-// (but is limited to) AM Handler context or when holding an HSL.
+// (but not limited to) AM Handler context or when holding an HSL.
 int gex_Segment_QueryBound(
                 gex_TM_t    tm,
                 gex_Rank_t  rank,
@@ -506,21 +608,40 @@ int gex_Segment_QueryBound(
                 uintptr_t   *size_p);
 
 // Collective allocation and creation of Segments
-// Analogous to gasnet_attach
-// Must be called collectively over tm.
+// Analogous to gasnet_attach (but see below)
+//
+// This is a collective call over the team named by the 'tm' argument that
+// allocates and binds a local GASNet segment on each caller.
+//
+// There is an implicit barrier synchronization prior to return from this call
+// to ensure that the creation and binding of a segment has completed on all
+// callers prior to return on any caller.
+//
+// segment_p: An OUT parameter that receives the newly created gex_Segment_t.
+//            This is not a single-valued parameter.
+// tm:        The call is collective over this team.
+// size:      Size of the local segment to allocate and bind to the local
+//            Endpoint represented by tm.  The value must be a non-zero
+//            multiple of GASNET_PAGESIZE, not larger than
+//            gasnet_getMaxLocalSegmentSize().
+//            This is not a single-valued parameter.
+//
 // The current release allows up to one call per process.
-// * length is the size of the local segment to allocate and bind to the
-//   local Endpoint represented by tm. length is permitted to differ 
-//   across team members, and must be in [0 .. gasnet_getMaxLocalSegmentSize()].
+//
+// The current release requires that 'tm' be the team created by
+// gex_Client_Init().
+//
+// NOTE: gex_Segment_Attach() does not provide alignment of segments across ranks.
+// Use of --enable-aligned-segments at configure time and definition of
+// GASNET_ALIGNED_SEGMENTS at compile time are relevant only to the legacy
+// gasnet_attach() interface.
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               tm,
-                uintptr_t              length);
+                uintptr_t              size);
 
 //
 // Operations on gex_TM_t
-// NOTE: currently gex_Client_Init() is the only way to create a TM.
-// However, additional APIs for TM creation will be added.
 //
 
 // Query owning client
@@ -535,6 +656,91 @@ gex_Flags_t  gex_TM_QueryFlags(gex_TM_t tm);
 // Query rank of team member, and size of team
 gex_Rank_t   gex_TM_QueryRank(gex_TM_t tm);
 gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
+
+// Split a Team into zero or more disjoint teams
+//
+// This is a collective call over the team named by the 'parent_tm' argument
+// that creates zero or more new teams.  While this call is collective, the
+// arguments are NOT required to be single-valued except as noted for certain
+// bits in 'flags'.
+//
+// + When passing any of the GEX_FLAG_TM_SCRATCH_SIZE_* family of flags, this
+//   call is a collective query to determine the minimum or recommended value
+//   for the 'scratch_size' argument, based on the other parameters (excluding
+//   scratch_addr and scratch_len).  No teams are created and nothing is
+//   written into `new_tm_p`.  Otherwise, this call creates zero or more teams
+//   as described in the remaining semantics.
+// + When not operating as a query, the return value is currently undefined.
+// + Callers passing NULL for 'new_tm_p' do not participate in team creation.
+//   This assists in following the collective call requirement without the
+//   need to create teams that are not needed by the client.
+// + For callers passing non-NULL for 'new_tm_p', this call creates a new team
+//   consisting of the associated endpoints of all such callers passing the
+//   same value of 'color'.
+// + Within each newly created team, ranks are assigned (contiguously from
+//   zero) by increasing order of the 'key' argument of the members.  In the
+//   case of equal 'key', ties are broken by ranks in the 'parent_tm' team.
+//   In particular this implies that if all ranks pass the same 'key' value,
+//   then relative rank order from the 'parent_tm' is preserved in all created
+//   teams.
+// + The client may optionally provide scratch space within the bound segment
+//   of the endpoint corresponding to 'parent_tm', for use by the
+//   implementation.  No portion of this memory may be written by the client
+//   or passed to any GASNet function, nor may the segment be destroyed, for
+//   the lifetime of the newly created team.  When the team is destroyed,
+//   ownership of this memory is returned to the client.
+//   [NOTE: this release *requires* the caller to provide this space, but it
+//    is intended that this be optional in a future release.]
+//   [TBD: what about Unbind of the segment w/o destroying it?]
+//
+// new_tm_p:  An OUT parameter that receives the gex_TM_t representing the
+//            newly-created team, if any.
+// parent_tm: The call is collective over this team.
+// color:     A non-negative integer used to match callers to belong to the
+//            same new team.
+// key:       An integer used to order the ranks within newly created teams.
+// scratch_addr, scratch_size:
+//            If scratch_addr is non-NULL, then the memory
+//               [scratch_addr, scratch_addr+scratch_size)
+//            is granted to the implementation for internal use.
+// flags:
+//   Single valued:
+//       GEX_FLAG_TM_SCRATCH_SIZE_*
+//         These mutually exclusive flags convert this call into a collective query.
+//         No team is created in the presence of any flag in this family.
+//         Note that the return value is not guaranteed to be single-valued.
+//         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
+//           {minimum permissible, recommended optimal} value to be passed in 
+//           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
+//            value for the other arguments.
+//   Non-single valued:
+//        None currently defined 
+//
+size_t gex_TM_Split(gex_TM_t *new_tm_p, gex_TM_t parent_tm, int color, int key,
+                    void *scratch_addr, size_t scratch_size, 
+                    gex_Flags_t flags);
+
+// Translations between (tm,rank) and jobrank
+//
+// These functions provide translations in either direction between a
+// (tm,rank) pair and a jobrank.
+//
+// gex_Rank_t gex_TM_TranslateRankToJobrank(tm, rank)
+//    Returns the jobrank of the endpoint in 'tm' with the given 'rank'.
+//    Requires 0 <= rank < gex_TM_QuerySize(tm)
+// gex_Rank_t gex_TM_TranslateJobrankToRank(tm, jobrank)
+//    If there is an endpoint in 'tm' with the given 'jobrank', return its
+//    rank in 'tm'.  Otherwise, returns GEX_RANK_INVALID.
+//    Requires 0 <= jobrank < gex_System_QueryJobSize()
+//
+// These queries MAY communicate.
+// [TBD: exception for 'self' in one both directions?]
+// These calls are not legal in contexts which prohibit communication,
+// including (but not limited to) AM Handler context or when holding an HSL.
+//
+gex_Rank_t gex_TM_TranslateRankToJobrank(gex_TM_t tm, gex_Rank_t rank);
+gex_Rank_t gex_TM_TranslateJobrankToRank(gex_TM_t tm, gex_Rank_t jobrank);
+
 
 //
 // Operations on gex_EP_t
@@ -569,9 +775,14 @@ extern int gex_EP_Create(
 // gex_index may either be in the range [GEX_AM_INDEX_BASE .. 255] to register
 // at a fixed index, or 0 for "don't care" (see gex_EP_RegisterHandlers() for
 // more information on this case).
+//
+// The gex_nargs and gex_flags fields are used by the client to supply the implementation 
+// with assertions regarding the future invocations and behavior of each AM handler.
+// If a handler invocation (eg via an AM injection targetting a given handler) or
+// execution of an AM handler violates its registration assertions, behavior is undefined.
 typedef struct {
     gex_AM_Index_t          gex_index;     // 0 or in [GEX_AM_INDEX_BASE .. 255]
-    gex_AM_Fn_t             gex_fnptr      // Pointer to the handler on this process
+    gex_AM_Fn_t             gex_fnptr;     // Pointer to the handler on this process
     gex_Flags_t             gex_flags;     // Incl. required S/M/L and REQ/REP, see below
     unsigned int            gex_nargs;     // Required in [0 .. gex_AM_MaxArgs()]
 
@@ -1425,16 +1636,29 @@ gex_Event_t gex_Event_QueryLeaf(
 
 
 //
-// Neighborhood: [EXPERIMENTAL]
+// Neighborhood and Host: [EXPERIMENTAL]
+//
 // A "neighborhood" is defined as a set of GEX processes that can share
 // memory via the GASNet PSHM feature, and is abbreviated to Nbrhd.
 //
+// A "host" is an abstract boundary in the system hierarchy that is guaranteed
+// to be a superset of the neighborhood, but the exact definition may be
+// system-specific.  Generally it encompasses processing resources associated
+// with a single physical address space and OS kernel image.  When using
+// GASNet-Tools from the same release, it is guaranteed that the definition
+// for "host" is consistent with the following:
+//   gasnett_cpu_count(), gasnett_getPhysMemSz()
+// However, there is no guarantee of correspondence to gasnett_gethostname().
+//
+// As with all functions in the gex_System_*() namespace, the following queries
+// return information about the global GASNet job, independent of any
+// particular client, team or endpoint.
 
 // Const-qualified struct type for describing a member of a neighborhood
 typedef const struct {
     gex_Rank_t gex_jobrank; // the Job Rank (as defined above)
     // Reserved for future expansion and/or internal-use fields
-} gex_NbrhdInfo_t;
+} gex_RankInfo_t;
 
 // Query information about the neighborhood of the calling process.
 //
@@ -1443,7 +1667,7 @@ typedef const struct {
 //
 // info_p:
 //        Receives the address of an array with elements of type
-//        gex_NbrhdInfo_t (defined above), which includes one entry
+//        gex_RankInfo_t (defined above), which includes one entry
 //        for each process in the neighborhood of the calling process.
 //        Entries are sorted by increasing gex_jobrank.
 //        The storage of this array is owned by GASNet and must not be
@@ -1461,10 +1685,62 @@ typedef const struct {
 //
 // Semantics in a resilient build will be defined in a later release.
 extern void gex_System_QueryNbrhdInfo(
-            gex_NbrhdInfo_t        **info_p,
+            gex_RankInfo_t         **info_p,
             gex_Rank_t             *info_count_p,
             gex_Rank_t             *my_info_index_p);
 
+// Query information about the Host of the calling process.
+//
+// Operates analogously to gex_System_QueryNbrhdInfo, except that instead of
+// querying information about the neighborhood, this function instead queries
+// information about the "host" enclosing the calling process and its 
+// neighborhood.
+// 
+// Argument semantics are identical to gex_System_QueryNbrhdInfo with
+// "neighborhood" replaced with "host".
+
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p);
+
+// Query information about the sets of Neighborhoods and Hosts
+//
+// All arguments are pointers to locations for outputs, each of which
+// may be NULL if the caller does not need a particular value.
+//
+// nbrhd_set_size_p:
+//        Receives the number of neighborhoods in the job.
+// nbrhd_set_rank_p:
+//        Receives the 0-based rank of the caller's neighborhood within
+//        the set of neighborhoods in the job (a value between 0 and
+//        nbrhd_set_size-1, inclusive).
+// host_set_size_p:
+//        Receives the number of hosts in the job.
+// host_set_rank_p:
+//        Receives the 0-based rank of the caller's host within the
+//        set of host in the job (a value between 0 and host_set_size-1,
+//        inclusive).
+//
+// In a non-resilient build, the values returned by this query are constant for
+// any given caller over the lifetime of the job.  Semantics in a resilient
+// build will be defined in a later release.
+//
+// Information returned by this query is guaranteed to be self consistent:
+//   + All callers receive identical nbrhd_set_size.
+//   + Callers in the same neighborhood receive identical nbrhd_set_rank.
+//   + Callers in distinct neighborhoods receive distinct nbrhd_set_rank.
+//   + All callers receive identical host_set_size.
+//   + Callers on the same host receive identical host_set_rank.
+//   + Callers on distinct hosts receive distinct host_set_rank.
+// Other than these rules, and the [0,set_size) ranges, there are no other
+// guarantees as to how the ranks are assigned.
+
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *nbrhd_set_size,
+            gex_Rank_t *nbrhd_set_rank,
+            gex_Rank_t *host_set_size,
+            gex_Rank_t *host_set_rank);
 
 //
 // Handler-safe locks (HSLs)
@@ -1488,10 +1764,11 @@ void gex_HSL_Unlock (gex_HSL_t *hsl);
 int  gex_HSL_Trylock(gex_HSL_t *hsl);
 
 //
-// Data types for atomics and reductions [EXPERIMENTAL]
+// Data types for atomics and reductions
 //
 // GASNet-EX defines (as preprocess-time constants) at least the following
 // data types codes for use with remote atomic and reduction operations.
+// These are known as the "built-in data types".
 //
 //     GEX Constant  C Data Type
 //     ------------  -----------
@@ -1504,11 +1781,16 @@ int  gex_HSL_Trylock(gex_HSL_t *hsl);
 //     GEX_DT_FLT    float
 //     GEX_DT_DBL    double
 //
+// In addition to the built-in data types, the following is used to denote an
+// opaque user-defined data type in the context of a reduction operation.
+//     GEX_DT_USER
+//
 // It is guaranteed that all GEX_DT_* values can be combined via bit-wise OR
 // without loss of information.
 //
-// Currently, Remote Atomics support all six data types listed above.
-// Currently, Reductions are unimplemented.
+// Currently, Remote Atomics support all built-in data types listed above.
+// Currently, Reductions support all data types (built-in and user-defined)
+// listed above.
 //
 // Note that GASNet-EX supports signed and unsigned exact-width integer types.
 // Any mapping to types such as 'int', 'long' and 'long long' is the
@@ -1518,7 +1800,7 @@ typedef [some integer type] gex_DT_t;
 #define GEX_DT_??? ((gex_DT_t)???) // For each GEX_DT_* above
 
 //
-// Operation codes (opcodes) for atomics and reductions [EXPERIMENTAL]
+// Operation codes (opcodes) for atomics and reductions
 //
 // GASNet-EX defines (as preprocess-time constants) at least the following
 // operation codes for use with atomic and reduction operations.  Not all
@@ -1539,23 +1821,27 @@ typedef [some integer type] gex_DT_t;
 // Except where otherwise noted, the expressions below are evaluated according
 // to C language rules.
 //
+// The following are known as the "built-in operations":
 // + Non-fetching Operations
 //    - Binary Arithmetic Operations
 //      Valid for Atomics and Reductions
-//      Valid for all specified GEX_DT_* types
+//      Valid for all built-in data types
 //        GEX_OP_ADD   expr = (op0 + op1)
-//        GEX_OP_SUB   expr = (op0 - op1)
 //        GEX_OP_MULT  expr = (op0 * op1)
 //        GEX_OP_MIN   expr = ((op0 < op1) ? op0 : op1)
 //        GEX_OP_MAX   expr = ((op0 > op1) ? op0 : op1)
+//    - Non-commutative Binary Arithmetic Operations
+//      Valid only for Atomics
+//      Valid for all built-in data types
+//        GEX_OP_SUB   expr = (op0 - op1)
 //    - Unary Arithmetic Operations
 //      Valid only for Atomics
-//      Valid for all specified GEX_DT_* types
+//      Valid for all built-in data types
 //        GEX_OP_INC   expr = (op0 + 1)
 //        GEX_OP_DEC   expr = (op0 - 1)
 //    - Bit-wise Operations
 //      Valid for Atomics and Reductions
-//      Valid only for Integer types
+//      Valid only for Integer built-in types
 //        GEX_OP_AND   expr = (op0 & op1)
 //        GEX_OP_OR    expr = (op0 | op1)
 //        GEX_OP_XOR   expr = (op0 ^ op1)
@@ -1566,10 +1852,11 @@ typedef [some integer type] gex_DT_t;
 //   Additionally these operations fetch 'op0' as the result of the atomic.
 //    - Binary Arithmetic Operations
 //        GEX_OP_FADD
-//        GEX_OP_FSUB
 //        GEX_OP_FMULT
 //        GEX_OP_FMIN
 //        GEX_OP_FMAX
+//    - Non-commutative Binary Arithmetic Operations
+//        GEX_OP_FSUB
 //    - Unary Arithmetic Operations
 //        GEX_OP_FINC
 //        GEX_OP_FDEC
@@ -1579,15 +1866,28 @@ typedef [some integer type] gex_DT_t;
 //        GEX_OP_FXOR
 // + Accessor Operations
 //   Valid only for Atomics
-//   Valid for all specified GEX_DT_* types
+//   Valid for all built-in data types
 //    - Non-fetching Accessor
 //        GEX_OP_SET   expr = op1  (writes 'op1' to the target location)
+//        GEX_OP_CAS   expr = ((op0 == op1) ? op2 : op0)
+//                     With a guarantee to be free of spurious failures as from
+//                     cache events.
 //    - Fetching Accessors (fetch 'op0' as the result of the atomic)
 //        GEX_OP_GET   expr = op0  (does not modify the target location)
 //        GEX_OP_SWAP  expr = op1  (swaps 'op1' with the target location)
-//        GEX_OP_CSWAP expr = ((op0 == op1) ? op2 : op0)
-//                     With a guarantee to be free of spurious failures as from
-//                     cache events.
+//        GEX_OP_FCAS  Fetching variant of GEX_OP_CAS
+//
+// NOTE: GEX_OP_CSWAP is a deprecated alias for GEX_OP_FCAS
+//
+// In addition to the built-in operations, the following constants are defined:
+// + User-defined Operations
+//   Valid only for Reductions
+//   Valid for all built-in data types and GEX_DT_USER
+//   The client code, not this specification, determines the operation.
+//    - Commutative User-Defined Reduction Operation
+//        GEX_OP_USER
+//    - Non-commutative User-Defined Reduction Operation
+//        GEX_OP_USER_NC
 //
 // It is guaranteed that all GEX_OP_* values can be combined via bit-wise OR without
 // loss of information.
@@ -1599,16 +1899,16 @@ typedef [some integer type] gex_OP_t;
 //
 // The macro GEX_OP_TO_FETCHING(op) takes a non-fetching opcode as an argument
 // and returns the corresponding fetching opcode.  The value of 'op' must be
-// either GEX_OP_SET or an opcode listed under "Non-fetching Operations", above.
-// All other values return undefined results.
+// GEX_OP_SET, GEX_OP_CAS or an opcode listed under "Non-fetching Operations",
+// above.  All other values return undefined results.
 //
 // The macro GEX_OP_TO_NONFETCHING(op) takes a fetching opcode as an argument
 // and returns the corresponding non-fetching opcode.  The value of 'op' must be
-// either GEX_OP_SWAP or an opcode listed under "Fetching Operations", above.
-// All other values return undefined results.
+// GEX_OP_SWAP, GEX_OP_FCAS or an opcode listed under "Fetching Operations",
+// above.  All other values return undefined results.
 //
-// In addition to the natural result when applied to the arithmetic opcodes,
-// SWAP/SET are considered to be a fetching/non-fetching pair:
+// In addition to the natural result when applied to the arithmetic opcodes and
+// (F)CAS, SWAP/SET are considered to be a fetching/non-fetching pair:
 //    GEX_OP_TO_FETCHING(GEX_OP_SET)     == GEX_OP_SWAP
 //    GEX_OP_TO_NONFETCHING(GEX_OP_SWAP) == GEX_OP_SET
 
@@ -1727,8 +2027,9 @@ typedef ... gex_AD_t;
 
 // Create an Atomic Domain
 //
-// This call, collective over the 'tm' argument, creates an atomic domain for
-// the operations in the 'ops' argument performed on data type 'dt'.
+// This is a collective call over the team named by the 'tm' argument that
+// creates an atomic domain for the operations in the 'ops' argument performed
+// on data type 'dt'.
 //
 // The 'ad_p' is an OUT parameter that receives a reference to the
 // newly created atomic domain.
@@ -1761,8 +2062,7 @@ typedef ... gex_AD_t;
 //   'tm' and when possible favor either RANK (TM with a single member) or
 //   NBRHD (TM with all members in the same Neighborhood).
 //
-// The 'dt', 'ops' and 'flags' arguments must each be equal across all callers
-// (single-valued) or the behavior is undefined.
+// The 'dt', 'ops' and 'flags' parameters are each single-valued.
 //
 void gex_AD_Create(
             gex_AD_t                   *ad_p,            // Output
@@ -1773,9 +2073,8 @@ void gex_AD_Create(
 
 // Destroy an Atomic Domain
 //
-// This call destroys an atomic domain.
-//
-// Calls must be collective over the team used to create the atomic domain.
+// This is a collective call over the team named at creation of the 'ad'
+// argument that destroys an atomic domain.
 //
 // All operations initiated on the atomic domain must be complete prior to any
 // rank making this call (or the behavior is undefined).  In practice, this
@@ -1974,7 +2273,7 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //   rules in the IEEE 754 standard even when the C float and double types
 //   otherwise do conform.  Deviations from IEEE 754 include (at least):
 //     - Operations on signalling NaNs have undefined behavior.
-//     - CSWAP *may* be performed as if on integers of the same width.
+//     - (F)CAS *may* be performed as if on integers of the same width.
 //       This could result in non-conforming behavior with quiet NaNs
 //       or negative zero.
 //     - MIN, MAX, FMIN and FMAX *may* be performed as if on "sign
@@ -2067,14 +2366,14 @@ int gex_AD_OpNBI_[DATATYPE](
 // For NBI/Blocking variants, the return type is int which is non-zero *only* in the
 // "no op" case (IMMEDIATE flag), exactly analogous to the gex_RMA_{Put,Get}*() functions.
 //
-// By default, all client-owned buffers (ie payload buffers and metadata
-// arrays) passed to the non-blocking initiation functions are implicitly
-// treated as GEX_EVENT_DEFER semantics, and thus must remain 
-// valid until the operation is fully completed (as in GASNet-1).
+// By default, local completion of all client-owned input buffers (ie payload
+// buffers and metadata arrays) passed to non-blocking initiation functions
+// can occur as late as operation completion, and thus must remain valid until
+// that time (as in GASNet-1).
 // As an exception, the metadata arrays passed to Strided variants ({src,dst}strides[] and count[])
 // are guaranteed to be consumed synchronously before return from initiation.
 // gex_VIS_*Put{NB,NBI} optionally expose local completion of data payload buffers -
-// this functionality must be requested using the GEX_FLAG_VIS_WITH_LC flag (see below).
+// this functionality must be requested using the GEX_FLAG_ENABLE_LEAF_LC flag (see below).
 //
 // A future revision may expose other intermediate completion events [UNIMPLEMENTED]
 //
@@ -2085,7 +2384,7 @@ int gex_AD_OpNBI_[DATATYPE](
 //   could determine that it would need to block temporarily to obtain the
 //   necessary resources.  The Blocking and NBI calls return a non-zero value
 //   (only) in this "no op" case, while the NB calls will return GEX_EVENT_NO_OP.
-// - GEX_FLAG_VIS_WITH_LC: (gex_VIS_*Put{NB,NBI} only) This flag requests
+// - GEX_FLAG_ENABLE_LEAF_LC: (gex_VIS_*Put{NB,NBI} only) This flag requests
 //   asynchronous local completion indication for the local data payload buffers 
 //   comprising the source region(s) of the VIS Put operation. Without this flag,
 //   local completion behaves as GEX_EVENT_DEFER, i.e. folded into operation completion.
@@ -2096,9 +2395,9 @@ int gex_AD_OpNBI_[DATATYPE](
 //   In the latter case, the client should retrieve the gex_Event_t corresponding to
 //   local completion by passing the root gex_Event_t returned by the Put initiation
 //   call to gex_Event_QueryLeaf(), for example:
-//     gex_Event_t VISput_RC = gex_VIS_VectorPutNB(..., GEX_FLAG_VIS_WITH_LC);
+//     gex_Event_t VISput_RC = gex_VIS_VectorPutNB(..., GEX_FLAG_ENABLE_LEAF_LC);
 //     gex_Event_t VISput_LC = gex_Event_QueryLeaf(VISput_RC, GEX_EC_LC);
-//   The second call is only valid when GEX_FLAG_VIS_WITH_LC was passed to the _VIS_*PutNB()
+//   The second call is only valid when GEX_FLAG_ENABLE_LEAF_LC was passed to the _VIS_*PutNB()
 //   call, and otherwise has undefined behavior.
 
 // NOTE: All of the (void *) types in this API will eventually be gex_Addr_t [UNIMPLEMENTED]
@@ -2184,7 +2483,460 @@ int gex_AD_OpNBI_[DATATYPE](
         size_t elemsz, const size_t count[], size_t stridelevels,
         gex_Flags_t flags);
 
+//
+// VIS Put Peer Completion [EXPERIMENTAL]
+//
+
+// The following call "arms" a peer completion callback that will 
+// signal completion of the next VIS operation initiated by the current thread 
+// to the (possibly remote) peer endpoint. When the selected VIS data movement
+// operation is complete with respect to the peer, an Active Message 
+// (with some restrictions defined below) is delivered to the peer endpoint.
+// Currently this feature is only supported for VIS Put operations (not Gets).
+//
+// Argument synopsis:
+//   gex_AM_Index_t  handler
+//     + The AM handler index to invoke at the peer endpoint.
+//   const void *    source_addr 
+//   size_t          nbytes
+//     + The local source address and length of an optional client-provided payload
+//       to be delivered in the AM notification.
+//   gex_Flags_t    flags
+//     + Unused in the current release, should be set to zero.
+//
+// + This call "arms" a peer completion handler and binds it to the next VIS operation
+//   successfully initiated by the current thread. Only the next such operation is affected, after
+//   which the peer completion binding for this thread is automatically "disarmed".
+//   In this release, the VIS operation in question may not be passed GEX_FLAG_IMMEDIATE.
+//   [this restriction may be relaxed in a future release]
+// + If `handler == 0` then any previous gex_VIS_SetPeerCompletionHandler() call from
+//   this thread (if any) is "disarmed" and cancelled.
+// + Otherwise, `handler` specifies a 0-argument AM Medium Reply handler to invoke at the peer 
+//   endpoint selected by the VIS initiation call. The handler is invoked after the data
+//   movement associated with the VIS operation is complete with respect to the peer process.
+// + The selected AM handler must have been registered at the peer endpoint using gex_EP_RegisterHandlers() 
+//   with gex_flags == GEX_FLAG_AM_MEDIUM | GEX_FLAG_AM_REPLY and gex_nargs == 0
+//   [this restriction may be relaxed in a future release]
+//   and must adhere to the signature and restrictions of a 0-argument AM Medium Reply handler.
+// + If `nbytes == 0`, then `source_addr` is ignored.
+// + Otherwise, `nbytes` must be no greater than GEX_VIS_MAX_PEERCOMPLETION.
+// + If `nbytes > 0`, the specified source memory must remain valid and unchanged starting from the
+//   call to gex_VIS_SetPeerCompletionHandler and lasting until the earlier of either operation completion 
+//   or local completion (if enabled) of the VIS operation is signalled to the initiating rank. 
+// + The specified payload is delivered to the invoked AM Medium handler as usual.
+// + The thread running the peer completion AM handler is guaranteed to observe the results 
+//   of the VIS data movement operation upon which it depends. However if it wishes to hand-off 
+//   completion notification to other local threads it should use normal cross-thread 
+//   synchronization mechanisms (including issuing a write memory barrier on most architectures)
+//   to ensure other cores also observe the payload delivery.
+
+void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler, 
+        const void *source_addr, size_t nbytes, gex_Flags_t flags);
+
+// The largest permissable size (in bytes) for a client payload in a VIS peer completion handler.
+// Guaranteed to be at least 127 bytes.
+
+#define GEX_VIS_MAX_PEERCOMPLETION ((size_t)???)
+
 // End of section describing APIs provided by gasnet_vis.h
+//----------------------------------------------------------------------
+//
+// Collectives (Coll) [EXPERIMENTAL]
+//
+// With the exception of gex_Coll_Barrier(), APIs in this section are provided
+// by gasnet_coll.h
+//
+
+// This API is an updated and expanded version of the collectives prototype
+// offered in GASNet-1, and previously documented in docs/collective_notes.txt.
+// As these APIs are fully specified and implemented, the corresponding
+// portions of the GASNet-1 collectives prototype will be removed from
+// gasnet_coll.h and replaced with GEX variants.  The GASNet-1 collectives API
+// signatures will not be supported in future releases.
+
+// The following semantics apply to all Coll functions:
+
+// For NB variants, return type for all functions in this section is gex_Event_t.
+// There are no NBI or Blocking variants at this time.
+
+// All functions in this section are "Collective Calls" as defined in the
+// Glossary.
+
+// Multiple collective operations from this section may be active
+// concurrently, over multiple teams or over a single team, with the exception
+// of Barrier.  See gex_Coll_BarrierNB() for more information.
+// [This restriction may be relaxed in a future release]
+
+// In contrast to the UPC-influenced design of the GASNet-1 collectives, the
+// GASNet-EX collectives do not support "NOSYNC" or "ALLSYNC" flags (they
+// behave as if IN_MYSYNC|OUT_MYSYNC), nor single-valued address information.
+// [A future release may re-introduce single-valued addressing for symmetric
+// heaps via offset-based addressing]
+// In this respect, the intuition one may hold from MPI-3 non-blocking
+// collectives is largely applicable.
+
+// By default, local completion of all client-owned input buffers ('src'
+// arguments) passed to the collective initiation functions can occur as late
+// as operation completion, and thus must remain valid until that time.
+//
+// A future revision may expose intermediate completion events [UNIMPLEMENTED]
+
+// Upon operation completion (synchronization of the gex_Event_t returned at
+// initiation) the following will hold:
+// + Any input buffer ('src' argument) will be locally complete (analogous
+//   to the source of a gex_RMA_PutNB() with GEX_EVENT_DEFER).
+// + Any output buffer ('dst' argument) is ready to be examined by the thread
+//   performing the sync of the gex_Event_t (analogous to the destination of
+//   a gex_RMA_GetNB()).
+// + Unless otherwise noted in the description of a given operation, there are
+//   no guarantees regarding the state on other ranks participating in the
+//   collective operation nor their associated input and output buffers.
+
+// Unless noted explicitly, no API in this section, other than a Barrier, is
+// required to synchronize the calling ranks.  However, the implementation is
+// *permitted* to do so in any call in this section.
+
+// NOTE: All of the (void *) types for source and destination buffers in these
+// APIs will eventually be gex_Addr_t [UNIMPLEMENTED]
+
+//
+// Collectives Part I.  Barrier
+//
+
+// Split-phase barrier over a Team
+//
+// This is a collective call over the team named by the 'tm' argument that
+// initiates a split-phase (non-blocking) barrier over the callers.
+//
+// + The return value is a root event which can be successfully synchronized
+//   (return from gex_Event_Wait*() or zero return from gex_Event_Test*())
+//   only after all members of the team have issued a corresponding call.
+// + This call is non-blocking (may return before other team members have
+//   issued a corresponding call).
+// + Barriers may not operate concurrently with any other collective
+//   operations over the same team, including other barriers.
+//   - Collective operations over a team issued prior to a barrier over the same
+//     team must be complete/synchronized prior to initiating the barrier.
+//   - No collective call may be initiated over a team between the initiation
+//     and completion/synchronization of any barrier over the same team.
+//   - The term "barrier" as used here includes not only this call, but also
+//     the gasnet_barrier*() family of calls.  More specifically, use of the
+//     GASNet-1 barrier may not locally overlap with any gex_Coll_*()
+//     operation (Barrier or otherwise) over the primordial team (created by
+//     gex_Client_Init(flags=GEX_FLAG_USES_GASNET1) or obtained from a call to
+//     gasnet_QueryGexObjects()).  Other uses of the GASNet-1 barrier APIs are
+//     permitted in the same program as GASNet-EX collectives.
+//   [This restriction may be relaxed in a future release]
+//
+// + Calls to gex_Coll_BarrierNB() are not "compatible" with calls to
+//   gasnet_barrier() or gasnet_barrier_notify() for the purpose of
+//   determining collective calling order.
+//   [Limited compatibility may be defined in a future release]
+//
+// tm:      The call is collective over the associated team.
+// flags:   Flags are reserved for future use and must currently be zero
+//
+gex_Event_t gex_Coll_BarrierNB(gex_TM_t tm, gex_Flags_t flags);
+
+//
+// Collectives Part II.  Data Movement
+//
+// The following argument descriptions are applicable to all collective data
+// movement APIs in this section using arguments with these names.
+//
+// root:
+//      The rank within 'tm' of one distinguished endpoint.  More information
+//      on the distinguishing role of the root is provided with the detailed
+//      description of each such collective operation.
+//      This is always a single-valued parameter.
+// src:
+//      The local address of the caller's input buffer, if any.
+//      This is not a single-valued parameter.
+// dst:
+//      The local address of the caller's output buffer, if any.
+//      This is not a single-valued parameter.
+// nbytes:
+//      The length in bytes of one element of data.
+//      This is a single-valued parameter.
+// flags:
+//      A bitwise OR of zero or more of permitted GEX_FLAG_* constants.
+//      Currently no flags are defined for data-movement collective
+//      operations, and the value zero should be passed.
+//      However, a future release will support the "segment disposition"
+//      flags [UNIMPLEMENTED].
+//      Individual flags bits may or may not be single-valued, as will
+//      be documented with each supported flag.
+
+// Broadcast
+//
+// This operation copies 'nbytes' bytes of data starting at 'src' on rank
+// 'root' of 'tm', to 'dst' on every rank within the 'tm'.
+//
+// The value of 'src' is ignored on all ranks other than 'root'.
+//
+// On the 'root' rank, the data is copied from 'src' to 'dst' except in the
+// case these pointers are equal.  However, any other overlap between 'src'
+// and 'dst' buffers on the root rank yields undefined behavior.
+
+gex_Event_t gex_Coll_BroadcastNB(
+            gex_TM_t        tm,            // The team
+            gex_Rank_t      root,          // Root rank (single-valued)
+            void *          dst            // Destination (all ranks)
+            const void *    src,           // Source (root rank only)
+            size_t          nbytes,        // Length of data (single-valued)
+            gex_Flags_t     flags);        // Flags (partially single-valued)
+
+//
+// Collectives Part III.  Computational
+//
+
+// User-Defined Reduction Operations
+//
+// GASNet provides a set of useful built-in reduction operations.  These
+// should be favored whenever possible in performance-critical reductions,
+// because using a built-in operator is generally a prerequisite to leveraging
+// hardware-offload support for reductions which is available in some network
+// hardware.  However for situations where none of the provided built-in
+// operations fit client requirements, GASNet also allows clients to provide
+// code for their own reduction operation.
+//
+// Reduction operations which do not correspond to a built-in opcode
+// (GEX_OP_*) constant are supported by passing GEX_OP_USER or GEX_OP_USER_NC
+// as the 'op' when initiating a reduction.
+// + GEX_OP_USER: denotes a user-defined operation that is both
+//   associative and commutative.
+// + GEX_OP_USER_NC: denotes a user-defined operation that is
+//   associative but NOT commutative. [UNIMPLEMENTED]
+//
+// The implementation will invoke the user-provided function an unspecified
+// number of times to perform the user's operation on a pair of vectors of
+// operands.
+//
+// The user-defined reduction operation is passed to the initiation call using
+// a function pointer with type gex_Coll_ReduceFn_t:
+    typedef void (*gex_Coll_ReduceFn_t)(
+            const void * arg1,         // "Left" operands
+            void *       arg2_and_out, // "Right" operands and result
+            size_t       count,        // Operand count
+            const void * cdata);       // Client-data
+// These arguments are defined as follows, with additional semantics below:
+//   arg1:
+//     This is a pointer to memory containing 'count' consecutive operands.
+//     These may be caller-provided input values or intermediate results.
+//     In the case of a non-commutative operation, these are the operands on
+//     the "left-hand side" of the nominal operator.
+//     The reduction operation is not permitted to write to this memory.
+//   arg2_and_out:
+//     This is a pointer to memory containing 'count' consecutive operands.
+//     These may be caller-provided input values or intermediate results.
+//     In the case of a non-commutative operation, these are the operands on
+//     the "right-hand side" of the nominal operator.
+//     The reduction operation must write the result(s) to this memory, as
+//     described below.
+//   count:
+//     This is the number of "fields" on which to perform the reduction, and
+//     thus the length of the accessible memory at 'arg1' and 'arg2_and_out'
+//     is equal to 'count' times the size of each element (passed as 'dt_sz'
+//     at initiation of the reduction).
+//     Note that this argument may take on any positive value, which may be
+//     either smaller or larger than the 'dt_cnt' passed at initiation of
+//     the reduction.
+//   cdata:
+//     This is the value of the 'user_cdata' argument passed locally at
+//     initiation of the reduction, and is intended to assist in implementing
+//     more than a single data type and/or operation with a common C function.
+//
+// The function implementing a user-defined reduction operation:
+// + May use the 'cdata' argument to receive information (such as the
+//   operation or data type) not provided by the other arguments.
+// + May assume 'arg1' and 'arg2_and_out' do not overlap each other.  However,
+//   they can overlap the 'src' buffer (and 'dst' buffer, if any) passed at
+//   operation initiation.
+// + May perform the element-wise operations in any order, and parallel
+//   computation is explicitly permitted.
+// + Shall interpret the 'arg1' and 'arg2_and_out' as arrays of length 'count'
+//   with an element type corresponding to the data type passed at initiation
+//   of the reduction.
+// + Shall apply the desired operation element-wise to each of the 'count'
+//   pairs of operands, storing the result in the location from which the
+//   second (right-hand) operand is retrieved.  Here "element-wise"
+//   application can be expressed in pseudo-code as follows, using 'T' to
+//   denote the C data type and '(+)' to denote the operator:
+//     T* x = (T*)arg1;
+//     T* y = (T*)arg2_and_out;
+//     For all i in [0..count) y[i] = x[i] (+) y[i];
+// + Shall not assume 'count' is equal to the 'dt_cnt' passed at operation
+//   initiation, since the implementation is free to process the 'dt_cnt'
+//   elements passed in at initiation in smaller groups, or to group more
+//   than 'dt_cnt' pairs of operands into a single call to the user's
+//   function.
+// + Shall not block pending any condition the satisfaction of which is
+//   dependent on progress in GASNet (whether local or global).
+// + Shall not make any GASNet calls other than those enumerated as permitted
+//   while holding a handler-safe lock, in the section "Calls from restricted
+//   context"
+// + Shall not assume that the executing thread was created by the client.
+// + Shall allow for the possibility that the implementation invokes the
+//   function concurrent with itself, even if the client has not spawned
+//   threads.  Use of handler-safe locks or GASNet-Tools atomics are
+//   recommended mechanisms to deal with any access to global/persistent
+//   state.
+
+// User-Defined Data Types
+//
+// Reductions on types without a corresponding built-in data type (GEX_DT_*)
+// constant are supported by passing GEX_DT_USER as the 'dt' when initiating a
+// reduction.  In this case data elements are treated as indivisible byte
+// sequences with length given as 'dt_sz' at initiation of the reduction.
+// Reduction operations passing GEX_DT_USER for the data type must pass either
+// GEX_OP_USER or GEX_OP_USER_NC for the operation.
+
+// Limitations for Built-in Data Types
+//
+// + Operations on floating-point data types are not guaranteed to obey all
+//   rules in the IEEE 754 standard even when the C float and double types
+//   otherwise do conform.  Deviations from IEEE 754 include (at least):
+//     - Operations on signalling NaNs have undefined behavior.
+//     - MIN and MAX *may* be performed as if on "sign and magnitude
+//       representation integers" of the same width, resulting in
+//       non-conforming behavior with quiet NaNs.
+//       (See https://en.wikipedia.org/wiki/IEEE_754-1985, and especially
+//       the section "Comparing_floating-point_numbers")
+//   [THIS PARAGRAPH MAY NOT BE A COMPLETE LIST OF NON-IEEE BEHAVIORS]
+
+//
+// The following argument descriptions are applicable to all computational
+// collective APIs in this section using arguments with these names.
+//
+// src:
+//      The local address of the caller's input buffer.
+//      This is not a single-valued parameter.
+// dst:
+//      The local address of the caller's output buffer, if any.
+//      This is not a single-valued parameter.
+// dt:
+//      The data type for the reduction operation.
+//      Must be a GEX_DT_* constant documented as valid for Reductions.
+//      This is a single-valued parameter.
+// dt_sz:
+//      The length in bytes of one element of data.
+//      When 'dt' is a built-in type, this value must be the size in bytes of
+//      the corresponding built-in C type.  When 'dt' is GEX_DT_USER, this
+//      value must be the size in bytes of the user-defined data type.
+//      This length must be non-zero.
+//      This is a single-valued parameter.
+// dt_cnt:
+//      The per-rank count of data elements to reduce (not a length in bytes).
+//      This count must be non-zero.
+//      This is a single-valued parameter.
+// op:
+//      The opcode, of type gex_OP_t, naming the reduction operator.
+//      Must be a GEX_OP_* constant documented as valid for Reductions.
+//      This is a single-valued parameter.
+// user_op, user_cdata:
+//      If 'op' is neither GEX_OP_USER nor GEX_OP_USER_NC, then these two
+//      arguments are ignored.  Otherwise 'user_op' is a local function
+//      pointer of type gex_Coll_ReduceFn_t (described above), and
+//      'user_cdata' is a client data pointer to be passed to each local
+//      invocation of 'user_op'.  The 'user_cdata' is treated as opaque by the
+//      implementation and therefore is not required to be a pointer to valid
+//      memory.  In particular, it may be NULL.
+// flags:
+//      A bitwise OR of zero or more of permitted GEX_FLAG_* constants.
+//      Currently no flags are defined for computational collective
+//      operations, and the value zero should be passed.
+//      However, a future release will support the "segment disposition"
+//      flags [UNIMPLEMENTED].
+//      Individual flags bits may or may not be single-valued, as will
+//      be documented with each supported flag.
+
+// Common Semantics
+//
+// All reductions are performed via an unspecified pattern of applications of
+// the operator to pairs of operands, under the assumptions that (1) all
+// operations are mathematically associative and (2) operations other than
+// GEX_OP_USER_NC are mathematically commutative.
+//
+// The implementation is not required to take measures to accommodate any
+// divergence (for instance of IEEE floating-point arithmetic) from the
+// assumptions in the preceding paragraph.  Specifically, in the presence of
+// such divergence, the implementation is not required to provide equality of
+// the results of calls with mathematically equivalent arguments; neither
+// between distinct calls in the same execution, nor between the same call in
+// distinct executions.  However, high-quality implementations will provide
+// reproducibility among calls with the same parameters within a single
+// execution (e.g. by applying the operation in a deterministic order).
+//
+// The implementation is not required to preserve the vector of 'dt_cnt'
+// elements as an indivisible unit.  It is permitted not only to break the
+// vector into shorter ones, but may also concatenate multiple vectors to
+// lessen the number of calls to a user-defined reduction operator.
+//
+// This specification does not require that a user-defined function applies
+// the semantically equivalent operation to every pair of inputs.  Nothing in
+// this specification prohibits passing a different user-defined operator on
+// each caller, nor does it prohibit a user-defined operator from applying a
+// different operation depending on an element's location in the argument
+// vectors.  However, both behaviors are strongly discouraged.  Since this
+// specification explicitly permits the implementation freedom in the order of
+// reductions in both rank and vector dimensions, either of these behaviors
+// will result in unpredictable output values.  Nothing in this paragraph is
+// intended to prohibit, or discourage use of, user-defined operations with
+// behaviors which depend on characteristics encoded in a user-defined data
+// type (which may include position in the rank or vector dimensions); the
+// intent is to discourage operators which *infer* such position information.
+
+
+// Reduction to one
+//
+// This is a collective call over the team named by the 'tm' argument that
+// initiates a non-blocking reduction applying the operation denoted by 'op'
+// repeatedly to reduce a collection of operands of type denoted by 'dt'.
+// Each member of 'tm' provides a 'src' vector of length 'dt_cnt' (in
+// elements), and the elements are reduced element-wise such that the i'th
+// element of the output vector is the reduction over the i'th elements of the
+// 'src' vectors of all team members.  The result is written to the 'dst' of
+// one 'root' rank.
+//
+// Using `(+)` to represent the nominal reduction operator, and `src_i[j]` to
+// denote the i'th element of the 'src' vector passed by rank 'j', the result
+// produced on the 'root' rank can be expressed as:
+//     dst_i = src_i[0] (+) src_i[1] ... (+) src_i[N-1]
+// where `N = gex_TM_QuerySize(tm)`.
+//
+// This call is non-blocking (may return before other team members have issued
+// a corresponding call).
+//
+// On the 'root' rank the 'dst' buffer has length in bytes of 'dt_sz * dt_cnt'.
+// The value of 'dst' is ignored on all other ranks.
+//
+// On all ranks the 'src' buffer has length in bytes of 'dt_sz * dt_cnt'.
+//
+// On the 'root' rank, it is permitted that 'src' and 'dst' be equal.
+// However, any other overlap between 'src' and 'dst' buffers on the root rank
+// yields undefined behavior.
+//
+// LIMITATIONS of the current release:
+//  + The current implementation may limit the product `dt_sz * dt_cnt` to as
+//    little as 24 bytes in some configurations.
+//    The precise limit depends on the size of the job and team.
+// It is anticipated that this limitation will be removed in the next release.
+
+gex_Event_t gex_Coll_ReduceToOneNB(
+            gex_TM_t            tm,           // The team
+            gex_Rank_t          root,         // Root rank (single-valued)
+            void *              dst,          // NOT single-valued
+            const void *        src,          // NOT single-valued
+            gex_DT_t            dt,           // Data type (single-valued)
+            size_t              dt_sz,        // Data type size (single-valued)
+            size_t              dt_cnt,       // Element count (single-valued)
+            gex_OP_t            op,           // Operation (single-valued)
+            gex_Coll_ReduceFn_t user_op,      // NOT single-valued
+            void *              user_cdata,   // NOT single-valued
+            gex_Flags_t         flags);       // Flags (partially single-valued)
+
+
+// End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
 
 // vim: syntax=c

@@ -53,8 +53,6 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, 1));
 
-  TEST_COLL_INIT();
-
 #if GASNET_PAR
   test_init("testbarrierconf", 0, "[-t] [-p polling_threads] (iters)\n"
             "  The -p option gives a number of polling threads to spawn (default is 0).\n"
@@ -409,7 +407,8 @@ static void * doTest(void *arg) {
       MSG0("WARNING: pair mismatch tests skipped (only 1 node)");
     }
 
-    if (nodes > 2) {
+    if (nodes > 2 && 
+        i < MAX(2,iters/1000)) { // limit iterations of the node^2 test below
       int j, k;
 
       for (j = 0; j < nodes; ++j) {

@@ -14,6 +14,11 @@
 extern void gasnete_check_config_amref(void);
 
 /* ------------------------------------------------------------------------------------ */
+// Subsystem initialization
+extern void gasnete_barrier_init(void);
+extern void gasnete_coll_init_subsystem(void);
+
+/* ------------------------------------------------------------------------------------ */
 
 #define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 

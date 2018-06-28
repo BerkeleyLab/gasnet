@@ -213,7 +213,7 @@ gex_Event_t gasnete_puti_gather(gasnete_synctype_t synctype,
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
   size_t const nbytes = dstlen;
   gasneti_assert(dstcount == 1 && srccount > 1); /* only supports gather put */
-  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
+  gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank)); // silly to use for local cases
   gasneti_assert(nbytes > 0);
   GASNETI_TRACE_EVENT(C, PUTI_GATHER);
 
@@ -223,7 +223,7 @@ gex_Event_t gasnete_puti_gather(gasnete_synctype_t synctype,
     visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
     visop->event = gasnete_put_nb(tm, rank, dstlist[0], packedbuf, nbytes, GEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0, (void)0);
   }
 }
   #define GASNETE_PUTI_GATHER_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
@@ -245,7 +245,7 @@ gex_Event_t gasnete_geti_scatter(gasnete_synctype_t synctype,
   gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
   size_t const nbytes = srclen;
   gasneti_assert(srccount == 1 && dstcount > 1); /* only supports scatter get */
-  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
+  gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank)); // silly to use for local cases
   gasneti_assert(nbytes > 0);
   GASNETI_TRACE_EVENT(C, GETI_SCATTER);
 
@@ -258,7 +258,7 @@ gex_Event_t gasnete_geti_scatter(gasnete_synctype_t synctype,
     visop->len = dstlen;
     visop->event = gasnete_get_nb(tm, packedbuf, rank, srclist[0], nbytes, 0 GASNETE_THREAD_PASS);
     gasneti_assert(visop->event != GEX_EVENT_INVALID);
-    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1, (void)0);
   }
 }
   #define GASNETE_GETI_SCATTER_SELECTOR(synctype,tm,rank,dstcount,dstlist,dstlen,srccount,srclist,srclen,flags) \
@@ -278,7 +278,7 @@ gex_Event_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen,
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(dstcount > 1); /* supports scatter put */
-  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
+  gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank)); // silly to use for local cases
   GASNETI_TRACE_EVENT(C, PUTI_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype);
 
@@ -370,7 +370,7 @@ gex_Event_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen,
                                    gex_Flags_t flags GASNETE_THREAD_FARG) {
   gasneti_assert(srccount > 1); /* supports gather get */
-  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank)); // silly to use for local cases
+  gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank)); // silly to use for local cases
   GASNETI_TRACE_EVENT(C, GETI_AMPIPELINE);
 
   size_t const maxrequest = gex_AM_MaxRequestMedium(tm,rank, (GASNETE_VIS_NPAM ? NULL : GEX_EVENT_NOW),
@@ -569,19 +569,19 @@ void gasnete_indexed_memcpy(gex_Rank_t jobrank, int isput,
                             size_t dstcount, void * const dstlist[], size_t dstlen,
                             size_t srccount, void * const srclist[], size_t srclen,
                             gex_Flags_t flags) {
-  gasneti_assert(GASNETI_SUPERNODE_LOCAL(jobrank));
+  gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   // TODO-EX: this assumes all addresses in the peer list reside in the same segment
   // and hoists the address translation. Multi-segment will need to push this down.
   gasneti_assert(!(flags & (GEX_FLAG_PEER_SEG_SOME|GEX_FLAG_PEER_SEG_UNKNOWN)));
   if (isput) {
-    uint8_t *refptr = GASNETI_SUPERNODE_LOCAL_ADDR(jobrank,dstlist[0]); 
+    uint8_t *refptr = GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,dstlist[0]); 
     ptrdiff_t const offset = refptr - (uint8_t*)dstlist[0];
     #define ACTION(p1,p2,len) GASNETI_MEMCPY((uint8_t*)p1+offset,p2,len)
     GASNETE_INDEXED_HELPER(dstcount, dstlist, dstlen, srccount, srclist, srclen, ACTION);
     #undef ACTION
   } else {
-    uint8_t *refptr = GASNETI_SUPERNODE_LOCAL_ADDR(jobrank,srclist[0]); 
+    uint8_t *refptr = GASNETI_NBRHD_JOBRANK_LOCAL_ADDR(jobrank,srclist[0]); 
     ptrdiff_t const offset = refptr - (uint8_t*)srclist[0];
     #define ACTION(p1,p2,len) GASNETI_MEMCPY(p1,(uint8_t*)p2+offset,len)
     GASNETE_INDEXED_HELPER(dstcount, dstlist, dstlen, srccount, srclist, srclen, ACTION);
@@ -598,8 +598,8 @@ gex_Event_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTI_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
-  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
-  gex_Event_t * const lc_opt = (flags & GEX_FLAG_VIS_WITH_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
+  gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank));
+  gex_Event_t * const lc_opt = (flags & GEX_FLAG_ENABLE_LEAF_LC) ? GEX_EVENT_GROUP : GEX_EVENT_DEFER;
   GASNETE_START_NBIREGION(synctype);
 
   #define ACTION(p1,p2,len) GASNETE_PUT_INDIV(tm, rank, p1, p2, len, lc_opt)
@@ -618,7 +618,7 @@ gex_Event_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, GETI_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
-  gasneti_assert(!GASNETI_SUPERNODE_LOCAL(rank));
+  gasneti_assert(!GASNETI_NBRHD_LOCAL(tm,rank));
   GASNETE_START_NBIREGION(synctype);
 
   #define ACTION(p1,p2,len) GASNETE_GET_INDIV(tm, rank, p1, p2, len)
@@ -697,7 +697,7 @@ extern gex_Event_t gasnete_puti(gasnete_synctype_t synctype,
   gasneti_assert(dstlist); gasneti_assert(srclist);
   flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
 
-  if (GASNETI_SUPERNODE_LOCAL(rank)) { /* purely local */ 
+  if (GASNETI_NBRHD_LOCAL(tm,rank)) { /* purely local */ 
     GASNETI_TRACE_EVENT(C, PUTI_NBRHD);
     gasnete_indexed_memcpy(rank, 1,
                            dstcount,dstlist,dstlen,srccount,srclist,srclen,
@@ -748,7 +748,7 @@ extern gex_Event_t gasnete_geti(gasnete_synctype_t synctype,
   gasneti_assert(dstlist); gasneti_assert(srclist);
   flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX
 
-  if (GASNETI_SUPERNODE_LOCAL(rank)) { /* purely local */ 
+  if (GASNETI_NBRHD_LOCAL(tm,rank)) { /* purely local */ 
     GASNETI_TRACE_EVENT(C, GETI_NBRHD);
     gasnete_indexed_memcpy(rank, 0,
                            dstcount,dstlist,dstlen,srccount,srclist,srclen,

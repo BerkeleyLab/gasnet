@@ -135,6 +135,8 @@ GASNETI_BEGIN_NOWARN
 
 #define gasnett_constant_p              gasneti_constant_p
 
+#define gasnett_unreachable             gasneti_unreachable
+
 /* ------------------------------------------------------------------------------------ */
 /* portable memory barriers */
 
@@ -523,8 +525,8 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #endif
   extern int gasneti_run_diagnostics(int _iters, int _threadcnt,
                                      const char *_testsections,
-                                     gex_TM_t _myteam,
-                                     gasnet_seginfo_t const *_seginfo);
+                                     gex_TM_t _myteam, void* _myseg,
+                                     gex_Rank_t _peer, void* _peerseg);
   extern void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **_htable, int *_htable_cnt);
   #define gasnett_run_diagnostics gasneti_run_diagnostics
   #define gasnett_diagnostic_gethandlers gasneti_diagnostic_gethandlers
@@ -570,7 +572,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define gasnett_format_ti               gasneti_format_ti
 
   #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
-    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gasnet_hsl_)
+    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gex_HSL_)
   #endif
 #else
   #define gasnett_mmap(sz)        gasnett_fatalerror("gasnett_mmap not available")

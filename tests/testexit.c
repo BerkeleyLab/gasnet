@@ -65,6 +65,8 @@ const char *crashtestdesc[] = {
 #define NUMCRASHTEST (sizeof(crashtestdesc)/sizeof(char*))
 void do_crash_test(int crashid);
 
+static char *peerseg;
+
 #define hidx_exit_handler		201
 #define hidx_noop_handler               202
 #define hidx_ping_handler               203
@@ -79,7 +81,7 @@ void ping_handler(gex_Token_t token, void *buf, size_t nbytes) {
   if (x) 
     gex_AM_ReplyMedium0(token, hidx_noop_handler, buf, nbytes, GEX_EVENT_NOW, 0);
   else
-    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(test_msgsource(token)), GEX_EVENT_NOW, 0);
+    gex_AM_ReplyLong0(token, hidx_noop_handler, buf, nbytes, peerseg, GEX_EVENT_NOW, 0);
 }
 
 void noop_handler(gex_Token_t token, void *buf, size_t nbytes) {
@@ -130,7 +132,6 @@ void *workerthread(void *args) {
                         gex_AM_MaxReplyLong    (myteam,GEX_RANK_INVALID,GEX_EVENT_NOW,0,0)),
                         TEST_SEGSZ);
         char *p = malloc(lim);
-        char *peerseg = TEST_SEG(peer);
         while (1) {
           switch (rand() % 18) {
             case 0:  GASNET_Safe(gasnet_AMPoll()); break;
@@ -281,7 +282,7 @@ int main(int argc, char **argv) {
   /* register a SIGQUIT handler, as permitted by GASNet spec */
   gasnett_reghandler(SIGQUIT, testSignalHandler);
 
-  TEST_SEG(mynode);
+  peerseg = TEST_SEG(peer);
 
   BARRIER();
   PUTS0(testdescstr);

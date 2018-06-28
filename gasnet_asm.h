@@ -48,6 +48,8 @@
 #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
       PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG || \
       PLATFORM_COMPILER_PGI || \
+      (PLATFORM_COMPILER_SUN && PLATFORM_COMPILER_VERSION_GE(5,12,0) && \
+       (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)) || \
       (PLATFORM_COMPILER_XLC && PLATFORM_COMPILER_VERSION_GE(12,0,0))
   #define GASNETI_HAVE_GCC_ASM 1
 #elif GASNETI_HAVE_SIMPLE_ASM
@@ -141,6 +143,24 @@
   #endif
 #endif
 
+// Compilers with __has_builtin() support (at least clang-derived ones) treat
+// the __sync* atomic functions as built-ins, allowing this preprocess-time
+// probe.  However, we apply this only to compilers not probed for this support
+// by configure.
+// Lack of a __builtin prefix on these functions necessitates use of the
+// _GASNETI_HAS_BUILTIN macro, not originally intended for use outside
+// of gasnet_basic.h.
+#if GASNETI_COMPILER_IS_UNKNOWN
+  #if _GASNETI_HAS_BUILTIN(__sync_bool_compare_and_swap) && \
+      _GASNETI_HAS_BUILTIN(__sync_val_compare_and_swap)  && \
+      _GASNETI_HAS_BUILTIN(__sync_fetch_and_add)
+    #define GASNETI_HAVE_SYNC_ATOMICS_32 1
+    #if PLATFORM_ARCH_64
+      #define GASNETI_HAVE_SYNC_ATOMICS_64 1
+    #endif
+  #endif
+#endif
+
 #if PLATFORM_OS_BGQ && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
   /* The situation on BG/Q is either as bad as on BG/P, or perhaps worse.
    * The use of 'extern inline' means we can't get what we need at all in
@@ -182,13 +202,13 @@
 //
 #if !GASNETI_COMPILER_IS_UNKNOWN
   #if GASNETI_HAVE_GCC_ASM && !GASNETI_COMPILER_HAS(GCC_ASM)
-    #error Version-based test of GCC_ASM support passes when configure-based FAILED
+    #error "Something about your compiler violates GASNet's hard-coded assumptions regarding GCC_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information."
   #elif GASNETI_HAVE_SIMPLE_ASM && !GASNETI_COMPILER_HAS(SIMPLE_ASM)
     #if PLATFORM_COMPILER_SUN_C
       // Exceptional because configure probe tests a different spelling.
       // C compiler *always* supports `__asm()`, but support for `asm()` is probed.
     #else
-      #error Version-based test of SIMPLE_ASM support passes when configure-based FAILED
+      #error "Something about your compiler violates GASNet's hard-coded assumptions regarding SIMPLE_ASM support.  Please report this error to gasnet-devel@lbl.gov, including the failing compiler command line and compiler version information."
     #endif
   #endif
 #endif

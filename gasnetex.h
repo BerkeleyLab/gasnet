@@ -262,7 +262,6 @@ GASNETI_BEGIN_NOWARN
   /* barrier flags */
   #define GASNET_BARRIERFLAG_ANONYMOUS 1
   #define GASNET_BARRIERFLAG_MISMATCH  2
-  #define GASNET_BARRIERFLAG_IMAGES 4
 
   /* UNNAMED includes ANONYMOUS to yield a trivial default implementation: */
   #define GASNETE_BARRIERFLAG_UNNAMED 8
@@ -302,6 +301,7 @@ typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
 typedef struct gasneti_team_member_s *gex_TM_t;
+#define GEX_TM_INVALID ((gex_TM_t)(uintptr_t)0)
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
@@ -405,7 +405,8 @@ typedef struct {
     GASNETI_OBJECT_HEADER              \
     gasneti_EP_t       _ep;            \
     gex_Rank_t         _rank;          \
-    gex_Rank_t         _size;
+    gex_Rank_t         _size;          \
+    void *             _coll_team;
   typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
@@ -505,12 +506,26 @@ typedef const struct {
   // Avert your eyes - space below is reserved for internal use
 
   // Nothing to see here (yet)
-} gex_NbrhdInfo_t;
+} gex_RankInfo_t;
+
+// TODO-EX: Temporary backwards compat, Remove this!
+#define gex_NbrhdInfo_t gex_RankInfo_t
 
 extern void gex_System_QueryNbrhdInfo(
-            gex_NbrhdInfo_t        **_info_p,
+            gex_RankInfo_t         **_info_p,
             gex_Rank_t             *_info_count_p,
             gex_Rank_t             *_my_info_index_p);
+
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **_info_p,
+            gex_Rank_t             *_info_count_p,
+            gex_Rank_t             *_my_info_index_p);
+
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *_nbrhd_set_size_p,
+            gex_Rank_t *_nbrhd_set_rank_p,
+            gex_Rank_t *_host_set_size_p,
+            gex_Rank_t *_host_set_rank_p);
 
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
@@ -535,7 +550,8 @@ typedef enum {
   _GEX_MAKE_DT_ENUM(I64),
   _GEX_MAKE_DT_ENUM(U64),
   _GEX_MAKE_DT_ENUM(FLT),
-  _GEX_MAKE_DT_ENUM(DBL)
+  _GEX_MAKE_DT_ENUM(DBL),
+  _GEX_MAKE_DT_ENUM(USER)
 } gasneti_dt_idx_t;
 #undef _GEX_MAKE_DT_ENUM
 
@@ -564,7 +580,10 @@ typedef enum {
   _GEX_MAKE_OP_ENUM(SET),
   _GEX_MAKE_OP_ENUM(GET),
   _GEX_MAKE_OP_ENUM(SWAP),
-  _GEX_MAKE_OP_ENUM(CSWAP)
+  _GEX_MAKE_OP_ENUM(FCAS),
+  _GEX_MAKE_OP_ENUM(CAS),
+  _GEX_MAKE_OP_ENUM(USER),
+  _GEX_MAKE_OP_ENUM(USER_NC)
 } gasneti_op_idx_t;
 #undef _GEX_MAKE_OP_ENUM
 

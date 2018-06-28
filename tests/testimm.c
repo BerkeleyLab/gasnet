@@ -29,7 +29,7 @@ static gex_Segment_t     mysegment;
 gex_Rank_t myrank = 0;
 gex_Rank_t numrank = 0;
 
-gex_NbrhdInfo_t *nbrhdinfo = NULL;
+gex_RankInfo_t *nbrhdinfo = NULL;
 gex_Rank_t nbrhdsize; // size of the neighborhood, or 1 for PSHM-only
 
 static int64_t param_Z = 0;

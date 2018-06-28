@@ -64,10 +64,14 @@
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
     #define _gasneti_atomic_lock_initializer	GASNETT_MUTEX_INITIALIZER
     #define _gasneti_atomic_lock_init(x)	gasnett_mutex_init(x)
+    #define _gasneti_atomic_lock_lock(x)        gasnett_mutex_lock(x)
+    #define _gasneti_atomic_lock_unlock(x)      gasnett_mutex_unlock(x)
     #define _gasneti_atomic_lock_malloc		malloc
     GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_pthread_atomic_, gasnett_mutex_)
     #undef _gasneti_atomic_lock_initializer
     #undef _gasneti_atomic_lock_init
+    #undef _gasneti_atomic_lock_lock
+    #undef _gasneti_atomic_lock_unlock
     #undef _gasneti_atomic_lock_malloc
    #endif
   #ifdef GASNETI_GENATOMIC32_DEFN
@@ -173,8 +177,11 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 /* ------------------------------------------------------------------------------------ */
 /* call-based atomic support for C compilers with limited inline assembly */
 
-#ifdef GASNETI_ATOMIC_SPECIALS
-  GASNETI_ATOMIC_SPECIALS
+#ifdef GASNETI_ATOMIC32_SPECIALS
+  GASNETI_ATOMIC32_SPECIALS
+#endif
+#ifdef GASNETI_ATOMIC64_SPECIALS
+  GASNETI_ATOMIC64_SPECIALS
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -560,9 +567,16 @@ extern double gasneti_tick_metric(int idx) {
   return _gasneti_tick_metric[idx];
 }
 /* ------------------------------------------------------------------------------------ */
+#ifndef GASNETI_MAYBE_TRACEFILE
+  #if GASNET_TRACE
+    FILE *gasneti_tracefile; // intentional tentative defn
+    #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
+  #else
+    #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
+  #endif
+#endif
 volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
-  va_list argptr;
   #ifndef GASNETI_FATALERROR_LEN
   #define GASNETI_FATALERROR_LEN 80
   #endif
@@ -571,25 +585,36 @@ extern void gasneti_fatalerror(const char *msg, ...) {
   const size_t maxmsg = sizeof(expandedmsg)-sizeof(prefix)-4;
   const size_t msglen = strlen(msg);
 
-  va_start(argptr, msg); /*  pass in last argument */
-    if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
-      strcpy(expandedmsg, prefix);
-      strncat(expandedmsg, msg, maxmsg);
-      if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
-      vfprintf(stderr, expandedmsg, argptr);
-    } else { /* long format msg */
-      fprintf(stderr, prefix);
-      vfprintf(stderr, msg, argptr);
-      if (msg[strlen(msg)-1] != '\n') fprintf(stderr, "\n");
+  FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
+  for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
+    FILE *stream = streams[s];
+    if (stream) {
+      va_list argptr;
+      va_start(argptr, msg); /*  pass in last argument */
+        if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+          strcpy(expandedmsg, prefix);
+          strncat(expandedmsg, msg, maxmsg);
+          if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
+          vfprintf(stream, expandedmsg, argptr);
+        } else { /* long format msg */
+          fprintf(stream, prefix);
+          vfprintf(stream, msg, argptr);
+          if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
+        }
+      va_end(argptr);
+      fflush(stream);
     }
-    fflush(stderr);
-  va_end(argptr);
+  }
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
   /* try to get a pre-signal backtrace, which may be more precise */
   if (!gasneti_print_backtrace_ifenabled(STDERR_FILENO)) 
     gasneti_atomic_set(&gasneti_backtrace_enabled,0,GASNETI_ATOMIC_REL);
+
+  // Try to flush I/O (especially the tracefile) before crashing
+  signal(SIGALRM, _exit); alarm(5); 
+  gasneti_flush_streams();
 
   abort();
 }
@@ -604,7 +629,9 @@ extern void gasneti_killmyprocess(int exitcode) {
   gasneti_fatalerror("gasneti_killmyprocess failed to kill the process!");
 }
 extern void gasneti_filesystem_sync(void) {
-  if ( gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0) ) {
+  static int enabled = -1;
+  if (enabled == -1) enabled = gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0);
+  if (enabled) {
     sync();
   }
 }

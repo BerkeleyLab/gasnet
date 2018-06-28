@@ -11,7 +11,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.10
+#define GASNET_CORE_VERSION      2.0
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         SMP
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -32,14 +32,6 @@
   #define GASNET_ALIGNED_SEGMENTS   0 /* use of PSHM prevents segment alignment */
 #else
   #define GASNET_ALIGNED_SEGMENTS   1
-#endif
-
-#if !defined(GASNETE_PUTGET_ALWAYSREMOTE) && !defined(GASNETE_PUTGET_ALWAYSLOCAL)
- #if GASNET_PSHM
-  #define GASNETE_PUTGET_ALWAYSREMOTE 1
- #else
-  #define GASNETE_PUTGET_ALWAYSLOCAL 1
- #endif
 #endif
 
 #if !GASNET_PSHM

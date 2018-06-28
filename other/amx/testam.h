@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amxtests/testam.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/amx/testam.h $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,7 +12,6 @@
   typedef void (*handler_fn_t)();
  GASNETT_END_EXTERNC
   typedef gasnet_token_t token_t;
-  typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
   #define INCREQ() gasnett_atomic_increment(&numreq,0)
@@ -43,7 +42,6 @@
   typedef gex_AM_Fn_t handler_fn_t;
  GASNETT_END_EXTERNC
   typedef gex_Token_t token_t;
-  typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
   #define INCREQ() gasnett_atomic_increment(&numreq,0)
@@ -114,7 +112,6 @@
   typedef int handlerarg_t;
   typedef amx_handler_fn_t handler_fn_t;
   typedef void *token_t;
-  typedef int bufsize_t;
   int numreq = 0;
   int numrep = 0;
   #define INCREQ() numreq++
@@ -375,7 +372,7 @@ typedef struct {
 
 #define MEDIUMHANDLERS(num)                                                            \
   EXTERNC                                                                              \
-  void medium_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) { \
+  void medium_##num##req_handler(token_t token, void *buf, size_t nbytes FA##num) {    \
     testam_payload_t *payload = (testam_payload_t *)buf;                               \
     if (CA##num)                                                                       \
       FATALERR("Arg mismatch in medium_%sreq_handler on P%i\n", #num, (int)MYPROC);    \
@@ -390,7 +387,7 @@ typedef struct {
     memset(buf, 0xBB, sizeof(testam_payload_t));                                       \
   }                                                                                    \
   EXTERNC                                                                              \
-  void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) { \
+  void medium_##num##rep_handler(token_t token, void *buf, size_t nbytes FA##num) {    \
     testam_payload_t *payload = (testam_payload_t *)buf;                               \
     if (CA##num)                                                                       \
       FATALERR("Arg mismatch in medium_%srep_handler on P%i\n", #num, (int)MYPROC);    \
@@ -404,7 +401,7 @@ typedef struct {
 
 #define LONGHANDLERS(num)                                                                     \
   EXTERNC                                                                                     \
-  void long_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
+  void long_##num##req_handler(token_t token, void *buf, size_t nbytes FA##num) {             \
     testam_payload_t *payload = (testam_payload_t *)buf;                                      \
     testam_payload_t mybuf;                                                                   \
     GETPARTNER(token);                                                                        \
@@ -428,7 +425,7 @@ typedef struct {
     memset(&mybuf, 0xBB, sizeof(testam_payload_t));                                           \
   }                                                                                           \
   EXTERNC                                                                                     \
-  void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
+  void long_##num##rep_handler(token_t token, void *buf, size_t nbytes FA##num) {             \
     testam_payload_t *payload = (testam_payload_t *)buf;                                      \
     if (CA##num)                                                                              \
       FATALERR("Arg mismatch in long_%srep_handler on P%i\n", #num, (int)MYPROC);             \

@@ -101,7 +101,7 @@ void gasneti_AD_Create(
   }
 
   // Does the 'dt' arument name a single valid data type?
-  gasneti_assert(gasneti_dt_valid(dt));
+  gasneti_assert(gasneti_dt_valid_atomic(dt));
 
   // Does ops specify a non-empty set with ALL members valid for remote atomics on the data type?
   gasneti_assert(ops); // Not empty
@@ -176,7 +176,7 @@ void gasnete_ratomic_validate(
     }
 
     // Opcode must be exactly 1 bit and valid for AD
-    if (! gasneti_op_valid(opcode)) {
+    if (! gasneti_op_valid_atomic(opcode)) {
       char *str1 = gasneti_malloc(gasneti_format_op(NULL, opcode));
       gasneti_format_op(str1, opcode);
       gasneti_fatalerror("gex_AD_Op*() called with an unknown/invalid opcode 0x%x (%s)",
@@ -503,6 +503,22 @@ int gasnete_amratomic_request_NBI(
                         &operand1, sizeof(type), flags            \
                         GASNETI_THREAD_PASS);                     \
     } \
+    GASNETI_INLINE(prefix##_NB_N2)                                \
+    gex_Event_t prefix##_NB_N2(                                   \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,  type        operand2, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
+    {                                                             \
+        gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
+        type payload[2];                                          \
+        payload[0] = operand1; payload[1] = operand2;             \
+        return gasnete_amratomic_request_NB(                      \
+                        ad, tgt_rank,                             \
+                        NULL, tgt_addr, op_idx, datatype,         \
+                        &payload, 2*sizeof(type), flags           \
+                        GASNETI_THREAD_PASS);                     \
+    } \
     GASNETI_INLINE(prefix##_NB_F0)                                \
     gex_Event_t prefix##_NB_F0(                                   \
                 gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
@@ -577,6 +593,22 @@ int gasnete_amratomic_request_NBI(
                         ad, tgt_rank,                             \
                         NULL, tgt_addr, op_idx, datatype,         \
                         &operand1, sizeof(type), flags            \
+                        GASNETI_THREAD_PASS);                     \
+    } \
+    GASNETI_INLINE(prefix##_NBI_N2)                               \
+    int prefix##_NBI_N2(                                          \
+                gasneti_op_idx_t op_idx,    gasneti_AD_t ad,      \
+                gex_Rank_t       tgt_rank,  void       *tgt_addr, \
+                type             operand1,  type        operand2, \
+                gex_Flags_t      flags      GASNETI_THREAD_FARG)  \
+    {                                                             \
+        gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
+        type payload[2];                                          \
+        payload[0] = operand1; payload[1] = operand2;             \
+        return gasnete_amratomic_request_NBI(                     \
+                        ad, tgt_rank,                             \
+                        NULL, tgt_addr, op_idx, datatype,         \
+                        &payload, 2*sizeof(type), flags           \
                         GASNETI_THREAD_PASS);                     \
     } \
     GASNETI_INLINE(prefix##_NBI_F0)                               \
@@ -697,7 +729,8 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
     _GASNETE_AMRATOMIC_DEFN2(dtcode,DEC,0)           \
     _GASNETE_AMRATOMIC_SETGET(dtcode)                \
     _GASNETE_AMRATOMIC_DEFN1(dtcode,SWAP,F1)         \
-    _GASNETE_AMRATOMIC_DEFN1(dtcode,CSWAP,F2)
+    _GASNETE_AMRATOMIC_DEFN1(dtcode,FCAS,F2)         \
+    _GASNETE_AMRATOMIC_DEFN1(dtcode,CAS,N2)
 //
 #define _GASNETE_AMRATOMIC_DEFN_INT0(dtcode,opname,nargs) /*empty*/
 #define _GASNETE_AMRATOMIC_DEFN_INT1 _GASNETE_AMRATOMIC_DEFN2
@@ -780,7 +813,8 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_DEFS)
     _GASNETE_AMRATOMIC_STUB1(dtcode,SET,N1)          \
     _GASNETE_AMRATOMIC_STUB1(dtcode,GET,F0)          \
     _GASNETE_AMRATOMIC_STUB1(dtcode,SWAP,F1)         \
-    _GASNETE_AMRATOMIC_STUB1(dtcode,CSWAP,F2)
+    _GASNETE_AMRATOMIC_STUB1(dtcode,FCAS,F2)         \
+    _GASNETE_AMRATOMIC_STUB1(dtcode,CAS,N2)
 //
 #define _GASNETE_AMRATOMIC_STUB_INT0(dtcode,opname,nargs) /*empty*/
 #define _GASNETE_AMRATOMIC_STUB_INT1 _GASNETE_AMRATOMIC_STUB2

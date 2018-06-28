@@ -5,6 +5,7 @@
  */
 
 #include <gasnetex.h>
+#include <gasnet_coll.h>
 #include <test.h>
 
 
@@ -178,17 +179,35 @@ void test_rand_##_tcode(gex_AD_t ad, int64_t lo, int64_t hi, const char *msg) {\
       TEST_ROP(_tcode, GEX_OP_MULT, x, unused, mirror * x);   \
     SUBTEST("SWAP(x)");                                       \
       TEST_ROP_FETCH(_tcode, GEX_OP_SWAP, x, unused, x);      \
-    SUBTEST("CSWAP(mirror,mirror) - PASS");                   \
-      TEST_ROP_FETCH_NC(_tcode, GEX_OP_CSWAP, mirror, mirror);\
-    SUBTEST("CSWAP(mirror+1,0) - FAIL");                      \
-      TEST_ROP_FETCH_NC(_tcode, GEX_OP_CSWAP, mirror+1, 0);   \
-    SUBTEST("CSWAP(mirror,random) - PASS");                   \
+    SUBTEST("FCAS(mirror,mirror) - PASS");                    \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_FCAS, mirror, mirror); \
+    SUBTEST("FCAS(mirror+1,0) - FAIL");                       \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_FCAS, mirror+1, 0);    \
+    SUBTEST("FCAS(mirror,random) - PASS");                    \
       y = (_type)TEST_RAND(lo,hi);                            \
-      TEST_ROP_FETCH(_tcode, GEX_OP_CSWAP, mirror, y, y);     \
-    SUBTEST("CSWAP(random,random) - FAIL");                   \
+      TEST_ROP_FETCH(_tcode, GEX_OP_FCAS, mirror, y, y);      \
+    SUBTEST("FCAS(random,random) - FAIL");                    \
       do { y = (_type)TEST_RAND(lo,hi); } while (y == mirror);\
-      TEST_ROP_FETCH_NC(_tcode, GEX_OP_CSWAP, y, y);          \
-    SUBTEST("GET(cswap)");                                    \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_FCAS, y, y);           \
+    SUBTEST("GET(fcas)");                                     \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
+    SUBTEST("CAS(mirror,mirror) - PASS");                     \
+      TEST_ROP_NC(_tcode, GEX_OP_CAS, mirror, mirror);        \
+    SUBTEST("GET(cas1)");                                     \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
+    SUBTEST("CAS(mirror+1,0) - FAIL");                        \
+      TEST_ROP_NC(_tcode, GEX_OP_CAS, mirror+1, 0);           \
+    SUBTEST("GET(cas2)");                                     \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
+    SUBTEST("CAS(mirror,random) - PASS");                     \
+      y = (_type)TEST_RAND(lo,hi);                            \
+      TEST_ROP(_tcode, GEX_OP_CAS, mirror, y, y);             \
+    SUBTEST("GET(cas2)");                                     \
+      TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
+    SUBTEST("CAS(random,random) - FAIL");                     \
+      do { y = (_type)TEST_RAND(lo,hi); } while (y == mirror);\
+      TEST_ROP_NC(_tcode, GEX_OP_CAS, y, y);                  \
+    SUBTEST("GET(cas4)");                                     \
       TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
     SUBTEST("MIN(random)");                                   \
       y = (_type)TEST_RAND(lo,hi);                            \
@@ -327,10 +346,10 @@ void test_cntr_##_tcode(gex_AD_t ad, int max_goal) {                         \
 }
 FORALL_DT(TEST_CNTR_DECL)
 
-/* CSWAP race test */
-#define TEST_CSWAP_DECL(_tcode) \
-void test_cswap_##_tcode(gex_AD_t ad, int max_goal) {                        \
-  MSG0("    Central-counter concurrent updates test (CSWAP)");               \
+/* FCAS race test */
+#define TEST_FCAS_DECL(_tcode) \
+void test_fcas_##_tcode(gex_AD_t ad, int max_goal) {                         \
+  MSG0("    Central-counter concurrent updates test (FCAS)");                \
   _tcode##_type unused = 911; /* garbage */                                  \
   int goal = MIN(iters, max_goal);                                           \
   int my_share = (goal / numranks) + ((myrank < (goal % numranks)) ? 1 : 0); \
@@ -350,7 +369,7 @@ void test_cswap_##_tcode(gex_AD_t ad, int max_goal) {                        \
         _TEST_ROP(_tcode, &result, GEX_OP_GET, unused, unused);              \
         swapped = 0;                                                         \
       } else {                                                               \
-        _TEST_ROP(_tcode, &result, GEX_OP_CSWAP, oldval, oldval+1);          \
+        _TEST_ROP(_tcode, &result, GEX_OP_FCAS, oldval, oldval+1);           \
         swapped = (oldval == result) ? 1 : 0;                                \
       }                                                                      \
       assert_always(!oldval || result >= oldval);                            \
@@ -366,7 +385,7 @@ void test_cswap_##_tcode(gex_AD_t ad, int max_goal) {                        \
     assert_always(result == goal);                                           \
   }                                                                          \
 }
-FORALL_DT(TEST_CSWAP_DECL)
+FORALL_DT(TEST_FCAS_DECL)
 
 /* Producer/consume ring tests */
 #define _TEST_RING_DECL(_tcode,_op) \
@@ -433,7 +452,7 @@ void test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) { \
 }
 //
 // Producers:
-// Mix SET with the OP for which the subtest is named (SET, SWAP, CSWAP, ADD, XOR)
+// Mix SET with the OP for which the subtest is named (SET, SWAP, FCAS, ADD, XOR)
 //
 #define _TEST_RING_PRODUCE(_tcode,_opA,_op1A,_opB,_op1B) do { \
     const uint64_t prev = step * (i + wrap);                                                 \
@@ -464,14 +483,14 @@ void test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) { \
   }
 #define _TEST_RING_PRODUCE_SET(_tcode)   _TEST_RING_PRODUCE1(_tcode,SET,next)
 #define _TEST_RING_PRODUCE_SWAP(_tcode)  _TEST_RING_PRODUCE2(_tcode,SWAP,next)
-#define _TEST_RING_PRODUCE_CSWAP(_tcode) _TEST_RING_PRODUCE2(_tcode,CSWAP,prev)
+#define _TEST_RING_PRODUCE_FCAS(_tcode)  _TEST_RING_PRODUCE2(_tcode,FCAS,prev)
 #define _TEST_RING_PRODUCE_ADD(_tcode)   _TEST_RING_PRODUCE2(_tcode,ADD,step)
 #define _TEST_RING_PRODUCE_XOR(_tcode)   _TEST_RING_PRODUCE2(_tcode,XOR,(prev^next))
 //
 // Consumers:
 //
 // When producer uses SET or SWAP, consumer uses only GET.
-// When producer uses CSWAP, consumer mixes GET with a no-op CSWAP(0,0).
+// When producer uses FCAS, consumer mixes GET with a no-op FCAS(0,0).
 // When producer uses ADD, consumer mixes GET with a no-op FADD(0).
 // When producer uses XOR, consumer mixes GET with a no-op FXOR(0).
 //
@@ -500,14 +519,14 @@ void test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) { \
   }
 #define _TEST_RING_CONSUME_SET(_tcode)   _TEST_RING_CONSUME1(_tcode)
 #define _TEST_RING_CONSUME_SWAP(_tcode)  _TEST_RING_CONSUME1(_tcode)
-#define _TEST_RING_CONSUME_CSWAP(_tcode) _TEST_RING_CONSUME2(_tcode,CSWAP)
+#define _TEST_RING_CONSUME_FCAS(_tcode)  _TEST_RING_CONSUME2(_tcode,FCAS)
 #define _TEST_RING_CONSUME_ADD(_tcode)   _TEST_RING_CONSUME2(_tcode,FADD)
 #define _TEST_RING_CONSUME_XOR(_tcode)   _TEST_RING_CONSUME2(_tcode,FXOR)
 //
 #define TEST_RING_DECL(_tcode) \
        _TEST_RING_DECL(_tcode,SET) \
        _TEST_RING_DECL(_tcode,SWAP) \
-       _TEST_RING_DECL(_tcode,CSWAP) \
+       _TEST_RING_DECL(_tcode,FCAS) \
        _TEST_RING_DECL(_tcode,ADD) \
        _TEST_RING_DECL(_tcode,XOR)
 FORALL_DT(TEST_RING_DECL)
@@ -522,7 +541,7 @@ void doit(gex_DT_t dt) {
         GEX_OP_FMIN | GEX_OP_FMAX |
         GEX_OP_FINC | GEX_OP_FDEC |
         GEX_OP_SET  | GEX_OP_GET  |
-        GEX_OP_SWAP | GEX_OP_CSWAP;
+        GEX_OP_SWAP | GEX_OP_FCAS | GEX_OP_CAS;
   if ((dt != GEX_DT_FLT) && (dt != GEX_DT_DBL)) {
     all_ops |=
         GEX_OP_AND  | GEX_OP_OR  | GEX_OP_XOR |
@@ -547,7 +566,7 @@ void doit(gex_DT_t dt) {
     gex_AD_Destroy(ad);
   }
 
-  // Max values for "ring", "cntr", "cswap" tests
+  // Max values for "ring", "cntr", "fcas" tests
   // max_int: Must be an 'int' which can be represented exactly in the tested datatype
   // max_u64: Must be a 'uint64_t' which can be represented exactly in the tested datatype
   uint64_t max_u64 = 0;
@@ -591,8 +610,8 @@ void doit(gex_DT_t dt) {
   RING_TEST(SET,SET,0)
   #define RING_SWAP_CASE(dtcode)  case GEX_DT_##dtcode: test_ring_SWAP_##dtcode(ad, max_u64, nbrhd); break;
   RING_TEST(SWAP,SWAP,0)
-  #define RING_CSWAP_CASE(dtcode) case GEX_DT_##dtcode: test_ring_CSWAP_##dtcode(ad, max_u64, nbrhd); break;
-  RING_TEST(CSWAP,CSWAP,0)
+  #define RING_FCAS_CASE(dtcode) case GEX_DT_##dtcode: test_ring_FCAS_##dtcode(ad, max_u64, nbrhd); break;
+  RING_TEST(FCAS,FCAS,0)
   #define RING_ADD_CASE(dtcode)   case GEX_DT_##dtcode: test_ring_ADD_##dtcode(ad, max_u64, nbrhd); break;
   RING_TEST(ADD,FADD,0)
   #define RING_XOR_CASE(dtcode)   case GEX_DT_##dtcode: test_ring_XOR_##dtcode(ad, max_u64, nbrhd); break;
@@ -614,16 +633,16 @@ void doit(gex_DT_t dt) {
     gex_AD_Destroy(ad);
   }
 
-  // Test of contended CSWAP (central counter)
+  // Test of contended FCAS (central counter)
   {
     gex_AD_t ad;
-    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_GET | GEX_OP_CSWAP, 0);
+    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_GET | GEX_OP_FCAS, 0);
 
     BARRIER();
 
-    #define CSWAP_CASE(dtcode)   \
-      case GEX_DT_##dtcode: test_cswap_##dtcode(ad,max_int); break;
-    switch (dt) { FORALL_DT(CSWAP_CASE) }
+    #define FCAS_CASE(dtcode)   \
+      case GEX_DT_##dtcode: test_fcas_##dtcode(ad,max_int); break;
+    switch (dt) { FORALL_DT(FCAS_CASE) }
 
     gex_AD_Destroy(ad);
   }
@@ -679,8 +698,8 @@ void doit(gex_DT_t dt) {
   //         Integer overflow behaviors
   //         Floating-point +/- zero behavior
   // TODO: randomized tests of important subsets
-  //         SET/GET/CSWAP (universal)
-  //         SET/GET/CSWAP/SWAP (MCS locks and Nemesis queues)
+  //         SET/GET/FCAS (universal)
+  //         SET/GET/FCAS/SWAP (MCS locks and Nemesis queues)
   //         SET/GET/FADD
   // TODO: concurrent tests of correctness of more ops
 
@@ -751,7 +770,7 @@ int main(int argc, char **argv) {
   peerseg = TEST_SEG(peer);
 
   {
-    gex_NbrhdInfo_t *info;
+    gex_RankInfo_t *info;
     gex_System_QueryNbrhdInfo(&info, &nbrhdsize, &nbrhdrank);
     neighbor = info[(nbrhdrank + 1) % nbrhdsize].gex_jobrank;
   }

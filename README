@@ -430,7 +430,7 @@ mpi-conduit: MPI (Message Passing Interface)
 ofi-conduit: Open Fabrics Interfaces
  GASNet over the Open Fabrics Interface framework (libfabric).
  Rigorously tested and supported over the portable/reference OFI sockets Provider.
- Believed to also work over the Intel Truescale and Omni-Path Providers.
+ Believed to also work over the Intel Omni-Path psm2 Provider.
 
 portals4-conduit: Portals4   *BETA*
  GASNet over the Portals4 network API developed at Sandia National Lab.
@@ -528,8 +528,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/MIPS/gcc/{32,n32,64}:       smp, udp, #
     * Linux/MIPS64el/gcc/{32,n32,64}:   smp, udp, #
 
-    * Linux/SGI-Altix-IA64/{gcc,IntelC}/64: smp, mpi, udp, shmem
-    * Linux/SGI-Altix-Xeon/{gcc,IntelC}/64: smp, mpi, udp, shmem
+    * Linux/SGI-Altix-IA64/{gcc,IntelC}/64: smp, mpi, udp, shmem &
+    * Linux/SGI-Altix-Xeon/{gcc,IntelC}/64: smp, mpi, udp, shmem &
 
     * FreeBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
     * OpenBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
@@ -545,8 +545,9 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MSWindows10-Linux/{gcc,clang}/64: smp, udp, mpi, BETA
 
 
-    * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi
-    * macOS/{x86,x86_64}/{gcc,icc,clang}/{32,64}: smp, udp, mpi
+    * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi &
+    * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
+    * macOS/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi
     * macOS/{x86,x86_64}/PGI/{32,64}: smp, udp, #
 
     * CNL/Cray-XT/{gcc,PGI,PathScale,Intel}/64: smp, mpi &
@@ -755,32 +756,18 @@ application-specific support.
  scatter gets - i.e. cases that are locally non-contiguous but remotely
  contiguous. The default is conduit-dependent.
 
-* GASNET_COLL_OPT - set to 1 to enable the optimized versions of 
- the collectives. These include binomial trees for the rooted collectives 
- (broadcast, scatter, and gather) and Bruck's algorithm for the non-rooted ones
- (gather all, and exchange) for small enough message sizes. Defaults to 1 if no 
- value is specified.
+* GASNET_COLL_SCRATCH_SIZE - Specifies the size of the scratch space allocated
+ on each rank for internal use in collective communications.  This is the
+ preferred size allocated for the initial team, and is the value returned from
+ a query using GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED.
+ If the size is set too low, then the performance of collectives may suffer.
+ Defaults to 2MB per rank.
 
-* GASNET_COLL_BROADCAST_OPT - set to 1 to enable optimized binomial tree broadcast. 
- Defaults to GASNET_COLL_OPT.
-
-* GASNET_COLL_SCATTER_OPT - set to 1 to enable optimized binomial tree scatter.
- Defaults to GASNET_COLL_OPT.
-
-* GASNET_COLL_GATHER_OPT - set to 1 to enable optimized binomial tree gather.
- Defaults to GASNET_COLL_OPT.
-
-* GASNET_COLL_GATHER_ALL_OPT - set to 1 to enable optimized gather all. Defaults to 
- GASNET_COLL_OPT.
-
-* GASNET_COLL_EXCHANGE_OPT - set to 1 to enable optimized exchange. Defaults to 
- GASNET_COLL_OPT
-
-* GASNET_COLL_SCRATCH_SIZE - specifies the size of the GASNet auxiliary scratch space 
- per node. Most of the optimized collectives rely on this auxiliary space to enable 
- optimized communication schedules. If the size is set too low, then the collectives 
- will send a lot more control messages which could adversely affect performance. 
- Defaults to 2MB per node.
+* GASNET_COLL_MIN_SCRATCH_SIZE - Specifies the minimum size of the scratch
+ space allocated on each rank for internal use in collective communications.
+ This is the minimum size permitted for the initial team (or job startup will
+ fail), and is the value returned from a query using GEX_FLAG_TM_SCRATCH_SIZE_MIN.
+ Defaults to 1KB per rank.
 
 * GASNET_COLL_ENABLE_SEARCH - enable autotuning of collectives
 * GASNET_COLL_TUNING_FILE - file to read and/or write collective autotuning data

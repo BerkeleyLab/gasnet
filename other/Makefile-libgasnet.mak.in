@@ -85,11 +85,14 @@ libgasnet_sources =                                         \
         $(top_srcdir)/extended-ref/coll/gasnet_rvous.c      \
         $(top_srcdir)/extended-ref/coll/gasnet_team.c	    \
         $(top_srcdir)/extended-ref/coll/gasnet_hashtable.c  \
-        $(top_srcdir)/gasnet_event.c                       \
+        $(top_srcdir)/extended-ref/coll/gasnet_reduce.c     \
+        $(top_srcdir)/gasnet_event.c                        \
+        $(top_srcdir)/gasnet_legacy.c                       \
         $(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_am.c                           \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
+        $(top_srcdir)/gasnet_tm.c                           \
 	$(top_srcdir)/gasnet_diagnostic.c
 
 libgasnet_objects = \

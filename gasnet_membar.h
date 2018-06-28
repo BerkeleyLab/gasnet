@@ -100,12 +100,7 @@
   #endif
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_X86_64 /* Athlon/Opteron */
- #if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(2,4,99) /* See bug 1620 */
-   #define GASNETI_COMPILER_FENCE_BODY	0
-   #define GASNETI_LOCAL_WMB_BODY	GASNETI_ASM_SPECIAL("sfence")
-   #define GASNETI_LOCAL_RMB_BODY	GASNETI_ASM_SPECIAL("lfence")
-   #define GASNETI_LOCAL_MB_BODY	GASNETI_ASM_SPECIAL("mfence")
- #elif PLATFORM_COMPILER_CRAY
+ #if PLATFORM_COMPILER_CRAY
    #define gasneti_compiler_fence() do { _Pragma("_CRI suppress") } while (0)
    #define gasneti_local_wmb()      do { _Pragma("_CRI suppress") \
                                          __builtin_ia32_sfence(); } while (0)
