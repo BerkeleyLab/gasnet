@@ -23,7 +23,7 @@ typedef enum {
   gasnetc_comptype_iop_put,
 } gasnetc_comptype_t;
 
-GASNETI_ALWAYS_INLINE(gasnetc_complete_eop)
+GASNETI_INLINE(gasnetc_complete_eop)
 int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type)
 { // Advance and test the proper counter
   gasnete_op_t *op = (gasnete_op_t*)eop;
@@ -44,7 +44,7 @@ int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type)
       initiated = eop->initiated_cnt;
       break;
     default:
-      gasneti_fatalerror("Unreachable switch case");
+      gasneti_unreachable();
   }
 
   if (completed == (initiated & GASNETI_ATOMIC_MAX)) {
@@ -57,7 +57,7 @@ int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type)
         GASNETE_EOP_MARKDONE(op);
         break;
       default:
-        gasneti_fatalerror("Unreachable switch case");
+        gasneti_unreachable();
     }
     return 1;
   }

@@ -234,7 +234,7 @@ GASNETI_INLINE(gasnete_amref_get_reph_inner)
 void gasnete_amref_get_reph_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *dest, void *done) {
-  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
+  GASNETI_MEMCPY(dest, addr, nbytes);
   MARK_DONE(done,1);
 }
 MEDIUM_HANDLER(gasnete_amref_get_reph,2,4,
@@ -271,7 +271,7 @@ GASNETI_INLINE(gasnete_amref_put_reqh_inner)
 void gasnete_amref_put_reqh_inner(gex_Token_t token,
   void *addr, size_t nbytes,
   void *dest, void *done) {
-  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
+  GASNETI_MEMCPY(dest, addr, nbytes);
   gasneti_sync_writes();
   gex_AM_ReplyShort(token, gasneti_handleridx(gasnete_amref_markdone_reph), 0, PACK(done));
 }
@@ -458,7 +458,7 @@ gex_Event_t gasnete_amref_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(H);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
@@ -487,7 +487,7 @@ gex_Event_t gasnete_amref_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
- GASNETI_CHECKPSHM_PUT(H);
+ GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
  {
   // EVENT_DEFER is accomplished using an nbi access region, ended with EVENT_DEFER.
   // Otherwise this reference implementation has no way to portably link the
@@ -555,7 +555,7 @@ int gasnete_amref_get_nbi( gex_TM_t tm,
                            size_t nbytes,
                            gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   gasnete_amref_get_nbi_inner(tm, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
   return 0;
 }
@@ -571,7 +571,7 @@ int gasnete_amref_put_nbi( gex_TM_t tm,
                            size_t nbytes, gex_Event_t *lc_opt,
                            gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   gasnete_amref_put_nbi_inner(tm, rank, dest, src, nbytes, lc_opt, flags GASNETI_THREAD_PASS);
   return 0;
 }

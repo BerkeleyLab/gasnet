@@ -35,10 +35,14 @@ int gasneti_VerboseErrors = 1;
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
     #define _gasneti_atomic_lock_initializer	GEX_HSL_INITIALIZER
     #define _gasneti_atomic_lock_init(x)	gex_HSL_Init(x)
+    #define _gasneti_atomic_lock_lock(x)	gex_HSL_Lock(x)
+    #define _gasneti_atomic_lock_unlock(x)	gex_HSL_Unlock(x)
     #define _gasneti_atomic_lock_malloc		gasneti_malloc
-    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_hsl_atomic_, gasnet_hsl_)
+    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_hsl_atomic_, gex_HSL_)
     #undef _gasneti_atomic_lock_initializer
     #undef _gasneti_atomic_lock_init
+    #undef _gasneti_atomic_lock_lock
+    #undef _gasneti_atomic_lock_unlock
     #undef _gasneti_atomic_lock_malloc
   #endif
   #ifdef GASNETI_GENATOMIC32_DEFN
@@ -199,6 +203,13 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_FP_DT(GEX_DT_FLT,  float);
   CHECK_FP_DT(GEX_DT_DBL, double);
 
+  gasneti_assert_always(gasneti_dt_valid_reduce(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_valid_atomic(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_int(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_fp(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_signed(GEX_DT_USER));
+  gasneti_assert_always(!gasneti_dt_unsigned(GEX_DT_USER));
+
   #undef CHECK_DT
   #undef CHECK_INT_DT
   #undef CHECK_FP_DT
@@ -223,6 +234,14 @@ extern void gasneti_check_config_preinit(void) {
       gasneti_assert_always(gasneti_op_valid(GEX_OP_##stem)); \
       _CHECK_OP(GEX_OP_##stem, fp, not_reduce, pred); \
     } while (0)
+  #define CHECK_USER(stem) do { \
+      gasneti_assert_always(gasneti_op_valid(GEX_OP_##stem)); \
+      gasneti_assert_always(gasneti_op_valid_reduce(GEX_OP_##stem)); \
+      gasneti_assert_always(!gasneti_op_valid_atomic(GEX_OP_##stem)); \
+      gasneti_assert_always(gasneti_op_int(GEX_OP_##stem)); \
+      gasneti_assert_always(gasneti_op_fp(GEX_OP_##stem)); \
+    } while (0)
+
   #define gasneti_op_not_reduce !gasneti_op_reduce
   #define gasneti_op_not_fetch  !gasneti_op_fetch
   #define gasneti_op_not_fp     !gasneti_op_fp
@@ -231,7 +250,7 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_ARITH_OP(OR,   reduce, not_fp);
   CHECK_ARITH_OP(XOR,  reduce, not_fp);
   CHECK_ARITH_OP(ADD,  reduce,     fp);
-  CHECK_ARITH_OP(SUB,  reduce,     fp);
+  CHECK_ARITH_OP(SUB,  not_reduce, fp);
   CHECK_ARITH_OP(MULT, reduce,     fp);
   CHECK_ARITH_OP(MIN,  reduce,     fp);
   CHECK_ARITH_OP(MAX,  reduce,     fp);
@@ -239,13 +258,18 @@ extern void gasneti_check_config_preinit(void) {
   CHECK_ARITH_OP(DEC,  not_reduce, fp);
 
   CHECK_ACCESSOR(SET,   not_fetch);
+  CHECK_ACCESSOR(CAS,   not_fetch);
   CHECK_ACCESSOR(GET,   fetch);
   CHECK_ACCESSOR(SWAP,  fetch);
-  CHECK_ACCESSOR(CSWAP, fetch);
+  CHECK_ACCESSOR(FCAS,  fetch);
+
+  CHECK_USER(USER);
+  CHECK_USER(USER_NC);
 
   #undef _CHECK_OP
   #undef CHECK_ARITH_OP
   #undef CHECK_ACCESSOR
+  #undef CHECK_USER
   #undef gasneti_op_not_reduce
   #undef gasneti_op_not_fetch
   #undef gasneti_op_not_fp
@@ -296,6 +320,7 @@ extern void gasneti_check_config_preinit(void) {
 }
 
 static void gasneti_check_portable_conduit(void);
+static void gasneti_check_architecture(void);
 int gasneti_malloc_munmap_disabled = 0;
 extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
@@ -330,10 +355,13 @@ extern void gasneti_check_config_postattach(void) {
       }
       #if GASNET_NDEBUG
         gasneti_check_portable_conduit();
+        gasneti_check_architecture();
       #endif
     }
   }
   gasneti_memcheck_all();
+
+  gasneti_flush_streams();  // flush above messages, and ensure FS_SYNC envvar is initted
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -376,7 +404,7 @@ extern void gasneti_freezeForDebugger(void) {
 #ifndef gasneti_import_client
 gasneti_Client_t gasneti_import_client(gex_Client_t _client) {
   const gasneti_Client_t _real_client = GASNETI_IMPORT_POINTER(gasneti_Client_t,_client);
-  GASNETI_CHECK_MAGIC(_real_client, GASNETI_CLIENT_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_client, CLIENT);
   return _real_client;
 }
 #endif
@@ -422,7 +450,7 @@ void gasneti_free_client(gasneti_Client_t client)
 #ifndef gasneti_import_segment
 gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment) {
   const gasneti_Segment_t _real_segment = GASNETI_IMPORT_POINTER(gasneti_Segment_t,_segment);
-  GASNETI_CHECK_MAGIC(_real_segment, GASNETI_SEGMENT_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_segment, SEGMENT);
   return _real_segment;
 }
 #endif
@@ -472,7 +500,7 @@ void gasneti_free_segment(gasneti_Segment_t segment)
 #ifndef gasneti_import_ep
 gasneti_EP_t gasneti_import_ep(gex_EP_t _ep) {
   const gasneti_EP_t _real_ep = GASNETI_IMPORT_POINTER(gasneti_EP_t,_ep);
-  GASNETI_CHECK_MAGIC(_real_ep, GASNETI_EP_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_ep, EP);
   return _real_ep;
 }
 #endif
@@ -519,7 +547,7 @@ void gasneti_free_ep(gasneti_EP_t endpoint)
 #ifndef gasneti_import_tm
 gasneti_TM_t gasneti_import_tm(gex_TM_t _tm) {
   const gasneti_TM_t _real_tm = GASNETI_IMPORT_POINTER(gasneti_TM_t,_tm);
-  GASNETI_CHECK_MAGIC(_real_tm, GASNETI_TM_MAGIC);
+  GASNETI_IMPORT_MAGIC(_real_tm, TM);
   return _real_tm;
 }
 #endif
@@ -537,25 +565,37 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t rank,
                        gex_Rank_t size,
                        gex_Flags_t flags,
-                       size_t alloc_size)
+                       int is_tm0,
+                       size_t requested_sz)
 {
   gasneti_assert(rank < size);
   gasneti_assert(size > 0);
-  gasneti_TM_t tm = gasneti_malloc(alloc_size ? alloc_size : sizeof(*tm));
-  gasneti_assert(!alloc_size || alloc_size >= sizeof(*tm));
+
+  // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
+  gasneti_TM_t tm;
+  gasneti_assert(!requested_sz || requested_sz >= sizeof(*tm));
+  size_t disalign = (is_tm0 ? 0 : GASNETI_TM0_ALIGN/2);
+  size_t actual_sz = (requested_sz ? requested_sz : sizeof(*tm)) + disalign;
+  tm = (gasneti_TM_t)(disalign + (uintptr_t)gasneti_malloc_aligned(GASNETI_TM0_ALIGN, actual_sz));
+
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_MAGIC);
   tm->_ep = ep;
   tm->_cdata = NULL;
   tm->_flags = flags;
   tm->_rank = rank;
   tm->_size = size;
+  tm->_coll_team = NULL;
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
 #endif
+  
+  if (is_tm0) {
+    gasneti_legacy_alloc_tm_hook(tm); // init g2ex layer if appropriate
 
-  // TODO-EX: Please remove this!
-  gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
-  gasneti_thing_that_goes_thunk_in_the_dark = tm;
+    // TODO-EX: Please remove this!
+    gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
+    gasneti_thing_that_goes_thunk_in_the_dark = tm;
+  }
 
   return tm;
 }
@@ -566,10 +606,9 @@ void gasneti_free_tm(gasneti_TM_t tm)
   GASNETI_TM_FREE_EXTRA(tm);
 #endif
   GASNETI_INIT_MAGIC(tm, GASNETI_TM_BAD_MAGIC);
-  gasneti_free(tm);
+  gasneti_free_aligned((void*)((uintptr_t)tm & (GASNETI_TM0_ALIGN-1)));
 }
 #endif // _GEX_TM_T
-
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -653,17 +692,29 @@ void gasneti_defaultSignalHandler(int sig) {
     case SIGILL:
     case SIGSEGV:
     case SIGBUS:
-    case SIGFPE:
+    case SIGFPE: {
       oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
 
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
-      fprintf(stderr,"*** Caught a fatal signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasneti_mynode, (int)gasneti_nodes); 
-      fflush(stderr);
+
+      FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
+      for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
+        FILE *stream = streams[s];
+        if (stream) {
+          fprintf(stream, "*** Caught a fatal signal: %s(%i) on node %i/%i\n", 
+                        signame, sig, (int)gasneti_mynode, (int)gasneti_nodes);
+          fflush(stream);
+        }
+      }
 
       gasnett_freezeForDebuggerErr(); /* allow freeze */
 
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
+
+      // Try to flush I/O (especially the tracefile) before crashing
+      signal(SIGALRM, _exit); alarm(5); 
+      gasneti_flush_streams();
+      alarm(0);
 
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
@@ -672,6 +723,7 @@ void gasneti_defaultSignalHandler(int sig) {
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
       do_raise(sig);
       break;
+    }
     default: 
       /* translate signal to SIGQUIT */
       { static int sigquit_raised = 0;
@@ -1214,6 +1266,34 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   }
 }
 
+static void gasneti_check_architecture(void) { // check for bad build configurations
+  #if PLATFORM_OS_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
+  { FILE *fp = fopen("/proc/cpuinfo","r");
+    char model[255];
+    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    while (!feof(fp) && fgets(model, sizeof(model), fp)) {
+      if (strstr(model,"model name")) break;
+    }
+    fclose(fp);
+    GASNETI_TRACE_PRINTF(I,("CPU %s",model));
+    int isKNL = !!strstr(model, "Phi");
+    #ifdef __CRAY_MIC_KNL  // module craype-mic-knl that tunes for AVX512
+      const char *warning = isKNL ? 0 :
+      "WARNING: This executable was optimized for MIC KNL (module craype-mic-knl) but run on another processor!\n";
+    #else // some other x86 tuning mode
+      const char *warning = isKNL ? 
+      "WARNING: This executable is running on a MIC KNL architecture, but was not optimized for MIC KNL.\n"
+      "WARNING: This often has a MAJOR impact on performance. Please re-build with module craype-mic-knl!\n"
+      : 0;
+    #endif
+    if (warning && gasneti_mynode == 0) {
+      fprintf(stderr, warning);
+      fflush(stderr);
+    }
+  }
+  #endif
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Nodemap handling
  */
@@ -1561,6 +1641,7 @@ extern void gasneti_nodemapParse(void) {
   /* Second pass: Construct arrays of local nodes */
   gasneti_assert(gasneti_myhost.node_count >= gasneti_mysupernode.node_count);
   gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gex_Rank_t));
+  gasneti_leak(gasneti_myhost.nodes);
   for (i = initial, j = 0; j < gasneti_myhost.node_count; ++i) {
     gasneti_assert(i < gasneti_nodes);
     if (s[i].h_lead == initial) {
@@ -1639,7 +1720,6 @@ extern void gasneti_nodemapFini(void) {
 #if GASNET_DEBUG
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;
-  gasneti_myhost.nodes = NULL;
 #endif
 }
 
@@ -1760,19 +1840,6 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 
   return res;
 }
-
-/* ------------------------------------------------------------------------------------ */
-/* G2EX (legacy GASNet-1 compatibility) support: */
-// TODO-EX: relocate to a distinct gasnet_legacy.c?
-
-#undef gasneti_thunk_client
-gex_Client_t      gasneti_thunk_client   = NULL;
-#undef gasneti_thunk_endpoint
-gex_EP_t          gasneti_thunk_endpoint = NULL;
-#undef gasneti_thunk_tm
-gex_TM_t          gasneti_thunk_tm       = NULL;
-#undef gasneti_thunk_segment
-gex_Segment_t     gasneti_thunk_segment  = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* Buffer management

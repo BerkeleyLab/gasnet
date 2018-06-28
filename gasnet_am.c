@@ -6,7 +6,6 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_am.h>
 
 /* ------------------------------------------------------------------------------------ */
@@ -322,49 +321,99 @@ extern gex_TI_t gasneti_token_info_return(gex_TI_t result, gex_Token_Info_t *inf
 // Error checking for AM payload queries
 
 #if GASNET_DEBUG
-size_t gex_AM_MaxRequestMedium(
-           gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags,
+// TODO-EX: are there any additional checks still possible here?
+
+static void check_max_payload_args(
+           const char *fname, gasneti_category_t category, int isReq,
+           const gex_Event_t *lc_opt, gex_Flags_t flags,
            unsigned int nargs)
 {
-  // TODO-EX: lots of additional checks possible here
-  size_t result = gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs);
-  gasneti_assert(result >= 512);
-  return result;
+  if (lc_opt == GEX_EVENT_DEFER) {
+    gasneti_fatalerror("Call to %s() with invalid lc_opt=GEX_EVENT_DEFER", fname);
+  }
+  if (!isReq && (lc_opt == GEX_EVENT_GROUP)) {
+    gasneti_fatalerror("Call to %s() with invalid lc_opt=GEX_EVENT_GROUP", fname);
+  }
+  if (lc_opt && gasneti_leaf_is_pointer(lc_opt)) {
+    // Following assumes minimum 4-byte alignment of gex_Event_t
+    if (0x3 & (uintptr_t)lc_opt) {
+      gasneti_fatalerror("Call to %s() with invalid lc_opt=%p", fname, lc_opt);
+    }
+    // Following attempts to elicit SIGSEGV/SIGBUS/SIGILL on bogus pointers
+    static uintptr_t dummy;
+    dummy += (uintptr_t) *(volatile gex_Event_t *)lc_opt;
+  }
+  if ((flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT) &&
+      (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC)) {
+    gasneti_fatalerror("Call to %s() with mutually-exclusive "
+                       "GEX_FLAG_AM_PREPARE_LEAST_CLIENT and "
+                       "GEX_FLAG_AM_PREPARE_LEAST_ALLOC both set in flags argument",
+                       fname);
+  }
+  if (nargs > gex_AM_MaxArgs()) {
+    gasneti_fatalerror("Call to %s() with nargs=%u greater than gex_AM_MaxArgs()=%u",
+                       fname, nargs, (unsigned int)gex_AM_MaxArgs());
+  }
 }
 
-size_t gex_AM_MaxReplyMedium(
-           gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags,
-           unsigned int nargs)
+static void check_max_payload_result(gex_Flags_t flags, size_t lub, size_t result)
 {
-  // TODO-EX: lots of additional checks possible here
-  size_t result = gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs);
   gasneti_assert(result >= 512);
-  return result;
+  gasneti_assert((result >= lub) ||
+                 (flags & GEX_FLAG_AM_PREPARE_LEAST_CLIENT) ||
+                 (flags & GEX_FLAG_AM_PREPARE_LEAST_ALLOC));
 }
 
-size_t gex_AM_MaxRequestLong(
-           gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags,
-           unsigned int nargs)
-{
-  // TODO-EX: lots of additional checks possible here
-  size_t result = gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs);
-  gasneti_assert(result >= 512);
-  return result;
+#define GASNETC_IS_REQ(reqrep) _GASNETC_IS_REQ_##reqrep
+#define _GASNETC_IS_REQ_Request 1
+#define _GASNETC_IS_REQ_Reply   0
+
+#define DEFN_AM_MAX_FN(reqrep,cat) \
+size_t gex_AM_Max##reqrep##cat(                                            \
+           gex_TM_t tm, gex_Rank_t rank,                                   \
+           const gex_Event_t *lc_opt, gex_Flags_t flags,                   \
+           unsigned int nargs)                                             \
+{                                                                          \
+  const char *fname = "gex_AM_Max" #reqrep #cat;                           \
+  gasneti_TM_t real_tm = gasneti_import_tm(tm);                            \
+  /* TODO-EX: remove allowance for real_tm == NULL */                      \
+  if (real_tm && (rank != GEX_RANK_INVALID) && (rank >= real_tm->_size)) { \
+    gasneti_fatalerror("Call to %s() with invalid rank=%i",                \
+                       fname, (int)rank);                                  \
+  }                                                                        \
+  gasneti_category_t category = gasneti_##cat;                             \
+  int isReq = GASNETC_IS_REQ(reqrep);                                      \
+  check_max_payload_args(fname, category, isReq,lc_opt, flags, nargs);     \
+  size_t result = gasnetc_AM_Max##reqrep##cat(tm,rank,lc_opt,flags,nargs); \
+  check_max_payload_result(flags, gex_AM_LUB##reqrep##cat(), result);      \
+  return result;                                                           \
 }
 
-size_t gex_AM_MaxReplyLong(
-           gex_TM_t tm, gex_Rank_t rank,
-           gex_Event_t *lc_opt, gex_Flags_t flags,
-           unsigned int nargs)
-{
-  // TODO-EX: lots of additional checks possible here
-  size_t result = gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs);
-  gasneti_assert(result >= 512);
-  return result;
+#define DEFN_TOKEN_MAX_FN(reqrep,cat) \
+size_t gex_Token_Max##reqrep##cat(                                          \
+           gex_Token_t token,                                               \
+           const gex_Event_t *lc_opt, gex_Flags_t flags,                    \
+           unsigned int nargs)                                              \
+{                                                                           \
+  const char *fname = "gex_Token_Max" #reqrep #cat;                         \
+  gasneti_category_t category = gasneti_##cat;                              \
+  int isReq = GASNETC_IS_REQ(reqrep);                                       \
+  check_max_payload_args(fname, category, isReq,lc_opt, flags, nargs);      \
+  size_t result = gasnetc_Token_Max##reqrep##cat(token,lc_opt,flags,nargs); \
+  check_max_payload_result(flags, gex_AM_LUB##reqrep##cat(), result);       \
+  return result;                                                            \
 }
+
+DEFN_AM_MAX_FN(Request,Medium)
+DEFN_AM_MAX_FN(Request,Long)
+DEFN_AM_MAX_FN(Reply,Medium)
+DEFN_AM_MAX_FN(Reply,Long)
+
+DEFN_TOKEN_MAX_FN(Reply,Medium)
+DEFN_TOKEN_MAX_FN(Reply,Long)
+
+#undef DEFN_AM_MAX_FN
+#undef DEFN_TOKEN_MAX_FN
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -401,31 +450,31 @@ gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
 }
 #endif
 
-gasneti_AM_SrcDesc_t gasneti_init_srcdesc(int isreq GASNETI_THREAD_FARG)
+void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
-  gasneti_assert(isreq == !!isreq); // 0 or 1
-  gasneti_AM_SrcDesc_t sd = &(GASNETI_MYTHREAD->gasneti_sds[isreq]);
-  GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC); // Yes, we start "BAD"
-  sd->_thread = GASNETI_MYTHREAD;
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_assert(! mythread->sd_is_init);
+
+  // Yes, we start "BAD":
+  GASNETI_INIT_MAGIC(&mythread->request_sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+  GASNETI_INIT_MAGIC(&mythread->reply_sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
+
+  mythread->request_sd._thread = mythread;
+  mythread->reply_sd._thread = mythread;
+
 #if GASNET_DEBUG
-  sd->_isreq  = isreq;
+  mythread->request_sd._isreq = 1;
+  mythread->reply_sd._isreq = 0;
 #endif
-  // Code in gasnet_am.h finds the structs by pointers at known offsets:
-  gasneti_assert((void**)(&GASNETI_MYTHREAD->gasneti_req_sd) == ((void**)GASNETI_MYTHREAD)+4);
-  gasneti_assert((void**)(&GASNETI_MYTHREAD->gasneti_rep_sd) == ((void**)GASNETI_MYTHREAD)+3);
-  if (isreq) {
-     GASNETI_MYTHREAD->gasneti_req_sd = sd;
-  } else {
-     GASNETI_MYTHREAD->gasneti_rep_sd = sd;
-  }
-  return sd;
+
+  mythread->sd_is_init = 1;
 }
 #endif // _GEX_AM_SRCDESC_T
 
 #ifndef GASNETC_HAVE_NP_REQ_MEDIUM
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        gex_TM_t           tm,
-                       gex_Rank_t         dest,
+                       gex_Rank_t         rank,
                        const void        *client_buf,
                        size_t             least_payload,
                        size_t             most_payload,
@@ -435,14 +484,20 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+    GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
-        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, tm, dest,
+        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                                client_buf, least_payload, most_payload,
                                                NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
-        if (imm) goto out_immediate;
+        if (imm) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        }
     } else {
         // Ensure at least one poll upon Request injection (exactly one if possible)
         #if GASNETC_REQUESTV_POLLS
@@ -450,17 +505,14 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         #else
             GASNETC_IMMEDIATE_MAYBE_POLL(flags);
         #endif
-        size_t limit = gex_AM_MaxRequestMedium(tm, dest, lc_opt, flags, nargs);
+        size_t limit = gex_AM_MaxRequestMedium(tm, rank, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
-        gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
+        gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
-
-out_immediate:
-    gasneti_reset_srcdesc(sd);
-    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REQ_MEDIUM
 
@@ -478,30 +530,32 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
                                              client_buf, least_payload, most_payload,
                                              NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
-        if (imm) goto out_immediate;
+        if (imm) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        }
     } else {
-        size_t limit = gasnetc_Token_MaxReplyMedium(token, lc_opt, flags, nargs);
+        size_t limit = gex_Token_MaxReplyMedium(token, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
     return gasneti_export_srcdesc(sd);
-
-out_immediate:
-    gasneti_reset_srcdesc(sd);
-    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REP_MEDIUM
 
 #ifndef GASNETC_HAVE_NP_REQ_LONG
 extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        gex_TM_t           tm,
-                       gex_Rank_t         dest,
+                       gex_Rank_t         rank,
                        const void        *client_buf,
                        size_t             least_payload,
                        size_t             most_payload,
@@ -512,14 +566,20 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
                        unsigned int       nargs)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REQ(sd,tm,dest,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
+    GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
 
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, tm, dest)) {
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
-        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, tm, dest,
+        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, jobrank,
                                                client_buf, least_payload, most_payload,
                                                dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
-        if (imm) goto out_immediate;
+        if (imm) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        }
     } else {
         // Ensure at least one poll upon Request injection (exactly one if possible)
         #if GASNETC_REQUESTV_POLLS
@@ -527,18 +587,15 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         #else
             GASNETC_IMMEDIATE_MAYBE_POLL(flags);
         #endif
-        size_t limit = gex_AM_MaxRequestLong(tm, dest, lc_opt, flags, nargs);
+        size_t limit = gex_AM_MaxRequestLong(tm, rank, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
-        gasneti_prepare_request_common(sd, tm, dest, client_buf, size, lc_opt, flags, nargs);
+        gasneti_prepare_request_common(sd, tm, rank, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_LONG, sd);
     return gasneti_export_srcdesc(sd);
-
-out_immediate:
-    gasneti_reset_srcdesc(sd);
-    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REQ_LONG
 
@@ -557,24 +614,26 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
 
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Long, token,
                                              client_buf, least_payload, most_payload,
                                              dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
-        if (imm) goto out_immediate;
+        if (imm) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        }
     } else {
-        size_t limit = gasnetc_Token_MaxReplyLong(token, lc_opt, flags, nargs);
+        size_t limit = gex_Token_MaxReplyLong(token, lc_opt, flags, nargs);
         size_t size = MIN(most_payload, limit);
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
+        gasneti_init_sd_poison(sd);
     }
 
-    gasneti_init_sd_poison(sd);
+    GASNETI_TRACE_PREP_RETURN(REPLY_LONG, sd);
     return gasneti_export_srcdesc(sd);
-
-out_immediate:
-    gasneti_reset_srcdesc(sd);
-    return GEX_AM_SRCDESC_NO_OP;
 }
 #endif // GASNETC_HAVE_NP_REP_LONG
 
@@ -598,7 +657,7 @@ void gasnetc_AM_CommitRequestMediumM(
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
         gex_TM_t   tm          = sd->_dest._request._tm;
-        gex_Rank_t dest        = sd->_dest._request._rank;
+        gex_Rank_t rank        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
         gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
@@ -606,7 +665,7 @@ void gasnetc_AM_CommitRequestMediumM(
                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMRequestMediumV(tm, dest, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
+        int rc = gasneti_AMRequestMediumV(tm, rank, handler, src_addr, nbytes, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     }
     va_end(argptr);
@@ -671,7 +730,7 @@ void gasnetc_AM_CommitRequestLongM(
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Long, handler, nbytes, dest_addr, argptr);
     } else {   GASNET_POST_THREADINFO(GASNETI_THREAD_PASS_ALONE);
         gex_TM_t   tm          = sd->_dest._request._tm;
-        gex_Rank_t dest        = sd->_dest._request._rank;
+        gex_Rank_t rank        = sd->_dest._request._rank;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
         gex_Flags_t flags      = sd->_flags & ~(GEX_FLAG_IMMEDIATE |
@@ -679,7 +738,7 @@ void gasnetc_AM_CommitRequestLongM(
                                                 GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
         unsigned int nargs     = sd->_nargs;
 
-        int rc = gasneti_AMRequestLongV(tm, dest, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
+        int rc = gasneti_AMRequestLongV(tm, rank, handler, src_addr, nbytes, dest_addr, lc_opt, flags, nargs, argptr);
         gasneti_assert(!rc); // IMMEDIATE is only permissible reason to return non-zero
     }
     va_end(argptr);
@@ -726,7 +785,10 @@ void gasnetc_AM_CommitReplyLongM(
 
 /* ------------------------------------------------------------------------------------ */
 
-gasneti_lifo_head_t gasnetc_loopback_medium_pool = GASNETI_LIFO_INITIALIZER;
+// gasneti_free_aligned() is a macro, preventing direct registration as a cleanupfn
+void gasneti_loopback_cleanup_threaddata(void *buf) {
+  gasneti_free_aligned(buf);
+}
 
 extern gex_TI_t gasnetc_nbrhd_Token_Info(
                 gex_Token_t         token,

@@ -10,17 +10,17 @@ define([cv_prefix],[gasnet_cv_])
 
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2018])
-define([GASNET_RELEASE_VERSION_MINOR_D],[3])
+define([GASNET_RELEASE_VERSION_MINOR_D],[6])
 define([GASNET_RELEASE_VERSION_PATCH_D],[0])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
-define([GASNETEX_SPEC_VERSION_MINOR_D],[4])
+define([GASNETEX_SPEC_VERSION_MINOR_D],[5])
 dnl GASNet-1 spec version:
 define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 define([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-define([GASNETT_SPEC_VERSION_MINOR_D],[11])
+define([GASNETT_SPEC_VERSION_MINOR_D],[12])
 
 define([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -197,6 +197,8 @@ case "$CC_FAMILY" in
         esac
         ;;
   PGI)  GASNET_PGI_VERSION_CHECK(CC);;
+  Pathscale)
+        GASNET_PATHSCALE_VERSION_CHECK(CC);;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -579,7 +581,7 @@ GASNET_IF_DISABLED([ppc64-probe],[Disable probe for PPC64 compiler options],[DIS
 AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
   pushdef([ppc64code],[[
 	#include <stdio.h>
-	#if defined(__xlC__)
+	#if (defined(__xlC__) || defined(__ibmxl__)) && !defined(__clang__)
 	  static int testme(double *p);
 	  #pragma mc_func testme {            \\
 	    /* ARGS: r3 = p  LOCAL: r4, r5 */ \\
@@ -1051,15 +1053,57 @@ popdef([uppername])
 popdef([lowername])
 ])
 
+dnl Check GCC-style inline asm support
+dnl GASNET_CHECK_GCC_ASM(compiler-display-name, compiler-type)
+dnl Where compiler-type is CC|CXX|MPI_CC
+AC_DEFUN([GASNET_CHECK_GCC_ASM],[
+GASNET_FUN_BEGIN([$0($1,$2)])
+pushdef([lowername],translit($2,'A-Z','a-z'))
+pushdef([uppername],translit($2,'a-z','A-Z'))
+case "$target_cpu" in
+  # TODO: expand as this becomes reachable on other CPUs
+  rs6000|powerpc*) gcc_asm_string='"sync"';;
+                *) AC_MSG_ERROR([Internal error - GASNET_CHECK[]_GCC_ASM called for unknown architecture]) ;;
+esac
+GASNET_TRY_CACHE_LINK([$1 for GCC inline asm support], lowername[]_gcc_asm, [],
+  [ __asm__ __volatile__ ($gcc_asm_string); ],
+  [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
+popdef([uppername])
+popdef([lowername])
+])
+
 dnl Check for compilers with varying support for inline asm and atomics
 dnl GASNET_CHECK_ASM_SUPPORT(compiler-display-name, compiler-type)
 dnl Where compiler-type is CC|CXX|MPI_CC
+dnl
+dnl NOTE TO IMPLEMENTERS:
+dnl Changes made here that enable ASM support on additional platforms,
+dnl which do not require any compile/link/run test, should also be
+dnl applied in gasnet_asm.h.
+dnl
 AC_DEFUN([GASNET_CHECK_ASM_SUPPORT],[
 GASNET_FUN_BEGIN([$0($1,$2)])
 pushdef([lowername],translit($2,'A-Z','a-z'))
 pushdef([uppername],translit($2,'a-z','A-Z'))
 pushdef([flagsvar],ifelse(index([$2],[CXX]),[-1],[C],[CXX])[]FLAGS)
+GASNET_PUSHVAR(flagsvar,"$flagsvar -I$TOP_SRCDIR/other")
 case "$[]uppername[]_FAMILY" in
+Sun)
+    GASNET_TRY_CACHE_LINK([$1 for simple inline asm() support], lowername[]_simple_asm, [],
+      [ asm("nop"); ],
+      [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_SIMPLE_ASM) ])
+    # We lack a reliable configure probe to diagnose broken GCC inline asm support on Sun C
+    # We only know 5.12 and newer on x86/x86-64 are reliable (see bug 2941)
+    GASNET_TRY_CACHE_LINK([$1 for GCC inline asm support], lowername[]_gcc_asm, [
+        #include "gasnet_portable_platform.h"
+      ],[
+        #if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64) && PLATFORM_COMPILER_VERSION_GE(5,12,0)
+          __asm__ __volatile__ ("lock; addl \$[]0,0(%%esp)" : : : "memory", "cc");
+        #else
+          #error Support has not been verified
+        #endif
+      ],[ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
+  ;;
 XLC)
     GASNET_TRY_CACHE_LINK([$1 for XLC mc_func support], lowername[]_mc_func, [
         static void _gasneti_do_sync(void);
@@ -1069,14 +1113,17 @@ XLC)
       ],
       [ gasneti_local_sync(); ],
       [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_XLC_ASM) ])
-    GASNET_TRY_CACHE_LINK([$1 for GCC inline asm support], lowername[]_gcc_asm, [],
-      [ __asm__ __volatile__ ("sync"); ],
-      [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
+    GASNET_CHECK_GCC_ASM($1, $2)
+  ;;
+GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)
+    # Currently believe all of these support GCC-style inline ASM on all CPUs
+    # where we use it.  If that is ever *not* the case then one should split
+    # off the case for the relevant compiler and apply blacklists or probes.
+    # NOTE: be sure to keep gasnet_asm.h in-sync with any changes made here.
+    AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM)
   ;;
 esac
-GASNET_PUSHVAR(flagsvar,"$flagsvar -I$TOP_SRCDIR/other")
 dnl  TODO: factor this and loop over "32" and "64" ?
-dnl  TODO: we should probe if test-and-set is swap
 GASNET_TRY_CACHE_LINK([$1 for 32-bit __sync atomics support], lowername[]_sync_atomics_32, [
     #include "portable_inttypes.h"
   ],[
@@ -1243,7 +1290,7 @@ case "$target_os" in
 	  fi
 	fi
 	# Check for IBM PE by presence of POE
-	if test x$force_arch_imbpe = xyes || 
+	if test x$force_arch_ibmpe = xyes || 
            ( env PAGER=cat poe -h | grep 'Parallel Operating Environment' ) >/dev/null 2>&1; then
 	    GASNETI_ARCH_IBMPE=1
 	    GASNET_PLATFORM=ibmpe
@@ -1912,9 +1959,6 @@ AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
 ########################################################################
 ## CPU feature checks
 
-# the flags needed to compile gasnet_asm.h
-GASNET_ASM_CFLAGS="-I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE"
-
 ## Look for potentially buggy MIPS R10k systems
 # There is a processor erratum to work-around in our atomics :-(
 # The only SGI products w/ the bad cpus are the "IP27" platforms (Origin 200, Origin 2000, and Onyx 2)
@@ -1928,7 +1972,6 @@ fi
 # Check how to reference MIPS assembler temporary register ("$1" or "$at")
 if expr "$target_cpu" : "mips" >/dev/null; then
   AC_CHECK_HEADERS(sgidefs.h)
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
     #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   ], [
@@ -1943,57 +1986,22 @@ if expr "$target_cpu" : "mips" >/dev/null; then
                 "move \$at,\$0\n\t"
                 ".set at"); 
   ], [AC_DEFINE(GASNETI_HAVE_MIPS_REG_AT)])
-  GASNET_POPVAR(CFLAGS)
 fi
 
 ## ARM-specific checks for "kernel helpers"
 if expr "$target_cpu" : "arm" >/dev/null; then
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_arch_arm.h
 
   ## Does ARM kernel have cmpxchg support?
   if test "$cross_compiling" = "yes" ; then
     GASNET_CROSS_VAR(GASNETI_HAVE_ARM_CMPXCHG, HAVE_ARM_CMPXCHG)
   else
     GASNET_TRY_CACHE_RUN([for ARM cmpxchg kernel support], have_arm_cmpxchg, [
-      #include "gasnet_asm.h" /* For GASNETI_ARM_ASMCALL() */
-      int cmp_swap(volatile unsigned int *v, int oldval, int newval) {
-	register unsigned int result __asm("r0");
-	register unsigned int _newval __asm("r1") = newval;
-	register unsigned int _v __asm("r2") = (unsigned long)v;
-	register unsigned int _oldval __asm("r4") = oldval;
-
-	/* Transient failure is possible if interrupted.
-	 * Since we can't distinguish the cause of the failure,
-	 * we must retry as long as the failure looks "improper"
-	 * which is defined as (!swapped && (v->ctr == oldval))
-	 */
-	__asm__ __volatile__ (
-		"0:	mov	r0, r4          @ r0 = oldval              \n"
-		GASNETI_ARM_ASMCALL(r3, 0x3f)
-#ifdef __thumb2__
-		"	ite	cc		@ THUMB2: If(cc)-Then-Else \n"
-#endif
-		"	ldrcc	ip, [[r2, #0]]	@ if (!swapped) ip=v->ctr  \n"
-		"	eorcs	ip, r4, #1	@ else ip=oldval^1         \n"
-		"	teq	r4, ip		@ if (ip == oldval)        \n"
-		"	beq	0b		@    then retry            \n"
-		: "=&r" (result)
-		: "r" (_oldval), "r" (_v), "r" (_newval)
-		: "r3", "ip", "lr", "cc", "memory" );
-
-	return !result;
-      } 
-
+      #define GASNETI_IN_CONFIGURE 1
+      #define CHECK_ARM_CMPXCHG 1
+      #include "gasnet_arch_arm.h"
       int main(void) {
-	volatile unsigned int X = 4321;
-
-	/* Expect FAIL and X unchanged */
-	if (cmp_swap(&X, 0, 1234) || (X != 4321)) return 1;
-
-	/* Expect SUCCESS and X changed */
-	if (!cmp_swap(&X, 4321, 1234) || (X != 1234)) return 1;
-
-       	return 0;
+        return gasneti_arm_cmpxchg_check();
       }
     ], [GASNETI_HAVE_ARM_CMPXCHG=1]
      , [GASNETI_HAVE_ARM_CMPXCHG=0])
@@ -2007,26 +2015,11 @@ if expr "$target_cpu" : "arm" >/dev/null; then
     GASNET_CROSS_VAR(GASNETI_HAVE_ARM_MEMBAR, HAVE_ARM_MEMBAR)
   else
     GASNET_TRY_CACHE_RUN([for ARM membar kernel support], have_arm_membar, [
-      #include "gasnet_asm.h" /* For GASNETI_ARM_ASMCALL() */
-      #define arm_membar()                           \
-	  __asm__ __volatile__ (                     \
-		  GASNETI_ARM_ASMCALL(r0, 0x5f)      \
-		  : : : "r0", "lr", "cc", "memory" )
+      #define GASNETI_IN_CONFIGURE 1
+      #define CHECK_ARM_MEMBAR 1
+      #include "gasnet_arch_arm.h"
       int main(void) {
-	/* First check the interface version (number of helpers) */
-	unsigned int kernel_helper_version = *(unsigned int *)0xffff0ffcUL;
-
-	/* Max possible is 128 32-byte helper "slots".
-	 * We check this because prior to 2.6.12, the same location
-	 * held the thread-specific pointer! */
-	if (kernel_helper_version > 128) exit(1);
-
-	/* memory barrier occupies slot #3 */
-	if (kernel_helper_version < 3) exit(1);
-
-	/* Can't test any side effect, but at least check for crash */
-	arm_membar();
-	exit(0);
+        return gasneti_arm_membar_check();
       }
     ], [GASNETI_HAVE_ARM_MEMBAR=1]
      , [GASNETI_HAVE_ARM_MEMBAR=0])
@@ -2035,7 +2028,7 @@ if expr "$target_cpu" : "arm" >/dev/null; then
     AC_DEFINE(GASNETI_HAVE_ARM_MEMBAR)
   fi
 
-  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(CPPFLAGS)
 fi
 
 ## Check support for AARCH64 real time counter
@@ -2056,7 +2049,7 @@ if test "$target_cpu" = "aarch64" ; then
 fi
 
 ## Do toolchain and CPU support ia64 "cmp8xchg16"?
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
 AC_MSG_CHECKING(for ia64 cmp8xchg16 support)
 AC_TRY_RUN([
   #include "gasnet_portable_platform.h" /* For PLATFORM_{ARCH,COMPILER}_* */
@@ -2100,10 +2093,9 @@ AC_TRY_RUN([
 ], [AC_MSG_RESULT(no)
 ], [ : # For now we assume "NO" when cross compiling
     AC_MSG_RESULT(no)])
-GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(CPPFLAGS)
 
 ## Do CC/gas and CPU support "cmpxchg16b"?
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 if test "$cross_compiling" = "yes" ; then
   GASNET_CROSS_VAR(GASNETI_HAVE_X86_CMPXCHG16B,HAVE_X86_CMPXCHG16B,[probe])
   if test "$GASNETI_HAVE_X86_CMPXCHG16B" = '1'; then
@@ -2111,6 +2103,7 @@ if test "$cross_compiling" = "yes" ; then
   fi
 fi
 if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; then
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
   GASNET_TRY_CACHE_RUN_WITHCC([for x86-64 cmpxchg16b support],[x86_64_cmpxchg16b],[
     #include "gasnet_portable_platform.h"
   ],[[
@@ -2150,15 +2143,15 @@ if test "$cross_compiling" = 'no' -o "$GASNETI_HAVE_X86_CMPXCHG16B" = 'probe' ; 
     #error wrong CPU architecture
   #endif
   ]], [AC_DEFINE(GASNETI_HAVE_X86_CMPXCHG16B)])
+  GASNET_POPVAR(CPPFLAGS)
 fi
-GASNET_POPVAR(CFLAGS)
 
 ## x86 -fPIC which steals the B register
 ## XXX: Test currently only correctly identifies PIC mode with using a
 ## compiler which accepts GNU-style asm - but that is the only
 ## case where we *currently* care.  Test may need some additional
 ## cases for other compilers in the future.
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
 GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
   #include "gasnet_portable_platform.h" /* For PLATFORM_COMPILER_* */
 ], [
@@ -2175,7 +2168,7 @@ GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
     #error wrong CPU architecture
   #endif
 ], [AC_DEFINE(GASNETI_HAVE_X86_EBX)])
-GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(CPPFLAGS)
 
 ## Does 32-bit SPARC compiler understand "U" and "h" register classes?
 if expr "$GASNETI_PTR_BITS$target_cpu" : "32sparc" >/dev/null; then
@@ -2190,10 +2183,16 @@ if expr "$GASNETI_PTR_BITS$target_cpu" : "32sparc" >/dev/null; then
 fi
 
 ## Spinloop hints
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other") dnl for gasnet_portable_platform.h
 # need to run here because some OS's (Solaris/x86) forbid the pause instruction
 GASNET_TRY_CACHE_RUN_WITHCC(for x86 pause instruction,x86_pause_instruction, [
-  #include "gasnet_asm.h" /* Includes portable_platform.h */
+  #include "gasnet_portable_platform.h"
+  #if PLATFORM_COMPILER_SUN
+    #define GASNETI_ASM(mnemonic) __asm(mnemonic)
+  #else
+    /* All remaining x86/x86-64 compilers support GNU-style ASM or none at all */
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
+  #endif
 ], [
   #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86
     GASNETI_ASM("pause");
@@ -2201,22 +2200,13 @@ GASNET_TRY_CACHE_RUN_WITHCC(for x86 pause instruction,x86_pause_instruction, [
     #error wrong CPU architecture
   #endif
 ], [AC_DEFINE(GASNETI_PAUSE_INSTRUCTION, "pause")])
-## Disabled ia64 pause hint until we see an actual need for it -PHH 2006.01.09
-#AC_MSG_CHECKING(for ia64 pause hint)
-#AC_TRY_COMPILE([
-#  #include "gasnet_asm.h"
-#], [
-#  #if defined(__ia64__)
-#    GASNETI_ASM("hint @pause");
-#  #else
-#    #error wrong CPU architecture
-#  #endif
-#], [AC_DEFINE(GASNETI_PAUSE_INSTRUCTION, "hint @pause")
-#    AC_MSG_RESULT(yes)
-#], [AC_MSG_RESULT(no)])
-GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(CPPFLAGS)
 
 ## Misc. builtins (e.g. for bit manipilation)
+
+GASNET_TRY_CACHE_LINK(for __builtin_clz, cc_has_builtin_clz,
+  [int x;], [__builtin_clz(x);],
+  AC_DEFINE(HAVE_BUILTIN_CLZ))
 
 GASNET_TRY_CACHE_LINK(for __builtin_ctz, cc_has_builtin_ctz,
   [int x;], [__builtin_ctz(x);],
@@ -2462,6 +2452,44 @@ GASNET_MSG_WARN([
 fi
 
 #---------------------------------------------------------------------------------------------------------------
+## Determine our atomics "family"
+## Must follow all potentially relevant probes of asm support and "force" option
+
+AC_DEFUN([GASNET_GET_ATOMIC_IMPL],[
+  pushdef([uppername],translit($1,'a-z','A-Z'))
+  GASNET_TRY_CACHE_EXTRACT_EXPR([$1 implementation family (binary probe)], uppername[]_IMPL,
+                                [#include "gasnet_portable_platform.h"
+                                 #define GASNETI_IN_CONFIGURE 1
+                                 #include "gasnet_atomic_fwd.h"],
+                                GASNETI_[]uppername[]_IMPL,
+                                GASNETI_[]uppername[]_IMPL_CONFIGURE)
+  AC_DEFINE_UNQUOTED(GASNETI_[]uppername[]_IMPL_CONFIGURE, $GASNETI_[]uppername[]_IMPL_CONFIGURE)
+  # Must keep the following consistent with gasnet_atomic_fwd.h
+  case $GASNETI_[]uppername[]_IMPL_CONFIGURE in
+    0) GASNETI_[]uppername[]_IMPL_STR=generic;;
+    1) GASNETI_[]uppername[]_IMPL_STR=native;;
+    2) GASNETI_[]uppername[]_IMPL_STR=os;;
+    3) GASNETI_[]uppername[]_IMPL_STR=compiler;;
+    4) GASNETI_[]uppername[]_IMPL_STR=hybrid;;
+    5) GASNETI_[]uppername[]_IMPL_STR=native;;  # 5="special" is native but not inline
+    *) GASNET_MSG_ERROR([Invalid GASNETI_[]uppername[]_IMPL detected])
+       ;;
+  esac
+  popdef([uppername])
+])
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other")
+  GASNET_GET_ATOMIC_IMPL(atomic)
+  GASNET_GET_ATOMIC_IMPL(atomic32)
+  GASNET_GET_ATOMIC_IMPL(atomic64)
+GASNET_POPVAR(CPPFLAGS)
+if test "$GASNETI_ATOMIC_IMPL_STR" = "$GASNETI_ATOMIC32_IMPL_STR" &&
+   test "$GASNETI_ATOMIC_IMPL_STR" = "$GASNETI_ATOMIC64_IMPL_STR"; then
+  atomics_config="$GASNETI_ATOMIC_IMPL_STR"
+else
+  atomics_config="$GASNETI_ATOMIC_IMPL_STR,${GASNETI_ATOMIC32_IMPL_STR}32,${GASNETI_ATOMIC64_IMPL_STR}64"
+fi
+
+#---------------------------------------------------------------------------------------------------------------
 # PSHM uses atomics in shared memory for IPC.
 # So we assume that Generic and O/S atomics are insufficient.
 # If that is ever not the case, one can add exceptions as needed.
@@ -2475,27 +2503,6 @@ if test "$with_pshm" != no; then
     GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
   elif test -n "$enabled_os_atomicops"; then
     GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
-  else
-    dnl Check for non-native atomics on this platform
-    dnl To avoid false positives should the compilation fail for unrelated reasons, this
-    dnl test is written to PASS only if we can positively ID generic or OS atomics.
-    dnl So, if gasnet_atomic_bits.h has any unsatisfied dependencies on a given platform
-    dnl then we could miss detecting the problem here, but will still catch at compile time.
-    dnl Note that native atomics w/o signal safety are okay.
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
-    GASNET_TRY_CACHE_CHECK(for non-native atomics, non_native_atomics, [
-      #include "portable_inttypes.h"
-      #include "gasnet_asm.h" /* Includes portable_platform.h */
-      #define GASNETI_INLINE(arg) /* empty */
-      #include "gasnet_atomic_bits.h"
-    ], [
-      #if !defined(GASNETI_USE_GENERIC_ATOMICOPS) && !defined(GASNETI_USE_OS_ATOMICOPS)
-        #error "Native atomics"
-      #endif
-    ], [
-      GASNET_MSG_ERROR([PSHM was $pshm_how, but PSHM support requires native atomics which GASNet does not appear to support on your platform])
-    ])
-    GASNET_POPVAR(CFLAGS)
   fi
 fi
 dnl GASNET_TOOLSONLY_FALSE_END
@@ -2879,13 +2886,15 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
          fi
          CXXOPTFLAGS="-xO2" # Can we go higher to match "-fast -xO5" of CCOPTFLAGS?
          GASNET_TRY_CXXFLAG([-xlibmopt], [CXXOPTFLAGS="$CXXOPTFLAGS -xlibmopt"])
+         GASNET_TRY_CXXFLAG([-errtags], [MISC_CXXFLAGS="$MISC_CXXFLAGS -errtags"])
       ;;
     Cray)
      case "$target_cpu" in
       x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc.
       *)        AC_MSG_ERROR(Cray C++ compiler for unknown target CPU) ;;
      esac ;;
-    Pathscale)  CXXDEBUGFLAGS="-g3 -O0"  # consistent with CCDEBUGFLAGS
+    Pathscale)  GASNET_PATHSCALE_VERSION_CHECK(CXX)
+                CXXDEBUGFLAGS="-g3 -O0"  # consistent with CCDEBUGFLAGS
                 CXXOPTFLAGS="-O3"        # consistent with CCOPTFLAGS
     ;;
     Open64)
@@ -4573,6 +4582,8 @@ AC_CHECK_HEADERS([sn/mmtimer.h linux/mmtimer.h])
 
 AC_CHECK_FUNCS(srand_deterministic)
 
+AC_CHECK_FUNCS(ffs)
+
 ########################################################################
 # On various systems, the headers are missing certain functions
 # or only declare them under some condition we don't satisfy.
@@ -4657,7 +4668,7 @@ if test "$use_execinfo" != no; then
     AC_SEARCH_LIBS(backtrace, execinfo) # bug3637: BSD requires -lexecinfo
     AC_CHECK_FUNCS(backtrace backtrace_symbols)
   fi
-  if test "$use_execinfo$ac_cv_func_backtrace" = 'yesno'; then
+  if test "$use_execinfo" = 'yes' && test "$ac_cv_func_backtrace" != 'yes'; then
     AC_MSG_ERROR(User requested --enable-backtrace-execinfo but support is not available on your system.)
   fi
   AC_PATH_PROGS(ADDR2LINE_PATH, addr2line, , /usr/bin:${PATH})
@@ -5312,6 +5323,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   FCA support:            $have_fca
   BLCR support:           $have_blcr
+  Atomics support:        $atomics_config
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
@@ -5321,6 +5333,7 @@ cat >>$CONDUIT_LIST <<EOF
  Misc Settings
  -------------
   Pthreads support:       $have_pthread
+  Atomics support:        $atomics_config
 EOF
 fi
 echo "----------------------------------------------------------------------" >> $CONDUIT_LIST

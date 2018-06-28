@@ -21,7 +21,8 @@ set_opt_ccflags =   -DAMMPI_NDEBUG=1 $(ccoptflags)   $(MANUAL_CFLAGS) $(MANUAL_M
 VPATH = $(srcdir)
 includes = -I$(srcdir) -I$(altincdir)
 libraries = $(platform_libraries)
-Ccompile = $(CC) -c $(ccflags) $(platform_defines) $(includes) $(MANUAL_DEFINES)
+defines = -D_GNU_SOURCE=1
+Ccompile = $(CC) -c $(ccflags) $(defines) $(platform_defines) $(includes) $(MANUAL_DEFINES)
 link = $(CC) $(ccflags) $(platform_ldflags) $(MANUAL_LDFLAGS) $(platform_defines) $(includes) 
 linkend = $(libraries) $(MANUAL_LIBS)
 
@@ -65,14 +66,14 @@ libammpi.a: $(objects)
 tests: banner apputils.o $(testprograms)
 
 # method to convert .cpp to .o (more reliable than ".cpp.o" method)
-test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
-	$(Ccompile) -DAMMPI -I$(testdir) $< -o $@
+test%.o : $(amxdir)/test%.c $(amxdir)/*.h $(headers)
+	$(Ccompile) -DAMMPI -I$(amxdir) $< -o $@
 
 tests-clean:
 	rm -f $(testprograms)
 
-apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
-	$(Ccompile) -DAMMPI -I$(testdir) $(testdir)/apputils.c -o apputils.o
+apputils.o : $(amxdir)/apputils.c $(amxdir)/apputils.h $(headers)
+	$(Ccompile) -DAMMPI -I$(amxdir) $(amxdir)/apputils.c -o apputils.o
 
 %.o : $(srcdir)/%.c $(headers)
 	$(Ccompile) $< -o $@

@@ -11,16 +11,12 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.2
+#define GASNET_EXTENDED_VERSION      2.0
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         SMP
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 #define GASNETI_EOP_IS_HANDLE 1
-#define GASNETI_DISABLE_REFERENCE_EOP 1
-#define GASNETI_DISABLE_EOP_INTERFACE 1
-
-#define GASNETE_BUILD_AMRATOMIC_STUBS 1 // RAtomics via GASNet-Tools only, never AMs
 
   /* if conduit-internal threads may call the Extended API and/or they may run
      progress functions, then define GASNETE_CONDUIT_THREADS_USING_TD to the

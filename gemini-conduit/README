@@ -37,6 +37,8 @@ by "aries" or "gemini" (without the quotes), as approptiate.
    64 bytes reserved for up to 16 handler arguments.  This configure
    option allows control over the value of gasnet_AMMaxMedium().
    The value must be a multiple of 64, and cannot be less than 512.
+   It is recommended to use values that are 64-bytes less than a
+   power-of-two, to preserve efficient memory use.
    The default value is 4032.
 
 --enable-[CONDUIT]-multi-domain
@@ -195,10 +197,11 @@ GASNET_GNI_BOUNCE_SIZE      - default 256K, space for bounce buffers
   buffer which can be in-flight at any time.
 
 GASNET_GNI_MEM_CONSISTENCY
-  This control the use of the flag GNI_MEM_STRICT_PI_ORDERING,
+  This controls the use of the flag GNI_MEM_STRICT_PI_ORDERING,
   GNI_MEM_RELAXED_PI_ORDERING, or neither when registering memory
-  for RDMA.
-  The legal values are the strings "strict", "relaxed" or "default".
+  for RDMA.  In general, users are not expected to have any need
+  to change the value away from the default.
+  The legal values are the strings "strict", "relaxed" or "none".
   In this release the default is "relaxed".
 
 GASNET_GNI_MEMREG

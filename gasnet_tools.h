@@ -108,8 +108,6 @@ GASNETI_BEGIN_NOWARN
 
 /* various configure-detected C compiler features available in only some compilers */
 #define GASNETT_INLINE                  GASNETI_INLINE
-#define GASNETT_ALWAYS_INLINE           GASNETI_ALWAYS_INLINE
-#define GASNETT_PLEASE_INLINE           GASNETI_PLEASE_INLINE
 #define GASNETT_NEVER_INLINE            GASNETI_NEVER_INLINE
 #define GASNETT_RESTRICT                GASNETI_RESTRICT
 #define GASNETT_USED                    GASNETI_USED
@@ -136,6 +134,8 @@ GASNETI_BEGIN_NOWARN
 #define GASNETT_TENTATIVE_EXTERN        GASNETI_TENTATIVE_EXTERN
 
 #define gasnett_constant_p              gasneti_constant_p
+
+#define gasnett_unreachable             gasneti_unreachable
 
 /* ------------------------------------------------------------------------------------ */
 /* portable memory barriers */
@@ -459,9 +459,9 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 }
 #ifdef GASNET_TRACE
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf,1,2,
-  GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf)(const char *format, ...));
+  GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf)(const char *_format, ...));
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf_force,1,2,
-  GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf_force)(const char *format, ...));
+  GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf_force)(const char *_format, ...));
   #if PLATFORM_COMPILER_PGI /* bug 1703 - workaround a PGI bug using Gnu-style variadic macros which PGI supports */
     #define GASNETT_TRACE_PRINTF(args...) \
             (_gasnett_trace_printf ? _gasnett_trace_printf(args) : _gasnett_trace_printf_noop(args))
@@ -481,7 +481,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
     #define GASNETT_TRACE_GET_TRACELOCAL()        GASNETI_TRACE_GET_TRACELOCAL()
     #define GASNETT_TRACE_SET_TRACELOCAL(newval)  GASNETI_TRACE_SET_TRACELOCAL(newval)
   #else
-    GASNETT_TENTATIVE_EXTERN int (*_gasnett_trace_enabled)(char tracecat);
+    GASNETT_TENTATIVE_EXTERN int (*_gasnett_trace_enabled)(char _tracecat);
     #define GASNETT_TRACE_ENABLED       (_gasnett_trace_enabled?_gasnett_trace_enabled('H'):0)
     #define GASNETT_TRACE_GETMASK()               ""
     #define GASNETT_TRACE_SETMASK(mask)           ((void)0)
@@ -518,16 +518,16 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 #if defined(_INCLUDED_GASNETEX_H) 
   /* these tools ONLY available when linking a libgasnet.a */
   #ifdef HAVE_MMAP
-    extern void *gasneti_mmap(uintptr_t segsize);
+    extern void *gasneti_mmap(uintptr_t _segsize);
     #define gasnett_mmap(sz) gasneti_mmap(sz)
   #else
     #define gasnett_mmap(sz) gasnett_fatalerror("gasnett_mmap not available")
   #endif
-  extern int gasneti_run_diagnostics(int iters, int threadcnt,
-                                     const char *testsections,
-                                     gex_TM_t myteam,
-                                     gasnet_seginfo_t const *seginfo);
-  extern void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **htable, int *htable_cnt);
+  extern int gasneti_run_diagnostics(int _iters, int _threadcnt,
+                                     const char *_testsections,
+                                     gex_TM_t _myteam, void* _myseg,
+                                     gex_Rank_t _peer, void* _peerseg);
+  extern void gasneti_diagnostic_gethandlers(gex_AM_Entry_t **_htable, int *_htable_cnt);
   #define gasnett_run_diagnostics gasneti_run_diagnostics
   #define gasnett_diagnostic_gethandlers gasneti_diagnostic_gethandlers
 
@@ -572,7 +572,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define gasnett_format_ti               gasneti_format_ti
 
   #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
-    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gasnet_hsl_)
+    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gex_HSL_)
   #endif
 #else
   #define gasnett_mmap(sz)        gasnett_fatalerror("gasnett_mmap not available")
@@ -633,8 +633,8 @@ static int *gasnett_linkconfig_idiotcheck(void);
 GASNETT_USED
 static int *gasnett_linkconfig_idiotcheck(void) 
 {
-  static int val;
-  val +=  
+  static int _val;
+  _val +=  
         + GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR))
         + GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR))
         + GASNETT_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH))
@@ -651,9 +651,9 @@ static int *gasnett_linkconfig_idiotcheck(void)
         ;
   #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
   if (_gasnett_linkconfig_idiotcheck == &gasnett_linkconfig_idiotcheck)
-    val += *(*_gasnett_linkconfig_idiotcheck)();
+    _val += *(*_gasnett_linkconfig_idiotcheck)();
   #endif
-  return &val;
+  return &_val;
 }
 
 /* ------------------------------------------------------------------------------------ */

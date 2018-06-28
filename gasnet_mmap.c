@@ -1377,7 +1377,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 static gasnet_seginfo_t gasneti_presegment = {0,0};
 #endif
 #if GASNET_ALIGNED_SEGMENTS
-uintptr_t gasneti_maxbase;
+static uintptr_t gasneti_maxbase;
 #endif
 
 /* do the work necessary for initing a standard segment map in arbitrary memory 
@@ -1675,8 +1675,8 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
     // Note that we try to avoid iteration over all nodes.
     // For the case of supernode peers with contiguous ranks we examine no extra nodes
     for (gex_Rank_t node = gasneti_pshm_firstnode; local_rank < gasneti_pshm_nodes; node++) {
-        if (! gasneti_pshm_in_supernode(node)) continue;
-        gasneti_assert(local_rank == gasneti_pshm_local_rank(node));
+        if (! gasneti_pshm_jobrank_in_supernode(node)) continue;
+        gasneti_assert(local_rank == gasneti_pshm_jobrank_to_local_rank(node));
         if (node != gasneti_mynode) {
 
             const uintptr_t size = seginfo[node].size;
@@ -1768,15 +1768,15 @@ extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries
 // TODO: Could improve "safety" by not exposing addr of critical internal data
 // TODO: Could reduce memory use if array lived in shared memory
 extern void gex_System_QueryNbrhdInfo(
-            gex_NbrhdInfo_t        **info_p,
+            gex_RankInfo_t         **info_p,
             gex_Rank_t             *info_count_p,
             gex_Rank_t             *my_info_index_p)
 {
   GASNETI_CHECKINIT();
 #if GASNET_PSHM
   if (info_p) {
-    gasneti_assert(sizeof(gex_NbrhdInfo_t) == sizeof(gex_Rank_t));
-    *info_p = (gex_NbrhdInfo_t *) gasneti_mysupernode.nodes;
+    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_RankInfo_t *) gasneti_mysupernode.nodes;
   }
   if (info_count_p) {
     *info_count_p = gasneti_mysupernode.node_count;
@@ -1786,8 +1786,8 @@ extern void gex_System_QueryNbrhdInfo(
   }
 #else
   if (info_p) {
-    gasneti_assert(sizeof(gex_NbrhdInfo_t) == sizeof(gex_Rank_t));
-    *info_p = (gex_NbrhdInfo_t *) &gasneti_mynode;
+    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_RankInfo_t *) &gasneti_mynode;
   }
   if (info_count_p) {
     *info_count_p = 1;
@@ -1796,6 +1796,49 @@ extern void gex_System_QueryNbrhdInfo(
     *my_info_index_p = 0;
   }
 #endif
+}
+
+// Provides information about compute-node peers (same O/S image, files system, etc.)
+//
+// TODO: Could improve "safety" by not exposing addr of critical internal data
+// TODO: Could reduce memory use if array lived in shared memory
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **info_p,
+            gex_Rank_t             *info_count_p,
+            gex_Rank_t             *my_info_index_p)
+{
+  GASNETI_CHECKINIT();
+  if (info_p) {
+    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    *info_p = (gex_RankInfo_t *) gasneti_myhost.nodes;
+  }
+  if (info_count_p) {
+    *info_count_p = gasneti_myhost.node_count;
+  }
+  if (my_info_index_p) {
+    *my_info_index_p = gasneti_myhost.node_rank;
+  }
+}
+
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *nbrhd_set_size_p,
+            gex_Rank_t *nbrhd_set_rank_p,
+            gex_Rank_t *host_set_size_p,
+            gex_Rank_t *host_set_rank_p)
+{
+  GASNETI_CHECKINIT();
+  if (nbrhd_set_size_p) {
+    *nbrhd_set_size_p = gasneti_mysupernode.grp_count;
+  }
+  if (nbrhd_set_rank_p) {
+    *nbrhd_set_rank_p = gasneti_mysupernode.grp_rank;
+  }
+  if (host_set_size_p) {
+    *host_set_size_p = gasneti_myhost.grp_count;
+  }
+  if (host_set_rank_p) {
+    *host_set_rank_p = gasneti_myhost.grp_rank;
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1822,10 +1865,12 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
           gasneti_assert(gasneti_seginfo[i].addr == 0);
         } else {
           #if GASNET_ALIGNED_SEGMENTS
+          if (gasneti_maxbase) { // non-zero IFF gasneti_segmentInit() passed GASNETI_FLAG_INIT_LEGACY
             /*  sanity check that segments are aligned */
             if (!segbase) segbase = gasneti_seginfo[i].addr;
             else if (gasneti_seginfo[i].addr != segbase)
               gasneti_fatalerror("Failed sanity check for aligned segments with GASNET_ALIGNED_SEGMENTS");
+          }
           #endif
           /*  sanity check that client and aux segments do not overlap */
           if (gasneti_seginfo[i].size > 0) {
@@ -1853,36 +1898,34 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 }
 
 int gasneti_Segment_QueryBound(
-                        gex_TM_t tm_arg,
+                        gex_TM_t tm,
                         gex_Rank_t rank,
                         void **owneraddr_p,
                         void **localaddr_p,
                         uintptr_t *size_p)
 {
-  gasneti_TM_t tm = gasneti_import_tm(tm_arg);
-  gasneti_assert(rank < tm->_size);
-
   // Trivial implementation using legacy data structures and assumptions.
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
   // TODO-EX: cannot yet tell no segment from zero-length segment
   gasneti_assert(gasneti_seginfo);
-  if (!gasneti_seginfo[rank].addr) return 1; // No (bound) segment
+  if (!gasneti_seginfo[jobrank].addr) return 1; // No (bound) segment
 
   if (owneraddr_p) {
-    *owneraddr_p = gasneti_seginfo[rank].addr;
+    *owneraddr_p = gasneti_seginfo[jobrank].addr;
   }
 
   if (size_p){
-    *size_p = gasneti_seginfo[rank].size;
+    *size_p = gasneti_seginfo[jobrank].size;
   }
 
   if (localaddr_p) {
-    if (GASNETI_SUPERNODE_LOCAL(rank)) {
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     #if GASNET_PSHM
       gasneti_assert(gasneti_nodeinfo);
-      *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[rank].addr + gasneti_nodeinfo[rank].offset);
+      *localaddr_p = (void*)((uintptr_t)gasneti_seginfo[jobrank].addr + gasneti_nodeinfo[jobrank].offset);
     #else
-      *localaddr_p = gasneti_seginfo[rank].addr;
+      *localaddr_p = gasneti_seginfo[jobrank].addr;
     #endif
     } else {
       *localaddr_p = NULL;
@@ -2125,7 +2168,7 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
     /* Send payload using AMMedium(s) */
     do {
       const size_t to_xfer = MIN(nbytes, gex_AM_LUBRequestMedium());
-      gex_AM_RequestMedium(NULL, peer, _hidx_gasnetc_exchg_reqh,
+      gex_AM_RequestMedium(gasneti_THUNK_TM, peer, _hidx_gasnetc_exchg_reqh,
                                data + offset, to_xfer, GEX_EVENT_NOW, 0,
                                phase | (step << 1) | (seq << 6), (uint32_t)elemsz);
       ++seq;

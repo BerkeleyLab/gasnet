@@ -5,6 +5,7 @@
  */
 
 #include <gasnetex.h>
+#include <gasnet_coll.h>
 
 static gex_Client_t      myclient;
 static gex_EP_t    myep;

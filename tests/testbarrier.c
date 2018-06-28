@@ -70,8 +70,6 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, 1));
 
-  TEST_COLL_INIT();
-
 #if GASNET_PAR
   test_init("testbarrier", 1, "[-t] [-p polling_threads] (iters)\n"
             "  The -p option gives a number of polling threads to spawn (default is 0).\n"
@@ -260,6 +258,48 @@ static void * doTest(void *arg) {
   }
   BARRIER();
 #endif
+
+  // gex_Coll_BarrierBlocking: (undcoumented)
+  for (i=0; i < warmups; i++) {
+    gex_Coll_BarrierBlocking(myteam,0);
+  }
+
+  BARRIER();
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gex_Coll_BarrierBlocking(myteam,0);
+  }
+  total = TIME() - start;
+
+  BARRIER();
+
+  if (mynode == 0) {
+      printf("Total time: %8.3f sec  Avg GEX Blocking Barrier latency: %8.3f us\n",
+        ((float)total)/1000000, ((float)total)/iters);
+      fflush(stdout);
+  }
+  BARRIER();
+
+  // gex_Coll_BarrierNB:
+  for (i=0; i < warmups; i++) {
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
+  }
+
+  BARRIER();
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
+  }
+  total = TIME() - start;
+
+  BARRIER();
+
+  if (mynode == 0) {
+      printf("Total time: %8.3f sec  Avg GEX NB Barrier latency: %8.3f us\n",
+        ((float)total)/1000000, ((float)total)/iters);
+      fflush(stdout);
+  }
+  BARRIER();
 
   gex_AM_RequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
   return NULL;

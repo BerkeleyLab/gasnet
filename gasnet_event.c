@@ -205,8 +205,6 @@ void gasnete_iop_free(gasnete_iop_t *iop GASNETI_THREAD_FARG) {
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface */
 
-#if !GASNETI_DISABLE_EOP_INTERFACE
-
 // TODO-EX: EOP_INTERFACE
 //   Must generalize IOP to encompass LC, RMW and future Event Categories
 //     Anticipated implementation is to replace 'isget' with a member of the
@@ -257,8 +255,6 @@ void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations) {
   GASNETE_IOP_CNT_FINISH(op, rmw, noperations, 0);
   gasnete_iop_check(op);
 }
-
-#endif // GASNETI_DISABLE_EOP_INTERFACE
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -706,6 +702,7 @@ static void _gasnete_get_leaf_check(gasnete_op_t *op, gex_EC_t event_id) {
 #endif
 
 extern gex_Event_t gasnete_Event_QueryLeaf(gex_Event_t root, gex_EC_t event_id) {
+  if (root == GEX_EVENT_INVALID) return GEX_EVENT_INVALID;
   gasnete_op_t *op = (gasnete_op_t*)root;
   _gasnete_get_leaf_check(op, event_id);
 

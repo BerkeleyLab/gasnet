@@ -159,6 +159,18 @@ GASNETI_BEGIN_NOWARN
 #define gex_Client_Init gasnetc_Client_Init
 
 /* ------------------------------------------------------------------------------------ */
+// Default (read-only) shared-memory MaxMedium value "recommended" to conduits.
+// Value of GASNETC_MAX_MEDIUM_NBRHD determines the actual maximum.
+// See template-conduit/gasnet_core.h for more info.
+#if !GASNETI_PSHM_ENABLED
+  #define GASNETC_MAX_MEDIUM_NBRHD_DFLT 65536
+#elif PLATFORM_ARCH_64
+  #define GASNETC_MAX_MEDIUM_NBRHD_DFLT 65416
+#else
+  #define GASNETC_MAX_MEDIUM_NBRHD_DFLT 65436
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* GASNet forward definitions, which may override some of the defaults below */
 #include <gasnet_core_fwd.h>
 #include <gasnet_extended_fwd.h>
@@ -204,6 +216,9 @@ GASNETI_BEGIN_NOWARN
 /* ------------------------------------------------------------------------------------ */
 /* constants */
 
+/* selected constants and simple types */
+#include <gasnet_fwd.h>
+
 #ifndef GASNETC_HANDLER_BASE
   #define GASNETC_HANDLER_BASE 1
 #endif
@@ -247,7 +262,6 @@ GASNETI_BEGIN_NOWARN
   /* barrier flags */
   #define GASNET_BARRIERFLAG_ANONYMOUS 1
   #define GASNET_BARRIERFLAG_MISMATCH  2
-  #define GASNET_BARRIERFLAG_IMAGES 4
 
   /* UNNAMED includes ANONYMOUS to yield a trivial default implementation: */
   #define GASNETE_BARRIERFLAG_UNNAMED 8
@@ -271,11 +285,6 @@ GASNETI_BEGIN_NOWARN
   #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 #endif
 
-/* Largest Medium supported by AMPSHM */
-#ifndef GASNETI_MAX_MEDIUM_PSHM
-  #define GASNETI_MAX_MEDIUM_PSHM 65000
-#endif
-
 extern const char *gasnet_ErrorName(int);
 extern const char *gasnet_ErrorDesc(int);
 
@@ -285,10 +294,6 @@ extern const char *gasnet_ErrorDesc(int);
 // TODO-EX: need comments here?
 typedef uint8_t gex_AM_Index_t;
 typedef int32_t gex_AM_Arg_t;
-typedef uint32_t gex_Flags_t;
-
-typedef uint32_t gex_Rank_t;
-#define GEX_RANK_INVALID (~(gex_Rank_t)0)
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;
@@ -296,6 +301,7 @@ typedef struct gasneti_token_s *gex_Token_t;
 
 struct gasneti_team_member_s;
 typedef struct gasneti_team_member_s *gex_TM_t;
+#define GEX_TM_INVALID ((gex_TM_t)(uintptr_t)0)
 
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gex_Client_t;
@@ -399,7 +405,8 @@ typedef struct {
     GASNETI_OBJECT_HEADER              \
     gasneti_EP_t       _ep;            \
     gex_Rank_t         _rank;          \
-    gex_Rank_t         _size;
+    gex_Rank_t         _size;          \
+    void *             _coll_team;
   typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
@@ -499,30 +506,29 @@ typedef const struct {
   // Avert your eyes - space below is reserved for internal use
 
   // Nothing to see here (yet)
-} gex_NbrhdInfo_t;
+} gex_RankInfo_t;
+
+// TODO-EX: Temporary backwards compat, Remove this!
+#define gex_NbrhdInfo_t gex_RankInfo_t
 
 extern void gex_System_QueryNbrhdInfo(
-            gex_NbrhdInfo_t        **_info_p,
+            gex_RankInfo_t         **_info_p,
             gex_Rank_t             *_info_count_p,
             gex_Rank_t             *_my_info_index_p);
 
+extern void gex_System_QueryHostInfo(
+            gex_RankInfo_t         **_info_p,
+            gex_Rank_t             *_info_count_p,
+            gex_Rank_t             *_my_info_index_p);
+
+extern void gex_System_QueryMyPosition(
+            gex_Rank_t *_nbrhd_set_size_p,
+            gex_Rank_t *_nbrhd_set_rank_p,
+            gex_Rank_t *_host_set_size_p,
+            gex_Rank_t *_host_set_rank_p);
+
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
-
-#ifndef _GEX_EVENT_T
-  /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
-  struct gasneti_handle_s;
-  typedef struct gasneti_handle_s *gex_Event_t;
-
-  // Pre-defined values: output handles
-  #define GEX_EVENT_INVALID      ((gex_Event_t)(uintptr_t)0)
-  #define GEX_EVENT_NO_OP        ((gex_Event_t)(uintptr_t)1)
-
-  // Pre-defined values: input pointers-to-event
-  #define GEX_EVENT_NOW    ((gex_Event_t*)(uintptr_t)1)
-  #define GEX_EVENT_DEFER  ((gex_Event_t*)(uintptr_t)2)
-  #define GEX_EVENT_GROUP  ((gex_Event_t*)(uintptr_t)3)
-#endif
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
   /*  SIZEOF_GEX_RMA_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
@@ -537,73 +543,49 @@ typedef uintptr_t gex_RMA_Value_t;
   } gex_Memvec_t;
 #endif
 
-#ifndef _GEX_DT_T
-#define _GEX_DT_T
-  // Use an enum to allocate distinct integer index for each value
-  typedef enum { // TODO: Is there value to reserving index 0?
-    gasneti_dt_idx_I32,
-    gasneti_dt_idx_U32,
-    gasneti_dt_idx_I64,
-    gasneti_dt_idx_U64,
-    gasneti_dt_idx_FLT,
-    gasneti_dt_idx_DBL
-  } gasneti_dt_idx_t;
-  // Use those indicies to define constants with a single bit each
-  typedef uint32_t gex_DT_t;
-  #define _GEX_MAKE_DT(idx) ((gex_DT_t)1 << gasneti_dt_idx_##idx)
-  // Integer types:
-  #define GEX_DT_I32   _GEX_MAKE_DT(I32)
-  #define GEX_DT_U32   _GEX_MAKE_DT(U32)
-  #define GEX_DT_I64   _GEX_MAKE_DT(I64)
-  #define GEX_DT_U64   _GEX_MAKE_DT(U64)
-  // Floating-point types:
-  #define GEX_DT_FLT   _GEX_MAKE_DT(FLT)
-  #define GEX_DT_DBL   _GEX_MAKE_DT(DBL)
-#endif
+#define _GEX_MAKE_DT_ENUM(name) gasneti_dt_idx_##name = (_GEX_DT_##name)
+typedef enum {
+  _GEX_MAKE_DT_ENUM(I32),
+  _GEX_MAKE_DT_ENUM(U32),
+  _GEX_MAKE_DT_ENUM(I64),
+  _GEX_MAKE_DT_ENUM(U64),
+  _GEX_MAKE_DT_ENUM(FLT),
+  _GEX_MAKE_DT_ENUM(DBL),
+  _GEX_MAKE_DT_ENUM(USER)
+} gasneti_dt_idx_t;
+#undef _GEX_MAKE_DT_ENUM
 
-#ifndef _GEX_OP_T
-#define _GEX_OP_T
-  // Use an enum to allocate distinct integer index for each op
-  typedef enum { // TODO: Is there value to reserving index 0?
-    gasneti_op_idx_AND,  gasneti_op_idx_OR,   gasneti_op_idx_XOR,
-    gasneti_op_idx_ADD,  gasneti_op_idx_SUB,  gasneti_op_idx_MULT,
-    gasneti_op_idx_MIN,  gasneti_op_idx_MAX,
-    gasneti_op_idx_INC,  gasneti_op_idx_DEC,
-    gasneti_op_idx_FAND, gasneti_op_idx_FOR,  gasneti_op_idx_FXOR,
-    gasneti_op_idx_FADD, gasneti_op_idx_FSUB, gasneti_op_idx_FMULT,
-    gasneti_op_idx_FMIN, gasneti_op_idx_FMAX,
-    gasneti_op_idx_FINC, gasneti_op_idx_FDEC,
-    gasneti_op_idx_SET,  gasneti_op_idx_GET,
-    gasneti_op_idx_SWAP, gasneti_op_idx_CSWAP
-  } gasneti_op_idx_t;
-  // Use those indicies to define constants with a single bit each
-  typedef uint32_t gex_OP_t;
-  #define _GEX_MAKE_OP(opcode) ((gex_OP_t)1 << gasneti_op_idx_##opcode)
-  #define GEX_OP_AND   _GEX_MAKE_OP(AND)
-  #define GEX_OP_OR    _GEX_MAKE_OP(OR)
-  #define GEX_OP_XOR   _GEX_MAKE_OP(XOR)
-  #define GEX_OP_ADD   _GEX_MAKE_OP(ADD)
-  #define GEX_OP_SUB   _GEX_MAKE_OP(SUB)
-  #define GEX_OP_MULT  _GEX_MAKE_OP(MULT)
-  #define GEX_OP_MIN   _GEX_MAKE_OP(MIN)
-  #define GEX_OP_MAX   _GEX_MAKE_OP(MAX)
-  #define GEX_OP_INC   _GEX_MAKE_OP(INC)
-  #define GEX_OP_DEC   _GEX_MAKE_OP(DEC)
-  #define GEX_OP_FAND  _GEX_MAKE_OP(FAND)
-  #define GEX_OP_FOR   _GEX_MAKE_OP(FOR)
-  #define GEX_OP_FXOR  _GEX_MAKE_OP(FXOR)
-  #define GEX_OP_FADD  _GEX_MAKE_OP(FADD)
-  #define GEX_OP_FSUB  _GEX_MAKE_OP(FSUB)
-  #define GEX_OP_FMULT _GEX_MAKE_OP(FMULT)
-  #define GEX_OP_FMIN  _GEX_MAKE_OP(FMIN)
-  #define GEX_OP_FMAX  _GEX_MAKE_OP(FMAX)
-  #define GEX_OP_FINC  _GEX_MAKE_OP(FINC)
-  #define GEX_OP_FDEC  _GEX_MAKE_OP(FDEC)
-  #define GEX_OP_SET   _GEX_MAKE_OP(SET)
-  #define GEX_OP_GET   _GEX_MAKE_OP(GET)
-  #define GEX_OP_SWAP  _GEX_MAKE_OP(SWAP)
-  #define GEX_OP_CSWAP _GEX_MAKE_OP(CSWAP)
-#endif
+#define _GEX_MAKE_OP_ENUM(name) gasneti_op_idx_##name = (_GEX_OP_##name)
+typedef enum {
+  _GEX_MAKE_OP_ENUM(AND),
+  _GEX_MAKE_OP_ENUM(OR),
+  _GEX_MAKE_OP_ENUM(XOR),
+  _GEX_MAKE_OP_ENUM(ADD),
+  _GEX_MAKE_OP_ENUM(SUB),
+  _GEX_MAKE_OP_ENUM(MULT),
+  _GEX_MAKE_OP_ENUM(MIN),
+  _GEX_MAKE_OP_ENUM(MAX),
+  _GEX_MAKE_OP_ENUM(INC),
+  _GEX_MAKE_OP_ENUM(DEC),
+  _GEX_MAKE_OP_ENUM(FAND),
+  _GEX_MAKE_OP_ENUM(FOR),
+  _GEX_MAKE_OP_ENUM(FXOR),
+  _GEX_MAKE_OP_ENUM(FADD),
+  _GEX_MAKE_OP_ENUM(FSUB),
+  _GEX_MAKE_OP_ENUM(FMULT),
+  _GEX_MAKE_OP_ENUM(FMIN),
+  _GEX_MAKE_OP_ENUM(FMAX),
+  _GEX_MAKE_OP_ENUM(FINC),
+  _GEX_MAKE_OP_ENUM(FDEC),
+  _GEX_MAKE_OP_ENUM(SET),
+  _GEX_MAKE_OP_ENUM(GET),
+  _GEX_MAKE_OP_ENUM(SWAP),
+  _GEX_MAKE_OP_ENUM(FCAS),
+  _GEX_MAKE_OP_ENUM(CAS),
+  _GEX_MAKE_OP_ENUM(USER),
+  _GEX_MAKE_OP_ENUM(USER_NC)
+} gasneti_op_idx_t;
+#undef _GEX_MAKE_OP_ENUM
 
 /* ------------------------------------------------------------------------------------ */
 // Error checking (or pass-through) for AM payload queries
@@ -611,25 +593,35 @@ typedef uintptr_t gex_RMA_Value_t;
 #if GASNET_DEBUG
   extern size_t gex_AM_MaxRequestMedium(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxReplyMedium(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxRequestLong(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
   extern size_t gex_AM_MaxReplyLong(
            gex_TM_t _tm, gex_Rank_t _rank,
-           gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_Token_MaxReplyMedium(
+           gex_Token_t _token,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
+           unsigned int _nargs);
+  extern size_t gex_Token_MaxReplyLong(
+           gex_Token_t _token,
+           const gex_Event_t *_lc_opt, gex_Flags_t _flags,
            unsigned int _nargs);
 #else
   #define gex_AM_MaxRequestMedium gasnetc_AM_MaxRequestMedium
   #define gex_AM_MaxReplyMedium   gasnetc_AM_MaxReplyMedium
   #define gex_AM_MaxRequestLong   gasnetc_AM_MaxRequestLong
   #define gex_AM_MaxReplyLong     gasnetc_AM_MaxReplyLong
+  #define gex_Token_MaxReplyMedium   gasnetc_Token_MaxReplyMedium
+  #define gex_Token_MaxReplyLong     gasnetc_Token_MaxReplyLong
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -692,40 +684,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 
 /* ------------------------------------------------------------------------------------ */
-/* flags by group */
-
-#define GEX_FLAG_IMMEDIATE              (1U <<  0)
-
-#define GEX_FLAG_SELF_SEG_UNKNOWN       (1U <<  1)
-#define GEX_FLAG_SELF_SEG_SOME          (1U <<  2)
-#define GEX_FLAG_SELF_SEG_BOUND         (1U <<  3)
-#define GEX_FLAG_SELF_SEG_OFFSET        (1U <<  4)
-#define GEX_FLAG_PEER_SEG_UNKNOWN       (1U <<  5)
-#define GEX_FLAG_PEER_SEG_SOME          (1U <<  6)
-#define GEX_FLAG_PEER_SEG_BOUND         (1U <<  7)
-#define GEX_FLAG_PEER_SEG_OFFSET        (1U <<  8)
-
-#define GEX_FLAG_AM_PREPARE_LEAST_CLIENT (1U <<  9)
-#define GEX_FLAG_AM_PREPARE_LEAST_ALLOC  (1U << 10)
-
-#define GEX_FLAG_AD_MY_RANK             (1U <<  9)
-#define GEX_FLAG_AD_MY_NBRHD            (1U << 10)
-
-#define GEX_FLAG_AD_ACQ                 (1U << 11)
-#define GEX_FLAG_AD_REL                 (1U << 12)
-
-#define GEX_FLAG_AD_FAVOR_MY_RANK       (1U <<  0)
-#define GEX_FLAG_AD_FAVOR_MY_NBRHD      (1U <<  1)
-#define GEX_FLAG_AD_FAVOR_REMOTE        (1U <<  2)
-
-#define GEX_FLAG_AM_SHORT               (1U <<  0)
-#define GEX_FLAG_AM_MEDIUM              (1U <<  1)
-#define GEX_FLAG_AM_LONG                (1U <<  2)
-#define GEX_FLAG_AM_MEDLONG             (GEX_FLAG_AM_MEDIUM|GEX_FLAG_AM_LONG)
-
-#define GEX_FLAG_AM_REQUEST             (1U <<  3)
-#define GEX_FLAG_AM_REPLY               (1U <<  4)
-#define GEX_FLAG_AM_REQREP              (GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_REPLY)
+/* internal flags (others in gasnet_fwd.h) */
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
@@ -859,8 +818,8 @@ static int *gasneti_linkconfig_idiotcheck(void);
 #endif
 GASNETI_USED
 static int *gasneti_linkconfig_idiotcheck(void) {
-  static int val;
-  val +=
+  static int _val;
+  _val +=
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH))
@@ -885,9 +844,9 @@ static int *gasneti_linkconfig_idiotcheck(void) {
         ;
   #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
   if (_gasneti_linkconfig_idiotcheck == &gasneti_linkconfig_idiotcheck)
-    val += *(*_gasneti_linkconfig_idiotcheck)();
+    _val += *(*_gasneti_linkconfig_idiotcheck)();
   #endif
-  return &val;
+  return &_val;
 }
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))

@@ -233,6 +233,12 @@ gex_Rank_t *gasneti_pshm_firsts = NULL;
  * These come early because their sizes influence allocation
  ******************************************************************************/
 
+// NOTE:
+// If sizes of these types changes, such that gasneti_pshmnet_allocator_block_t
+// also changes size, one must update GASNETC_MAX_MEDIUM_NBRHD_DFLT in gasnetex.h
+// to ensure a tight fit in 64KB:
+//   sizeof(gasneti_pshmnet_allocator_block_t) == 65536
+
 /* TODO: Could/should we squeeze unused args out of a Medium.*/
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */
 
@@ -247,12 +253,8 @@ typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
 typedef struct {
   gasneti_AMPSHM_msg_t msg;
-#if (GASNETI_MAX_MEDIUM_PSHM < 65536) /* GASNET<C>_MAX_MEDIUM_PSHM often not a preprocess-time constant */
-  uint16_t numbytes;
-#else
   uint32_t numbytes;
-#endif
-  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_NBRHD]; /* Is 2, 4 or 8-byte aligned */
+  uint8_t  mediumdata[4 + GASNETC_MAX_MEDIUM_NBRHD]; /* +4 to deal with 4 or 8-byte alignment */
 } gasneti_AMPSHM_medmsg_t;
 
 typedef struct {
@@ -441,7 +443,7 @@ struct gasneti_pshmnet {
                 (gasneti_atomic_val_t)((uintptr_t)(addr) - (uintptr_t)gasnetc_pshmnet_region))
 #if PLATFORM_COMPILER_PGI && PLATFORM_COMPILER_VERSION_LT(10,0,0)
 /* PGI 9.0-0 truncates the macro version to 32-bits! (older than 9.0 not tested) */
-GASNETI_ALWAYS_INLINE(gasneti_pshm_addr)
+GASNETI_INLINE(gasneti_pshm_addr)
 void * gasneti_pshm_addr(uintptr_t offset) {
   gasneti_assert(offset);
   return (void*)(offset + (uintptr_t)gasnetc_pshmnet_region);
@@ -512,6 +514,21 @@ gasneti_pshmnet_init(void *region, size_t regionlen, gasneti_pshm_rank_t pshmnod
 
   /* make sure that our max buffer size fits all possible AMs */
   gasneti_assert(sizeof(gasneti_AMPSHM_maxmsg_t) <= GASNETI_PSHMNET_MAX_PAYLOAD);
+
+  gasneti_assert((offsetof(gasneti_AMPSHM_medmsg_t, mediumdata) % 4) == 0);
+
+  // Check GASNETC_MAX_MEDIUM_NBRHD_DFLT (if used) provides tight fit
+  #if (PLATFORM_OS_LINUX || PLATFORM_OS_DARWIN) && \
+      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)
+    // Arbitrary choice of frequently-tested ABIs known to provide tight fit
+    gasneti_assert((GASNETC_MAX_MEDIUM_NBRHD != GASNETC_MAX_MEDIUM_NBRHD_DFLT) || \
+                   (sizeof(gasneti_pshmnet_allocator_block_t) == 65536));
+  #else
+    // Other ABIs may have less restrictive alignments (allow 16-byte slack)
+    gasneti_assert((GASNETC_MAX_MEDIUM_NBRHD != GASNETC_MAX_MEDIUM_NBRHD_DFLT) || \
+                   ((sizeof(gasneti_pshmnet_allocator_block_t) <= 65536) && \
+                    (sizeof(gasneti_pshmnet_allocator_block_t) >= 65536 - 16)));
+  #endif
 
   szpernode = gasneti_pshmnet_memory_needed_pernode(pshmnodes);
   szonce = gasneti_pshmnet_memory_needed_once(pshmnodes);
@@ -586,7 +603,7 @@ void gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   }
 }
 
-GASNETI_ALWAYS_INLINE(gasneti_pshmnet_queue_peek)
+GASNETI_INLINE(gasneti_pshmnet_queue_peek)
 int gasneti_pshmnet_queue_peek(const gasneti_pshmnet_queue_t * const q)
 {
   return q->shead || q->head;
@@ -1250,8 +1267,8 @@ int ampshm_prepare_inner(
   gasneti_assert(sd);
 
   // Determine PSHM peer
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
-  gasneti_pshm_rank_t pshmrank = gasneti_pshm_local_rank(jobrank);
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
+  gasneti_pshm_rank_t pshmrank = gasneti_pshm_jobrank_to_local_rank(jobrank);
 
   // Determine the xfer size
   size_t size;
@@ -1339,7 +1356,7 @@ void ampshm_commit_inner(
         GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr;
         GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
         gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes ); // truncated?
-        void *data = gasneti_pshm_addr2local(sd->_pshm._jobrank, dest_addr);
+        void *data = gasneti_pshm_jobrank_addr2local(sd->_pshm._jobrank, dest_addr);
         GASNETI_MEMCPY_SAFE_EMPTY(data, sd->_addr, nbytes);
         break;
     }
@@ -1426,15 +1443,12 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 // AM Request/Reply external interface
 //
 // TODO-EX: GASNETI_THREAD_FARG
-// TODO-EX: Request interfaces are all missing real TM support:
-//   FP Request interfaces take only a jobrank argument
-//   NP Request interfaces do take a tm argument, but ignore it
 //
 
 int gasneti_AMPSHM_RequestShort(gex_Rank_t jobrank, gex_AM_Index_t handler,
                                 gex_Flags_t flags, int numargs, va_list argptr)
 {
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 1, jobrank, handler, NULL,
                                       0, NULL, flags, numargs, argptr);
 }
@@ -1443,7 +1457,7 @@ int gasneti_AMPSHM_RequestMedium(gex_Rank_t jobrank, gex_AM_Index_t handler,
                                  void *source_addr, size_t nbytes,
                                  gex_Flags_t flags, int numargs, va_list argptr)
 {
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 1, jobrank, handler, source_addr,
                                       nbytes, NULL, flags, numargs, argptr);
 }
@@ -1452,7 +1466,7 @@ int gasneti_AMPSHM_RequestLong(gex_Rank_t jobrank, gex_AM_Index_t handler,
                                void *source_addr, size_t nbytes, void *dest_addr,
                                gex_Flags_t flags, int numargs, va_list argptr)
 {
-  gasneti_assert(gasneti_pshm_in_supernode(jobrank));
+  gasneti_assert(gasneti_pshm_jobrank_in_supernode(jobrank));
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 1, jobrank, handler, source_addr,
                                       nbytes, dest_addr, flags, numargs, argptr);
 }
@@ -1486,8 +1500,7 @@ int gasneti_AMPSHM_ReplyLong(gex_Token_t token, gex_AM_Index_t handler,
 
 int gasnetc_AMPSHM_PrepareRequestMedium(
                         gasneti_AM_SrcDesc_t sd,
-                        gex_TM_t             tm, // TODO-EX: ignored!
-                        gex_Rank_t           dest,
+                        gex_Rank_t           jobrank,
                         const void          *client_buf,
                         size_t               least_payload,
                         size_t               most_payload,
@@ -1496,7 +1509,6 @@ int gasnetc_AMPSHM_PrepareRequestMedium(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gex_Rank_t jobrank = dest;
   return ampshm_prepare(sd, 1, gasneti_Medium, jobrank, client_buf, least_payload, most_payload,
                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
@@ -1522,8 +1534,7 @@ int gasnetc_AMPSHM_PrepareReplyMedium(
 
 int gasnetc_AMPSHM_PrepareRequestLong(
                         gasneti_AM_SrcDesc_t sd,
-                        gex_TM_t             tm, // TODO-EX: ignored!
-                        gex_Rank_t           dest,
+                        gex_Rank_t           jobrank,
                         const void          *client_buf,
                         size_t               least_payload,
                         size_t               most_payload,
@@ -1533,7 +1544,6 @@ int gasnetc_AMPSHM_PrepareRequestLong(
                         unsigned int         nargs
                         GASNETI_THREAD_FARG)
 {
-  gex_Rank_t jobrank = dest;
   return ampshm_prepare(sd, 1, gasneti_Long, jobrank, client_buf, least_payload, most_payload,
                         dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }

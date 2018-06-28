@@ -1,21 +1,76 @@
 GASNet-EX ChangeLog
 -------------------
-03-28-2018: GASNet-EX 2018.3.0 Integration release
 
-* Integration release of the GASNet-EX system.
-  This archive represents a work-in-progress focused on "hardening" the features
-  added by the previous quarter's release, and has been well-tested against the
-  concurrent release of UPC++.
+  This archive represents a lightly-tested snapshot of a work-in-progress.
+
   Many additional new features are coming soon, and are not yet reflected in this
   archive. All new interfaces are subject to change without notice.
 
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
+----------------------------------------------------------------------
+06-28-2018: GASNet-EX 2018.6.0 Beta release
+
+* GASNet-EX Spec v0.5:
+  - Specified Teams and Collectives APIs [EXPERIMENTAL]
+  - Add user-defined data types and operators for Reductions
+  - Add GEX_OP_TO_(NON)FETCHING()
+  - Specified VIS Peer Completion API [EXPERIMENTAL]
+  - Added a flag to enable VIS Local Completion 
+  - Add gex_System_QueryHostInfo() and gex_System_QueryMyPosition()
+  - Rename gex_NbrhdInfo_t to gex_RankInfo_t
+  - New GEX_FLAG_USES_GASNET1 flag enables gex_Client_Init() for legacy GASNet-1 calls
+  - Minor clarifications throughout
+  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+     
+* Major new features implemented in this release:
+  - Teams:
+    + Full multi-team support across the entire specification, including
+      construction of subset teams and rank reordering via gex_TM_Split()
+    + Can translate in either direction between team-relative and job ranks
+    + All APIs taking (tm,rank) pairs interpret 'rank' relative to 'tm'
+  - Collectives:
+    + Non-blocking Barrier, Broadcast, and ReduceToOne
+   Additional collective operations will be added in future releases
+  - Non-contiguous RMA: Vector, Indexed, Strided (VIS)
+    + VIS Puts now support notifying (potentially remote) peers of completion.
+      For details, see docs/GASNet-EX.spec for gex_VIS_SetPeerCompletionHandler
+    + VIS Puts now offer local completion support.
+      For details, see docs/GASNet-EX.spec for GEX_FLAG_ENABLE_LEAF_LC
+  - gasnet_fwd.h now provides a dependency-free useful subset of the API
+    declarations, suitable for inclusion into application-level code.
+
+* Feature implementation status in this release:
+  - VIS Peer Completion is well-implemented for shared memory. The distributed-memory 
+    implementation is functionally complete and will be tuned in an upcoming release.
+  - Collective operations use "reliable performance" algorithms based on Binomial Trees. 
+    They have not yet been tuned for shared memory or offload.
+  - ReduceToOne supports all operations on built-in types, including user-defined 
+    commutative operations, but currently limits the local size of the operands.
+  - Teams currently use a dense representation, a scalable implementation is forthcoming.
+
+* Notable bugs fixed in this release:
+  - Bug3749: assertion failure in PSHM's NP-AM
+  - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
+
+* This release implements the following conduits only:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
+03-28-2018: GASNet-EX 2018.3.0 Release
+
 * GASNet-EX Spec v0.4:
   - Renamed gex_System_QueryNeighborhoodInfo() and associated
     types and constants to gex_System_QueryNbrhdInfo() and similar.
-  - Adjusted payload limit queries to accomodate Negotiated-Payload AM.
+  - Adjusted payload limit queries to accommodate Negotiated-Payload AM.
   - Remote Atomics: added flags for asserting locality properties
   - Remote Atomics: added flags for requesting memory fencing behavior
   - Strided: now supports transpose/reflection operations
@@ -62,14 +117,6 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 12-20-2017: GASNet-EX 2017.12.0 Beta release
 
-* BETA release of the GASNet-EX system.
-  This archive represents a lightly-tested snapshot of a work-in-progress.
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
-
-  Feedback or questions on any matters related to the EX project are
-  welcomed at: gasnet-devel@lbl.gov
-
 * GASNet-EX Spec v0.3:
   - Specified Remote Atomics API, and corresponding types [EXPERIMENTAL]
   - Specified Vector, Indexed, Strided API [EXPERIMENTAL]
@@ -101,17 +148,7 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-09-28-2017: GASNet-EX 2017.9.0 Integration release
-
-* First Integration release of the GASNet-EX system.
-  This archive represents a work-in-progress focused on "hardening" the features
-  added by the previous quarter's release, and has been well-tested against the
-  concurrent release of UPC++.
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
-
-  Feedback or questions on any matters related to the EX project are
-  welcomed at: gasnet-devel@lbl.gov
+09-28-2017: GASNet-EX 2017.9.0 Release
 
 * GASNet-EX Spec v0.2:
   - Specified gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
@@ -151,14 +188,6 @@ GASNet-EX ChangeLog
 
 ----------------------------------------------------------------------
 06-30-2017: GASNet-EX 2017.6.0 Beta release
-
-* Initial BETA release of the GASNet-EX system.
-  This archive represents a lightly-tested snapshot of a work-in-progress.
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
-
-  Feedback or questions on any matters related to the EX project are
-  welcomed at: gasnet-devel@lbl.gov
 
 * Major new features implemented this release: (mostly reference implementation)
   - Explicit Local Completion capability for Active Message and RMA Put APIs
@@ -207,10 +236,10 @@ code base, from which the EX code was branched (and is periodically
 synchronized).
 Note some entries below do not apply to the EX branch.
 ----------------------------------------------------------------------
-GASNet ChangeLog 
-----------------
+GASNet-1 ChangeLog 
+------------------
 ----------------------------------------------------------------------
-03-28-2018: pending 1.30.2 work @f36ab50
+06-28-2018: pending 1.32.0 work @c919cff
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
@@ -218,6 +247,7 @@ GASNet ChangeLog
   - Fix bug 3647: aries-conduit should honor non-default process layouts
   - Fix bug 3695: AMReply injection might corrupt the payload of the
     running AM Medium Request handler.
+  - Tweak the interface and documentation of GASNET_GNI_MEM_CONSISTENCY envvar.
 
 * Libfabric (ofi-conduit)
   - Fix bug 3682: incorrect behavior for non-bulk puts larger than a page
@@ -225,6 +255,10 @@ GASNet ChangeLog
 
 * InfiniBand Verbs (ibv-conduit)
   - GASNET_DISABLE_MUNMAP now defaults to enabled for ibv-conduit.
+  - Now use HCA's maximum supported MTU by default, resulting in nearly a 2x
+    increase in peak Get bandwidth on modern HCAs.
+  - Fix bug 3339: allow ibv-conduit to operate on Omni-Path hardware.
+    ofi-conduit and psm-conduit remain the recommended conduits for Omni-Path.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
@@ -237,7 +271,7 @@ GASNet ChangeLog
   - Reduce polling cost on single-supernode runs. smp-conduit remains the
     recommended conduit for use on single-supernode shared-memory systems.
 
-* GASNet tools (spec v1.11)
+* GASNet tools (spec v1.12)
   - Numerous improvements to backtrace support, including fixing the
     following bugs:
     + Bug 3624: Improve backtrace fail-over behavior
@@ -247,6 +281,8 @@ GASNet ChangeLog
     + Bug 3637: Fix EXECINFO backtrace for *BSD
     + Enable GDB backtrace on Cray systems, when available
   - Bug 3664: GASNETT_PREDICT_{TRUE,FALSE} result value semantics change slightly
+  - Add gasnett_unreachable()
+  - GASNETT_PLEASE_INLINE has been removed. Recommended replacement is `inline`
   - Improve behavior when installed public headers are passed to a compiler 
     that was not probed at configure time.
 
@@ -255,11 +291,22 @@ GASNet ChangeLog
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size
   - Fix GASNET_NULL_ARGV_OK for mpi-conduit and mpi-spawner
+  - Additional debug checks now detect prohibited overlap in loopback RMA and AMLong.
+  - The extended-ref source directory has been re-arranged
+  - Clients using gasnet_coll_* must now explicitly #include <gasnet_coll.h>
+  - Events leading up to a crash are now more reliably reported in the trace file.
 
 * Platform support/portability
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
   - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
+  - Fix bug 3741: misidentification of IBM XL Compilers 13.1.6 and newer (v6)
+  - Fix bug 3743: verify correct KNL processor tuning on CNL
+  - Fix bug 3679: AMUDP incompatibility with PGI C++ 17+
+  - Public headers are less susceptible to malfunctions when compiled with
+    un-prefixed tokens redefined by the preprocessor. C/C++ keywords remain
+    reserved, as do tokens prepended by one or more underscores or one of the
+    reserved gasnet prefixes (see 'GASNet coding standards' in README-devel)
 
 * Configure and Build
   - Option --enable-strict-prototypes has been removed, see bug 3608.
@@ -275,6 +322,7 @@ GASNet ChangeLog
   - This release removes support for the following compilers:
     + Kuck and Associates (KAI) C++ Compiler
     + PGI compilers older than the 7.2-5 release
+    + Pathscale compilers older than 3.0
   - This release removes support for the following compilers which had
     ceased to work with GASNet 1.28.0 due to insufficient support for C99:
     + GCC 2.x
@@ -482,6 +530,10 @@ GASNet ChangeLog
   - Restructure AMUDP headers to reduce namespace clutter
   - Fix a compatibility issue with Cray CNL
   - Fix a use-after-free bug in argument processing
+
+* SGI Altix / Cray X1 Shmem (shmem-conduit)
+  - This conduit is now DEPRECATED. It relies on system-specific extensions
+    to SHMEM implemented in DSM hardware that has now been retired.
 
 * Platform support/portability
   - Cygwin-2.x

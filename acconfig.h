@@ -170,6 +170,9 @@
 #undef GASNETI_HAVE_CC_GCC_ASM
 #undef GASNETI_HAVE_CXX_GCC_ASM
 #undef GASNETI_HAVE_MPI_CC_GCC_ASM
+#undef GASNETI_HAVE_CC_SIMPLE_ASM
+#undef GASNETI_HAVE_CXX_SIMPLE_ASM
+#undef GASNETI_HAVE_MPI_CC_SIMPLE_ASM
 
 /* Which non-native atomics are available */
 #undef GASNETI_HAVE_CC_SYNC_ATOMICS_32
@@ -178,6 +181,11 @@
 #undef GASNETI_HAVE_CC_SYNC_ATOMICS_64
 #undef GASNETI_HAVE_CXX_SYNC_ATOMICS_64
 #undef GASNETI_HAVE_MPI_CC_SYNC_ATOMICS_64
+
+/* Which atomics implementations are built in tools library */
+#undef GASNETI_ATOMIC_IMPL_CONFIGURE
+#undef GASNETI_ATOMIC32_IMPL_CONFIGURE
+#undef GASNETI_ATOMIC64_IMPL_CONFIGURE
 
 /* Does CXX support C99 __VA_ARGS__ */
 #undef GASNETI_CXX_HAS_VA_ARGS
@@ -342,7 +350,8 @@
 /* gcc support for "U" and "h" register classes on SPARC32 */
 #undef GASNETI_HAVE_SPARC32_64BIT_ASM
 
-/* has _builtin_ctz */
+/* has _builtin_c[lt]z */
+#undef HAVE_BUILTIN_CLZ
 #undef HAVE_BUILTIN_CTZ
 
 /* has __func__ function name defined */

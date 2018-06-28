@@ -313,55 +313,15 @@ int main(void) {
   NOOP_CHECK(int,mmap_check,"mmap operation")
 #endif
 
-#if defined(__arm__)
-  #if defined(__thumb__) && !defined(__thumb2__)
-    /* "GASNet does not support ARM Thumb1 mode" */
-  #elif defined(__ARM_ARCH_2__)
-    /* "GASNet does not support ARM versions earlier than ARMv3" */
-  #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__)
-    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
-	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
-	"       mov	lr, pc                              @ lr = return addr    \n" \
-	"	sub	pc, " #_tmp ", #" #_offset "        @ call _tmp - _offset \n"
-  #else
-    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
-	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
-	"	sub	" #_tmp ", " #_tmp ", #" #_offset " @ _tmp -= _offset     \n" \
-	"       blx	" #_tmp "                           @ call _tmp           \n"
-  #endif
+#if defined(__arm__) && \
+    (defined(__linux) || defined(__linux__) || defined(__gnu_linux__))
+  #define GASNETI_IN_CONFIGURE 1
+  #include "gasnet_arch_arm.h"
 
-  #if defined(GASNETI_ARM_ASMCALL) && CHECK_ARM_CMPXCHG
+  #if CHECK_ARM_CMPXCHG
     #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
-    int cmp_swap(volatile unsigned int *v, int oldval, int newval) {
-	register unsigned int result asm("r0");
-	register unsigned int _newval asm("r1") = newval;
-	register unsigned int _v asm("r2") = (unsigned long)v;
-	register unsigned int _oldval asm("r4") = oldval;
-
-	/* Transient failure is possible if interrupted.
-	 * Since we can't distinguish the cause of the failure,
-	 * we must retry as long as the failure looks "improper"
-	 * which is defined as (!swapped && (v->ctr == oldval))
-	 */
-	__asm__ __volatile__ (
-		"0:	mov	r0, r4          @ r0 = oldval              \n"
-	    	GASNETI_ARM_ASMCALL(r3, 0x3f)
-#ifdef __thumb2__
-		"	ite	cc		@ THUMB2: If(cc)-Then-Else \n"
-#endif
-		"	ldrcc	ip, [r2, #0]	@ if (!swapped) ip=v->ctr  \n"
-		"	eorcs	ip, r4, #1	@ else ip=oldval^1         \n"
-		"	teq	r4, ip		@ if (ip == oldval)        \n"
-		"	beq	0b		@    then retry            \n"
-		"1:	"
-		: "=&r" (result)
-		: "r" (_oldval), "r" (_v), "r" (_newval)
-		: "r3", "ip", "lr", "cc", "memory" );
-
-	return !result;
-    } 
     int arm_cmpxchg_check(void) {
 	/* Since failure may crash, run in a child process */
 	int pid;
@@ -372,16 +332,7 @@ int main(void) {
 	    warning("ARM cmpxchg check failed to fork()");
 	    return 0;
 	} else if (pid == 0) {
-	    /* Child */
-	    volatile unsigned int X = 4321;
-
-	    /* Expect FAIL and X unchanged */
-	    if (cmp_swap(&X, 0, 1234) || (X != 4321)) exit(1);
-
-	    /* Expect SUCCESS and X changed */
-	    if (!cmp_swap(&X, 4321, 1234) || (X != 1234)) exit(1);
-
-	    exit(0);
+            exit( gasneti_arm_cmpxchg_check() );
 	} else {
 	    int rc, status;
 	    rc = waitpid(pid, &status, 0);
@@ -392,14 +343,10 @@ int main(void) {
     NOOP_CHECK(int,arm_cmpxchg_check,"ARM cmpxchg support")
   #endif
 
-  #if defined(GASNETI_ARM_ASMCALL) && CHECK_ARM_MEMBAR
+  #if CHECK_ARM_MEMBAR
     #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
-    #define arm_membar()                           \
-	__asm__ __volatile__ (                     \
-		GASNETI_ARM_ASMCALL(r0, 0x5f)      \
-		: : : "r0", "lr", "cc", "memory" )
     int arm_membar_check(void) {
 	/* Since failure may crash, run in a child process */
 	int pid;
@@ -410,20 +357,7 @@ int main(void) {
 	    warning("ARM membar check failed to fork()");
 	    return 0;
 	} else if (pid == 0) {
-	    /* First check the interface version (number of helpers) */
-	    unsigned int kernel_helper_version = *(unsigned int *)0xffff0ffcUL;
-
-	    /* Max possible is 128 32-byte helper "slots".
-	     * We check this because prior to 2.6.12, the same location
-	     * held the thread-specific pointer! */
-	    if (kernel_helper_version > 128) exit(1);
-
-	    /* memory barrier occupies slot #3 */
-	    if (kernel_helper_version < 3) exit(1);
-
-	    /* Can't test any side effect, but at least check for crash */
-	    arm_membar();
-	    exit(0);
+            exit( gasneti_arm_membar_check() );
 	} else {
 	    int rc, status;
 	    rc = waitpid(pid, &status, 0);

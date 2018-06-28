@@ -18,7 +18,7 @@
 #define TEST_GASNETEX 1
 #define SHORT_REQ_BASE GEX_AM_INDEX_BASE
 test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
-#include <other/amxtests/testam.h>
+#include <other/amx/testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
 #undef TESTGASNET_NO_SPLIT
@@ -480,7 +480,7 @@ void doit(int partner, int *partnerseg) {
 #endif
 
   {
-    gex_NbrhdInfo_t *neighbor_array;
+    gex_RankInfo_t *neighbor_array;
     gex_Rank_t neighbor_size, neighbor_rank;
     gex_System_QueryNbrhdInfo(&neighbor_array, &neighbor_size, &neighbor_rank);
 
@@ -492,6 +492,29 @@ void doit(int partner, int *partnerseg) {
     for (gex_Rank_t i = 0; i < neighbor_size; ++i) {
       // Check sort:
       assert_always(!i || (neighbor_array[i].gex_jobrank > neighbor_array[i-1].gex_jobrank));
+    }
+
+    gex_RankInfo_t *host_array;
+    gex_Rank_t host_size, host_rank;
+    gex_System_QueryHostInfo(&host_array, &host_size, &host_rank);
+
+    assert_always(host_array != NULL);
+    assert_always((host_size > 0) && (host_size <= gex_System_QueryJobSize()));
+    assert_always(host_rank < host_size);
+    assert_always(host_array[host_rank].gex_jobrank == gex_System_QueryJobRank());
+
+    for (gex_Rank_t i = 0; i < host_size; ++i) {
+      // Check sort:
+      assert_always(!i || (host_array[i].gex_jobrank > host_array[i-1].gex_jobrank));
+    }
+
+    // Nbrhd must be a subset of Host:
+    // Note that since both arrays are sorted this check is linear in time
+    for (gex_Rank_t nidx = 0, hidx = 0; nidx < neighbor_size; ++nidx) {
+      for (/*empty*/; hidx < host_size; ++hidx) {
+        if (neighbor_array[nidx].gex_jobrank == host_array[hidx].gex_jobrank) break;
+      }
+      assert_always(hidx < host_size);  // fail if nbrhd member not found in host_array
     }
 
   #if !GASNET_SEGMENT_EVERYTHING
@@ -511,6 +534,17 @@ void doit(int partner, int *partnerseg) {
     }
     BARRIER();
   #endif
+  }
+
+  {
+    gex_Rank_t n_proc = gex_System_QueryJobSize();
+    gex_Rank_t n_size, n_rank, h_size, h_rank;
+    gex_System_QueryMyPosition(&n_size, &n_rank, &h_size, &h_rank);
+    // Ranks in both sets must be less than set size:
+    assert_always(n_size > n_rank);
+    assert_always(h_size > h_rank);
+    // #proc >= #nbrhd >= #host:
+    assert_always(n_proc >= n_size && n_size >= h_size);
   }
 
   /* width-independent computation of an integer variable with unknown unsigned type */
@@ -750,17 +784,23 @@ void doit0(int partner, int *partnerseg) {
 
   /* misc type tests */
   assert_inttype(gex_Flags_t);
-  static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
-    GEX_FLAG_IMMEDIATE,
+  // flags used in calls to initiate communication
+  #define COMM_INIT_FLAGS          \
+    GEX_FLAG_IMMEDIATE,            \
+                                   \
+    GEX_FLAG_SELF_SEG_UNKNOWN,     \
+    GEX_FLAG_SELF_SEG_SOME,        \
+    GEX_FLAG_SELF_SEG_BOUND,       \
+    GEX_FLAG_SELF_SEG_OFFSET,      \
+    GEX_FLAG_PEER_SEG_UNKNOWN,     \
+    GEX_FLAG_PEER_SEG_SOME,        \
+    GEX_FLAG_PEER_SEG_BOUND,       \
+    GEX_FLAG_PEER_SEG_OFFSET,      \
+    /*GEX_FLAG_LC_COPY_YES, */     \
+    /*GEX_FLAG_LC_COPY_NO,  */
 
-    GEX_FLAG_SELF_SEG_UNKNOWN,
-    GEX_FLAG_SELF_SEG_SOME,
-    GEX_FLAG_SELF_SEG_BOUND,
-    GEX_FLAG_SELF_SEG_OFFSET,
-    GEX_FLAG_PEER_SEG_UNKNOWN,
-    GEX_FLAG_PEER_SEG_SOME,
-    GEX_FLAG_PEER_SEG_BOUND,
-    GEX_FLAG_PEER_SEG_OFFSET,
+  static gex_Flags_t const flags_arr[] = { // ensure all the flags exist
+    COMM_INIT_FLAGS
 
     GEX_FLAG_AM_PREPARE_LEAST_CLIENT,
     GEX_FLAG_AM_PREPARE_LEAST_ALLOC,
@@ -782,24 +822,17 @@ void doit0(int partner, int *partnerseg) {
     GEX_FLAG_AM_REQUEST,
     GEX_FLAG_AM_REPLY,
     GEX_FLAG_AM_REQREP,
+
+    GEX_FLAG_ENABLE_LEAF_LC,
+
+    GEX_FLAG_TM_SCRATCH_SIZE_MIN,
+    GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
   // Ensure lack of aliasing within groups of flags potentially passed togther
   static gex_Flags_t const flags_rma[] = { // gex_RMA_* initiation
-    GEX_FLAG_IMMEDIATE,
-
-    GEX_FLAG_SELF_SEG_UNKNOWN,
-    GEX_FLAG_SELF_SEG_SOME,
-    GEX_FLAG_SELF_SEG_BOUND,
-    GEX_FLAG_SELF_SEG_OFFSET,
-    GEX_FLAG_PEER_SEG_UNKNOWN,
-    GEX_FLAG_PEER_SEG_SOME,
-    GEX_FLAG_PEER_SEG_BOUND,
-    GEX_FLAG_PEER_SEG_OFFSET,
-
-    //GEX_FLAG_LC_COPY_YES,
-    //GEX_FLAG_LC_COPY_NO,
+    COMM_INIT_FLAGS
   };
   assert_arr_unaliased(gex_Flags_t, flags_rma);
   static gex_Flags_t const flags_ammax[] = { // gex_AM_Max* prepare-specific
@@ -814,16 +847,7 @@ void doit0(int partner, int *partnerseg) {
   };
   assert_arr_unaliased(gex_Flags_t, flags_adc);
   static gex_Flags_t const flags_ad[] = { // gex_AD_Op* initiation
-    GEX_FLAG_IMMEDIATE,
-
-    GEX_FLAG_SELF_SEG_UNKNOWN,
-    GEX_FLAG_SELF_SEG_SOME,
-    GEX_FLAG_SELF_SEG_BOUND,
-    GEX_FLAG_SELF_SEG_OFFSET,
-    GEX_FLAG_PEER_SEG_UNKNOWN,
-    GEX_FLAG_PEER_SEG_SOME,
-    GEX_FLAG_PEER_SEG_BOUND,
-    GEX_FLAG_PEER_SEG_OFFSET,
+    COMM_INIT_FLAGS
 
     GEX_FLAG_AD_MY_RANK,
     GEX_FLAG_AD_MY_NBRHD,
@@ -842,6 +866,17 @@ void doit0(int partner, int *partnerseg) {
     // GEX_FLAG_AM_REQREP is an intentional alias
   };
   assert_arr_unaliased(gex_Flags_t, flags_amreg);
+  static gex_Flags_t const flags_vis[] = { // gex_VIS_* initiation
+    COMM_INIT_FLAGS
+
+    GEX_FLAG_ENABLE_LEAF_LC,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_vis);
+  static gex_Flags_t const flags_tm[] = { // gex_TM_Split
+    GEX_FLAG_TM_SCRATCH_SIZE_MIN,
+    GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
+  };
+  assert_arr_unaliased(gex_Flags_t, flags_tm);
 
   assert_inttype(gex_EC_t);
   static gex_EC_t const ec_all = GEX_EC_ALL;
@@ -883,7 +918,8 @@ void doit0(int partner, int *partnerseg) {
   static gex_DT_t const datatypes_arr[] = { // ensure all the specified values exist
     GEX_DT_I32, GEX_DT_U32,
     GEX_DT_I64, GEX_DT_U64,
-    GEX_DT_FLT, GEX_DT_DBL
+    GEX_DT_FLT, GEX_DT_DBL,
+    GEX_DT_USER
   };
   assert_arr_unaliased(gex_DT_t, datatypes_arr); // verify alias-free
   test_format(gex_DT_t, datatypes_arr, gasnett_format_dt);
@@ -894,15 +930,26 @@ void doit0(int partner, int *partnerseg) {
     GEX_OP_ADD,  GEX_OP_SUB,  GEX_OP_MULT,
     GEX_OP_MIN,  GEX_OP_MAX,
     GEX_OP_INC,  GEX_OP_DEC,
+    GEX_OP_SET,  GEX_OP_CAS,
+
     GEX_OP_FAND, GEX_OP_FOR,  GEX_OP_FXOR,
     GEX_OP_FADD, GEX_OP_FSUB, GEX_OP_FMULT,
     GEX_OP_FMIN, GEX_OP_FMAX,
     GEX_OP_FINC, GEX_OP_FDEC,
-    GEX_OP_SET,  GEX_OP_GET,
-    GEX_OP_SWAP, GEX_OP_CSWAP
+    GEX_OP_SWAP, GEX_OP_FCAS,
+
+    GEX_OP_GET,
+    GEX_OP_USER, GEX_OP_USER_NC
   };
   assert_arr_unaliased(gex_OP_t, ops_arr); // verify alias-free
   test_format(gex_OP_t, ops_arr, gasnett_format_op);
+  for (size_t i = 0; ; i++) {
+    gex_OP_t nfop = ops_arr[i];
+    gex_OP_t fop =  ops_arr[i+12];
+    assert_always(GEX_OP_TO_FETCHING(nfop) == fop);
+    assert_always(GEX_OP_TO_NONFETCHING(fop) == nfop);
+    if (nfop == GEX_OP_SET) break;
+  }
 
   #define typeissigned   <
   #define typeisunsigned >
@@ -965,7 +1012,7 @@ void doit0(int partner, int *partnerseg) {
   assert_field_int_unspec(gex_Token_Info_t, gex_is_req);
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
-  assert_field_constint(gex_NbrhdInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
+  assert_field_constint(gex_RankInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
 
   MSG("*** passed object test!!");
 

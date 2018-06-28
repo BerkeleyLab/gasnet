@@ -120,13 +120,8 @@ typedef struct {
 */
 
 #define gex_AM_MaxArgs()            ((unsigned int)AM_MaxShort())
-#if GASNET_PSHM
-  #define gex_AM_LUBRequestMedium() ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
-  #define gex_AM_LUBReplyMedium()   ((size_t)MIN(AM_MaxMedium(), GASNETI_MAX_MEDIUM_PSHM))
-#else
-  #define gex_AM_LUBRequestMedium() ((size_t)AM_MaxMedium())
-  #define gex_AM_LUBReplyMedium()   ((size_t)AM_MaxMedium())
-#endif
+#define gex_AM_LUBRequestMedium()   ((size_t)MIN(AM_MaxMedium(), GASNETC_MAX_MEDIUM_NBRHD_DFLT))
+#define gex_AM_LUBReplyMedium()     ((size_t)MIN(AM_MaxMedium(), GASNETC_MAX_MEDIUM_NBRHD_DFLT))
 #define gex_AM_LUBRequestLong()     ((size_t)AM_MaxLong())
 #define gex_AM_LUBReplyLong()       ((size_t)AM_MaxLong())
 

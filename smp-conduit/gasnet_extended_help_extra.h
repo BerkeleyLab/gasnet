@@ -24,8 +24,8 @@ gex_Event_t gasnete_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(H);
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
+  gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
 #define gasnete_get_nb gasnete_get_nb
@@ -38,42 +38,11 @@ gex_Event_t gasnete_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(H);
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
+  gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb gasnete_put_nb
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Synchronization for explicit-event non-blocking operations:
-  ===========================================================
-*/
-
-GASNETI_INLINE(gasnete_syncnb_one)
-int gasnete_syncnb_one(gex_Event_t event GASNETI_THREAD_FARG)
-{
-  gasneti_assert(event == GEX_EVENT_INVALID);
-  gasneti_sync_reads();
-  return GASNET_OK;
-}
-#define gasnete_test gasnete_syncnb_one
-#define gasnete_wait gasnete_syncnb_one
-
-GASNETI_INLINE(gasnete_syncnb_array)
-int gasnete_syncnb_array(gex_Event_t *pevent, size_t numevents GASNETI_THREAD_FARG)
-{
-#if GASNET_DEBUG
-  for (size_t i=0; i<numevents; ++i)
-    gasneti_assert(pevent[i] == GEX_EVENT_INVALID);
-#endif
-  gasneti_sync_reads();
-  return GASNET_OK;
-}
-#define gasnete_test_some gasnete_syncnb_array
-#define gasnete_test_all  gasnete_syncnb_array
-#define gasnete_wait_some gasnete_syncnb_array
-#define gasnete_wait_all  gasnete_syncnb_array
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -88,8 +57,8 @@ int gasnete_get_nbi (gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_get_nbi gasnete_get_nbi
@@ -101,49 +70,12 @@ int gasnete_put_nbi (gex_TM_t tm,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_put_nbi gasnete_put_nbi
 
-/* ------------------------------------------------------------------------------------ */
-/*
-  Synchronization for implicit-event non-blocking operations:
-  ===========================================================
-*/
-GASNETI_INLINE(gasnete_syncnbi)
-int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
-{
-  gasneti_sync_reads();
-  return GASNET_OK;
-}
-#define gasnete_test_syncnbi_all  gasnete_syncnbi
-#define gasnete_test_syncnbi_gets gasnete_syncnbi
-#define gasnete_test_syncnbi_puts gasnete_syncnbi
-#define gasnete_wait_syncnbi_all  gasnete_syncnbi
-#define gasnete_wait_syncnbi_gets gasnete_syncnbi
-#define gasnete_wait_syncnbi_puts gasnete_syncnbi
-
-// Note we must allow for the possibility that the arg has side-effects
-GASNETI_INLINE(gasnete_syncnbi_mask)
-int gasnete_syncnbi_mask(unsigned int event_mask, gex_Flags_t flags GASNETE_THREAD_FARG)
-{
-  gasneti_sync_reads();
-  return GASNET_OK;
-}
-#define gasnete_test_syncnbi_mask gasnete_syncnbi_mask
-#define gasnete_wait_syncnbi_mask gasnete_syncnbi_mask
-
-GASNETI_INLINE(gasnete_begin_nbi_accessregion)
-void gasnete_begin_nbi_accessregion(gex_Flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
-{ /* empty */ }
-#define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
-
-GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gex_Event_t gasnete_end_nbi_accessregion(gex_Flags_t flags GASNETI_THREAD_FARG)
-{ return GEX_EVENT_INVALID; }
-#define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -159,8 +91,8 @@ int gasnete_put_val(
                 size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(I);
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes);
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_put_val gasnete_put_val
@@ -173,8 +105,8 @@ gex_Event_t gasnete_put_nb_val(
                 size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(H);
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes);
+  gasneti_unreachable();
   return GEX_EVENT_INVALID;
 }
 #define gasnete_put_nb_val gasnete_put_nb_val
@@ -195,8 +127,8 @@ gex_RMA_Value_t gasnete_get_val(
                 size_t nbytes, gex_Flags_t flags
                 GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GETVAL();
-  gasneti_assert(0 && "Unreachable");
+  GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes);
+  gasneti_unreachable();
   return 0;
 }
 #define gasnete_get_val gasnete_get_val
@@ -206,9 +138,20 @@ gex_RMA_Value_t gasnete_get_val(
   ====================
 */
 
-// Get trivially identical to synced nb (need gasneti_sync_reads())
-#define gasnete_get(tm,dest,rank,src,nbytes,flags_and_TI) \
-        gasnete_syncnb_one(gasnete_get_nb(tm,dest,rank,src,nbytes,flags_and_TI) GASNETI_THREAD_GET)
+// Get trivially identical to nb plus gasneti_sync_reads())
+GASNETI_INLINE(gasnete_get) GASNETI_WARN_UNUSED_RESULT
+int gasnete_get(
+                     gex_TM_t tm,
+                     void *dest,
+                     gex_Rank_t rank, void *src,
+                     size_t nbytes,
+                     gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+  gex_Event_t e = gasnete_get_nb(tm,dest,rank,src,nbytes,flags GASNETI_THREAD_PASS);
+  gasneti_sync_reads();
+  return 0;
+}
+#define gasnete_get gasnete_get
 
 // Put identical to nbi (w/o any need to sync_reads) except for lack of lc_opt argument
 #define gasnete_put(tm,rank,dest,src,nbytes,flags_and_TI) \

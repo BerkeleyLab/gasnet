@@ -78,10 +78,11 @@ static void randomize(thread_data_t *td) {
 #define CALL(FUNC,DST,SRC,FLAGS) \
   gasnet_coll_##FUNC(GASNET_TEAM_ALL,DST,SRC,sizeof(int),\
 			FLAGS|GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT);
-#define DEFN(PREFIX, DESC, FLAGS, SUFFIX)                                    \
+#define DEFN(PREFIX, DESC)                                                   \
 /* NO/NO - in/out data is not generated/consumed in same barrier phase */    \
 void PREFIX##_NONO(int root, thread_data_t *td) {                            \
     PROLOGUE(DESC " NO/NO");                                                 \
+    int flags = GASNET_COLL_LOCAL| GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC; \
     int j;                                                                   \
                                                                              \
     MSG00("Starting %s test", name);                                         \
@@ -97,16 +98,11 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
                                                                              \
 	global_barrier();                                                    \
                                                                              \
-	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
-	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
-	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
-	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
-	CALL(scatter##SUFFIX, ALL(E), ROOT(D),                               \
-	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
-	CALL(gather_all##SUFFIX, ALL(F), ALL(B),                             \
-	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
-	CALL(exchange##SUFFIX, ALL(G), ALL(D),                               \
-	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
+	CALL(broadcast, ALL(A), ROOT(A), flags);                             \
+	CALL(gather, ROOT(C), ALL(B), flags);                                \
+	CALL(scatter, ALL(E), ROOT(D), flags);                               \
+	CALL(gather_all, ALL(F), ALL(B), flags);                             \
+	CALL(exchange, ALL(G), ALL(D), flags);                               \
                                                                              \
 	global_barrier();                                                    \
                                                                              \
@@ -145,6 +141,7 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 /* MY/MY - in/out data is generated/consumed locally in same barrier phase */\
 void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
     PROLOGUE(DESC " MY/MY");                                                 \
+    int flags = GASNET_COLL_LOCAL| GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC; \
     int j;                                                                   \
                                                                              \
     MSG00("Starting %s test", name);                                         \
@@ -155,14 +152,12 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
                                                                              \
-	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	CALL(broadcast, ALL(A), ROOT(A), flags);                             \
 	if (*LOCAL(A) != R[j]) {                                             \
 	    MSG("ERROR: %s broadcast validation failed %d %d on %d", name, *LOCAL(A), R[j], mythread);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
-	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	CALL(gather, ROOT(C), ALL(B), flags);                                \
 	if (mythread == root) {                                              \
 	    for (i = 0; i < images; ++i) {                                   \
 		if (LOCAL(C)[i] != i) {                                      \
@@ -172,14 +167,12 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 		LOCAL(C)[i] *= R[j];                                         \
 	    }                                                                \
 	}                                                                    \
-	CALL(scatter##SUFFIX, ALL(B), ROOT(C),                               \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	CALL(scatter, ALL(B), ROOT(C), flags);                               \
 	if (*LOCAL(B) != mythread*R[j]) {                                    \
 	    MSG("ERROR: %s scatter validation failed", name);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
-	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	CALL(gather_all, ALL(C), ALL(B), flags);                             \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(C)[i] != i*R[j]) {                                     \
 		MSG("ERROR: %s gather_all validation failed", name);         \
@@ -187,8 +180,7 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 	    }                                                                \
 	    LOCAL(C)[i] += mythread;                                         \
 	}                                                                    \
-	CALL(exchange##SUFFIX, ALL(D), ALL(C),                               \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	CALL(exchange, ALL(D), ALL(C), flags);                               \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i + mythread*R[j]) {                          \
 		MSG("ERROR: %s exchange validation failed", name);           \
@@ -202,6 +194,7 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 /* ALL/ALL - data is generated/consumed *remotely* in same barrier phase */  \
 void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
     PROLOGUE(DESC " ALL/ALL");                                               \
+    int flags = GASNET_COLL_LOCAL| GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC; \
     gex_Rank_t rootproc = root/threads;                                   \
     gex_Rank_t peerproc = peerthread/threads;                             \
     int j;                                                                   \
@@ -215,8 +208,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	tmp = (peerthread == root) ? R[j] : -1;                              \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
                                                                              \
-	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
-	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
+	CALL(broadcast, ALL(A), ROOT(A), flags);                             \
 	gex_RMA_GetBlocking(myteam, &tmp, peerproc, REMOTE(A,peerthread), sizeof(int), 0);\
 	if (tmp != R[j]) {                                                   \
 	    MSG("ERROR: %s broadcast validation failed", name);              \
@@ -224,8 +216,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	}                                                                    \
 	tmp = peerthread;                                                    \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
-	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
-	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
+	CALL(gather, ROOT(C), ALL(B), flags);                                \
 	gex_RMA_GetBlocking(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i) {                                          \
@@ -236,8 +227,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	global_barrier(); /* to avoid conflict on D */                       \
 	tmp = mythread * R[j];                                               \
 	gex_RMA_PutBlocking(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
-	CALL(scatter##SUFFIX, ALL(B), ROOT(D),                               \
-	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
+	CALL(scatter, ALL(B), ROOT(D), flags);                               \
 	gex_RMA_GetBlocking(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
 	if (tmp != peerthread*R[j]) {                                        \
 	    MSG("ERROR: %s scatter validation failed expected: %d got %d", name, peerthread*R[j], tmp);                \
@@ -246,8 +236,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	global_barrier(); /* to avoid conflict on B */                       \
 	tmp = peerthread*R[j] - 1;                                           \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
-	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
-	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
+	CALL(gather_all, ALL(C), ALL(B), flags);                             \
 	gex_RMA_GetBlocking(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i*R[j] - 1) {                                 \
@@ -260,8 +249,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	    LOCAL(C)[i] += peerthread;                                       \
 	}                                                                    \
 	gex_RMA_PutBlocking(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
-	CALL(exchange##SUFFIX, ALL(C), ALL(D),                               \
-	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
+	CALL(exchange, ALL(C), ALL(D), flags);                               \
 	gex_RMA_GetBlocking(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i + peerthread*R[j] - 1) {                    \
@@ -275,7 +263,8 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 }                                                                            \
 void PREFIX##_NB(int root, thread_data_t *td) {                              \
     PROLOGUE(DESC " NB");                                                    \
-    gex_Rank_t i;                                                         \
+    int flags = GASNET_COLL_LOCAL| GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC; \
+    gex_Rank_t i;                                                            \
     int j;                                                                   \
                                                                              \
     MSG00("Starting %s test", name);                                         \
@@ -283,8 +272,7 @@ void PREFIX##_NB(int root, thread_data_t *td) {                              \
     for (j = 0; j < iters; ++j) {                                            \
 	*LOCALi(j,A) = (mythread == root) ? R[j] : -1;                       \
 	*LOCALi(j,B) = mythread;                                             \
-	hndl[j] = CALL(broadcast##SUFFIX##_nb, ALLi(j,A), ROOTi(j,A),        \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	hndl[j] = CALL(broadcast##_nb, ALLi(j,A), ROOTi(j,A), flags);        \
     }                                                                        \
     for (j = 0; j < iters; ++j) {                                            \
         gasnet_coll_wait_sync(hndl[j]);                                      \
@@ -292,8 +280,7 @@ void PREFIX##_NB(int root, thread_data_t *td) {                              \
 	    MSG("ERROR: %s broadcast validation failed", name);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
-	hndl[j] = CALL(gather##SUFFIX##_nb, ROOTi(j,C), ALLi(j,B),           \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	hndl[j] = CALL(gather##_nb, ROOTi(j,C), ALLi(j,B), flags);           \
     }                                                                        \
     for (j = 0; j < iters; ++j) {                                            \
         gasnet_coll_wait_sync(hndl[j]);                                      \
@@ -306,8 +293,7 @@ void PREFIX##_NB(int root, thread_data_t *td) {                              \
 		LOCALi(j,C)[i] *= R[j];                                      \
 	    }                                                                \
 	}                                                                    \
-	hndl[j] = CALL(scatter##SUFFIX##_nb, ALLi(j,B), ROOTi(j,C),          \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	hndl[j] = CALL(scatter##_nb, ALLi(j,B), ROOTi(j,C), flags);          \
     }                                                                        \
     for (j = 0; j < iters; ++j) {                                            \
         gasnet_coll_wait_sync(hndl[j]);                                      \
@@ -315,8 +301,7 @@ void PREFIX##_NB(int root, thread_data_t *td) {                              \
 	    MSG("ERROR: %s scatter validation failed", name);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
-	hndl[j] = CALL(gather_all##SUFFIX##_nb, ALLi(j,C), ALLi(j,B),        \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	hndl[j] = CALL(gather_all##_nb, ALLi(j,C), ALLi(j,B), flags);        \
     }                                                                        \
     for (j = 0; j < iters; ++j) {                                            \
         gasnet_coll_wait_sync(hndl[j]);                                      \
@@ -327,8 +312,7 @@ void PREFIX##_NB(int root, thread_data_t *td) {                              \
 	    }                                                                \
 	    LOCALi(j,C)[i] += mythread;                                      \
 	}                                                                    \
-	hndl[j] = CALL(exchange##SUFFIX##_nb, ALLi(j,D), ALLi(j,C),          \
-	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
+	hndl[j] = CALL(exchange##_nb, ALLi(j,D), ALLi(j,C), flags);          \
     }                                                                        \
     for (j = 0; j < iters; ++j) {                                            \
         gasnet_coll_wait_sync(hndl[j]);                                      \
@@ -343,52 +327,16 @@ void PREFIX##_NB(int root, thread_data_t *td) {                              \
     global_barrier(); /* ensure validation completes before next test */     \
 }
 
-#define gasnet_coll_broadcastEMPTY	gasnet_coll_broadcast
-#define gasnet_coll_gatherEMPTY		gasnet_coll_gather
-#define gasnet_coll_scatterEMPTY	gasnet_coll_scatter
-#define gasnet_coll_gather_allEMPTY	gasnet_coll_gather_all
-#define gasnet_coll_exchangeEMPTY	gasnet_coll_exchange
-
-#define gasnet_coll_broadcastEMPTY_nb	gasnet_coll_broadcast_nb
-#define gasnet_coll_gatherEMPTY_nb	gasnet_coll_gather_nb
-#define gasnet_coll_scatterEMPTY_nb	gasnet_coll_scatter_nb
-#define gasnet_coll_gather_allEMPTY_nb	gasnet_coll_gather_all_nb
-#define gasnet_coll_exchangeEMPTY_nb	gasnet_coll_exchange_nb
-
 #define ALL(X)		ALLi(0,X)
 #define ROOT(X)		ROOTi(0,X)
 #define REMOTE(X,N)	REMOTEi(0,X,N)
 #define LOCAL(X)	LOCALi(0,X)
 #define LOCALi(i,X)	REMOTEi(i,X,mythread)
 
-#define ALLi(i,X)	X##w[i]
-#define ROOTi(i,X)	root, X##w[i]
-#define REMOTEi(i,X,N)	(X##w[i])
-DEFN(testSS, "SINGLE/single-addr", GASNET_COLL_SINGLE, EMPTY)
-#undef ALLi
-#undef ROOTi
-#undef REMOTEi
-
-#define ALLi(i,X)	(void*const*)X##v[i]
-#define ROOTi(i,X)	root, X##v[i][root]
-#define REMOTEi(i,X,N)	(X##v[i][N])
-DEFN(testSM, "SINGLE/multi-addr", GASNET_COLL_SINGLE, M)
-#undef ALLi
-#undef ROOTi
-#undef REMOTEi
-
-#define ALLi(i,X)	X##v[i][mythread]
+#define ALLi(i,X)      X##v[i][mythread]
 #define ROOTi(i,X)	root, (mythread==root)?X##v[i][root]:NULL
 #define REMOTEi(i,X,N)	(X##v[i][N])
-DEFN(testLS, "LOCAL/single-addr", GASNET_COLL_LOCAL, EMPTY)
-#undef ALLi
-#undef ROOTi
-#undef REMOTEi
-
-#define ALLi(i,X)	(void*const*)(X##v[i]+(myproc*threads))
-#define ROOTi(i,X)	root, (myproc==(root/threads))?X##v[i][root]:NULL
-#define REMOTEi(i,X,N)	(X##v[i][N])
-DEFN(testLM, "LOCAL/multi-addr", GASNET_COLL_LOCAL, M)
+DEFN(testLS, "LOCAL/single-addr")
 #undef ALLi
 #undef ROOTi
 #undef REMOTEi
@@ -412,11 +360,18 @@ static void *test_malloc_2D(int count, size_t size) {
 }
 #define test_free_2D test_free
 
+static volatile int done = 0;
+
 void *thread_main(void *arg) {
   thread_data_t *td = arg;
   int i;
                 
 #if GASNET_PAR
+  if (td->local_id >= threads) {
+    while (!done) gasnet_AMPoll();
+    return NULL;
+  }
+
   gasnet_image_t *imagearray = test_malloc(numprocs * sizeof(gasnet_image_t));
   for (i=0; i<numprocs; ++i) { imagearray[i] = threads; }
   gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
@@ -443,35 +398,16 @@ void *thread_main(void *arg) {
 
     MSG00("Running tests with root = %d", (int)root);
 
-    if (threads > 1) {
-      MSG00("Skipping SINGLE/single-addr tests (multiple threads)");
-    } else if (!TEST_ALIGNED_SEGMENTS()) {
-      MSG00("Skipping SINGLE/single-addr tests (unaligned segments)");
-    } else {
-      testSS_NONO(root, td);
-      testSS_MYMY(root, td);
-      testSS_ALLALL(root, td);
-      testSS_NB(root, td);
-    }
-    testSM_NONO(root, td);
-    testSM_MYMY(root, td);
-    testSM_ALLALL(root, td);
-    testSM_NB(root, td);
-
-#if 1
     testLS_NONO(root, td);
     testLS_MYMY(root, td);
     testLS_ALLALL(root, td);
     testLS_NB(root, td);
-
-    testLM_NONO(root, td);
-    testLM_MYMY(root, td);
-    testLM_ALLALL(root, td);
-    testLM_NB(root, td);
-#endif
   }
   
   test_free(td->hndl);
+
+  PTHREAD_LOCALBARRIER(threads);
+  done = 1;
 
   return NULL;
 }
@@ -480,26 +416,57 @@ int main(int argc, char **argv)
 {
     static int *A, *B, *C, *D, *E, *F, *G;
     gex_Rank_t myproc, i;
+    int pollers = 0;
     int j;
    
     /* call startup */
     GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testcoll", &argc, &argv, 0));
 
-    if (argc > 1) {
-      iters = atoi(argv[1]);
+    int arg = 1;
+    int help = 0;
+    while (argc > arg) {
+      if (!strcmp(argv[arg], "-p")) {
+#if GASNET_PAR
+        ++arg;
+        if (argc > arg) { pollers = atoi(argv[arg]); arg++; }
+        else help = 1;
+#else
+        if (0 == gex_TM_QueryRank(myteam)) {
+          fprintf(stderr, "testcoll %s\n", GASNET_CONFIG_STRING);
+          fprintf(stderr, "ERROR: The -p option is only available in the PAR configuration.\n");
+          fflush(NULL);
+        }
+        sleep(1);
+        gasnet_exit(1);
+#endif
+      } else if (argv[arg][0] == '-') {
+        help = 1;
+        ++arg;
+      } else break;
+    }
+
+    if (argc > arg) {
+      iters = atoi(argv[arg]);
+      ++arg;
     }
     if (iters < 1) {
       iters = 1000;
     }
 
 #if GASNET_PAR
-    if (argc > 2) {
-      threads = atoi(argv[2]);
+    if (argc > arg) {
+      threads = atoi(argv[arg]);
+      ++arg;
     }
     threads = test_thread_limit(threads);
     if (threads < 1) {
       printf("ERROR: Threads must be between 1 and %d\n", TEST_MAXTHREADS);
       exit(EXIT_FAILURE);
+    }
+    // NO MULTI-IMAGE SUPPORT IN CURRENT COLLECTIVES
+    if (threads > 1) {
+      MSG0("WARNING: thread count reduced to 1 (no multi-image support)");
+      threads = 1;
     }
 #endif
 
@@ -510,9 +477,18 @@ int main(int argc, char **argv)
     datasize = iters * (3 + 4 * images);
 
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
-    test_init("testcoll",0,"(iters) (threadcnt)");
-    TEST_SET_WAITMODE(threads);
-    if (argc > 3) test_usage();
+
+#if GASNET_PAR
+  #define USAGE "[options] (iters) (threadcnt)\n" \
+                "  The -p option gives the number of polling threads, specified as\n" \
+                "    a non-negative integer argument (default is no polling threads).\n"
+#else
+  #define USAGE "(iters)\n"
+#endif
+    test_init("testcoll",0,USAGE);
+
+    TEST_SET_WAITMODE(threads + pollers);
+    if (argc > arg || help) test_usage();
     
     MSG0("Running coll test(s) with %d iterations.", iters);
 
@@ -578,7 +554,7 @@ int main(int argc, char **argv)
     BARRIER();
 
 #if GASNET_PAR
-    MSG("Forking %d gasnet threads", threads);
+    MSG("Forking %d gasnet threads (%d active, %d polling)", threads+pollers, threads, pollers);
     {
         int i;
 	thread_data_t* tt_thread_data = test_malloc(threads*sizeof(thread_data_t));

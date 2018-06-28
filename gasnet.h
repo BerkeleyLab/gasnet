@@ -66,26 +66,32 @@ typedef struct {
 
 GASNETT_INLINE(gasnet_init)
 int gasnet_init(int *_argc, char ***_argv) {
-  return gex_Client_Init (     &gasneti_thunk_client,
-                               &gasneti_thunk_endpoint,
-                               &gasneti_thunk_tm,
-                               "LEGACY", _argc, _argv,
-                               GASNETI_FLAG_INIT_LEGACY);
+  gex_Client_t _g2ex_client;
+  gex_EP_t     _g2ex_ep;
+  gex_TM_t     _g2ex_tm;
+  return gex_Client_Init (&_g2ex_client, 
+                          &_g2ex_ep, 
+                          &_g2ex_tm,
+                          "LEGACY", _argc, _argv,
+                           GASNETI_FLAG_INIT_LEGACY | GEX_FLAG_USES_GASNET1);
 }
 
-extern int gasnetc_attach( gex_Client_t           *_client_p,
-                           gex_EP_t               *_endpoint_p,
-                           gex_TM_t               *_tm_p,
-                           gex_Segment_t          *_segment_p,
+extern int gasnetc_attach( gex_TM_t               _tm,
                            gasnet_handlerentry_t  *_table,
                            int                    _numentries,
                            uintptr_t              _segsize);
+extern void gasneti_legacy_attach_checks(int _checksegment);
 GASNETT_INLINE(gasnet_attach)
 int gasnet_attach( gasnet_handlerentry_t *_table, int _numentries,
                    uintptr_t _segsize, uintptr_t _minheapoffset ) {
-  return gasnetc_attach( &gasneti_thunk_client, &gasneti_thunk_endpoint,
-                         &gasneti_thunk_tm, &gasneti_thunk_segment,
-                         _table, _numentries, _segsize);
+  gasneti_legacy_attach_checks(0);
+  int _result = gasnetc_attach( gasneti_thunk_tm, _table, _numentries, _segsize);
+  #if GASNET_SEGMENT_EVERYTHING
+    gasneti_legacy_attach_checks(0);
+  #else
+    gasneti_legacy_attach_checks(1);
+  #endif
+  return _result;
 }
 
 GASNETT_INLINE(gasnet_QueryGexObjects)
@@ -438,13 +444,13 @@ gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t _node, void *_src, size_t
 {
   gasnet_valget_handle_t _result = (gasnet_valget_handle_t)gasneti_extern_malloc(sizeof(*_result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
-  void *dest = (void*)((uintptr_t)&(_result->gasneti_valget_value) + sizeof(gex_RMA_Value_t) - _nbytes);
+  void *_dest = (void*)((uintptr_t)&(_result->gasneti_valget_value) + sizeof(gex_RMA_Value_t) - _nbytes);
 #else /* little-endian */
-  void *dest = &_result->gasneti_valget_value;
+  void *_dest = &_result->gasneti_valget_value;
 #endif
   _result->gasneti_valget_value = 0;
   //assert(_nbytes > 0 && _nbytes <= sizeof(gex_RMA_Value_t));
-  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, dest, _node, _src, _nbytes, 0);
+  _result->gasneti_valget_event = gex_RMA_GetNB(gasneti_thunk_tm, _dest, _node, _src, _nbytes, 0);
   return _result;
 }
 

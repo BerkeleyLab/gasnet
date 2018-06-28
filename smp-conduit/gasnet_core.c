@@ -27,10 +27,6 @@ static void gasnetc_on_exit(int, void*);
 static void gasnetc_atexit(void);
 #endif
 
-#if !GASNETI_CLIENT_THREADS
-  void *_gasnetc_mythread = NULL;
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -92,9 +88,9 @@ static void gasnetc_bootstrapBarrier(void) {
 
 static int *gasnetc_fds = NULL;
 
-#define GASNETC_DEFAULT_EXITTIMEOUT_MAX       20.
-#define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
-#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.25
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX       5.
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN       1.
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR    0.1
 static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 static struct gasnetc_exit_data {
@@ -679,6 +675,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
+  gasneti_legacy_segment_attach_hook(ep);
   *segment_p = gasneti_export_segment(ep->_segment);
   
   /* After local segment is attached, call optional client-provided hook
@@ -704,17 +701,15 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
-extern int gasnetc_attach( gex_Client_t           *client_p,
-                           gex_EP_t               *ep_p,
-                           gex_TM_t               *tm_p,
-                           gex_Segment_t          *segment_p,
+extern int gasnetc_attach( gex_TM_t               _tm,
                            gasnet_handlerentry_t  *table,
                            int                    numentries,
                            uintptr_t              segsize)
 {
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR")",
                           numentries, segsize));
-  gasneti_EP_t ep = gasneti_import_ep(*ep_p);
+  gasneti_TM_t tm = gasneti_import_tm(_tm);
+  gasneti_EP_t ep = tm->_ep;
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -737,7 +732,8 @@ extern int gasnetc_attach( gex_Client_t           *client_p,
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
-    if (GASNET_OK != gasnetc_attach_segment(segment_p, *tm_p, segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
+    gex_Segment_t seg; // g2ex segment is automatically saved by a hook
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -792,7 +788,7 @@ extern int gasnetc_Client_Init(
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -825,13 +821,6 @@ extern int gasnetc_Segment_Attach(
   // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
   if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
-
-  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
-  uintptr_t segsize = gasneti_seginfo[gasneti_mynode].size;
-  const gex_Flags_t flags = 0; /* TODO-EX: BIND, PSHM, etc. */
-  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
-  *segment_p = gasneti_export_segment(ep->_segment);
 
   return GASNET_OK;
 }
@@ -988,14 +977,6 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   ================================
 */
 
-void gasnetc_smp_cleanup_threaddata(void *_td) {
-  void **corethreadinfo = (void **)_td;
-  gasneti_free_aligned(*corethreadinfo);
-  *corethreadinfo = NULL;
-}
-
-/* ------------------------------------------------------------------------------------ */
-
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
                             gex_Rank_t rank,       /* with tm, defines remote context */
@@ -1011,9 +992,10 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Short,
-                                  tm, rank, handler, 
+                                  jobrank, handler, 
                                   0, 0, 0,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);
@@ -1039,9 +1021,10 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Medium,
-                                  tm, rank, handler, 
+                                  jobrank, handler, 
                                   source_addr, nbytes, 0,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);
@@ -1068,9 +1051,10 @@ extern int gasnetc_AMRequestLongM(
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
     retval = gasnetc_nbrhd_RequestGeneric(
                                   gasneti_Long,
-                                  tm, rank, handler, 
+                                  jobrank, handler, 
                                   source_addr, nbytes, dest_addr,
                                   flags, numargs, argptr
                                   GASNETI_THREAD_PASS);

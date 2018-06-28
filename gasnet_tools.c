@@ -64,10 +64,14 @@
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
     #define _gasneti_atomic_lock_initializer	GASNETT_MUTEX_INITIALIZER
     #define _gasneti_atomic_lock_init(x)	gasnett_mutex_init(x)
+    #define _gasneti_atomic_lock_lock(x)        gasnett_mutex_lock(x)
+    #define _gasneti_atomic_lock_unlock(x)      gasnett_mutex_unlock(x)
     #define _gasneti_atomic_lock_malloc		malloc
     GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_pthread_atomic_, gasnett_mutex_)
     #undef _gasneti_atomic_lock_initializer
     #undef _gasneti_atomic_lock_init
+    #undef _gasneti_atomic_lock_lock
+    #undef _gasneti_atomic_lock_unlock
     #undef _gasneti_atomic_lock_malloc
    #endif
   #ifdef GASNETI_GENATOMIC32_DEFN
@@ -173,13 +177,18 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 /* ------------------------------------------------------------------------------------ */
 /* call-based atomic support for C compilers with limited inline assembly */
 
-#ifdef GASNETI_ATOMIC_SPECIALS
-  GASNETI_ATOMIC_SPECIALS
+#ifdef GASNETI_ATOMIC32_SPECIALS
+  GASNETI_ATOMIC32_SPECIALS
+#endif
+#ifdef GASNETI_ATOMIC64_SPECIALS
+  GASNETI_ATOMIC64_SPECIALS
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* call-based membar/atomic support for C++ compilers which lack inline assembly */
-#if defined(GASNETI_USING_SLOW_ATOMICS) || \
+/* call-based membar/atomic support for compilers which lack inline assembly of configured CC */
+#if defined(GASNETI_USING_SLOW_ATOMICOPS) || \
+    defined(GASNETI_USING_SLOW_ATOMIC32) || \
+    defined(GASNETI_USING_SLOW_ATOMIC64) || \
     defined(GASNETI_USING_SLOW_MEMBARS)
 #error gasnet_tools.c must be compiled with support for inline assembly
 #endif
@@ -220,37 +229,59 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
   }
 #endif
 
+/* Warn (once) if slow atomics are reached */
+static int gasneti_slow_atomic_warning_issued = 0;
+GASNETI_NEVER_INLINE(gasneti_slow_atomic_warn,
+static void gasneti_slow_atomic_warn(void)) {
+  gasneti_slow_atomic_warning_issued = 1;
+  fprintf(stderr,
+          "WARNING: using slow atomics due to use of a compiler not probed by GASNet at configure time\n");
+  fflush(stderr);
+}
+#define GASNETI_SLOW_ATOMIC_WARNING() do { \
+    if_pf (! gasneti_slow_atomic_warning_issued) gasneti_slow_atomic_warn(); \
+  } while (0)
+
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
   /* We don't need or want slow versions of generics (they use no ASM) */
 #else
   extern gasneti_atomic_val_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic_read(p,flags);
   }
   extern void gasneti_slow_atomic_set(gasneti_atomic_t *p, gasneti_atomic_val_t v, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic_set(p, v, flags);
   }
   extern void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic_increment(p, flags);
   }
   extern void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic_decrement(p, flags);
   }
   extern int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic_decrement_and_test(p, flags);
   }
   #if defined(GASNETI_HAVE_ATOMIC_CAS)
     extern int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, gasneti_atomic_val_t oldval, gasneti_atomic_val_t newval, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_compare_and_swap(p,oldval,newval,flags);
     }
     extern gasneti_atomic_val_t gasneti_slow_atomic_swap(gasneti_atomic_t *p, gasneti_atomic_val_t val, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_swap(p,val,flags);
     }
   #endif
   #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
     extern gasneti_atomic_val_t gasneti_slow_atomic_add(gasneti_atomic_t *p, gasneti_atomic_val_t op, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_add(p,op,flags);
     }
     extern gasneti_atomic_val_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, gasneti_atomic_val_t op, const int flags) {
+      GASNETI_SLOW_ATOMIC_WARNING();
       return gasneti_atomic_subtract(p,op,flags);
     }
   #endif
@@ -259,30 +290,39 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
   /* We don't need or want slow versions of generics (they use no ASM) */
 #else
   extern uint32_t gasneti_slow_atomic32_read(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_read(p,flags);
   }
   extern void gasneti_slow_atomic32_set(gasneti_atomic32_t *p, uint32_t v, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic32_set(p, v, flags);
   }
   extern void gasneti_slow_atomic32_increment(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic32_increment(p, flags);
   }
   extern void gasneti_slow_atomic32_decrement(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic32_decrement(p, flags);
   }
   extern int gasneti_slow_atomic32_decrement_and_test(gasneti_atomic32_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_decrement_and_test(p, flags);
   }
   extern int gasneti_slow_atomic32_compare_and_swap(gasneti_atomic32_t *p, uint32_t oldval, uint32_t newval, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_compare_and_swap(p,oldval,newval,flags);
   }
   extern uint32_t gasneti_slow_atomic32_swap(gasneti_atomic32_t *p, uint32_t val, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_swap(p,val,flags);
   }
   extern uint32_t gasneti_slow_atomic32_add(gasneti_atomic32_t *p, uint32_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_add(p,op,flags);
   }
   extern uint32_t gasneti_slow_atomic32_subtract(gasneti_atomic32_t *p, uint32_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic32_subtract(p,op,flags);
   }
 #endif
@@ -290,30 +330,39 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
   /* We don't need or want slow versions of generics (they use no ASM) */
 #else
   extern uint64_t gasneti_slow_atomic64_read(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_read(p,flags);
   }
   extern void gasneti_slow_atomic64_set(gasneti_atomic64_t *p, uint64_t v, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic64_set(p, v, flags);
   }
   extern void gasneti_slow_atomic64_increment(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic64_increment(p, flags);
   }
   extern void gasneti_slow_atomic64_decrement(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     gasneti_atomic64_decrement(p, flags);
   }
   extern int gasneti_slow_atomic64_decrement_and_test(gasneti_atomic64_t *p, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_decrement_and_test(p, flags);
   }
   extern int gasneti_slow_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_compare_and_swap(p,oldval,newval,flags);
   }
   extern uint64_t gasneti_slow_atomic64_swap(gasneti_atomic64_t *p, uint64_t val, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_swap(p,val,flags);
   }
   extern uint64_t gasneti_slow_atomic64_add(gasneti_atomic64_t *p, uint64_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_add(p,op,flags);
   }
   extern uint64_t gasneti_slow_atomic64_subtract(gasneti_atomic64_t *p, uint64_t op, const int flags) {
+    GASNETI_SLOW_ATOMIC_WARNING();
     return gasneti_atomic64_subtract(p,op,flags);
   }
 #endif
@@ -448,15 +497,18 @@ extern int gasneti_nsleep(uint64_t ns_delay) {
   GASNETI_TIMER_DEFN
 #endif
 
-extern uint64_t gasneti_gettimeofday_us(void) {
+GASNETI_INLINE(_gasneti_gettimeofday_us)
+uint64_t _gasneti_gettimeofday_us(void) {
   uint64_t retval;
   struct timeval tv;
   gasneti_assert_zeroret(gettimeofday(&tv, NULL));
   retval = ((uint64_t)tv.tv_sec) * 1000000 + (uint64_t)tv.tv_usec;
   return retval;
 }
+extern uint64_t gasneti_gettimeofday_us(void) { return _gasneti_gettimeofday_us(); }
 
-extern uint64_t gasneti_wallclock_ns(void) {
+GASNETI_INLINE(_gasneti_wallclock_ns)
+uint64_t _gasneti_wallclock_ns(void) {
   #if HAVE_CLOCK_GETTIME
     struct timespec tm;
     #if defined(_POSIX_MONOTONIC_CLOCK)
@@ -475,6 +527,15 @@ extern uint64_t gasneti_wallclock_ns(void) {
     return ((uint64_t)tv.tv_sec)*1000000000 + ((uint64_t)tv.tv_usec)*1000;
   #endif
 }
+extern uint64_t gasneti_wallclock_ns(void) { return _gasneti_wallclock_ns(); }
+
+// Conditionally available:
+#if GASNETI_USING_GETTIMEOFDAY // Used *only* for gtod-based timers:
+  extern uint64_t gasneti_ticks_gtod_us(void) { return _gasneti_gettimeofday_us(); }
+#endif
+#if GASNETI_USING_POSIX_REALTIME // Used *only* for POSIX-RT timers:
+  extern uint64_t gasneti_ticks_posix_ns(void) { return _gasneti_wallclock_ns(); }
+#endif
 
 extern double gasneti_tick_metric(int idx) {
   static double *_gasneti_tick_metric = NULL;
@@ -506,9 +567,16 @@ extern double gasneti_tick_metric(int idx) {
   return _gasneti_tick_metric[idx];
 }
 /* ------------------------------------------------------------------------------------ */
+#ifndef GASNETI_MAYBE_TRACEFILE
+  #if GASNET_TRACE
+    FILE *gasneti_tracefile; // intentional tentative defn
+    #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
+  #else
+    #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
+  #endif
+#endif
 volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
-  va_list argptr;
   #ifndef GASNETI_FATALERROR_LEN
   #define GASNETI_FATALERROR_LEN 80
   #endif
@@ -517,25 +585,36 @@ extern void gasneti_fatalerror(const char *msg, ...) {
   const size_t maxmsg = sizeof(expandedmsg)-sizeof(prefix)-4;
   const size_t msglen = strlen(msg);
 
-  va_start(argptr, msg); /*  pass in last argument */
-    if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
-      strcpy(expandedmsg, prefix);
-      strncat(expandedmsg, msg, maxmsg);
-      if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
-      vfprintf(stderr, expandedmsg, argptr);
-    } else { /* long format msg */
-      fprintf(stderr, prefix);
-      vfprintf(stderr, msg, argptr);
-      if (msg[strlen(msg)-1] != '\n') fprintf(stderr, "\n");
+  FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
+  for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
+    FILE *stream = streams[s];
+    if (stream) {
+      va_list argptr;
+      va_start(argptr, msg); /*  pass in last argument */
+        if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+          strcpy(expandedmsg, prefix);
+          strncat(expandedmsg, msg, maxmsg);
+          if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
+          vfprintf(stream, expandedmsg, argptr);
+        } else { /* long format msg */
+          fprintf(stream, prefix);
+          vfprintf(stream, msg, argptr);
+          if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
+        }
+      va_end(argptr);
+      fflush(stream);
     }
-    fflush(stderr);
-  va_end(argptr);
+  }
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
   /* try to get a pre-signal backtrace, which may be more precise */
   if (!gasneti_print_backtrace_ifenabled(STDERR_FILENO)) 
     gasneti_atomic_set(&gasneti_backtrace_enabled,0,GASNETI_ATOMIC_REL);
+
+  // Try to flush I/O (especially the tracefile) before crashing
+  signal(SIGALRM, _exit); alarm(5); 
+  gasneti_flush_streams();
 
   abort();
 }
@@ -550,7 +629,9 @@ extern void gasneti_killmyprocess(int exitcode) {
   gasneti_fatalerror("gasneti_killmyprocess failed to kill the process!");
 }
 extern void gasneti_filesystem_sync(void) {
-  if ( gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0) ) {
+  static int enabled = -1;
+  if (enabled == -1) enabled = gasneti_getenv_yesno_withdefault("GASNET_FS_SYNC",0);
+  if (enabled) {
     sync();
   }
 }
@@ -2514,7 +2595,7 @@ const char *gasneti_gethostname(void) {
 #endif
 
 /* Given a word, set the least-significant bit of each non-zero byte, zeroing all other bits */
-GASNETI_ALWAYS_INLINE(gasneti_count0s_xform1) GASNETI_CONST
+GASNETI_INLINE(gasneti_count0s_xform1) GASNETI_CONST
 uintptr_t gasneti_count0s_xform1(uintptr_t x) {
 #if 0 /* Original shift-based method */
   x |= (x >> 4);
@@ -2546,7 +2627,7 @@ uintptr_t gasneti_count0s_xform1(uintptr_t x) {
 
 /* Given a sum of words generated by no more than gasneti_count0s_xform_limit iterations
  * of xform1, sum the least-significant bits of the bytes into a single value. */
-GASNETI_ALWAYS_INLINE(gasneti_count0s_xform2) GASNETI_CONST
+GASNETI_INLINE(gasneti_count0s_xform2) GASNETI_CONST
 size_t gasneti_count0s_xform2(uintptr_t x) {
 #if 0
   /* Algorithm A:
@@ -2603,7 +2684,7 @@ size_t gasneti_count0s_xform2(uintptr_t x) {
 }
 
 /* Count non-zero bytes in a word-aligned region */
-GASNETI_ALWAYS_INLINE(gasneti_count0s_nzs_aligned_region) GASNETI_PURE
+GASNETI_INLINE(gasneti_count0s_nzs_aligned_region) GASNETI_PURE
 size_t gasneti_count0s_nzs_aligned_region(const uintptr_t *p, size_t words) {
   size_t non_zeros = 0;
   int i;
@@ -2628,7 +2709,7 @@ size_t gasneti_count0s_nzs_aligned_region(const uintptr_t *p, size_t words) {
 }
 
 /* Copy and count non-zero bytes w/o any alignment requirement */
-GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_bytes)
+GASNETI_INLINE(gasneti_count0s_copy_bytes)
 int gasneti_count0s_copy_bytes(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t bytes) {
   int non_zeros = 0;
   uint8_t *d = dst;
@@ -2652,7 +2733,7 @@ int gasneti_count0s_copy_bytes(void * GASNETI_RESTRICT dst, const void * GASNETI
 }
 
 /* Copy and count non-zero bytes w/ both dst and src word-aligned */
-GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_dstsrc_aligned)
+GASNETI_INLINE(gasneti_count0s_copy_dstsrc_aligned)
 size_t gasneti_count0s_copy_dstsrc_aligned(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t words) {
   size_t non_zeros = 0;
   uintptr_t *d = dst;
@@ -2682,7 +2763,7 @@ size_t gasneti_count0s_copy_dstsrc_aligned(void * GASNETI_RESTRICT dst, const vo
 }
 
 /* Copy and count non-zero bytes w/ dst word-aligned, but not src */
-GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_dst_aligned)
+GASNETI_INLINE(gasneti_count0s_copy_dst_aligned)
 size_t gasneti_count0s_copy_dst_aligned(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t words) {
   #if !WORDS_BIGENDIAN
     #define GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1) (((w0)>>(s0)) | ((w1)<<(s1)))

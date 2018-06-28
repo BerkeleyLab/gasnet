@@ -3,7 +3,7 @@ README file for GASNet tools
 ============================
 Originally by: Dan Bonachea <bonachea@cs.berkeley.edu>
 Currently maintained by: Paul H. Hargrove <PHHargrove@lbl.gov>
-GASNet tools specification version: 1.11
+GASNet tools specification version: 1.12
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -584,12 +584,6 @@ definition
   fnname should be the name of the function, and definition should be the actual
   definition of the function (declaration and body)
           
-GASNETT_PLEASE_INLINE(fnname) 
-definition
-
-  Similar to GASNETT_INLINE - inline a function if possible, but don't generate an error 
-  for cases where it is impossible (eg recursive functions)
-      
 GASNETT_NEVER_INLINE(fnname,definition)
 
   Most forceful demand available to disable inlining for function.
@@ -697,6 +691,11 @@ gasnett_constant_p(expr)
 
   This expands to use of __builtin_constant_p() on compilers with the necessary
   support, or to the constant 0 otherwise.
+
+gasnett_unreachable()
+
+  This annotation marks the current code location as unreachable (using compiler-specific
+  mechanisms), to assist optimization of surrounding code.
 
 -----------------------------------------------------
 Error-checking System Mutexes and Condition Variables
@@ -1287,11 +1286,6 @@ COMPILER.
       declared via typedefs (and thus don't look like pointers until the typedef has been
       expanded).  Setting to "0" will disable such use.
       One may not set GASNETT_USE_RESTRICT_ON_TYPEDEFS without setting GASNETT_USE_RESTRICT.
-
-  The following can control the implementation of GASNETT_PLEASE_INLINE(fnname)
-    GASNETT_USE_PLEASE_INLINE(fnname)
-      If defined, provides the implementation of GASNETT_PLEASE_INLINE()
-      However, note that in a debug build inlining is disabled and this macro is unused.
 
 * Feature control for ctype.h wrappers
 

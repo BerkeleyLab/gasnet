@@ -376,7 +376,7 @@ main(int argc, char **argv)
 
     /* setup max grid we intend to use, so we can get enough 
      * memory per proc at startup */
-    if (help || !POWER_OF_TWO(nprocs)) maxsegmentsz = 0;
+    if (help || !POWER_OF_TWO(nprocs)) maxsegmentsz = PAGESZ;
     else {
       setupGrid(&Nbr, maxdim);
       estimateMemSegment(&Nbr, &insegsz, &outsegsz);

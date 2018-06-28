@@ -8,6 +8,7 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
+#include <gasnet_coll.h>
 
 static pami_send_hint_t gasnete_null_send_hint;
 
@@ -151,6 +152,9 @@ extern void gasnete_init(void) {
   /* Initialize barrier resources */
   gasnete_barrier_init();
 
+  /* Initialize team/collectives */
+  gasnete_coll_init_subsystem();
+
   /* Initialize VIS subsystem */
   gasnete_vis_init();
 
@@ -236,7 +240,7 @@ extern void gasnete_init(void) {
 
 /* TODO: use Rput w/ firehose or bounce buffers when only dest is in-segment */
 GASNETI_INLINE(gasnete_put_common)
-void gasnete_put_common(gex_Rank_t rank, void *dest, void *src, size_t nbytes,
+void gasnete_put_common(gex_Rank_t jobrank, void *dest, void *src, size_t nbytes,
                         pami_event_function ldone_fn, pami_event_function rdone_fn,
                         void *cookie) {
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -255,19 +259,19 @@ void gasnete_put_common(gex_Rank_t rank, void *dest, void *src, size_t nbytes,
   pami_memregion_t *rem_mr = NULL;
   uintptr_t rem_offset;
   if (loc_mr) {
-    if_pt ((rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[rank].addr)
-                                                    < gasneti_seginfo[rank].size) {
-      rem_mr = &gasnetc_memreg[rank];
-    } else if ((rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo_aux[rank].addr)
-                                                        < gasneti_seginfo_aux[rank].size) {
-      rem_mr = &gasnetc_auxreg[rank];
+    if_pt ((rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[jobrank].addr)
+                                                    < gasneti_seginfo[jobrank].size) {
+      rem_mr = &gasnetc_memreg[jobrank];
+    } else if ((rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo_aux[jobrank].addr)
+                                                        < gasneti_seginfo_aux[jobrank].size) {
+      rem_mr = &gasnetc_auxreg[jobrank];
     }
   }
 
   if (rem_mr) {
     pami_rput_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(rank);
+    cmd.rma.dest = gasnetc_endpoint(jobrank);
     cmd.rma.hints = gasnete_rdma_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = cookie;
@@ -295,7 +299,7 @@ void gasnete_put_common(gex_Rank_t rank, void *dest, void *src, size_t nbytes,
   {
     pami_put_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(rank);
+    cmd.rma.dest = gasnetc_endpoint(jobrank);
     cmd.rma.hints = gasnete_null_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = cookie;
@@ -322,23 +326,23 @@ void gasnete_put_common(gex_Rank_t rank, void *dest, void *src, size_t nbytes,
 /* TODO: use Rget w/ firehose or bounce buffers when only src is in-segment */
 // TODO-EX: enable Rget for auxseg (except no point due to Rget bug on BG/Q)
 GASNETI_INLINE(gasnete_get_common)
-void gasnete_get_common(void *dest, gex_Rank_t rank, void *src, size_t nbytes,
+void gasnete_get_common(void *dest, gex_Rank_t jobrank, void *src, size_t nbytes,
                         pami_event_function done_fn, void *cookie) {
 #if (GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE) && !GASNETI_ARCH_BGQ /* work-around a BG/Q bug */
   uintptr_t loc_offset = (uintptr_t)dest - gasnete_mysegbase;
-  uintptr_t rem_offset = (uintptr_t)src - (uintptr_t)gasneti_seginfo[rank].addr;
+  uintptr_t rem_offset = (uintptr_t)src - (uintptr_t)gasneti_seginfo[jobrank].addr;
 
-  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[rank].size)) {
+  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[jobrank].size)) {
     pami_rget_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(rank);
+    cmd.rma.dest = gasnetc_endpoint(jobrank);
     cmd.rma.hints = gasnete_rdma_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = cookie;
     cmd.rma.done_fn = done_fn;
     cmd.rdma.local.mr = &gasnetc_mymemreg;
     cmd.rdma.local.offset = loc_offset;
-    cmd.rdma.remote.mr = &gasnetc_memreg[rank];
+    cmd.rdma.remote.mr = &gasnetc_memreg[jobrank];
     cmd.rdma.remote.offset = rem_offset;
 
     GASNETC_PAMI_LOCK(gasnetc_context);
@@ -357,7 +361,7 @@ void gasnete_get_common(void *dest, gex_Rank_t rank, void *src, size_t nbytes,
   {
     pami_get_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(rank);
+    cmd.rma.dest = gasnetc_endpoint(jobrank);
     cmd.rma.hints = gasnete_null_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = cookie;
@@ -398,10 +402,11 @@ gex_Event_t gasnete_get_nb(
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(H);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
-    gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_eop_done, op);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    gasnete_get_common(dest, jobrank, src, nbytes, gasnete_cb_eop_done, op);
     return (gex_Event_t)op;
   }
 }
@@ -414,7 +419,7 @@ gex_Event_t gasnete_put_nb(
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(H);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
     pami_event_function ldone_fn = NULL;
@@ -432,7 +437,8 @@ gex_Event_t gasnete_put_nb(
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
     }
 
-    gasnete_put_common(rank, dest, src, nbytes, ldone_fn, gasnete_cb_eop_done, op);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    gasnete_put_common(jobrank, dest, src, nbytes, ldone_fn, gasnete_cb_eop_done, op);
     if (lc_opt == GEX_EVENT_NOW) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
@@ -461,13 +467,14 @@ int gasnete_get_nbi( gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
     pami_event_function rdone_fn = op->next ? gasnete_cb_rget_done : gasnete_cb_iget_done;
-    gasnete_get_common(dest, rank, src, nbytes, rdone_fn, op);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    gasnete_get_common(dest, jobrank, src, nbytes, rdone_fn, op);
     return 0;
   }
 }
@@ -479,7 +486,7 @@ int gasnete_put_nbi( gex_TM_t tm,
                      size_t nbytes, gex_Event_t *lc_opt,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
   {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -500,7 +507,8 @@ int gasnete_put_nbi( gex_TM_t tm,
     }
 
     pami_event_function rdone_fn = op->next ? gasnete_cb_rput_done : gasnete_cb_iput_done;
-    gasnete_put_common(rank, dest, src, nbytes, ldone_fn, rdone_fn, op);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    gasnete_put_common(jobrank, dest, src, nbytes, ldone_fn, rdone_fn, op);
     if (lc_opt == GEX_EVENT_NOW) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
@@ -523,10 +531,11 @@ int gasnete_get(     gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(I);
+  GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
   {
     volatile int done = 0;
-    gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_int_done, (void*)&done);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    gasnete_get_common(dest, jobrank, src, nbytes, gasnete_cb_int_done, (void*)&done);
     gasneti_polluntil( done );
     return 0;
   }
@@ -541,10 +550,11 @@ int gasnete_put(     gex_TM_t tm,
                      size_t nbytes,
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT_NOLC(I);
+  GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes);
   {
     volatile int done = 0;
-    gasnete_put_common(rank, dest, src, nbytes, NULL, gasnete_cb_int_done, (void*)&done);
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+    gasnete_put_common(jobrank, dest, src, nbytes, NULL, gasnete_cb_int_done, (void*)&done);
     gasneti_polluntil( done );
     return 0;
   }
@@ -805,8 +815,12 @@ typedef struct {
 } gasnete_pdbarrier_msg_t;
 #define GASNETE_PDBARRIER_MSG_T offsetof(gasnete_pdbarrier_msg_t, end)
 
+#if 0 // DISABLED due to (not yet explained) errorneous behavior - see bug 3764
 #define GASNETE_PDBARRIER_UNNAMED(_flags,_barr) \
   (((_flags) & GASNETE_BARRIERFLAG_UNNAMED) && (_barr)->barrier_op.cb_done)
+#else
+#define GASNETE_PDBARRIER_UNNAMED(_flags,_barr) 0
+#endif
 
 static pami_send_hint_t gasnete_pdbarrier_send_hint;
 
@@ -818,7 +832,7 @@ static void gasnete_cb_pdbarr_done(pami_context_t context, void *cookie, pami_re
 }
 
 /* Called only w/ context lock held */
-GASNETI_ALWAYS_INLINE(gasnete_pdbarr_send)
+GASNETI_INLINE(gasnete_pdbarr_send)
 void gasnete_pdbarr_send(
         gex_Rank_t peer,
         uint32_t teamid,
@@ -1214,7 +1228,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#include "gasnet_extended_refvis.h"
+#include "gasnet_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1223,7 +1237,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of collectives */
-#include "gasnet_extended_refcoll.h"
+#include "gasnet_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1232,7 +1246,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
 */
 
 /* use reference implementation of remote atomics */
-#include "gasnet_extended_refratomic.h"
+#include "gasnet_refratomic.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*

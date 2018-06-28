@@ -127,6 +127,28 @@ fi
 GASNET_FUN_END([$0($1)])
 ])
 
+dnl GASNET_PATHSCALE_VERSION_CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_PATHSCALE_VERSION_CHECK],[
+GASNET_FUN_BEGIN([$0($1)])
+AC_MSG_CHECKING(for known buggy compilers)
+badpathscalemsg=""
+AC_TRY_COMPILE([
+#if (__PATHCC__ < 3)
+# error
+#endif
+],[ ], [:], [
+AC_MSG_RESULT([$1] is PathScale prior to 3.0)
+badpathscalemsg="Use of PathScale compilers older than 3.0 is not supported.
+Consider using \$[$1] to select a different compiler."
+])
+if test -n "$badpathscalemsg"; then
+  AC_MSG_ERROR([$badpathscalemsg])
+else
+  AC_MSG_RESULT(ok)
+fi
+GASNET_FUN_END([$0($1)])
+])
+
 AC_DEFUN([GASNET_FIX_SHELL],[
 GASNET_FUN_BEGIN([$0])
 AC_MSG_CHECKING(for good shell)
@@ -2611,6 +2633,9 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
   dnl start with compilers having very slow preprocessors
   if test "$$3" = "unknown"; then
     GASNET_IFDEF(__xlC__, $3=XLC, [], $_force_compile)
+  fi
+  if test "$$3" = "unknown"; then
+    GASNET_IFDEF(__ibmxl__, $3=XLC, [], $_force_compile)
   fi
   if test "$$3" = "unknown"; then
     GASNET_IFDEF(_CRAYC, $3=Cray, [], $_force_compile)

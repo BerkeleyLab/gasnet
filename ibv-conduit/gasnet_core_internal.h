@@ -45,13 +45,6 @@
       { gasneti_fatalerror("Unexpected error %s (rc=%d errno=%d) %s",strerror(errno),(rc), errno,(msg)); }
 #define GASNETC_IBV_CHECK_PTR(ptr,msg) GASNETC_IBV_CHECK((ptr)==NULL,(msg))
 
-/* Identify nodes we do NOT use IB to communicate with */
-#if GASNET_PSHM
-  #define gasnetc_non_ib(_node) gasneti_pshm_in_supernode(_node)
-#else
-  #define gasnetc_non_ib(_node) ((_node) == gasneti_mynode)
-#endif
-
 #define GASNETC_CEP_SQ_SEMA(_cep) ((_cep)->sq_sema_p)
 
 #if GASNETC_IBV_SRQ 

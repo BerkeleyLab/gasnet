@@ -9,11 +9,6 @@
 
 #include <gasnet_internal.h>
 
-typedef struct {
-  uint8_t  requestBuf[GASNETC_MAX_MEDIUM];
-  uint8_t  replyBuf[GASNETC_MAX_MEDIUM];
-} gasnetc_threadinfo_t;
-
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
@@ -26,12 +21,5 @@ typedef struct {
 extern gex_AM_Entry_t *gasnetc_handler;
 
 /* ------------------------------------------------------------------------------------ */
-#if GASNETI_CLIENT_THREADS
-  #define gasnetc_mythread() ((void**)(gasnete_mythread()))
-#else
-  extern void *_gasnetc_mythread;
-  #define gasnetc_mythread() &_gasnetc_mythread
-#endif
-
 
 #endif

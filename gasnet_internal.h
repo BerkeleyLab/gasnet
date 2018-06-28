@@ -215,6 +215,13 @@ GASNETI_MALLOCP(_gasneti_calloc)
 #endif
 #define gasneti_thunk_segment  gasneti_thunk_error
 
+#if 0 // this safety belt must be disabled until the cleanup in PR #126 fixes internal inclusion of public headers
+#ifdef GASNETI_MYTHREAD_GET_OR_LOOKUP
+#undef GASNETI_MYTHREAD_GET_OR_LOOKUP
+#endif
+#define GASNETI_MYTHREAD_GET_OR_LOOKUP ERROR__GASNet_conduit_code_should_use_GASNETI_MYTHREAD
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
 GASNETI_INLINE(_gasneti_strdup) GASNETI_MALLOC
@@ -344,6 +351,7 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t rank,
                        gex_Rank_t size,
                        gex_Flags_t flags,
+                       int is_tm0,
                        size_t alloc_size);
 void gasneti_free_tm(gasneti_TM_t tm);
 
@@ -361,137 +369,6 @@ extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
 #define gasneti_THUNK_EP      gasneti_export_ep(gasneti_thing_that_goes_thunk_in_the_dark->_ep)
 #define gasneti_THUNK_CLIENT  gasneti_export_client(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_client)
 #define gasneti_THUNK_SEGMENT gasneti_export_segment(gasneti_thing_that_goes_thunk_in_the_dark->_ep->_segment)
-
-/* ------------------------------------------------------------------------------------ */
-// Internal helpers for data types (like ctypes)
-
-// Masks (disjoint pairs):
-
-#define _GEX_DT_4BYTE  (GEX_DT_I32 | GEX_DT_U32 | GEX_DT_FLT)
-#define _GEX_DT_8BYTE  (GEX_DT_I64 | GEX_DT_U64 | GEX_DT_DBL)
-
-#define _GEX_DT_INT (GEX_DT_I32 | GEX_DT_U32 | GEX_DT_I64 | GEX_DT_U64)
-#define _GEX_DT_FP  (GEX_DT_FLT | GEX_DT_DBL)
-
-#define _GEX_DT_SIGNED    (GEX_DT_I32 | GEX_DT_I64)
-#define _GEX_DT_UNSIGNED  (GEX_DT_U32 | GEX_DT_U64)
-
-// Union of all:
-
-#define _GEX_DT_VALID  (_GEX_DT_INT | _GEX_DT_FP)
-
-// Predicates:
-
-// Is the argument a *single* valid data type?
-GASNETI_INLINE(gasneti_dt_valid) GASNETI_PURE
-int gasneti_dt_valid(gex_DT_t dt) {
-  return (((dt) & _GEX_DT_VALID) && GASNETI_POWEROFTWO(dt));
-}
-
-// Is the argument a (possibly empty) mask consisting of only valid data types?
-#define gasneti_dt_valid_mask(dts) (!((dts) & ~_GEX_DT_VALID))
-
-#define gasneti_dt_int(dt)    ((dt) & _GEX_DT_INT)
-#define gasneti_dt_fp(dt)     ((dt) & _GEX_DT_FP)
-
-#define gasneti_dt_signed(dt)   ((dt) & _GEX_DT_SIGNED)
-#define gasneti_dt_unsigned(dt) ((dt) & _GEX_DT_UNSIGNED)
-
-#define gasneti_dt_4byte(dt) ((dt) & _GEX_DT_4BYTE)
-#define gasneti_dt_8byte(dt) ((dt) & _GEX_DT_8BYTE)
-
-// Query:
-
-// What is the size of the type?
-// TODO: might be made cheaper by encoding size into the GEX_DT_* constants
-GASNETI_INLINE(gasneti_dt_size) GASNETI_PURE
-size_t gasneti_dt_size(gex_DT_t dt) {
-  gasneti_assert(!gasneti_dt_4byte(dt) ^ !gasneti_dt_8byte(dt));
-  return (size_t) (gasneti_dt_4byte(dt) ? 4 : 8);
-}
-
-/* ------------------------------------------------------------------------------------ */
-// Internal helpers for gex_OP_t (like ctypes)
-
-// Masks (disjoint):
-#define _GEX_OP_ARITH_BINARY \
-        (GEX_OP_ADD|GEX_OP_SUB|GEX_OP_MULT|GEX_OP_MIN|GEX_OP_MAX)
-#define _GEX_OP_ARITH_UNARY \
-        (GEX_OP_INC|GEX_OP_DEC)
-#define _GEX_OP_BITWISE \
-        (GEX_OP_AND|GEX_OP_OR|GEX_OP_XOR)
-#define _GEX_OP_FETCH_ARITH_BINARY \
-        (GEX_OP_FADD|GEX_OP_FSUB|GEX_OP_FMULT|GEX_OP_FMIN|GEX_OP_FMAX)
-#define _GEX_OP_FETCH_ARITH_UNARY \
-        (GEX_OP_FINC|GEX_OP_FDEC)
-#define _GEX_OP_FETCH_BITWISE \
-        (GEX_OP_FAND|GEX_OP_FOR|GEX_OP_FXOR)
-#define _GEX_OP_ACCESSOR \
-        (GEX_OP_SET)
-#define _GEX_OP_FETCH_ACCESSOR \
-        (GEX_OP_GET|GEX_OP_SWAP|GEX_OP_CSWAP)
-
-// Masks for various properties:
-
-#define _GEX_OP_VALID \
-        (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
-         _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
-         _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE      | \
-         _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
-
-#define _GEX_OP_REDUCE \
-        (_GEX_OP_ARITH_BINARY|_GEX_OP_BITWISE)
-#define _GEX_OP_ATOMIC \
-         _GEX_OP_VALID
-
-#define _GEX_OP_INT \
-        _GEX_OP_VALID
-#define _GEX_OP_FP  \
-        (_GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
-         _GEX_OP_ARITH_UNARY  | _GEX_OP_FETCH_ARITH_UNARY  | \
-         _GEX_OP_ACCESSOR     | _GEX_OP_FETCH_ACCESSOR)
-
-#define _GEX_OP_FETCH \
-        (_GEX_OP_FETCH_ARITH_BINARY | \
-         _GEX_OP_FETCH_ARITH_UNARY  | \
-         _GEX_OP_FETCH_BITWISE      | \
-         _GEX_OP_FETCH_ACCESSOR)
-
-#define _GEX_OP_0ARG \
-        (GEX_OP_GET | \
-         _GEX_OP_ARITH_UNARY | _GEX_OP_FETCH_ARITH_UNARY)
-#define _GEX_OP_1ARG \
-        (GEX_OP_SET | GEX_OP_SWAP |\
-         _GEX_OP_ARITH_BINARY | _GEX_OP_FETCH_ARITH_BINARY | \
-         _GEX_OP_BITWISE      | _GEX_OP_FETCH_BITWISE)
-#define _GEX_OP_2ARG \
-        GEX_OP_CSWAP
-
-
-// Predicates for use with single-bit arguments:
-#define gasneti_op_reduce(op) ((op) & _GEX_OP_REDUCE)
-#define gasneti_op_atomic(op) ((op) & _GEX_OP_ATOMIC)
-#define gasneti_op_int(op)    ((op) & _GEX_OP_INT)
-#define gasneti_op_fp(op)     ((op) & _GEX_OP_FP)
-#define gasneti_op_fetch(op)  ((op) & _GEX_OP_FETCH)
-#define gasneti_op_0arg(op)   ((op) & _GEX_OP_0ARG)
-#define gasneti_op_1arg(op)   ((op) & _GEX_OP_1ARG)
-#define gasneti_op_2arg(op)   ((op) & _GEX_OP_2ARG)
-
-// Is the argument a *single* valid operation?
-GASNETI_INLINE(gasneti_op_valid) GASNETI_PURE
-int gasneti_op_valid(gex_OP_t op) {
-  return (((op) & _GEX_OP_VALID) && GASNETI_POWEROFTWO(op));
-}
-
-// Predicates on masks:
-// All bits (if any) must satisfy the predicate.
-// As defined, however, these are trivially true on empty sets.
-#define gasneti_op_valid_mask(ops)  (!((ops) & ~_GEX_OP_VALID))
-#define gasneti_op_reduce_mask(ops) (!((ops) & ~_GEX_OP_REDUCE))
-#define gasneti_op_atomic_mask(ops) (!((ops) & ~_GEX_OP_ATOMIC))
-#define gasneti_op_int_mask(ops)    (!((ops) & ~_GEX_OP_INT))
-#define gasneti_op_fp_mask(ops)     (!((ops) & ~_GEX_OP_FP))
 
 /* ------------------------------------------------------------------------------------ */
 // Internal conduit interface to spawner
@@ -577,6 +454,9 @@ void gasneti_segmentAttach(uintptr_t segsize,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags);
 
+extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep);
+extern void gasneti_legacy_alloc_tm_hook(gasneti_TM_t _tm);
+
 void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
@@ -621,10 +501,6 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
 
 /* ------------------------------------------------------------------------------------ */
-#ifndef GASNETI_DISABLE_EOP_INTERFACE
-#define GASNETI_HAVE_EOP_INTERFACE 1
-#endif
-#if GASNETI_HAVE_EOP_INTERFACE
 /* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)
    to expose non-blocking operations that utilize the regular GASNet op sync mechanisms
    Conduits provide two opaque scalar types: gasneti_eop_t and gasneti_iop_t
@@ -697,7 +573,6 @@ gasneti_iop_t *gasneti_iop_register_rmw(unsigned int noperations GASNETI_THREAD_
 /* marks in-flight remote atomic operation(s) as complete ... */
 void gasneti_iop_markdone_rmw(gasneti_iop_t *iop, unsigned int noperations);
 
-#endif
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
 extern int gasneti_VerboseErrors;
@@ -854,6 +729,69 @@ extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
 #if GASNET_PSHM
 #include <gasnet_pshm.h>
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+// Thread-local data
+
+// Subsystems and conduits should use gasnet_*_fwd.h files to provide type definitions.
+// However, some don't have any better home:
+typedef struct _gasnete_eop_t gasnete_eop_t;
+typedef struct _gasnete_iop_t gasnete_iop_t;
+
+typedef struct _gasnete_threaddata_t {
+  //
+  // Fixed fields that should appear first in the threaddata struct for all conduits
+  // NOTE: it is critical that these not change postition or order
+  // TODO: eventually these might be replaced with inlined fields
+  //
+  void *gasnetc_threaddata;     /* ptr reserved for use by the core */
+  void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */
+  void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */
+
+  //
+  // Thread mangement fields
+  // Owned by gasnet_extended_help.h
+  //
+  gasnete_threadidx_t threadidx;
+
+  gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */
+  int thread_cleanup_delay;
+
+  //
+  // Active Message fields
+  // Owned by gasnet_am.[ch]
+  //
+  int sd_is_init;
+  struct gasneti_AM_SrcDesc request_sd, reply_sd;
+  void *loopback_requestBuf, *loopback_replyBuf;
+
+  //
+  // Event data
+  // Owned by gasnet_event_internal.h
+  //
+  void *eop_bufs;               /*  linked list of eop chunk buffers */
+  int eop_num_bufs;             /*  number of valid buffer entries */
+  gasnete_eop_t *eop_free;      /*  free list of eops */
+
+  /*  stack of iops - head is active iop servicing new implicit ops */
+  gasnete_iop_t *current_iop;  
+  int iop_num;                  /*  number of allocated iops */
+  gasnete_iop_t *iop_free;      /*  free list of iops */
+
+  /*  lists of eops and iops freed by other threads */
+  // TODO-EX: lock-free queues
+  gasneti_mutex_t foreign_lock;
+  gasnete_eop_t *foreign_eops;
+  gasnete_iop_t *foreign_iops;
+
+  //
+  // Conduit-specific data
+  // Owned by [CONDUIT]-conduie/gasnet_extended_fwd.h
+  //
+  #ifdef GASNETE_CONDUIT_THREADDATA_FIELDS
+  GASNETE_CONDUIT_THREADDATA_FIELDS
+  #endif
+} gasnete_threaddata_t;
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN

@@ -29,6 +29,9 @@ TOOLLIBINCLUDES =         \
 	$(PLPA_INCLUDES)
 
 LIBINCLUDES = $(TOOLLIBINCLUDES) \
+        -I$(top_srcdir)/extended-ref/coll \
+        -I$(top_srcdir)/extended-ref/vis \
+        -I$(top_srcdir)/extended-ref/ratomic \
         -I$(top_srcdir)/extended-ref  
 
 
@@ -74,19 +77,22 @@ libgasnet_sources =                                         \
         $(CONDUIT_SOURCELIST)                               \
         $(libgasnet_tools_sources)                          \
         $(PSHM_SOURCES)                                     \
-        $(top_srcdir)/extended-ref/gasnet_extended_refvis.c \
-        $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c\
-        $(top_srcdir)/extended-ref/gasnet_extended_refratomic.c \
-        $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \
-        $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
-        $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \
-        $(top_srcdir)/extended-ref/gasnet_coll_team.c				\
-        $(top_srcdir)/extended-ref/gasnet_coll_hashtable.c   \
-        $(top_srcdir)/gasnet_event.c                       \
+        $(top_srcdir)/extended-ref/vis/gasnet_refvis.c      \
+        $(top_srcdir)/extended-ref/ratomic/gasnet_refratomic.c\
+        $(top_srcdir)/extended-ref/coll/gasnet_refcoll.c    \
+        $(top_srcdir)/extended-ref/coll/gasnet_putget.c     \
+        $(top_srcdir)/extended-ref/coll/gasnet_eager.c      \
+        $(top_srcdir)/extended-ref/coll/gasnet_rvous.c      \
+        $(top_srcdir)/extended-ref/coll/gasnet_team.c	    \
+        $(top_srcdir)/extended-ref/coll/gasnet_hashtable.c  \
+        $(top_srcdir)/extended-ref/coll/gasnet_reduce.c     \
+        $(top_srcdir)/gasnet_event.c                        \
+        $(top_srcdir)/gasnet_legacy.c                       \
         $(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_am.c                           \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
+        $(top_srcdir)/gasnet_tm.c                           \
 	$(top_srcdir)/gasnet_diagnostic.c
 
 libgasnet_objects = \
@@ -101,6 +107,7 @@ libgasnet_tools_dependencies =  \
 libgasnet_dependencies =                  \
         $(libgasnet_tools_dependencies)   \
         $(srcdir)/*.[ch]                  \
+        $(top_srcdir)/extended-ref/*/*.[ch] \
         $(top_srcdir)/extended-ref/*.[ch] \
         $(top_srcdir)/other/smp-collectives/*.[ch] \
         $(top_srcdir)/tests/test.h        \

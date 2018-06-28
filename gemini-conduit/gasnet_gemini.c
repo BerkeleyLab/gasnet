@@ -7,15 +7,6 @@
 #include <signal.h>
 #include <string.h>
 
-#ifndef container_of
-/* Convert from address of a member to address of the containing structure
- * ptr = member pointer
- * type = container's type
- * field = member's field name
- */
-  #define container_of(ptr,type,field) ((type*) ((uintptr_t)(ptr) - offsetof(type,field)))
-#endif
-
 #define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 
@@ -191,10 +182,6 @@ gasnetc_gni_lock_t *gasnetc_gni_lock()
    return & gasnetc_cdom_data[GASNETC_DEFAULT_DOMAIN].gasnetc_gni_lock;
 }
 
-int gasnetc_my_domain_idx(void) {
-    const gasnete_threaddata_t * const mythread = gasnete_mythread();
-    return mythread->domain_idx;
-}
 #else /* GASNETC_USE_MULTI_DOMAIN */
 
 #define gasnetc_domain_count 1
@@ -574,13 +561,6 @@ void gasnetc_deregister_gpd(gasnetc_post_descriptor_t *gpd)
 }
 
 /*-------------------------------------------------*/
-/* We don't allocate resources for comms w/ self or PSHM-reachable peers */
-
-#if GASNET_PSHM
-  #define node_is_local(_i) gasneti_pshm_in_supernode(_i)
-#else
-  #define node_is_local(_i) ((_i) == gasneti_mynode)
-#endif
 
 /* From point-of-view of a remote node, what is MY index in the mailbox array */
 GASNETI_INLINE(my_mb_index)
@@ -709,16 +689,14 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     gasnetc_init_reg_credit(MAX(max_memreg, 0));
   }
 
-  gasnetc_mem_consistency = GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY;
-  { char * envval = gasneti_getenv("GASNET_GNI_MEM_CONSISTENCY");
-    if (!envval || !envval[0]) {
-      /* No value given - keep default */
-    } else if (!strcmp(envval, "strict") || !strcmp(envval, "STRICT")) {
+  { const char * envval = gasneti_getenv_withdefault("GASNET_GNI_MEM_CONSISTENCY","relaxed");
+    gasnetc_mem_consistency = GASNETC_RELAXED_MEM_CONSISTENCY;
+    if (!strcmp(envval, "strict") || !strcmp(envval, "STRICT")) {
       gasnetc_mem_consistency = GASNETC_STRICT_MEM_CONSISTENCY;
     } else if (!strcmp(envval, "relaxed") || !strcmp(envval, "RELAXED")) {
       gasnetc_mem_consistency = GASNETC_RELAXED_MEM_CONSISTENCY;
-    } else if (!strcmp(envval, "default") || !strcmp(envval, "DEFAULT")) {
-      gasnetc_mem_consistency = GASNETC_DEFAULT_MEM_CONSISTENCY;
+    } else if (!strcmp(envval, "none") || !strcmp(envval, "NONE")) {
+      gasnetc_mem_consistency = GASNETC_NEITHER_MEM_CONSISTENCY;
     } else if (!gasneti_mynode) {
       fflush(NULL);
       fprintf(stderr, "WARNING: ignoring unknown value '%s' for environment "
@@ -734,7 +712,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     case GASNETC_RELAXED_MEM_CONSISTENCY:
       gasnetc_memreg_flags = GNI_MEM_RELAXED_PI_ORDERING;
       break;
-    case GASNETC_DEFAULT_MEM_CONSISTENCY:
+    case GASNETC_NEITHER_MEM_CONSISTENCY:
       gasnetc_memreg_flags = 0;
       break;
   }
@@ -902,7 +880,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
   for (i = 0; i < gasneti_nodes; i += 1) {
   #if !GASNETC_BUILD_GNIRATOMIC
-    if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) continue; /* no connection to self or PSHM-reachable peers */
   #endif
    status = GNI_EpCreate(DOMAIN_SPECIFIC_VAL(nic_handle), DOMAIN_SPECIFIC_VAL(bound_cq_handle), 
                         &DOMAIN_SPECIFIC_VAL(peer_data[i].ep_handle));
@@ -1053,6 +1031,9 @@ uintptr_t gasnetc_init_messaging(void)
                                                GASNETC_NETWORKDEPTH_TOTAL_DEFAULT, 0);
   reply_count = MAX(1, reply_count); /* Min is 1 */
 
+  /* reply destination is also request source.  So, must fit largest *outgoing* message */
+  size_t am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
+
   /* Max number of AM Requests outstanding may be constrained by available Reply buffers: */
   am_maxcredit = MIN(am_maxcredit, reply_count);
 
@@ -1094,7 +1075,7 @@ uintptr_t gasnetc_init_messaging(void)
    * Set up an mmap region to contain all of my mailboxes.
    */
 
-  reply_region_length = reply_count * GASNETC_MSG_MAXSIZE;
+  reply_region_length = reply_count * am_replysz;
   peer_stride = request_region_length + notify_ring_size * sizeof(gasnetc_notify_t);
 
   /* TODO: remove MAX(1,) while still avoiding "issues" on single-(super)node runs */
@@ -1137,7 +1118,7 @@ uintptr_t gasnetc_init_messaging(void)
   reply_pool = gasneti_malloc(reply_count * sizeof(reply_pool_t));
   for (i = 0; i < reply_count; i++) {
     reply_pool[i].u.next = &reply_pool[i + 1];
-    reply_pool[i].packet = (gasnetc_packet_t *)((uintptr_t)am_mmap_ptr + i * GASNETC_MSG_MAXSIZE);
+    reply_pool[i].packet = (gasnetc_packet_t *)((uintptr_t)am_mmap_ptr + i * am_replysz);
   }
   reply_freelist = reply_pool;
   reply_pool[reply_count - 1].u.next = NULL;
@@ -1173,7 +1154,7 @@ uintptr_t gasnetc_init_messaging(void)
     #endif
 
     #if !GASNETC_BUILD_GNIRATOMIC
-      if (!node_is_local(i)) /* no connection to self or PSHM-reachable peers */
+      if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) /* no connection to self or PSHM-reachable peers */
     #endif
       {
         status = GNI_EpCreate(nic_handle, bound_cq_handle, &peer_data[i].ep_handle);
@@ -1183,7 +1164,7 @@ uintptr_t gasnetc_init_messaging(void)
         peer_data[i].pe = i;
       }
 
-      if (!node_is_local(i)) { /* no AMs to self or PSHM-reachable peers */
+      if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) { /* no AMs to self or PSHM-reachable peers */
         peer_struct_t * const peer = &peer_data[i];
         uint8_t *remote_peer_base = all_am_exchg[i].addr + peer_stride * my_mb_index(i) + reply_region_length;
 
@@ -1287,7 +1268,7 @@ void gasnetc_shutdown(void)
     for (tries=0; tries<10; ++tries) {
       for (i = 0; i < gasneti_nodes; i += 1) {
       #if !GASNETC_BUILD_GNIRATOMIC
-          if_pf (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
+          if_pf (GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) continue; /* no connection to self or PSHM-reachable peers */
       #endif
           if_pt (peer_data[i].ep_handle != NULL) {
             status = GNI_EpUnbind( peer_data[i].ep_handle);
@@ -1734,8 +1715,8 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
   uint64_t mask;
   size_t length;
+  unsigned int slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
   if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
-    unsigned int slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
     gasneti_assert(slots <= am_maxcredit/2);
     mask = (((uint64_t)1 << slots) - 1);
 
@@ -1745,19 +1726,18 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
-    length = max_length;
+    length = min_length;
   } else {
-    unsigned int min_slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
-    unsigned int slots;
+    unsigned int avail_slots;
 
-    BUSYWAIT(((slots = gasnetc_remote_slots_avail(peer)) < min_slots),
+    BUSYWAIT(((avail_slots = gasnetc_remote_slots_avail(peer)) < slots),
            ESCAPE1(out_immediate_2),
            ESCAPE2(out_immediate_2),
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
     unsigned int max_slots = MAX(1, ((max_length + am_slotsz - 1) >> am_slot_bits));
-    slots = MIN(slots, max_slots);
+    slots = MIN(avail_slots, max_slots);
     length = slots << am_slot_bits;
 
     mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
@@ -1819,7 +1799,7 @@ gasnetc_alloc_request_post_descriptor(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  return request_post_descriptor_inner(dest, 1, 0, length, flags GASNETI_THREAD_PASS);
+  return request_post_descriptor_inner(dest, 1, length, length, flags GASNETI_THREAD_PASS);
 }
 
 #if GASNETC_NP_MEDXL // NP Medium beyond MaxMedium - disabled by default
@@ -2109,7 +2089,7 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(gni_cq_handle_t bound_cq_handle
     gasnetc_GNIT_Abort("bound CqGetEvent %s", gasnetc_gni_rc_string(status));
   }
 
-  return result ? container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
+  return result ? gasneti_container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
 }
 
 GASNETI_NEVER_INLINE(gasnetc_poll_local_queue,
@@ -2367,7 +2347,7 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2441,7 +2421,7 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -2535,7 +2515,7 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
   gni_return_t status;
 
 #if !GASNETC_BUILD_GNIRATOMIC
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 #endif
 
   /* confirm that the destination is in-segment on the far end */
@@ -2598,7 +2578,7 @@ size_t gasnetc_rdma_get(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
 
 #if !GASNETC_BUILD_GNIRATOMIC
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 #endif
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
@@ -2667,7 +2647,7 @@ void gasnetc_rdma_get_unaligned(gex_Rank_t node,
   size_t       length = GASNETI_ALIGNUP(nbytes + pre, 4);
   unsigned int overfetch = length - nbytes;
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
   gasneti_assert(length <= gasnetc_max_get_unaligned);
 
   gasneti_assert(0 == (overfetch & ~GC_POST_COPY_TRIM));
@@ -2720,7 +2700,7 @@ int gasnetc_rdma_get_buff(gex_Rank_t node,
   unsigned int pre = (uintptr_t) source_addr & 3;
   size_t       length = GASNETI_ALIGNUP(nbytes + pre, 4);
 
-  gasneti_assert(!node_is_local(node));
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
   gasneti_assert(nbytes  <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
 
   /* confirm that the source is in-segment on the far end */
