@@ -376,7 +376,8 @@ static void gasnete_coll_cleanup_threaddata(void *_td) {
   gasneti_free(td);
 }
 
-extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
+GASNETI_NEVER_INLINE(gasnete_coll_new_threaddata,
+extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void)) {
   gasnete_coll_threaddata_t *result = gasneti_calloc(1,sizeof(*result));
 
   gasnete_register_threadcleanup(gasnete_coll_cleanup_threaddata, result);
@@ -2562,7 +2563,6 @@ static int gasnete_coll_pf_barrier(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
 extern gex_Event_t
 gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
   gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
   const int coll_flags = 0;
 
@@ -2600,7 +2600,6 @@ gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
                                 size_t nbytes, gex_Flags_t flags
                                 GASNETI_THREAD_FARG)
 {
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
   gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
   return _gasnet_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
@@ -2620,7 +2619,6 @@ gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void
                              gasnete_coll_scratch_req_t *scratch_req
                              GASNETI_THREAD_FARG)
 {
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Forces creation if NULL
   gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
   gex_Event_t result;
 

@@ -39,4 +39,8 @@
     extern gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 #define GASNETE_COLL_AUXSEG_FNS() gasnete_coll_auxseg_alloc, 
 
+// For use in gasneti_threaddata_t
+struct gasnete_coll_threaddata_t_;
+typedef struct gasnete_coll_threaddata_t_ gasnete_coll_threaddata_t;
+
 #endif

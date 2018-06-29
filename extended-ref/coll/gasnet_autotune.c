@@ -1240,7 +1240,6 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
                            gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
                            int alg_idx, gasnett_tick_t *best_time,  uint32_t *best_param_list, char *best_tree, int current_param_number, uint32_t *curr_idx_in  GASNETI_THREAD_FARG) {
   int idx;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   /*no tuning parameters*/
   if(gasnet_coll_get_num_params(team, op, alg_idx)==0) {
@@ -1365,7 +1364,6 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
   uint32_t loc_best_param_list[GASNET_COLL_NUM_PARAM_TYPES];
   uint32_t sync_flags = (flags &  GASNET_COLL_SYNC_FLAG_MASK); /*strip the sync flags off the flags*/
   uint32_t req_flags = (flags & (~GASNET_COLL_SYNC_FLAG_MASK));
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   char *loc_best_tree;
 
   loc_best_tree = gasneti_calloc(1,sizeof(char)*100);
@@ -1624,7 +1622,6 @@ gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasne
 }
 void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src, gasnet_image_t root, size_t nbytes, int nodes_only GASNETI_THREAD_FARG) {
   int flags = GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC | GASNET_COLL_LOCAL |  GASNET_COLL_DISABLE_AUTOTUNE;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   if(nodes_only) 
     flags = flags | GASNET_COLL_NO_IMAGES;
@@ -1656,7 +1653,6 @@ int verify_algorithm(gasnete_coll_team_t team, gasnet_coll_optype_t op, uint32_t
 
 static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasnet_coll_optype_t op, gasnet_coll_args_t args, int flags GASNETI_THREAD_FARG) {
   gasnete_coll_implementation_t ret;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   
   /* explicit request to not tune */
   if(flags & GASNET_COLL_DISABLE_AUTOTUNE) return NULL;
@@ -1786,7 +1782,6 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
   
   const size_t eager_limit = MIN(gasnete_coll_p2p_eager_min, gex_AM_LUBRequestMedium());
   gasnete_coll_implementation_t ret;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   /*first try to search our gasnet autotuner index to see if we have anything for it*/
   /*if not then fall back to our orignal implementation*/
@@ -1873,7 +1868,6 @@ gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst
                                             void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETI_THREAD_FARG) {
   const size_t eager_limit = MIN(gasnete_coll_p2p_eager_scale, gex_AM_LUBRequestMedium()/team->total_ranks);
   gasnete_coll_implementation_t ret;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   {
     gasnet_coll_args_t args = GASNET_COLL_ARGS_INITIALIZER;
@@ -1945,7 +1939,6 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
                                            size_t nbytes, size_t dist, uint32_t flags  GASNETI_THREAD_FARG) {
   const size_t eager_limit = MIN(gasnete_coll_p2p_eager_scale, gex_AM_LUBRequestMedium()/team->total_ranks);
   gasnete_coll_implementation_t ret;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   {
     gasnet_coll_args_t args = GASNET_COLL_ARGS_INITIALIZER;
@@ -2025,7 +2018,6 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
   
   size_t max_dissem_msg_size = team->total_ranks*nbytes;
   gasnete_coll_implementation_t ret;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   {
     gasnet_coll_args_t args = GASNET_COLL_ARGS_INITIALIZER;
@@ -2067,7 +2059,6 @@ gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *ds
                                              size_t nbytes, uint32_t flags  GASNETI_THREAD_FARG) {
   gasnete_coll_implementation_t ret;
   size_t max_dissem_msg_size = nbytes*(team->total_ranks/2+(team->total_ranks%2));
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   {
     gasnet_coll_args_t args = GASNET_COLL_ARGS_INITIALIZER;
@@ -2113,7 +2104,6 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_reduce_algorithm(gasnet_
                                                                           gasnet_coll_fn_handle_t func, int func_arg,
                                                                           uint32_t flags GASNETI_THREAD_FARG){
   gasnete_coll_implementation_t ret;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   {
     gasnet_coll_args_t args = GASNET_COLL_ARGS_INITIALIZER;
@@ -2204,7 +2194,6 @@ static void dump_tuning_state_helper(myxml_node_t *parent, gasnete_coll_autotune
 
 void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETI_THREAD_FARG) {
   myxml_node_t *node;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnet_image_t myrank = team->myrank;
 
   if(myrank==0 && team->autotune_info->search_enabled) {
@@ -2259,7 +2248,6 @@ static void dump_profile_helper(myxml_node_t *parent, gasnete_coll_autotune_inde
 
 void gasnete_coll_dumpProfile(char *filename, gasnete_coll_team_t team GASNETI_THREAD_FARG) {
   myxml_node_t *node;
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnet_image_t myrank = team->myrank;
   
   if(myrank==0 && team->autotune_info->profile_enabled) {
@@ -2279,7 +2267,6 @@ void gasnete_coll_dumpProfile(char *filename, gasnete_coll_team_t team GASNETI_T
 }
 
 void gasnete_coll_loadTuningState(char *filename, gasnete_coll_team_t team GASNETI_THREAD_FARG) {
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   myxml_node_t *nodes;
   gasnet_image_t myrank = team->myrank;
   
