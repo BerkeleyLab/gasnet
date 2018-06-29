@@ -73,7 +73,7 @@ extern void gasneti_fatal_threadoverflow(const char *_subsystem);
         void *_threaddata = gasneti_threadkey_get(gasnete_threaddata);
         GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
         if_pf (!_threaddata) { /* first time we've seen this thread - need to set it up */
-          // NOTE: DON'T use gasnete_slow_mythread to initially populate TLS, because it's annotated const
+          // NOTE: DON'T use _gasnete_mythread_slow_slow to initially populate TLS, because it's annotated const
           // so the optimizer won't understand it modifies the TLS "global" directly accessed above
           _threaddata = gasnete_new_threaddata();
         }
@@ -83,9 +83,9 @@ extern void gasneti_fatal_threadoverflow(const char *_subsystem);
       GASNETI_CONSTP(_gasneti_mythread_slow)
     #else // !GASNETI_COMPILER_IS_CC
       // threadkey-get currently incurs a fncall on !CC anyhow, so nothing to save here
-      extern struct _gasneti_threaddata_t *gasnete_slow_mythread(void) GASNETI_CONST;
-      GASNETI_CONSTP(gasnete_slow_mythread)
-      #define _gasneti_mythread_slow() gasnete_slow_mythread()
+      extern struct _gasneti_threaddata_t *_gasnete_mythread_slow_slow(void) GASNETI_CONST;
+      GASNETI_CONSTP(_gasnete_mythread_slow_slow)
+      #define _gasneti_mythread_slow() _gasnete_mythread_slow_slow()
     #endif
   #else
     #define _gasneti_mythread_slow() (gasnete_threadtable[0])
