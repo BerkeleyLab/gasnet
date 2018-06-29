@@ -1436,7 +1436,7 @@ int gasnete_coll_log2_u64(uint64_t v) {
   } else if ((tt = v >> 16)) {
     r = (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
   } else {
-    r = (t =  v >> 8) ?  8 + LogTable256[t] :      LogTable256[v]:
+    r = (t =  v >> 8) ?  8 + LogTable256[t] :      LogTable256[v];
   }
 
   return r;
