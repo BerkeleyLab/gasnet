@@ -1706,7 +1706,11 @@ static void spawn_ctrl(int argc, char **argv) {
   char *cmdline = quote_arg(argv[0]);
   int j;
 
-  if (gethostname(my_host, sizeof(my_host)) < 0) {
+  const char *masterip;
+  if (is_root && (NULL != (masterip = my_getenv(ENV_PREFIX "MASTERIP")))) {
+    strncpy(my_host, masterip, sizeof(my_host) - 1);
+    my_host[sizeof(my_host) - 1] = '\0';
+  } else if (gethostname(my_host, sizeof(my_host)) < 0) {
     die(1, "gethostname() failed");
   }
 
