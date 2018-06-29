@@ -446,7 +446,7 @@ int gasnete_handler_long_get(psm2_am_token_t token,
     return 0;
 }
 
-gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread);
+gasnete_eop_t *gasnete_eop_new(gasneti_threaddata_t * const thread);
 
 void gasnete_put_long(gasnet_node_t node, void *dest, void *src,
         size_t nbytes, gasnet_handle_t op, uint8_t isbulk GASNETI_THREAD_FARG)

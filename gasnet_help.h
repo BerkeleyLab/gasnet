@@ -414,14 +414,14 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
     }
     #define GASNET_GET_THREADINFO()                              \
       ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
-        (gasnet_threadinfo_t)gasnete_mythread() :                \
+        (gasnet_threadinfo_t)_gasneti_mythread_slow() :          \
         (GASNETT_PREDICT_TRUE(gasnete_threadinfo_cache) ? gasnete_threadinfo_cache :   \
-        gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)gasnete_mythread()))  \
+        gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)_gasneti_mythread_slow()))  \
       )
   #else
-    #define GASNET_GET_THREADINFO()                   \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ? \
-        (gasnet_threadinfo_t)gasnete_mythread() :     \
+    #define GASNET_GET_THREADINFO()                     \
+      ( (sizeof(gasnete_threadinfo_available) == 1) ?   \
+        (gasnet_threadinfo_t)_gasneti_mythread_slow() : \
         (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache )
   #endif
 
@@ -472,8 +472,8 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   // GASNETI_THREAD_PASS(_ALONE): propagate the hidden arg to a callee also declared with GASNETI_THREAD_FARG*
   #define GASNETI_THREAD_PASS_ALONE   (_threadinfo)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
-  // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasnete_threaddata_t *)
-  #define GASNETI_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
+  // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasneti_threaddata_t *)
+  #define GASNETI_MYTHREAD            ((struct _gasneti_threaddata_t *)_threadinfo)
   // -----------------------------------------------------------------------------------------
   // Declaring GASNETI_THREAD_FARG context
   //   The macros in this section declare "GASNETI_THREAD_FARG context" inline for the rest of this basic block
@@ -498,7 +498,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define GASNETI_THREAD_LOOKUP
   #define GASNETI_THREAD_SWALLOW(x)
   #define GASNETI_TISTARTOFBITS       GASNETE_STARTOFBITS
-  #define GASNETI_MYTHREAD            (gasnete_mythread())
+  #define GASNETI_MYTHREAD            (_gasneti_mythread_slow())
 #endif
 
 /* ------------------------------------------------------------------------------------ */

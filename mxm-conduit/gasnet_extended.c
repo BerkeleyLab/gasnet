@@ -35,8 +35,8 @@ extern mxm_mem_key_t *gasnetc_find_remote_mkey(void *addr, int nbytes, int rank)
 
 static int gasnete_mxm_max_outstanding_msgs;
 #define GASNETE_MXM_MAX_OUTSTANDING_MSGS gasnete_mxm_max_outstanding_msgs
-#define GASNETE_ACTIVE_MXM_GET_NUMBER (GASNETE_MYTHREAD->current_iop->initiated_get_cnt - gasneti_weakatomic_read(&(GASNETE_MYTHREAD->current_iop->completed_get_cnt),0))
-#define GASNETE_ACTIVE_MXM_PUT_NUMBER (GASNETE_MYTHREAD->current_iop->initiated_put_cnt - gasneti_weakatomic_read(&(GASNETE_MYTHREAD->current_iop->completed_put_cnt),0))
+#define GASNETE_ACTIVE_MXM_GET_NUMBER (GASNETI_MYTHREAD->current_iop->initiated_get_cnt - gasneti_weakatomic_read(&(GASNETI_MYTHREAD->current_iop->completed_get_cnt),0))
+#define GASNETE_ACTIVE_MXM_PUT_NUMBER (GASNETI_MYTHREAD->current_iop->initiated_put_cnt - gasneti_weakatomic_read(&(GASNETI_MYTHREAD->current_iop->completed_put_cnt),0))
 #define GASNETE_ACTIVE_MXM_MSG_NUMBER (GASNETE_ACTIVE_MXM_GET_NUMBER + GASNETE_ACTIVE_MXM_PUT_NUMBER)
 
 /* ------------------------------------------------------------------------------------ */
@@ -47,7 +47,7 @@ static int gasnete_mxm_max_outstanding_msgs;
 
 /*  allocate more eops */
 GASNETI_NEVER_INLINE(gasnete_eop_alloc,
-static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
+static void gasnete_eop_alloc(gasneti_threaddata_t * const thread)) {
     gasnete_eopaddr_t addr;
     int bufidx = thread->eop_num_bufs;
     gasnete_eop_t *buf;
@@ -133,7 +133,7 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
 
 /*  allocate a new iop */
 GASNETI_NEVER_INLINE(gasnete_iop_alloc,
-static gasnete_iop_t * gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
+static gasnete_iop_t * gasnete_iop_alloc(gasneti_threaddata_t * const thread)) {
     gasnete_iop_t *iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
     gasneti_leak(iop);
 #if GASNET_DEBUG
@@ -150,7 +150,7 @@ static gasnete_iop_t * gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
 
 /*  get a new op */
 static
-gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *_gasnete_eop_new(gasneti_threaddata_t * const thread) {
     gasnete_eopaddr_t head = thread->eop_free;
     if_pf (gasnete_eopaddr_isnil(head)) {
         gasnete_eop_alloc(thread);
@@ -173,7 +173,7 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
 
 /*  get a new op AND mark it in flight */
 GASNETI_INLINE(gasnete_eop_new)
-gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *gasnete_eop_new(gasneti_threaddata_t * const thread) {
     gasnete_eop_t *eop = _gasnete_eop_new(thread);
 #if GASNETE_EOP_COUNTED
     eop->initiated_cnt++;
@@ -183,7 +183,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
 
 /*  get a new iop */
 static
-gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
+gasnete_iop_t *gasnete_iop_new(gasneti_threaddata_t * const thread) {
     gasnete_iop_t *iop = thread->iop_free;
     if_pt (iop) {
         thread->iop_free = iop->next;
@@ -208,7 +208,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 /*  query an eop for completeness */
 static
 int gasnete_eop_isdone(gasnete_eop_t *eop) {
-    gasneti_assert(eop->threadidx == gasnete_mythread()->threadidx);
+    gasneti_assert(eop->threadidx == _gasneti_mythread_slow()->threadidx);
     gasnete_eop_check(eop);
     return GASNETE_EOP_DONE(eop);
 }
@@ -216,7 +216,7 @@ int gasnete_eop_isdone(gasnete_eop_t *eop) {
 /*  query an iop for completeness - this means both puts and gets */
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
-    gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
+    gasneti_assert(iop->threadidx == _gasneti_mythread_slow()->threadidx);
     gasnete_iop_check(iop);
     return (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put));
 }
@@ -239,9 +239,9 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 /*  free an eop */
 static
 void gasnete_eop_free(gasnete_eop_t *eop) {
-    gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
+    gasneti_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
     gasnete_eopaddr_t addr = eop->addr;
-    gasneti_assert(thread == gasnete_mythread());
+    gasneti_assert(thread == _gasneti_mythread_slow());
     gasnete_eop_check(eop);
     gasneti_assert(GASNETE_EOP_DONE(eop));
 #if GASNET_DEBUG
@@ -254,8 +254,8 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
 /*  free an iop */
 static
 void gasnete_iop_free(gasnete_iop_t *iop) {
-    gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
-    gasneti_assert(thread == gasnete_mythread());
+    gasneti_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
+    gasneti_assert(thread == _gasneti_mythread_slow());
     gasnete_iop_check(iop);
     gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
     gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
@@ -296,11 +296,11 @@ extern void gasnete_init(void) {
 
     gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-    {   gasnete_threaddata_t *threaddata = NULL;
+    {   gasneti_threaddata_t *threaddata = NULL;
         gasnete_eop_t *eop = NULL;
 #if GASNETI_MAX_THREADS > 1
         /* register first thread (optimization) */
-        threaddata = gasnete_mythread();
+        threaddata = _gasneti_mythread_slow();
 #else
         /* register only thread (required) */
         threaddata = gasnete_new_threaddata();
@@ -327,7 +327,7 @@ extern void gasnete_init(void) {
 
 GASNETI_INLINE(gasnete_sreq_to_handle) /* two call sites */
 gasnet_handle_t gasnete_sreq_to_handle(gasnet_mxm_send_req_t *mop GASNETI_THREAD_FARG) {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     mop->flags = OPFLAG_MXM;
     mop->threadidx = mythread->threadidx;
     return (gasnet_handle_t)mop;
@@ -336,11 +336,11 @@ gasnet_handle_t gasnete_sreq_to_handle(gasnet_mxm_send_req_t *mop GASNETI_THREAD
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface */
 gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE) {
-    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+    gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
     return (gasneti_eop_t *)op;
 }
 gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_THREAD_FARG) {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     gasnete_iop_check(op);
     if (isget) op->initiated_get_cnt += noperations;
@@ -720,7 +720,7 @@ extern void gasnete_get_bulk(void *dest, gasnet_node_t node, void *src,
  *  returns 0 or 1 */
 GASNETI_INLINE(gasnete_op_try_free)
 int gasnete_op_try_free(gasnet_handle_t handle) {
-    gasneti_assert(handle->threadidx == gasnete_mythread()->threadidx);
+    gasneti_assert(handle->threadidx == _gasneti_mythread_slow()->threadidx);
 
     if_pt (handle->flags == OPFLAG_MXM) {
             gasnet_mxm_send_req_t *send_req = (gasnet_mxm_send_req_t *)handle;
@@ -835,7 +835,7 @@ GASNETI_INLINE(gasnete_get_nbi_inner)
 void gasnete_get_nbi_inner (void *dest, gasnet_node_t node, void *src,
                             size_t nbytes GASNETI_THREAD_FARG)
 {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     mxm_nbi_callback_struct_t *mxm_nbi_cb_data =
         (mxm_nbi_callback_struct_t *)gasneti_malloc(sizeof(mxm_nbi_callback_struct_t));
@@ -893,7 +893,7 @@ GASNETI_INLINE(gasnete_put_nbi_inner)
 void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src,
                            size_t nbytes, const int isbulk GASNETI_THREAD_FARG)
 {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     mxm_nbi_callback_struct_t *mxm_nbi_cb_data =
         (mxm_nbi_callback_struct_t *)gasneti_malloc(sizeof(mxm_nbi_callback_struct_t));
@@ -968,7 +968,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_SAFE(gasneti_AMPoll());
 #endif
     {
-        gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
         gasnete_iop_t *iop = mythread->current_iop;
         gasneti_assert(iop->threadidx == mythread->threadidx);
         gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
@@ -990,7 +990,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_SAFE(gasneti_AMPoll());
 #endif
     {
-        gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
         gasnete_iop_t *iop = mythread->current_iop;
         gasneti_assert(iop->threadidx == mythread->threadidx);
         gasneti_assert(iop->next == NULL);
@@ -1016,7 +1016,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
 /*  This implementation allows recursive access regions, although the spec does not require that */
 /*  operations are associated with the most immediately enclosing access region */
 extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETI_THREAD_FARG) {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop  */
     GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
 #if GASNET_DEBUG
@@ -1028,7 +1028,7 @@ extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETI
 }
 
 extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETI_THREAD_FARG_ALONE) {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
     GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
 #if GASNET_DEBUG

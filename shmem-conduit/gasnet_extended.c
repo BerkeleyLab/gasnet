@@ -22,10 +22,10 @@ uintptr_t gasnete_addr_bits_mask = 0;
   #error shmem-conduit currently does not support threads
 #endif
 
-gasnete_threaddata_t	     gasnete_threaddata;
-gasnete_threaddata_t  * const gasnete_threaddata_ptr = &gasnete_threaddata;
-#undef gasnete_mythread
-#define gasnete_mythread() (&gasnete_threaddata)
+gasneti_threaddata_t	     gasnete_threaddata;
+gasneti_threaddata_t  * const gasnete_threaddata_ptr = &gasnete_threaddata;
+#undef _gasneti_mythread_slow
+#define _gasneti_mythread_slow() (&gasnete_threaddata)
 
 /* ------------------------------------------------------------------------------------ */
 /*

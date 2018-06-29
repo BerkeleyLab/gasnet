@@ -46,7 +46,7 @@ typedef enum {
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNETI_CLIENT_THREADS
-  #define gasnetc_mythread() ((void**)(gasnete_mythread()))
+  #define gasnetc_mythread() ((void**)(_gasneti_mythread_slow()))
 #else
   extern void *_gasnetc_mythread;
   #define gasnetc_mythread() &_gasnetc_mythread

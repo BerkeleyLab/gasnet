@@ -209,7 +209,7 @@ typedef union {
 } gasnetc_am_tmp_buf_t;
 
 /* Per-thread data
- * Unlike gasnete_threaddata_t, this is associated w/ conduit-internal threads as well.
+ * Unlike gasneti_threaddata_t, this is associated w/ conduit-internal threads as well.
  */
 typedef struct {
   /* Thread-local list of sreq's. */
@@ -245,7 +245,7 @@ static int gasnetc_am_rbufs_per_qp;
 
 #if GASNETI_MAX_THREADS > 1
   /* Note: first word of thread data is reserved for core */
-  #define gasnetc_my_perthread() (gasnetc_per_thread_t *)(*(void**)(GASNETE_MYTHREAD))
+  #define gasnetc_my_perthread() (gasnetc_per_thread_t *)(*(void**)(GASNETI_MYTHREAD))
   /* Since we use system-level AMs between gasnetc_sndrcv_init and gasnete_init(),
      the TLD will get initialized at first use in the AM Request path anyway. */
   #define gasnetc_per_thread_setup() ((void)0)
@@ -2916,7 +2916,7 @@ size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq, gasnetc_a
       /* Bounce buffer use for non-bulk puts (upto a limit) */
 #if GASNETI_MAX_THREADS > 1
       /* avoid dynamic thread lookup in the callback */
-      sreq->fh_bbuf = (gasnetc_buffer_t *)GASNETE_MYTHREAD;
+      sreq->fh_bbuf = (gasnetc_buffer_t *)GASNETI_MYTHREAD;
 #endif
       sreq->opcode = GASNETC_OP_PUT_BOUNCE;
       if_pf (fh_rem == NULL) { /* Memory will be copied asynchronously */

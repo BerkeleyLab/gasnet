@@ -388,7 +388,7 @@ extern int gasnet_init(int *argc, char ***argv) {
    * Since "handler_depth" is the only thread-specific state required, we
    * just use it as an intptr_t without any additional indirection.
    */
-  #define gasnetc_handler_depth (*(intptr_t*)gasnete_mythread())
+  #define gasnetc_handler_depth (*(intptr_t*)_gasneti_mythread_slow())
 #else
   static intptr_t gasnetc_handler_depth = 0;
 #endif
@@ -1389,7 +1389,7 @@ extern int gasnetc_AMReplyLongM(
    See the GASNet spec and http://gasnet.lbl.gov/dist/docs/gasnet.html for
    philosophy and hints on efficiently implementing no-interrupt sections
 Note: the extended-ref implementation provides a thread-specific void* within the
-gasnete_threaddata_t data structure which is reserved for use by the core
+gasneti_threaddata_t data structure which is reserved for use by the core
 (and this is one place you'll probably want to use it)
 */
 #if GASNETC_USE_INTERRUPTS
