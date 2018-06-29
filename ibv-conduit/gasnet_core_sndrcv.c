@@ -1459,7 +1459,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
     gasneti_assert(bits != 0);
 
-  #if HAVE_BUILTIN_CTZ
+  #if GASNETI_HAVE_CC_BUILTIN_CTZ
     if_pt (~bits) {
       count = __builtin_ctz(~bits);
       bits >>= count;

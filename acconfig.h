@@ -348,8 +348,13 @@
 /* gcc support for "U" and "h" register classes on SPARC32 */
 #undef GASNETI_HAVE_SPARC32_64BIT_ASM
 
-/* has _builtin_ctz */
-#undef HAVE_BUILTIN_CTZ
+/* has _builtin_c[lt]z */
+#undef GASNETI_HAVE_CC_BUILTIN_CLZ
+#undef GASNETI_HAVE_CC_BUILTIN_CLZL
+#undef GASNETI_HAVE_CC_BUILTIN_CLZLL
+#undef GASNETI_HAVE_CC_BUILTIN_CTZ
+#undef GASNETI_HAVE_CC_BUILTIN_CTZL
+#undef GASNETI_HAVE_CC_BUILTIN_CTZLL
 
 /* has __func__ function name defined */
 #undef HAVE_FUNC
