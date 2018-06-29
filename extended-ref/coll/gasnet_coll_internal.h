@@ -9,6 +9,7 @@
 #ifndef _GASNET_COLL_INTERNAL_H
 #define _GASNET_COLL_INTERNAL_H
 
+#include <gasnet_internal.h>
 #ifdef GASNETE_COLL_NEEDS_CORE
 #include <gasnet_core_internal.h>
 #endif
@@ -783,22 +784,13 @@ typedef struct {
 
 extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void);
 
-/* At this point the type gasneti_threaddata_t might not be defined yet.
-* However, we know gasnete_coll_threaddata MUST be the second pointer.
-*/
 GASNETI_INLINE(_gasnete_coll_get_threaddata)
 gasnete_coll_threaddata_t *
-_gasnete_coll_get_threaddata(void *thread) {
-  struct _prefix_of_gasnete_threaddata {
-    void				*reserved_for_core;
-    gasnete_coll_threaddata_t	*reserved_for_coll;
-    /* We don't care about the rest */
-  } *thread_local = (struct _prefix_of_gasnete_threaddata *)thread;
-  gasnete_coll_threaddata_t *result = thread_local->reserved_for_coll;
-  
-  if_pf (result == NULL)
-    thread_local->reserved_for_coll = result = gasnete_coll_new_threaddata();
-  
+_gasnete_coll_get_threaddata(gasneti_threaddata_t *mythread) {
+  gasnete_coll_threaddata_t *result = mythread->gasnete_coll_threaddata;
+  if_pf (result == NULL) {
+    mythread->gasnete_coll_threaddata = result = gasnete_coll_new_threaddata();
+  }
   return result;
 }
 
@@ -807,8 +799,8 @@ _gasnete_coll_get_threaddata(void *thread) {
 
 /* Used when thread data must already exist */
 #define GASNETE_COLL_MYTHREAD_NOALLOC \
-(gasneti_assert(((void **)GASNETI_MYTHREAD)[1] != NULL), \
- (gasnete_coll_threaddata_t *)(((void **)GASNETI_MYTHREAD)[1]))
+(gasneti_assert(GASNETI_MYTHREAD->gasnete_coll_threaddata), \
+ (gasnete_coll_threaddata_t*)GASNETI_MYTHREAD->gasnete_coll_threaddata)
 
 /*---------------------------------------------------------------------------------*/
 
