@@ -7,8 +7,6 @@
 
 #define GASNET_COLL_TREE_DEBUG 0
 
-#include <gasnet_internal.h>
-
 #include <coll/gasnet_coll_internal.h>
 #include <coll/gasnet_team.h>
 #include <coll/gasnet_autotune_internal.h>
