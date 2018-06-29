@@ -8,7 +8,6 @@
 #define _GASNET_TREES_H 1
 
 #if 0
-#include <coll/gasnet_coll.h>
 #include <coll/gasnet_coll_internal.h>
 #include <coll/gasnet_refcoll.h>
 #endif

@@ -5,8 +5,6 @@
  * Terms of use are as specified in license.txt 
  */
 
-#include <gasnet_internal.h>
-#include <coll/gasnet_coll.h>
 #include <coll/gasnet_coll_internal.h>
 #include <coll/gasnet_refcoll.h>
 

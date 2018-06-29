@@ -4,11 +4,6 @@
  * Terms of use are as specified in license.txt
  */
 
-/* for now this file will be directly included in refcoll.c so no need to worry*/
-/* about including the header files*/
-#include <gasnet_internal.h>
-#include <coll/gasnet_coll.h>
-
 #include <coll/gasnet_coll_internal.h>
 #include <coll/gasnet_trees.h>
 #include <coll/gasnet_scratch.h>
