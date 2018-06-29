@@ -1755,7 +1755,7 @@ typedef {...} gex_HSL_t;
 // Synonymous with GASNET_HSL_INITIALIZER
 #define GEX_HSL_INITIALIZER {...}
 
-// The following operations on HSLs are are semantically identical
+// The following operations on HSLs are semantically identical
 // to the corresponding gasnet_hsl_* functions:
 void gex_HSL_Init   (gex_HSL_t *hsl);
 void gex_HSL_Destroy(gex_HSL_t *hsl);
