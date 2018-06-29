@@ -204,7 +204,7 @@ gasnete_coll_bcast_TreeRVGet(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreeRVGet, options,
                                            gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                  gasnete_coll_image_node(team, srcimage), team
+                                                                  srcimage, team
                                                                   GASNETE_THREAD_PASS),
                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }

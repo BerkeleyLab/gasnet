@@ -410,7 +410,7 @@ static int __get_local_ranks(gasnet_team_handle_t team)
     /* Count the local ranks */
     team->fca_comm_data.num_local_procs = 0;
     for (rank = 0; rank < team->total_ranks; ++rank) {
-        if (__rank_is_local(gasnete_coll_team_rank2node(team,rank),gasneti_mynode)) {
+        if (__rank_is_local(GASNETE_COLL_REL2ACT(team,rank),gasneti_mynode)) {
             if (rank == team->myrank) {
                 team->fca_comm_data.local_proc_idx = team->fca_comm_data.num_local_procs;
             }
@@ -428,7 +428,7 @@ static int __get_local_ranks(gasnet_team_handle_t team)
 
     i = 0;
     for (rank = 0; rank < team->total_ranks; ++rank) {
-        if (__rank_is_local(gasnete_coll_team_rank2node(team,rank),gasneti_mynode)) {
+        if (__rank_is_local(GASNETE_COLL_REL2ACT(team,rank),gasneti_mynode)) {
             team->fca_comm_data.local_ranks[i++] = rank;
         }
     }

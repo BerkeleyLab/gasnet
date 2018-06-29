@@ -49,12 +49,6 @@ void gasnete_print_team(gasnet_team_handle_t team, FILE *fp);
 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 
-gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-
-gex_Rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node);
-
-uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) ;
-
 #define PRINT_ARRAY(fp, A, size, format)        \
   do {                                          \
     int i;                                      \
