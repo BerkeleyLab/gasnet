@@ -1414,6 +1414,7 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(TreeGet);
 typedef gex_Event_t (*gasnete_tm_reduce_fn_ptr_t)(GASNETE_TM_REDUCE_ARGS);
 
 GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager);
+GASNETE_TM_DECLARE_REDUCE_ALG(TreePut);
 
 /*---------------------------------------------------------------------------------*/
 // Reduction operators

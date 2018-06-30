@@ -9,6 +9,9 @@
 #error TREES_H MISSING!!
 #endif
 
+// Global data:
+gasnete_coll_tree_type_t gasnetc_tm_reduce_tree_type; 
+
 static gasneti_lifo_head_t gasnete_coll_tree_type_free_list = GASNETI_LIFO_INITIALIZER;
 gasnete_coll_tree_type_t gasnete_coll_get_tree_type(void) {
   gasnete_coll_tree_type_t ret;
@@ -826,9 +829,9 @@ void gasnete_coll_print_all_tree_geom(gasnet_team_handle_t team)
 
 int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b) {
   
-  if(a==NULL && b==NULL) {
-    /*if they are both null then tehy are trivially equal*/
-    return 0;
+  if (a == b) {
+    /*if they are equal (including both null) then they are trivially equal*/
+    return 1;
   } else if(a==NULL || b==NULL){
     /*if one is null and the other is non-null then we have to reutnr a nonzero*/
     return 0;

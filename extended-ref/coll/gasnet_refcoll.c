@@ -602,7 +602,14 @@ extern void gasnete_coll_init_subsystem(void)
     gasnet_team_fca_enable(GASNET_TEAM_ALL);
 #endif
 
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    // TODO-EX:  Move other per-OPs default tree types out of autotune infrastructure?
+
+    const char *default_tree_type = gasneti_getenv_withdefault("GASNET_COLL_ROOTED_GEOM",
+                                                               GASNETE_COLL_DEFAULT_TREE_TYPE_STR);
+    const char *reduce_tree_type = gasneti_getenv_withdefault("GASNET_COLL_REDUCE_GEOM", default_tree_type);
+    gasnetc_tm_reduce_tree_type = gasnete_coll_make_tree_type_str(reduce_tree_type);
+
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Force allocation
 
     gasnete_coll_init_done = 1;
 }
@@ -2678,22 +2685,39 @@ gasnete_tm_reduce_nb_default(
     return GEX_EVENT_INVALID;
   }
 
-  const int max_children = 1 + gasnete_coll_log2_rank(i_tm->_size - 1);
+  // TODO-EX: LUB can be relaxed (potentially significantly) for pshm-only teams
   const size_t nbytes = dt_sz * dt_cnt;
+  gasnete_coll_tree_data_t *tree = NULL;
   gasnete_tm_reduce_fn_ptr_t alg;
-  if_pf ((nbytes * max_children <= gasnete_coll_p2p_eager_buffersz) &&
-         (nbytes <= gex_AM_LUBRequestMedium())) {
-    // TODO-EX: this is the implementation available currently
+  const int binomial_root_radix = 1 + gasnete_coll_log2_rank(i_tm->_size - 1);
+  if ((nbytes * binomial_root_radix <= gasnete_coll_p2p_eager_buffersz) &&
+      (nbytes <= gex_AM_LUBRequestMedium())) {
     alg = &gasnete_tm_reduce_BinomialEager;
   } else {
-    gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz*dt_cnt == %"PRIuSZ") is TOO LARGE for this implementation",
-                       dt_sz*dt_cnt);
+    gasnete_coll_team_t team = i_tm->_coll_team;
+    const size_t smallest_scratch = team->smallest_scratch_seg;
+    tree = gasnete_coll_tree_init(gasnetc_tm_reduce_tree_type, root, team GASNETI_THREAD_PASS);
+    const gex_Rank_t max_children = tree->geom->max_radix;
+    const size_t max_nbytes = nbytes * max_children;
+    if ((max_nbytes <= smallest_scratch) && (nbytes <= gex_AM_LUBRequestLong())) {
+      alg = &gasnete_tm_reduce_TreePut;
+    } else if (((max_children * dt_sz) <= smallest_scratch) && (dt_sz <= gex_AM_LUBRequestLong())) {
+      // TODO-EX: use "segmented" algorithm since at least one 'dt_sz' fits
+      // alg = &gasnete_tm_reduce_TreePutSeg;
+      gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz*dt_cnt == %"PRIuSZ") is TOO LARGE for this implementation",
+                         dt_sz*dt_cnt);
+    } else {
+      gasneti_assert(dt == GEX_DT_USER);
+      gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation",
+                         dt_sz);
+    }
   }
   
+  // TODO-EX: stop abusing implementation_t argument to pass the tree_data_t
   return (*alg)(e_tm, root, dst, src,
                 dt, dt_sz, dt_cnt,
                 opcode, user_fnptr, user_cdata,
-                0, NULL, 0 GASNETI_THREAD_PASS);
+                0, (void*)tree, 0 GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

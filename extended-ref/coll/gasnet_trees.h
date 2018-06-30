@@ -50,6 +50,8 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(const char *tree_name_s
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, int *params, int num_params);
 char* gasnete_coll_tree_type_to_str(char *buffer, gasnete_coll_tree_type_t tree_type);
 
+extern gasnete_coll_tree_type_t gasnetc_tm_reduce_tree_type;
+
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
 #define GASNETE_COLL_TREE_GEOM_PARENT(GEOM) ((GEOM)->parent)
