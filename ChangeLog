@@ -79,8 +79,9 @@ PENDING: Release 1.32.0
     The flags remain available in GASNET_DEVWARN_C(XX)FLAGS for opt-in.
 
 * Removal of unmaintained platform support
-  - This release no longer supports the following platform:
+  - This release no longer supports the following platforms:
     + Cray/Tera MTA
+    + SGI Altix
   - This release no longer supports the shmem-conduit, which was specific
     to the obsolete Cray X1 and SGI Altix NUMAlink networks.
   - This release removes support for the following compilers:

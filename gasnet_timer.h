@@ -64,93 +64,9 @@
   #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
 #endif
 /* ------------------------------------------------------------------------------------ */
-#elif GASNETI_USE_MMTIMER
-  /* use IA-PC HPET (High Precision Event Timers) */
-  #define GASNETI_HPET_MMAP 1
-  #include <sys/ioctl.h>
-  #include <sys/types.h>
-  #include <sys/stat.h>
-  #include <sys/mman.h>
-  #include <fcntl.h>
-  #include <unistd.h>
-  #if HAVE_SN_MMTIMER_H
-    #include <sn/mmtimer.h> 
-  #elif HAVE_LINUX_MMTIMER_H
-    #include <linux/mmtimer.h>
-  #endif
-  #ifndef MMTIMER_FULLNAME
-  #define MMTIMER_FULLNAME "/dev/mmtimer"
-  #endif
-  typedef uint64_t gasneti_tick_t;
-  #define GASNETI_TIMER_DEFN \
-         double gasneti_timer_tick = 0.0; \
-         int gasneti_timer_fd = 0; \
-         volatile uint64_t *gasneti_tick_p = NULL;
-  extern double gasneti_timer_tick; /* tick conversion factor */
-  extern int gasneti_timer_fd; /* HPET device file descriptor */
-  extern volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
-  GASNETI_NEVER_INLINE(gasneti_timer_init,
-  static volatile uint64_t *gasneti_timer_init(void)) {
-    if_pf (!gasneti_tick_p) {
-      int _result;
-      uint64_t _val = 0;
-      if ((gasneti_timer_fd = open(MMTIMER_FULLNAME, O_RDONLY)) == -1) 
-         gasneti_fatalerror("failed to open %s", MMTIMER_FULLNAME);
-      if ((_result = ioctl(gasneti_timer_fd, MMTIMER_GETFREQ, &_val)) == -ENOSYS) 
-         gasneti_fatalerror("failed to MMTIMER_GETFREQ");
-      gasneti_assert(_val >= 10000000); /* 10 MHz min reqd by spec */
-      gasneti_timer_tick = 1.0E9 / _val;
-      gasneti_assert(gasneti_timer_tick != 0.0);
-      #if GASNETI_HPET_MMAP
-      { void *_loc;
-        int _offset; 
-        gasneti_assert_always(ioctl(gasneti_timer_fd, MMTIMER_MMAPAVAIL, 0) == 1);
-        _offset = ioctl(gasneti_timer_fd, MMTIMER_GETOFFSET, 0); /* fetch offset of counter in mmap page */
-        gasneti_assert_always(_offset >= 0 && _offset < GASNETI_PAGESIZE-8);
-        _loc = mmap(NULL, GASNETI_PAGESIZE, PROT_READ, MAP_PRIVATE, gasneti_timer_fd, 0);
-        if (_loc == NULL || _loc == MAP_FAILED) 
-          gasneti_fatalerror("failed to mmap MMTIMER: %s",strerror(errno));
-        close(gasneti_timer_fd); /* fd is no longer required */
-        gasneti_timer_fd = -1;
-        gasneti_sync_writes();
-        gasneti_tick_p = (uint64_t *)(((char*)_loc) + _offset);
-      }
-      #else
-        gasneti_sync_writes();
-        gasneti_tick_p = (volatile uint64_t *)1;
-      #endif
-    } else gasneti_sync_reads();
-    return gasneti_tick_p;
-  }
-  GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now(void) {
-    volatile uint64_t *_ptr = gasneti_tick_p; 
-    if_pf (!_ptr) _ptr = gasneti_timer_init();
-    #if GASNETI_HPET_MMAP
-      return *_ptr;
-    #else /* use ioctl - this works, but is actually slower than gettimeofday */
-    { uint64_t _val = 0;
-      int _result;
-      #if GASNET_DEBUG
-        _result = ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &_val);
-        if_pf (_result == -ENOSYS) gasneti_fatalerror("failed to MMTIMER_GETCOUNTER: %i %s", _result, strerror(_result));
-      #else
-        ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &_val); 
-      #endif
-      return (gasneti_tick_t)_val;
-    }
-    #endif
-  }
-  GASNETI_INLINE(gasneti_ticks_to_ns)
-  uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
-    gasneti_assert(gasneti_tick_p);
-    return (uint64_t)(_st * gasneti_timer_tick);
-  }
-/* ------------------------------------------------------------------------------------ */
 #elif (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_OPENBSD || \
        GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ) && \
-     (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC || PLATFORM_ARCH_IA64) && \
-      !(PLATFORM_ARCH_IA64 && GASNETI_ARCH_ALTIX) /* bug 1622 */
+     (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC || PLATFORM_ARCH_IA64)
   typedef uint64_t gasneti_tick_t;
  #if GASNETI_HAVE_GCC_ASM
     GASNETI_INLINE(gasneti_ticks_now)
