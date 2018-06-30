@@ -2713,9 +2713,10 @@ gasnete_tm_reduce_nb_default(
     return GEX_EVENT_INVALID;
   }
 
+  const int max_children = 1 + gasnete_coll_log2_rank(i_tm->_size - 1);
   const size_t nbytes = dt_sz * dt_cnt;
   gasnete_tm_reduce_fn_ptr_t alg;
-  if_pf ((nbytes * gasnete_coll_log2_rank(i_tm->_size) <= gasnete_coll_p2p_eager_buffersz) &&
+  if_pf ((nbytes * max_children <= gasnete_coll_p2p_eager_buffersz) &&
          (nbytes <= gex_AM_LUBRequestMedium())) {
     // TODO-EX: this is the implementation available currently
     alg = &gasnete_tm_reduce_BinomialEager;
