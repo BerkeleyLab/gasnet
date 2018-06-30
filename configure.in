@@ -1277,18 +1277,6 @@ case "$target_os" in
         GASNET_THREAD_LIBS="-lpthread" 
         ;;
   linux*) 
-	# Check for SGI Altix, using a device heuristic.  SGI has assured us
-	# that /dev/hw is specific (and standard) on their system
-	# DOB: as of 2.6.5-7.252-sn2 (possibly earlier) /dev/hw/cpunum no longer exists
-	# so now we use /dev/xpmem instead, which is not likely to disappear
-	if test x$force_arch_altix = xyes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
-   	  GASNETI_ARCH_ALTIX=1
-	  AC_DEFINE(GASNETI_ARCH_ALTIX)
-	  GASNET_PLATFORM=altix
-	  if test $target_cpu = ia64 -o -c "/dev/mmtimer"; then
-	    AC_DEFINE(GASNETI_USE_MMTIMER)
-	  fi
-	fi
 	# Check for IBM PE by presence of POE
 	if test x$force_arch_ibmpe = xyes || 
            ( env PAGER=cat poe -h | grep 'Parallel Operating Environment' ) >/dev/null 2>&1; then
@@ -3097,11 +3085,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
   fi
   case "$target_os" in
     linux*) 
-        if test -n "$GASNETI_ARCH_ALTIX"; then
-          GASNET_ENV_DEFAULT(MPI_CC, "$CC")
-    	  GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-        elif test -n "$GASNETI_ARCH_IBMPE"; then
+        if test -n "$GASNETI_ARCH_IBMPE"; then
           gasnet_mpcc="mpcc -m$GASNETI_PTR_BITS"
           case "$CC_FAMILY" in
                   GNU) gasnet_mpcc="$gasnet_mpcc -compiler gnu";;
@@ -4510,8 +4494,6 @@ AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
 
 AC_CHECK_FUNCS(sigprocmask)
-
-AC_CHECK_HEADERS([sn/mmtimer.h linux/mmtimer.h])
 
 AC_CHECK_FUNCS(srand_deterministic)
 
