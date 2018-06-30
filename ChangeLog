@@ -261,6 +261,8 @@ GASNet-1 ChangeLog
     ofi-conduit and psm-conduit remain the recommended conduits for Omni-Path.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
+  - This conduit is now DEPRECATED.
+  - Use of ibv-conduit is recommended for users with InfiniBand hardware.
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
 
 * Portable UDP (udp-conduit)

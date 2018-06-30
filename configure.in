@@ -3459,6 +3459,10 @@ elif test "$enabled_mxm" != no; then
 
     CONDUIT_PHYSMEM("2/3")
 
+    if test "$have_mxm" = yes; then
+      GASNET_MSG_WARN([mxm-conduit has been deprecated.  Please see the mxm-conduit README for more information.])
+    fi
+
   CONDUIT_SPAWNER
 fi
 AC_SUBST(MXM_CFLAGS)
@@ -4190,8 +4194,8 @@ EOF
 # Order native conduits from LOW to HIGH precedence, clients use order to select defaults
 
 CONDUIT_OUTPUT(pami)    dnl Ensure pami-over-ib is lower than ibv
+CONDUIT_OUTPUT(mxm)     dnl deprecated, thus below ibv
 CONDUIT_OUTPUT(ibv)
-CONDUIT_OUTPUT(mxm)     dnl Mellanox Infiniband takes precedence over vanilla ibv
 CONDUIT_OUTPUT(psm)
 CONDUIT_OUTPUT(gemini)
 CONDUIT_OUTPUT(aries)
