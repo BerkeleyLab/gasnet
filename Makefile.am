@@ -42,7 +42,6 @@ CONDUITMODE_headers = 		\
 CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
-	template-conduit  	\
 	gasnet_internal.h 	\
 	gasnet_internal.c 	\
 	gasnet_mmap.c  	  	\
@@ -342,7 +341,7 @@ distclean: force
 if TOOLSONLY_MODE
 TESTDIST = README testtools.c test.h Makefile.in
 else
-TESTDIST = `find . -print`
+TESTDIST = `find . -print | grep -v ^./mpi`
 endif
 
 dist-hook:

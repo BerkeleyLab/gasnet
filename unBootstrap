@@ -37,7 +37,6 @@ rm -f Makefile.in              \
       smp-conduit/Makefile.in  \
       udp-conduit/Makefile.in  \
       shmem-conduit/Makefile.in \
-      template-conduit/Makefile.in \
       other/Makefile.in        \
       other/ammpi/Makefile.in  \
       other/amudp/Makefile.in  \
