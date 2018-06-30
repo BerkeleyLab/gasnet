@@ -101,7 +101,6 @@ GASNet Release Procedure
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv (and portals4 & mxm, if possible)
    Linux-OmniPath: psm, ofi (plus mpi and ibv if time/allocation allows)
-   Linux-Altix: smp, shmem (NOTE: no current access)
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads, smp+sysv
   SEGMENT_EVERYTHING should be tested on all conduits supporting it.
