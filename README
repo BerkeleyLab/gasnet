@@ -65,6 +65,7 @@ Other documentation:
    can be browsed online: http://bitbucket.org/berkeleylab/gasnet/src/develop
    + README-devel: GASNet design information and coding standards
    + README-git: Rules developers are expected to follow when committing
+   + template-conduit: A fill-in-the-blanks conduit code skeleton
 
 Contents of this file:
  * Introduction
