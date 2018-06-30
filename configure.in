@@ -5140,15 +5140,17 @@ AC_SUBST(FCA_LIBS)
 
 ##                        BLCR SUPPORT
 have_blcr=no
+pushdef([GASNET_SUPPRESSHELP],1)
 GASNET_IF_ENABLED(blcr, [Enable BLCR for process checkpoints (default is no)], [enable_blcr=yes], [enable_blcr=no])
-case "$target_os" in
-  linux*) ;;
-  *) if test "$enable_blcr" = 'yes'; then
-       GASNET_MSG_WARN([Ignoring --enable-blcr on a non-linux platform])
-     fi
-     enable_blcr=no
-     ;;
-esac
+if test "$enable_blcr" = 'yes'; then
+  case "$target_os" in
+    linux*) GASNET_MSG_WARN([BLCR integration support is officially deprecated. See other/blcr/README-blcr for details.])
+    ;;
+    *) GASNET_MSG_WARN([Ignoring --enable-blcr on a non-linux platform])
+       enable_blcr=no
+    ;;
+  esac
+fi
 if test "$enable_blcr" = 'yes'; then
   if test "$with_pshm" != 'no'; then
     GASNET_MSG_ERROR([User requested --enable-blcr but BLCR support and PSHM are not compatible.  Please configure with --disable-pshm or without --enable-blcr.])
@@ -5200,6 +5202,7 @@ AC_SUBST(BLCR_LDFLAGS)
 AC_SUBST(BLCR_LIBS)
 AC_SUBST(BLCR_BINDIR)
 AM_CONDITIONAL(BLCR_ENABLED, test "$have_blcr" = "yes")
+popdef([GASNET_SUPPRESSHELP])
 
 dnl GASNET_TOOLSONLY_FALSE_END
 

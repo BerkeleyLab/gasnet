@@ -92,6 +92,7 @@ PENDING: Release 1.32.0
     ceased to work with GASNet 1.28.0 due to insufficient support for C99:
     + GCC 2.x
     + LCC (a.k.a. "Local C Compiler" or "Little C Compiler")
+  - BLCR integration support is officially deprecated
 
 ----------------------------------------------------------------------
 08-31-2017 : Release 1.30.0
