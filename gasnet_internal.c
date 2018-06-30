@@ -1197,10 +1197,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"udp")) continue;
         if (!strcmp(name,"ofi")) continue;
         if (!strcmp(name,"portals4")) continue;
-      #if !GASNET_SEQ
-        /* Ignore conduits that lack thread safety */
-        if (!strcmp(name,"shmem")) continue;
-      #endif
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
       }

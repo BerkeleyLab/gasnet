@@ -21,7 +21,6 @@ SUBDIRS =            \
   # Directories we manually recurse into:
 CONDUITMODE_DIST_SUBDIRS =    	\
 	mpi-conduit  		\
-	shmem-conduit  		\
 	smp-conduit  		\
 	udp-conduit  		\
 	ibv-conduit 		\

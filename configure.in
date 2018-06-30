@@ -3928,88 +3928,6 @@ CONDUIT_END([test "$have_aries" = yes])
 
 
 #--------------------------------------------------------------------------------------------------------
-# SHMEM configuration
-
-CONDUIT_BEGIN(shmem,[SGI Altix / Cray X1 Shmem conduit (shmem)])
-
-if test $enabled_shmem = yes; then
-  have_shmem=yes
-
-  AC_MSG_CHECKING(for SHMEM network type)
-
-  case "$target_os" in
-    # Linux shmem may mean Quadrics shmem or SGI shmem, but only SGI shmem is supported.
-    linux*)
-      if test -n "$GASNETI_ARCH_ALTIX"; then
-	AC_MSG_RESULT(SGI/Altix)
-	if test -n "$MPI_ROOT" && test -d "$MPI_ROOT" ; then
-	  shmem_guess="$MPI_ROOT" # At least SGI UV sets this
-	else
-	  shmem_guess="/usr"
-	fi
-	GASNET_ENV_DEFAULT(SHMEM_HOME, $shmem_guess, SHMEM driver home directory)
-        # Work around stoopid bug in Intel ecc on Altix: programs won't compile
-        # if -L/usr/lib or -I/usr/include is explicitly passed.
-        case "$SHMEM_HOME" in
-          /usr|/) shmem_includes_guess='' ; shmem_ldflags_guess='' ;;
-          *)      shmem_includes_guess="-I$SHMEM_HOME/include" ; shmem_ldflags_guess="-L$SHMEM_HOME/lib" ;;
-        esac
-
-	GASNET_ENV_DEFAULT(SHMEM_INCLUDES, $shmem_includes_guess)
-	GASNET_ENV_DEFAULT(SHMEM_LDFLAGS,  $shmem_ldflags_guess)
-        GASNET_ENV_DEFAULT(SHMEM_LIBS, [-lsma -lmpi])
-        GASNET_SPLIT_LINKER_OPTS(SHMEM_LDFLAGS,SHMEM_LIBS)
-        SHMEM_INCLUDES="$SHMEM_INCLUDES -DSGI_SHMEM"
-      else
-        AC_MSG_RESULT(unknown)
-        have_shmem=no
-      fi
-      ;;
-    *)
-      AC_MSG_RESULT(unknown)
-      have_shmem=no
-      ;;
-  esac
-
-
-  if test $have_shmem = yes; then
-    SHMEM_INC2="-I${SHMEM_HOME}/include/mpp"
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $SHMEM_INCLUDES $SHMEM_INC2")
-    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $SHMEM_LDFLAGS")
-    GASNET_PUSHVAR(LIBS,"$LIBS $SHMEM_LIBS")
-
-    # only include shmem.h even if some prescribe <mpp/shmem.h> and rely on the
-    # include search directories to be correct.  This approach is more general
-    GASNET_TRY_CACHE_LINK(for working SHMEM configuration, shmem_works, [
-      #include <shmem.h>
-    ], [{
-      int mype, numpes;
-  
-      mype = shmem_my_pe();
-      numpes = shmem_n_pes();
-      }], [ shmem_test_worked=yes ], [ shmem_test_worked=no GASNET_ERR_SAVE() ] )
-    GASNET_POPVAR(CFLAGS)
-    AC_CHECK_FUNCS(shmem_long_finc shmem_long_cswap shmem_longlong_cswap)
-    GASNET_POPVAR(LDFLAGS)
-    GASNET_POPVAR(LIBS)
-  
-    if test "$shmem_test_worked" = yes; then
-      :
-    else
-      GASNET_MSG_WARN(build test failed: I don't know how to build SHMEM programs on your system)
-      have_shmem=no
-    fi
-  fi
-fi
-
-AC_SUBST(SHMEM_INCLUDES)
-AC_SUBST(SHMEM_LDFLAGS)
-AC_SUBST(SHMEM_LIBS)
-AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$enabled_shmem$have_shmem" = yesyes)
-CONDUIT_EX_UNIMPLEMENTED
-CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
-
-#--------------------------------------------------------------------------------------------------------
 # PAMI configuration
 CONDUIT_BEGIN(pami,[IBM BlueGene/Q / Power775 PAMI conduit (pami)])
 if test $enabled_pami = yes; then
@@ -4293,7 +4211,6 @@ CONDUIT_OUTPUT(mxm)     dnl Mellanox Infiniband takes precedence over vanilla ib
 CONDUIT_OUTPUT(psm)
 CONDUIT_OUTPUT(gemini)
 CONDUIT_OUTPUT(aries)
-CONDUIT_OUTPUT(shmem)
 
 #--------------------------------------------------------------------------------------------------------
 
@@ -5433,9 +5350,6 @@ psm-conduit/Makefile
 psm-conduit/conduit.mak
 psm-conduit/contrib/Makefile
 psm-conduit/contrib/gasnetrun_psm
-
-shmem-conduit/Makefile
-shmem-conduit/conduit.mak
 
 portals4-conduit/Makefile
 portals4-conduit/conduit.mak

@@ -464,12 +464,6 @@ psm-conduit: Intel Omni-Path PSM2
  The core GASNet developers have limited access to this hardware, but have completed 
  minimal validation on x86_64/Linux. 
  
-shmem-conduit: SGI Altix / Cray X1 Shmem   *DEPRECATED*
- GASNet over proprietary (hardware-supported) SHMEM. Does not function over OpenSHMEM.
- The core GASNet developers have been unable to test this conduit recently,
- and it is officially deprecated. 
- If you have interest in this conduit please contact us!
-
 Single-node Development Options
 ===============================
 
@@ -529,9 +523,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/MIPS/gcc/{32,n32,64}:       smp, udp, #
     * Linux/MIPS64el/gcc/{32,n32,64}:   smp, udp, #
 
-    * Linux/SGI-Altix-IA64/{gcc,IntelC}/64: smp, mpi, udp, shmem &
-    * Linux/SGI-Altix-Xeon/{gcc,IntelC}/64: smp, mpi, udp, shmem &
-
     * FreeBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
     * OpenBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
     * NetBSD/{x86,amd64}/{gcc,clang}/{32,64}:  smp, mpi, udp
@@ -544,7 +535,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * MSWindows-Cygwin/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi (OpenMPI)
     * MSWindows10-Linux/{gcc,clang}/64: smp, udp, mpi, BETA
-
 
     * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
