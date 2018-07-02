@@ -847,7 +847,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   uint64_t physmemsz = gasneti_getPhysMemSz(1);
   uint64_t limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                           GASNETC_PHYSMEM_MIN, physmemsz);
+                           GASNETC_PHYSMEM_MIN, physmemsz, 0);
 #if PLATFORM_ARCH_32
    limit = MIN(limit, 0xFFFFFFFF);
 #endif
