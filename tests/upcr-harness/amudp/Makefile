@@ -40,8 +40,13 @@ distcheck: force
 	 cp ./amudprun$(EXESUFFIX) $$TESTDIR/amudprun-sa$(EXESUFFIX) && \
 	 cp ./testam$(EXESUFFIX) $$TESTDIR/$@$(EXESUFFIX)
 
-amudprun amudprun-host:
+amudprun:
 	$(MAKE) -C $(AMX_DIR) $@$(EXESUFFIX)
+	@cp $(AMX_DIR)/$@$(EXESUFFIX) .
+
+amudprun-host:
+	@echo 'HOST_CC="$(HOST_CC)" HOST_CXX="$(HOST_CXX)"'
+	$(MAKE) -C $(AMX_DIR) $@$(EXESUFFIX) CC="$(HOST_CC) $(HOST_CFLAGS)" CXX="$${HOST_CXX:-g++} $$HOST_CXXFLAGS" platform_ldflags="$(HOST_LDFLAGS) $(HOST_LIBS)"
 	@cp $(AMX_DIR)/$@$(EXESUFFIX) .
 
 test%: amudprun force
