@@ -808,11 +808,34 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 //  + If parses as double between 0. and 1., multiply by "fraction_of".
 //  + If parses as integer (w/ optional suffix) take as an absolute size.
 // In either case, align down to PAGESIZE and then die if below "minimum".
-extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt, uint64_t minimum, uint64_t fraction_of)
-{
-  const char *str = gasneti_getenv(key);
-  int using_default = (NULL == str);
-  if (using_default) str = dflt;
+// if pph is non-zero, accept [pPhH] suffixes and for [hH] divide by this value
+extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt, 
+                                                   uint64_t minimum, uint64_t fraction_of, 
+                                                   uint64_t pph) {
+  const char *input = gasneti_getenv(key);
+  int using_default = (NULL == input);
+  if (using_default) input = dflt;
+  const char *str = input;
+
+  // Parse and remove (/?[phPH]) suffix
+  char tmp[255];
+  int got_h = 0;
+  if (pph) {
+    size_t len = strlen(str);
+    gasneti_assert(sizeof(tmp) > len);
+    strncpy(tmp,str,sizeof(tmp));
+    char *p = &tmp[len-1];
+    while (p >= tmp && isspace(*p)) *(p--) = 0; // strip end whitespace
+    switch (*p) {
+      case 'h': case 'H': 
+        got_h = 1; GASNETI_FALLTHROUGH
+      case 'p': case 'P':
+        *(p--) = 0; // strip
+        while (p >= tmp && isspace(*p)) *(p--) = 0; // strip end whitespace
+        if (p >= tmp && *p == '/') *(p--) = 0; // strip
+    }
+    str = tmp;
+  }
 
   double dbl;
   int64_t val;
@@ -828,17 +851,33 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     // Note: default suffix is irrelevant since un-suffixed case was parsed as a double
     val = gasneti_parse_int(str, 1);
   }
-  gasneti_envint_display(key, val, using_default, 1);
 
   // check sign before ALIGNDOWN
   if (val < 0) {
-    gasneti_fatalerror("%s='%s' is negative.", key, str);
+    gasneti_fatalerror("%s='%s' is negative.", key, input);
   }
+
+  if (got_h) {
+    gasneti_assert(pph > 0);
+    val = val / pph;
+  }
+
+  #if PLATFORM_ARCH_32 && !defined(GASNETI_ALLOW_HUGE_32BIT_SEGMENT)
+    /* need to be careful about overflow on 32-bit:
+       can't use a full 4 GB due to sign bit problems 
+       on the int argument to mmap() for some 32-bit systems
+       so use 2GB - pagesz 
+    */
+    val = MIN(val,((((uint64_t)1)<<31) - GASNET_PAGESIZE);
+  #endif
 
   // ALIGNDOWN before checking against minimum
   val = GASNETI_PAGE_ALIGNDOWN(val);
   GASNETI_TRACE_PRINTF(I, ("%s='%s' yields %"PRId64,
-                           key, str, val));
+                           key, input, val));
+
+  // display final value
+  gasneti_envint_display(key, val, using_default, 1);
 
   if (val < minimum) {
     const char *parsed_as = is_fraction ? "a fraction" : "an amount";
@@ -849,7 +888,7 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     gasneti_fatalerror(
             "Parsing '%s' as %s of memory yields %s of %"PRId64" (%s), "
             "which is less than the minimum supported value of %s.",
-            str, parsed_as, key, val, val_display, min_display);
+            input, parsed_as, key, val, val_display, min_display);
   }
 
   return (uint64_t) val;
