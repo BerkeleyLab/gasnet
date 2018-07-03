@@ -408,10 +408,6 @@
 /* compiler is Apple's variant of GCC */
 #undef GASNETI_GCC_APPLE
 
-/* platform is an SGI Altix multiprocessor */
-#undef GASNETI_ARCH_ALTIX
-#undef GASNETI_USE_MMTIMER
-
 /* platform is a Linux cluster running IBM PE software */
 #undef GASNETI_ARCH_IBMPE
 
