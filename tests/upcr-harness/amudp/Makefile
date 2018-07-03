@@ -52,6 +52,7 @@ amudprun:
 # We deliberately ban the MANUAL_* flags here, as they may not be appropriate for the host compiler
 # note this "banning" is only effective for cross-compile, otherwise MANUAL_CFLAGS is already folded into HOST_CFLAGS by harness
 amudprun-host:
+	rm -Rf $(TOP_BUILDDIR)/gasnet/other/amudp/.host
 	@echo "Harness default settings:" 1>&2 ; \
 	 set -x ; HOST_CC='$(HOST_CC)' HOST_CFLAGS='$(HOST_CFLAGS)' HOST_CXX='$(HOST_CXX)' HOST_CXXFLAGS='$(HOST_CXXFLAGS)' HOST_LDFLAGS='$(HOST_LDFLAGS)' HOST_LIBS='$(HOST_LIBS)' ; set +x ; \
 	 if test -z "$$HOST_CXX" ; then \

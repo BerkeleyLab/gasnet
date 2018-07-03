@@ -149,15 +149,15 @@ $(top_builddir)/libgasnet_tools-seq.a: force
 amudprun-host$(EXEEXT): force
 	@ srcdir=`cd $(srcdir) && pwd`; \
 	set -x && \
-	mkdir -p host && \
-	cd host && \
+	mkdir -p .host && \
+	cd .host && \
 	ln -sf $$srcdir/Makefile* . && \
 	ln -sf $$srcdir/../portable_inttypes.h . && \
 	ln -sf $$srcdir/../gasnet_portable_platform.h amx_portable_platform.h && \
 	ln -sf $$srcdir/../amx/*.[ch] . && \
 	$(MAKE) amudprun -f Makefile.standalone srcdir=$$srcdir altincdir=. MANUAL_DEFINES="-DAMX_ENV_PREFIX=GASNET $(MANUAL_DEFINES)" && \
 	mv amudprun ../amudprun-host && \
-	cd .. && rm -Rf host
+	cd .. && rm -Rf .host
 
 if USE_UDP_CONDUIT
 if GNU_NM
@@ -191,6 +191,7 @@ check: tests
 
 clean_local_files = libamudp.a *.o core .test-results amudprun-host $(BUILT_SOURCES)
 clean-local:
+	rm -Rf .host
 	@for f in $(testprograms); do                                \
 	  cmd="rm -f '$$f$(EXESUFFIX)'"; echo "$$cmd"; eval "$$cmd" || exit $$? ; \
 	 done;
