@@ -29,17 +29,16 @@ void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in){
 }
 
 
-static int split_string(char ***split_strs, char *str, char *delim) {
-  char *temp=NULL,*copy;
+static int split_string(char ***split_strs, const char *str, const char *delim) {
+  char *temp;
   int ret=0;
   size_t malloc_len = 8;
   static gasneti_mutex_t lock= GASNETI_MUTEX_INITIALIZER;
 
-  copy = gasneti_malloc(sizeof(char)*(strlen(str)+1));
-  
   /*since the strtok function is desructive we have to
     create a copy of the string first to preserve the orignal*/
-  GASNETI_MEMCPY_SAFE_IDENTICAL(copy, str, sizeof(char)*(strlen(str)+1));
+  char *copy = gasneti_strdup(str);
+
   gasneti_mutex_lock(&lock);
   *split_strs = (char **) gasneti_malloc(sizeof(char*) * malloc_len);
   temp = strtok(copy, delim);
@@ -64,7 +63,7 @@ static int split_string(char ***split_strs, char *str, char *delim) {
 
 
 
-static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
+static gasnete_coll_tree_type_t make_tree_type_str_helper(const char *tree_name) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
 
   char **inner_split;
@@ -93,7 +92,7 @@ static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
   gasneti_free(inner_split);
   return ret;
 }
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(const char *tree_name_str) {
  
   char outter_delim[]=":";
   char inner_delim[]=",";
