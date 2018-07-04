@@ -56,5 +56,4 @@ SHORT_HANDLER_NOBITS_DECL(gasnete_coll_teamid_reqh, 1);
 #define GASNETE_REFCOLL_HANDLERS()                           \
   GASNETE_COLL_P2P_HANDLERS() GASNETE_COLL_SCRATCH_HANDLERS() GASNETE_COLL_TEAM_HANDLERS()
 
-extern int gasnete_coll_init_done;
 #endif

@@ -46,16 +46,11 @@ static void gasnete_coll_active_ins(gasnete_coll_op_t *op);
 static void gasnete_coll_active_del(gasnete_coll_op_t *op);
 
 /*---------------------------------------------------------------------------------*/
-int gasnete_coll_init_done = 0;
 
 void gasnete_coll_validate(gasnet_team_handle_t team,
                            gex_Rank_t dstrank, const void *dst, size_t dstlen,
                            gex_Rank_t srcrank, const void *src, size_t srclen,
                            int flags GASNETI_THREAD_FARG) {
-  if_pf (!gasnete_coll_init_done) {
-    gasneti_fatalerror("Illegal call to GASNet collectives before gasnet_coll_init()\n");
-  }
- 
   if (dstrank == GEX_RANK_INVALID) {
     dstrank = team->myrank;
   }
@@ -532,45 +527,6 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
   return retval;
 }
   
-
-// Legacy gasnet_coll_int() support.
-//
-// With the removal of multi-image support this interface exists
-// only to support registration of the fn_tbl and to disallow
-// multi-image calls.
-extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
-                              gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
-                              int init_flags GASNETI_THREAD_FARG) {
-  GASNETI_CHECKATTACH();
-
-    if (images) {
-      if (my_image != gasneti_mynode) {
-          gasneti_fatalerror("UNSUPPORTED multi-image call to gasnet_coll_init()\n");
-      }
-      for (gex_Rank_t r = 0; r < gasneti_nodes; ++r) {
-        if (images[r] != 1) {
-          gasneti_fatalerror("UNSUPPORTED multi-image call to gasnet_coll_init()\n");
-        }
-      }
-    }
-
-    // TODO-EX: when tests cease using legacy reduce, remove entirely
-    gasnete_coll_fn_count = fn_count;
-    if (fn_count != 0) {
-      size_t tbl_size = sizeof(gasnet_coll_fn_entry_t) * fn_count;
-      gasnete_coll_fn_tbl = gasneti_malloc(tbl_size);
-      memcpy(gasnete_coll_fn_tbl, fn_tbl, tbl_size);
-#if GASNET_DEBUG
-      for (int i = 0; i < fn_count; ++i) {
-        if (fn_tbl[i].flags & ~(GASNET_COLL_AMSAFE | GASNET_COLL_NONCOMM)) {
-          gasneti_fatalerror("gasnet_coll_init: function table entry %i has unknown flag(s)", i);
-        }
-      }
-#endif
-    }
-}
-
-
 // Initialize legacy coll_team subsystem for use by gex_TM/gex_Coll
 // TODO-EX: remove any portions displaced by gex-ification
 extern void gasnete_coll_init_subsystem(void)
@@ -610,8 +566,6 @@ extern void gasnete_coll_init_subsystem(void)
     gasnetc_tm_reduce_tree_type = gasnete_coll_make_tree_type_str(reduce_tree_type);
 
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD; // Force allocation
-
-    gasnete_coll_init_done = 1;
 }
 
 /*---------------------------------------------------------------------------------*/

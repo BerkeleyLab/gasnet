@@ -179,35 +179,6 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
 
-/*------------------------------------------------------------------------------------*/
-
-/* gasnet_coll_init: Initialize GASNet collectives
- *
- *  images:     Array of gasnet_nodes() elements giving the number of
- *              images present on each node.  This must have the
- *              same contents on all nodes or the behavior is undefined.
- *		If NULL, then there is one image per node.
- *		In GASNET_SEQ mode, NULL is the only legal value.
- *  my_image:   If 'images' is non-NULL, this gives the image number of
- *              the calling thread.
- *  fn_tbl:     An array of type gasnet_coll_fn_entry_t, specifying
- *              the functions which can be invoked for the
- *              computational collectives.  This may safely differ
- *              in contents (but not size) across nodes.
- *  fn_count:   The number of entries in 'fn_tbl'.  Must agree across
- *              all nodes or the behavior is undefined.
- *  init_flags: Presently unused.  Must be 0.
- */
-
-#ifndef gasnet_coll_init
-  GASNETI_COLL_FN_HEADER(gasnete_coll_init) 
-  void gasnete_coll_init(const gasnet_image_t _images[], gasnet_image_t _my_image,
-		  		gasnet_coll_fn_entry_t _fn_tbl[], size_t _fn_count,
-		  		int _init_flags GASNETI_THREAD_FARG);
-  #define gasnet_coll_init(im,mi,fn,fc,fl) \
-		gasnete_coll_init(im,mi,fn,fc,fl GASNETI_THREAD_GET)
-#endif
-
 /*---------------------------------------------------------------------------------*/
 
 

@@ -139,35 +139,6 @@ if(td->my_local_thread==0 && performance_iters>0) MSG0("%c: %d> %s/%s %s sync_mo
 #else
 #define print_timer(td, coll_str, addr_mode, num_addrs, sync_mode, nelem, total_ticks)
 #endif
-void int_reduce_fn(void *results, size_t result_count,
-                   const void *left_operands, size_t left_count,
-                   const void *right_operands,
-                   size_t elem_size, int flags, int arg) {
-  int i;
-  int *res = (int*) results;
-  int *src1 = (int*) left_operands;
-  int *src2 = (int*) right_operands;
-  assert(elem_size == sizeof(int));
-  assert(result_count==left_count);
-  switch(arg) {
-  case 0:
-    for(i=0; i<result_count; i++) {
-      res[i] = src1[i] + src2[i];
-    } break;
-  case 1:
-    for(i=0; i<result_count; i++) {
-      res[i] = MAX(src1[i],src2[i]);
-    } break;
-  case 2:
-    for(i=0; i<result_count; i++) {
-      res[i] = MIN(src1[i],src2[i]);
-    } break;
-  default:
-    MSG("NOT SUPPORTED reduce op %d\n", arg); ERROR_EXIT();
-  }
-  
-}
-gasnet_coll_fn_entry_t fntable;
 void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int in_flags) {
   /* all threads pass the same pointers for src and dest*/
   int i,j,t,k;
@@ -559,24 +530,9 @@ static double szfactor = 2.;
 void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   double sz;
-  int i,flag_iter;
+  int flag_iter;
   gex_Rank_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
-  gasnet_coll_fn_entry_t fntable[1];
-#if GASNET_PAR
-  gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
-  fntable[0].fnptr = int_reduce_fn;
-  fntable[0].flags = 0;
-
-  for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
-  gasnet_coll_init(imagearray, td->mythread, fntable, 1, 0);
-  test_free(imagearray);
-#else
-  fntable[0].fnptr = int_reduce_fn;
-  fntable[0].flags = 0;
-
-  gasnet_coll_init(NULL, 0, fntable, 1, 0);
-#endif
 
   COLL_BARRIER();
 
