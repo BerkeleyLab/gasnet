@@ -102,17 +102,6 @@ typedef gex_Event_t
                                     uint32_t sequence
                                     GASNETI_THREAD_FARG);
 
-typedef gex_Event_t
-(*gasnete_coll_reduce_fn_ptr_t)(gasnet_team_handle_t team,
-                                 gasnet_image_t dstimage, void *dst,
-                                 void * src, size_t src_blksz, size_t src_offset,
-                                 size_t elem_size, size_t elem_count,
-                                 gasnet_coll_fn_handle_t func, int func_arg,
-                                 int flags, 
-                                 gasnete_coll_implementation_t coll_params,
-                                 uint32_t sequence
-                                 GASNETI_THREAD_FARG);
-
 typedef enum {
   GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH,
   GASNETE_COLL_BROADCAST_TREE_PUT_SEG,
@@ -177,17 +166,6 @@ typedef enum {
   GASNETE_COLL_CONDUIT_EXCHANGE_OPS ,
 #endif
   GASNETE_COLL_EXCHANGE_NUM_ALGS} gasnete_coll_exchange_alg_types_t;
-
-typedef enum {
-  GASNETE_COLL_REDUCE_EAGER=0,
-  GASNETE_COLL_REDUCE_TREE_EAGER,
-  GASNETE_COLL_REDUCE_TREE_PUT,
-  GASNETE_COLL_REDUCE_TREE_PUT_SEG,
-  GASNETE_COLL_REDUCE_TREE_GET,
-#ifdef GASNETE_COLL_CONDUIT_REDUCE_OPS
-  GASNETE_COLL_CONDUIT_REDUCE_OPS ,
-#endif
-  GASNETE_COLL_REDUCE_NUM_ALGS} gasnete_coll_reduce_alg_types_t;
 
 
 #ifndef GASNET_COLL_MIN_PIPE_SEG_SIZE
@@ -265,7 +243,6 @@ typedef struct gasnete_coll_allgorithm_t_ {
     gasnete_coll_gather_fn_ptr_t gather_fn;
     gasnete_coll_gather_all_fn_ptr_t gather_all_fn;
     gasnete_coll_exchange_fn_ptr_t exchange_fn;
-    gasnete_coll_reduce_fn_ptr_t reduce_fn;
   } fn_ptr;
   
   const char *name_str;
@@ -370,12 +347,6 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
                                              size_t nbytes, uint32_t flags  GASNETI_THREAD_FARG);
-
-gasnete_coll_implementation_t 
-gasnete_coll_autotune_get_reduce_algorithm(gasnet_team_handle_t team, gasnet_image_t dstimage, void *dst, void *src,
-                                           size_t src_blksz, size_t src_offset, size_t elem_size, size_t elem_count,
-                                           gasnet_coll_fn_handle_t func, int func_arg,
-                                           uint32_t flags GASNETI_THREAD_FARG);
 
 
 gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_autotune_info_t* autotune_info, 

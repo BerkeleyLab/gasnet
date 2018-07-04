@@ -693,12 +693,6 @@ void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
 #endif
 
 /*---------------------------------------------------------------------------------*/
-/* XXX: sequence and other stuff that will need to be per-team scoped: */
-
-extern gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
-extern size_t gasnete_coll_fn_count;
-
-/*---------------------------------------------------------------------------------*/
 
 /* Helper for scaling of void pointers */
 GASNETI_INLINE(gasnete_coll_scale_ptr)
@@ -771,23 +765,6 @@ void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[],
     dst_addr += nbytes;
     srclist++;
     count--;
-  }
-  gasneti_sync_writes();	/* Ensure result is visible on all threads */
-}
-
-
-GASNETI_INLINE(gasnete_coll_local_reduce)
-void gasnete_coll_local_reduce(size_t count, void * dst, void * const srclist[], size_t elem_size, size_t elem_count, gasnet_coll_fn_handle_t func, int func_arg) {
-  gasnet_coll_reduce_fn_t reduce_fn = gasnete_coll_fn_tbl[func].fnptr;
-  uint32_t red_fn_flags = gasnete_coll_fn_tbl[func].flags;
-  uint32_t reduce_args = func_arg;
-  size_t nbytes = elem_size*elem_count;
-  int i;
-  
-  gasneti_sync_reads();
-  GASNETI_MEMCPY_SAFE_IDENTICAL(dst, srclist[0], nbytes);
-  for(i=1; i<count; i++) {
-    (*reduce_fn)(dst, elem_count, dst, elem_count, srclist[i], elem_size, red_fn_flags, reduce_args);
   }
   gasneti_sync_writes();	/* Ensure result is visible on all threads */
 }
@@ -987,18 +964,6 @@ typedef struct {
 } gasnete_coll_exchange_args_t;
 
 typedef struct {
-  gex_Rank_t dstnode;
-  void *dst;
-  void *src;
-  size_t src_blksz; 
-  size_t src_offset;
-  size_t elem_size; 
-  size_t elem_count;
-  size_t nbytes;
-  gasnet_coll_fn_handle_t func; int func_arg;
-} gasnete_coll_reduce_args_t;
-
-typedef struct {
   gex_Rank_t          root;
   void *              dst;
   const void *        src;
@@ -1069,7 +1034,6 @@ struct gasnete_coll_generic_data_t_ {
       gasnete_coll_gather_args_t		gather;
       gasnete_coll_gather_all_args_t		gather_all;
       gasnete_coll_exchange_args_t		exchange;
-      gasnete_coll_reduce_args_t                reduce;
 
       /* GEX interfaces: */
       gasnete_tm_reduce_args_t                  tm_reduce;
@@ -1223,17 +1187,6 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  int num_params, uint32_t *param_list
                                  GASNETI_THREAD_FARG);
 
-extern gex_Event_t
-gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
-                               gasnet_image_t dstimage, void *dst,
-                               void *src, size_t src_blksz, size_t src_offset,
-                               size_t elem_size, size_t elem_count, 
-                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
-                               gasnete_coll_poll_fn poll_fn, int options,
-                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
-                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
-                               GASNETI_THREAD_FARG);
-
 // Legacy "nb_default" layer
 
 extern gex_Event_t
@@ -1377,26 +1330,6 @@ GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem8);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(FlatScratch);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(Gath);
 GASNETE_COLL_DECLARE_EXCHANGE_ALG(RVPut);
-
-/*---------------------------------------------------------------------------------*/
-
-#define GASNETE_COLL_DECLARE_REDUCE_ALG(FUNC_EXT) \
-extern gex_Event_t \
-gasnete_coll_reduce_##FUNC_EXT(gasnet_team_handle_t team,\
-                          gasnet_image_t dstimage, void *dst,\
-                          void *src, size_t src_blksz, size_t src_offset,\
-                          size_t elem_size, size_t elem_count,\
-                          gasnet_coll_fn_handle_t func, int func_arg,\
-                          int flags, \
-                          gasnete_coll_implementation_t coll_params,\
-                          uint32_t sequence\
-                          GASNETI_THREAD_FARG)
-
-GASNETE_COLL_DECLARE_REDUCE_ALG(Eager);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreeEager);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreePut);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreePutSeg);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreeGet);
 
 /*---------------------------------------------------------------------------------*/
 

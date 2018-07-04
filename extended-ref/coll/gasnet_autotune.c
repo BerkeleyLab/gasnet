@@ -18,10 +18,8 @@ typedef struct gasnet_coll_args_t_ {
   /*elem count will be nbytes / elem_size*/
   size_t nbytes;
   size_t dist;
-  gasnet_coll_fn_handle_t func; 
-  int func_arg;
 } gasnet_coll_args_t;
-#define GASNET_COLL_ARGS_INITIALIZER { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }
+#define GASNET_COLL_ARGS_INITIALIZER { NULL, NULL, 0, 0, 0, 0, 0, 0 }
 
 /*a small library to write and read XML style sheets for the collective tuner*/
 #include <myxml/myxml.h>
@@ -144,7 +142,6 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
     case GASNET_COLL_GATHER_OP: ret.fn_ptr.gather_fn = (gasnete_coll_gather_fn_ptr_t) coll_fnptr; break;
     case GASNET_COLL_GATHER_ALL_OP: ret.fn_ptr.gather_all_fn = (gasnete_coll_gather_all_fn_ptr_t) coll_fnptr; break;
     case GASNET_COLL_EXCHANGE_OP: ret.fn_ptr.exchange_fn = (gasnete_coll_exchange_fn_ptr_t) coll_fnptr; break;
-    case GASNET_COLL_REDUCE_OP: ret.fn_ptr.reduce_fn = (gasnete_coll_reduce_fn_ptr_t) coll_fnptr; break;
     default: gasneti_fatalerror("not implemented yet");
   }
   return ret;
@@ -479,54 +476,6 @@ void gasnete_coll_register_exchange_collectives(gasnete_coll_autotune_info_t* in
   }
 }
 
-void gasnete_coll_register_reduce_collectives(gasnete_coll_autotune_info_t* info, size_t smallest_scratch) {
-  
-  info->collective_algorithms[GASNET_COLL_REDUCE_OP] = gasneti_malloc(sizeof(gasnete_coll_algorithm_t)*GASNETE_COLL_REDUCE_NUM_ALGS);
-  
-  info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_EAGER] = 
-  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCE_OP, 
-                                           GASNETE_COLL_EVERY_SYNC_FLAG,
-                                           0, 0,
-                                           gasnete_coll_p2p_eager_scale, 0, 0,
-                                           0,NULL,gasnete_coll_reduce_Eager, "REDUCE_EAGER");
-  
-  info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_EAGER] = 
-  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCE_OP, 
-                                           GASNETE_COLL_EVERY_SYNC_FLAG,
-                                           0, 0,
-                                           gasnete_coll_p2p_eager_scale, 0, 1,
-                                           0,NULL,gasnete_coll_reduce_TreeEager, "REDUCE_TREE_EAGER");
-  
-  info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_PUT] = 
-  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCE_OP, 
-                                           GASNETE_COLL_EVERY_SYNC_FLAG,
-                                           0, 0,
-                                           MIN(gex_AM_LUBRequestLong(),smallest_scratch/info->team->total_ranks), 0, 1,
-                                           0,NULL,gasnete_coll_reduce_TreePut, "REDUCE_TREE_PUT");
-  
-  
-  info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_GET] = 
-  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCE_OP, 
-                                           GASNETE_COLL_EVERY_SYNC_FLAG,
-                                           0, 0,
-                                           smallest_scratch/info->team->total_ranks, 0, 1,
-                                           0,NULL,gasnete_coll_reduce_TreeGet, "REDUCE_TREE_GET");
-  
-  {
-    size_t smallest_seg_size = MIN(MIN(gex_AM_LUBRequestLong(),smallest_scratch/info->team->total_ranks),GASNET_COLL_MIN_PIPE_SEG_SIZE);
-    size_t largest_seg_size = MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch/info->team->total_ranks);
-    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE, smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
-
-    info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_PUT_SEG] = 
-    gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCE_OP, 
-                                             GASNETE_COLL_EVERY_SYNC_FLAG,
-                                             0, 0,
-                                             smallest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, 
-                                             smallest_seg_size, 1,
-                                             1,tuning_params,gasnete_coll_reduce_TreePutSeg, "REDUCE_TREE_PUT_SEG");
-  }
-}
-
 
 void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info, size_t smallest_scratch) {
   gasnete_coll_register_broadcast_collectives(info, smallest_scratch);
@@ -534,8 +483,6 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info, size_
   gasnete_coll_register_gather_collectives(info, smallest_scratch);
   gasnete_coll_register_gather_all_collectives(info, smallest_scratch);
   gasnete_coll_register_exchange_collectives(info, smallest_scratch);
-  gasnete_coll_register_reduce_collectives(info, smallest_scratch);
-
 }
 
 
@@ -707,7 +654,6 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotu
                                                              gex_Rank_t root, size_t nbytes, int flags) {
   switch(op_type) {
     case GASNET_COLL_BROADCAST_OP:
-    case GASNET_COLL_REDUCE_OP:
       return autotune_info->bcast_tree_type;  
       
     case GASNET_COLL_SCATTER_OP: 
@@ -756,7 +702,6 @@ void gasnet_coll_set_tree_kind(gasnete_coll_team_t team, int tree_class, int fan
   
   switch(optype) {
     case GASNET_COLL_BROADCAST_OP: 
-    case GASNET_COLL_REDUCE_OP:
       gasnete_coll_free_tree_type(team->autotune_info->bcast_tree_type);
       team->autotune_info->bcast_tree_type = gasnete_coll_make_tree_type(tree_class, &fanout,1); break;
     case GASNET_COLL_SCATTER_OP:
@@ -828,9 +773,6 @@ static char* print_op_str(char *buf, gasnet_coll_optype_t op, int flags) {
     break;
   case GASNET_COLL_EXCHANGE_OP:
     strcpy(buf, "exchange SINGLE/");
-    break;
-  case GASNET_COLL_REDUCE_OP:
-    strcpy(buf, "reduce SINGLE/");
     break;
     
   default:
@@ -982,9 +924,6 @@ static gasnet_coll_optype_t get_optype_from_str(char *str) {
   else if(STRINGS_MATCH(str, "exchange")) 
     return GASNET_COLL_EXCHANGE_OP;
   
-  else if(STRINGS_MATCH(str, "reduce"))
-    return GASNET_COLL_REDUCE_OP;
-  
   else gasneti_fatalerror("op %s not yet supported\n", str);
   return (gasnet_coll_optype_t)(-1); /* NOT REACHED */
 }
@@ -1005,9 +944,6 @@ static char * optype_to_str(char *buffer, int op) {
       break;
     case GASNET_COLL_EXCHANGE_OP:
       strcpy(buffer, "gather_all");
-      break;
-    case GASNET_COLL_REDUCE_OP:
-      strcpy(buffer, "reduce");
       break;
       
     default:
@@ -1162,14 +1098,6 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
-      case GASNET_COLL_REDUCE_OP:
-        handle = (*((gasnete_coll_reduce_fn_ptr_t) (impl->fn_ptr)))(team,  coll_args.rootimg, coll_args.dst[0], 
-                                                                    coll_args.src[0], coll_args.src_blksz, coll_args.src_offset,
-                                                                    coll_args.elem_size, coll_args.nbytes/coll_args.elem_size,
-                                                                    coll_args.func, coll_args.func_arg, flags, impl, 0 GASNETI_THREAD_PASS);
-        if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_wait(handle GASNETI_THREAD_PASS);
-        break; 
         
       default:
         gasneti_fatalerror("collective not yet implemented");  
@@ -1211,14 +1139,6 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_wait(handle GASNETI_THREAD_PASS);
         break;
-      case GASNET_COLL_REDUCE_OP:
-        handle = (*((gasnete_coll_reduce_fn_ptr_t) (impl->fn_ptr)))(team,  coll_args.rootimg, coll_args.dst[0], 
-                                                                    coll_args.src[0], coll_args.src_blksz, coll_args.src_offset,
-                                                                    coll_args.elem_size, coll_args.nbytes/coll_args.elem_size,
-                                                                    coll_args.func, coll_args.func_arg, flags, impl, 0 GASNETI_THREAD_PASS);
-        if(fnptr) (*fnptr)(sample_work_arg);
-        gasnete_wait(handle GASNETI_THREAD_PASS);
-        break; 
       default:
         gasneti_fatalerror("collective not yet implemented");  
     }    
@@ -1384,9 +1304,6 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
       break;
     case GASNET_COLL_EXCHANGE_OP:
       num_algs = GASNETE_COLL_EXCHANGE_NUM_ALGS;
-      break;
-    case GASNET_COLL_REDUCE_OP:
-      num_algs = GASNETE_COLL_REDUCE_NUM_ALGS;
       break;
     default:
       num_algs = 0; /* warning suppression */
@@ -2097,50 +2014,6 @@ gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *ds
 
   return ret;
   
-}
-
-gasnete_coll_implementation_t gasnete_coll_autotune_get_reduce_algorithm(gasnet_team_handle_t team, gasnet_image_t dstimage, void *dst, void * src,
-                                                                          size_t src_blksz, size_t src_offset, size_t elem_size, size_t elem_count,
-                                                                          gasnet_coll_fn_handle_t func, int func_arg,
-                                                                          uint32_t flags GASNETI_THREAD_FARG){
-  gasnete_coll_implementation_t ret;
-
-  {
-    gasnet_coll_args_t args = GASNET_COLL_ARGS_INITIALIZER;
-    args.dst = (uint8_t**)&dst;
-    args.src = (uint8_t**)&src;
-    args.rootimg = dstimage;
-    args.src_blksz = src_blksz;
-    args.src_offset = src_offset;
-    args.elem_size = elem_size;
-    args.nbytes = elem_count * elem_size;
-    args.func = func;
-    args.func_arg = func_arg;
-    
-    /*first try to search our gasnet autotuner index to see if we have anything for it*/
-    ret = autotune_op(team, GASNET_COLL_REDUCE_OP, args, flags GASNETI_THREAD_PASS);
-    if(ret) return ret;
-  }
-  
-  ret = gasnete_coll_get_implementation();
-  ret->need_to_free = 1;
-  ret->num_params =0;
-  ret->team = team;
-  ret->flags = flags;
-  ret->optype = GASNET_COLL_REDUCE_OP;
-  ret->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
-                                                       GASNET_COLL_REDUCE_OP, 
-                                                       -1,elem_count*elem_size, flags);
-  
-  ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_GET].fn_ptr.reduce_fn;
-  ret->fn_idx = GASNETE_COLL_REDUCE_TREE_GET;
-
-  if (gasnete_coll_print_coll_alg && team->myrank == 0) {
-    fprintf(stderr, "The algorithm for reduce is selected by the default logic.\n");
-    gasnete_coll_implementation_print(ret, stderr);
-  }
-
-  return ret;
 }
 
 static void dump_tuning_state_helper(myxml_node_t *parent, gasnete_coll_autotune_index_entry_t *tuning_root) {
