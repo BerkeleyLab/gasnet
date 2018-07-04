@@ -12,8 +12,6 @@ at larger message sizes. It is NOT intended as a tester to measure correctness o
 options that is covered testcoll
 */
 
-#include <limits.h> /* For INT_MAX */
-
 #include <gasnetex.h>
 #include "gasnet_coll.h"
 
@@ -74,8 +72,6 @@ int inner_verification_iters;
 int outer_verification_iters;
 int performance_iters;
 size_t max_data_size;
-
-int reduce_limit = 0;
 
 #define TEST_SEGSZ_EXPR (sizeof(int)*(max_data_size*(inner_verification_iters)*TOTAL_THREADS*threads_per_node*2))
 #define SEG_PER_THREAD (sizeof(int)*max_data_size*(inner_verification_iters)*TOTAL_THREADS)
@@ -455,13 +451,10 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     }
     if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();} 
     for(i=0; i<inner_verification_iters; i++) {
-      if (nelem <= reduce_limit) {
         gex_Event_Wait(gex_Coll_ReduceToOneNB(myteam, root_thread,
                                          dst+i*nelem, src+i*nelem,
                                          GEX_DT_I32, sizeof(int), nelem,
                                          GEX_OP_ADD, NULL, NULL, 0));
-      } else
-      gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst+i*nelem, src+i*nelem, 0,0, sizeof(int), nelem, 0, 0, flags);
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
     
@@ -485,12 +478,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
-    if (nelem <= reduce_limit) {
       gex_Event_Wait(gex_Coll_ReduceToOneNB(myteam, root_thread, dst, src,
                                        GEX_DT_I32, sizeof(int), nelem,
                                        GEX_OP_ADD, NULL, NULL, 0));
-    } else
-    gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
@@ -503,12 +493,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
-    if (nelem <= reduce_limit) {
       handles[i] = gex_Coll_ReduceToOneNB(myteam, root_thread, dst, src,
                                      GEX_DT_I32, sizeof(int), nelem,
                                      GEX_OP_ADD, NULL, NULL, 0);
-    } else
-    handles[i] = gasnet_coll_reduce_nb(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
   if (handles) gex_Event_WaitAll(handles, performance_iters, 0);
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
@@ -687,18 +674,6 @@ int main(int argc, char **argv)
   nodes = gex_TM_QuerySize(myteam);
   THREADS = nodes * threads_per_node;
 
-  // TODO: remove this mess when Reduce is unlimited
-  // Apply insider knowledge to push testing of gex_Coll_ReduceToOneNB() to its limits
-  if (nodes == 1) {
-    reduce_limit = INT_MAX;
-  } else {
-    int logN; for (logN = 0; nodes > (1<<logN); ++logN) {/*empty*/}
-    int eager_min = gasnett_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN", 16, 0);
-    int eager_scale = gasnett_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE", 16, 0);
-    int eager_limit = MAX(eager_min, eager_scale * nodes) / logN;
-    reduce_limit = MIN(gex_AM_LUBRequestMedium(), eager_limit) / sizeof(int);
-  }
-  
   /* do some sanity checking of the input arguments*/
   /* the total memory that we will need to attach is inner_verification_iters*total_images*my_images*2*sizeof(int)*max_data_size*/
   /* make sure that this value is about less than or equal to half the maximum gasnet segment */
