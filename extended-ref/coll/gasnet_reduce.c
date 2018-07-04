@@ -110,6 +110,8 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_tm_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, tm_reduce);
   gasnete_coll_p2p_t *p2p = data->p2p;
+  gex_Flags_t flags = 0;
+  void *payload;
   int result = 0;
 
   // TODO-EX: pre-compute quantities such as these and (dt_sz*dt_cnt) once
@@ -128,13 +130,11 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI
         if (! state[r]) return 0; // At least one child has not contributed their value
       } 
       gasneti_sync_reads();
-      
       data->state = 1; GASNETI_FALLTHROUGH
     }
       
-    case 1: {   // Compute reduction (if any) - result stored at data->private_data
-                // TODO-EX: can perform fewer (log(child_cnt)) calls w/ longer counts
-      void *payload;
+    case 1:
+      // Compute reduction (if any)
       if (child_cnt) {
         gex_Coll_ReduceFn_t const op_fnptr = args->op_fnptr;
         void * const op_cdata = args->op_cdata;
@@ -148,26 +148,34 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI
           curr = (void*)(nbytes + (uintptr_t)curr);
         }
         gasneti_assert(prev == gasnete_coll_scale_ptr(p2p->data, child_cnt-1, nbytes));
-        data->private_data = (/*non-const*/ void*) prev;
+        payload = (/*non-const*/ void*) prev;
       } else {
-        data->private_data = (/*non-const*/ void*) args->src;
+        payload = (/*non-const*/ void*) args->src;
       }
 
-      data->state = 2; GASNETI_FALLTHROUGH
-    }
-
-    case 2: {   // Data movement, either to parent or 'dst'
-                // TODO-EX: use IMMEDIATE to avoid stalling on back-pressure
-      /*const*/ void *payload = data->private_data; // TODO-EX: gasnete_coll_p2p_eager_put lacks 'const'
-      const size_t nbytes = args->dt_sz * args->dt_cnt;
+      // Data movement, either local or first try to parent
       if (! rel_rank) { // I am root
+        const size_t nbytes = args->dt_sz * args->dt_cnt; // TODO-EX: compute *once*
         GASNETI_MEMCPY(args->dst, payload, nbytes);
-      } else {
-        gex_Rank_t parent = gasnete_tm_binom_parent(tm, rel_rank);
-        gex_Rank_t index = gasnete_tm_binom_age(tm, rel_rank);
-        gasnete_tm_p2p_eager_put(op, tm, parent, payload, nbytes, index, 1);
+        goto done;
+      }
+      flags = GEX_FLAG_IMMEDIATE;
+      data->private_data = payload;
+      data->state = 2; GASNETI_FALLTHROUGH
+
+    case 2: {   // Data movement to parent (IMM on first try only)
+      const size_t nbytes = args->dt_sz * args->dt_cnt;
+      gex_Rank_t parent = gasnete_tm_binom_parent(tm, rel_rank);
+      gex_Rank_t offset = gasnete_tm_binom_age(tm, rel_rank);
+      payload = data->private_data;
+      // TODO-EX: use lc_opt for async injection
+      if (gasnete_tm_p2p_eager_put(op, tm, parent, payload, nbytes,
+                                   GEX_EVENT_NOW, flags, offset, 1
+                                   GASNETI_THREAD_PASS)) {
+        break; // back pressure
       }
 
+    done:
       // Done
       gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);

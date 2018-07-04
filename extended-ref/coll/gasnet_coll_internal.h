@@ -61,6 +61,37 @@
 #define GASNETE_COLL_OP_INACTIVE	0x2
 
 
+/*---------------------------------------------------------------------------------*/
+/* ***  Handler Indices *** */
+/*---------------------------------------------------------------------------------*/
+/* conduits may override this to relocate the ref-coll handlers */
+#ifndef GASNETE_COLL_HANDLER_BASE
+#define GASNETE_COLL_HANDLER_BASE 119
+#endif
+
+#define _hidx_gasnete_coll_p2p_memcpy_reqh          (GASNETE_COLL_HANDLER_BASE+0)
+#define _hidx_gasnete_coll_p2p_short_reqh           (GASNETE_COLL_HANDLER_BASE+1)
+#define _hidx_gasnete_coll_p2p_med_reqh             (GASNETE_COLL_HANDLER_BASE+2)
+#define _hidx_gasnete_coll_p2p_long_reqh            (GASNETE_COLL_HANDLER_BASE+3)
+#define _hidx_gasnete_coll_p2p_med_tree_reqh        (GASNETE_COLL_HANDLER_BASE+4)
+#define _hidx_gasnete_coll_p2p_advance_reqh         (GASNETE_COLL_HANDLER_BASE+5)
+#define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
+#define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
+#define _hidx_gasnete_coll_p2p_seg_put_reqh         (GASNETE_COLL_HANDLER_BASE+8)
+
+// TODO-EX: this is taking the last extended handler slot, but should be allocated more "normally"
+#define GASNETE_COLL_NUM_SCRATCH_HANDLERS 1
+#ifndef GASNETE_COLL_SCRATCH_HANDLER_BASE
+#define GASNETE_COLL_SCRATCH_HANDLER_BASE (GASNETE_COLL_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
+#endif
+#define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
+
+// TODO-EX: this is taking the next-to-last extended handler slot, but should be allocated more "normally"
+#define GASNETE_COLL_NUM_TEAM_HANDLERS 1
+#ifndef GASNETE_COLL_TEAM_HANDLER_BASE
+#define GASNETE_COLL_TEAM_HANDLER_BASE (GASNETE_COLL_SCRATCH_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
+#endif
+#define _hidx_gasnete_coll_teamid_reqh (GASNETE_COLL_TEAM_HANDLER_BASE+0)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
@@ -447,13 +478,6 @@ struct gasnete_coll_p2p_t_ {
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                            void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-						 void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                           uint32_t count, uint32_t offset, uint32_t state);
-extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gex_Rank_t dstnode, uint32_t idx);
 extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
                                           void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
@@ -474,39 +498,116 @@ extern  int gasnete_coll_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t
                                        const void *src, size_t nbytes);
 struct gasnete_coll_p2p_send_struct { void *addr; size_t sent; };
 
+/* Update one or more states w/o delivering any data */
+GASNETI_INLINE(gasnete_tm_p2p_change_states)
+int gasnete_tm_p2p_change_states(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Flags_t flags,
+                        uint32_t count, uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG)
+{
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestShort5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_short_reqh), flags,
+                              op->team->team_id, op->sequence, count, offset, state);
+}
+#define gasnete_tm_p2p_change_state(op,tm,rank,flags,offset,stateTI) \
+        gasnete_tm_p2p_change_states(op,tm,rank,flags,1,offset,stateTI)
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_p2p_change_states(op,node,count,offset,state) \
+        gasneti_assert_zeroret(                                \
+        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
+                                     0,count,offset,state GASNETI_THREAD_GET))
+#define gasnete_coll_p2p_change_state(op,node,offset,state) \
+        gasneti_assert_zeroret(                                \
+        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
+                                     0,1,offset,state GASNETI_THREAD_GET))
+
+/* Advance counter[idx] */
+GASNETI_INLINE(gasnete_tm_p2p_advance)
+int gasnete_tm_p2p_advance(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Flags_t flags, uint32_t idx
+                        GASNETI_THREAD_FARG)
+{
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestShort3(tm, rank, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), flags,
+                              op->team->team_id, op->sequence, idx);
+}
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_p2p_advance(op,node,idx) \
+        gasneti_assert_zeroret(                                \
+        gasnete_tm_p2p_advance(op,gasneti_THUNK_TM,node,0,idx GASNETI_THREAD_GET))
+
+
+/* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
+GASNETI_INLINE(gasnete_tm_p2p_signalling_put)
+int gasnete_tm_p2p_signalling_put(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        void *dst, const void *src, size_t nbytes,
+                        gex_Event_t *lc_opt, gex_Flags_t flags,
+                        uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG)
+{
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestLong5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+                             (void*)src, nbytes, dst, lc_opt, flags,
+                             op->team->team_id, op->sequence, 1, offset, state);
+}
+
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_p2p_signalling_put(op,node,dst,src,nbytes,pos,state)            \
+        gasneti_assert_zeroret(                                                      \
+        gasnete_tm_p2p_signalling_put(op,gasneti_THUNK_TM,node,dst,src,nbytes,       \
+                                      GEX_EVENT_NOW,0,pos,state GASNETI_THREAD_GET))
+// NOTE: this has *not* been Async since the loss of LongAsync
+#define gasnete_coll_p2p_signalling_putAsync gasnete_coll_p2p_signalling_put
+
+
 /* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
 * Set the corresponding entries of the state array to 'state'.
 */
-extern void gasnete_tm_p2p_eager_putM(
+extern int gasnete_tm_p2p_eager_putM(
                         gasnete_coll_op_t *op,
                         gex_TM_t tm, gex_Rank_t rank,
-                        void *src, uint32_t count, size_t size,
-                        uint32_t offset, uint32_t state);
+                        const void *src, uint32_t count, size_t size,
+                        gex_Event_t *lc_opt, gex_Flags_t flags,
+                        uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG);
 
-// Shorthand for gasnete_tm_p2p_eager_putM with count == 1
-#define gasnete_tm_p2p_eager_put(op,tm,rank,src,size,offset,state) \
-        gasnete_tm_p2p_eager_putM(op,tm,rank,src,1,size,offset,state)
-
-
-// TODO-EX: deprecate and remove
-GASNETI_INLINE(gasnete_coll_p2p_eager_putM)
-void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                 void *src, uint32_t count, size_t size,
-                                 uint32_t offset, uint32_t state)
+// Specialization of gasnete_tm_p2p_eager_putM with count == 1
+GASNETI_INLINE(gasnete_tm_p2p_eager_put)
+int gasnete_tm_p2p_eager_put(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        const void *src, size_t size,
+                        gex_Event_t *lc_opt, gex_Flags_t flags,
+                        uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG)
 {
-  gasnete_tm_p2p_eager_putM(op, gasneti_THUNK_TM, dstnode, src, count, size, offset, state);
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+                               (void*)src, size, lc_opt, flags,
+                               op->team->team_id, op->sequence, 1, offset, state, size);
 }
+    
 
-/* Shorthand for gasnete_coll_p2p_eager_putM with count == 1 */
 // TODO-EX: deprecate and remove
-#ifndef gasnete_coll_p2p_eager_put
-GASNETI_INLINE(gasnete_coll_p2p_eager_put)
-void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                void *src, size_t size, uint32_t offset, uint32_t state) {
-  gasnete_tm_p2p_eager_putM(op, gasneti_THUNK_TM, dstnode, src, 1, size, offset, state);
-}
-#endif
+#define gasnete_coll_p2p_eager_putM(op,node,src,count,size,offset,state)            \
+        gasneti_assert_zeroret(                                                     \
+        gasnete_tm_p2p_eager_putM(op,gasneti_THUNK_TM,node,src,count,size,          \
+                                  GEX_EVENT_NOW,0,offset,state GASNETI_THREAD_GET))
+#define gasnete_coll_p2p_eager_put(op,node,src,size,offset,state)                   \
+        gasneti_assert_zeroret(                                                     \
+        gasnete_tm_p2p_eager_put(op,gasneti_THUNK_TM,node,src,size,                 \
+                                 GEX_EVENT_NOW,0,offset,state GASNETI_THREAD_GET))
+
 
 /* Treat the eager buffer space at dstnode as an array of (void *)s.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
@@ -591,11 +692,6 @@ void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
 }
 #endif
 
-/* Shorthand for gasnete_coll_p2p_change_state w/ count == 1 */
-#ifndef gasnete_coll_p2p_change_state
-#define gasnete_coll_p2p_change_state(op, dstnode, offset, state) \
-gasnete_coll_p2p_change_states(op, dstnode, 1, offset, state)
-#endif
 /*---------------------------------------------------------------------------------*/
 /* XXX: sequence and other stuff that will need to be per-team scoped: */
 

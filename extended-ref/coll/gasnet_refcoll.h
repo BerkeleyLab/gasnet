@@ -14,35 +14,6 @@
 /*---------------------------------------------------------------------------------*/
 /* ***  Handlers *** */
 /*---------------------------------------------------------------------------------*/
-/* conduits may override this to relocate the ref-coll handlers */
-#ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 119
-#endif
-
-#define _hidx_gasnete_coll_p2p_memcpy_reqh  (GASNETE_COLL_HANDLER_BASE+0)
-#define _hidx_gasnete_coll_p2p_short_reqh   (GASNETE_COLL_HANDLER_BASE+1)
-#define _hidx_gasnete_coll_p2p_med_reqh	    (GASNETE_COLL_HANDLER_BASE+2)
-#define _hidx_gasnete_coll_p2p_long_reqh    (GASNETE_COLL_HANDLER_BASE+3)
-#define _hidx_gasnete_coll_p2p_med_tree_reqh (GASNETE_COLL_HANDLER_BASE+4)
-#define _hidx_gasnete_coll_p2p_advance_reqh (GASNETE_COLL_HANDLER_BASE+5)
-#define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
-#define _hidx_gasnete_coll_p2p_med_counting_reqh (GASNETE_COLL_HANDLER_BASE+7)
-#define _hidx_gasnete_coll_p2p_seg_put_reqh (GASNETE_COLL_HANDLER_BASE+8)
-
-/*---------------------------------------------------------------------------------*/
-/*four args: team id, node id, seq number, head, tail*/
-#define GASNETE_COLL_NUM_SCRATCH_HANDLERS 1
-#ifndef GASNETE_COLL_SCRATCH_HANDLER_BASE
-#define GASNETE_COLL_SCRATCH_HANDLER_BASE (GASNETE_COLL_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
-#endif
-
-#define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
-
-#define GASNETE_COLL_NUM_TEAM_HANDLERS 1
-#ifndef GASNETE_COLL_TEAM_HANDLER_BASE
-#define GASNETE_COLL_TEAM_HANDLER_BASE (GASNETE_COLL_SCRATCH_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
-#endif
-#define _hidx_gasnete_coll_teamid_reqh (GASNETE_COLL_TEAM_HANDLER_BASE+0)
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
 
