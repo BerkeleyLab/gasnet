@@ -75,6 +75,7 @@ struct gasnete_coll_local_tree_geom_t_ {
   gex_Rank_t mysubtree_size;
   uint8_t children_reversed;
   gex_Rank_t parent_subtree_size; /* size of the subtree under our parent*/
+  gex_Rank_t max_radix; // largest out-degree of any node
   
   /** sibling information**/
   gex_Rank_t num_siblings;

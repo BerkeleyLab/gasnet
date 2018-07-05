@@ -546,6 +546,16 @@ static int treesize(tree_node_t node) {
   return ret;
 }
 
+static int maxradix(tree_node_t node) {
+  if (node == NULL) return 0;
+  int ret = GET_NUM_CHILDREN(node);
+  for (gex_Rank_t i=0; i<GET_NUM_CHILDREN(node); i++) {
+    int tmp = maxradix(GET_CHILD_IDX(node, i));
+    ret = MAX(ret, tmp);
+  }
+  return ret;
+}
+
 static tree_node_t find_node(tree_node_t tree, gex_Rank_t id) {
   gex_Rank_t i;
   if(GET_NODE_ID(tree)==id) return tree;
@@ -646,6 +656,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   mynode = find_node(rootnode, team->myrank);
 
   geom->root = rootrank;
+  geom->max_radix = maxradix(rootnode);
   geom->tree_type = in_type;
   geom->total_size = team->total_ranks;
   geom->parent = GET_PARENT_ID(mynode);
