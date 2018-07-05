@@ -1131,38 +1131,37 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
 /* ------------------------------------------------------------------------------------ */
 #endif /* GASNETI_MMAP_OR_PSHM */
 
-#if defined(GASNETI_MMAP_MAX_SIZE)
-  GASNETI_IDENT(gasneti_IdentString_DefaultMaxSegsize, 
-                "$GASNetDefaultMaxSegsize: " _STRINGIFY(GASNETI_MMAP_MAX_SIZE) " $");
-#elif defined(GASNETI_MALLOCSEGMENT_MAX_SIZE)
-  GASNETI_IDENT(gasneti_IdentString_DefaultMaxSegsize, 
-                "$GASNetDefaultMaxSegsize: " _STRINGIFY(GASNETI_MALLOCSEGMENT_MAX_SIZE) " $");
-#endif
+GASNETI_IDENT(gasneti_IdentString_DefaultMaxSegsizeStr, 
+              "$GASNetDefaultMaxSegsizeStr: " GASNETI_MAX_SEGSIZE_CONFIGURE " $");
 
 /* return user-selected limit for the max segment size, as gleaned from several sources */
-uint64_t gasnet_max_segsize; /* intentional tentative definition, to allow client override */
-uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
+const char *gasnet_max_segsize_str; // intentional tentative definition, to allow client override
+uint64_t gasnet_max_segsize;        // DEPRECATED: intentional tentative definition, to allow client override 
+uintptr_t gasneti_max_segsize() {
   static uintptr_t result = 0;
   uint64_t tmp;
   if (!result) {
-    int is_dflt = 1;
+    uint64_t pph = gasneti_myhost.node_count;
+    gasneti_assert(pph > 0);
     /* start with the configure-selected default */
-    tmp = configure_val;
-    /* next, check the compile-time override */
-    if (gasnet_max_segsize) tmp = gasnet_max_segsize;
-    /* finally, check the environment override */
-    { const char *envstr = gasneti_getenv("GASNET_MAX_SEGSIZE");
-      if (envstr) { tmp = gasneti_parse_int(envstr, 1); is_dflt = 0; }
+    const char *dflt = GASNETI_MAX_SEGSIZE_CONFIGURE;
+    /* next, check the compile-time overrides */
+    if (gasnet_max_segsize) { // lower-priority deprecated override, interpreted as /p
+      static char tmp[80];
+      snprintf(tmp,sizeof(tmp),"%"PRIu64"/p",gasnet_max_segsize);
+      dflt = tmp;
     }
-    #if PLATFORM_ARCH_32
-      /* need to be careful about 32-bit overflow: hard limit is 2^32 - pagesz */
-      result = MIN(tmp,(uint32_t)-1);
-    #else
-      result = tmp;
-    #endif
-    result = (uintptr_t)GASNETI_PAGE_ALIGNDOWN(result); /* ensure page alignment */
-    result = MAX(GASNET_PAGESIZE, result); /* ensure at least one page */
-    gasneti_envint_display("GASNET_MAX_SEGSIZE", result, is_dflt, 1);
+    if (gasnet_max_segsize_str) { // higher-priority string override
+      dflt = gasnet_max_segsize_str;
+    }
+    // finally, check the environment override
+    uint64_t val = gasneti_getenv_memsize_withdefault("GASNET_MAX_SEGSIZE", dflt,
+                                                GASNET_PAGESIZE, gasneti_getPhysMemSz(1),
+                                                pph);
+    gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
+    gasneti_assert(val >= GASNET_PAGESIZE);
+    result = (uintptr_t)val;
+    gasneti_assert(result == val); // overflow check
   }
   return result;
 }
@@ -1441,9 +1440,6 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     #if GASNET_ALIGNED_SEGMENTS && !GASNET_CONDUIT_SMP
       #error bad config: dont know how to provide GASNET_ALIGNED_SEGMENTS when !HAVE_MMAP
     #endif
-    /* some systems don't support mmap - 
-       TODO: safe mechanism to determine a true max seg sz, 
-       for now just trust the GASNETI_MALLOCSEGMENT_LIMIT size */
   #endif
 
 #if GASNET_PSHM
@@ -1565,7 +1561,10 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     gasneti_MaxLocalSegmentSize = gasneti_presegment.size;
     gasneti_MaxGlobalSegmentSize = minsize;
   #else /* !GASNETI_MMAP_OR_PSHM */
-    gasneti_MaxLocalSegmentSize = GASNETI_PAGE_ALIGNDOWN(MIN(localSegmentLimit, GASNETI_MALLOCSEGMENT_LIMIT));
+    /* some systems don't support mmap - 
+       TODO: safe mechanism to determine a true max seg sz, 
+       for now just trust gasneti_max_segsize */
+    gasneti_MaxLocalSegmentSize = GASNETI_PAGE_ALIGNDOWN(MIN(localSegmentLimit, gasneti_max_segsize()));
     gasneti_MaxGlobalSegmentSize = gasneti_MaxLocalSegmentSize;
   #endif
 

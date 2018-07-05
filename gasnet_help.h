@@ -114,7 +114,8 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 }
 #define gasneti_leak_aligned(ptr) _gasneti_leak_aligned((ptr) GASNETI_CURLOCAARG)
 
-extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
+extern const char *gasnet_max_segsize_str; // client-overrideable max segment size
+extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segment size
 
 // We can detect TM0 by its better alignment than other tm's
 #ifdef GASNETI_TM0_ALIGN
