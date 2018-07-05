@@ -77,6 +77,7 @@ typedef struct reply_pool {
   } u;
 } reply_pool_t;
 
+static size_t am_replysz = 0;
 static reply_pool_t *reply_pool = NULL;
 static reply_pool_t *reply_freelist = NULL;
 
@@ -1032,7 +1033,7 @@ uintptr_t gasnetc_init_messaging(void)
   reply_count = MAX(1, reply_count); /* Min is 1 */
 
   /* reply destination is also request source.  So, must fit largest *outgoing* message */
-  size_t am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
+  am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
 
   /* Max number of AM Requests outstanding may be constrained by available Reply buffers: */
   am_maxcredit = MIN(am_maxcredit, reply_count);
@@ -1592,7 +1593,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
   pd->sync_flag_value = (notify & 0xffffffffUL) + gc_build_notify((gc_notify_reply - gc_notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base +
-                                GASNETC_MSG_MAXSIZE * gc_notify_get_initiator_slot(notify));
+                                am_replysz * gc_notify_get_initiator_slot(notify));
   gasnetc_format_am_gpd(gpd, packet, peer, length, gpd_flags);
   gasneti_assert(token->need_reply);
   token->need_reply = 0;
