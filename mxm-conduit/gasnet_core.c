@@ -861,7 +861,6 @@ static int gasnetc_init(int *argc, char ***argv)
         /* it may be appropriate to use gasneti_segmentInit() here to set
            gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
            if your conduit can use memory anywhere in the address space
-           (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
 
            it may also be appropriate to first call gasneti_mmapLimit() to
            account for limitations imposed by having multiple GASNet nodes
