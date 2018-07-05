@@ -306,8 +306,8 @@ gex_Flags_t  am_flags[] = { GEX_FLAG_IMMEDIATE, 0,
 #define AM_LCOPT_CNT ((int)(sizeof(am_lcopt)/sizeof(am_lcopt[0])))
 #define AM_FLAGS_CNT ((int)(sizeof(am_flags)/sizeof(am_flags[0])))
 typedef struct { 
-  size_t RequestMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
-  size_t ReplyMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
+  uint32_t RequestMedium[AM_LCOPT_CNT][AM_FLAGS_CNT]; // uint32_t to ensure the struct fits under 512 bytes
+  uint32_t ReplyMedium[AM_LCOPT_CNT][AM_FLAGS_CNT];
   size_t RequestLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
   size_t ReplyLong[AM_LCOPT_CNT][AM_FLAGS_CNT];
 } amsz_t;
@@ -674,6 +674,7 @@ void doit(int partner, int *partnerseg) {
   /* verify Max >= LUB and is non-increasing as args grows */
   amsz_t lub;
   memset(&lub,-1,sizeof(lub));
+  assert(sizeof(amsz_t) <= 512);
   assert(sizeof(amsz_t) <= gex_AM_LUBRequestMedium());
   for (int args = 0; args <= (int)gex_AM_MaxArgs(); args += (int)gex_AM_MaxArgs()) {
     amsz_t ranklub;
@@ -703,6 +704,7 @@ void doit(int partner, int *partnerseg) {
               }                                                                                  \
             }                                                                                    \
             max.cat[lci][flagsi] = val;                                                          \
+            assert_always(max.cat[lci][flagsi] == val); /* check overflow */                     \
             if (r < GEX_RANK_INVALID) {                                                          \
               ranklub.cat[lci][flagsi] = MIN(val,ranklub.cat[lci][flagsi]);                      \
             } else if (val != ranklub.cat[lci][flagsi]) {                                        \
