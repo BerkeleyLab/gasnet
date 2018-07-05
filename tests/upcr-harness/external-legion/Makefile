@@ -121,8 +121,8 @@ launcher:
 	smp) echo '#!/bin/sh' > $@ ; \
 	     echo 'N=$$2;shift 2;eval env GASNET_PSHM_NODES=$$N "$$@"' >> $@ ; \
 	     chmod +x $@;; \
-	udp) ln -s "$(LEGION_GASNET_INST)/bin/amudprun" $@;; \
-	  *) ln -s "$(LEGION_GASNET_INST)/bin/gasnetrun_$(LEGION_CONDUIT)" $@;; \
+	udp) ln -s "$(LEGION_GASNET_INST)"/bin/amudprun $@;; \
+	  *) ln -s "$(LEGION_GASNET_INST)"/bin/gasnetrun_$(LEGION_CONDUIT) $@;; \
 	esac
 
 # Pre-build the runtime libs to separate the output from that of first test build
