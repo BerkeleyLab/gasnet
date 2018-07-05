@@ -73,9 +73,8 @@ struct gasnete_coll_local_tree_geom_t_ {
   gex_Rank_t *child_list; /*list of children*/
   gex_Rank_t *subtree_sizes; /* the size of the subtrees under each of our children */
   gex_Rank_t *child_offset;
-  gex_Rank_t *grand_children; /*contians the number of children under each of our children*/
   gex_Rank_t mysubtree_size;
-  uint8_t children_reversed;
+  uint8_t children_reversed; // non-zero -> visit children in reverse order for in-order DFS
   gex_Rank_t parent_subtree_size; /* size of the subtree under our parent*/
   gex_Rank_t max_radix; // largest out-degree of any node
   
@@ -88,20 +87,10 @@ struct gasnete_coll_local_tree_geom_t_ {
     the position in the parent's list where this node's subtree starts */
   gex_Rank_t sibling_offset;
   
-  /* DFS Order of the tree, only assigned at the root node */
-  gex_Rank_t *dfs_order;
-  
   /*in order to reorder the array this indidcates where the data needs to be reordered*/
   int *rotation_points;
   int num_rotations;
 
-  /* A boolean variable that is set if the dfs_order of the tree is sequential*/
-  /* I.E. No Reordering will be needed for scatter and gathers */
-  uint8_t seq_dfs_order;
-  
-  /*set to true if the contiguous numbering wraps around in a subtree of the root rather than as a direct child*/
-  uint8_t child_contains_wrap;
-  
   /*number of children that aren't leaves of the tree*/
   gex_Rank_t num_non_leaf_children;
   /*number of children that are leaves of the tree*/

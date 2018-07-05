@@ -189,11 +189,7 @@ void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_c
   for(i=0; i<geom->child_count; i++) {
     fprintf(stdout, "%d> child %d: %d, subtree for that child: %d (offset: %d)\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i], (int)geom->child_offset[i]);
   }
-  if(gasnete_coll_tree_mynode == geom->root) {
-    /* for(i=0; i<geom->total_size; i++) { */
-/*       fprintf(stdout, "%d> dfs order %d: %d\n", (int)gasnete_coll_tree_mynode, i, (int)geom->dfs_order[i]); */
-/*     } */
-  } else {
+  if(gasnete_coll_tree_mynode != geom->root) {
     fprintf(stdout, "%d> parent: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->parent);
   }
   fprintf(stdout, "%d> mysubtree size: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->mysubtree_size);
@@ -689,36 +685,20 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
     geom->num_siblings = 0;
     geom->sibling_id = 0;
     geom->sibling_offset = 0;
-    /***** THIS NEEDS TO BE TAKEN OUT
-      The DFS ordering that we impose on the trees will mean that this no longer needs to be kept around
-      but it's in here for now for backward compatability sake until we make the neccessary changes to all the other collective algorithms
-      ****/
-    geom->dfs_order = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*team->total_ranks);
-    for(i=0; i<team->total_ranks; i++) {
-      geom->dfs_order[i] = (i+rootrank)%team->total_ranks;
-    }
   }
-  geom->seq_dfs_order = 1;
   geom->child_list = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
   geom->subtree_sizes = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
   geom->child_offset = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
-  geom->grand_children = (gex_Rank_t*)gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
   geom->num_non_leaf_children=0;
   geom->num_leaf_children=0;
-  geom->child_contains_wrap = 0;
   for(i=0; i<geom->child_count; i++) {
     geom->child_list[i] = GET_NODE_ID(GET_CHILD_IDX(mynode,i));
     geom->subtree_sizes[i] = treesize(GET_CHILD_IDX(mynode,i));
-    geom->grand_children[i] = GET_NUM_CHILDREN(GET_CHILD_IDX(mynode, i));
     if(geom->subtree_sizes[i] > 1) {
       geom->num_non_leaf_children++;
     } else {
       geom->num_leaf_children++;
     }
-    if(geom->child_list[i]+geom->subtree_sizes[i] > geom->total_size) {
-      geom->child_contains_wrap = 1;
-    }
-    
   }
   gasneti_assert((geom->num_leaf_children+geom->num_non_leaf_children) == geom->child_count);
   
