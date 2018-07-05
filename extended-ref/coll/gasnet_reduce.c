@@ -230,7 +230,7 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
   gasneti_assert(op->scratch_req);
 
   gasnete_coll_team_t team = op->team;
-  gasnete_coll_local_tree_geom_t *geom = data->tree_info->geom;
+  gasnete_coll_local_tree_geom_t *geom = data->tree_geom;
   const gex_Rank_t child_cnt = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
   const gex_Rank_t myrank = gex_TM_QueryRank(tm);
   
@@ -301,8 +301,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
 
   gasneti_assert(coll_params);
-  gasnete_coll_tree_data_t *tree = (gasnete_coll_tree_data_t *)coll_params;
-  gasnete_coll_local_tree_geom_t *geom = tree->geom;
+  gasnete_coll_local_tree_geom_t *geom = (gasnete_coll_local_tree_geom_t *)coll_params;
 
   // make sure this is a valid choice of algorithm
   gasneti_assert(team->smallest_scratch_seg >= nbytes * geom->max_radix);
@@ -337,6 +336,6 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   return gasnete_tm_generic_reduce_nb(tm, root, dst, src, dt, dt_sz, dt_cnt,
                                       op, op_fnptr, op_cdata, coll_flags,
                                       &gasnete_coll_pf_tm_reduce_TreePut,
-                                      options, tree, 0, 0, NULL, scratch_req
+                                      options, geom, 0, 0, NULL, scratch_req
                                       GASNETI_THREAD_PASS);
 }

@@ -84,10 +84,10 @@ GASNETE_COLL_DECLARE_BCAST_ALG(Eager)
 /* Max size is the eager limit */
 static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
-  gasnete_coll_tree_data_t *tree = data->tree_info;
+  gasnete_coll_local_tree_geom_t *geom = data->tree_geom;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
-  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
-  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(geom);
+  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
   int result = 0;
   int child;
   
@@ -151,9 +151,8 @@ GASNETE_COLL_DECLARE_BCAST_ALG(TreeEager)
  
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreeEager, options,
-                                           gasnete_coll_tree_init(coll_params->tree_type,
-                                                                  srcimage, team
-                                                                  GASNETI_THREAD_PASS),
+                                           gasnete_coll_local_tree_geom_fetch(coll_params->tree_type,
+                                                                              srcimage, team),
                                            sequence, coll_params->num_params, coll_params->param_list
                                            GASNETI_THREAD_PASS);
 }
@@ -229,10 +228,10 @@ GASNETE_COLL_DECLARE_SCATTER_ALG(Eager)
 
 static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
-  gasnete_coll_tree_data_t *tree = data->tree_info;
+  gasnete_coll_local_tree_geom_t *geom = data->tree_geom;
   const gasnete_coll_scatter_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatter);
-  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
-  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(geom);
+  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
   int result = 0;
   int child;
   
@@ -256,15 +255,15 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
         uint8_t *src;
       
         if(op->team->myrank !=0) {
-          gasnete_coll_local_rotate_left(data->p2p->data, args->src, args->nbytes, op->team->total_ranks, tree->geom->rotation_points[0]);
+          gasnete_coll_local_rotate_left(data->p2p->data, args->src, args->nbytes, op->team->total_ranks, geom->rotation_points[0]);
           src = (uint8_t*) data->p2p->data;
         } else {
           src = (uint8_t*) args->src;
         }
         for (child=0;child<child_count; child++){
-          int8_t *send_arr = gasnete_coll_scale_ptr(src,(tree->geom->child_offset[child]+1),args->nbytes);
+          int8_t *send_arr = gasnete_coll_scale_ptr(src,(geom->child_offset[child]+1),args->nbytes);
           gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]),
-                                          send_arr, args->nbytes*tree->geom->subtree_sizes[child]);
+                                          send_arr, args->nbytes*geom->subtree_sizes[child]);
         }
         
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, src, args->nbytes);
@@ -272,9 +271,9 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
         uint8_t *src;
         gasneti_sync_reads();
         for (child=0;child<child_count;child++) {
-          src = gasnete_coll_scale_ptr(data->p2p->data,(tree->geom->child_offset[child]+1), args->nbytes);
+          src = gasnete_coll_scale_ptr(data->p2p->data,(geom->child_offset[child]+1), args->nbytes);
           gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]), 
-                                          src, args->nbytes*tree->geom->subtree_sizes[child]);
+                                          src, args->nbytes*geom->subtree_sizes[child]);
         }
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
 
@@ -310,9 +309,8 @@ GASNETE_COLL_DECLARE_SCATTER_ALG(TreeEager)
   
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
                                            &gasnete_coll_pf_scat_TreeEager, options,
-                                           gasnete_coll_tree_init(coll_params->tree_type,
-                                                                  srcimage, team
-                                                                  GASNETI_THREAD_PASS),
+                                           gasnete_coll_local_tree_geom_fetch(coll_params->tree_type,
+                                                                              srcimage, team),
                                            sequence, coll_params->num_params, coll_params->param_list
                                            GASNETI_THREAD_PASS);
 }
@@ -407,10 +405,10 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
   int result = 0;
-  gasnete_coll_tree_data_t *tree = data->tree_info;
-  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
-  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  gex_Rank_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
+  gasnete_coll_local_tree_geom_t *geom = data->tree_geom;
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(geom);
+  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
+  gex_Rank_t parent = GASNETE_COLL_TREE_GEOM_PARENT(geom);
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -433,16 +431,16 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
         }
         if(op->team->myrank != args->dstnode) {
           gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), data->p2p->data,
-                                     args->nbytes*tree->geom->mysubtree_size, args->nbytes, (tree->geom->sibling_offset+1), 0);
+                                     args->nbytes*geom->mysubtree_size, args->nbytes, (geom->sibling_offset+1), 0);
         } else {
-          gasneti_assert(tree->geom->num_rotations==1);
+          gasneti_assert(geom->num_rotations==1);
           gasnete_coll_local_rotate_right(args->dst,data->p2p->data, 
-                                          args->nbytes, op->team->total_ranks, tree->geom->rotation_points[0]);
+                                          args->nbytes, op->team->total_ranks, geom->rotation_points[0]);
         }
       } else if(op->team->myrank !=args->dstnode){
 
         gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), args->src,
-                                   args->nbytes, args->nbytes, (tree->geom->sibling_offset+1),0);
+                                   args->nbytes, args->nbytes, (geom->sibling_offset+1),0);
       } else {
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       }
@@ -487,9 +485,9 @@ GASNETE_COLL_DECLARE_GATHER_ALG(TreeEager)
   
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
                                         &gasnete_coll_pf_gath_TreeEager, options,
-                                        gasnete_coll_tree_init(coll_params->tree_type,
-                                                               dstimage, team
-                                                               GASNETI_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
+                                        gasnete_coll_local_tree_geom_fetch(coll_params->tree_type,
+                                                                           dstimage, team),
+                                        sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

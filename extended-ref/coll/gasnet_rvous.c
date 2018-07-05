@@ -99,9 +99,9 @@ gasnete_coll_bcast_RVGet(gasnet_team_handle_t team,
 static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
-  gasnete_coll_tree_data_t *tree = data->tree_info;
-  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
-  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  gasnete_coll_local_tree_geom_t *geom = data->tree_geom;
+  gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(geom);
+  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
   
   int child;
   int result = 0;
@@ -129,7 +129,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
       GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
     } else if (data->p2p->state[0]) {
       gasneti_sync_reads();
-      data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),
+      data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(geom)),
                                          *(void **)data->p2p->data,
                                          args->nbytes, 0 GASNETI_THREAD_PASS);
       gasnete_coll_save_event(&data->handle);
@@ -150,7 +150,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
         in the case of out all sync the out barrier takes care of the synchronization 
       */
       if(op->flags & GASNET_COLL_OUT_MYSYNC) {
-        gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),1);
+        gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(geom)),1);
       }
       for(child=0; child<child_count; child++) {
         gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(op->team, children[child]), args->dst, 0, 1);	/* broadcast src address to all the children*/
@@ -199,9 +199,8 @@ gasnete_coll_bcast_TreeRVGet(gasnet_team_handle_t team,
   
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreeRVGet, options,
-                                           gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                  srcimage, team
-                                                                  GASNETI_THREAD_PASS),
+                                           gasnete_coll_local_tree_geom_fetch(coll_params->tree_type, 
+                                                                              srcimage, team),
                                            sequence, coll_params->num_params, coll_params->param_list GASNETI_THREAD_PASS);
 }
 

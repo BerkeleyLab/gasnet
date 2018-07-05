@@ -114,9 +114,6 @@ typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
 struct gasnete_coll_tree_type_t_;
 typedef struct gasnete_coll_tree_type_t_ *gasnete_coll_tree_type_t;
 
-struct gasnete_coll_tree_data_t_;
-typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
-
 struct gasnete_coll_local_tree_geom_t_;
 typedef struct gasnete_coll_local_tree_geom_t_ gasnete_coll_local_tree_geom_t;
 
@@ -192,12 +189,6 @@ extern void gasnete_coll_active_fini(void);
 
 
 /*---------------------------------------------------------------------------------*/
-/* Data for a given tree-based operation */
-struct gasnete_coll_tree_data_t_ {
-  uint32_t			pipe_seg_size;
-  uint32_t			sent_bytes;
-  gasnete_coll_local_tree_geom_t	*geom;
-};
 #define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 1024
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 
@@ -412,7 +403,6 @@ struct gasnete_coll_op_t_ {
 #endif
   gasnete_coll_scratch_req_t *scratch_req; /* the associated scratch request with this op*/
   int num_coll_params;
-  gasnete_coll_tree_data_t *tree_info;
   uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES];/*contains teh parameters*/
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_OP_EXTRA
@@ -775,7 +765,6 @@ void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[],
 struct gasnete_coll_threaddata_t_ {
   gasnete_coll_op_t			*op_freelist;
   gasnete_coll_generic_data_t 	*generic_data_freelist;
-  gasnete_coll_tree_data_t	 	*tree_data_freelist;
   
   /* Linkage used by the thread-specific handle freelist . */
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
@@ -1015,7 +1004,7 @@ struct gasnete_coll_generic_data_t_ {
   gasnete_coll_consensus_t		in_barrier;
   gasnete_coll_consensus_t		out_barrier;
   gasnete_coll_p2p_t			*p2p;
-  gasnete_coll_tree_data_t *tree_info;
+  gasnete_coll_local_tree_geom_t        *tree_geom;
   gasnete_coll_dissem_info_t *dissem_info;
   gex_Event_t			handle;
   gex_Event_t			handle2;
@@ -1065,7 +1054,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
                                           gasnete_coll_scratch_req_t *scratch_req,
                                           int num_params,
                                           uint32_t *param_list,
-                                          gasnete_coll_tree_data_t *tree_info
+                                          gasnete_coll_local_tree_geom_t *tree_geom
                                           GASNETI_THREAD_FARG);
 
 extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data);
@@ -1106,8 +1095,7 @@ int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootnode,
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootnode) {
-      gasnete_coll_tree_data_t * const tree = data->tree_info;
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),0);
+      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
     }
     return 1;
   }
@@ -1124,9 +1112,8 @@ int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootnode,
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootnode) {
-      gasnete_coll_tree_data_t * const tree = data->tree_info;
       gasneti_local_wmb();
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),0);
+      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
     } else {
       gasneti_local_rmb();
     }
@@ -1145,7 +1132,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
                                   gasnet_image_t srcimage, void *src,
                                   size_t nbytes, int flags,
                                   gasnete_coll_poll_fn poll_fn, int options,
-                                  gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                  gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                                   int num_params, uint32_t *param_list
                                   GASNETI_THREAD_FARG);
 
@@ -1155,7 +1142,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 gasnet_image_t srcimage, void *src,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
-                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                                 int num_params, uint32_t *param_list
                                 GASNETI_THREAD_FARG);
 
@@ -1165,7 +1152,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                void *src,
                                size_t nbytes, size_t dist, int flags,
                                gasnete_coll_poll_fn poll_fn, int options,
-                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                                int num_params, uint32_t *param_list
                                GASNETI_THREAD_FARG);
 
@@ -1218,11 +1205,6 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
                                  size_t nbytes, int flags, uint32_t sequence
                                  GASNETI_THREAD_FARG);
 
-// Misc
-
-extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gex_Rank_t rootnode, gasnete_coll_team_t team GASNETI_THREAD_FARG);
-extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETI_THREAD_FARG);
-
 // GEX "generic" layer
 
 extern gex_Event_t
@@ -1230,7 +1212,7 @@ gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void
                              gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
                              gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
                              int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
-                             gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                             gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                              int num_params, uint32_t *param_list,
                              gasnete_coll_scratch_req_t *scratch_req
                              GASNETI_THREAD_FARG);
