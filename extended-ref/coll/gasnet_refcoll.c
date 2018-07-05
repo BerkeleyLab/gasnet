@@ -2459,15 +2459,11 @@ gasnete_tm_reduce_nb_default(
     gasnete_coll_team_t team = i_tm->_coll_team;
     const size_t smallest_scratch = team->smallest_scratch_seg;
     geom = gasnete_coll_local_tree_geom_fetch(gasnetc_tm_reduce_tree_type, root, team);
-    const gex_Rank_t max_children = geom->max_radix;
-    const size_t max_nbytes = nbytes * max_children;
-    if ((max_nbytes <= smallest_scratch) && (nbytes <= gex_AM_LUBRequestLong())) {
+    const gex_Rank_t max_radix = geom->max_radix;
+    if ((nbytes * max_radix <= smallest_scratch) && (nbytes <= gex_AM_LUBRequestLong())) {
       alg = &gasnete_tm_reduce_TreePut;
-    } else if (((max_children * dt_sz) <= smallest_scratch) && (dt_sz <= gex_AM_LUBRequestLong())) {
-      // TODO-EX: use "segmented" algorithm since at least one 'dt_sz' fits
-      // alg = &gasnete_tm_reduce_TreePutSeg;
-      gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz*dt_cnt == %"PRIuSZ") is TOO LARGE for this implementation",
-                         dt_sz*dt_cnt);
+    } else if ((dt_sz * (max_radix + 1) <= smallest_scratch) && (dt_sz <= gex_AM_LUBRequestLong())) {
+      alg = &gasnete_tm_reduce_TreePutSeg;
     } else {
       gasneti_assert(dt == GEX_DT_USER);
       gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation",

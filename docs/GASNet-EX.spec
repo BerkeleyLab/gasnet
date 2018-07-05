@@ -2917,10 +2917,9 @@ gex_Event_t gex_Coll_BroadcastNB(
 // yields undefined behavior.
 //
 // LIMITATIONS of the current release:
-//  + The current implementation may limit the product `dt_sz * dt_cnt` to as
+//  + The current implementation may limit `dt_sz` for user-defined types to as
 //    little as 32KB bytes in some configurations and with default parameters.
 //    The precise limit depends on the network and sizes of the job and team.
-// It is anticipated that this limitation will be removed in the next release.
 
 gex_Event_t gex_Coll_ReduceToOneNB(
             gex_TM_t            tm,           // The team

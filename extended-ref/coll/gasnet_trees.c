@@ -249,7 +249,7 @@ typedef struct tree_node_t_* tree_node_t;
 #define MYABS(A) ((A) < 0 ? (-1)*(A) : (A))
 #define MYCEIL(A, B) (((A) % (B)) !=0 ? ((A) / (B))+1 : (A)/(B)) 
 
-#define GET_PARENT_ID(TREE_NODE) ((TREE_NODE)->parent==NULL ? -1 : (TREE_NODE)->parent->id)
+#define GET_PARENT_ID(TREE_NODE) ((TREE_NODE)->parent==NULL ? GEX_RANK_INVALID : (TREE_NODE)->parent->id)
 #define GET_NODE_ID(TREE_NODE) ((TREE_NODE)->id)
 #define GET_NUM_CHILDREN(TREE_NODE) ((TREE_NODE)->num_children)
 #define GET_CHILD_IDX(TREE_NODE, IDX) ((TREE_NODE)->children[IDX])
