@@ -1153,7 +1153,7 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
        on the int argument to mmap() for some 32-bit systems
        so use 2GB - pagesz 
     */
-    val = MIN(val,((((uint64_t)1)<<31) - GASNET_PAGESIZE);
+    val = MIN(val,((((uint64_t)1)<<31) - GASNET_PAGESIZE));
   #endif
 
   // ALIGNDOWN before checking against minimum
