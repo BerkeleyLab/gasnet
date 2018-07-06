@@ -2043,28 +2043,26 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
 extern void gasneti_envdbl_display(const char *key, double val, int is_dflt) {
   char valstr[80];
   char displayval[80];
-  const char *rawval;
   if (!gasneti_verboseenv() && !GASNETT_TRACE_ENABLED) return;
 
   snprintf(valstr, sizeof(valstr), "%g", val);
-  rawval = gasneti_getenv(key);
+  const char * const rawval = gasneti_getenv(key);
   gasneti_assert(is_dflt || rawval);
 
   if (is_dflt || !strcmp(rawval,valstr)) { /* Use the numerical value */
     strcpy(displayval, valstr);
   } else { /* Use both the environment string and numerical value when they differ textually */
-    snprintf(displayval, sizeof(displayval), "%s (%s)", gasneti_getenv(key), valstr);
+    snprintf(displayval, sizeof(displayval), "%s (%s)", rawval, valstr);
   }
   gasneti_envstr_display(key, displayval, is_dflt);
 }
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size) {
   char valstr[80];
   char displayval[80];
-  const char *rawval;
   if (!gasneti_verboseenv() && !GASNETT_TRACE_ENABLED) return;
 
   gasneti_format_number(val, valstr, 80, is_mem_size);
-  rawval = gasneti_getenv(key);
+  const char * const rawval = gasneti_getenv(key);
   gasneti_assert(is_dflt || rawval);
 
   if (is_dflt) { /* Use the numerical value */
@@ -2072,7 +2070,7 @@ extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, in
   } else if (!strcmp(rawval,valstr)) {
     strcpy(displayval, valstr);
   } else { /* Use the environment string and numerical value */
-    snprintf(displayval, sizeof(displayval), "%s (%s)", gasneti_getenv(key), valstr);
+    snprintf(displayval, sizeof(displayval), "%s (%s)", rawval, valstr);
   }
   gasneti_envstr_display(key, displayval, is_dflt);
 }
