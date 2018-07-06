@@ -1375,7 +1375,7 @@ GASNETI_CONSTP(gasnete_coll_ctz_u32)
 // http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup
 // (accessed July 10, 2008)
 
-static const char LogTable256[] = {
+static const int8_t LogTable256[] = {
      -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
       4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
       5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
