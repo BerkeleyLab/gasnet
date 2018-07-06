@@ -72,8 +72,11 @@ production or development (and many that are not).
 The minimum system requirements are:
 
  * A POSIX-like environment, e.g. Linux or another version of Unix.
-   For Windows systems, the free 'Cygwin' toolkit (http://www.cygwin.com/).
    For Mac systems, the free 'XCode command-line tools' from the Apple Store.
+   For Windows systems one needs either of two options:
+   + The free 'Cygwin' toolkit (http://www.cygwin.com/)
+   + Windows 10 Subsystem for Linux, a.k.a. WSL
+     (https://docs.microsoft.com/en-us/windows/wsl/)
  * Make (we recommend GNU make version 3.79 or newer).
  * Perl (version 5.005 or newer).
  * The following standard Unix tools: 'awk', 'sed', 'env', 'basename', 'dirname',
@@ -429,7 +432,7 @@ This is a pure shared-memory implementation and should be the fastest and
 easiest to use option.  GASNet's shared memory support should work "out of
 the box" (no special configuration options required) on common laptop,
 desktop, and workstation environments, including Linux, macOS, Windows with
-Cygwin, and Solaris.
+Cygwin, Windows 10 Subsystem for Linux (WSL), and Solaris.
 
 Option 2.  udp-conduit
 ----------------------
@@ -483,7 +486,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Solaris11/x86/gcc,SunStudio12/{32,64}: smp, udp, mpi, ibv
 
     * MSWindows-Cygwin/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi (OpenMPI)
-    * MSWindows10-Linux/{gcc,clang}/64: smp, udp, mpi, BETA
+    * MSWindows10-Linux(WSL)/{gcc,clang}/64: smp, udp, mpi
 
     * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
