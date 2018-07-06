@@ -445,7 +445,7 @@ static void gasnetc_init_pin_info(int first_local, int ppn)
     } else {
       // TODO: better lower bound than GASNET_PAGESIZE?
       tmp = gasneti_getenv_memsize_withdefault("GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                                               GASNET_PAGESIZE, gasneti_getPhysMemSz(1));
+                                               GASNET_PAGESIZE, gasneti_getPhysMemSz(1), 0);
     }
     if (tmp) {
         MXM_DEBUG("GASNET_PHYSMEM_MAX is set to %"PRIuPTR"\n", tmp);
@@ -861,7 +861,6 @@ static int gasnetc_init(int *argc, char ***argv)
         /* it may be appropriate to use gasneti_segmentInit() here to set
            gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
            if your conduit can use memory anywhere in the address space
-           (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
 
            it may also be appropriate to first call gasneti_mmapLimit() to
            account for limitations imposed by having multiple GASNet nodes

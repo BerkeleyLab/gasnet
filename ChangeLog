@@ -51,6 +51,9 @@ PENDING: Release 1.32.0
     that was not probed at configure time.
 
 * General and Misc.
+  - GASNET_MAX_SEGSIZE syntax has been expanded and now defaults to 85% of physical 
+    memory, split evenly between co-located processes on a host. 
+    Configure option to control this default renamed to --with-max-segsize=
   - GASNET_VIS_{AMPIPE,REMOTECONTIG} is now enabled by default on most conduits
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size

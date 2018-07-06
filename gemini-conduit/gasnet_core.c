@@ -569,7 +569,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
    */
   uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                           GASNETC_PHYSMEM_MIN, gasneti_getPhysMemSz(1));
+                           GASNETC_PHYSMEM_MIN, gasneti_getPhysMemSz(1), 0);
 
 #if GASNET_CONDUIT_GEMINI
   /* Even on large memory nodes on Hopper, this appears to be the NIC's limit: */

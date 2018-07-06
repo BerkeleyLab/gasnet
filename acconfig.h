@@ -207,8 +207,8 @@
 /* avoid mmap()-after-munmap() failures */
 #undef GASNETI_BUG3480_WORKAROUND
 
-/* --with-segment-mmap-max value (if given) */
-#undef GASNETI_MMAP_MAX_SIZE
+/* --with-max-segment value (possibly defaulted) */
+#undef GASNETI_MAX_SEGSIZE_CONFIGURE
 
 /* --with-max-threads value (if given) */
 #undef GASNETI_MAX_THREADS_CONFIGURE
