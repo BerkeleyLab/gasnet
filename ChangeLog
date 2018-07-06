@@ -302,6 +302,8 @@ GASNet-1 ChangeLog
   - Events leading up to a crash are now more reliably reported in the trace file.
 
 * Platform support/portability
+  - Support for Microsoft Windows 10 Subsystem for Linux (WSL) has graduated
+    out of BETA status
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
   - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
