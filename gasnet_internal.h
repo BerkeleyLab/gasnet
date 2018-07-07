@@ -364,7 +364,11 @@ typedef struct {
 
 typedef gasneti_auxseg_request_t (*gasneti_auxsegregfn_t)(gasnet_seginfo_t *auxseg_info);
 
-/* collect required auxseg sizes and subtract them from the max values to report to client */
+// collect and return required auxseg size
+// may be called multiple times, subsequent calls return cached value
+uintptr_t gasneti_auxseg_preinit(void);
+
+// subtract auxseg requirements from the values to report to client
 void gasneti_auxseg_init(void);
 
 /* consume the client's segsize request and return the 

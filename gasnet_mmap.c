@@ -1152,6 +1152,7 @@ uintptr_t gasneti_max_segsize() {
   static uintptr_t result = 0;
   uint64_t tmp;
   if (!result) {
+    uintptr_t auxsegsz = gasneti_auxseg_preinit();
     uint64_t pph = gasneti_myhost.node_count;
     gasneti_assert(pph > 0);
     /* start with the configure-selected default */
@@ -1179,9 +1180,9 @@ uintptr_t gasneti_max_segsize() {
 
     // finally, check the environment override, parse the result and factor in min/max/auxseg
     uint64_t val = gasneti_getenv_memsize_withdefault("GASNET_MAX_SEGSIZE", dflt,
-                                                GASNET_PAGESIZE, hardmax,
+                                                GASNET_PAGESIZE+auxsegsz, hardmax,
                                                 gasneti_getPhysMemSz(1), pph,
-                                                0);
+                                                auxsegsz);
     gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
     gasneti_assert(val >= GASNET_PAGESIZE);
     gasneti_assert(val <= hardmax);
@@ -1969,17 +1970,18 @@ static uintptr_t gasneti_auxseg_client_request_sz = 0;
   }
 #endif
 
-/* collect required auxseg sizes and subtract them from the values to report to client */
-void gasneti_auxseg_init(void) {
-  int i;
-  int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
+// collect and return required auxseg size
+// may be called multiple times, subsequent calls return cached value
+uintptr_t gasneti_auxseg_preinit(void) {
+  if (gasneti_auxseg_sz) return gasneti_auxseg_sz; // only the first call computes requirements
 
+  int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
   if (numfns > 0)
     gasneti_auxseg_alignedsz = gasneti_calloc(numfns,sizeof(gasneti_auxseg_request_t));
 
   /* collect requests */
-  for (i=0; i < numfns; i++) {
+  for (int i=0; i < numfns; i++) {
     gasneti_auxseg_alignedsz[i] = (gasneti_auxsegfns[i])(NULL);
     gasneti_auxseg_total_alignedsz.minsz += 
       GASNETI_ALIGNUP(gasneti_auxseg_alignedsz[i].minsz,GASNETI_CACHE_LINE_BYTES);
@@ -1992,13 +1994,23 @@ void gasneti_auxseg_init(void) {
     GASNETI_PAGE_ALIGNUP(gasneti_auxseg_total_alignedsz.optimalsz);
 
   gasneti_auxseg_sz = gasneti_auxseg_total_alignedsz.optimalsz;
-  #if GASNET_SEGMENT_EVERYTHING
-    GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_init(): gasneti_auxseg_sz = %"PRIuPTR, gasneti_auxseg_sz));
-  #else
+  GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_preinit(): gasneti_auxseg_sz = %"PRIuPTR, gasneti_auxseg_sz));
+  gasneti_assert(gasneti_auxseg_sz % GASNET_PAGESIZE == 0);
+  return gasneti_auxseg_sz;
+}
+// subtract auxseg requirements from the values to report to client
+void gasneti_auxseg_init(void) {
+  gasneti_auxseg_preinit();
+  #if !GASNET_SEGMENT_EVERYTHING
     /* TODO: implement request downsizing down to minsz */
-    if (gasneti_auxseg_sz >= gasneti_MaxGlobalSegmentSize)
-      gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available segment size (%"PRIuPTR" bytes)",
-        gasneti_auxseg_sz, gasneti_MaxGlobalSegmentSize);
+    if (gasneti_auxseg_sz >= gasneti_MaxGlobalSegmentSize) {
+      const char *moreinfo = "";
+      if (gasneti_max_segsize() <= gasneti_auxseg_sz) {
+        moreinfo = "\nYou may need to adjust the GASNET_MAX_SEGSIZE envvar - see the GASNet README for details.";
+      }
+      gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available segment size (%"PRIuPTR" bytes).%s",
+        gasneti_auxseg_sz, gasneti_MaxGlobalSegmentSize, moreinfo);
+    }
 
     #if GASNETI_AUXSEG_PRESERVE_POW2_FULLSEGSZ
       if (!GASNETI_POWEROFTWO(gasneti_MaxLocalSegmentSize) && 
@@ -2012,7 +2024,6 @@ void gasneti_auxseg_init(void) {
                    "MaxLocalSegmentSize = %"PRIuPTR"   MaxGlobalSegmentSize = %"PRIuPTR,
                    gasneti_auxseg_sz, gasneti_MaxLocalSegmentSize, gasneti_MaxGlobalSegmentSize));
   #endif
-  gasneti_assert(gasneti_auxseg_sz % GASNET_PAGESIZE == 0);
 }
 
 #if GASNET_SEGMENT_EVERYTHING
