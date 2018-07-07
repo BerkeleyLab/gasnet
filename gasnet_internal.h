@@ -481,8 +481,9 @@ typedef struct {
 
 typedef gasneti_auxseg_request_t (*gasneti_auxsegregfn_t)(gasnet_seginfo_t *auxseg_info);
 
-/* collect required auxseg sizes and return their sum, padded to page size */
-uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
+// collect and return optimal auxseg size sum, padded to page size
+// may be called multiple times, subsequent calls return cached value
+uintptr_t gasneti_auxseg_preinit(void);
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
    requires input auxseg_info has been initialized to the correct values
