@@ -1165,12 +1165,26 @@ uintptr_t gasneti_max_segsize() {
     if (gasnet_max_segsize_str) { // higher-priority string override
       dflt = gasnet_max_segsize_str;
     }
-    // finally, check the environment override
+
+    #if PLATFORM_ARCH_32 && !defined(GASNETI_ALLOW_HUGE_32BIT_SEGMENT)
+      /* need to be careful about overflow on 32-bit:
+         can't use a full 4 GB due to sign bit problems 
+         on the int argument to mmap() for some 32-bit systems
+         so use 2GB - pagesz 
+      */
+      uint64_t hardmax = (((uint64_t)1)<<31) - GASNET_PAGESIZE;
+    #else
+      uint64_t hardmax = (uint64_t)-1; // unlimited
+    #endif
+
+    // finally, check the environment override, parse the result and factor in min/max/auxseg
     uint64_t val = gasneti_getenv_memsize_withdefault("GASNET_MAX_SEGSIZE", dflt,
-                                                GASNET_PAGESIZE, gasneti_getPhysMemSz(1),
-                                                pph);
+                                                GASNET_PAGESIZE, hardmax,
+                                                gasneti_getPhysMemSz(1), pph,
+                                                0);
     gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
     gasneti_assert(val >= GASNET_PAGESIZE);
+    gasneti_assert(val <= hardmax);
     result = (uintptr_t)val;
     gasneti_assert(result == val); // overflow check
   }

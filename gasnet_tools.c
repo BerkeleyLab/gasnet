@@ -2134,11 +2134,17 @@ extern double gasneti_getenv_dbl_withdefault(const char *keyname, double default
 // Parse an environment variable as a memory size as follows:
 //  + If parses as double between 0. and 1., multiply by "fraction_of".
 //  + If parses as integer (w/ optional suffix) take as an absolute size.
-// In either case, align down to PAGESIZE and then die if below "minimum".
-// if pph is non-zero, accept [pPhH] suffixes and for [hH] divide by this value
+// if pph is non-zero, accept [pPhH] suffixes and for [hH] divide by this value.
+// The value is then aligned up to PAGESIZE.
+// overhead_per_p is added to the resulting value, unless there was an [hH] suffix.
+// Final value is silently rounded down to maximum (if it's nonzero)
+// and dies if the final result is below "minimum" (which should include overhead, if any).
+// The result is always page aligned.
+// 32-BIT: The return value is always less than 4GB
 extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt, 
-                                                   uint64_t minimum, uint64_t fraction_of, 
-                                                   uint64_t pph) {
+                                                   uint64_t minimum, uint64_t maximum,
+                                                   uint64_t fraction_of, uint64_t pph,
+                                                   uint64_t overhead_per_p) {
   const char *input = gasneti_getenv(key);
   int using_default = (NULL == input);
   if (using_default) input = dflt;
@@ -2189,21 +2195,38 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     val = val / pph;
   }
 
-  #if PLATFORM_ARCH_32 && !defined(GASNETI_ALLOW_HUGE_32BIT_SEGMENT)
-    /* need to be careful about overflow on 32-bit:
-       can't use a full 4 GB due to sign bit problems 
-       on the int argument to mmap() for some 32-bit systems
-       so use 2GB - pagesz 
-    */
-    val = MIN(val,((((uint64_t)1)<<31) - GASNET_PAGESIZE));
-  #endif
+  if (val == 0 && minimum > 0 && 
+     (got_h || minimum > GASNETI_PAGE_ALIGNUP(overhead_per_p))) {
+    gasneti_fatalerror("%s='%s' is zero or unrecognized.", key, input);
+  }
 
-  // ALIGNDOWN before checking against minimum
-  val = GASNETI_PAGE_ALIGNDOWN(val);
+  // from here on we operate on page granularity
+  // max is enforced throughout because the GASNETI_PAGE_ALIGN* macros operate on pointer-width
+  // 32-bit builds currently limit value to 4GB - PAGESIZE
+  uint64_t maxrep = GASNETI_PAGE_ALIGNDOWN((uintptr_t)-1);
+  if (!maximum) maximum = maxrep;
+  else {
+    maximum = MIN(maximum,maxrep);
+    maximum = GASNETI_PAGE_ALIGNDOWN(maximum);
+  }
+  val = MIN(val, maximum);
+  val = GASNETI_PAGE_ALIGNUP(val);
+
+  // display parsed/aligned input value
   GASNETT_TRACE_PRINTF("%s='%s' yields %"PRId64, key, input, val);
-
-  // display final value
   gasneti_envint_display(key, val, using_default, 1);
+
+  // add overhead
+  if (overhead_per_p && !got_h) {
+    overhead_per_p = GASNETI_PAGE_ALIGNUP(overhead_per_p);
+    val += overhead_per_p;
+    val = MIN(val, maximum);
+  }
+
+  gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
+  gasneti_assert(val <= maxrep);
+  gasneti_assert(val <= maximum);
+  GASNETT_TRACE_PRINTF("%s='%s' final value: %"PRId64, key, input, val);
 
   if (val < minimum) {
     const char *parsed_as = is_fraction ? "a fraction" : "an amount";
@@ -2211,10 +2234,26 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     char val_display[16];
     gasneti_format_number(minimum, min_display, sizeof(min_display), 1);
     gasneti_format_number(val,     val_display, sizeof(val_display), 1);
+    char pph_display[255] = {0};
+    if (got_h && pph > 1) {
+      snprintf(pph_display, sizeof(pph_display), " (split across %d processes on host %s)",
+               (int)pph, gasneti_gethostname());
+    }
+    char overhead_display[80] = {0};
+    if (overhead_per_p) {
+      strncpy(overhead_display, ", including overhead of ", sizeof(overhead_display));
+      size_t len = strlen(overhead_display);
+      gasneti_format_number(overhead_per_p, overhead_display+len, sizeof(overhead_display)-len, 1);
+    }
     gasneti_fatalerror(
-            "Parsing '%s' as %s of memory yields %s of %"PRId64" (%s), "
-            "which is less than the minimum supported value of %s.",
-            input, parsed_as, key, val, val_display, min_display);
+            "Parsing '%s' as %s of memory%s yields %s of %"PRId64" (%s)%s, "
+            "which is less than the minimum supported value of %s%s.",
+            input, parsed_as, pph_display,
+            key, val, val_display, 
+            (got_h?"":overhead_display),
+            min_display,
+            (got_h?overhead_display:"")
+            );
   }
 
   return (uint64_t) val;
