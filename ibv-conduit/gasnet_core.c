@@ -1851,10 +1851,10 @@ static int gasnetc_init(int *argc, char ***argv) {
    */
   {
     GASNETI_TRACE_PRINTF(C,("I am node %d of %d on-node peers",
-                            gasneti_nodemap_local_rank, gasneti_nodemap_local_count));
+                            gasneti_myhost.node_rank, gasneti_myhost.node_count));
 
     /* Query the pinning limits of the HCA */
-    gasnetc_init_pin_info(gasneti_nodemap_local[0], gasneti_nodemap_local_count);
+    gasnetc_init_pin_info(gasneti_myhost.nodes[0], gasneti_myhost.node_count);
 
     gasneti_assert(gasnetc_pin_info.memory != 0);
     gasneti_assert(gasnetc_pin_info.memory != (uintptr_t)(-1));
