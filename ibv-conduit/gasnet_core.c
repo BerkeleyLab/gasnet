@@ -457,9 +457,11 @@ static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
   #if GASNETC_USE_RCV_THREAD
     static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&lock);
+    if (gasnetc_sys_exchange_buf[phase] == NULL) {
   #endif
-    gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
+      gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
   #if GASNETC_USE_RCV_THREAD
+    }
     gasneti_mutex_unlock(&lock);
   #endif
   }
