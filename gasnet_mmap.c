@@ -35,8 +35,10 @@
 
 #if defined(GASNETI_MMAP_OR_PSHM) && defined(GASNETI_USE_HUGETLBFS)
   #define gasneti_mmap_aligndown(sz) gasneti_mmap_aligndown_huge(sz)
+  #define gasneti_mmap_pagesize()    gasneti_mmap_pagesize_huge()
 #else
   #define gasneti_mmap_aligndown(sz) GASNETI_PAGE_ALIGNDOWN(sz)
+  #define gasneti_mmap_pagesize()    GASNETI_PAGESIZE
 #endif
 
 #ifdef GASNETI_MMAP_OR_PSHM
@@ -79,10 +81,13 @@
  #ifdef GASNETI_USE_HUGETLBFS
   #include <hugetlbfs.h>
   /* Provide greater alignment than default: */
-  static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
+  static uintptr_t gasneti_mmap_pagesize_huge() {
      static long pagesz = 0;
      if (!pagesz) pagesz = gethugepagesize();
-     return GASNETI_ALIGNDOWN(sz, pagesz);
+     return pagesz;
+  }
+  static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
+     return GASNETI_ALIGNDOWN(sz, gasneti_mmap_pagesize_huge());
   }
  #endif
 
@@ -1172,6 +1177,10 @@ uintptr_t gasneti_max_segsize() {
                                                 GASNET_PAGESIZE, hardmax,
                                                 gasneti_getPhysMemSz(1), pph,
                                                 0);
+
+    // round UP to nearest huge page, if needed, to ensure we don't truncate client's MAX_SEGSIZE request
+    val = GASNETI_ALIGNUP(val, gasneti_mmap_pagesize());
+
     gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
     gasneti_assert(val >= GASNET_PAGESIZE);
     gasneti_assert(val <= hardmax);
