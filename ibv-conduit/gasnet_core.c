@@ -450,21 +450,30 @@ extern void gasneti_bootstrapBarrier(void)
 #endif
 
 static uint8_t *gasnetc_sys_exchange_buf[2] = { NULL, NULL };
+#if GASNET_DEBUG
+static size_t gasnetc_sys_exchange_elemsz[2];
+#endif
 
 static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
 {
+#if GASNETC_USE_RCV_THREAD
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+#endif
+
   if (gasnetc_sys_exchange_buf[phase] == NULL) {
-  #if GASNETC_USE_RCV_THREAD
-    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-    gasneti_mutex_lock(&lock);
-    if (gasnetc_sys_exchange_buf[phase] == NULL) {
-  #endif
-      gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
-  #if GASNETC_USE_RCV_THREAD
-    }
-    gasneti_mutex_unlock(&lock);
+    gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
+  #if GASNET_DEBUG
+    gasnetc_sys_exchange_elemsz[phase] = elemsz;
+  } else {
+    gasneti_assert(gasnetc_sys_exchange_elemsz[phase] == elemsz);
   #endif
   }
+
+#if GASNETC_USE_RCV_THREAD
+  gasneti_mutex_unlock(&lock);
+#endif
+
   return gasnetc_sys_exchange_buf[phase];
 }
 
