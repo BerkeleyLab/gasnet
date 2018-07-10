@@ -32,12 +32,6 @@ options that is covered testcoll
 #define REDUCE_ENABLED 0
 #endif
 
-#ifndef ALL_ADDR_MODE_ENABLED 
-#define ALL_ADDR_MODE_ENABLED 1
-
-#define SINGLE_LOCAL_MODE_ENABLED 0
-#endif
-
 #ifndef NB_TESTS_ENABLED 
 #define NB_TESTS_ENABLED 1
 #endif
@@ -546,11 +540,9 @@ void *thread_main(void *arg) {
     
     COLL_BARRIER();
 
-#if SINGLE_LOCAL_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
       for(sz = 1; sz<=max_data_size; sz*=szfactor) {
         run_SINGLE_ADDR_test(td, my_dsts, my_srcs, (size_t)sz, root_thread, flags|GASNET_COLL_LOCAL);   
       }
-#endif
 
       if(td->my_local_thread==0  && !VERBOSE_VERIFICATION_OUTPUT) {
         size_t final_size = (size_t) (sz/szfactor);
