@@ -872,7 +872,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 #if 1
   // Option 1: fatal error on mismatch
   if (!gasneti_mynode) {
-    for (gasnet_node_t n = 0; n < gasneti_nodes; ++n) {
+    for (gex_Rank_t n = 0; n < gasneti_nodes; ++n) {
       if (do_probe != all_knobs[n].do_probe) {
       #ifdef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
         gasneti_fatalerror("GASNET_PHYSMEM_PROBE is not single-valued");
@@ -888,7 +888,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 #else
   // Option 2: logical OR do_probe and AND of quiet
   // NOTE: if one pisks this option, one must also remove 'const' from decls
-  for (gasnet_node_t n = 0; n < gasneti_nodes; ++n) {
+  for (gasnet_gex_Rank_t n = 0; n < gasneti_nodes; ++n) {
     do_probe |= all_knobs[n].do_probe;
     quiet    &= all_knobs[n].quiet;
   }
