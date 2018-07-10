@@ -445,7 +445,7 @@ static void gasnetc_init_pin_info(int first_local, int ppn)
     } else {
       // TODO: better lower bound than GASNET_PAGESIZE?
       tmp = gasneti_getenv_memsize_withdefault("GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                                               GASNET_PAGESIZE, gasneti_getPhysMemSz(1), 0);
+                                               GASNET_PAGESIZE, 0, gasneti_getPhysMemSz(1), 0, 0);
     }
     if (tmp) {
         MXM_DEBUG("GASNET_PHYSMEM_MAX is set to %"PRIuPTR"\n", tmp);
