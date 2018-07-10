@@ -446,19 +446,30 @@ extern void gasneti_bootstrapBarrier(void)
 #endif
 
 static uint8_t *gasnetc_sys_exchange_buf[2] = { NULL, NULL };
+#if GASNET_DEBUG
+static size_t gasnetc_sys_exchange_elemsz[2];
+#endif
 
 static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
 {
+#if GASNETC_USE_RCV_THREAD
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+#endif
+
   if (gasnetc_sys_exchange_buf[phase] == NULL) {
-  #if GASNETC_USE_RCV_THREAD
-    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-    gasneti_mutex_lock(&lock);
-  #endif
     gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
-  #if GASNETC_USE_RCV_THREAD
-    gasneti_mutex_unlock(&lock);
+  #if GASNET_DEBUG
+    gasnetc_sys_exchange_elemsz[phase] = elemsz;
+  } else {
+    gasneti_assert(gasnetc_sys_exchange_elemsz[phase] == elemsz);
   #endif
   }
+
+#if GASNETC_USE_RCV_THREAD
+  gasneti_mutex_unlock(&lock);
+#endif
+
   return gasnetc_sys_exchange_buf[phase];
 }
 
@@ -839,6 +850,46 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     // Will probe on request or if neither configure nor environment has provided a value
   #endif
   const int do_probe = gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_PROBE", do_probe_default);
+  const int quiet = do_probe ? !gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_WARN", 1): 0;
+
+  // We document that the behavior is undefined unless
+  // GASNET_PHYSMEM_{PROBE,WARN} are single-valued.  However, as noted in bug
+  // 3769, the case of non-equal values can lead to non-collective calls to
+  // gasnetc_bootstrapExchange_ib() (not a clean failure mode).
+  // So, we do some extra work here to ensure single-valued behavior.
+  // However, we do are not documenting this specific behavior to reserve
+  // the right to silently change it in the future.
+  struct {  // TODO? pack into a single byte?
+    int8_t do_probe;
+    int8_t quiet;
+  } *all_knobs, my_knobs = { do_probe, quiet };
+  all_knobs = gasneti_malloc(gasneti_nodes * sizeof(my_knobs));
+  gasnetc_bootstrapExchange_ib(&my_knobs, sizeof(my_knobs), all_knobs);
+#if 1
+  // Option 1: fatal error on mismatch
+  if (!gasneti_mynode) {
+    for (gasnet_node_t n = 0; n < gasneti_nodes; ++n) {
+      if (do_probe != all_knobs[n].do_probe) {
+      #ifdef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
+        gasneti_fatalerror("GASNET_PHYSMEM_PROBE is not single-valued");
+      #else
+        gasneti_fatalerror("GASNET_PHYSMEM_PROBE is not single-valued (might be defaulted from GASNET_PHYSMEM_MAX)");
+      #endif
+      }
+      if (quiet != all_knobs[n].quiet) {
+        gasneti_fatalerror("GASNET_PHYSMEM_WARN is not single-valued");
+      }
+    }
+  }
+#else
+  // Option 2: logical OR do_probe and AND of quiet
+  // NOTE: if one pisks this option, one must also remove 'const' from decls
+  for (gasnet_node_t n = 0; n < gasneti_nodes; ++n) {
+    do_probe |= all_knobs[n].do_probe;
+    quiet    &= all_knobs[n].quiet;
+  }
+#endif
+  gasneti_free(all_knobs);
 
   uint64_t physmemsz = gasneti_getPhysMemSz(1);
 #if PLATFORM_ARCH_32
@@ -889,7 +940,6 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   }
 
   if (do_probe) {
-    int quiet = !gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_WARN", 1);
     int did_warn = 0;
     gasneti_tick_t start_time = gasneti_ticks_now();
     // Warn if any node has more than 2G (unless QUIET)
@@ -1849,10 +1899,10 @@ static int gasnetc_init(int *argc, char ***argv) {
    */
   {
     GASNETI_TRACE_PRINTF(C,("I am node %d of %d on-node peers",
-                            gasneti_nodemap_local_rank, gasneti_nodemap_local_count));
+                            gasneti_myhost.node_rank, gasneti_myhost.node_count));
 
     /* Query the pinning limits of the HCA */
-    gasnetc_init_pin_info(gasneti_nodemap_local[0], gasneti_nodemap_local_count);
+    gasnetc_init_pin_info(gasneti_myhost.nodes[0], gasneti_myhost.node_count);
 
     gasneti_assert(gasnetc_pin_info.memory != 0);
     gasneti_assert(gasnetc_pin_info.memory != (uintptr_t)(-1));
