@@ -203,10 +203,11 @@ nobs_test: upcxx-built
 inst_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
 	META_CXX=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXX` && \
+	CXXFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXXFLAGS` && \
 	PPFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta PPFLAGS` && \
 	LDFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LDFLAGS` && \
 	LIBFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
+	$$META_CXX $$CXXFLAGS $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
 
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression
 
