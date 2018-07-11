@@ -1960,7 +1960,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
   uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;
-  mmap_limit -= auxsize;
 
   /* The auxseg will be statically pinned even if the segment is not */
   

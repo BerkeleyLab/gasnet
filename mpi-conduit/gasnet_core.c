@@ -221,7 +221,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     /* allocate and attach an aux segment */
 
     gasneti_auxsegAttach(mmap_limit, &gasnetc_bootstrapExchange);
-    mmap_limit -= gasneti_seginfo_aux[gasneti_mynode].size;
 
     /* determine Max{Local,GLobal}SegmentSize */
     gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);

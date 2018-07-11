@@ -692,7 +692,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
 
   gasneti_auxsegAttach(max_pin, &gasnetc_bootstrapExchange_gni);
-  max_pin -= gasneti_seginfo_aux[gasneti_mynode].size;
 
   /* register auxseg and setup subsystems using it */
   gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);

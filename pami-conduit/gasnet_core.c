@@ -181,7 +181,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
   uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;
-  mmap_limit -= auxsize;
 
   /* Register auxseg w/ PAMI and exchange the "keys" */
   { size_t regsize;

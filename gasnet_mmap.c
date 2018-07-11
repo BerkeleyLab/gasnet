@@ -1259,7 +1259,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif
 
   /* Apply intial limits, even if not sharing nodes */
-  maxsz = GASNETI_MMAP_LIMIT;
+  uintptr_t auxsegsz = gasneti_auxseg_preinit();
+  maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
+  maxsz = GASNETI_ALIGNUP(maxsz, gasneti_mmap_pagesize());
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
 
