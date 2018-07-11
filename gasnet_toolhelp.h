@@ -865,6 +865,10 @@ extern char *gasneti_getenv_withdefault(const char *keyname, const char *default
 extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval);
 extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier);
 extern double gasneti_getenv_dbl_withdefault(const char *keyname, double defaultval);
+extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt,
+                                                   uint64_t minimum, uint64_t maximum,
+                                                   uint64_t fraction_of, uint64_t pph,
+                                                   uint64_t overhead_per_p);
 extern int gasneti_verboseenv(void);
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);

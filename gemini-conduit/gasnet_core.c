@@ -568,8 +568,9 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
    */
   uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                           GASNETC_PHYSMEM_MIN, gasneti_getPhysMemSz(1), 0);
-
+                           GASNETC_PHYSMEM_MIN, 0, gasneti_getPhysMemSz(1), 0, 0);
+  // TODO: the handling for the overheads below needs to be re-thought
+ 
 #if GASNET_CONDUIT_GEMINI
   /* Even on large memory nodes on Hopper, this appears to be the NIC's limit: */
   pm_limit = MIN(pm_limit, 24UL << 30 /* 24 GB */);
@@ -691,7 +692,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
 
   gasneti_auxsegAttach(max_pin, &gasnetc_bootstrapExchange_gni);
-  max_pin -= gasneti_seginfo_aux[gasneti_mynode].size;
 
   /* register auxseg and setup subsystems using it */
   gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);

@@ -65,9 +65,6 @@ extern void gasneti_decode_args(int *argc, char ***argv);
 /* extract exit coordination timeout from environment vars (with defaults) */
 extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double dflt_factor, double lower_bound);
 
-/* parse a relative or absolute memory size from an environment var (with default) */
-extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt, uint64_t minimum, uint64_t fraction_of, uint64_t pph);
-
 /* Safe memory allocation/deallocation 
    Beware - in debug mode, gasneti_malloc/gasneti_calloc/gasneti_free are NOT
    compatible with malloc/calloc/free
@@ -484,8 +481,9 @@ typedef struct {
 
 typedef gasneti_auxseg_request_t (*gasneti_auxsegregfn_t)(gasnet_seginfo_t *auxseg_info);
 
-/* collect required auxseg sizes and return their sum, padded to page size */
-uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
+// collect and return optimal auxseg size sum, padded to page size
+// may be called multiple times, subsequent calls return cached value
+uintptr_t gasneti_auxseg_preinit(void);
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
    requires input auxseg_info has been initialized to the correct values

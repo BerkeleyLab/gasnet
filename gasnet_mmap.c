@@ -35,8 +35,10 @@
 
 #if defined(GASNETI_MMAP_OR_PSHM) && defined(GASNETI_USE_HUGETLBFS)
   #define gasneti_mmap_aligndown(sz) gasneti_mmap_aligndown_huge(sz)
+  #define gasneti_mmap_pagesize()    gasneti_mmap_pagesize_huge()
 #else
   #define gasneti_mmap_aligndown(sz) GASNETI_PAGE_ALIGNDOWN(sz)
+  #define gasneti_mmap_pagesize()    GASNETI_PAGESIZE
 #endif
 
 #ifdef GASNETI_MMAP_OR_PSHM
@@ -79,10 +81,13 @@
  #ifdef GASNETI_USE_HUGETLBFS
   #include <hugetlbfs.h>
   /* Provide greater alignment than default: */
-  static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
+  static uintptr_t gasneti_mmap_pagesize_huge() {
      static long pagesz = 0;
      if (!pagesz) pagesz = gethugepagesize();
-     return GASNETI_ALIGNDOWN(sz, pagesz);
+     return pagesz;
+  }
+  static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
+     return GASNETI_ALIGNDOWN(sz, gasneti_mmap_pagesize_huge());
   }
  #endif
 
@@ -1141,6 +1146,7 @@ uintptr_t gasneti_max_segsize() {
   static uintptr_t result = 0;
   uint64_t tmp;
   if (!result) {
+    uintptr_t auxsegsz = gasneti_auxseg_preinit();
     uint64_t pph = gasneti_myhost.node_count;
     gasneti_assert(pph > 0);
     /* start with the configure-selected default */
@@ -1154,12 +1160,30 @@ uintptr_t gasneti_max_segsize() {
     if (gasnet_max_segsize_str) { // higher-priority string override
       dflt = gasnet_max_segsize_str;
     }
-    // finally, check the environment override
+
+    #if PLATFORM_ARCH_32 && !defined(GASNETI_ALLOW_HUGE_32BIT_SEGMENT)
+      /* need to be careful about overflow on 32-bit:
+         can't use a full 4 GB due to sign bit problems 
+         on the int argument to mmap() for some 32-bit systems
+         so use 2GB - pagesz 
+      */
+      uint64_t hardmax = (((uint64_t)1)<<31) - GASNET_PAGESIZE;
+    #else
+      uint64_t hardmax = (uint64_t)-1; // unlimited
+    #endif
+
+    // finally, check the environment override, parse the result and factor in min/max/auxseg
     uint64_t val = gasneti_getenv_memsize_withdefault("GASNET_MAX_SEGSIZE", dflt,
-                                                GASNET_PAGESIZE, gasneti_getPhysMemSz(1),
-                                                pph);
+                                                GASNET_PAGESIZE, hardmax,
+                                                gasneti_getPhysMemSz(1), pph,
+                                                0);
+
+    // round UP to nearest huge page, if needed, to ensure we don't truncate client's MAX_SEGSIZE request
+    val = GASNETI_ALIGNUP(val, gasneti_mmap_pagesize());
+
     gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
     gasneti_assert(val >= GASNET_PAGESIZE);
+    gasneti_assert(val <= hardmax);
     result = (uintptr_t)val;
     gasneti_assert(result == val); // overflow check
   }
@@ -1235,7 +1259,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif
 
   /* Apply intial limits, even if not sharing nodes */
-  maxsz = GASNETI_MMAP_LIMIT;
+  uintptr_t auxsegsz = gasneti_auxseg_preinit();
+  maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
+  maxsz = GASNETI_ALIGNUP(maxsz, gasneti_mmap_pagesize());
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
 
@@ -2017,11 +2043,13 @@ static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
   }
 #endif
 
-/* collect required auxseg sizes and return their sum, padded to page size */
-uintptr_t gasneti_auxseg_prepare(uintptr_t limit) {
-  const int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
-  uintptr_t auxseg_sz;
+// collect and return optimal auxseg size sum, padded to page size
+// may be called multiple times, subsequent calls return cached value
+uintptr_t gasneti_auxseg_preinit(void) {
+  static uintptr_t gasneti_auxseg_sz = 0;
+  if (gasneti_auxseg_sz) return gasneti_auxseg_sz; // only the first call computes requirements
 
+  const int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
   if (numfns > 0) {
     gasneti_auxseg_alignedsz = gasneti_calloc(numfns,sizeof(gasneti_auxseg_request_t));
@@ -2041,19 +2069,10 @@ uintptr_t gasneti_auxseg_prepare(uintptr_t limit) {
   gasneti_auxseg_total_alignedsz.optimalsz = 
     GASNETI_PAGE_ALIGNUP(gasneti_auxseg_total_alignedsz.optimalsz);
 
-  auxseg_sz = gasneti_auxseg_total_alignedsz.optimalsz;
-  GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_size(): requested auxseg size = %"PRIuPTR, auxseg_sz));
-
-  if (auxseg_sz >= limit) {
-    /* TODO: implement request downsizing down to minsz */
-    gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available limit (%"PRIuPTR" bytes)",
-                       auxseg_sz, limit);
-  }
-
-  GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_size(): granted auxseg size = %"PRIuPTR, auxseg_sz));
-
-  gasneti_assert(auxseg_sz % GASNET_PAGESIZE == 0);
-  return auxseg_sz;
+  gasneti_auxseg_sz = gasneti_auxseg_total_alignedsz.optimalsz;
+  GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_preinit(): gasneti_auxseg_sz = %"PRIuPTR, gasneti_auxseg_sz));
+  gasneti_assert(gasneti_auxseg_sz % GASNET_PAGESIZE == 0);
+  return gasneti_auxseg_sz;
 }
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
@@ -2104,7 +2123,12 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
 void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
 {
-  uintptr_t auxsize = gasneti_auxseg_prepare(maxsize);
+  uintptr_t auxsize = gasneti_auxseg_preinit();
+  if (auxsize > maxsize) {
+    /* TODO: implement request downsizing down to minsz */
+    gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available limit (%"PRIuPTR" bytes)",
+                       auxsize, maxsize);
+  }
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
   gasneti_segmentAttach(auxsize, gasneti_seginfo_aux, exchangefn, 0);
   gasneti_auxseg_attach(gasneti_seginfo_aux);

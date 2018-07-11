@@ -896,12 +896,14 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasneti_free(all_knobs);
 
   uint64_t physmemsz = gasneti_getPhysMemSz(1);
+#if PLATFORM_ARCH_32
+  uint64_t hardmax = 0xFFFFFFFF;
+#else
+  uint64_t hardmax = 0; // unlimited
+#endif
   uint64_t limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                           GASNETC_PHYSMEM_MIN, physmemsz, 0);
-#if PLATFORM_ARCH_32
-   limit = MIN(limit, 0xFFFFFFFF);
-#endif
+                           GASNETC_PHYSMEM_MIN, hardmax, physmemsz, 0, 0);
 
   #if defined(RLIMIT_MEMLOCK) && GASNETC_HONOR_RLIMIT_MEMLOCK
   { /* Honor soft mlock limit (build-time option) */
@@ -1958,7 +1960,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
   uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;
-  mmap_limit -= auxsize;
 
   /* The auxseg will be statically pinned even if the segment is not */
   
