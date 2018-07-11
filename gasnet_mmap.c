@@ -1979,18 +1979,18 @@ static uintptr_t gasneti_auxseg_client_request_sz = 0;
   }
 #endif
 
-// collect and return required auxseg size
+// collect and return optimal auxseg size sum, padded to page size
 // may be called multiple times, subsequent calls return cached value
 uintptr_t gasneti_auxseg_preinit(void) {
   if (gasneti_auxseg_sz) return gasneti_auxseg_sz; // only the first call computes requirements
 
-  int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
+  const int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
   if (numfns > 0)
     gasneti_auxseg_alignedsz = gasneti_calloc(numfns,sizeof(gasneti_auxseg_request_t));
 
   /* collect requests */
-  for (int i=0; i < numfns; i++) {
+  for (int i = 0; i < numfns; i++) {
     gasneti_auxseg_alignedsz[i] = (gasneti_auxsegfns[i])(NULL);
     gasneti_auxseg_total_alignedsz.minsz += 
       GASNETI_ALIGNUP(gasneti_auxseg_alignedsz[i].minsz,GASNETI_CACHE_LINE_BYTES);
