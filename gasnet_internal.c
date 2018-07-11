@@ -1053,7 +1053,9 @@ static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stri
 GASNETI_NEVER_INLINE(gasneti_nodemap_helper,
 static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
   #ifndef GASNETC_DEFAULT_NODEMAP_EXACT
-    #define GASNETC_DEFAULT_NODEMAP_EXACT 0
+    // Default to slow-but-steady (it wins the race)
+    // However, see Bug 3770 - RFE: restore default linear-time nodemap behavior
+    #define GASNETC_DEFAULT_NODEMAP_EXACT 1
   #endif
   gasneti_assert(ids);
   gasneti_assert(sz > 0);
