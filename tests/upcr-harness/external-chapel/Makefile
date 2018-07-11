@@ -142,7 +142,7 @@ check: chapel-built
 #
 test_common: chapel-built
 	rm -f $(TEST_EXE) $(TEST_EXE)_real
-	. $(CHAPEL_HOME)/util/setchplenv.$(CHAPEL_SHELL) && \
+	cd $(CHAPEL_HOME) && . util/setchplenv.$(CHAPEL_SHELL) && cd $(CURDIR) && \
 	  env $(COMMON_ENV) $(CHAPEL_TEST_ENV) \
 	    $(MAKE) -C $(CHAPEL_BLDDIR)/$(TEST_DIR) $(REAL_EXE) CHPL_FLAGS+="$(chpl_flags_$(TEST_EXE))" 2>&1
 	mv $(CHAPEL_BLDDIR)/$(TEST_DIR)/$(REAL_EXE) $(TEST_EXE)
