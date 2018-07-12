@@ -2235,12 +2235,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     firehose_region_t *prereg = gasnetc_prereg_list(&reg_count);
     size_t maxsz;
 
-    gasnetc_firehose_mem = gasnetc_pin_info.memory;
+    uint64_t temp_fh_mem = gasnetc_pin_info.memory; // Math can exceed 4G and later fall below
     gasnetc_firehose_reg = gasnetc_pin_info.regions;
 
     /* Adjust for prepinned regions (they were pinned before init_pin_info probe) */
     for (i = 0; i < reg_count; ++i) {
-      gasnetc_firehose_mem += prereg[i].len;
+      temp_fh_mem += prereg[i].len;
     }
 
     /* Now initialize firehose */
@@ -2249,8 +2249,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
       #if GASNETC_PIN_SEGMENT
         /* Adjust for the pinned segment (which is not advertised to firehose as prepinned) */
-        gasneti_assert_always(gasnetc_firehose_mem > maxsize);
-        gasnetc_firehose_mem -= maxsize;
+        gasneti_assert_always(temp_fh_mem > maxsize);
+        temp_fh_mem -= maxsize;
         gasneti_assert_always(gasnetc_firehose_reg > gasnetc_max_regs);
         gasnetc_firehose_reg -= gasnetc_max_regs;
 
@@ -2264,7 +2264,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                                |  FIREHOSE_INIT_FLAG_MAY_REINIT;
       #endif
 
-
+      #if PLATFORM_ARCH_32
+        gasnetc_firehose_mem = GASNETI_PAGE_ALIGNDOWN(MIN(temp_fh_mem, 0xFFFFFFFF));
+      #else
+        gasnetc_firehose_mem = temp_fh_mem;
+      #endif
       firehose_init(gasnetc_firehose_mem, gasnetc_firehose_reg, gasnetc_fh_maxsize,
                     prereg, reg_count, gasnetc_firehose_flags, &gasnetc_firehose_info);
       gasnetc_did_firehose_init = 1;
