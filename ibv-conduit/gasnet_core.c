@@ -2068,12 +2068,12 @@ static int gasnetc_attach_primary(void) {
     firehose_region_t *prereg = gasnetc_prereg_list(&reg_count);
     size_t maxsz;
 
-    gasnetc_firehose_mem = gasnetc_pin_info.memory;
+    uint64_t temp_fh_mem = gasnetc_pin_info.memory; // Math can exceed 4G and later fall below
     gasnetc_firehose_reg = gasnetc_pin_info.regions;
 
     /* Adjust for prepinned regions (they were pinned before init_pin_info probe) */
     for (int i = 0; i < reg_count; ++i) {
-      gasnetc_firehose_mem += prereg[i].len;
+      temp_fh_mem += prereg[i].len;
     }
 
     /* Now initialize firehose */
@@ -2085,8 +2085,8 @@ static int gasnetc_attach_primary(void) {
         // TODO-EX: Need a replacement for use of gasnetc_seg_maxsz and gasnetc_max_regs
         //          which lack accurate values until the client segment has been registered.
         // TODO: shouldn't we use *local* values rather than max ones?
-        gasneti_assert_always(gasnetc_firehose_mem > gasnetc_seg_maxsz);
-        gasnetc_firehose_mem -= gasnetc_seg_maxsz;
+        gasneti_assert_always(temp_fh_mem > gasnetc_seg_maxsz);
+        temp_fh_mem -= gasnetc_seg_maxsz;
         gasneti_assert_always(gasnetc_firehose_reg > gasnetc_max_regs);
         gasnetc_firehose_reg -= gasnetc_max_regs;
 
@@ -2100,7 +2100,11 @@ static int gasnetc_attach_primary(void) {
                                |  FIREHOSE_INIT_FLAG_MAY_REINIT;
       #endif
 
-
+      #if PLATFORM_ARCH_32
+        gasnetc_firehose_mem = GASNETI_PAGE_ALIGNDOWN(MIN(temp_fh_mem, 0xFFFFFFFF));
+      #else
+        gasnetc_firehose_mem = temp_fh_mem;
+      #endif
       firehose_init(gasnetc_firehose_mem, gasnetc_firehose_reg, gasnetc_fh_maxsize,
                     prereg, reg_count, gasnetc_firehose_flags, &gasnetc_firehose_info);
       gasnetc_did_firehose_init = 1;
