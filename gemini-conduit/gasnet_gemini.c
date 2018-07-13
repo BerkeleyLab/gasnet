@@ -1673,6 +1673,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
   gasnetc_packet_t *packet;
   uint32_t gpd_flags = 0;
 
+ { // Start of scope: 'gpd'
   // Unlike the AMRequest path, it is safe (and easier) to acquire gpd first
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
   if_pf (!gpd) goto out_immediate_1;
@@ -1728,6 +1729,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
   }
 
   /* modify the notify type and clear its AM header bits */
+ { // Start of scope: 'pd'
   gni_post_descriptor_t *pd = &gpd->pd;
   gasneti_assert(gc_notify_get_type(notify) == gc_notify_request);
   pd->sync_flag_value = (notify & 0xffffffffUL) + gc_build_notify((gc_notify_reply - gc_notify_request),0,0);
@@ -1742,9 +1744,11 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
     token->deferred_reply = gpd;
   }
   return gpd;
+ } // End of scope: 'pd'
 
 out_immediate_2:
   gasnetc_free_post_descriptor(gpd);
+ } // End of scope: 'gpd'
 out_immediate_1:
   return NULL;
 }
@@ -1855,6 +1859,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
   uint64_t mask;
   size_t length;
+ { // Start of scope: 'slots'
   unsigned int slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
   if (am_rvous_enabled) {
     // All we count is credits (not size)
@@ -1896,6 +1901,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
     remote_slot = gasnetc_remote_slot(peer, mask);
     gasneti_assert(remote_slot != 64);
   }
+ } // End of scope: 'slots'
 
   mask <<= remote_slot;
   peer->remote_request_map -= mask; // Claim slots or credit
@@ -1913,6 +1919,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
   GASNETC_UNLOCK_AM_BUFFER();
 
+ { // Start of scope: 'gpd'
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
   if_pf (!gpd) goto out_immediate_4;
   gasnetc_format_am_gpd(gpd, r->packet, peer, length, 0);
@@ -1925,6 +1932,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
   r->u.credit.pointer = &peer->remote_request_map;
   
   return gpd;
+ } // End of scope: 'gpd'
 
 out_immediate_4:
   GASNETC_LOCK_AM_BUFFER();
