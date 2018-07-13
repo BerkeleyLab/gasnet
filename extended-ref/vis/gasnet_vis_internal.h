@@ -118,9 +118,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 }
 
 /* gasneti_threaddata_t might not be defined yet, but VIS ptr must be 3rd */
-#define GASNETE_VIS_MYTHREAD (((void **)GASNETI_MYTHREAD)[2] ? \
-        ((void **)GASNETI_MYTHREAD)[2] :                       \
-        (((void **)GASNETI_MYTHREAD)[2] = gasnete_vis_new_threaddata()))
+#define GASNETE_VIS_MYTHREAD (GASNETI_MYTHREAD->gasnete_vis_threaddata ? \
+        GASNETI_MYTHREAD->gasnete_vis_threaddata :                       \
+        (GASNETI_MYTHREAD->gasnete_vis_threaddata = gasnete_vis_new_threaddata()))
 
 #define GASNETI_VIS_CAT_PUTV_GATHER       1
 #define GASNETI_VIS_CAT_GETV_SCATTER      2
