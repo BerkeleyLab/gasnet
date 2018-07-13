@@ -373,14 +373,15 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
           goto npamsend; 
         #endif
       }
-      /* gather data payload from sourcelist into packet */
-      uint8_t * const end = gasnete_memvec_pack(lnum, &srclist[lpacket->firstidx], &packedbuf[rnum], 
+      { /* gather data payload from sourcelist into packet */
+        uint8_t * const end = gasnete_memvec_pack(lnum, &srclist[lpacket->firstidx], &packedbuf[rnum], 
                                 lpacket->firstoffset, lpacket->lastlen);
 
-      packetlen = end - (uint8_t *)packedbuf;
+        packetlen = end - (uint8_t *)packedbuf;
+      }
 
       #if GASNET_DEBUG
-        // assert we don't send empty iovecs on the wire (bug3411)
+      { // assert we don't send empty iovecs on the wire (bug3411)
         size_t datalen = 0; 
         for (size_t i=0; i < rnum; i++) {
           size_t const thislen = packedbuf[i].gex_len;
@@ -390,6 +391,7 @@ gex_Event_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
         gasneti_assert(datalen > 0); 
         gasneti_assert(packetlen == rnum*sizeof(gex_Memvec_t)+datalen);
         gasneti_assert(packetlen <= maxpacket);
+      }
       #endif
 
       /* send AM(rnum, iop) from packedbuf */
@@ -557,7 +559,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
       }
 
       #if GASNET_DEBUG
-        // assert we don't send empty iovecs on the wire (bug3411)
+      { // assert we don't send empty iovecs on the wire (bug3411)
         size_t datalen = 0; 
         for (size_t i=0; i < rnum; i++) {
           size_t const thislen = packedbuf[i].gex_len;
@@ -565,6 +567,7 @@ gex_Event_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
           datalen += thislen;
         }
         gasneti_assert(datalen > 0); 
+      }
       #endif
 
       /* send AM(visop) from packedbuf */
