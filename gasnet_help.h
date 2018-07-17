@@ -394,41 +394,46 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
       and discard the unused variables
      We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
    */
-  static gasnet_threadinfo_t gasnete_threadinfo_cache = 0;
-  static uint8_t gasnete_threadinfo_available = 
-    sizeof(gasnete_threadinfo_cache) + sizeof(gasnete_threadinfo_available);
+  #define GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
+  static gasnet_threadinfo_t _gasneti_threadinfo_cache = 0;
+  static uint8_t             _gasneti_threadinfo_available = 
+    sizeof(_gasneti_threadinfo_cache) + sizeof(_gasneti_threadinfo_available);
     /* silly little trick to prevent unused variable warning on gcc -Wall */
 
-  #define GASNET_POST_THREADINFO(info)                     \
-    gasnet_threadinfo_t gasnete_threadinfo_cache = (info); \
-    uint32_t gasnete_threadinfo_available = 0
-    /* if you get an unused variable warning on gasnete_threadinfo_available, 
+  #define GASNET_POST_THREADINFO(info)                      \
+    gasnet_threadinfo_t _gasneti_threadinfo_cache = (info); \
+    uint32_t gasneti_threadinfo_available = 0
+    /* if you get an unused variable warning on _gasneti_threadinfo_available, 
        it means you POST'ed in a function which made no GASNet calls that needed it
        So, PLEASE don't add __unused__ annotations here. */
 
   #if GASNETI_LAZY_BEGINFUNCTION
-    // bug 3498: Ensure a sequence point after the assignment to gasnete_threadinfo_cache
+    // bug 3498: Ensure a sequence point after the assignment to _gasneti_threadinfo_cache
     GASNETI_INLINE(gasneti_lazy_get_threadinfo) GASNETI_WARN_UNUSED_RESULT
     gasnet_threadinfo_t gasneti_lazy_get_threadinfo(gasnet_threadinfo_t * const _p_ti, 
                                                     gasnet_threadinfo_t _ti_val) {
       return (*_p_ti = _ti_val);
     }
-    #define GASNET_GET_THREADINFO()                                    \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ?                  \
-        (GASNETI_THREAD_FARG_AVAILABLE ?                               \
-           (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE : \
-           (gasnet_threadinfo_t)_gasneti_mythread_slow()) :            \
-        (GASNETT_PREDICT_TRUE(gasnete_threadinfo_cache) ? gasnete_threadinfo_cache :   \
-        gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)_gasneti_mythread_slow()))  \
-      )
+    // memoized implementation of GET POSTED, where BEGIN_FUNCTION delays lookup to first use
+    #define _GASNETI_GET_THREADINFO_POSTED()                           \
+      ( GASNETT_PREDICT_TRUE(_gasneti_threadinfo_cache) ? _gasneti_threadinfo_cache :   \
+        gasneti_lazy_get_threadinfo(&_gasneti_threadinfo_cache,(gasnet_threadinfo_t)_gasneti_mythread_slow()) \
+      ) 
   #else
-    #define GASNET_GET_THREADINFO()                                    \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ?                  \
-        (GASNETI_THREAD_FARG_AVAILABLE ?                               \
-           (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE : \
-           (gasnet_threadinfo_t)_gasneti_mythread_slow()) :            \
-        (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache )
+    // straightforward implementation of GET POSTED
+    #define _GASNETI_GET_THREADINFO_POSTED()                           \
+       ( (gasnet_threadinfo_t)(uintptr_t)_gasneti_threadinfo_cache )
   #endif
+
+  // GASNET_GET_THREADINFO: the main cached-lookup workhorse
+  // note both the branches textually below are always statically resolved
+  #define GASNET_GET_THREADINFO()                                      \
+    ( GASNETI_THREAD_POSTED ? /* have POST or BEGIN_FUNCTION ? */      \
+      _GASNETI_GET_THREADINFO_POSTED() /* use it */ :                  \
+      ( GASNETI_THREAD_FARG_AVAILABLE ? /* in FARG context? use. */    \
+         (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE :   \
+         (gasnet_threadinfo_t)_gasneti_mythread_slow() /* lookup */ )  \
+    )     
 
   /* the gasnet_threadinfo_t pointer points to a thread data-structure owned by
      the extended API, whose first element is a pointer reserved
@@ -445,7 +450,7 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
 #else
   #if GASNET_DEBUG
     #define GASNET_POST_THREADINFO(info)   \
-      static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* diagnose duplicate POST in a scope */
+      static uint8_t _gasneti_threadinfo_dummy = sizeof(_gasneti_threadinfo_dummy) /* diagnose duplicate POST in a scope */
   #else
     #define GASNET_POST_THREADINFO(info) ((void)0)
   #endif
@@ -489,12 +494,6 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   //   GASNETI_THREAD_POST() has been superceded by GASNET_POST_THREADINFO()
   // GASNETI_THREAD_GET* now automatically pulls from these sources or FARG before lookup.
   // -----------------------------------------------------------------------------------------
-  // Misc
-  // GASNETI_THREAD_SWALLOW: Utility to discard an FARG passed to a 0-arg function-like macro
-  //   TODO-EX: move and rename this essentially unrelated utility macro
-  #define GASNETI_THREAD_SWALLOW(x)
-  // GASNETI_GASNETI_TISTARTOFBITS: Utility to discard an FARG when calling GASNETE_STARTOFBITS
-  #define GASNETI_TISTARTOFBITS(ptr,nbytes,ti) GASNETE_STARTOFBITS(ptr,nbytes)
   // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasneti_threaddata_t *) from one of:
   //    a prior GASNET_POST_THREADINFO, any available FARG, or lookup
   // this is essentially GASNETI_MYTHREAD without requiring FARG context
@@ -507,11 +506,14 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   #define GASNETI_THREAD_GET         
   #define GASNETI_THREAD_PASS_ALONE   
   #define GASNETI_THREAD_PASS         
-  #define GASNETI_THREAD_SWALLOW(x)
-  #define GASNETI_TISTARTOFBITS       GASNETE_STARTOFBITS
   #define GASNETI_MYTHREAD            (_gasneti_mythread_slow())
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP GASNETI_MYTHREAD
 #endif
+
+// Misc thread-id related goop
+// GASNETI_THREAD_SWALLOW: Utility to discard an FARG passed to a 0-arg function-like macro
+//   TODO-EX: move and rename this essentially unrelated utility macro
+#define GASNETI_THREAD_SWALLOW(x)
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet progressfn support
