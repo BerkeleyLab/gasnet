@@ -452,8 +452,8 @@ gasnete_coll_op_destroy(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
 
 #ifndef gasneti_coll_progressfn
 extern void gasneti_coll_progressfn(void) {
-  GASNETI_THREAD_LOOKUP /* TODO: remove this lookup */
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  GASNET_BEGIN_FUNCTION(); /* TODO: remove this lookup */
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOFARG;
 
   if (td->in_poll) return; /* prevent recursion */
   td->in_poll = 1;
@@ -461,7 +461,7 @@ extern void gasneti_coll_progressfn(void) {
   if (gasneti_mutex_trylock(&gasnete_coll_poll_lock) == 0)
   {
     /* First try to make progress on any pending events */
-    gasnete_coll_sync_saved_events(GASNETI_THREAD_PASS_ALONE);
+    gasnete_coll_sync_saved_events(GASNETI_THREAD_GET_ALONE);
 
     /* NOTE regarding thread safety of active list:
      * We traverse the active list here, possibly deleting elements.
@@ -486,12 +486,12 @@ extern void gasneti_coll_progressfn(void) {
 
         // Poll/kick the op
         gasneti_assert(op->poll_fn);
-        int poll_result = (*op->poll_fn)(op GASNETI_THREAD_PASS);
+        int poll_result = (*op->poll_fn)(op GASNETI_THREAD_GET);
 
         if (poll_result != 0) {
           // signal and/or destroy the op
           gasneti_mutex_lock(&gasnete_coll_active_lock);
-          gasnete_coll_op_complete(op, poll_result GASNETI_THREAD_PASS);
+          gasnete_coll_op_complete(op, poll_result GASNETI_THREAD_GET);
           gasneti_mutex_unlock(&gasnete_coll_active_lock);
         }
       } while (op != last); // Stop at original end, not at NULL, due to lack of fences
@@ -574,7 +574,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 // TODO-EX: remove any portions displaced by gex-ification
 extern void gasnete_coll_init_subsystem(void)
 {
-    GASNETI_THREAD_LOOKUP
+    GASNET_BEGIN_FUNCTION();
 
     gasnete_coll_p2p_eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
                                                                 GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
@@ -593,7 +593,7 @@ extern void gasnete_coll_init_subsystem(void)
     /* setup information for TM0 */
     gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode,
                            GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save,
-                           NULL GASNETI_THREAD_PASS);
+                           NULL GASNETI_THREAD_GET);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 
@@ -601,7 +601,7 @@ extern void gasnete_coll_init_subsystem(void)
     gasnet_team_fca_enable(GASNET_TEAM_ALL);
 #endif
 
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOFARG;
 
     gasnete_coll_init_done = 1;
 }

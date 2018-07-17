@@ -748,7 +748,8 @@ _gasnete_coll_get_threaddata(void *thread) {
 }
 
 /* Used when thread data might not exist yet */
-#define GASNETE_COLL_MYTHREAD	_gasnete_coll_get_threaddata(GASNETI_MYTHREAD)
+#define GASNETE_COLL_MYTHREAD        _gasnete_coll_get_threaddata(GASNETI_MYTHREAD)
+#define GASNETE_COLL_MYTHREAD_NOFARG _gasnete_coll_get_threaddata(GASNETI_MYTHREAD_GET_OR_LOOKUP)
 
 /* Used when thread data must already exist */
 #define GASNETE_COLL_MYTHREAD_NOALLOC \
