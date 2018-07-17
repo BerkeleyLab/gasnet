@@ -463,6 +463,7 @@ extern gex_TI_t gasnetc_Token_Info(
 
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if (gasnetc_token_in_nbrhd(token)) {
     return gasnetc_nbrhd_Token_Info(token, info, mask);
   }
@@ -848,6 +849,7 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     retval = gasneti_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
                                          0, 0, 0,
@@ -892,6 +894,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasneti_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
@@ -1089,6 +1092,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasneti_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
