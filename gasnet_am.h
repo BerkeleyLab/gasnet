@@ -784,9 +784,9 @@ int gasnetc_loopback_ReqRepGeneric(
                          int isReq, gasneti_category_t category,
                          gex_AM_Index_t handler,
                          void *source_addr, int nbytes, void *dest_addr, 
-                         gex_Flags_t flags, int numargs, va_list argptr)
+                         gex_Flags_t flags, int numargs, va_list argptr
+                         GASNETI_THREAD_FARG)
 {
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: THREAD_FARG
   struct gasneti_AM_SrcDesc the_sd;
 
   gasnetc_loopback_prepare_inner(&the_sd, 1, isReq, category, source_addr, 0, 0,
@@ -816,15 +816,15 @@ int gasnetc_nbrhd_RequestGeneric(
 #if GASNET_PSHM
   switch(category) {
     case gasneti_Short:
-        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr);
+        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     case gasneti_Medium:
         return gasneti_AMPSHM_RequestMedium(jobrank, handler, source_addr, nbytes,
-                                            flags, numargs, argptr);
+                                            flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     case gasneti_Long:
         return gasneti_AMPSHM_RequestLong(jobrank, handler, source_addr, nbytes, dest_ptr,
-                                          flags, numargs, argptr);
+                                          flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     default:
         gasneti_unreachable();
@@ -834,7 +834,7 @@ int gasnetc_nbrhd_RequestGeneric(
   return gasnetc_loopback_ReqRepGeneric(
                                1, category, handler,
                                source_addr, nbytes, dest_ptr, 
-                               flags, numargs, argptr); 
+                               flags, numargs, argptr GASNETI_THREAD_PASS); 
 #endif
 }
 
@@ -865,10 +865,11 @@ int gasnetc_nbrhd_ReplyGeneric(
         gasneti_unreachable();
   }
 #else
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
   retval = gasnetc_loopback_ReqRepGeneric(
                                  0, category, handler,
                                  source_addr, nbytes, dest_ptr, 
-                                 flags, numargs, argptr); 
+                                 flags, numargs, argptr GASNETI_THREAD_PASS);
 #endif
   gasnetc_token_post_reply_checks(token, retval);
   return retval;
