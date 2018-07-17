@@ -523,10 +523,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        size_t             least_payload,
                        size_t             most_payload,
                        gex_Event_t       *lc_opt,
-                       gex_Flags_t        flags
-                       GASNETI_THREAD_FARG,
+                       gex_Flags_t        flags,
                        unsigned int       nargs)
 {
+    GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
@@ -607,10 +607,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                        size_t             most_payload,
                        void              *dest_addr,
                        gex_Event_t       *lc_opt,
-                       gex_Flags_t        flags
-                       GASNETI_THREAD_FARG,
+                       gex_Flags_t        flags,
                        unsigned int       nargs)
 {
+    GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
 

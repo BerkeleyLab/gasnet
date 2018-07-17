@@ -1009,9 +1009,12 @@ extern int gasnetc_AMReplyMediumM(
                                         source_addr, nbytes, NULL,
                                         flags, numargs, argptr);
   } else {
+    // (###) post threadinfo extracted from token, or call GASNET_BEGIN_FUNCTION() instead:
+    GASNET_POST_THREADINFO(###);
+
     struct gasneti_AM_SrcDesc the_sd;
     retval = gasnetc_prepare_rep_medium(&the_sd,1,token,source_addr,0,nbytes,
-                                        lc_opt,flags,numargs GASNETI_THREAD_GET);
+                                        lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
       gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,argptr);
     }
@@ -1028,9 +1031,11 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        size_t             most_payload,
                        gex_Event_t       *lc_opt,
                        gex_Flags_t        flags
-                       GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
+    // (###) post threadinfo extracted from token, or call GASNET_BEGIN_FUNCTION() instead:
+    GASNET_POST_THREADINFO(###);
+
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 

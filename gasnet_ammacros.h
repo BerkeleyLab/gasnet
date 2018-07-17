@@ -345,8 +345,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                 size_t _min_length,
                 size_t _max_length,
                 gex_Event_t *_lc_opt,
-                gex_Flags_t _flags
-                GASNETI_THREAD_FARG,
+                gex_Flags_t _flags,
                 unsigned int _numargs);
 extern void gasnetc_AM_CommitReplyMediumM(
                 gex_AM_Index_t _handler,
@@ -384,8 +383,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
                 size_t _max_length,
                 void *_dest_addr,
                 gex_Event_t *_lc_opt,
-                gex_Flags_t _flags
-                GASNETI_THREAD_FARG,
+                gex_Flags_t _flags,
                 unsigned int _numargs);
 extern void gasnetc_AM_CommitReplyLongM(
                 gex_AM_Index_t _handler,
@@ -400,13 +398,13 @@ extern void gasnetc_AM_CommitReplyLongM(
     gasnetc_AM_PrepareRequestMedium(tm, rank, cbuf, minlen, maxlen, lc_opt, flags GASNETI_THREAD_GET, nargs)
 
 #define gex_AM_PrepareReplyMedium(token, cbuf, minlen, maxlen, lc_opt, flags, nargs) \
-    gasnetc_AM_PrepareReplyMedium(token, cbuf, minlen, maxlen, lc_opt, flags GASNETI_THREAD_GET, nargs)
+    gasnetc_AM_PrepareReplyMedium(token, cbuf, minlen, maxlen, lc_opt, flags, nargs)
 
 #define gex_AM_PrepareRequestLong(tm, rank, cbuf, minlen, maxlen, dest_addr, lc_opt, flags, nargs) \
     gasnetc_AM_PrepareRequestLong(tm, rank, cbuf, minlen, maxlen, dest_addr, lc_opt, flags GASNETI_THREAD_GET, nargs)
 
 #define gex_AM_PrepareReplyLong(token, cbuf, minlen, maxlen, dest_addr, lc_opt, flags, nargs) \
-    gasnetc_AM_PrepareReplyLong(token, cbuf, minlen, maxlen, dest_addr, lc_opt, flags GASNETI_THREAD_GET, nargs)
+    gasnetc_AM_PrepareReplyLong(token, cbuf, minlen, maxlen, dest_addr, lc_opt, flags, nargs)
 
 #if GASNET_DEBUG
   #define GASNETI_AM_COMMIT_NARGS(x) , x
