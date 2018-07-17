@@ -743,7 +743,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
         imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                            client_buf, least_payload, most_payload,
-                                           NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                           NULL, lc_opt, flags, nargs);
     } else {
         imm = gasnetc_prepare_req_medium(sd,0,jobrank,client_buf,least_payload,most_payload,
                                          lc_opt,flags,nargs GASNETI_THREAD_PASS);
@@ -1040,7 +1040,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
                                          client_buf, least_payload, most_payload,
-                                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                         NULL, lc_opt, flags, nargs);
     } else {
         imm = gasnetc_prepare_rep_medium(sd,0,token,client_buf,least_payload,most_payload,
                                         lc_opt,flags,nargs GASNETI_THREAD_PASS);

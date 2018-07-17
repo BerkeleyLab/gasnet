@@ -493,7 +493,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
         int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                                client_buf, least_payload, most_payload,
-                                               NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                               NULL, lc_opt, flags, nargs);
         if (imm) {
             gasneti_reset_srcdesc(sd);
             sd = NULL; // GEX_AM_SRCDESC_NO_OP
@@ -535,7 +535,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
                                              client_buf, least_payload, most_payload,
-                                             NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                             NULL, lc_opt, flags, nargs);
         if (imm) {
             gasneti_reset_srcdesc(sd);
             sd = NULL; // GEX_AM_SRCDESC_NO_OP
@@ -575,7 +575,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
         int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, jobrank,
                                                client_buf, least_payload, most_payload,
-                                               dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                               dest_addr, lc_opt, flags, nargs);
         if (imm) {
             gasneti_reset_srcdesc(sd);
             sd = NULL; // GEX_AM_SRCDESC_NO_OP
@@ -619,7 +619,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
         int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Long, token,
                                              client_buf, least_payload, most_payload,
-                                             dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                             dest_addr, lc_opt, flags, nargs);
         if (imm) {
             gasneti_reset_srcdesc(sd);
             sd = NULL; // GEX_AM_SRCDESC_NO_OP

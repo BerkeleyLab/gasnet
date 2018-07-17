@@ -1404,8 +1404,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
                    gex_Rank_t jobrank, const void *client_buf,
                    size_t least_payload, size_t most_payload,
                    void *dest_addr, gex_Event_t *lc_opt,
-                   gex_Flags_t flags, unsigned int nargs
-                   GASNETI_THREAD_FARG)
+                   gex_Flags_t flags, unsigned int nargs)
 {
   // Check for loopback
   // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
@@ -1413,9 +1412,10 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   sd->_loopback = loopback;
   if (loopback) {
     return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,least_payload,most_payload,
-                                    dest_addr,lc_opt,flags,nargs GASNETI_THREAD_PASS);
+                                    dest_addr,lc_opt,flags,nargs);
   }
 
+  GASNET_POST_THREADINFO(sd->_thread);
   return ampshm_prepare_inner(
                 sd, 0, isReq, category, jobrank, client_buf, least_payload, most_payload,
                 dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
@@ -1506,11 +1506,10 @@ int gasnetc_AMPSHM_PrepareRequestMedium(
                         size_t               most_payload,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
   return ampshm_prepare(sd, 1, gasneti_Medium, jobrank, client_buf, least_payload, most_payload,
-                        NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                        NULL, lc_opt, flags, nargs);
 }
 
 int gasnetc_AMPSHM_PrepareReplyMedium(
@@ -1521,15 +1520,14 @@ int gasnetc_AMPSHM_PrepareReplyMedium(
                         size_t               most_payload,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
 #if GASNET_DEBUG
   sd->_dest._reply._token = token;
 #endif
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
   return ampshm_prepare(sd, 0, gasneti_Medium, jobrank, client_buf, least_payload, most_payload,
-                        NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                        NULL, lc_opt, flags, nargs);
 }
 
 int gasnetc_AMPSHM_PrepareRequestLong(
@@ -1541,11 +1539,10 @@ int gasnetc_AMPSHM_PrepareRequestLong(
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
   return ampshm_prepare(sd, 1, gasneti_Long, jobrank, client_buf, least_payload, most_payload,
-                        dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                        dest_addr, lc_opt, flags, nargs);
 }
 
 int gasnetc_AMPSHM_PrepareReplyLong(
@@ -1557,15 +1554,14 @@ int gasnetc_AMPSHM_PrepareReplyLong(
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
 #if GASNET_DEBUG
   sd->_dest._reply._token = token;
 #endif
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
   return ampshm_prepare(sd, 0, gasneti_Long, jobrank, client_buf, least_payload, most_payload,
-                        dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                        dest_addr, lc_opt, flags, nargs);
 }
 
 void gasnetc_AMPSHM_CommitRequestMedium(

@@ -240,8 +240,7 @@ int gasnetc_AMPSHM_PrepareRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         size_t               most_payload,
                                         gex_Event_t         *lc_opt,
                                         gex_Flags_t          flags,
-                                        unsigned int         nargs
-                                        GASNETI_THREAD_FARG);
+                                        unsigned int         nargs);
 void gasnetc_AMPSHM_CommitRequestMedium(gasneti_AM_SrcDesc_t sd,
                                         gex_AM_Index_t handler, size_t nbytes,
                                         va_list argptr);
@@ -253,8 +252,7 @@ int gasnetc_AMPSHM_PrepareRequestLong(gasneti_AM_SrcDesc_t sd,
                                       void                *dest_addr,
                                       gex_Event_t         *lc_opt,
                                       gex_Flags_t          flags,
-                                      unsigned int         nargs
-                                      GASNETI_THREAD_FARG);
+                                      unsigned int         nargs);
 void gasnetc_AMPSHM_CommitRequestLong(gasneti_AM_SrcDesc_t sd,
                                       gex_AM_Index_t handler, size_t nbytes,
                                       void *dest_addr, va_list argptr);
@@ -266,8 +264,7 @@ int gasnetc_AMPSHM_PrepareReplyMedium(gasneti_AM_SrcDesc_t sd,
                                       size_t               most_payload,
                                       gex_Event_t         *lc_opt,
                                       gex_Flags_t          flags,
-                                      unsigned int         nargs
-                                      GASNETI_THREAD_FARG);
+                                      unsigned int         nargs);
 void gasnetc_AMPSHM_CommitReplyMedium(gasneti_AM_SrcDesc_t sd,
                                       gex_AM_Index_t handler, size_t nbytes,
                                       va_list argptr);
@@ -279,8 +276,7 @@ int gasnetc_AMPSHM_PrepareReplyLong(gasneti_AM_SrcDesc_t sd,
                                     void                *dest_addr,
                                     gex_Event_t         *lc_opt,
                                     gex_Flags_t          flags,
-                                    unsigned int         nargs
-                                    GASNETI_THREAD_FARG);
+                                    unsigned int         nargs);
 void gasnetc_AMPSHM_CommitReplyLong(gasneti_AM_SrcDesc_t sd,
                                     gex_AM_Index_t handler, size_t nbytes,
                                     void *dest_addr, va_list argptr);
