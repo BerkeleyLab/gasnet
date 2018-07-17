@@ -413,16 +413,20 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
                                                     gasnet_threadinfo_t _ti_val) {
       return (*_p_ti = _ti_val);
     }
-    #define GASNET_GET_THREADINFO()                              \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
-        (gasnet_threadinfo_t)_gasneti_mythread_slow() :          \
+    #define GASNET_GET_THREADINFO()                                    \
+      ( (sizeof(gasnete_threadinfo_available) == 1) ?                  \
+        (GASNETI_THREAD_FARG_AVAILABLE ?                               \
+           (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE : \
+           (gasnet_threadinfo_t)_gasneti_mythread_slow()) :            \
         (GASNETT_PREDICT_TRUE(gasnete_threadinfo_cache) ? gasnete_threadinfo_cache :   \
         gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)_gasneti_mythread_slow()))  \
       )
   #else
-    #define GASNET_GET_THREADINFO()                     \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ?   \
-        (gasnet_threadinfo_t)_gasneti_mythread_slow() : \
+    #define GASNET_GET_THREADINFO()                                    \
+      ( (sizeof(gasnete_threadinfo_available) == 1) ?                  \
+        (GASNETI_THREAD_FARG_AVAILABLE ?                               \
+           (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE : \
+           (gasnet_threadinfo_t)_gasneti_mythread_slow()) :            \
         (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache )
   #endif
 
@@ -453,13 +457,15 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
 /* thread-id optimization support */
 
 #if GASNETI_THREADINFO_OPT
+  static uint8_t _gasneti_threadinfo_farg = sizeof(_gasneti_threadinfo_farg);
+  #define GASNETI_THREAD_FARG_AVAILABLE  (sizeof(_gasneti_threadinfo_farg) > 1)
   // -----------------------------------------------------------------------------------------
   // Propagating info into GASNETI_THREAD_FARG function context
   // GASNETI_THREAD_FARG(_ALONE): use to declare the threadinfo hidden arg as part of a function declaration
   #if GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
-    #define GASNETI_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _threadinfo
+    #define GASNETI_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _gasneti_threadinfo_farg
   #else
-    #define GASNETI_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _threadinfo
+    #define GASNETI_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _gasneti_threadinfo_farg
   #endif
   #define GASNETI_THREAD_FARG         , GASNETI_THREAD_FARG_ALONE
   // GASNETI_THREAD_GET(_ALONE): use to retrieve the threadinfo (possibly from GASNET_POST_THREADINFO in the enclosing context)
@@ -471,17 +477,17 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   //   The macros in this section should ONLY be used by code inside "GASNETI_THREAD_FARG context",
   //   such as inside functions declared using GASNETI_THREAD_FARG*.
   // GASNETI_THREAD_PASS(_ALONE): propagate the hidden arg to a callee also declared with GASNETI_THREAD_FARG*
-  #define GASNETI_THREAD_PASS_ALONE   (_threadinfo)
+  //   this only differs from GASNETI_THREAD_GET* in that it statically requires FARG context (and no lookup)
+  #define GASNETI_THREAD_PASS_ALONE   (_gasneti_threadinfo_farg)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
   // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasneti_threaddata_t *)
-  #define GASNETI_MYTHREAD            ((struct _gasneti_threaddata_t *)_threadinfo)
+  #define GASNETI_MYTHREAD            ((struct _gasneti_threaddata_t *)_gasneti_threadinfo_farg)
   // -----------------------------------------------------------------------------------------
-  // Declaring GASNETI_THREAD_FARG context
-  //   The macros in this section declare "GASNETI_THREAD_FARG context" inline for the rest of this basic block
-  // GASNETI_THREAD_LOOKUP: declare a hidden FARG inline and populate from a prior GASNET_POST_THREADINFO or lookup
-  #define GASNETI_THREAD_LOOKUP       GASNETI_THREAD_FARG_ALONE = GASNETI_THREAD_GET_ALONE;
-  // GASNETI_THREAD_POST(x): declare a hidden FARG inline and populate with the given value
-  #define GASNETI_THREAD_POST(x)      GASNETI_THREAD_FARG_ALONE = (x);
+  // Declaring GASNETI_THREAD_FARG context : NO LONGER SUPPORTED
+  // Former macros:
+  //   GASNETI_THREAD_LOOKUP has been superceded by GASNET_BEGIN_FUNCTION
+  //   GASNETI_THREAD_POST() has been superceded by GASNET_POST_THREADINFO()
+  // GASNETI_THREAD_GET* now automatically pulls from these sources or FARG before lookup.
   // -----------------------------------------------------------------------------------------
   // Misc
   // GASNETI_THREAD_SWALLOW: Utility to discard an FARG passed to a 0-arg function-like macro
@@ -489,17 +495,22 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   #define GASNETI_THREAD_SWALLOW(x)
   // GASNETI_GASNETI_TISTARTOFBITS: Utility to discard an FARG when calling GASNETE_STARTOFBITS
   #define GASNETI_TISTARTOFBITS(ptr,nbytes,ti) GASNETE_STARTOFBITS(ptr,nbytes)
+  // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasneti_threaddata_t *) from one of:
+  //    a prior GASNET_POST_THREADINFO, any available FARG, or lookup
+  // this is essentially GASNETI_MYTHREAD without requiring FARG context
+  #define GASNETI_MYTHREAD_GET_OR_LOOKUP ((struct _gasneti_threaddata_t *)GASNET_GET_THREADINFO())
 #else
+  #define GASNETI_THREAD_FARG_AVAILABLE  0
   #define GASNETI_THREAD_FARG_ALONE   void
   #define GASNETI_THREAD_FARG         
   #define GASNETI_THREAD_GET_ALONE   
   #define GASNETI_THREAD_GET         
   #define GASNETI_THREAD_PASS_ALONE   
   #define GASNETI_THREAD_PASS         
-  #define GASNETI_THREAD_LOOKUP
   #define GASNETI_THREAD_SWALLOW(x)
   #define GASNETI_TISTARTOFBITS       GASNETE_STARTOFBITS
   #define GASNETI_MYTHREAD            (_gasneti_mythread_slow())
+  #define GASNETI_MYTHREAD_GET_OR_LOOKUP GASNETI_MYTHREAD
 #endif
 
 /* ------------------------------------------------------------------------------------ */

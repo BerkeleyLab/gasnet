@@ -750,7 +750,7 @@ GASNETI_INLINE(gasnete_ibdbarrier_send)
 void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
                              gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  GASNETI_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: eliminate this?
   unsigned int step = state >> 1;
   gasnete_coll_rmdbarrier_inbox_t *payload;
   int i;
@@ -781,7 +781,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
       *(volatile gasnete_coll_rmdbarrier_inbox_t *)addr = *payload;
     } else
 #endif
-    (void) gasnetc_rdma_put(node, (void*)payload, addr, sizeof(*payload), NULL, NULL, NULL GASNETI_THREAD_PASS);
+    (void) gasnetc_rdma_put(node, (void*)payload, addr, sizeof(*payload), NULL, NULL, NULL GASNETI_THREAD_GET);
   }
 }
 
