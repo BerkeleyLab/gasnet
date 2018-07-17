@@ -1729,7 +1729,7 @@ extern int gasnetc_AMRequestLongM(
 GASNETI_INLINE(gasnetc_AMReplyShort)
 int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                             gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval = 1; // assume IMMEDIATE fails
   if_pt (gasnetc_token_in_nbrhd(token)) {
@@ -1805,7 +1805,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
 
   va_start(argptr, numargs);
-  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -1832,7 +1832,7 @@ extern int gasnetc_AMReplyMediumM(
   } else {
     struct gasneti_AM_SrcDesc the_sd;
     retval = gasnetc_prepare_medium(&the_sd,1,0,0,token,source_addr,0,nbytes,
-                                    NULL,flags,numargs GASNETI_THREAD_GET); // TODO-EX: THREAD_FARG
+                                    NULL,flags,numargs GASNETI_THREAD_GET); // TODO-EX: thredinfo from token
     if (!retval) {
       gasnetc_commit_medium(&the_sd,1,0,handler,nbytes,argptr);
     }
@@ -1908,7 +1908,7 @@ extern int gasnetc_AMReplyLongV(
                             gex_Event_t *lc_opt, gex_Flags_t flags,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
-  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyLongM(
@@ -1923,7 +1923,7 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
 
   va_start(argptr, numargs);
-  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
   va_end(argptr);
 
   return retval;
