@@ -691,7 +691,7 @@ void gasnetc_AM_CommitReplyMediumM(
     va_start(argptr, sd_arg);
     if (GASNETC_IS_NBRHD_COMMIT(sd)) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
-    } else {   GASNET_POST_THREADINFO(sd->_thread);
+    } else {
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
@@ -765,7 +765,7 @@ void gasnetc_AM_CommitReplyLongM(
     va_start(argptr, sd_arg);
     if (GASNETC_IS_NBRHD_COMMIT(sd)) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Long, handler, nbytes, dest_addr, argptr);
-    } else {   GASNET_POST_THREADINFO(sd->_thread);
+    } else {
         gex_Token_t token      = sd->_dest._reply._token;
         void *src_addr         = sd->_addr;
         gex_Event_t *lc_opt    = sd->_lc_opt ? sd->_lc_opt : /* GASNet-owned buffer: */ GEX_EVENT_NOW;
