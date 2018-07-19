@@ -109,7 +109,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       /* it may be appropriate to use gasneti_segmentInit() here to set 
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
          if your conduit can use memory anywhere in the address space
-         (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
 
          it may also be appropriate to first call gasneti_mmapLimit() to
          get a good value for the first argument to gasneti_segmentInit(), to
@@ -630,7 +629,7 @@ extern int gasnetc_AMReplyLongM(
   See the GASNet spec and http://gasnet.lbl.gov/dist/docs/gasnet.html for
     philosophy and hints on efficiently implementing no-interrupt sections
   Note: the extended-ref implementation provides a thread-specific void* within the 
-    gasnete_threaddata_t data structure which is reserved for use by the core 
+    gasneti_threaddata_t data structure which is reserved for use by the core 
     (and this is one place you'll probably want to use it)
 */
 #if GASNETC_USE_INTERRUPTS
