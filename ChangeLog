@@ -1,7 +1,7 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-PENDING: Release 1.32.0
+07-20-2018: Release 1.32.0
 
 * Cray uGNI (gemini- and aries-conduits)
   - Improved performance of non-bulk puts beyond the bounce-buffer size
