@@ -1229,7 +1229,7 @@ GASNETI_INLINE(gasnete_rmdbarrier_send)
 void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
                              gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  GASNETI_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
+  GASNET_BEGIN_FUNCTION(); /* XXX: can we remove/avoid this lookup? */
   unsigned int step = state >> 1;
   gasnet_handle_t handle;
   gasnete_coll_rmdbarrier_inbox_t *payload;
@@ -1250,13 +1250,13 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
    * consuming any of the 65535 explicit handles promised to the client.
    */
 
-  gasnete_begin_nbi_accessregion(1 GASNETI_THREAD_PASS);
+  gasnete_begin_nbi_accessregion(1 GASNETI_THREAD_GET);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gasnet_node_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
-    gasnete_put_nbi_bulk(node, addr, payload, sizeof(*payload) GASNETI_THREAD_PASS);
+    gasnete_put_nbi_bulk(node, addr, payload, sizeof(*payload) GASNETI_THREAD_GET);
   }
-  handle = gasnete_end_nbi_accessregion(GASNETI_THREAD_PASS_ALONE);
+  handle = gasnete_end_nbi_accessregion(GASNETI_THREAD_GET_ALONE);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */
@@ -2250,7 +2250,6 @@ static int gasnete_barrier_result_default(gasnete_coll_team_t team, int *id) {
 
 /* This is for use by conduits that don't have a specialized version */
 int gasnete_barrier_default(gasnete_coll_team_t team, int id, int flags) {
-  GASNETI_THREAD_LOOKUP
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t barrier_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif

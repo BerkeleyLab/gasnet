@@ -308,6 +308,12 @@ typedef union {
 #else /* little-endian */
   #define GASNETE_STARTOFBITS(regvalptr,nbytes) (regvalptr)
 #endif
+// GASNETE_GASNETI_TISTARTOFBITS: Utility to discard an FARG when calling GASNETE_STARTOFBITS
+#if GASNETI_THREADINFO_OPT
+  #define GASNETE_TISTARTOFBITS(ptr,nbytes,ti) GASNETE_STARTOFBITS(ptr,nbytes)
+#else
+  #define GASNETE_TISTARTOFBITS       GASNETE_STARTOFBITS
+#endif
 
 /* The value written to the target address is a direct byte copy of the 
    8*nbytes low-order bits of value, written with the endianness appropriate 

@@ -1977,7 +1977,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 #endif /* !GASNET_PSHM */
   {
     /* Remote Case */
-    GASNETI_THREAD_LOOKUP /* TODO: Reply might get this via the token? */
+    GASNET_BEGIN_FUNCTION(); // TODO: GASNET_POST_THREADINFO() from token
     gasnetc_buffer_t *buf, *buf_alloc = NULL;
     gasnet_handlerarg_t *args;
     size_t msg_len;
@@ -2072,7 +2072,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           /* XXX check for error returns */
           #if GASNETC_PIN_SEGMENT
 	    /* Queue the RDMA.  We can count on point-to-point ordering to deliver payload before header */
-            (void)gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, mem_oust, NULL, NULL GASNETI_THREAD_PASS);
+            (void)gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, mem_oust, NULL, NULL GASNETI_THREAD_GET);
           #else
 	    /* Point-to-point ordering still holds, but only once the RDMA is actually queued.
 	     * In the case of a firehose hit, the RDMA is already queued before return from
@@ -2083,7 +2083,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 	     */
 	    gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
 	    gasneti_assert(!token);	/* Replies MUST have been caught above */
-	    (void)gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, mem_oust, NULL, NULL, &am_oust GASNETI_THREAD_PASS);
+	    (void)gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, mem_oust, NULL, NULL, &am_oust GASNETI_THREAD_GET);
 	    gasnetc_counter_wait(&am_oust, 0);
           #endif
         }
@@ -2247,7 +2247,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       sr_desc->sg_list[0].lkey   = GASNETC_SND_LKEY(cep);
   
       sreq = gasnetc_get_sreq(completed ? GASNETC_OP_AM_BLOCK : GASNETC_OP_AM
-                              GASNETI_THREAD_PASS);
+                              GASNETI_THREAD_GET);
       sreq->completed = completed;
       sreq->am_buff = buf_alloc;
   
