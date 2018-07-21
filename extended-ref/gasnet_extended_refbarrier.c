@@ -1226,7 +1226,7 @@ GASNETI_INLINE(gasnete_rmdbarrier_send)
 void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
                              gex_AM_Arg_t value, gex_AM_Arg_t flags) {
-  GASNETI_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
+  GASNET_BEGIN_FUNCTION(); /* XXX: can we remove/avoid this lookup? */
   unsigned int step = state >> 1;
   gex_Event_t event;
   gasnete_coll_rmdbarrier_inbox_t *payload;
@@ -1247,18 +1247,18 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
    * consuming any of the 65535 explicit events promised to the client.
    */
 
-  gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_PASS);
+  gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_GET);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
     gasnete_put_nbi(gasneti_THUNK_TM, node, addr, payload, sizeof(*payload),
-                    GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
+                    GEX_EVENT_DEFER, 0 GASNETI_THREAD_GET);
   }
-  event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
+  event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_GET);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */
-  gasnete_wait(event GASNETI_THREAD_PASS);
+  gasnete_wait(event GASNETI_THREAD_GET);
 #else
   /* save the new ops to sync after the barrier is complete */
   step -= (numsteps + 1);
@@ -1541,7 +1541,7 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
  #if GASNETI_PSHM_BARRIER_HIER
   if (!barrier_data->barrier_passive)
  #endif
-  gasnete_wait_all(barrier_data->barrier_events, barrier_data->barrier_size GASNETI_THREAD_PASS);
+  gasnete_wait_all(barrier_data->barrier_events, barrier_data->barrier_size GASNETI_THREAD_GET);
 #endif
 
   /*  update state */
@@ -2198,7 +2198,6 @@ static int gasnete_barrier_result_default(gasnete_coll_team_t team, int *id) {
 
 /* This is for use by conduits that don't have a specialized version */
 int gasnete_barrier_default(gasnete_coll_team_t team, int id, int flags) {
-  GASNETI_THREAD_LOOKUP
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t barrier_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif

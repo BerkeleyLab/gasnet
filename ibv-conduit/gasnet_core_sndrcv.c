@@ -534,9 +534,9 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
              | ((cat)     << 8         )        \
              | ((hand)                 )))
 
-#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0 GASNETI_THREAD_PASS)
-#define gasnetc_poll_snd()		gasnetc_do_poll(0,1 GASNETI_THREAD_PASS)
-#define gasnetc_poll_both()		gasnetc_do_poll(1,1 GASNETI_THREAD_PASS)
+#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0 GASNETI_THREAD_GET)
+#define gasnetc_poll_snd()		gasnetc_do_poll(0,1 GASNETI_THREAD_GET)
+#define gasnetc_poll_both()		gasnetc_do_poll(1,1 GASNETI_THREAD_GET)
 
 /* Post a work request to the receive queue of the given endpoint */
 GASNETI_INLINE(gasnetc_rcv_post)
@@ -1897,7 +1897,7 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
 
 #if GASNETI_THREADINFO_OPT
   if_pf (! hca->rcv_threadinfo) hca->rcv_threadinfo = _gasneti_mythread_slow();
-  GASNETI_THREAD_POST(hca->rcv_threadinfo)
+  GASNET_POST_THREADINFO(hca->rcv_threadinfo);
 #endif
 
   gasneti_assert(gasnetc_use_rcv_thread);
@@ -1912,7 +1912,7 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
   }
   #endif
   else {
-    gasnetc_rcv_am(comp_p, spare_p GASNETI_THREAD_PASS);
+    gasnetc_rcv_am(comp_p, spare_p GASNETI_THREAD_GET);
     GASNETC_STAT_EVENT_VAL(RCV_REAP, 1);
   #if !GASNETC_PIN_SEGMENT
     /* Handler might have queued work for firehose */
@@ -3820,7 +3820,7 @@ void gasnetc_sys_close_reqh(gex_Token_t token) {
 
 extern void
 gasnetc_sndrcv_quiesce(void) {
-  GASNETI_THREAD_LOOKUP // OK - not a critical-path
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
   gasnetc_hca_t *hca;
 
   /* suspend credit coallescing (if any) and return any banked credits */
@@ -4034,8 +4034,8 @@ extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca) {
 
 /* Just gasnetc_AMPoll w/o CHECKATTACH when !handler_context */
 extern void gasnetc_sndrcv_poll(int handler_context) {
-  GASNETI_THREAD_LOOKUP // OK - this is used only in init/exit paths
-  gasnetc_do_poll(!handler_context, 1 GASNETI_THREAD_PASS);
+  GASNET_BEGIN_FUNCTION(); // OK - this is used only in init/exit paths
+  gasnetc_do_poll(!handler_context, 1 GASNETI_THREAD_GET);
 }
 
 extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context GASNETI_THREAD_FARG)
@@ -4383,7 +4383,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
                                  gasnetc_counter_t *counter,
                                  gex_AM_Index_t handler,
                                  int numargs, ...) {
-  GASNETI_THREAD_LOOKUP;
+  GASNET_BEGIN_FUNCTION();
   int retval;
   va_list argptr;
 
@@ -4415,7 +4415,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
                                     gex_AM_Index_t handler,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...) {
-  GASNETI_THREAD_LOOKUP;
+  GASNET_BEGIN_FUNCTION();
   int retval;
   va_list argptr;
 
@@ -4446,7 +4446,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
                                gasnetc_counter_t *counter,
                                gex_AM_Index_t handler,
                                int numargs, ...) {
-  GASNETI_THREAD_LOOKUP // TODO-EX: from token
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
   int retval;
   va_list argptr;
   gasneti_assert(token);
@@ -4475,7 +4475,7 @@ extern int gasnetc_ReplySysMedium(gex_Token_t token,
                                   gex_AM_Index_t handler,
                                   void *source_addr, size_t nbytes,
                                   int numargs, ...) {
-  GASNETI_THREAD_LOOKUP // TODO-EX: from token
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
   int retval;
   va_list argptr;
   gasneti_assert(token);
@@ -4939,14 +4939,14 @@ extern int gasnetc_AMReplyShortM(
                             gex_Flags_t flags,
                             int numargs, ...)
 {
-  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
 
   gasneti_assert(token);
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_PASS);
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
   va_end(argptr);
   return retval;
 }
@@ -4968,14 +4968,14 @@ extern int gasnetc_AMReplyMediumM(
                             gex_Flags_t flags,
                             int numargs, ...)
 {
-  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
 
   gasneti_assert(token);
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
   va_end(argptr);
   return retval;
 }
@@ -4998,14 +4998,14 @@ extern int gasnetc_AMReplyLongM(
                             gex_Flags_t flags,
                             int numargs, ...)
 {
-  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
 
   gasneti_assert(token);
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
   va_end(argptr);
   return retval;
 }
