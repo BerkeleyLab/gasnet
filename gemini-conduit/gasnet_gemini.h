@@ -133,6 +133,9 @@ typedef struct {
   int need_reply;
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;
+#if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t threadinfo;
+#endif
 } gasnetc_token_t;
 
 /* Control messages */
@@ -360,7 +363,10 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
-void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_poll(GASNETI_THREAD_FARG_ALONE);
+#if GASNETC_USE_MULTI_DOMAIN
+  void gasnetc_poll_single_domain(GASNETI_THREAD_FARG_ALONE);
+#endif
 
 size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,

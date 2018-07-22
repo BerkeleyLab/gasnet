@@ -193,6 +193,7 @@ static void gasnetc_sys_barrier_reqh(gex_Token_t token, uint32_t arg)
 GASNETI_NEVER_INLINE(gasnetc_bootstrapBarrier_gni,
 void gasnetc_bootstrapBarrier_gni(void))
 {
+    GASNET_BEGIN_FUNCTION();
     static int phase = 0;
     int pre_attach = !gasneti_attach_done;
     int i;
@@ -212,8 +213,7 @@ void gasnetc_bootstrapBarrier_gni(void))
 
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
-         GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-         gasnetc_poll(GASNETC_DIDX_PASS_ALONE);  /* No PSHM progress required here */
+         gasnetc_poll(GASNETI_THREAD_PASS_ALONE);  /* No PSHM progress required here */
       }
     }
 
@@ -772,8 +772,6 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   uintptr_t                     segsize,
                                   gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
-  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-
   // TODO-EX: crude detection of multiple calls until we support them
   gasneti_assert(NULL == gasneti_seginfo[0].addr);
 
@@ -1224,7 +1222,11 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE)
 #endif
 
   /* (###) add code here to run your AM progress engine */
-  gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+#if GASNETC_USE_MULTI_DOMAIN
+  gasnetc_poll_single_domain(GASNETI_THREAD_PASS_ALONE);
+#else
+  gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
+#endif
 
   return GASNET_OK;
 }
@@ -1761,7 +1763,8 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                                         source_addr, nbytes, dest_addr,
                                         flags, numargs, argptr);
   } else {
-    GASNETC_DIDX_POST(GASNETI_MYTHREAD_GET_OR_LOOKUP->domain_idx); // TODO: extract threadinfo from token
+    GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
+    GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
@@ -1830,9 +1833,10 @@ extern int gasnetc_AMReplyMediumM(
                                         source_addr, nbytes, NULL,
                                         flags, numargs, argptr);
   } else {
+    GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
     struct gasneti_AM_SrcDesc the_sd;
     retval = gasnetc_prepare_medium(&the_sd,1,0,0,token,source_addr,0,nbytes,
-                                    NULL,flags,numargs GASNETI_THREAD_GET); // TODO-EX: thredinfo from token
+                                    NULL,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
       gasnetc_commit_medium(&the_sd,1,0,handler,nbytes,argptr);
     }
@@ -1851,7 +1855,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Flags_t        flags,
                        unsigned int       nargs)
 {
-    GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
+    GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
     gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
     GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
