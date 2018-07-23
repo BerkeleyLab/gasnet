@@ -1104,7 +1104,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
-int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
+int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq GASNETI_THREAD_FARG)
 {
   void *msg;
   size_t msgsz;
@@ -1129,6 +1129,9 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gex_AM_Entry_t *entry = gasnetc_get_hentry(ep,handler_id);
   gasnetc_nbrhd_token_t my_token;
   gex_Token_t token = gasnetc_nbrhd_token_init(&my_token, GASNETI_AMPSHM_MSG_SOURCE(msg), entry, isReq);
+#if GASNETI_THREADINFO_OPT
+  my_token.threadinfo = GASNETI_MYTHREAD;
+#endif
 
   handler_fn = entry->gex_fnptr;
   numargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
@@ -1182,12 +1185,12 @@ int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG)
 
   if (gasneti_pshmnet_queue_peek(gasneti_reply_pshmnet->my_queue)) {
     for (i = 0; i < GASNETI_AMPSHM_MAX_REPLY_PER_POLL; i++) 
-      if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
+      if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0 GASNETI_THREAD_PASS))
         break;
   }
   if (!repliesOnly && gasneti_pshmnet_queue_peek(gasneti_request_pshmnet->my_queue)) {
     for (i = 0; i < GASNETI_AMPSHM_MAX_REQUEST_PER_POLL; i++) 
-      if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
+      if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1 GASNETI_THREAD_PASS))
         break;
   }
   return GASNET_OK;
@@ -1480,7 +1483,7 @@ int gasneti_AMPSHM_RequestLong(gex_Rank_t jobrank, gex_AM_Index_t handler,
 int gasneti_AMPSHM_ReplyShort(gex_Token_t token, gex_AM_Index_t handler,
                               gex_Flags_t flags, int numargs, va_list argptr)
 {
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Short, 0, jobrank, handler, NULL,
                                         0, NULL, flags, numargs, argptr
@@ -1491,7 +1494,7 @@ int gasneti_AMPSHM_ReplyMedium(gex_Token_t token, gex_AM_Index_t handler,
                                void *source_addr, size_t nbytes,
                                gex_Flags_t flags, int numargs, va_list argptr)
 {
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Medium, 0, jobrank, handler, source_addr,
                                         nbytes, NULL, flags, numargs, argptr
@@ -1502,7 +1505,7 @@ int gasneti_AMPSHM_ReplyLong(gex_Token_t token, gex_AM_Index_t handler,
                              void *source_addr, size_t nbytes, void *dest_addr,
                              gex_Flags_t flags, int numargs, va_list argptr)
 {
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
   gex_Rank_t jobrank = gasnetc_ampshm_msgsource(token);
   return gasnetc_AMPSHM_ReqRepGeneric(gasneti_Long, 0, jobrank, handler, source_addr,
                                         nbytes, dest_addr, flags, numargs, argptr

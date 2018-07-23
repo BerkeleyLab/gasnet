@@ -586,15 +586,23 @@ typedef struct {
   int8_t   handlerRunning; 
   int8_t   replyIssued;    
 #endif
+#if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t threadinfo;
+#endif
 } gasnetc_nbrhd_token_t;
 
 #define gasnetc_token_in_nbrhd(tok) ((uintptr_t)(tok)&1)
+
+#define GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token) \
+        GASNET_POST_THREADINFO((gasneti_assert(gasnetc_token_in_nbrhd(token)), \
+                                ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)(token)))->threadinfo))
 
 // gasnetc_nbrhd_token_init is used to forge a conduit-independent nbrhd token that can be used to invoke a client AM handler
 // It currently has three main clients:
 //   Loopback AM delivery, PSHM AM delivery, VIS peer completion callback support
 // NOTE 1: The caller of this function is responsible for populating real_token->ti.gex_is_long after return
 // NOTE 2: src_jobrank is permitted to specify remote ranks, in order to support VIS PC
+// NOTE 3: If real_token->threadinfo is to be used, caller must set after return
 GASNETI_INLINE(gasnetc_nbrhd_token_init)
 gex_Token_t gasnetc_nbrhd_token_init(
                         gasnetc_nbrhd_token_t *real_token,
@@ -737,6 +745,9 @@ void gasnetc_loopback_commit_inner(
 
   gasnetc_nbrhd_token_t real_token;
   const gex_Token_t token = gasnetc_nbrhd_token_init(&real_token, gasneti_mynode, handler_entry, isReq);
+#if GASNETI_THREADINFO_OPT
+  real_token.threadinfo = GASNETI_MYTHREAD;
+#endif
   real_token.ti.gex_is_long = (category == gasneti_Long);
 
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_NBRHD);
@@ -865,7 +876,7 @@ int gasnetc_nbrhd_ReplyGeneric(
         gasneti_unreachable();
   }
 #else
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: GASNET_POST_THREADINFO() from token
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
   retval = gasnetc_loopback_ReqRepGeneric(
                                  0, category, handler,
                                  source_addr, nbytes, dest_ptr, 
