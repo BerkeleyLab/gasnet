@@ -2597,10 +2597,8 @@ void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq) {
 
 GASNETI_INLINE(gasnetc_fh_put_bounce)
 void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq) {
-#if GASNETI_MAX_THREADS > 1
   /* Stashed value avoids dynamic thread lookup here */
-  void * const _threadinfo = (void *) orig_sreq->fh_bbuf;
-#endif
+  GASNET_POST_THREADINFO((void *) orig_sreq->fh_bbuf);
   GASNETC_DECL_SR_DESC(sr_desc, 1);
   const firehose_request_t * const fh_rem = orig_sreq->fh_ptr[0];
   gasnetc_epid_t epid = orig_sreq->epid;
@@ -2616,7 +2614,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq) {
 
   /* Use full bounce buffers until just one buffer worth of data remains */
   while (nbytes > GASNETC_BUFSZ) {
-    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_BOUNCE GASNETI_THREAD_PASS);
+    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_BOUNCE GASNETI_THREAD_GET);
     sreq->fh_bbuf = gasnetc_get_bbuf(1);
     memcpy(sreq->fh_bbuf, (void *)src, GASNETC_BUFSZ);
     sreq->fh_count = 0;
@@ -2914,7 +2912,7 @@ size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq, gasnetc_a
       }
     } else if ((nbytes <= gasnetc_bounce_limit) && (sreq->mem_oust != NULL)) {
       /* Bounce buffer use for non-bulk puts (upto a limit) */
-#if GASNETI_MAX_THREADS > 1
+#if GASNETI_THREADINFO_OPT
       /* avoid dynamic thread lookup in the callback */
       sreq->fh_bbuf = (gasnetc_buffer_t *)GASNETI_MYTHREAD;
 #endif
