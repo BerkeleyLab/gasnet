@@ -31,30 +31,25 @@
 #include <gasnet_help.h>
 
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN 
-  /* Too early to use GASNETI_THREAD_*, though GASNETI_THREADINFO_OPT is defined when applicable */
-  #if GASNETI_THREADINFO_OPT
-    #define GASNETC_AM_POLL_FARG void *_threadinfo
-    #define GASNETC_AM_POLL_PASS _threadinfo
-  #else
-    #define GASNETC_AM_POLL_FARG void
-    #define GASNETC_AM_POLL_PASS /*empty*/
-  #endif
+  // Multi-domain needs MYTHREAD in AMPoll
+  #define GASNETC_AM_POLL_FARG GASNETI_THREAD_FARG_ALONE
+  #define GASNETC_AM_POLL_PASS GASNETI_THREAD_PASS_ALONE
 
-  extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG);
+  extern int gasnetc_AMPoll_core(GASNETI_THREAD_FARG_ALONE);
 
   GASNETI_INLINE(gasnetc_AMPoll_internal)
-  int gasnetc_AMPoll_internal(GASNETC_AM_POLL_FARG) {
+  int gasnetc_AMPoll_internal(GASNETI_THREAD_FARG_ALONE) {
     int retval;
     gasneti_memcheck_one();
-    retval = gasnetc_AMPoll_core(GASNETC_AM_POLL_PASS);
+    retval = gasnetc_AMPoll_core(GASNETI_THREAD_PASS_ALONE);
     GASNETI_PROGRESSFNS_RUN();
     return retval;
   }
 
   GASNETI_INLINE(gasnetc_AMPoll_client)
-  int gasnetc_AMPoll_client(GASNETC_AM_POLL_FARG) {
+  int gasnetc_AMPoll_client(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_TRACE_EVENT(I, AMPOLL);
-    return gasnetc_AMPoll_internal(GASNETC_AM_POLL_PASS);
+    return gasnetc_AMPoll_internal(GASNETI_THREAD_PASS_ALONE);
   }
 #endif
 
