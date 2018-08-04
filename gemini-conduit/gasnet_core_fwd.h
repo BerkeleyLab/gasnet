@@ -113,6 +113,7 @@ extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthrea
         TIME(C, GET_AM_LOC_BUFFER_STALL, stalled time) \
         TIME(C, ALLOC_PD_STALL, stalled time) \
         TIME(C, ALLOC_BB_STALL, stalled time) \
+        TIME(C, ALLOC_AMRV_STALL, stalled time) \
         TIME(C, MEM_REG_STALL, stalled time) \
         VAL(C, POST_FMA_RETRY, retries) \
         VAL(C, POST_RDMA_RETRY, retries) \
