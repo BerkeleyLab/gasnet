@@ -747,9 +747,10 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
       }
     }
   }
-  have_auxseg = 1;
-
   gasneti_assert_always (status == GNI_RC_SUCCESS);
+
+  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
 
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
@@ -760,8 +761,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     gasneti_free(all_mem_handle);
   }
 
-  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
-  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
+  have_auxseg = 1;
 
 #if GASNETC_USE_MULTI_DOMAIN
   DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
