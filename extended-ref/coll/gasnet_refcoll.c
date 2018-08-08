@@ -453,7 +453,7 @@ gasnete_coll_op_destroy(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
 #ifndef gasneti_coll_progressfn
 extern void gasneti_coll_progressfn(void) {
   GASNET_BEGIN_FUNCTION(); /* TODO: remove this lookup */
-  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOFARG;
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
   if (td->in_poll) return; /* prevent recursion */
   td->in_poll = 1;
@@ -601,7 +601,7 @@ extern void gasnete_coll_init_subsystem(void)
     gasnet_team_fca_enable(GASNET_TEAM_ALL);
 #endif
 
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOFARG;
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 
     gasnete_coll_init_done = 1;
 }

@@ -413,7 +413,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
     } else
 #endif
     (void) gasnetc_rdma_put(node, (void*)payload, addr, sizeof(*payload), 0,
-                            NULL, NULL, NULL, NULL GASNETI_THREAD_GET);
+                            NULL, NULL, NULL, NULL GASNETI_THREAD_PASS);
   }
 }
 
