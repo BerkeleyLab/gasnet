@@ -66,9 +66,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         (mythread->gasnete_vis_threaddata ? \
          mythread->gasnete_vis_threaddata : \
         (mythread->gasnete_vis_threaddata = gasnete_vis_new_threaddata()))
-// first variant statically requires FARG context, second does not
 #define GASNETE_VIS_MYTHREAD        _GASNETE_VIS_MYTHREAD(GASNETI_MYTHREAD)
-#define GASNETE_VIS_MYTHREAD_NOFARG _GASNETE_VIS_MYTHREAD(GASNETI_MYTHREAD_GET_OR_LOOKUP)
 
 #define GASNETI_VIS_CAT_PUTV_GATHER       1
 #define GASNETI_VIS_CAT_GETV_SCATTER      2

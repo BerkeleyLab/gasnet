@@ -94,7 +94,7 @@ extern void gasneti_vis_progressfn(void) {
   #pragma error_messages(off, E_LOOP_NOT_ENTERED_AT_TOP)
 #endif
   GASNET_BEGIN_FUNCTION(); /* TODO: remove this lookup */
-  gasnete_vis_threaddata_t *td = GASNETE_VIS_MYTHREAD_NOFARG; 
+  gasnete_vis_threaddata_t *td = GASNETE_VIS_MYTHREAD; 
   gasneti_vis_op_t **lastp = &(td->active_ops);
   if (td->progressfn_active) return; /* prevent recursion */
   td->progressfn_active = 1;

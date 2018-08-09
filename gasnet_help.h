@@ -394,7 +394,7 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
       and discard the unused variables
      We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
    */
-  #define GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
+  #define _GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
   static gasnet_threadinfo_t _gasneti_threadinfo_cache = 0;
   static uint8_t             _gasneti_threadinfo_available = 
     sizeof(_gasneti_threadinfo_cache) + sizeof(_gasneti_threadinfo_available);
@@ -421,17 +421,16 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
       ) 
   #else
     // straightforward implementation of GET POSTED
-    #define _GASNETI_GET_THREADINFO_POSTED()                           \
-       ( (gasnet_threadinfo_t)(uintptr_t)_gasneti_threadinfo_cache )
+    #define _GASNETI_GET_THREADINFO_POSTED() ( _gasneti_threadinfo_cache )
   #endif
 
   // GASNET_GET_THREADINFO: the main cached-lookup workhorse
   // note both the branches textually below are always statically resolved
   #define GASNET_GET_THREADINFO()                                      \
-    ( GASNETI_THREAD_POSTED ? /* have POST or BEGIN_FUNCTION ? */      \
+    ( _GASNETI_THREAD_POSTED ? /* have POST or BEGIN_FUNCTION ? */     \
       _GASNETI_GET_THREADINFO_POSTED() /* use it */ :                  \
-      ( GASNETI_THREAD_FARG_AVAILABLE ? /* in FARG context? use. */    \
-         (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE :   \
+      ( _GASNETI_THREAD_FARG_AVAILABLE ? /* in FARG context? use. */   \
+         (gasnet_threadinfo_t)(uintptr_t)_GASNETI_THREAD_FARG_NAME :   \
          (gasnet_threadinfo_t)_gasneti_mythread_slow() /* lookup */ )  \
     )     
 
@@ -462,50 +461,81 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
 /* thread-id optimization support */
 
 #if GASNETI_THREADINFO_OPT
-  static uint8_t _gasneti_threadinfo_farg = sizeof(_gasneti_threadinfo_farg);
-  #define GASNETI_THREAD_FARG_AVAILABLE  (sizeof(_gasneti_threadinfo_farg) > 1)
-  // -----------------------------------------------------------------------------------------
-  // Propagating info into GASNETI_THREAD_FARG function context
-  // GASNETI_THREAD_FARG(_ALONE): use to declare the threadinfo hidden arg as part of a function declaration
   #if GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
-    #define GASNETI_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _gasneti_threadinfo_farg
+    #define _GASNETI_THREAD_FARG_RTYPE  gasnet_threadinfo_t 
   #else
-    #define GASNETI_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _gasneti_threadinfo_farg
+    #define _GASNETI_THREAD_FARG_RTYPE  void *
   #endif
+  #define _GASNETI_THREAD_FARG_TYPE    _GASNETI_THREAD_FARG_RTYPE const GASNETI_RESTRICT
+  #define _GASNETI_THREAD_FARG_NAME    _gasneti_threadinfo_farg
+  static uint8_t _GASNETI_THREAD_FARG_NAME = sizeof(_GASNETI_THREAD_FARG_NAME);
+  #define _GASNETI_THREAD_FARG_AVAILABLE  (sizeof(_GASNETI_THREAD_FARG_NAME) > 1)
+  // A compile error on the following macro means the assertion failed,
+  // ie a macro that requires FARG/POSTed context was invoked outside either
+  #define _GASNETI_ASSERT_FARG_OR_POSTED() \
+    ((void)(void (*)(int gasneti_MISSING_FARG_OR_POST[(_GASNETI_THREAD_FARG_AVAILABLE||_GASNETI_THREAD_POSTED)?1:-1]))0)
+  // -----------------------------------------------------------------------------------------
+  // *** Propagating info into GASNETI_THREAD_FARG function context ***
+  
+  // GASNETI_THREAD_FARG(_ALONE): use to declare the threadinfo hidden arg as part of a function declaration
   #define GASNETI_THREAD_FARG         , GASNETI_THREAD_FARG_ALONE
-  // GASNETI_THREAD_GET(_ALONE): use to retrieve the threadinfo (possibly from GASNET_POST_THREADINFO in the enclosing context)
+  #define GASNETI_THREAD_FARG_ALONE   _GASNETI_THREAD_FARG_TYPE _GASNETI_THREAD_FARG_NAME
+
+  // GASNETI_THREAD_GET(_ALONE): retrieve the threadinfo (when GASNETI_THREADINFO_OPT) from one of:
+  //     a prior GASNET_POST_THREADINFO, an FARG to the enclosing function, or dynamic lookup
   // and pass as the hidden argument to a function declared using GASNETI_THREAD_FARG(_ALONE)
-  #define GASNETI_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
   #define GASNETI_THREAD_GET          , GASNETI_THREAD_GET_ALONE
+  #define GASNETI_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
+
   // -----------------------------------------------------------------------------------------
-  // Inside GASNETI_THREAD_FARG context
-  //   The macros in this section should ONLY be used by code inside "GASNETI_THREAD_FARG context",
-  //   such as inside functions declared using GASNETI_THREAD_FARG*.
-  // GASNETI_THREAD_PASS(_ALONE): propagate the hidden arg to a callee also declared with GASNETI_THREAD_FARG*
-  //   this only differs from GASNETI_THREAD_GET* in that it statically requires FARG context (and no lookup)
-  #define GASNETI_THREAD_PASS_ALONE   (_gasneti_threadinfo_farg)
+  // *** Inside FARG/POST'd context ***
+  //
+  //   The macros in this section should ONLY be used by code inside an FARG/POST'd context, ie:
+  //    1. inside functions declared using GASNETI_THREAD_FARG*.
+  //    2. within the lexical scope of a GASNET_BEGIN_FUNCTION() or GASNET_POST_THREADINFO()
+  //   Otherwise, they generate a compiler diagnostic in GASNETI_THREADINFO_OPT mode.
+  //   the error looks something like: "error: size of array is negative"
+  //   This is helpful in contexts where we wish to statically ensure lack of dynamic lookup.
+ 
+  // GASNETI_THREAD_PASS(_ALONE): propagate the threadinfo to a callee declared with GASNETI_THREAD_FARG*
+  //   this only differs from GASNETI_THREAD_GET* in that it statically requires FARG/POST'd context (and no lookup)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
-  // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasneti_threaddata_t *)
-  #define GASNETI_MYTHREAD            ((struct _gasneti_threaddata_t *)_gasneti_threadinfo_farg)
+  #define GASNETI_THREAD_PASS_ALONE ( _GASNETI_ASSERT_FARG_OR_POSTED(),                              \
+                                     ( _GASNETI_THREAD_POSTED ?                                      \
+                                      (_GASNETI_THREAD_FARG_RTYPE)_GASNETI_GET_THREADINFO_POSTED() : \
+                                      (_GASNETI_THREAD_FARG_RTYPE)(uintptr_t)_GASNETI_THREAD_FARG_NAME ) )
+
+  // GASNETI_MYTHREAD: retrieve the value of the threadinfo as a (gasneti_threaddata_t *),
+  //                   suitable for access to threaddata fields from internal code
+  #define GASNETI_MYTHREAD  ( _GASNETI_ASSERT_FARG_OR_POSTED(),                                  \
+                             (_GASNETI_THREAD_POSTED ?                                           \
+                              (struct _gasneti_threaddata_t *)_GASNETI_GET_THREADINFO_POSTED() : \
+                              (struct _gasneti_threaddata_t *)(uintptr_t)_GASNETI_THREAD_FARG_NAME ) )
+
   // -----------------------------------------------------------------------------------------
-  // Declaring GASNETI_THREAD_FARG context : NO LONGER SUPPORTED
+  // *** Declaring GASNETI_THREAD_FARG context : NO LONGER SUPPORTED ***
+  
   // Former macros:
   //   GASNETI_THREAD_LOOKUP has been superceded by GASNET_BEGIN_FUNCTION
   //   GASNETI_THREAD_POST() has been superceded by GASNET_POST_THREADINFO()
   // GASNETI_THREAD_GET* now automatically pulls from these sources or FARG before lookup.
+
   // -----------------------------------------------------------------------------------------
+  // *** Other ***
+  
   // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasneti_threaddata_t *) from one of:
-  //    a prior GASNET_POST_THREADINFO, any available FARG, or lookup
-  // this is essentially GASNETI_MYTHREAD without requiring FARG context
+  //     a prior GASNET_POST_THREADINFO, an FARG to the enclosing function, or dynamic lookup
+  //  This is essentially GASNETI_MYTHREAD without requiring FARG/POST'd context (allows lookup)
+  //  Only valid known use is macros that expand threaddata field access directly into client code
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP ((struct _gasneti_threaddata_t *)GASNET_GET_THREADINFO())
+
 #else
-  #define GASNETI_THREAD_FARG_AVAILABLE  0
-  #define GASNETI_THREAD_FARG_ALONE   void
   #define GASNETI_THREAD_FARG         
-  #define GASNETI_THREAD_GET_ALONE   
+  #define GASNETI_THREAD_FARG_ALONE   void
   #define GASNETI_THREAD_GET         
-  #define GASNETI_THREAD_PASS_ALONE   
+  #define GASNETI_THREAD_GET_ALONE   
   #define GASNETI_THREAD_PASS         
+  #define GASNETI_THREAD_PASS_ALONE   
   #define GASNETI_MYTHREAD            (_gasneti_mythread_slow())
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP GASNETI_MYTHREAD
 #endif
