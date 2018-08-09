@@ -1912,7 +1912,7 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
   }
   #endif
   else {
-    gasnetc_rcv_am(comp_p, spare_p GASNETI_THREAD_GET);
+    gasnetc_rcv_am(comp_p, spare_p GASNETI_THREAD_PASS);
     GASNETC_STAT_EVENT_VAL(RCV_REAP, 1);
   #if !GASNETC_PIN_SEGMENT
     /* Handler might have queued work for firehose */
@@ -4035,7 +4035,7 @@ extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca) {
 /* Just gasnetc_AMPoll w/o CHECKATTACH when !handler_context */
 extern void gasnetc_sndrcv_poll(int handler_context) {
   GASNET_BEGIN_FUNCTION(); // OK - this is used only in init/exit paths
-  gasnetc_do_poll(!handler_context, 1 GASNETI_THREAD_GET);
+  gasnetc_do_poll(!handler_context, 1 GASNETI_THREAD_PASS);
 }
 
 extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context GASNETI_THREAD_FARG)
@@ -4398,13 +4398,13 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
-                                            0, numargs, argptr GASNETI_THREAD_GET);
+                                            0, numargs, argptr GASNETI_THREAD_PASS);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, NULL, dest, handler,
                                    NULL, 0, NULL, 0, numargs,
                                    &counter->initiated, gasnetc_cb_counter, counter,
-                                   argptr GASNETI_THREAD_GET);
+                                   argptr GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   return retval;
@@ -4430,13 +4430,13 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, jobrank, handler,
                                             source_addr, nbytes, NULL,
-                                            0, numargs, argptr GASNETI_THREAD_GET);
+                                            0, numargs, argptr GASNETI_THREAD_PASS);
     if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
   } else {
     retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, NULL, dest, handler,
                                    source_addr, nbytes, NULL, 0, numargs,
                                    &counter->initiated, gasnetc_cb_counter, counter,
-                                   argptr GASNETI_THREAD_GET);
+                                   argptr GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -4464,7 +4464,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
     retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
                                    NULL, 0, NULL, 0, numargs,
                                    &counter->initiated, gasnetc_cb_counter, counter,
-                                   argptr GASNETI_THREAD_GET);
+                                   argptr GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   return retval;
@@ -4493,7 +4493,7 @@ extern int gasnetc_ReplySysMedium(gex_Token_t token,
     retval = gasnetc_ReqRepGeneric(ep, gasneti_Medium, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
                                    source_addr, nbytes, NULL, 0, numargs,
                                    &counter->initiated, gasnetc_cb_counter, counter,
-                                   argptr GASNETI_THREAD_GET);
+                                   argptr GASNETI_THREAD_PASS);
   }
   va_end(argptr);
   return retval;
@@ -4515,7 +4515,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
                                             NULL, 0, NULL,
-                                            0, numargs, argptr GASNETI_THREAD_GET);
+                                            0, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     retval = gasnetc_ReqRepGeneric(ep, gasneti_Short, NULL, jobrank, handler,
                                    NULL, 0, NULL,
@@ -4540,7 +4540,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Medium, jobrank, handler,
                                             source_addr, nbytes, NULL,
-                                            flags, numargs, argptr GASNETI_THREAD_GET);
+                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
     gasnetc_atomic_val_t *local_cnt, start_cnt;
@@ -4604,7 +4604,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     gasneti_leaf_finish(lc_opt); // Always synchronous local completion
     retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Long, jobrank, handler,
                                             source_addr, nbytes, dest_addr,
-                                            flags, numargs, argptr GASNETI_THREAD_GET);
+                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
     gasnetc_atomic_val_t *local_cnt, start_cnt;
@@ -4946,7 +4946,7 @@ extern int gasnetc_AMReplyShortM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
 }
@@ -4957,7 +4957,7 @@ extern int gasnetc_AMReplyMediumV(
                             gex_Event_t *lc_opt, gex_Flags_t flags,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
-  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -4975,7 +4975,7 @@ extern int gasnetc_AMReplyMediumM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
 }
@@ -4986,7 +4986,7 @@ extern int gasnetc_AMReplyLongV(
                             gex_Event_t *lc_opt, gex_Flags_t flags,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
-  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -5005,7 +5005,7 @@ extern int gasnetc_AMReplyLongM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
 }

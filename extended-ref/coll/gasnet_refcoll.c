@@ -461,7 +461,7 @@ extern void gasneti_coll_progressfn(void) {
   if (gasneti_mutex_trylock(&gasnete_coll_poll_lock) == 0)
   {
     /* First try to make progress on any pending events */
-    gasnete_coll_sync_saved_events(GASNETI_THREAD_GET_ALONE);
+    gasnete_coll_sync_saved_events(GASNETI_THREAD_PASS_ALONE);
 
     /* NOTE regarding thread safety of active list:
      * We traverse the active list here, possibly deleting elements.
@@ -486,12 +486,12 @@ extern void gasneti_coll_progressfn(void) {
 
         // Poll/kick the op
         gasneti_assert(op->poll_fn);
-        int poll_result = (*op->poll_fn)(op GASNETI_THREAD_GET);
+        int poll_result = (*op->poll_fn)(op GASNETI_THREAD_PASS);
 
         if (poll_result != 0) {
           // signal and/or destroy the op
           gasneti_mutex_lock(&gasnete_coll_active_lock);
-          gasnete_coll_op_complete(op, poll_result GASNETI_THREAD_GET);
+          gasnete_coll_op_complete(op, poll_result GASNETI_THREAD_PASS);
           gasneti_mutex_unlock(&gasnete_coll_active_lock);
         }
       } while (op != last); // Stop at original end, not at NULL, due to lack of fences
@@ -593,7 +593,7 @@ extern void gasnete_coll_init_subsystem(void)
     /* setup information for TM0 */
     gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode,
                            GASNET_TEAM_ALL->rel2act_map, gasnete_coll_auxseg_save,
-                           NULL GASNETI_THREAD_GET);
+                           NULL GASNETI_THREAD_PASS);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 

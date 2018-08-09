@@ -53,7 +53,7 @@ extern void gasnete_init(void) {
     GASNET_POST_THREADINFO(threaddata);
     gasnete_eop_t *eop = gasnete_eop_new(threaddata);
     GASNETE_EOP_MARKDONE(eop);
-    gasnete_eop_free(eop GASNETI_THREAD_GET);
+    gasnete_eop_free(eop GASNETI_THREAD_PASS);
   #endif
   }
 
