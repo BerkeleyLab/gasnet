@@ -624,6 +624,126 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
 #define GASNETI_THREAD_SWALLOW(x)
 
 /* ------------------------------------------------------------------------------------ */
+/* GASNETI_MAX_THREADS: cannot exceed the size representable in gasnete_threadidx_t, 
+   but some conduits or configures may set it to less */
+#if GASNET_SEQ /* only one client thread by definition */
+  #undef GASNETI_MAX_THREADS
+  #ifdef GASNETE_CONDUIT_THREADS_USING_TD
+    #define GASNETI_MAX_THREADS (1 + GASNETE_CONDUIT_THREADS_USING_TD)
+  #else
+    #define GASNETI_MAX_THREADS 1
+  #endif
+  #define GASNETI_MAX_THREADS_REASON "GASNET_SEQ mode only supports single-threaded operation."
+#elif defined(GASNETI_MAX_THREADS) /* conduit-imposed limit */
+  #if defined(GASNETI_MAX_THREADS_CONFIGURE) && GASNETI_MAX_THREADS_CONFIGURE < GASNETI_MAX_THREADS
+    #undef  GASNETI_MAX_THREADS /* limit lowered by configure */
+    #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
+  #else
+    #define GASNETI_MAX_THREADS_REASON "This limit is imposed by " GASNET_EXTENDED_NAME_STR " conduit."
+  #endif
+#else /* default */
+  #if GASNETI_MAX_THREADS_CONFIGURE
+    #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
+  #else /* default */
+    #define GASNETI_MAX_THREADS 256
+  #endif
+#endif
+#ifndef GASNETI_MAX_THREADS_REASON
+  #define GASNETI_MAX_THREADS_REASON "To raise this limit, configure GASNet using --with-max-pthreads-per-node=N."
+#endif
+
+#ifdef _GASNETE_THREADIDX_T
+   /* conduit override */
+  #ifndef SIZEOF_GASNETE_THREADIDX_T
+    #error "Must define both _GASNETE_THREADIDX_T and SIZEOF_GASNETE_THREADIDX_T, or neither"
+  #endif
+  #ifndef GASNETE_INVALID_THREADIDX
+    #error "Must define both _GASNETE_THREADIDX_T and GASNETE_INVALID_THREADIDX, or neither"
+  #endif
+#elif GASNETI_MAX_THREADS < 65536
+  typedef uint16_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 2
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#elif GASNETI_MAX_THREADS < 4294967296
+  typedef uint32_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 4
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#else
+  typedef uint64_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 8
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#endif
+/* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
+extern uint64_t gasneti_max_threads(void);
+extern void gasneti_fatal_threadoverflow(const char *_subsystem);
+
+#ifndef _GASNETI_MYTHREAD_SLOW
+  struct _gasneti_threaddata_t;
+  #if GASNETI_MAX_THREADS <= 256
+    extern struct _gasneti_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
+  #else
+    extern struct _gasneti_threaddata_t **gasnete_threadtable;
+  #endif
+  #if GASNETI_MAX_THREADS > 1
+    #if GASNETI_COMPILER_IS_CC
+      #if GASNET_STATS
+        // this call breaks a dependency cycle with trace.h 
+        GASNETI_INLINE(gasneti_record_dynamic_threadlookup)
+        void gasneti_record_dynamic_threadlookup(void);
+        #define GASNETI_RECORD_DYNAMIC_THREADLOOKUP gasneti_record_dynamic_threadlookup
+      #endif
+      GASNETI_THREADKEY_DECLARE(gasnete_threaddata);
+      extern void * gasnete_new_threaddata(void);
+      GASNETI_INLINE(_gasneti_mythread_slow) GASNETI_CONST
+      struct _gasneti_threaddata_t *_gasneti_mythread_slow(void) {
+        void *_threaddata = gasneti_threadkey_get(gasnete_threaddata);
+        #ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
+          GASNETI_RECORD_DYNAMIC_THREADLOOKUP(); 
+        #endif
+        if_pf (!_threaddata) { /* first time we've seen this thread - need to set it up */
+          // NOTE: DON'T use _gasnete_mythread_slow_slow to initially populate TLS, because it's annotated const
+          // so the optimizer won't understand it modifies the TLS "global" directly accessed above
+          _threaddata = gasnete_new_threaddata();
+        }
+        gasneti_memcheck(_threaddata);
+        return _threaddata;
+      }
+      GASNETI_CONSTP(_gasneti_mythread_slow)
+    #else // !GASNETI_COMPILER_IS_CC
+      // threadkey-get currently incurs a fncall on !CC anyhow, so nothing to save here
+      extern struct _gasneti_threaddata_t *_gasnete_mythread_slow_slow(void) GASNETI_CONST;
+      GASNETI_CONSTP(_gasnete_mythread_slow_slow)
+      #define _gasneti_mythread_slow() _gasnete_mythread_slow_slow()
+    #endif
+  #else
+    #define _gasneti_mythread_slow() (gasnete_threadtable[0])
+  #endif
+#endif
+
+/* register a cleanup function to run when the calling thread exits 
+   not guaranteed to run during process exits (gasnet_exit), but should
+   run for dynamic thread exits when the process is continuing.
+   Cleanups will run in reverse order of registration
+ */
+extern void gasnete_register_threadcleanup(void (*_cleanupfn)(void *), void *_context);
+
+typedef struct _gasnete_thread_cleanup {
+    struct _gasnete_thread_cleanup *_next;
+    void (*_cleanupfn)(void *);
+    void *_context;
+} gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
+
+
+/* high-water mark on highest thread index allocated thus far */
+extern int gasnete_maxthreadidx;
+#define gasnete_assert_valid_threadid(threadidx) do {   \
+    int _thid = (threadidx);                            \
+    gasneti_assert(_thid <= gasnete_maxthreadidx);      \
+    gasneti_assert(gasnete_threadtable[_thid] != NULL); \
+    gasneti_memcheck(gasnete_threadtable[_thid]);       \
+} while (0)
+
+/* ------------------------------------------------------------------------------------ */
 /* GASNet progressfn support
  * progressfns are internal functions that are called "periodically" by a conduit to 
  *  allow internal GASNet modules to make progress. 
@@ -1026,6 +1146,13 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
                                          uintptr_t *size_p);
   #define gex_Segment_QueryBound(tm,rank,o_p,l_p,s_p) \
           gasneti_Segment_QueryBound(tm,rank,o_p,l_p,s_p)
+#endif
+
+#ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
+  GASNETI_INLINE(gasneti_record_dynamic_threadlookup)
+  void gasneti_record_dynamic_threadlookup(void) {
+    GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP);
+  }
 #endif
 
 /* ------------------------------------------------------------------------------------ */
