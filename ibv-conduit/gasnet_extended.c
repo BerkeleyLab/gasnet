@@ -57,7 +57,7 @@ extern void gasnete_init(void) {
     GASNET_POST_THREADINFO(threaddata);
     gasnete_eop_t *eop = gasnete_eop_new(threaddata);
     GASNETE_EOP_MARKDONE(eop);
-    gasnete_eop_free(eop GASNETI_THREAD_GET);
+    gasnete_eop_free(eop GASNETI_THREAD_PASS);
   #endif
   }
 
@@ -413,7 +413,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
     } else
 #endif
     (void) gasnetc_rdma_put(node, (void*)payload, addr, sizeof(*payload), 0,
-                            NULL, NULL, NULL, NULL GASNETI_THREAD_GET);
+                            NULL, NULL, NULL, NULL GASNETI_THREAD_PASS);
   }
 }
 

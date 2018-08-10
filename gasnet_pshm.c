@@ -1418,7 +1418,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
 
   return ampshm_prepare_inner(
                 sd, 0, isReq, category, jobrank, client_buf, least_payload, most_payload,
-                dest_addr, lc_opt, flags, nargs GASNETI_THREAD_GET);
+                dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
 }
 
 // After sd, next 2 params (isReq, category) will be manifest constants

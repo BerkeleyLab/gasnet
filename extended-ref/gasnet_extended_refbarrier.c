@@ -1247,18 +1247,18 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
    * consuming any of the 65535 explicit events promised to the client.
    */
 
-  gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_GET);
+  gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_PASS);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gex_Rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
     gasnete_put_nbi(gasneti_THUNK_TM, node, addr, payload, sizeof(*payload),
-                    GEX_EVENT_DEFER, 0 GASNETI_THREAD_GET);
+                    GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
   }
-  event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_GET);
+  event = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */
-  gasnete_wait(event GASNETI_THREAD_GET);
+  gasnete_wait(event GASNETI_THREAD_PASS);
 #else
   /* save the new ops to sync after the barrier is complete */
   step -= (numsteps + 1);

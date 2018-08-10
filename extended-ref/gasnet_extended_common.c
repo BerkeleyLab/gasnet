@@ -365,12 +365,14 @@ extern void * gasnete_new_threaddata(void)) {
 }
 /* PURE function (returns same value for a given thread every time) 
 */
-#if (GASNETI_MAX_THREADS > 1) && !defined(_GASNETE_MYTHREAD)
+#if (GASNETI_MAX_THREADS > 1) && !defined(_GASNETI_MYTHREAD_SLOW)
   // THIS FUNCTION SHOULD NEVER BE CALLED DIRECTLY
   // Most code should use GASNETI_MYTHREAD, or as a last resort _gasneti_mythread_slow()
   extern gasneti_threaddata_t *_gasnete_mythread_slow_slow(void) {
     gasneti_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
-    GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
+    #ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
+       GASNETI_RECORD_DYNAMIC_THREADLOOKUP();
+    #endif
     if_pf (!threaddata) {
       /* first time we've seen this thread - need to set it up */
       threaddata = gasnete_new_threaddata();

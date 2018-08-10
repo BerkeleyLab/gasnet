@@ -465,14 +465,14 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
 #endif
 
 #if GASNETI_THREADINFO_OPT
-  /* Here we use a clever trick - GASNET_GET_THREADINFO() uses the sizeof(gasneti_threadinfo_available)
+  /* Here we use a clever trick - GASNET_GET_THREADINFO() uses the sizeof(_gasneti_threadinfo_available)
       to determine whether gasneti_threadinfo_cache was bound a value posted by GASNET_POST_THREADINFO()
       of if it bound to the globally declared dummy variables. 
      Even a very stupid C optimizer should constant-fold away the unused calls to gasneti_get_threadinfo() 
       and discard the unused variables
      We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
    */
-  #define GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
+  #define _GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
   static gasnet_threadinfo_t _gasneti_threadinfo_cache = 0;
   static uint8_t             _gasneti_threadinfo_available = 
     sizeof(_gasneti_threadinfo_cache) + sizeof(_gasneti_threadinfo_available);
@@ -480,7 +480,7 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
 
   #define GASNET_POST_THREADINFO(info)                      \
     gasnet_threadinfo_t _gasneti_threadinfo_cache = (info); \
-    uint32_t gasneti_threadinfo_available = 0
+    uint32_t _gasneti_threadinfo_available = 0
     /* if you get an unused variable warning on _gasneti_threadinfo_available, 
        it means you POST'ed in a function which made no GASNet calls that needed it
        So, PLEASE don't add __unused__ annotations here. */
@@ -499,17 +499,16 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
       ) 
   #else
     // straightforward implementation of GET POSTED
-    #define _GASNETI_GET_THREADINFO_POSTED()                           \
-       ( (gasnet_threadinfo_t)(uintptr_t)_gasneti_threadinfo_cache )
+    #define _GASNETI_GET_THREADINFO_POSTED() ( _gasneti_threadinfo_cache )
   #endif
 
   // GASNET_GET_THREADINFO: the main cached-lookup workhorse
   // note both the branches textually below are always statically resolved
   #define GASNET_GET_THREADINFO()                                      \
-    ( GASNETI_THREAD_POSTED ? /* have POST or BEGIN_FUNCTION ? */      \
+    ( _GASNETI_THREAD_POSTED ? /* have POST or BEGIN_FUNCTION ? */     \
       _GASNETI_GET_THREADINFO_POSTED() /* use it */ :                  \
-      ( GASNETI_THREAD_FARG_AVAILABLE ? /* in FARG context? use. */    \
-         (gasnet_threadinfo_t)(uintptr_t)GASNETI_THREAD_PASS_ALONE :   \
+      ( _GASNETI_THREAD_FARG_AVAILABLE ? /* in FARG context? use. */   \
+         (gasnet_threadinfo_t)(uintptr_t)_GASNETI_THREAD_FARG_NAME :   \
          (gasnet_threadinfo_t)_gasneti_mythread_slow() /* lookup */ )  \
     )     
 
@@ -540,50 +539,81 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
 /* thread-id optimization support */
 
 #if GASNETI_THREADINFO_OPT
-  static uint8_t _gasneti_threadinfo_farg = sizeof(_gasneti_threadinfo_farg);
-  #define GASNETI_THREAD_FARG_AVAILABLE  (sizeof(_gasneti_threadinfo_farg) > 1)
-  // -----------------------------------------------------------------------------------------
-  // Propagating info into GASNETI_THREAD_FARG function context
-  // GASNETI_THREAD_FARG(_ALONE): use to declare the threadinfo hidden arg as part of a function declaration
   #if GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
-    #define GASNETI_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _gasneti_threadinfo_farg
+    #define _GASNETI_THREAD_FARG_RTYPE  gasnet_threadinfo_t 
   #else
-    #define GASNETI_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _gasneti_threadinfo_farg
+    #define _GASNETI_THREAD_FARG_RTYPE  void *
   #endif
+  #define _GASNETI_THREAD_FARG_TYPE    _GASNETI_THREAD_FARG_RTYPE const GASNETI_RESTRICT
+  #define _GASNETI_THREAD_FARG_NAME    _gasneti_threadinfo_farg
+  static uint8_t _GASNETI_THREAD_FARG_NAME = sizeof(_GASNETI_THREAD_FARG_NAME);
+  #define _GASNETI_THREAD_FARG_AVAILABLE  (sizeof(_GASNETI_THREAD_FARG_NAME) > 1)
+  // A compile error on the following macro means the assertion failed,
+  // ie a macro that requires FARG/POSTed context was invoked outside either
+  #define _GASNETI_ASSERT_FARG_OR_POSTED() \
+    ((void)(void (*)(int gasneti_MISSING_FARG_OR_POST[(_GASNETI_THREAD_FARG_AVAILABLE||_GASNETI_THREAD_POSTED)?1:-1]))0)
+  // -----------------------------------------------------------------------------------------
+  // *** Propagating info into GASNETI_THREAD_FARG function context ***
+  
+  // GASNETI_THREAD_FARG(_ALONE): use to declare the threadinfo hidden arg as part of a function declaration
   #define GASNETI_THREAD_FARG         , GASNETI_THREAD_FARG_ALONE
-  // GASNETI_THREAD_GET(_ALONE): use to retrieve the threadinfo (possibly from GASNET_POST_THREADINFO in the enclosing context)
+  #define GASNETI_THREAD_FARG_ALONE   _GASNETI_THREAD_FARG_TYPE _GASNETI_THREAD_FARG_NAME
+
+  // GASNETI_THREAD_GET(_ALONE): retrieve the threadinfo (when GASNETI_THREADINFO_OPT) from one of:
+  //     a prior GASNET_POST_THREADINFO, an FARG to the enclosing function, or dynamic lookup
   // and pass as the hidden argument to a function declared using GASNETI_THREAD_FARG(_ALONE)
-  #define GASNETI_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
   #define GASNETI_THREAD_GET          , GASNETI_THREAD_GET_ALONE
+  #define GASNETI_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
+
   // -----------------------------------------------------------------------------------------
-  // Inside GASNETI_THREAD_FARG context
-  //   The macros in this section should ONLY be used by code inside "GASNETI_THREAD_FARG context",
-  //   such as inside functions declared using GASNETI_THREAD_FARG*.
-  // GASNETI_THREAD_PASS(_ALONE): propagate the hidden arg to a callee also declared with GASNETI_THREAD_FARG*
-  //   this only differs from GASNETI_THREAD_GET* in that it statically requires FARG context (and no lookup)
-  #define GASNETI_THREAD_PASS_ALONE   (_gasneti_threadinfo_farg)
+  // *** Inside FARG/POST'd context ***
+  //
+  //   The macros in this section should ONLY be used by code inside an FARG/POST'd context, ie:
+  //    1. inside functions declared using GASNETI_THREAD_FARG*.
+  //    2. within the lexical scope of a GASNET_BEGIN_FUNCTION() or GASNET_POST_THREADINFO()
+  //   Otherwise, they generate a compiler diagnostic in GASNETI_THREADINFO_OPT mode.
+  //   the error looks something like: "error: size of array is negative"
+  //   This is helpful in contexts where we wish to statically ensure lack of dynamic lookup.
+ 
+  // GASNETI_THREAD_PASS(_ALONE): propagate the threadinfo to a callee declared with GASNETI_THREAD_FARG*
+  //   this only differs from GASNETI_THREAD_GET* in that it statically requires FARG/POST'd context (and no lookup)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
-  // GASNETI_MYTHREAD: retrieve the value of the FARG as a (gasneti_threaddata_t *)
-  #define GASNETI_MYTHREAD            ((struct _gasneti_threaddata_t *)_gasneti_threadinfo_farg)
+  #define GASNETI_THREAD_PASS_ALONE ( _GASNETI_ASSERT_FARG_OR_POSTED(),                              \
+                                     ( _GASNETI_THREAD_POSTED ?                                      \
+                                      (_GASNETI_THREAD_FARG_RTYPE)_GASNETI_GET_THREADINFO_POSTED() : \
+                                      (_GASNETI_THREAD_FARG_RTYPE)(uintptr_t)_GASNETI_THREAD_FARG_NAME ) )
+
+  // GASNETI_MYTHREAD: retrieve the value of the threadinfo as a (gasneti_threaddata_t *),
+  //                   suitable for access to threaddata fields from internal code
+  #define GASNETI_MYTHREAD  ( _GASNETI_ASSERT_FARG_OR_POSTED(),                                  \
+                             (_GASNETI_THREAD_POSTED ?                                           \
+                              (struct _gasneti_threaddata_t *)_GASNETI_GET_THREADINFO_POSTED() : \
+                              (struct _gasneti_threaddata_t *)(uintptr_t)_GASNETI_THREAD_FARG_NAME ) )
+
   // -----------------------------------------------------------------------------------------
-  // Declaring GASNETI_THREAD_FARG context : NO LONGER SUPPORTED
+  // *** Declaring GASNETI_THREAD_FARG context : NO LONGER SUPPORTED ***
+  
   // Former macros:
   //   GASNETI_THREAD_LOOKUP has been superceded by GASNET_BEGIN_FUNCTION
   //   GASNETI_THREAD_POST() has been superceded by GASNET_POST_THREADINFO()
   // GASNETI_THREAD_GET* now automatically pulls from these sources or FARG before lookup.
+
   // -----------------------------------------------------------------------------------------
+  // *** Other ***
+  
   // GASNETI_MYTHREAD_GET_OR_LOOKUP: force retrieve my (gasneti_threaddata_t *) from one of:
-  //    a prior GASNET_POST_THREADINFO, any available FARG, or lookup
-  // this is essentially GASNETI_MYTHREAD without requiring FARG context
+  //     a prior GASNET_POST_THREADINFO, an FARG to the enclosing function, or dynamic lookup
+  //  This is essentially GASNETI_MYTHREAD without requiring FARG/POST'd context (allows lookup)
+  //  Only valid known use is macros that expand threaddata field access directly into client code
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP ((struct _gasneti_threaddata_t *)GASNET_GET_THREADINFO())
+
 #else
-  #define GASNETI_THREAD_FARG_AVAILABLE  0
-  #define GASNETI_THREAD_FARG_ALONE   void
   #define GASNETI_THREAD_FARG         
-  #define GASNETI_THREAD_GET_ALONE   
+  #define GASNETI_THREAD_FARG_ALONE   void
   #define GASNETI_THREAD_GET         
-  #define GASNETI_THREAD_PASS_ALONE   
+  #define GASNETI_THREAD_GET_ALONE   
   #define GASNETI_THREAD_PASS         
+  #define GASNETI_THREAD_PASS_ALONE   
   #define GASNETI_MYTHREAD            (_gasneti_mythread_slow())
   #define GASNETI_MYTHREAD_GET_OR_LOOKUP GASNETI_MYTHREAD
 #endif
@@ -592,6 +622,126 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
 // GASNETI_THREAD_SWALLOW: Utility to discard an FARG passed to a 0-arg function-like macro
 //   TODO-EX: move and rename this essentially unrelated utility macro
 #define GASNETI_THREAD_SWALLOW(x)
+
+/* ------------------------------------------------------------------------------------ */
+/* GASNETI_MAX_THREADS: cannot exceed the size representable in gasnete_threadidx_t, 
+   but some conduits or configures may set it to less */
+#if GASNET_SEQ /* only one client thread by definition */
+  #undef GASNETI_MAX_THREADS
+  #ifdef GASNETE_CONDUIT_THREADS_USING_TD
+    #define GASNETI_MAX_THREADS (1 + GASNETE_CONDUIT_THREADS_USING_TD)
+  #else
+    #define GASNETI_MAX_THREADS 1
+  #endif
+  #define GASNETI_MAX_THREADS_REASON "GASNET_SEQ mode only supports single-threaded operation."
+#elif defined(GASNETI_MAX_THREADS) /* conduit-imposed limit */
+  #if defined(GASNETI_MAX_THREADS_CONFIGURE) && GASNETI_MAX_THREADS_CONFIGURE < GASNETI_MAX_THREADS
+    #undef  GASNETI_MAX_THREADS /* limit lowered by configure */
+    #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
+  #else
+    #define GASNETI_MAX_THREADS_REASON "This limit is imposed by " GASNET_EXTENDED_NAME_STR " conduit."
+  #endif
+#else /* default */
+  #if GASNETI_MAX_THREADS_CONFIGURE
+    #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
+  #else /* default */
+    #define GASNETI_MAX_THREADS 256
+  #endif
+#endif
+#ifndef GASNETI_MAX_THREADS_REASON
+  #define GASNETI_MAX_THREADS_REASON "To raise this limit, configure GASNet using --with-max-pthreads-per-node=N."
+#endif
+
+#ifdef _GASNETE_THREADIDX_T
+   /* conduit override */
+  #ifndef SIZEOF_GASNETE_THREADIDX_T
+    #error "Must define both _GASNETE_THREADIDX_T and SIZEOF_GASNETE_THREADIDX_T, or neither"
+  #endif
+  #ifndef GASNETE_INVALID_THREADIDX
+    #error "Must define both _GASNETE_THREADIDX_T and GASNETE_INVALID_THREADIDX, or neither"
+  #endif
+#elif GASNETI_MAX_THREADS < 65536
+  typedef uint16_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 2
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#elif GASNETI_MAX_THREADS < 4294967296
+  typedef uint32_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 4
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#else
+  typedef uint64_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 8
+  #define GASNETE_INVALID_THREADIDX ((gasnete_threadidx_t)-1)
+#endif
+/* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
+extern uint64_t gasneti_max_threads(void);
+extern void gasneti_fatal_threadoverflow(const char *_subsystem);
+
+#ifndef _GASNETI_MYTHREAD_SLOW
+  struct _gasneti_threaddata_t;
+  #if GASNETI_MAX_THREADS <= 256
+    extern struct _gasneti_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
+  #else
+    extern struct _gasneti_threaddata_t **gasnete_threadtable;
+  #endif
+  #if GASNETI_MAX_THREADS > 1
+    #if GASNETI_COMPILER_IS_CC
+      #if GASNET_STATS
+        // this call breaks a dependency cycle with trace.h 
+        GASNETI_INLINE(gasneti_record_dynamic_threadlookup)
+        void gasneti_record_dynamic_threadlookup(void);
+        #define GASNETI_RECORD_DYNAMIC_THREADLOOKUP gasneti_record_dynamic_threadlookup
+      #endif
+      GASNETI_THREADKEY_DECLARE(gasnete_threaddata);
+      extern void * gasnete_new_threaddata(void);
+      GASNETI_INLINE(_gasneti_mythread_slow) GASNETI_CONST
+      struct _gasneti_threaddata_t *_gasneti_mythread_slow(void) {
+        void *_threaddata = gasneti_threadkey_get(gasnete_threaddata);
+        #ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
+          GASNETI_RECORD_DYNAMIC_THREADLOOKUP(); 
+        #endif
+        if_pf (!_threaddata) { /* first time we've seen this thread - need to set it up */
+          // NOTE: DON'T use _gasnete_mythread_slow_slow to initially populate TLS, because it's annotated const
+          // so the optimizer won't understand it modifies the TLS "global" directly accessed above
+          _threaddata = gasnete_new_threaddata();
+        }
+        gasneti_memcheck(_threaddata);
+        return _threaddata;
+      }
+      GASNETI_CONSTP(_gasneti_mythread_slow)
+    #else // !GASNETI_COMPILER_IS_CC
+      // threadkey-get currently incurs a fncall on !CC anyhow, so nothing to save here
+      extern struct _gasneti_threaddata_t *_gasnete_mythread_slow_slow(void) GASNETI_CONST;
+      GASNETI_CONSTP(_gasnete_mythread_slow_slow)
+      #define _gasneti_mythread_slow() _gasnete_mythread_slow_slow()
+    #endif
+  #else
+    #define _gasneti_mythread_slow() (gasnete_threadtable[0])
+  #endif
+#endif
+
+/* register a cleanup function to run when the calling thread exits 
+   not guaranteed to run during process exits (gasnet_exit), but should
+   run for dynamic thread exits when the process is continuing.
+   Cleanups will run in reverse order of registration
+ */
+extern void gasnete_register_threadcleanup(void (*_cleanupfn)(void *), void *_context);
+
+typedef struct _gasnete_thread_cleanup {
+    struct _gasnete_thread_cleanup *_next;
+    void (*_cleanupfn)(void *);
+    void *_context;
+} gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
+
+
+/* high-water mark on highest thread index allocated thus far */
+extern int gasnete_maxthreadidx;
+#define gasnete_assert_valid_threadid(threadidx) do {   \
+    int _thid = (threadidx);                            \
+    gasneti_assert(_thid <= gasnete_maxthreadidx);      \
+    gasneti_assert(gasnete_threadtable[_thid] != NULL); \
+    gasneti_memcheck(gasnete_threadtable[_thid]);       \
+} while (0)
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet progressfn support
@@ -996,6 +1146,13 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
                                          uintptr_t *size_p);
   #define gex_Segment_QueryBound(tm,rank,o_p,l_p,s_p) \
           gasneti_Segment_QueryBound(tm,rank,o_p,l_p,s_p)
+#endif
+
+#ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
+  GASNETI_INLINE(gasneti_record_dynamic_threadlookup)
+  void gasneti_record_dynamic_threadlookup(void) {
+    GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP);
+  }
 #endif
 
 /* ------------------------------------------------------------------------------------ */

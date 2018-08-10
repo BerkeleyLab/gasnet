@@ -1020,7 +1020,7 @@ extern int gasnetc_AMReplyMediumV(
                             gex_Event_t *lc_opt, gex_Flags_t flags,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
-  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -1075,7 +1075,7 @@ extern int gasnetc_AMReplyLongV(
                             gex_Event_t *lc_opt, gex_Flags_t flags,
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
-  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
 }
 
 extern int gasnetc_AMReplyLongM( 

@@ -804,10 +804,10 @@ int gasnetc_loopback_ReqRepGeneric(
   struct gasneti_AM_SrcDesc the_sd;
 
   gasnetc_loopback_prepare_inner(&the_sd, 1, isReq, category, source_addr, 0, 0,
-                                 dest_addr, NULL, flags, numargs GASNETI_THREAD_GET);
+                                 dest_addr, NULL, flags, numargs GASNETI_THREAD_PASS);
 
   gasnetc_loopback_commit_inner(&the_sd, 1, isReq, category, handler, nbytes,
-                                dest_addr, argptr GASNETI_THREAD_GET);
+                                dest_addr, argptr GASNETI_THREAD_PASS);
 
   return GASNET_OK;
 }
@@ -923,7 +923,7 @@ void gasnetc_loopback_Commit(
   gasneti_assert(sd->_loopback);
   gasnetc_loopback_commit_inner(
                         sd, 0, isReq, category, handler, nbytes,
-                        dest_addr, argptr GASNETI_THREAD_GET);
+                        dest_addr, argptr GASNETI_THREAD_PASS);
 }
 
 /* ------------------------------------------------------------------------------------ */
