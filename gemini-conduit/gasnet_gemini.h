@@ -114,9 +114,7 @@ typedef uint64_t gasnetc_notify_t;
 enum gc_notify_type {
   gc_notify_request = 0x01000000,
   gc_notify_reply   = 0x02000000,
-  gc_notify_credit  = 0x03000000,
-  gc_notify_ctrl    = 0x04000000,
-  gc_notify_rvous   = 0x05000000
+  gc_notify_rvous   = 0x03000000
 };
 
 #define gc_build_notify(_type, _initiator, _target)\
@@ -141,6 +139,7 @@ typedef struct {
 
 /* Control messages */
 enum {
+    GC_CTRL_CREDIT,
     GC_CTRL_SHUTDOWN 
 };
 
