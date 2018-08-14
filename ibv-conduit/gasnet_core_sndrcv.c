@@ -376,8 +376,9 @@ void gasnetc_alloc_sreqs(gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p GASNET
 static
 void gasnetc_per_thread_init(gasnetc_per_thread_t *td)
 {
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
   gasnetc_sreq_t *tail;
-  gasnetc_alloc_sreqs(&td->sreqs, &tail GASNETI_THREAD_GET);
+  gasnetc_alloc_sreqs(&td->sreqs, &tail GASNETI_THREAD_PASS);
   tail->next = td->sreqs;
 }
 
@@ -538,9 +539,9 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
              | ((cat)     << 8         )        \
              | ((hand)                 )))
 
-#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0 GASNETI_THREAD_GET)
-#define gasnetc_poll_snd()		gasnetc_do_poll(0,1 GASNETI_THREAD_GET)
-#define gasnetc_poll_both()		gasnetc_do_poll(1,1 GASNETI_THREAD_GET)
+#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0 GASNETI_THREAD_PASS)
+#define gasnetc_poll_snd()		gasnetc_do_poll(0,1 GASNETI_THREAD_PASS)
+#define gasnetc_poll_both()		gasnetc_do_poll(1,1 GASNETI_THREAD_PASS)
 
 /* Post a work request to the receive queue of the given endpoint */
 GASNETI_INLINE(gasnetc_rcv_post)
@@ -2944,7 +2945,8 @@ static void gasnetc_fh_put_cb(void *context, const firehose_request_t *fh_rem, i
   sreq->fh_ptr[0] = fh_rem;
 
   if (gasnetc_sreq_is_ready(sreq)) {
-    gasnetc_fh_do_put(sreq GASNETI_THREAD_GET);
+    GASNET_BEGIN_FUNCTION(); // TODO: THREAD_FARG for firehose callbacks?
+    gasnetc_fh_do_put(sreq GASNETI_THREAD_PASS);
   }
 }
 
@@ -2959,7 +2961,8 @@ static void gasnetc_fh_get_cb(void *context, const firehose_request_t *fh_rem, i
   sreq->fh_ptr[0] = fh_rem;
 
   if (gasnetc_sreq_is_ready(sreq)) {
-    gasnetc_fh_do_get(sreq GASNETI_THREAD_GET);
+    GASNET_BEGIN_FUNCTION(); // TODO: THREAD_FARG for firehose callbacks?
+    gasnetc_fh_do_get(sreq GASNETI_THREAD_PASS);
   }
 
   gasneti_assert(sreq->fh_oust == NULL);
