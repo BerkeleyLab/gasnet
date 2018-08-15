@@ -223,7 +223,7 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
 #define _STRIDED_LABELHLP(idx,name,line)  _STRIDED_LABELHLP2(idx,name,line)
 #define _STRIDED_LABEL(idx,name) _STRIDED_LABELHLP(idx,name,__LINE__)
 
-#define _STRIDED_HELPER_SETUP_BASE(countiter, stride1iter, stride2iter)      \
+#define _STRIDED_HELPER_SETUP_BASE(junk1,junk2,junk3, countiter, stride1iter, stride2iter) \
     size_t const _count0 = countiter(0);                                     \
     ptrdiff_t const _p1bump0 = stride1iter(0);                               \
     ptrdiff_t const _p2bump0 = (_STRIDED_HELPER_HAVE2 ? stride2iter(0) : 0); \
@@ -233,7 +233,7 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
       _i0 -= _strided_init[0];                                               \
     }
 
-#define _STRIDED_HELPER_SETUP_INT(curr, lower, countiter, stride1iter, stride2iter)  \
+#define _STRIDED_HELPER_SETUP_INT(lower, curr, junk, countiter, stride1iter, stride2iter)  \
     size_t const _count##curr = countiter(curr);                                     \
     ptrdiff_t const _p1bump##curr = stride1iter(curr) -                              \
                                     ((ptrdiff_t)_count##lower) * stride1iter(lower); \
@@ -245,38 +245,33 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
       _i##curr -= _strided_init[curr];                                               \
     }
 
-#define _STRIDED_HELPER_LOOPHEAD_BASE()
-#define _STRIDED_HELPER_LOOPHEAD_INT(curr,junk) \
+#define _STRIDED_HELPER_LOOPHEAD(junk1,curr,junk2) \
     for (_i##curr = _count##curr; _i##curr; _i##curr--) { 
 
-#define _STRIDED_HELPER_LOOPTAIL_BASE()
-#define _STRIDED_HELPER_LOOPTAIL_INT(curr,junk)        \
+#define _STRIDED_HELPER_LOOPTAIL(junk1,curr,junk2)     \
       _p1 += _p1bump##curr;                            \
       if (_STRIDED_HELPER_HAVE2) _p2 += _p2bump##curr; \
       else gasneti_assert(_p2 == NULL);                \
     }
 
-#define _STRIDED_HELPER_CLEANUPHEAD_BASE()
-#define _STRIDED_HELPER_CLEANUPHEAD_INT(curr,junk)     \
+#define _STRIDED_HELPER_CLEANUPHEAD(junk1,curr,junk2)  \
       _p1 += _p1bump##curr;                            \
       if (_STRIDED_HELPER_HAVE2) _p2 += _p2bump##curr; \
       if (!--_i##curr) { _i##curr = _count##curr;
 
-#define _STRIDED_HELPER_CLEANUPTAIL_BASE()
-#define _STRIDED_HELPER_CLEANUPTAIL_INT(curr,junk) }
+#define _STRIDED_HELPER_CLEANUPTAIL(junk1,curr,junk2) }
 
-#define _STRIDED_HELPER_CLEANUPINIT_BASE()
-#define _STRIDED_HELPER_CLEANUPINIT_INT(curr,junk) \
+#define _STRIDED_HELPER_CLEANUPINIT(junk1,curr,junk2) \
   _strided_init[curr] = _count##curr - _i##curr;   \
   gasneti_assert(_strided_init[curr] < _count##curr);
 
-#define _STRIDED_HELPER_CASE_BASE(countiter, stride1iter, stride2iter) 
-#define _STRIDED_HELPER_CASE_INT(junk,curr,countiter, stride1iter, stride2iter) \
+#define _STRIDED_HELPER_CASE(curr,junk1,junk2, countiter, stride1iter, stride2iter) \
   case curr+1: {                                                    \
-    GASNETE_METAMACRO3_ASC##curr(_STRIDED_HELPER_SETUP,             \
-                  countiter, stride1iter, stride2iter)              \
+    GASNETI_META3_ASC##curr(_STRIDED_HELPER_SETUP_BASE,             \
+                            _STRIDED_HELPER_SETUP_INT,              \
+                            countiter, stride1iter, stride2iter)    \
     goto _STRIDED_LABEL(curr,BODY);                                 \
-    GASNETE_METAMACRO_DESC##curr(_STRIDED_HELPER_LOOPHEAD)          \
+    GASNETI_META_DES##curr(GASNETI_META_EMPTY,_STRIDED_HELPER_LOOPHEAD) \
     for (_i0 = _count0; _i0; _i0--) {                               \
       _STRIDED_LABEL(curr,BODY): ;                                  \
       GASNETE_STRIDED_HELPER_LOOPBODY(_p1,_p2);                     \
@@ -286,24 +281,24 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
              --_strided_chunkcnt == 0)                              \
         goto _STRIDED_LABEL(curr,DONE);                             \
     }                                                               \
-    GASNETE_METAMACRO_ASC##curr(_STRIDED_HELPER_LOOPTAIL)           \
+    GASNETI_META_ASC##curr(GASNETI_META_EMPTY,_STRIDED_HELPER_LOOPTAIL) \
     _STRIDED_LABEL(curr,DONE): ;                                    \
     if (_STRIDED_HELPER_HAVEPARTIAL && _strided_update_addr_init) { \
       if (!_i0) ; /* loop nest terminated */                        \
       else if (!--_i0) { _i0 = _count0;                             \
-        GASNETE_METAMACRO_ASC##curr(_STRIDED_HELPER_CLEANUPHEAD)    \
-        GASNETE_METAMACRO_ASC##curr(_STRIDED_HELPER_CLEANUPTAIL)    \
+        GASNETI_META_ASC##curr(GASNETI_META_EMPTY,_STRIDED_HELPER_CLEANUPHEAD) \
+        GASNETI_META_ASC##curr(GASNETI_META_EMPTY,_STRIDED_HELPER_CLEANUPTAIL) \
       }                                                             \
       *_pp1base = _p1;                                              \
       if (_STRIDED_HELPER_HAVE2) *_pp2base = _p2;                   \
       else gasneti_assert(_p2 == NULL);                             \
       _strided_init[0] = _count0 - _i0;                             \
-      GASNETE_METAMACRO_ASC##curr(_STRIDED_HELPER_CLEANUPINIT)      \
+      GASNETI_META_ASC##curr(GASNETI_META_EMPTY,_STRIDED_HELPER_CLEANUPINIT) \
     }                                                               \
   } break;
 
-#if GASNETE_LOOPING_DIMS > GASNETE_METAMACRO_DEPTH_MAX
-#error GASNETE_LOOPING_DIMS must be <= GASNETE_METAMACRO_DEPTH_MAX
+#if GASNETE_LOOPING_DIMS > GASNETI_META_MAX
+#error GASNETE_LOOPING_DIMS must be <= GASNETI_META_MAX
 #endif
 
 #if GASNET_DEBUG
@@ -343,8 +338,9 @@ static int32_t const _strided_helper_havepartial = (int32_t)sizeof(_strided_help
     }                                                                  \
   }                                                                    \
   switch (_stridelevels) {                                             \
-    _CONCAT(GASNETE_METAMACRO3_ASC, GASNETE_LOOPING_DIMS)(             \
-      _STRIDED_HELPER_CASE, countiter, stride1iter, stride2iter)       \
+    _CONCAT(GASNETI_META3_ASC, GASNETE_LOOPING_DIMS)(                  \
+      GASNETI_META3_EMPTY, _STRIDED_HELPER_CASE,                       \
+      countiter, stride1iter, stride2iter)                             \
     default: { /* arbitrary dimensions > GASNETE_LOOPING_DIMS */       \
       size_t    __idx[GASNETE_DIRECT_DIMS];                            \
       ptrdiff_t __p1bump[GASNETE_DIRECT_DIMS];                         \

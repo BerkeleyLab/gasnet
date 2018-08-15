@@ -265,6 +265,27 @@
 #define GASNETI_META_DES15(fnb,fni) fni(14,15,16) GASNETI_META_DES14(fnb,fni)
 #define GASNETI_META_DES16(fnb,fni) fni(15,16,17) GASNETI_META_DES15(fnb,fni)
 
+// Extended variant that also threads three arbitrary arguments though the expansion chain
+#define GASNETI_META3_EMPTY(a,b,c,a1,a2,a3)
+
+#define GASNETI_META3_ASC0(fnb,fni,a1,a2,a3)  fnb(-1,0,1,a1,a2,a3)
+#define GASNETI_META3_ASC1(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC0(fnb,fni,a1,a2,a3)  fni(0,1,2,a1,a2,a3)
+#define GASNETI_META3_ASC2(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC1(fnb,fni,a1,a2,a3)  fni(1,2,3,a1,a2,a3)
+#define GASNETI_META3_ASC3(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC2(fnb,fni,a1,a2,a3)  fni(2,3,4,a1,a2,a3)
+#define GASNETI_META3_ASC4(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC3(fnb,fni,a1,a2,a3)  fni(3,4,5,a1,a2,a3)
+#define GASNETI_META3_ASC5(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC4(fnb,fni,a1,a2,a3)  fni(4,5,6,a1,a2,a3)
+#define GASNETI_META3_ASC6(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC5(fnb,fni,a1,a2,a3)  fni(5,6,7,a1,a2,a3)
+#define GASNETI_META3_ASC7(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC6(fnb,fni,a1,a2,a3)  fni(6,7,8,a1,a2,a3)
+#define GASNETI_META3_ASC8(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC7(fnb,fni,a1,a2,a3)  fni(7,8,9,a1,a2,a3)
+#define GASNETI_META3_ASC9(fnb,fni,a1,a2,a3)  GASNETI_META3_ASC8(fnb,fni,a1,a2,a3)  fni(8,9,10,a1,a2,a3)
+#define GASNETI_META3_ASC10(fnb,fni,a1,a2,a3) GASNETI_META3_ASC9(fnb,fni,a1,a2,a3)  fni(9,10,11,a1,a2,a3)
+#define GASNETI_META3_ASC11(fnb,fni,a1,a2,a3) GASNETI_META3_ASC10(fnb,fni,a1,a2,a3) fni(10,11,12,a1,a2,a3)
+#define GASNETI_META3_ASC12(fnb,fni,a1,a2,a3) GASNETI_META3_ASC11(fnb,fni,a1,a2,a3) fni(11,12,13,a1,a2,a3)
+#define GASNETI_META3_ASC13(fnb,fni,a1,a2,a3) GASNETI_META3_ASC12(fnb,fni,a1,a2,a3) fni(12,13,14,a1,a2,a3)
+#define GASNETI_META3_ASC14(fnb,fni,a1,a2,a3) GASNETI_META3_ASC13(fnb,fni,a1,a2,a3) fni(13,14,15,a1,a2,a3)
+#define GASNETI_META3_ASC15(fnb,fni,a1,a2,a3) GASNETI_META3_ASC14(fnb,fni,a1,a2,a3) fni(14,15,16,a1,a2,a3)
+#define GASNETI_META3_ASC16(fnb,fni,a1,a2,a3) GASNETI_META3_ASC15(fnb,fni,a1,a2,a3) fni(15,16,17,a1,a2,a3)
+
 #include <stddef.h> /* get standard types, esp size_t */
 
 // gasneti_offsetof is our version of C's offsetof() that allows field arguments 
