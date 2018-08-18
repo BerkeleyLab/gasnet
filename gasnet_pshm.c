@@ -1412,7 +1412,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
   // Check for loopback
   // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
   int loopback = (jobrank == gasneti_mynode);
-  sd->_loopback = loopback;
+  sd->_pshm._loopback = loopback;
   if (loopback) {
     return gasnetc_loopback_Prepare(sd,isReq,category,client_buf,least_payload,most_payload,
                                     dest_addr,lc_opt,flags,nargs);
@@ -1434,7 +1434,7 @@ void ampshm_commit(gasneti_AM_SrcDesc_t sd,
 {
   // Check for loopback
   // TODO-EX: TBD: move outward to "nbrhd" layer or leave here?
-  if (sd->_loopback) {
+  if (sd->_pshm._loopback) {
     gasnetc_loopback_Commit(sd,isReq,category,handler,nbytes,dest_addr,argptr);
     return;
   }

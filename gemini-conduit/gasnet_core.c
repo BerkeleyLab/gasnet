@@ -1650,7 +1650,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
 
     int imm;
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
+    int is_nbrhd = sd->_is_nbrhd = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank);
+
+    if (is_nbrhd) {
         imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                            client_buf, least_payload, most_payload,
                                            NULL, lc_opt, flags, nargs);
@@ -1685,7 +1687,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
 
     va_list argptr;
     va_start(argptr, sd_arg);
-    if (GASNETC_IS_NBRHD_COMMIT(sd)) {
+    if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         gasnetc_commit_medium(sd,0,1,handler,nbytes,argptr);
@@ -1855,18 +1857,24 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        gex_Flags_t        flags,
                        unsigned int       nargs)
 {
-    GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
-    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
-
+    gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
     int imm;
-    if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
+    int is_nbrhd = gasnetc_token_in_nbrhd(token);
+    if (is_nbrhd) {
+        GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
+        sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+        GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+
         imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
                                          client_buf, least_payload, most_payload,
                                          NULL, lc_opt, flags, nargs);
     } else {
+        GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
+        sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+        GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+
         imm = gasnetc_prepare_medium(sd,0,0,0,token,client_buf,least_payload,most_payload,
                                      lc_opt,flags,nargs GASNETI_THREAD_PASS);
     }
@@ -1876,6 +1884,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         sd = NULL; // GEX_AM_SRCDESC_NO_OP
     } else {
         gasneti_init_sd_poison(sd);
+        sd->_is_nbrhd = is_nbrhd;
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
@@ -1896,7 +1905,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
 
     va_list argptr;
     va_start(argptr, sd_arg);
-    if (GASNETC_IS_NBRHD_COMMIT(sd)) {
+    if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         gasnetc_commit_medium(sd,0,0,handler,nbytes,argptr);

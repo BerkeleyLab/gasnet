@@ -901,7 +901,7 @@ int gasnetc_loopback_Prepare(
                         gex_Flags_t flags, unsigned int nargs)
 {
   GASNET_POST_THREADINFO(sd->_thread);
-  gasneti_assert(sd->_loopback);
+  // too early for "gasneti_assert(sd->_is_nbrhd);"
   return gasnetc_loopback_prepare_inner(
                         sd, 0, isReq, category, client_buf,
                         least_payload, most_payload, dest_addr, lc_opt,
@@ -918,7 +918,7 @@ void gasnetc_loopback_Commit(
                         void *dest_addr, va_list argptr)
 {
   GASNET_POST_THREADINFO(sd->_thread);
-  gasneti_assert(sd->_loopback);
+  gasneti_assert(sd->_is_nbrhd);
   gasnetc_loopback_commit_inner(
                         sd, 0, isReq, category, handler, nbytes,
                         dest_addr, argptr GASNETI_THREAD_PASS);
@@ -926,18 +926,6 @@ void gasnetc_loopback_Commit(
 
 /* ------------------------------------------------------------------------------------ */
 // NP-AM for "nbrhd" (PSHM and loopback)
-
-#if GASNET_PSHM
-  #define _GASNETC_IS_NBRHD_FIELD _pshm._is_pshm
-#else
-  #define _GASNETC_IS_NBRHD_FIELD _loopback
-#endif
-#define GASNETC_IS_NBRHD_PREPARE_REQ(sd,jobrank) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)))
-#define GASNETC_IS_NBRHD_PREPARE_REP(sd,token) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_token_in_nbrhd(token)))
-#define GASNETC_IS_NBRHD_COMMIT(sd) \
-    ((sd)->_GASNETC_IS_NBRHD_FIELD)
 
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
