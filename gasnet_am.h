@@ -424,6 +424,7 @@ void gasneti_prepare_common(
                        gex_Flags_t          flags,
                        unsigned int         nargs)
 {
+    sd->_is_nbrhd = 0;
     sd->_lc_opt = lc_opt;
     sd->_flags  = flags;
     sd->_nargs  = nargs;
@@ -901,7 +902,7 @@ int gasnetc_loopback_Prepare(
                         gex_Flags_t flags, unsigned int nargs)
 {
   GASNET_POST_THREADINFO(sd->_thread);
-  // too early for "gasneti_assert(sd->_is_nbrhd);"
+  gasneti_assert(sd->_is_nbrhd);
   return gasnetc_loopback_prepare_inner(
                         sd, 0, isReq, category, client_buf,
                         least_payload, most_payload, dest_addr, lc_opt,
@@ -930,7 +931,7 @@ void gasnetc_loopback_Commit(
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareRequest)
-int gasnetc_nbrhd_PrepareRequest(
+gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareRequest(
                         gasneti_AM_SrcDesc_t sd,
                         gasneti_category_t   category,
                         gex_Rank_t           jobrank,
@@ -943,18 +944,27 @@ int gasnetc_nbrhd_PrepareRequest(
                         unsigned int         nargs)
 {
   gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  sd->_is_nbrhd = 1;
+  int imm;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    return gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
+    imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
                                                lc_opt, flags, nargs);
   } else {
-    return gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
+    imm = gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
                                              dest_addr, lc_opt, flags, nargs);
   }
 #else
-  return gasnetc_loopback_Prepare(sd, 1, category, client_buf, least_payload, most_payload,
+  imm = gasnetc_loopback_Prepare(sd, 1, category, client_buf, least_payload, most_payload,
                                   dest_addr, lc_opt, flags, nargs);
 #endif
+  if (imm) {
+    gasneti_reset_srcdesc(sd);
+    sd = NULL; // GEX_AM_SRCDESC_NO_OP
+  } else {
+    gasneti_init_sd_poison(sd);
+  }
+  return sd;
 }
 
 // Parameter 'category' will be a manifest constant
@@ -982,8 +992,7 @@ void gasnetc_nbrhd_CommitRequest(
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareReply)
-int gasnetc_nbrhd_PrepareReply(
-                        gasneti_AM_SrcDesc_t sd,
+gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareReply(
                         gasneti_category_t   category,
                         gex_Token_t          token,
                         const void          *client_buf,
@@ -994,22 +1003,38 @@ int gasnetc_nbrhd_PrepareReply(
                         gex_Flags_t          flags,
                         unsigned int         nargs)
 {
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
+  gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+  sd->_is_nbrhd = 1;
+
+  if (category == gasneti_Medium) {
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Medium);
+  } else {
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
+  }
+
   gasnetc_token_pre_reply_checks(token);
-  int retval;
+  int imm;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    retval = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, least_payload, most_payload,
+    imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, least_payload, most_payload,
                                              lc_opt, flags, nargs);
   } else {
-    retval = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, least_payload, most_payload,
+    imm = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, least_payload, most_payload,
                                            dest_addr, lc_opt, flags, nargs);
   }
 #else
-  retval = gasnetc_loopback_Prepare(sd, 0, category, client_buf, least_payload, most_payload,
+  imm = gasnetc_loopback_Prepare(sd, 0, category, client_buf, least_payload, most_payload,
                                   dest_addr, lc_opt, flags, nargs);
 #endif
-  gasnetc_token_post_reply_checks(token, retval);
-  return retval;
+  gasnetc_token_post_reply_checks(token, imm);
+  if (imm) {
+    gasneti_reset_srcdesc(sd);
+    sd = NULL; // GEX_AM_SRCDESC_NO_OP
+  } else {
+    gasneti_init_sd_poison(sd);
+  }
+  return sd;
 }
 
 // Parameter 'category' will be a manifest constant

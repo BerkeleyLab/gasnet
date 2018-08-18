@@ -489,17 +489,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-    int is_nbrhd = sd->_is_nbrhd = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank);
 
-    if (is_nbrhd) {
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
-        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
+        sd = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                                client_buf, least_payload, most_payload,
                                                NULL, lc_opt, flags, nargs);
-        if (imm) {
-            gasneti_reset_srcdesc(sd);
-            sd = NULL; // GEX_AM_SRCDESC_NO_OP
-        }
     } else {
         // Ensure at least one poll upon Request injection (exactly one if possible)
         #if GASNETC_REQUESTV_POLLS
@@ -531,21 +526,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    int is_nbrhd = gasnetc_token_in_nbrhd(token);
-    if (is_nbrhd) {
-        GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
-        sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-        GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
-
-        int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
+    if (gasnetc_token_in_nbrhd(token)) {
+        sd = gasnetc_nbrhd_PrepareReply(gasneti_Medium, token,
                                              client_buf, least_payload, most_payload,
                                              NULL, lc_opt, flags, nargs);
-        if (imm) {
-            gasneti_reset_srcdesc(sd);
-            sd = NULL; // GEX_AM_SRCDESC_NO_OP
-        } else {
-            sd->_is_nbrhd = 1;
-        }
     } else {
         GASNET_BEGIN_FUNCTION(); // conduit-specialization should post from token instead
         sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
@@ -555,7 +539,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         size_t size = MIN(most_payload, limit);
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
         gasneti_init_sd_poison(sd);
-        sd->_is_nbrhd = 0;
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
@@ -582,17 +565,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestLong(
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-    int is_nbrhd = sd->_is_nbrhd = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank);
 
-    if (is_nbrhd) {
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
         GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
-        int imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, jobrank,
+        sd = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Long, jobrank,
                                                client_buf, least_payload, most_payload,
                                                dest_addr, lc_opt, flags, nargs);
-        if (imm) {
-            gasneti_reset_srcdesc(sd);
-            sd = NULL; // GEX_AM_SRCDESC_NO_OP
-        }
     } else {
         // Ensure at least one poll upon Request injection (exactly one if possible)
         #if GASNETC_REQUESTV_POLLS
@@ -626,21 +604,10 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
     gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    int is_nbrhd = gasnetc_token_in_nbrhd(token);
-    if (is_nbrhd) {
-        GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
-        sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-        GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
-
-        int imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Long, token,
+    if (gasnetc_token_in_nbrhd(token)) {
+        sd = gasnetc_nbrhd_PrepareReply(gasneti_Long, token,
                                              client_buf, least_payload, most_payload,
                                              dest_addr, lc_opt, flags, nargs);
-        if (imm) {
-            gasneti_reset_srcdesc(sd);
-            sd = NULL; // GEX_AM_SRCDESC_NO_OP
-        } else {
-            sd->_is_nbrhd = 1;
-        }
     } else {
         GASNET_BEGIN_FUNCTION(); // conduit-specialization should post from token instead
         sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
@@ -651,7 +618,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyLong(
         gasneti_prepare_reply_common(sd, token, client_buf, size, lc_opt, flags, nargs);
         sd->_dest_addr = dest_addr;
         gasneti_init_sd_poison(sd);
-        sd->_is_nbrhd = 1;
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_LONG, sd);
