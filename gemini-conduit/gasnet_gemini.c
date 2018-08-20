@@ -1019,6 +1019,12 @@ uintptr_t gasnetc_init_messaging(void)
 #endif
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
+  /* Determine number of Reply buffers */
+  reply_count = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH_TOTAL",
+                                               GASNETC_NETWORKDEPTH_TOTAL_DEFAULT, 0);
+  reply_count = MAX(1, reply_count); /* Min is 1 */
+  reply_count = MIN(65536, reply_count); /* Max is determined by 16-bit 'initiator_slot' */
+
   /* Select Eager or Rendezvous protocol for AM Requests */
   int am_rvous_val = gasneti_getenv_int_withdefault("GASNET_GNI_AM_RVOUS_CUTOVER",
                                                     GASNETC_GNI_AM_RVOUS_CUTOVER_DEFAULT, 0);
@@ -1031,6 +1037,14 @@ uintptr_t gasnetc_init_messaging(void)
     am_maxcredit = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH",
                                                   GASNETC_NETWORKDEPTH_DEFAULT, 0);
     am_maxcredit = MAX(1, am_maxcredit); /* Min is 1 */
+    if (am_maxcredit > reply_count) {
+      if (gasneti_mynode) {
+        fprintf(stderr,
+                "WARNING: Requested GASNET_NETWORKDEPTH %d reduced to GASNET_NETWORKDEPTH_TOTAL of %d\n",
+                am_maxcredit, reply_count);
+      }
+      am_maxcredit = reply_count;
+    }
     rvous_count = gasneti_getenv_int_withdefault("GASNET_GNI_AM_RVOUS_BUFFERS",
                                                  GASNETC_GNI_AM_RVOUS_BUFFERS_DEFAULT, 0);
     rvous_count = MAX(1, rvous_count); /* Min is 1 */
@@ -1054,18 +1068,11 @@ uintptr_t gasnetc_init_messaging(void)
     gasneti_assert(am_maxcredit <= 64);
     request_map = (am_maxcredit == 64) ? ~(uint64_t)0 : (((uint64_t)1 << am_maxcredit) - 1);
 
+    // Clip credits to NETWORKDEPTH_TOTAL for use in computing size of Cq and notify ring
+    am_maxcredit = MIN(am_maxcredit, reply_count);
     /* reply destination is also request source.  So, must fit largest *outgoing* message */
     am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
   }
- 
-  /* Determine number of Reply buffers */
-  reply_count = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH_TOTAL",
-                                               GASNETC_NETWORKDEPTH_TOTAL_DEFAULT, 0);
-  reply_count = MAX(1, reply_count); /* Min is 1 */
-  reply_count = MIN(65536, reply_count); /* Max is determined by 16-bit 'initiator_slot' */
-
-  /* Max number of AM Requests outstanding may be constrained by available Reply buffers: */
-  am_maxcredit = MIN(am_maxcredit, reply_count);
 
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
