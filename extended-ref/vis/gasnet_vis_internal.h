@@ -200,37 +200,6 @@ extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
                               size_t count, size_t len, gasnet_memvec_t const *list);
 
 /*---------------------------------------------------------------------------------*/
-/* GASNETE_METAMACRO_ASC/DESC##maxval(fn) is a meta-macro that iteratively expands the fn_INT(x,y) macro 
-   with ascending or descending integer arguments. The base case (value zero) is expanded as fn_BASE().
-   maxval must be an integer in the range 0..GASNETE_METAMACRO_DEPTH_MAX
-   This would be cleaner if we could use recursive macro expansion, but it seems at least gcc disallows
-   this - if a macro invocation X(...) is found while expanding a different invocation of X (even with 
-   different arguments), the nested invocation is left unexpanded 
-*/
-
-#define GASNETE_METAMACRO_DEPTH_MAX 8
-
-#define GASNETE_METAMACRO_ASC0(fn) fn##_BASE()
-#define GASNETE_METAMACRO_ASC1(fn) GASNETE_METAMACRO_ASC0(fn) fn##_INT(1,0)
-#define GASNETE_METAMACRO_ASC2(fn) GASNETE_METAMACRO_ASC1(fn) fn##_INT(2,1)
-#define GASNETE_METAMACRO_ASC3(fn) GASNETE_METAMACRO_ASC2(fn) fn##_INT(3,2)
-#define GASNETE_METAMACRO_ASC4(fn) GASNETE_METAMACRO_ASC3(fn) fn##_INT(4,3)
-#define GASNETE_METAMACRO_ASC5(fn) GASNETE_METAMACRO_ASC4(fn) fn##_INT(5,4)
-#define GASNETE_METAMACRO_ASC6(fn) GASNETE_METAMACRO_ASC5(fn) fn##_INT(6,5)
-#define GASNETE_METAMACRO_ASC7(fn) GASNETE_METAMACRO_ASC6(fn) fn##_INT(7,6)
-#define GASNETE_METAMACRO_ASC8(fn) GASNETE_METAMACRO_ASC7(fn) fn##_INT(8,7)
-
-#define GASNETE_METAMACRO_DESC0(fn) fn##_BASE()
-#define GASNETE_METAMACRO_DESC1(fn) fn##_INT(1,0) GASNETE_METAMACRO_DESC0(fn) 
-#define GASNETE_METAMACRO_DESC2(fn) fn##_INT(2,1) GASNETE_METAMACRO_DESC1(fn) 
-#define GASNETE_METAMACRO_DESC3(fn) fn##_INT(3,2) GASNETE_METAMACRO_DESC2(fn) 
-#define GASNETE_METAMACRO_DESC4(fn) fn##_INT(4,3) GASNETE_METAMACRO_DESC3(fn) 
-#define GASNETE_METAMACRO_DESC5(fn) fn##_INT(5,4) GASNETE_METAMACRO_DESC4(fn) 
-#define GASNETE_METAMACRO_DESC6(fn) fn##_INT(6,5) GASNETE_METAMACRO_DESC5(fn) 
-#define GASNETE_METAMACRO_DESC7(fn) fn##_INT(7,6) GASNETE_METAMACRO_DESC6(fn) 
-#define GASNETE_METAMACRO_DESC8(fn) fn##_INT(8,7) GASNETE_METAMACRO_DESC7(fn) 
-
-/*---------------------------------------------------------------------------------*/
 
 #if PLATFORM_COMPILER_SUN_C
   /* disable a harmless warning */

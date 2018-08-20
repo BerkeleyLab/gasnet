@@ -208,6 +208,63 @@
 #define MAX(x,y)  ((x)>(y)?(x):(y))
 #endif
 
+//------------------------------------------------------------------------------------
+// Meta-macros for fixed-count text generation
+//
+// The following family of macros (named with a integer suffix in N=0..GASNETI_META_MAX)
+// perform N expansions of the provided macros.
+// They take two 3-argument macros as arguments:
+//  fnb(-1,0,1) is expanded exactly once as the base case
+//  fni(i_minus_1, i, i_plus_1) is expanded exactly N times as the inductive case,
+//     with i=[1..N] and i_minus_1=(i-1) and i_plus_1=(i+1) at each step
+// The ASC[N] variants expand the macros in ascending numerical order,
+// whereas the DES[N] variants expand the macros in descending order
+// Note that due to C preprocessor rules fnb and fni cannot themselves
+// contain an expansion of the same meta-macro (even with different arguments), 
+// but can they can use the "other" meta-macro.
+
+// supported recursion depth
+#define GASNETI_META_MAX 16
+
+// convenience macro, useful for base case
+#define GASNETI_META_EMPTY(a,b,c)
+
+#define GASNETI_META_ASC0(fnb,fni)  fnb(-1,0,1)
+#define GASNETI_META_ASC1(fnb,fni)  GASNETI_META_ASC0(fnb,fni)  fni(0,1,2)
+#define GASNETI_META_ASC2(fnb,fni)  GASNETI_META_ASC1(fnb,fni)  fni(1,2,3)
+#define GASNETI_META_ASC3(fnb,fni)  GASNETI_META_ASC2(fnb,fni)  fni(2,3,4)
+#define GASNETI_META_ASC4(fnb,fni)  GASNETI_META_ASC3(fnb,fni)  fni(3,4,5)
+#define GASNETI_META_ASC5(fnb,fni)  GASNETI_META_ASC4(fnb,fni)  fni(4,5,6)
+#define GASNETI_META_ASC6(fnb,fni)  GASNETI_META_ASC5(fnb,fni)  fni(5,6,7)
+#define GASNETI_META_ASC7(fnb,fni)  GASNETI_META_ASC6(fnb,fni)  fni(6,7,8)
+#define GASNETI_META_ASC8(fnb,fni)  GASNETI_META_ASC7(fnb,fni)  fni(7,8,9)
+#define GASNETI_META_ASC9(fnb,fni)  GASNETI_META_ASC8(fnb,fni)  fni(8,9,10)
+#define GASNETI_META_ASC10(fnb,fni) GASNETI_META_ASC9(fnb,fni)  fni(9,10,11)
+#define GASNETI_META_ASC11(fnb,fni) GASNETI_META_ASC10(fnb,fni) fni(10,11,12)
+#define GASNETI_META_ASC12(fnb,fni) GASNETI_META_ASC11(fnb,fni) fni(11,12,13)
+#define GASNETI_META_ASC13(fnb,fni) GASNETI_META_ASC12(fnb,fni) fni(12,13,14)
+#define GASNETI_META_ASC14(fnb,fni) GASNETI_META_ASC13(fnb,fni) fni(13,14,15)
+#define GASNETI_META_ASC15(fnb,fni) GASNETI_META_ASC14(fnb,fni) fni(14,15,16)
+#define GASNETI_META_ASC16(fnb,fni) GASNETI_META_ASC15(fnb,fni) fni(15,16,17)
+
+#define GASNETI_META_DES0(fnb,fni)  fnb(-1,0,1)
+#define GASNETI_META_DES1(fnb,fni)  fni(0,1,2)    GASNETI_META_DES0(fnb,fni)
+#define GASNETI_META_DES2(fnb,fni)  fni(1,2,3)    GASNETI_META_DES1(fnb,fni)
+#define GASNETI_META_DES3(fnb,fni)  fni(2,3,4)    GASNETI_META_DES2(fnb,fni)
+#define GASNETI_META_DES4(fnb,fni)  fni(3,4,5)    GASNETI_META_DES3(fnb,fni)
+#define GASNETI_META_DES5(fnb,fni)  fni(4,5,6)    GASNETI_META_DES4(fnb,fni)
+#define GASNETI_META_DES6(fnb,fni)  fni(5,6,7)    GASNETI_META_DES5(fnb,fni)
+#define GASNETI_META_DES7(fnb,fni)  fni(6,7,8)    GASNETI_META_DES6(fnb,fni)
+#define GASNETI_META_DES8(fnb,fni)  fni(7,8,9)    GASNETI_META_DES7(fnb,fni)
+#define GASNETI_META_DES9(fnb,fni)  fni(8,9,10)   GASNETI_META_DES8(fnb,fni)
+#define GASNETI_META_DES10(fnb,fni) fni(9,10,11)  GASNETI_META_DES9(fnb,fni)
+#define GASNETI_META_DES11(fnb,fni) fni(10,11,12) GASNETI_META_DES10(fnb,fni)
+#define GASNETI_META_DES12(fnb,fni) fni(11,12,13) GASNETI_META_DES11(fnb,fni)
+#define GASNETI_META_DES13(fnb,fni) fni(12,13,14) GASNETI_META_DES12(fnb,fni)
+#define GASNETI_META_DES14(fnb,fni) fni(13,14,15) GASNETI_META_DES13(fnb,fni)
+#define GASNETI_META_DES15(fnb,fni) fni(14,15,16) GASNETI_META_DES14(fnb,fni)
+#define GASNETI_META_DES16(fnb,fni) fni(15,16,17) GASNETI_META_DES15(fnb,fni)
+
 #include <stddef.h> /* get standard types, esp size_t */
 
 // gasneti_offsetof is our version of C's offsetof() that allows field arguments 
