@@ -233,8 +233,13 @@ typedef union gasnetc_packet_u {
 #endif
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX 32768
 /* a particular get or put <= this size goes via fma */
+#ifdef GASNET_CONDUIT_ARIES
+#define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 1023
+#define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 1023
+#else
 #define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 4096
 #define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 4096
+#endif
 #define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX (4096*4)
 /* space for immediate bounce buffer in the post descriptor */
 #define GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE 128
