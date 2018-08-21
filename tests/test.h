@@ -787,13 +787,6 @@ static gex_TM_t _test_tm0;
   } while (0)
 #endif
 
-static int test_collinit = 0;
-#define TEST_COLL_INIT() do {          \
-    if (!test_collinit) {              \
-      gasnet_coll_init(0, 0, 0, 0, 0); \
-      test_collinit = 1;               \
-    }                                  \
-  } while(0)
 /* cheap and simple broadcast operation */
 #define TEST_BCAST(dst, rootid, src, sz) do {                         \
   assert_always(_test_tm0 != GEX_TM_INVALID);                         \

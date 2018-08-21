@@ -91,6 +91,7 @@ testprograms_seq =      \
         testcollperf    \
         testteambarrier \
         testteambcast   \
+        testreduce      \
         testteam        \
         testnbr         \
         testvisperf     \

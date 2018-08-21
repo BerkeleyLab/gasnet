@@ -61,6 +61,37 @@
 #define GASNETE_COLL_OP_INACTIVE	0x2
 
 
+/*---------------------------------------------------------------------------------*/
+/* ***  Handler Indices *** */
+/*---------------------------------------------------------------------------------*/
+/* conduits may override this to relocate the ref-coll handlers */
+#ifndef GASNETE_COLL_HANDLER_BASE
+#define GASNETE_COLL_HANDLER_BASE 119
+#endif
+
+#define _hidx_gasnete_coll_p2p_memcpy_reqh          (GASNETE_COLL_HANDLER_BASE+0)
+#define _hidx_gasnete_coll_p2p_short_reqh           (GASNETE_COLL_HANDLER_BASE+1)
+#define _hidx_gasnete_coll_p2p_med_reqh             (GASNETE_COLL_HANDLER_BASE+2)
+#define _hidx_gasnete_coll_p2p_long_reqh            (GASNETE_COLL_HANDLER_BASE+3)
+#define _hidx_gasnete_coll_p2p_med_tree_reqh        (GASNETE_COLL_HANDLER_BASE+4)
+#define _hidx_gasnete_coll_p2p_advance_reqh         (GASNETE_COLL_HANDLER_BASE+5)
+#define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
+#define _hidx_gasnete_coll_p2p_med_counting_reqh    (GASNETE_COLL_HANDLER_BASE+7)
+#define _hidx_gasnete_coll_p2p_seg_put_reqh         (GASNETE_COLL_HANDLER_BASE+8)
+
+// TODO-EX: this is taking the last extended handler slot, but should be allocated more "normally"
+#define GASNETE_COLL_NUM_SCRATCH_HANDLERS 1
+#ifndef GASNETE_COLL_SCRATCH_HANDLER_BASE
+#define GASNETE_COLL_SCRATCH_HANDLER_BASE (GASNETE_COLL_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
+#endif
+#define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
+
+// TODO-EX: this is taking the next-to-last extended handler slot, but should be allocated more "normally"
+#define GASNETE_COLL_NUM_TEAM_HANDLERS 1
+#ifndef GASNETE_COLL_TEAM_HANDLER_BASE
+#define GASNETE_COLL_TEAM_HANDLER_BASE (GASNETE_COLL_SCRATCH_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
+#endif
+#define _hidx_gasnete_coll_teamid_reqh (GASNETE_COLL_TEAM_HANDLER_BASE+0)
 
 /*---------------------------------------------------------------------------------*/
 /* Forward type decls and typedefs:                                                */
@@ -82,9 +113,6 @@ typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
 
 struct gasnete_coll_tree_type_t_;
 typedef struct gasnete_coll_tree_type_t_ *gasnete_coll_tree_type_t;
-
-struct gasnete_coll_tree_data_t_;
-typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
 
 struct gasnete_coll_local_tree_geom_t_;
 typedef struct gasnete_coll_local_tree_geom_t_ gasnete_coll_local_tree_geom_t;
@@ -161,12 +189,6 @@ extern void gasnete_coll_active_fini(void);
 
 
 /*---------------------------------------------------------------------------------*/
-/* Data for a given tree-based operation */
-struct gasnete_coll_tree_data_t_ {
-  uint32_t			pipe_seg_size;
-  uint32_t			sent_bytes;
-  gasnete_coll_local_tree_geom_t	*geom;
-};
 #define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 1024
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 
@@ -381,7 +403,6 @@ struct gasnete_coll_op_t_ {
 #endif
   gasnete_coll_scratch_req_t *scratch_req; /* the associated scratch request with this op*/
   int num_coll_params;
-  gasnete_coll_tree_data_t *tree_info;
   uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES];/*contains teh parameters*/
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_OP_EXTRA
@@ -447,13 +468,6 @@ struct gasnete_coll_p2p_t_ {
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                            void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-						 void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                           uint32_t count, uint32_t offset, uint32_t state);
-extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gex_Rank_t dstnode, uint32_t idx);
 extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
                                           void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
@@ -474,39 +488,116 @@ extern  int gasnete_coll_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t
                                        const void *src, size_t nbytes);
 struct gasnete_coll_p2p_send_struct { void *addr; size_t sent; };
 
+/* Update one or more states w/o delivering any data */
+GASNETI_INLINE(gasnete_tm_p2p_change_states)
+int gasnete_tm_p2p_change_states(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Flags_t flags,
+                        uint32_t count, uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG)
+{
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestShort5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_short_reqh), flags,
+                              op->team->team_id, op->sequence, count, offset, state);
+}
+#define gasnete_tm_p2p_change_state(op,tm,rank,flags,offset,stateTI) \
+        gasnete_tm_p2p_change_states(op,tm,rank,flags,1,offset,stateTI)
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_p2p_change_states(op,node,count,offset,state) \
+        gasneti_assert_zeroret(                                \
+        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
+                                     0,count,offset,state GASNETI_THREAD_GET))
+#define gasnete_coll_p2p_change_state(op,node,offset,state) \
+        gasneti_assert_zeroret(                                \
+        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
+                                     0,1,offset,state GASNETI_THREAD_GET))
+
+/* Advance counter[idx] */
+GASNETI_INLINE(gasnete_tm_p2p_advance)
+int gasnete_tm_p2p_advance(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Flags_t flags, uint32_t idx
+                        GASNETI_THREAD_FARG)
+{
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestShort3(tm, rank, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), flags,
+                              op->team->team_id, op->sequence, idx);
+}
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_p2p_advance(op,node,idx) \
+        gasneti_assert_zeroret(                                \
+        gasnete_tm_p2p_advance(op,gasneti_THUNK_TM,node,0,idx GASNETI_THREAD_GET))
+
+
+/* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
+GASNETI_INLINE(gasnete_tm_p2p_signalling_put)
+int gasnete_tm_p2p_signalling_put(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        void *dst, const void *src, size_t nbytes,
+                        gex_Event_t *lc_opt, gex_Flags_t flags,
+                        uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG)
+{
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestLong5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+                             (void*)src, nbytes, dst, lc_opt, flags,
+                             op->team->team_id, op->sequence, 1, offset, state);
+}
+
+
+// TODO-EX: deprecate and remove:
+#define gasnete_coll_p2p_signalling_put(op,node,dst,src,nbytes,pos,state)            \
+        gasneti_assert_zeroret(                                                      \
+        gasnete_tm_p2p_signalling_put(op,gasneti_THUNK_TM,node,dst,src,nbytes,       \
+                                      GEX_EVENT_NOW,0,pos,state GASNETI_THREAD_GET))
+// NOTE: this has *not* been Async since the loss of LongAsync
+#define gasnete_coll_p2p_signalling_putAsync gasnete_coll_p2p_signalling_put
+
+
 /* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
 * Set the corresponding entries of the state array to 'state'.
 */
-extern void gasnete_tm_p2p_eager_putM(
+extern int gasnete_tm_p2p_eager_putM(
                         gasnete_coll_op_t *op,
                         gex_TM_t tm, gex_Rank_t rank,
-                        void *src, uint32_t count, size_t size,
-                        uint32_t offset, uint32_t state);
+                        const void *src, uint32_t count, size_t size,
+                        gex_Event_t *lc_opt, gex_Flags_t flags,
+                        uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG);
 
-// Shorthand for gasnete_tm_p2p_eager_putM with count == 1
-#define gasnete_tm_p2p_eager_put(op,tm,rank,src,size,offset,state) \
-        gasnete_tm_p2p_eager_putM(op,tm,rank,src,1,size,offset,state)
-
-
-// TODO-EX: deprecate and remove
-GASNETI_INLINE(gasnete_coll_p2p_eager_putM)
-void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                 void *src, uint32_t count, size_t size,
-                                 uint32_t offset, uint32_t state)
+// Specialization of gasnete_tm_p2p_eager_putM with count == 1
+GASNETI_INLINE(gasnete_tm_p2p_eager_put)
+int gasnete_tm_p2p_eager_put(
+                        gasnete_coll_op_t *op,
+                        gex_TM_t tm, gex_Rank_t rank,
+                        const void *src, size_t size,
+                        gex_Event_t *lc_opt, gex_Flags_t flags,
+                        uint32_t offset, uint32_t state
+                        GASNETI_THREAD_FARG)
 {
-  gasnete_tm_p2p_eager_putM(op, gasneti_THUNK_TM, dstnode, src, count, size, offset, state);
+  // TODO-EX: flags |= INTERNAL to prevent tracing
+  return gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+                               (void*)src, size, lc_opt, flags,
+                               op->team->team_id, op->sequence, 1, offset, state, size);
 }
+    
 
-/* Shorthand for gasnete_coll_p2p_eager_putM with count == 1 */
 // TODO-EX: deprecate and remove
-#ifndef gasnete_coll_p2p_eager_put
-GASNETI_INLINE(gasnete_coll_p2p_eager_put)
-void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                void *src, size_t size, uint32_t offset, uint32_t state) {
-  gasnete_tm_p2p_eager_putM(op, gasneti_THUNK_TM, dstnode, src, 1, size, offset, state);
-}
-#endif
+#define gasnete_coll_p2p_eager_putM(op,node,src,count,size,offset,state)            \
+        gasneti_assert_zeroret(                                                     \
+        gasnete_tm_p2p_eager_putM(op,gasneti_THUNK_TM,node,src,count,size,          \
+                                  GEX_EVENT_NOW,0,offset,state GASNETI_THREAD_GET))
+#define gasnete_coll_p2p_eager_put(op,node,src,size,offset,state)                   \
+        gasneti_assert_zeroret(                                                     \
+        gasnete_tm_p2p_eager_put(op,gasneti_THUNK_TM,node,src,size,                 \
+                                 GEX_EVENT_NOW,0,offset,state GASNETI_THREAD_GET))
+
 
 /* Treat the eager buffer space at dstnode as an array of (void *)s.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
@@ -591,17 +682,6 @@ void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
 }
 #endif
 
-/* Shorthand for gasnete_coll_p2p_change_state w/ count == 1 */
-#ifndef gasnete_coll_p2p_change_state
-#define gasnete_coll_p2p_change_state(op, dstnode, offset, state) \
-gasnete_coll_p2p_change_states(op, dstnode, 1, offset, state)
-#endif
-/*---------------------------------------------------------------------------------*/
-/* XXX: sequence and other stuff that will need to be per-team scoped: */
-
-extern gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
-extern size_t gasnete_coll_fn_count;
-
 /*---------------------------------------------------------------------------------*/
 
 /* Helper for scaling of void pointers */
@@ -680,29 +760,11 @@ void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[],
 }
 
 
-GASNETI_INLINE(gasnete_coll_local_reduce)
-void gasnete_coll_local_reduce(size_t count, void * dst, void * const srclist[], size_t elem_size, size_t elem_count, gasnet_coll_fn_handle_t func, int func_arg) {
-  gasnet_coll_reduce_fn_t reduce_fn = gasnete_coll_fn_tbl[func].fnptr;
-  uint32_t red_fn_flags = gasnete_coll_fn_tbl[func].flags;
-  uint32_t reduce_args = func_arg;
-  size_t nbytes = elem_size*elem_count;
-  int i;
-  
-  gasneti_sync_reads();
-  GASNETI_MEMCPY_SAFE_IDENTICAL(dst, srclist[0], nbytes);
-  for(i=1; i<count; i++) {
-    (*reduce_fn)(dst, elem_count, dst, elem_count, srclist[i], elem_size, red_fn_flags, reduce_args);
-  }
-  gasneti_sync_writes();	/* Ensure result is visible on all threads */
-}
-
-
 /*---------------------------------------------------------------------------------*/
 /* Thread-specific data: */
-typedef struct {
+struct gasnete_coll_threaddata_t_ {
   gasnete_coll_op_t			*op_freelist;
   gasnete_coll_generic_data_t 	*generic_data_freelist;
-  gasnete_coll_tree_data_t	 	*tree_data_freelist;
   
   /* Linkage used by the thread-specific handle freelist . */
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
@@ -724,26 +786,17 @@ typedef struct {
 #ifdef GASNETE_COLL_THREADDATA_EXTRA
   GASNETE_COLL_THREADDATA_EXTRA
 #endif
-} gasnete_coll_threaddata_t;
+};
 
 extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void);
 
-/* At this point the type gasneti_threaddata_t might not be defined yet.
-* However, we know gasnete_coll_threaddata MUST be the second pointer.
-*/
 GASNETI_INLINE(_gasnete_coll_get_threaddata)
 gasnete_coll_threaddata_t *
-_gasnete_coll_get_threaddata(void *thread) {
-  struct _prefix_of_gasnete_threaddata {
-    void				*reserved_for_core;
-    gasnete_coll_threaddata_t	*reserved_for_coll;
-    /* We don't care about the rest */
-  } *thread_local = (struct _prefix_of_gasnete_threaddata *)thread;
-  gasnete_coll_threaddata_t *result = thread_local->reserved_for_coll;
-  
-  if_pf (result == NULL)
-    thread_local->reserved_for_coll = result = gasnete_coll_new_threaddata();
-  
+_gasnete_coll_get_threaddata(gasneti_threaddata_t *mythread) {
+  gasnete_coll_threaddata_t *result = mythread->gasnete_coll_threaddata;
+  if_pf (result == NULL) {
+    mythread->gasnete_coll_threaddata = result = gasnete_coll_new_threaddata();
+  }
   return result;
 }
 
@@ -752,8 +805,7 @@ _gasnete_coll_get_threaddata(void *thread) {
 
 /* Used when thread data must already exist */
 #define GASNETE_COLL_MYTHREAD_NOALLOC \
-(gasneti_assert(((void **)GASNETI_MYTHREAD)[1] != NULL), \
- (gasnete_coll_threaddata_t *)(((void **)GASNETI_MYTHREAD)[1]))
+(gasneti_assert(GASNETI_MYTHREAD->gasnete_coll_threaddata), GASNETI_MYTHREAD->gasnete_coll_threaddata)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -901,18 +953,6 @@ typedef struct {
 } gasnete_coll_exchange_args_t;
 
 typedef struct {
-  gex_Rank_t dstnode;
-  void *dst;
-  void *src;
-  size_t src_blksz; 
-  size_t src_offset;
-  size_t elem_size; 
-  size_t elem_count;
-  size_t nbytes;
-  gasnet_coll_fn_handle_t func; int func_arg;
-} gasnete_coll_reduce_args_t;
-
-typedef struct {
   gex_Rank_t          root;
   void *              dst;
   const void *        src;
@@ -964,7 +1004,7 @@ struct gasnete_coll_generic_data_t_ {
   gasnete_coll_consensus_t		in_barrier;
   gasnete_coll_consensus_t		out_barrier;
   gasnete_coll_p2p_t			*p2p;
-  gasnete_coll_tree_data_t *tree_info;
+  gasnete_coll_local_tree_geom_t        *tree_geom;
   gasnete_coll_dissem_info_t *dissem_info;
   gex_Event_t			handle;
   gex_Event_t			handle2;
@@ -983,7 +1023,6 @@ struct gasnete_coll_generic_data_t_ {
       gasnete_coll_gather_args_t		gather;
       gasnete_coll_gather_all_args_t		gather_all;
       gasnete_coll_exchange_args_t		exchange;
-      gasnete_coll_reduce_args_t                reduce;
 
       /* GEX interfaces: */
       gasnete_tm_reduce_args_t                  tm_reduce;
@@ -1015,7 +1054,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
                                           gasnete_coll_scratch_req_t *scratch_req,
                                           int num_params,
                                           uint32_t *param_list,
-                                          gasnete_coll_tree_data_t *tree_info
+                                          gasnete_coll_local_tree_geom_t *tree_geom
                                           GASNETI_THREAD_FARG);
 
 extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data);
@@ -1056,8 +1095,7 @@ int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootnode,
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootnode) {
-      gasnete_coll_tree_data_t * const tree = data->tree_info;
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),0);
+      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
     }
     return 1;
   }
@@ -1074,9 +1112,8 @@ int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootnode,
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootnode) {
-      gasnete_coll_tree_data_t * const tree = data->tree_info;
       gasneti_local_wmb();
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom)),0);
+      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
     } else {
       gasneti_local_rmb();
     }
@@ -1095,7 +1132,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
                                   gasnet_image_t srcimage, void *src,
                                   size_t nbytes, int flags,
                                   gasnete_coll_poll_fn poll_fn, int options,
-                                  gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                  gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                                   int num_params, uint32_t *param_list
                                   GASNETI_THREAD_FARG);
 
@@ -1105,7 +1142,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 gasnet_image_t srcimage, void *src,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
-                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                                 int num_params, uint32_t *param_list
                                 GASNETI_THREAD_FARG);
 
@@ -1115,7 +1152,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                void *src,
                                size_t nbytes, size_t dist, int flags,
                                gasnete_coll_poll_fn poll_fn, int options,
-                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                                int num_params, uint32_t *param_list
                                GASNETI_THREAD_FARG);
 
@@ -1136,17 +1173,6 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence,
                                  int num_params, uint32_t *param_list
                                  GASNETI_THREAD_FARG);
-
-extern gex_Event_t
-gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
-                               gasnet_image_t dstimage, void *dst,
-                               void *src, size_t src_blksz, size_t src_offset,
-                               size_t elem_size, size_t elem_count, 
-                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
-                               gasnete_coll_poll_fn poll_fn, int options,
-                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
-                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
-                               GASNETI_THREAD_FARG);
 
 // Legacy "nb_default" layer
 
@@ -1179,11 +1205,6 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
                                  size_t nbytes, int flags, uint32_t sequence
                                  GASNETI_THREAD_FARG);
 
-// Misc
-
-extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gex_Rank_t rootnode, gasnete_coll_team_t team GASNETI_THREAD_FARG);
-extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETI_THREAD_FARG);
-
 // GEX "generic" layer
 
 extern gex_Event_t
@@ -1191,7 +1212,7 @@ gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void
                              gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
                              gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
                              int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
-                             gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                             gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
                              int num_params, uint32_t *param_list,
                              gasnete_coll_scratch_req_t *scratch_req
                              GASNETI_THREAD_FARG);
@@ -1294,26 +1315,6 @@ GASNETE_COLL_DECLARE_EXCHANGE_ALG(RVPut);
 
 /*---------------------------------------------------------------------------------*/
 
-#define GASNETE_COLL_DECLARE_REDUCE_ALG(FUNC_EXT) \
-extern gex_Event_t \
-gasnete_coll_reduce_##FUNC_EXT(gasnet_team_handle_t team,\
-                          gasnet_image_t dstimage, void *dst,\
-                          void *src, size_t src_blksz, size_t src_offset,\
-                          size_t elem_size, size_t elem_count,\
-                          gasnet_coll_fn_handle_t func, int func_arg,\
-                          int flags, \
-                          gasnete_coll_implementation_t coll_params,\
-                          uint32_t sequence\
-                          GASNETI_THREAD_FARG)
-
-GASNETE_COLL_DECLARE_REDUCE_ALG(Eager);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreeEager);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreePut);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreePutSeg);
-GASNETE_COLL_DECLARE_REDUCE_ALG(TreeGet);
-
-/*---------------------------------------------------------------------------------*/
-
 #define GASNETE_TM_REDUCE_ARGS \
                              gex_TM_t tm, gex_Rank_t root,\
                              void *dst, const void *src,\
@@ -1328,6 +1329,8 @@ GASNETE_COLL_DECLARE_REDUCE_ALG(TreeGet);
 typedef gex_Event_t (*gasnete_tm_reduce_fn_ptr_t)(GASNETE_TM_REDUCE_ARGS);
 
 GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager);
+GASNETE_TM_DECLARE_REDUCE_ALG(TreePut);
+GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg);
 
 /*---------------------------------------------------------------------------------*/
 // Reduction operators

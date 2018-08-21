@@ -9,6 +9,9 @@
 #error TREES_H MISSING!!
 #endif
 
+// Global data:
+gasnete_coll_tree_type_t gasnetc_tm_reduce_tree_type; 
+
 static gasneti_lifo_head_t gasnete_coll_tree_type_free_list = GASNETI_LIFO_INITIALIZER;
 gasnete_coll_tree_type_t gasnete_coll_get_tree_type(void) {
   gasnete_coll_tree_type_t ret;
@@ -29,17 +32,16 @@ void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in){
 }
 
 
-static int split_string(char ***split_strs, char *str, char *delim) {
-  char *temp=NULL,*copy;
+static int split_string(char ***split_strs, const char *str, const char *delim) {
+  char *temp;
   int ret=0;
   size_t malloc_len = 8;
   static gasneti_mutex_t lock= GASNETI_MUTEX_INITIALIZER;
 
-  copy = gasneti_malloc(sizeof(char)*(strlen(str)+1));
-  
   /*since the strtok function is desructive we have to
     create a copy of the string first to preserve the orignal*/
-  GASNETI_MEMCPY_SAFE_IDENTICAL(copy, str, sizeof(char)*(strlen(str)+1));
+  char *copy = gasneti_strdup(str);
+
   gasneti_mutex_lock(&lock);
   *split_strs = (char **) gasneti_malloc(sizeof(char*) * malloc_len);
   temp = strtok(copy, delim);
@@ -64,7 +66,7 @@ static int split_string(char ***split_strs, char *str, char *delim) {
 
 
 
-static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
+static gasnete_coll_tree_type_t make_tree_type_str_helper(const char *tree_name) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
 
   char **inner_split;
@@ -93,7 +95,7 @@ static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
   gasneti_free(inner_split);
   return ret;
 }
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(const char *tree_name_str) {
  
   char outter_delim[]=":";
   char inner_delim[]=",";
@@ -187,11 +189,7 @@ void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_c
   for(i=0; i<geom->child_count; i++) {
     fprintf(stdout, "%d> child %d: %d, subtree for that child: %d (offset: %d)\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i], (int)geom->child_offset[i]);
   }
-  if(gasnete_coll_tree_mynode == geom->root) {
-    /* for(i=0; i<geom->total_size; i++) { */
-/*       fprintf(stdout, "%d> dfs order %d: %d\n", (int)gasnete_coll_tree_mynode, i, (int)geom->dfs_order[i]); */
-/*     } */
-  } else {
+  if(gasnete_coll_tree_mynode != geom->root) {
     fprintf(stdout, "%d> parent: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->parent);
   }
   fprintf(stdout, "%d> mysubtree size: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->mysubtree_size);
@@ -251,7 +249,7 @@ typedef struct tree_node_t_* tree_node_t;
 #define MYABS(A) ((A) < 0 ? (-1)*(A) : (A))
 #define MYCEIL(A, B) (((A) % (B)) !=0 ? ((A) / (B))+1 : (A)/(B)) 
 
-#define GET_PARENT_ID(TREE_NODE) ((TREE_NODE)->parent==NULL ? -1 : (TREE_NODE)->parent->id)
+#define GET_PARENT_ID(TREE_NODE) ((TREE_NODE)->parent==NULL ? GEX_RANK_INVALID : (TREE_NODE)->parent->id)
 #define GET_NODE_ID(TREE_NODE) ((TREE_NODE)->id)
 #define GET_NUM_CHILDREN(TREE_NODE) ((TREE_NODE)->num_children)
 #define GET_CHILD_IDX(TREE_NODE, IDX) ((TREE_NODE)->children[IDX])
@@ -547,6 +545,16 @@ static int treesize(tree_node_t node) {
   return ret;
 }
 
+static int maxradix(tree_node_t node) {
+  if (node == NULL) return 0;
+  int ret = GET_NUM_CHILDREN(node);
+  for (gex_Rank_t i=0; i<GET_NUM_CHILDREN(node); i++) {
+    int tmp = maxradix(GET_CHILD_IDX(node, i));
+    ret = MAX(ret, tmp);
+  }
+  return ret;
+}
+
 static tree_node_t find_node(tree_node_t tree, gex_Rank_t id) {
   gex_Rank_t i;
   if(GET_NODE_ID(tree)==id) return tree;
@@ -647,6 +655,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   mynode = find_node(rootnode, team->myrank);
 
   geom->root = rootrank;
+  geom->max_radix = maxradix(rootnode);
   geom->tree_type = in_type;
   geom->total_size = team->total_ranks;
   geom->parent = GET_PARENT_ID(mynode);
@@ -676,36 +685,20 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
     geom->num_siblings = 0;
     geom->sibling_id = 0;
     geom->sibling_offset = 0;
-    /***** THIS NEEDS TO BE TAKEN OUT
-      The DFS ordering that we impose on the trees will mean that this no longer needs to be kept around
-      but it's in here for now for backward compatability sake until we make the neccessary changes to all the other collective algorithms
-      ****/
-    geom->dfs_order = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*team->total_ranks);
-    for(i=0; i<team->total_ranks; i++) {
-      geom->dfs_order[i] = (i+rootrank)%team->total_ranks;
-    }
   }
-  geom->seq_dfs_order = 1;
   geom->child_list = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
   geom->subtree_sizes = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
   geom->child_offset = (gex_Rank_t*) gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
-  geom->grand_children = (gex_Rank_t*)gasneti_malloc(sizeof(gex_Rank_t)*geom->child_count);
   geom->num_non_leaf_children=0;
   geom->num_leaf_children=0;
-  geom->child_contains_wrap = 0;
   for(i=0; i<geom->child_count; i++) {
     geom->child_list[i] = GET_NODE_ID(GET_CHILD_IDX(mynode,i));
     geom->subtree_sizes[i] = treesize(GET_CHILD_IDX(mynode,i));
-    geom->grand_children[i] = GET_NUM_CHILDREN(GET_CHILD_IDX(mynode, i));
     if(geom->subtree_sizes[i] > 1) {
       geom->num_non_leaf_children++;
     } else {
       geom->num_leaf_children++;
     }
-    if(geom->child_list[i]+geom->subtree_sizes[i] > geom->total_size) {
-      geom->child_contains_wrap = 1;
-    }
-    
   }
   gasneti_assert((geom->num_leaf_children+geom->num_non_leaf_children) == geom->child_count);
   
@@ -816,9 +809,9 @@ void gasnete_coll_print_all_tree_geom(gasnet_team_handle_t team)
 
 int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b) {
   
-  if(a==NULL && b==NULL) {
-    /*if they are both null then tehy are trivially equal*/
-    return 0;
+  if (a == b) {
+    /*if they are equal (including both null) then they are trivially equal*/
+    return 1;
   } else if(a==NULL || b==NULL){
     /*if one is null and the other is non-null then we have to reutnr a nonzero*/
     return 0;

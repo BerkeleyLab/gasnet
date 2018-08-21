@@ -738,7 +738,8 @@ typedef struct _gasneti_threaddata_t {
   // TODO: eventually these might be replaced with inlined fields
   //
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */
-  void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */
+  gasnete_coll_threaddata_t
+       *gasnete_coll_threaddata;// Owned by gasnet_coll_{fwd,internal}.h
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */
 
   //

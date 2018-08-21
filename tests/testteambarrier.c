@@ -30,15 +30,6 @@ void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   int i;
   int64_t start,total;
-#if GASNET_PAR
-  gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
-  for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
-  gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
-  test_free(imagearray);
-#else
-  gasnet_coll_init(NULL, 0, NULL, 0, 0);
-#endif
-
 
   MYBARRIER();
   if (td->mythread == 0) {

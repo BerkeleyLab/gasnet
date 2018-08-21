@@ -66,98 +66,6 @@ GASNETI_BEGIN_NOWARN
 
 /* Functions, types, etc for computational collectives */
 
-#ifndef GASNET_COLL_FN_HANDLE_T
-  typedef gex_AM_Arg_t gasnet_coll_fn_handle_t;
-#endif
-
-typedef void (*gasnet_coll_reduce_fn_t)(
-	void *_results, size_t _result_count,
-	const void *_left_operands, size_t _left_count,
-	const void *_right_operands,
-	size_t _elem_size, int _flags, int _arg);
-/*
-    results: Output array
-	This argument is the address of the space into which the
-	result(s) should be written.
-    result_count: Result count
-	The number of results to be generated.  Since there is
-	a one-to-one correspondence between results and
-	right-hand operands, this is also the length of the
-	'right_operands' array. The client may safely assume that a
-	callback invoked on behalf of a (non-prefix) reduce function
-	will always have result_count == 1. Otherwise, it will be >= 1.
-    left_operands: Optional left-hand operand array
-	This argument is the address of 0 or more operands which lie
-	to the left of those given by the 'right_operands' argument.
-	The number of operands in this array is given by the
-	'left_count' argument.  If 'left_count' is zero then this
-	argument is ignored.
-    left_count: Left-hand operand count
-	The number of operands in the 'left_operands' array.
-	The client may safely assume that a callback invoked on behalf 
-	of a (non-prefix) reduce function will always have 
-	left_count > 0. No other guarantees are provided.
-    right_operands: Right-hand operand array
-	This argument is the address of 1 or more operands which lie
-	to the right of those given by the 'left_operands' argument.
-	The number of operands in this array is given by the
-	'result_count' argument.
-    elem_size: Size of the operand and result elements.
-	This argument gives the size of the data elements
-	which are to be manipulated.
-    flags: Flag values
-	This argument gives information about the operation and
-	is composed of a bitwise or of values.
-	The value of 'flags' will include GASNET_COLL_NONCOMM
-	if and only if the client passed this same flag to the
-	gasnet_coll_init() function when registering this function.
-	The remaining bits of 'flags' are reserved for future use and
-	the client must not assume they will have any particular
-	value.
-    arg: Client-supplied argument
-	This is the one argument passed into the gasnet_coll_init()
-	function by the client when registering this function.
-
-    On return (where "sum" and "+" are used in a generalized sense)
-	  result[i] = sum(j=0..left_count-1, left_operands[j])
-		    + sum(k=0..i, right_operands[k])
-
-    For a single instance of the operation "a = b + c"
-	results = &a
-	results_count = 1
-	left_operands = &b
-	left_count = 1
-	right_operands = &c
-
-    For a (non-prefix) reduction a = sum(j=0..n-1, A[j])
-	results = &a
-	results_count = 1
-	left_operands = A
-	left_count = n-1
-	right_operands = A + (n-1)
-
-    For an inclusive prefix reduction B[i] = sum(j=0..i, A[j]) for i=0..n-1
-	results = B
-	results_count = n
-	left_operands = NULL (ignored)
-	left_count = 0
-	right_operands = A
-
-    For an exclusive prefix reduction B[i] = sum(j=0..i-1, A[j]) for i=1..n-1
-	results = B + 1
-	results_count = n - 1
-	left_operands = A
-	left_count = 1
-	right_operands = A + 1
-*/
-
-// TODO-EX: The fields of this struct violate public header naming conventions.
-// Need to remove or rework this struct
-typedef struct {
-    gasnet_coll_reduce_fn_t	fnptr;
-    unsigned int		flags;
-} gasnet_coll_fn_entry_t;
-
 // Callback function for GEX Reduce/Scan:
 typedef 
 void (*gex_Coll_ReduceFn_t)(
@@ -179,35 +87,6 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
 
-/*------------------------------------------------------------------------------------*/
-
-/* gasnet_coll_init: Initialize GASNet collectives
- *
- *  images:     Array of gasnet_nodes() elements giving the number of
- *              images present on each node.  This must have the
- *              same contents on all nodes or the behavior is undefined.
- *		If NULL, then there is one image per node.
- *		In GASNET_SEQ mode, NULL is the only legal value.
- *  my_image:   If 'images' is non-NULL, this gives the image number of
- *              the calling thread.
- *  fn_tbl:     An array of type gasnet_coll_fn_entry_t, specifying
- *              the functions which can be invoked for the
- *              computational collectives.  This may safely differ
- *              in contents (but not size) across nodes.
- *  fn_count:   The number of entries in 'fn_tbl'.  Must agree across
- *              all nodes or the behavior is undefined.
- *  init_flags: Presently unused.  Must be 0.
- */
-
-#ifndef gasnet_coll_init
-  GASNETI_COLL_FN_HEADER(gasnete_coll_init) 
-  void gasnete_coll_init(const gasnet_image_t _images[], gasnet_image_t _my_image,
-		  		gasnet_coll_fn_entry_t _fn_tbl[], size_t _fn_count,
-		  		int _init_flags GASNETI_THREAD_FARG);
-  #define gasnet_coll_init(im,mi,fn,fc,fl) \
-		gasnete_coll_init(im,mi,fn,fc,fl GASNETI_THREAD_GET)
-#endif
-
 /*---------------------------------------------------------------------------------*/
 
 
@@ -222,7 +101,6 @@ typedef enum {GASNET_COLL_BROADCAST_OP=0,
   GASNET_COLL_GATHER_OP, 
   GASNET_COLL_GATHER_ALL_OP,
   GASNET_COLL_EXCHANGE_OP,
-  GASNET_COLL_REDUCE_OP,
   GASNET_COLL_NUM_COLL_OPTYPES
 } gasnet_coll_optype_t;
 
@@ -310,10 +188,6 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   } while (0)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags) \
 	GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
-  #define GASNETI_TRACE_COLL_REDUCE(name,team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) do { \
-    GASNETI_TRACE_EVENT_VAL(W,name,elem_count);                                                            \
-    /* XXX: No detail implemented */                                                                       \
-  } while (0)
   // Legacy Collective Sync
   #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
 	        gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(X)
@@ -348,7 +222,6 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_GATHER(name,team,root,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags)
-  #define GASNETI_TRACE_COLL_REDUCE(name,team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags)
   #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
 		static char _dummy_COLL_WAITSYNC = (char)sizeof(_dummy_COLL_WAITSYNC)
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
@@ -470,27 +343,6 @@ void _gasnet_coll_exchange(gasnet_team_handle_t _team,
                                   size_t _nbytes, int _flags GASNETI_THREAD_FARG);
 #define gasnet_coll_exchange(team,dst,src,nbytes,flags) \
        _gasnet_coll_exchange(team,dst,src,nbytes,flags GASNETI_THREAD_GET)
-
-/*---------------------------------------------------------------------------------*/
-GASNETI_COLL_FN_HEADER(_gasnet_coll_reduce_nb) 
-gex_Event_t _gasnet_coll_reduce_nb(gasnet_team_handle_t _team,
-                       gasnet_image_t _dstimage, void *_dst,
-                       void *_src, size_t _src_blksz, size_t _src_offset,
-                       size_t _elem_size, size_t _elem_count,
-                       gasnet_coll_fn_handle_t _func, int _func_arg,
-                       int _flags GASNETI_THREAD_FARG) ;
-#define gasnet_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) \
-       _gasnet_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETI_THREAD_GET)
-
-GASNETI_COLL_FN_HEADER(_gasnet_coll_reduce) 
-void _gasnet_coll_reduce(gasnet_team_handle_t _team,
-                                gasnet_image_t _dstimage, void *_dst,
-                                void *_src, size_t _src_blksz, size_t _src_offset,
-                                size_t _elem_size, size_t _elem_count,
-                                gasnet_coll_fn_handle_t _func, int _func_arg,
-                                int _flags GASNETI_THREAD_FARG) ;
-#define gasnet_coll_reduce(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) \
-       _gasnet_coll_reduce(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETI_THREAD_GET);
 
 /*---------------------------------------------------------------------------------*/
 

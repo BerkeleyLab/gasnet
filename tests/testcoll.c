@@ -371,13 +371,6 @@ void *thread_main(void *arg) {
     while (!done) gasnet_AMPoll();
     return NULL;
   }
-
-  gasnet_image_t *imagearray = test_malloc(numprocs * sizeof(gasnet_image_t));
-  for (i=0; i<numprocs; ++i) { imagearray[i] = threads; }
-  gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
-  test_free(imagearray);
-#else
-  gasnet_coll_init(NULL, 0, NULL, 0, 0);
 #endif
 
   td->hndl = test_malloc(iters*sizeof(gasnet_coll_handle_t));
