@@ -1464,7 +1464,7 @@ GASNETI_INLINE(gasnetc_AMReplyShort)
 int gasnetc_AMReplyShort(
                 gex_Token_t token, gex_AM_Index_t handler,
                 gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG)
+                int numargs, va_list argptr)
 {
   int retval = GASNET_OK;
   if_pt (gasnetc_token_in_nbrhd(token)) {
@@ -1509,7 +1509,7 @@ extern int gasnetc_AMReplyShortM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -1519,7 +1519,7 @@ int gasnetc_AMReplyMedium(
                 gex_Token_t token, gex_AM_Index_t handler,
                 /*const*/ void *source_addr, size_t nbytes,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG)
+                int numargs, va_list argptr)
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
@@ -1583,9 +1583,9 @@ extern int gasnetc_AMReplyMediumV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 /*const*/ void *source_addr, size_t nbytes,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG)
+                int numargs, va_list argptr)
 {
-  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyMediumM(
@@ -1601,7 +1601,7 @@ extern int gasnetc_AMReplyMediumM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -1611,7 +1611,7 @@ int gasnetc_AMReplyLong(
                 gex_Token_t token, gex_AM_Index_t handler,
                 /*const*/ void *source_addr, size_t nbytes, void *dest_addr,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG)
+                int numargs, va_list argptr)
 {
   int retval = GASNET_OK;
   gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
@@ -1676,9 +1676,9 @@ extern int gasnetc_AMReplyLongV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 /*const*/ void *source_addr, size_t nbytes, void *dest_addr,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG)
+                int numargs, va_list argptr)
 {
-  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyLongM(
@@ -1695,7 +1695,7 @@ extern int gasnetc_AMReplyLongM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }

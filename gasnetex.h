@@ -656,12 +656,12 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
     int                  _nargs;
-    int                  _loopback;
+    int                  _is_nbrhd;
   #if GASNET_PSHM
     struct {
       gex_Rank_t           _pshmrank; // should be gasneti_pshm_rank_t
       gex_Rank_t           _jobrank;
-      int                  _is_pshm;
+      int                  _loopback;
     }                    _pshm;
   #endif
   #ifdef GASNETI_AM_SRCDESC_EXTRA

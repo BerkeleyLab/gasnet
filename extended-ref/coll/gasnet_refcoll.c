@@ -2735,7 +2735,8 @@ gasnete_tm_reduce_nb_default(
 /*---------------------------------------------------------------------------------*/
 
 #if GASNET_DEBUG
-void gasnete_coll_stat_(GASNETI_THREAD_FARG_ALONE) {
+extern void gasnete_coll_stat(void) {
+  GASNET_BEGIN_FUNCTION();
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   int used = gasnete_coll_event_list.used;
   gasnete_coll_op_t *op;
@@ -2756,8 +2757,6 @@ void gasnete_coll_stat_(GASNETI_THREAD_FARG_ALONE) {
   }
   /* gasneti_mutex_unlock(&gasnete_coll_active_lock); */
 }
-
-extern void gasnete_coll_stat(void) { gasnete_coll_stat_(GASNETI_THREAD_GET_ALONE); }
 #endif
 
 /*---------------------------------------------------------------------------------*/

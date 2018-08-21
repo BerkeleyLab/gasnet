@@ -3285,7 +3285,8 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
 
   /* wait until our reply has been placed on the wire */
   gasneti_sync_reads(); /* For non-atomic portion of gasnetc_exit_repl_oust */
-  gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1 GASNETI_THREAD_GET);
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
+  gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1 GASNETI_THREAD_PASS);
 
   return 0;
 }

@@ -424,6 +424,7 @@ void gasneti_prepare_common(
                        gex_Flags_t          flags,
                        unsigned int         nargs)
 {
+    sd->_is_nbrhd = 0;
     sd->_lc_opt = lc_opt;
     sd->_flags  = flags;
     sd->_nargs  = nargs;
@@ -498,19 +499,19 @@ extern int gasnetc_AMReplyMediumV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG);
+                int numargs, va_list argptr);
 #ifndef gasneti_AMReplyMediumV
 #define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
-        gasnetc_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+        gasnetc_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args)
 #endif
 extern int gasnetc_AMReplyLongV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes, void *dest_addr,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG);
+                int numargs, va_list argptr);
 #ifndef gasneti_AMReplyLongV
 #define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
-        gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+        gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -586,15 +587,23 @@ typedef struct {
   int8_t   handlerRunning; 
   int8_t   replyIssued;    
 #endif
+#if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t threadinfo;
+#endif
 } gasnetc_nbrhd_token_t;
 
 #define gasnetc_token_in_nbrhd(tok) ((uintptr_t)(tok)&1)
+
+#define GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token) \
+        GASNET_POST_THREADINFO((gasneti_assert(gasnetc_token_in_nbrhd(token)), \
+                                ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)(token)))->threadinfo))
 
 // gasnetc_nbrhd_token_init is used to forge a conduit-independent nbrhd token that can be used to invoke a client AM handler
 // It currently has three main clients:
 //   Loopback AM delivery, PSHM AM delivery, VIS peer completion callback support
 // NOTE 1: The caller of this function is responsible for populating real_token->ti.gex_is_long after return
 // NOTE 2: src_jobrank is permitted to specify remote ranks, in order to support VIS PC
+// NOTE 3: If real_token->threadinfo is to be used, caller must set after return
 GASNETI_INLINE(gasnetc_nbrhd_token_init)
 gex_Token_t gasnetc_nbrhd_token_init(
                         gasnetc_nbrhd_token_t *real_token,
@@ -737,6 +746,9 @@ void gasnetc_loopback_commit_inner(
 
   gasnetc_nbrhd_token_t real_token;
   const gex_Token_t token = gasnetc_nbrhd_token_init(&real_token, gasneti_mynode, handler_entry, isReq);
+#if GASNETI_THREADINFO_OPT
+  real_token.threadinfo = GASNETI_MYTHREAD;
+#endif
   real_token.ti.gex_is_long = (category == gasneti_Long);
 
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_NBRHD);
@@ -784,9 +796,9 @@ int gasnetc_loopback_ReqRepGeneric(
                          int isReq, gasneti_category_t category,
                          gex_AM_Index_t handler,
                          void *source_addr, int nbytes, void *dest_addr, 
-                         gex_Flags_t flags, int numargs, va_list argptr)
+                         gex_Flags_t flags, int numargs, va_list argptr
+                         GASNETI_THREAD_FARG)
 {
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: THREAD_FARG
   struct gasneti_AM_SrcDesc the_sd;
 
   gasnetc_loopback_prepare_inner(&the_sd, 1, isReq, category, source_addr, 0, 0,
@@ -816,15 +828,15 @@ int gasnetc_nbrhd_RequestGeneric(
 #if GASNET_PSHM
   switch(category) {
     case gasneti_Short:
-        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr);
+        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     case gasneti_Medium:
         return gasneti_AMPSHM_RequestMedium(jobrank, handler, source_addr, nbytes,
-                                            flags, numargs, argptr);
+                                            flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     case gasneti_Long:
         return gasneti_AMPSHM_RequestLong(jobrank, handler, source_addr, nbytes, dest_ptr,
-                                          flags, numargs, argptr);
+                                          flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     default:
         gasneti_unreachable();
@@ -834,7 +846,7 @@ int gasnetc_nbrhd_RequestGeneric(
   return gasnetc_loopback_ReqRepGeneric(
                                1, category, handler,
                                source_addr, nbytes, dest_ptr, 
-                               flags, numargs, argptr); 
+                               flags, numargs, argptr GASNETI_THREAD_PASS); 
 #endif
 }
 
@@ -865,10 +877,11 @@ int gasnetc_nbrhd_ReplyGeneric(
         gasneti_unreachable();
   }
 #else
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
   retval = gasnetc_loopback_ReqRepGeneric(
                                  0, category, handler,
                                  source_addr, nbytes, dest_ptr, 
-                                 flags, numargs, argptr); 
+                                 flags, numargs, argptr GASNETI_THREAD_PASS);
 #endif
   gasnetc_token_post_reply_checks(token, retval);
   return retval;
@@ -886,10 +899,10 @@ int gasnetc_loopback_Prepare(
                         const void *client_buf,
                         size_t least_payload, size_t most_payload,
                         void *dest_addr, gex_Event_t *lc_opt,
-                        gex_Flags_t flags, unsigned int nargs
-                        GASNETI_THREAD_FARG)
+                        gex_Flags_t flags, unsigned int nargs)
 {
-  gasneti_assert(sd->_loopback);
+  GASNET_POST_THREADINFO(sd->_thread);
+  gasneti_assert(sd->_is_nbrhd);
   return gasnetc_loopback_prepare_inner(
                         sd, 0, isReq, category, client_buf,
                         least_payload, most_payload, dest_addr, lc_opt,
@@ -906,7 +919,7 @@ void gasnetc_loopback_Commit(
                         void *dest_addr, va_list argptr)
 {
   GASNET_POST_THREADINFO(sd->_thread);
-  gasneti_assert(sd->_loopback);
+  gasneti_assert(sd->_is_nbrhd);
   gasnetc_loopback_commit_inner(
                         sd, 0, isReq, category, handler, nbytes,
                         dest_addr, argptr GASNETI_THREAD_PASS);
@@ -915,22 +928,10 @@ void gasnetc_loopback_Commit(
 /* ------------------------------------------------------------------------------------ */
 // NP-AM for "nbrhd" (PSHM and loopback)
 
-#if GASNET_PSHM
-  #define _GASNETC_IS_NBRHD_FIELD _pshm._is_pshm
-#else
-  #define _GASNETC_IS_NBRHD_FIELD _loopback
-#endif
-#define GASNETC_IS_NBRHD_PREPARE_REQ(sd,jobrank) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)))
-#define GASNETC_IS_NBRHD_PREPARE_REP(sd,token) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_token_in_nbrhd(token)))
-#define GASNETC_IS_NBRHD_COMMIT(sd) \
-    ((sd)->_GASNETC_IS_NBRHD_FIELD)
-
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareRequest)
-int gasnetc_nbrhd_PrepareRequest(
+gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareRequest(
                         gasneti_AM_SrcDesc_t sd,
                         gasneti_category_t   category,
                         gex_Rank_t           jobrank,
@@ -940,22 +941,30 @@ int gasnetc_nbrhd_PrepareRequest(
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
   gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  sd->_is_nbrhd = 1;
+  int imm;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    return gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
-                                               lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
+                                               lc_opt, flags, nargs);
   } else {
-    return gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
-                                             dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
+                                             dest_addr, lc_opt, flags, nargs);
   }
 #else
-  return gasnetc_loopback_Prepare(sd, 1, category, client_buf, least_payload, most_payload,
-                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  imm = gasnetc_loopback_Prepare(sd, 1, category, client_buf, least_payload, most_payload,
+                                  dest_addr, lc_opt, flags, nargs);
 #endif
+  if (imm) {
+    gasneti_reset_srcdesc(sd);
+    sd = NULL; // GEX_AM_SRCDESC_NO_OP
+  } else {
+    gasneti_init_sd_poison(sd);
+  }
+  return sd;
 }
 
 // Parameter 'category' will be a manifest constant
@@ -983,8 +992,7 @@ void gasnetc_nbrhd_CommitRequest(
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareReply)
-int gasnetc_nbrhd_PrepareReply(
-                        gasneti_AM_SrcDesc_t sd,
+gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareReply(
                         gasneti_category_t   category,
                         gex_Token_t          token,
                         const void          *client_buf,
@@ -993,25 +1001,40 @@ int gasnetc_nbrhd_PrepareReply(
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
+  gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+  sd->_is_nbrhd = 1;
+
+  if (category == gasneti_Medium) {
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Medium);
+  } else {
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
+  }
+
   gasnetc_token_pre_reply_checks(token);
-  int retval;
+  int imm;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    retval = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, least_payload, most_payload,
-                                             lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, least_payload, most_payload,
+                                             lc_opt, flags, nargs);
   } else {
-    retval = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, least_payload, most_payload,
-                                           dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, least_payload, most_payload,
+                                           dest_addr, lc_opt, flags, nargs);
   }
 #else
-  retval = gasnetc_loopback_Prepare(sd, 0, category, client_buf, least_payload, most_payload,
-                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  imm = gasnetc_loopback_Prepare(sd, 0, category, client_buf, least_payload, most_payload,
+                                  dest_addr, lc_opt, flags, nargs);
 #endif
-  gasnetc_token_post_reply_checks(token, retval);
-  return retval;
+  gasnetc_token_post_reply_checks(token, imm);
+  if (imm) {
+    gasneti_reset_srcdesc(sd);
+    sd = NULL; // GEX_AM_SRCDESC_NO_OP
+  } else {
+    gasneti_init_sd_poison(sd);
+  }
+  return sd;
 }
 
 // Parameter 'category' will be a manifest constant
