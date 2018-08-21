@@ -1122,9 +1122,7 @@ uintptr_t gasnetc_init_messaging(void)
   const size_t peer_region_offset = reply_region_length + rvous_region_length;
   peer_stride = request_region_length + notify_ring_size * sizeof(gasnetc_notify_t);
 
-  /* TODO: remove MAX(1,) while still avoiding "issues" on single-(super)node runs */
-  gex_Rank_t peer_scale = MAX(1,remote_nodes);
-  am_mmap_bytes = peer_region_offset + peer_scale * peer_stride;
+  am_mmap_bytes = peer_region_offset + remote_nodes * peer_stride;
   gasneti_assert(am_mmap_ptr != (char *)MAP_FAILED);
 
   int report_to_stderr =
@@ -1143,10 +1141,10 @@ am_memory_report:
     DO_PRINT("  Rendezvous buffers:  %s\n", valstr1);
     DO_PRINT("Per-peer AM Memory used by this process:\n");
     gasnett_format_number(request_region_length, valstr1, sizeof(valstr1), 1);
-    gasnett_format_number(request_region_length*peer_scale, valstr2, sizeof(valstr2), 1);
+    gasnett_format_number(request_region_length*remote_nodes, valstr2, sizeof(valstr2), 1);
     DO_PRINT("  Eager buffers:       %s\t(%s)\n", valstr1, valstr2);
     gasnett_format_number(sizeof(gasnetc_notify_t)*notify_ring_size, valstr1, sizeof(valstr1), 1);
-    gasnett_format_number(sizeof(gasnetc_notify_t)*notify_ring_size*peer_scale, valstr2, sizeof(valstr2), 1);
+    gasnett_format_number(sizeof(gasnetc_notify_t)*notify_ring_size*remote_nodes, valstr2, sizeof(valstr2), 1);
     DO_PRINT("  Notify ring:         %s\t(%s)\n", valstr1, valstr2);
     gasnett_format_number(am_mmap_bytes, valstr1, sizeof(valstr1), 1);
     DO_PRINT("TOTAL AM Memory used by this process: %s\n", valstr1);
