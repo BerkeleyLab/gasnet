@@ -3051,13 +3051,6 @@ first:
     rvous->peer   = peer;
     rvous->notify = notify;
 
-    // Add to live list
-    rvous->next = NULL;
-    gasneti_mutex_lock(&am_rvous_lock);
-    *am_rvous_tail_p = rvous;
-    am_rvous_tail_p = &rvous->next;
-    gasneti_mutex_unlock(&am_rvous_lock);
-
     gni_post_descriptor_t * const pd = &gpd->pd;
     pd->remote_addr = (uint64_t) (peer->remote_reply_base +
                                   am_replysz * gc_notify_get_initiator_slot(notify));
@@ -3066,6 +3059,15 @@ first:
 
     // Honors same fma/rma cutover as Get
     gasnetc_post_get(peer->ep_handle, gpd);
+
+    // Add to live list
+    rvous->next = NULL;
+    gasneti_mutex_lock(&am_rvous_lock);
+    *am_rvous_tail_p = rvous;
+    am_rvous_tail_p = &rvous->next;
+    // TODO: profitable to run "ready" entry here instead of enqueueing?
+    if_pf (rvous->ready) am_rvous_ready = 1;  // completed by another racing thread
+    gasneti_mutex_unlock(&am_rvous_lock);
   }
 
   gasneti_mutex_lock(&ampoll_lock);
