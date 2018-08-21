@@ -185,6 +185,12 @@ GASNET_NETWORKDEPTH - depth of per-peer Rendezvous AM Request queue
   the same value (with a warning).
   The default value is 64, and the minimum is 1.
 
+GASNET_GNI_AM_MEMORY_REPORT
+  The value is a boolean: "0" to disable or "1" to enable the reporting of
+  the memory allocated for AM buffers (controlled by the GASNET_NETWORKDEPTH*
+  and GASNET_GNI_AM_RVOUS_* families of settings) on stderr.
+  The default is "0" (no report).
+
 GASNET_GNI_NUM_PD - number of post descriptors
   AM and RDMA operations all requires use of a control block called a
   Post Descriptor. This variable controls how many of these are

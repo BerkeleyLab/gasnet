@@ -1124,31 +1124,48 @@ uintptr_t gasnetc_init_messaging(void)
   /* TODO: remove MAX(1,) while still avoiding "issues" on single-(super)node runs */
   gex_Rank_t peer_scale = MAX(1,remote_nodes);
   am_mmap_bytes = peer_region_offset + peer_scale * peer_stride;
+  gasneti_assert(am_mmap_ptr != (char *)MAP_FAILED);
 
-  { char valstr1[32], valstr2[32];
-    GASNETI_TRACE_PRINTF(I, ("Fixed AM Memory use:\n"));
+  int report_to_stderr =
+          (!gasneti_mynode && gasneti_getenv_yesno_withdefault("GASNET_GNI_AM_MEMORY_REPORT", 0));
+am_memory_report:
+  if (report_to_stderr || GASNETI_TRACE_ENABLED(I)) {
+    #define DO_PRINT(...) do { \
+        GASNETI_TRACE_PRINTF(I, (__VA_ARGS__));             \
+        if (report_to_stderr) fprintf(stderr, __VA_ARGS__); \
+      } while (0);
+    char valstr1[32], valstr2[32];
+    DO_PRINT("Fixed AM Memory used by this process:\n");
     gasnett_format_number(reply_region_length, valstr1, sizeof(valstr1), 1);
-    GASNETI_TRACE_PRINTF(I, ("    Outgoing buffers:\t%s\n", valstr1));
+    DO_PRINT("  Outgoing buffers:    %s\n", valstr1);
     gasnett_format_number(rvous_region_length, valstr1, sizeof(valstr1), 1);
-    GASNETI_TRACE_PRINTF(I, ("    Rendezvos buffers:\t%s\n", valstr1));
-    GASNETI_TRACE_PRINTF(I, ("Per-peer AM Memory use:\n"));
+    DO_PRINT("  Rendezvous buffers:  %s\n", valstr1);
+    DO_PRINT("Per-peer AM Memory used by this process:\n");
     gasnett_format_number(request_region_length, valstr1, sizeof(valstr1), 1);
     gasnett_format_number(request_region_length*peer_scale, valstr2, sizeof(valstr2), 1);
-    GASNETI_TRACE_PRINTF(I, ("    Eager buffers:\t%s\t(%s)\n", valstr1, valstr2));
+    DO_PRINT("  Eager buffers:       %s\t(%s)\n", valstr1, valstr2);
     gasnett_format_number(sizeof(gasnetc_notify_t)*notify_ring_size, valstr1, sizeof(valstr1), 1);
     gasnett_format_number(sizeof(gasnetc_notify_t)*notify_ring_size*peer_scale, valstr2, sizeof(valstr2), 1);
-    GASNETI_TRACE_PRINTF(I, ("    Notify ring:\t%s\t(%s)\n", valstr1, valstr2));
+    DO_PRINT("  Notify ring:         %s\t(%s)\n", valstr1, valstr2);
     gasnett_format_number(am_mmap_bytes, valstr1, sizeof(valstr1), 1);
-    GASNETI_TRACE_PRINTF(I, ("TOTAL AM Memory use:\t%s", valstr1));
+    DO_PRINT("TOTAL AM Memory used by this process: %s\n", valstr1);
+    #undef DO_PRINT
   }
-  
+
+  if (am_mmap_ptr == (char *)MAP_FAILED) {
+    gasnetc_GNIT_Abort("am mmap failed: ");
+  }
+
 #if defined(GASNETI_USE_HUGETLBFS)
   am_mmap_ptr = gasneti_huge_mmap(NULL, am_mmap_bytes);
 #else
   am_mmap_ptr = gasneti_mmap(am_mmap_bytes);
 #endif
+
   if (am_mmap_ptr == (char *)MAP_FAILED) {
-    gasnetc_GNIT_Abort("am mmap failed: ");
+    // print report, aborting right after
+    report_to_stderr = 1;
+    goto am_memory_report;
   }
   
   {
