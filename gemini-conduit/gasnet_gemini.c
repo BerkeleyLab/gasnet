@@ -514,7 +514,7 @@ first:
                              memreg_flags, -1, &pd->local_mem_hndl);
     GASNETC_UNLOCK_GNI();
     if_pt (status == GNI_RC_SUCCESS) {
-      if (trial) GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
+      GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
       return 1;
     } else if (status == GNI_RC_ERROR_RESOURCE) {
       GASNETI_WAITHOOK();
@@ -1537,7 +1537,7 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
     GASNETC_LOCK_GNI();
   }
 
-  if_pf (trial) GASNETC_STAT_EVENT_VAL(AM_SEND_RETRY, trial);
+  GASNETC_STAT_EVENT_VAL(AM_SEND_RETRY, trial);
   return GASNET_OK;
 }
 
@@ -1614,7 +1614,7 @@ int send_ctrl(peer_struct_t * const peer, uint32_t value, gasneti_weakatomic_t *
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
 
-  if_pf (trial) GASNETC_STAT_EVENT_VAL(CTRL_SEND_RETRY, trial);
+  GASNETC_STAT_EVENT_VAL(CTRL_SEND_RETRY, trial);
   return GASNET_OK;
 }
 
@@ -2537,7 +2537,7 @@ gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int 
       }
       GASNETC_UNLOCK_GNI();
       if_pt (status == GNI_RC_SUCCESS) {
-        if (trial) GASNETC_STAT_EVENT_VAL(POST_RDMA_RETRY, trial);
+        GASNETC_STAT_EVENT_VAL(POST_RDMA_RETRY, trial);
         return GNI_RC_SUCCESS;
       }
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
@@ -2567,7 +2567,7 @@ gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int l
       }
       GASNETC_UNLOCK_GNI();
       if_pt (status == GNI_RC_SUCCESS) {
-        if (trial) GASNETC_STAT_EVENT_VAL(POST_FMA_RETRY, trial);
+        GASNETC_STAT_EVENT_VAL(POST_FMA_RETRY, trial);
         return GNI_RC_SUCCESS;
       }
       if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
