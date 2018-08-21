@@ -883,7 +883,6 @@ Optional environment variable settings:
      R - remote atomics
      S - non-blocking synchronization
      W - collective operations (excluding barriers)
-     X - collective synchronization (excluding barriers)
      B - barriers
      L - locks
      A - AM requests/replies (and handler execution, if conduit-supported)

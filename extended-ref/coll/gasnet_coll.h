@@ -188,9 +188,6 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   } while (0)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags) \
 	GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
-  // Legacy Collective Sync
-  #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
-	        gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(X)
   // GEX Collective Ops
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags) do { \
     GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt);                                                             \
@@ -222,14 +219,8 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_GATHER(name,team,root,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags)
-  #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
-		static char _dummy_COLL_WAITSYNC = (char)sizeof(_dummy_COLL_WAITSYNC)
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
 #endif
-#define GASNETI_TRACE_COLL_TRYSYNC(name,success) \
-	GASNETI_TRACE_EVENT_VAL(X,name,((success) == GASNET_OK?1:0))
-#define GASNETI_TRACE_COLL_WAITSYNC_END(name) \
-	GASNETI_TRACE_EVENT_TIME(X,name,GASNETI_TICKS_NOW_IFENABLED(X) - _waitstart)
 
 /*---------------------------------------------------------------------------------*/
 //

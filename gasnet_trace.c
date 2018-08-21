@@ -1357,25 +1357,6 @@ extern void gasneti_trace_finish(void) {
             gasneti_ticks_to_ns(wait_time->_maxval)/1000.0,
             gasneti_ticks_to_ns(wait_time->_sumval)/1000.0);
       }
-      if (GASNETI_STATS_ENABLED(X)) {
-        gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,X);
-        gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,X);
-        if (!try_succ->_count)
-          gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
-        else
-          gasneti_stats_printf("%-25s  %6"PRIu64"  collective try success rate = %.3f%%  \n",
-            "Total coll. try syncs:",  try_succ->_count,
-            CALC_AVG(try_succ->_sumval, try_succ->_count) * 100.0);
-        if (!wait_time->_count)
-          gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
-        else
-          gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total coll. wait syncs:", wait_time->_count,
-            gasneti_ticks_to_ns(CALC_AVG(wait_time->_sumval, wait_time->_count))/1000.0,
-            gasneti_ticks_to_ns(wait_time->_minval)/1000.0,
-            gasneti_ticks_to_ns(wait_time->_maxval)/1000.0,
-            gasneti_ticks_to_ns(wait_time->_sumval)/1000.0);
-      }
       if (GASNETI_STATS_ENABLED(A)) 
         gasneti_stats_printf("%-25s  %6"PRIu64, "Total AM's:", AGGRNAME(ctr,A));
 
