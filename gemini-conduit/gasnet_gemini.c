@@ -2125,10 +2125,8 @@ void dispatch_ctrl(uint32_t value)
       gasnetc_handle_sys_shutdown_packet(arg);
       break;
 
-  #if GASNET_DEBUG
     default:
-      gasnetc_GNIT_Abort("unknown control message %d", (int)op);
-  #endif
+      gasneti_unreachable();
   }
 }
 
