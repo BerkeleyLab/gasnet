@@ -1279,7 +1279,7 @@ extern void gasneti_trace_finish(void) {
           if (pintval->_maxval > pacc->_maxval) pacc->_maxval = pintval->_maxval; \
           pacc->_sumval += pintval->_sumval;                                      \
       } while (0)
-      #define CALC_AVG(sum,count) ((count) == 0 ? (gasneti_statctr_t)-1 : (sum) / (count))
+      #define CALC_AVG(sum,count) ((count) == 0 ? (double)-1 : (double)(sum) / (double)(count))
       #define DUMP_CTR(type,name,desc)                     \
         if (GASNETI_STATS_ENABLED(type)) {                 \
           gasneti_statctr_t *p = &gasneti_stat_ctr_##name; \
@@ -1295,7 +1295,7 @@ extern void gasneti_trace_finish(void) {
             gasneti_stats_printf(" %-25s %6i", #name":", 0);        \
           else                                                      \
             gasneti_stats_printf(" %-25s %6"PRIu64"  avg/min/max/total"  \
-                                 " %s = %"PRIu64"/%"PRIu64"/%"PRIu64"/%"PRIu64, \
+                                 " %s = %.3f/%"PRIu64"/%"PRIu64"/%"PRIu64, \
                   #name":", p->_count, pdesc,                       \
                   CALC_AVG(p->_sumval,p->_count),                   \
                   p->_minval, p->_maxval, p->_sumval);              \
@@ -1329,7 +1329,7 @@ extern void gasneti_trace_finish(void) {
             gasneti_stats_printf("%-25s  %6i","Total "#name":",0);              \
           else                                                                  \
             gasneti_stats_printf("%-25s  %6"PRIu64"  avg/min/max/total"         \
-                                 " sz = %"PRIu64"/%"PRIu64"/%"PRIu64"/%"PRIu64, \
+                                 " sz = %.3f/%"PRIu64"/%"PRIu64"/%"PRIu64, \
                                  "Total "#name":",                              \
                                  p->_count, CALC_AVG(p->_sumval,p->_count),     \
                                  p->_minval, p->_maxval, p->_sumval);           \
@@ -1344,9 +1344,9 @@ extern void gasneti_trace_finish(void) {
         if (!try_succ->_count)
           gasneti_stats_printf("%-25s  %6i","Total try sync. calls:",0);
         else
-          gasneti_stats_printf("%-25s  %6"PRIu64"  try success rate = %f%%  \n",
+          gasneti_stats_printf("%-25s  %6"PRIu64"  try success rate = %.3f%%  \n",
             "Total try sync. calls:",  try_succ->_count,
-            (float)(CALC_AVG((float)try_succ->_sumval, try_succ->_count) * 100.0));
+            CALC_AVG(try_succ->_sumval, try_succ->_count) * 100.0);
         if (!wait_time->_count)
           gasneti_stats_printf("%-25s  %6i","Total wait sync. calls:",0);
         else
@@ -1363,9 +1363,9 @@ extern void gasneti_trace_finish(void) {
         if (!try_succ->_count)
           gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
         else
-          gasneti_stats_printf("%-25s  %6"PRIu64"  collective try success rate = %f%%  \n",
+          gasneti_stats_printf("%-25s  %6"PRIu64"  collective try success rate = %.3f%%  \n",
             "Total coll. try syncs:",  try_succ->_count,
-            (float)(CALC_AVG((float)try_succ->_sumval, try_succ->_count) * 100.0));
+            CALC_AVG(try_succ->_sumval, try_succ->_count) * 100.0);
         if (!wait_time->_count)
           gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
         else
