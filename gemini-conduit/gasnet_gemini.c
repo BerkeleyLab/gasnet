@@ -1086,8 +1086,8 @@ uintptr_t gasnetc_init_messaging(void)
   }
 
   // Size per-peer notify ring: (Requests + Replies) rounded up to a power-of-two
-  i = am_maxcredit + MIN(am_maxcredit, reply_count);
-  notify_ring_size = GASNETI_ALIGNUP(gasnetc_next_power_of_2(i),
+  notify_ring_size = am_maxcredit + MIN(am_maxcredit, reply_count);
+  notify_ring_size = GASNETI_ALIGNUP(gasnetc_next_power_of_2(notify_ring_size),
                                      (GASNETC_CACHELINE_SIZE / sizeof(gasnetc_notify_t)));
   notify_ring_mask = notify_ring_size - 1;
 
@@ -1103,11 +1103,12 @@ uintptr_t gasnetc_init_messaging(void)
    * allocate a CQ in which to receive message notifications
    * include logarithmic space for shutdown messaging
    */
-  i = GASNETI_ALIGNUP(gasnetc_log2_remote +         // for shutdown ctrl messages
+  int am_num_cqe =
+      GASNETI_ALIGNUP(gasnetc_log2_remote +         // for shutdown ctrl messages
                       reply_count +                 // for Replies
                       remote_nodes * am_maxcredit,  // for Requests
                       2);                           // need it to be even
-  status = GNI_CqCreate(nic_handle,i,0,GNI_CQ_NOBLOCK,NULL,NULL,&am_cq_handle);
+  status = GNI_CqCreate(nic_handle,am_num_cqe,0,GNI_CQ_NOBLOCK,NULL,NULL,&am_cq_handle);
   if (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_CqCreate returned error %s", gasnetc_gni_rc_string(status));
   }
