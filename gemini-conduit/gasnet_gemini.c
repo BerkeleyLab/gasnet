@@ -2134,9 +2134,11 @@ void dispatch_ctrl(uint32_t value)
 
 // Data for AM rendevous
 static gasneti_mutex_t am_rvous_lock = GASNETI_MUTEX_INITIALIZER;
-static volatile int am_rvous_ready;
+// Protected by am_rvous_lock:
 static am_rvous_t *am_rvous_head;
 static am_rvous_t **am_rvous_tail_p = &am_rvous_head;
+// Not lock protected:
+static volatile int am_rvous_ready;
 
 // Run ready AMs, if any
 GASNETI_INLINE(am_rvous_run)
