@@ -1987,6 +1987,8 @@ gasnetc_alloc_request_post_descriptor_np(
 void gasnetc_recv_am_unlocked(peer_struct_t * const peer, gasnetc_packet_t * const packet,
                      gasnetc_notify_t notify GASNETI_THREAD_FARG)
 {
+  gasneti_mutex_assertunlocked(&ampoll_lock);
+
   int is_req = (gc_notify_get_type(notify) == gc_notify_request);
   const int numargs = gasnetc_am_numargs(notify);
   const int handlerindex = gasnetc_am_handler(notify);
@@ -2141,6 +2143,8 @@ GASNETI_INLINE(am_rvous_run)
 void am_rvous_run(GASNETI_THREAD_FARG_ALONE)
 {
   if (!am_rvous_ready) return; // Unlocked check (the only check in SEQ mode)
+  gasneti_assert(am_rvous_enabled);
+
 #if GASNET_PAR
   if (gasneti_mutex_trylock(&am_rvous_lock)) return; // Busy
   if (!am_rvous_ready) {
