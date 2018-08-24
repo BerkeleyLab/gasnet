@@ -42,7 +42,7 @@
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 5
+#define GEX_SPEC_VERSION_MINOR 6
 
 // Major and Minor versions of the GASNet-1 specification.
 //
