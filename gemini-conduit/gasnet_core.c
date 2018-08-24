@@ -554,10 +554,10 @@ static int try_pin(uintptr_t size) {
 extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
 {
 #ifdef GASNETI_USE_HUGETLBFS
-  uintptr_t granularity = MAX(GASNETI_MMAP_GRANULARITY, gethugepagesize());
+  uintptr_t segsize_floor = gethugepagesize();
   gasneti_assert(! (overheads % gethugepagesize()));
 #else
-  uintptr_t granularity = GASNETI_MMAP_GRANULARITY;
+  uintptr_t segsize_floor = GASNETI_PAGESIZE;
 #endif
 
   uintptr_t limit;
@@ -582,7 +582,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   /* overheads are allocated and pinned in every proc */
   overheads *= gasneti_nodemap_local_count;
 
-  if (pm_limit < overheads || (pm_limit - overheads) < (granularity * gasneti_nodemap_local_count)) {
+  if (pm_limit < overheads || (pm_limit - overheads) < (segsize_floor * gasneti_nodemap_local_count)) {
     gasneti_fatalerror("Insufficient physical memory left for a GASNet segment");
   }
   pm_limit -= overheads;
@@ -591,8 +591,8 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
                             &gasnetc_bootstrapExchange_gni,
                             &gasnetc_bootstrapBarrier_gni);
 
-  if (limit < granularity) {
-    gasnetc_GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)granularity);
+  if (limit < segsize_floor) {
+    gasnetc_GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)segsize_floor);
   }
   GASNETI_TRACE_PRINTF(C,("MaxPinMem = %"PRIuPTR,limit));
   return (uintptr_t)limit;
