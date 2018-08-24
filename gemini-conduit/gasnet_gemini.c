@@ -4,6 +4,9 @@
 #include <gasnet_gemini.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#ifdef GASNETI_USE_HUGETLBFS
+#include <hugetlbfs.h>
+#endif
 #include <signal.h>
 #include <string.h>
 
@@ -1156,8 +1159,10 @@ am_memory_report:
   }
 
 #if defined(GASNETI_USE_HUGETLBFS)
+  am_mmap_bytes = GASNETI_ALIGNUP(am_mmap_bytes, gethugepagesize());
   am_mmap_ptr = gasneti_huge_mmap(NULL, am_mmap_bytes);
 #else
+  am_mmap_bytes = GASNETI_PAGE_ALIGNUP(am_mmap_bytes);
   am_mmap_ptr = gasneti_mmap(am_mmap_bytes);
 #endif
 

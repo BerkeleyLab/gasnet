@@ -21,7 +21,9 @@
 #endif
 
 #include <sys/mman.h>
+#ifdef GASNETI_USE_HUGETLBFS
 #include <hugetlbfs.h>
+#endif
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
@@ -549,10 +551,11 @@ static int try_pin(uintptr_t size) {
 /* ---------------------------------------------------------------------------------
  * Determine the largest amount of memory that can be pinned on the node.
  * --------------------------------------------------------------------------------- */
-extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
+extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
 {
 #ifdef GASNETI_USE_HUGETLBFS
   uintptr_t granularity = MAX(GASNETI_MMAP_GRANULARITY, gethugepagesize());
+  gasneti_assert(! (overheads % gethugepagesize()));
 #else
   uintptr_t granularity = GASNETI_MMAP_GRANULARITY;
 #endif
@@ -576,13 +579,13 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
   pm_limit = MIN(pm_limit, 24UL << 30 /* 24 GB */);
 #endif
 
-  /* msgspace is allocated from hugepages (granularity) in every proc */
-  msgspace = GASNETI_ALIGNUP(msgspace, granularity) * gasneti_nodemap_local_count;
+  /* overheads are allocated and pinned in every proc */
+  overheads *= gasneti_nodemap_local_count;
 
-  if (pm_limit < msgspace || (pm_limit - msgspace) < (granularity * gasneti_nodemap_local_count)) {
+  if (pm_limit < overheads || (pm_limit - overheads) < (granularity * gasneti_nodemap_local_count)) {
     gasneti_fatalerror("Insufficient physical memory left for a GASNet segment");
   }
-  pm_limit -= msgspace;
+  pm_limit -= overheads;
 
   limit = gasneti_mmapLimit((uintptr_t)-1, pm_limit,
                             &gasnetc_bootstrapExchange_gni,
@@ -687,10 +690,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* Now that messaging is available, use it for remaining bootstrap collectives */
   gasnetc_sys_coll_init();
 
+  /* determine max pinnable */
+  uintptr_t max_pin = gasnetc_MaxPinMem(msgspace + gasneti_auxseg_preinit());
 
   /* allocate and attach an aux segment */
-  uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
-
   gasneti_auxsegAttach(max_pin, &gasnetc_bootstrapExchange_gni);
 
   /* register auxseg and setup subsystems using it */
