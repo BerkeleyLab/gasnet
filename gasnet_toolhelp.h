@@ -76,6 +76,25 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define gasneti_assert(expr) gasneti_assert_always(expr)
 #endif
 
+// gasneti_static_assert(cond)
+// statically assert `cond`, which must be a compile-time integer constant expression
+// Invocation is an expression must appear in expression or statement context.
+// The assertion is active for both DEBUG/NDEBUG and upon success compiles away to nothing.
+// Upon failure, causes a compile-time error at the invocation line.
+#if __cplusplus >= 201103L // C++11 gives us mostly what we want
+  // wrapper makes it usable in expression context
+  #define gasneti_static_assert(cond) \
+      ((void)([](){ static_assert(cond, "gasneti_static_assert(" #cond ")"); }))
+#elif __cplusplus // C++98 lacks static assert and forbids type declarations in casts
+  // use a negative array size 
+  #define gasneti_static_assert(cond) \
+    ((void)(void (*)(int _gasneti_static_assert[(cond)?1:-1]))0)
+#else // C
+  // use a bit field width, which enforces both integer constant expression and rejects negatives
+  #define gasneti_static_assert(cond) \
+    ((void)(struct{int _gasneti_static_assert:((cond)?8:-1);}*)0)
+#endif
+
 /* gasneti_unreachable(): annotation to mark the current code location as unreachable, to assist optimization 
  * deliberately compiles away in NDEBUG to hopefully avoid inserting dead instructions
  */
