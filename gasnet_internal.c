@@ -164,22 +164,22 @@ gasnet_node_t gasneti_nodes = 0;
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
 extern void gasneti_check_config_preinit(void) {
-  gasneti_assert_always(sizeof(int8_t) == 1);
-  gasneti_assert_always(sizeof(uint8_t) == 1);
-  gasneti_assert_always(sizeof(gasnete_anytype8_t) == 1);
+  gasneti_static_assert(sizeof(int8_t) == 1);
+  gasneti_static_assert(sizeof(uint8_t) == 1);
+  gasneti_static_assert(sizeof(gasnete_anytype8_t) == 1);
   #ifndef INTTYPES_16BIT_MISSING
-    gasneti_assert_always(sizeof(int16_t) == 2);
-    gasneti_assert_always(sizeof(uint16_t) == 2);
-    gasneti_assert_always(sizeof(gasnete_anytype16_t) == 2);
+    gasneti_static_assert(sizeof(int16_t) == 2);
+    gasneti_static_assert(sizeof(uint16_t) == 2);
+    gasneti_static_assert(sizeof(gasnete_anytype16_t) == 2);
   #endif
-  gasneti_assert_always(sizeof(int32_t) == 4);
-  gasneti_assert_always(sizeof(uint32_t) == 4);
-  gasneti_assert_always(sizeof(gasnete_anytype32_t) == 4);
-  gasneti_assert_always(sizeof(int64_t) == 8);
-  gasneti_assert_always(sizeof(uint64_t) == 8);
-  gasneti_assert_always(sizeof(gasnete_anytype64_t) == 8);
+  gasneti_static_assert(sizeof(int32_t) == 4);
+  gasneti_static_assert(sizeof(uint32_t) == 4);
+  gasneti_static_assert(sizeof(gasnete_anytype32_t) == 4);
+  gasneti_static_assert(sizeof(int64_t) == 8);
+  gasneti_static_assert(sizeof(uint64_t) == 8);
+  gasneti_static_assert(sizeof(gasnete_anytype64_t) == 8);
 
-  gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
+  gasneti_static_assert(sizeof(uintptr_t) >= sizeof(void *));
 
   #if WORDS_BIGENDIAN
     #if PLATFORM_ARCH_LITTLE_ENDIAN
@@ -194,17 +194,17 @@ extern void gasneti_check_config_preinit(void) {
   #endif
 
   /* check GASNET_PAGESIZE is a power of 2 and > 0 */
-  gasneti_assert_always(GASNET_PAGESIZE > 0);
-  gasneti_assert_always(GASNETI_POWEROFTWO(GASNET_PAGESIZE));
+  gasneti_static_assert(GASNET_PAGESIZE > 0);
+  gasneti_static_assert(GASNETI_POWEROFTWO(GASNET_PAGESIZE));
 
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
+  gasneti_static_assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
+  gasneti_static_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
+  gasneti_static_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
 
   #if    PLATFORM_ARCH_32 && !PLATFORM_ARCH_64
-    gasneti_assert_always(sizeof(void*) == 4);
+    gasneti_static_assert(sizeof(void*) == 4);
   #elif !PLATFORM_ARCH_32 &&  PLATFORM_ARCH_64
-    gasneti_assert_always(sizeof(void*) == 8);
+    gasneti_static_assert(sizeof(void*) == 8);
   #else
     #error must #define exactly one of PLATFORM_ARCH_32 or PLATFORM_ARCH_64
   #endif
