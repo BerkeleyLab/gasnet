@@ -99,9 +99,19 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
  * deliberately compiles away in NDEBUG to hopefully avoid inserting dead instructions
  */
 #if GASNETT_USE_BUILTIN_UNREACHABLE
-  #define gasneti_unreachable() (__builtin_unreachable(),gasneti_assert(!"gasneti_unreachable"))
+  #define gasneti_builtin_unreachable() __builtin_unreachable()
 #else
-  #define gasneti_unreachable() gasneti_assert(!"gasneti_unreachable")
+  #define gasneti_builtin_unreachable() ((void)0)
+#endif
+#define gasneti_unreachable() (gasneti_builtin_unreachable(),gasneti_assert(!"gasneti_unreachable"))
+
+// gasneti_unreachable_error((fmt, args...)) 
+// a version of gasneti_unreachable that in DEBUG mode (only) executes gasneti_fatalerror(fmt, ...args)
+// otherwise expands to gasneti_unreachable() (and args are not evaluated)
+#if GASNET_DEBUG
+  #define gasneti_unreachable_error(args) gasneti_fatalerror args
+#else
+  #define gasneti_unreachable_error(args) gasneti_unreachable()
 #endif
 
 /* gasneti_assume(cond): assert a simple condition is always true, as a directive to help compiler analysis
