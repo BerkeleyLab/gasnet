@@ -357,7 +357,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETI_THREAD_FAR
   gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(geom);
   const gex_Rank_t child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
   int result = 0,p=1,i,j;
-  uint64_t sent_bytes=0;
+  size_t sent_bytes=0;
   
   
   switch (data->state) {
@@ -538,7 +538,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETI_THRE
   gex_Rank_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(geom);
   const gex_Rank_t child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
   int result = 0,i;
-  uint64_t sent_bytes=0;
+  size_t sent_bytes=0;
   
   switch (data->state) {
   case 0: /*scratch alloc*/
