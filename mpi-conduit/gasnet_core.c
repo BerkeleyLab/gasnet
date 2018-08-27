@@ -1295,7 +1295,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         if (isReq) GASNETI_TRACE_AMLONG_REQHANDLER(handlerId, token, buf, nbytes, numargs, args);
         else       GASNETI_TRACE_AMLONG_REPHANDLER(handlerId, token, buf, nbytes, numargs, args);
         break;
-      default: gasneti_fatalerror("Unknown handler type in gasnetc_enteringHandler_hook(): %i", cat);
+      default: gasneti_unreachable_error(("Unknown handler type in gasnetc_enteringHandler_hook(): 0x%x",(int)cat));
     }
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
       gasnetc_enteringHandler_hook_hsl(cat, isReq, handlerId, token, buf, nbytes,
@@ -1313,7 +1313,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
       case ammpi_Long:
         GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
         break;
-      default: gasneti_fatalerror("Unknown handler type in gasnetc_leavingHandler_hook(): %i", cat);
+      default: gasneti_unreachable_error(("Unknown handler type in gasnetc_leavingHandler_hook(): 0x%x",(int)cat));
     }
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
       gasnetc_leavingHandler_hook_hsl(cat, isReq);

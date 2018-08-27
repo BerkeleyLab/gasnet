@@ -163,7 +163,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         return gasneti_eop_to_event(eop);                            \
       case gasnete_synctype_nbi:                                     \
         return GEX_EVENT_INVALID;                                    \
-      default: gasneti_unreachable();                                \
+      default: gasneti_unreachable_error(("bad synctype: 0x%x",(int)synctype)); \
         return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */     \
     }                                                                \
 } while (0)
@@ -226,7 +226,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         return GEX_EVENT_INVALID;                                                     \
       case gasnete_synctype_nbi:                                                      \
         return GEX_EVENT_INVALID;                                                     \
-      default: gasneti_unreachable();                                                 \
+      default: gasneti_unreachable_error(("bad synctype: 0x%x",(int)synctype));       \
         return GEX_EVENT_INVALID; /* avoid warning on MIPSPro */                      \
     }                                                                                 \
   } while(0)

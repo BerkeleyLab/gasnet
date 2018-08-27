@@ -332,7 +332,7 @@ extern void gasneti_vis_progressfn(void) {
         }
       break;
     #endif
-      default: gasneti_fatalerror("unrecognized visop category: %i", visop->type);
+      default: gasneti_unreachable_error(("unrecognized visop category: 0x%x", (int)visop->type));
     }
     lastp = &(visop->next); /* advance */
     visop_removed: ;
