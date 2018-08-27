@@ -957,7 +957,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,dest_ptr,nbytes);
       }
     break;
-    default: gasneti_fatalerror("bad AM category");
+    default: gasneti_unreachable_error(("Unknown AM category in gasnetc_ReqRepGeneric(): 0x%x", (int)category));
   }
   #if GASNET_DEBUG  
     desc->handlerRunning = 0;

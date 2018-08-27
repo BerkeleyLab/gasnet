@@ -107,7 +107,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         return gasneti_eop_to_handle(eop);                           \
       case gasnete_synctype_nbi:                                     \
         return GASNET_INVALID_HANDLE;                                \
-      default: gasneti_fatalerror("bad synctype");                   \
+      default: gasneti_unreachable_error(("bad synctype: 0x%x",(int)synctype)); \
         return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
@@ -158,7 +158,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         return GASNET_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
         return GASNET_INVALID_HANDLE;                                                 \
-      default: gasneti_fatalerror("bad synctype");                                    \
+      default: gasneti_unreachable_error(("bad synctype: 0x%x",(int)synctype));       \
         return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */                  \
     }                                                                                 \
   } while(0)
