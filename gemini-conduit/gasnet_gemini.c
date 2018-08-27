@@ -77,6 +77,7 @@ typedef struct reply_pool {
   } u;
 } reply_pool_t;
 
+static size_t am_replysz = 0;
 static reply_pool_t *reply_pool = NULL;
 static reply_pool_t *reply_freelist = NULL;
 
@@ -1032,7 +1033,7 @@ uintptr_t gasnetc_init_messaging(void)
   reply_count = MAX(1, reply_count); /* Min is 1 */
 
   /* reply destination is also request source.  So, must fit largest *outgoing* message */
-  size_t am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
+  am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
 
   /* Max number of AM Requests outstanding may be constrained by available Reply buffers: */
   am_maxcredit = MIN(am_maxcredit, reply_count);
@@ -1592,7 +1593,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gex_Token_t t,
   pd->sync_flag_value = (notify & 0xffffffffUL) + gc_build_notify((gc_notify_reply - gc_notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base +
-                                GASNETC_MSG_MAXSIZE * gc_notify_get_initiator_slot(notify));
+                                am_replysz * gc_notify_get_initiator_slot(notify));
   gasnetc_format_am_gpd(gpd, packet, peer, length, gpd_flags);
   gasneti_assert(token->need_reply);
   token->need_reply = 0;
@@ -1834,7 +1835,8 @@ gasnetc_alloc_request_post_descriptor_np(
 }
 
 /* Choice to inline or not is left to the compiler */
-void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet, gasnetc_notify_t notify)
+void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet,
+                     gasnetc_notify_t notify GASNETI_THREAD_FARG)
 {
   int is_req = (gc_notify_get_type(notify) == gc_notify_request);
   const int numargs = gasnetc_am_numargs(notify);
@@ -1842,6 +1844,9 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
   const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handlerindex];
   gex_AM_Fn_t handler = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { peer->pe, handler_entry, is_req, notify, NULL };
+#if GASNETI_THREADINFO_OPT
+  the_token.threadinfo = GASNETI_MYTHREAD;
+#endif
   gex_Token_t token = (gex_Token_t)&the_token; /* RUN macros need an lvalue */
 
   gasneti_mutex_unlock(&ampoll_lock);
@@ -1961,7 +1966,7 @@ void dispatch_ctrl(peer_struct_t * const peer,gasnetc_notify_t notify))
 }
 
 GASNETI_INLINE(poll_for_message)
-int poll_for_message(peer_struct_t * const peer, int is_slow)
+int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG)
 {
   volatile gasnetc_notify_t * const notify = peer->local_notify_base + peer->local_notify_read;
   const gasnetc_notify_t n = *notify;
@@ -1979,14 +1984,14 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
     
     if (type == gc_notify_request) {
       gasnetc_packet_t *packet = (gasnetc_packet_t *) (peer->local_request_base + (target_slot << am_slot_bits));
-      gasnetc_recv_am(peer, packet, n);
+      gasnetc_recv_am(peer, packet, n GASNETI_THREAD_PASS);
     } else if_pf (type == gc_notify_ctrl) {
       dispatch_ctrl(peer, n);
     } else {
       reply_pool_t *reply = reply_pool + initiator_slot;
 
       if (type == gc_notify_reply) {
-        gasnetc_recv_am(peer, reply->packet, n);
+        gasnetc_recv_am(peer, reply->packet, n GASNETI_THREAD_PASS);
       } else {
         gasneti_assert(type == gc_notify_credit);
         GASNETI_TRACE_PRINTF(D, ("msg from %d type AM_CREDIT\n", peer->pe));
@@ -2009,7 +2014,7 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
 #define AM_BURST 20
 
 static
-void gasnetc_poll_am_queue(void)
+void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
@@ -2045,7 +2050,7 @@ void gasnetc_poll_am_queue(void)
       uint32_t source = GNI_CQ_GET_INST_ID(event_data[i]);
     #endif
       peer_struct_t * const peer = &peer_data[source];
-      if (!poll_for_message(peer, 0)) {
+      if (!poll_for_message(peer, 0 GASNETI_THREAD_PASS)) {
         ampoll_ins(peer);
       }
     }
@@ -2057,7 +2062,7 @@ void gasnetc_poll_am_queue(void)
   /* Poll "slow" sources, starting with the oldest */
   for (i = 0; ampoll_head && (i < AM_BURST); ++i) {
     peer_struct_t * const peer = ampoll_head;
-    if (!poll_for_message(peer, 1)) {
+    if (!poll_for_message(peer, 1 GASNETI_THREAD_PASS)) {
       if (peer == ampoll_tail) break; /* don't spin on singleton peer */
       ampoll_last(peer);
     }
@@ -2212,16 +2217,29 @@ again:
   }
 }
 
-void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
+// Poll default (possibly only) domain, which always includes incoming AMs
+// For multi-domain this is used only at init/exit
+// Otherwise, this is gasnet_AMpoll()
+void gasnetc_poll(GASNETI_THREAD_FARG_ALONE)
 {
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
+  gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+}
+
 #if GASNETC_USE_MULTI_DOMAIN
+// Poll caller's domain (but sometimes incoming AMs too)
+// For multi-domain this is gasnet_AMPoll()
+void gasnetc_poll_single_domain(GASNETI_THREAD_FARG_ALONE)
+{
+  GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
  #if 1
   /* There is NO use of GASNETC_ALL_DOMAINS in the current code */
   gasneti_assert(GASNETC_DIDX != GASNETC_ALL_DOMAINS);
  #else
   if_pf (GASNETC_DIDX == GASNETC_ALL_DOMAINS) {
     int d;
-    gasnetc_poll_am_queue();
+    gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
     for (d = 0; d < gasnetc_domain_count; d++) {
       gasnetc_poll_local_queue(d);
     }
@@ -2231,15 +2249,12 @@ void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
     if ((GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) ||
         /* Every now and then poll for AMs even from non-default domains: */
         GASNETT_PREDICT_FALSE((DOMAIN_SPECIFIC_VAL(poll_idx)++ & gasnetc_poll_am_domain_mask) == 0)) {
-       gasnetc_poll_am_queue();
+       gasnetc_poll_am_queue(GASNETI_THREAD_PASS_ALONE);
     }
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
-#else
-  gasnetc_poll_am_queue();
-  gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-#endif
 }
+#endif // GASNETC_USE_MULTI_DOMAIN
 
 GASNETI_NEVER_INLINE(print_post_desc,
 static void print_post_desc(const char *title, gni_post_descriptor_t *cmd)) {
@@ -2891,7 +2906,7 @@ void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg)
  */
 extern int gasnetc_sys_exit(int *exitcode_p)
 {
-  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  GASNET_BEGIN_FUNCTION();
 #if GASNET_PSHM                  
   const gex_Rank_t size = gasneti_nodemap_global_count;
   const gex_Rank_t rank = gasneti_nodemap_global_rank;
@@ -2923,7 +2938,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     /* wait for leader to publish final result */
     while (! lead->present) {
       GASNETI_WAITHOOK();
-      gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
         result = 1; /* failure */
         goto out;
@@ -2942,7 +2957,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 
       while (! peer->present) {
         GASNETI_WAITHOOK();
-        gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+        gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
         if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
           result = 2; /* failure */
           goto out;
@@ -2975,7 +2990,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     goal |= distance;
     while ((gasneti_weakatomic_read(&sys_exit_rcvd, 0) & goal) != goal) {
       GASNETI_WAITHOOK();
-      gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
         result = 3; /* failure */
         goto out;
@@ -3004,14 +3019,13 @@ out:
 
 /* Clean ups prior to "bottom half" of gasnetc_exit() */
 extern void gasnetc_sys_fini(void) {
-  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-
+  GASNET_BEGIN_FUNCTION();
   /* Drain completions for sent exitcode-reduction messages */
   if (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
-    gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
     while (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
       GASNETI_WAITHOOK();
-      gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
     }
   }
 
@@ -3025,7 +3039,7 @@ extern void gasnetc_sys_fini(void) {
       gasnetc_exitcode_t * const peer = &gasnetc_exitcodes[i];
       while (peer->present) {
         GASNETI_WAITHOOK();
-        gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+        gasnetc_poll(GASNETI_THREAD_PASS_ALONE);
       }
     }
   }

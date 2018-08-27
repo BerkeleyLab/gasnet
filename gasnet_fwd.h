@@ -164,9 +164,6 @@ typedef uint32_t gex_Flags_t;
 
 #define GEX_FLAG_ENABLE_LEAF_LC         (1U <<  9)
 
-// TODO-EX: Deprecated rename thunk to be removed next release:
-#define GEX_FLAG_VIS_WITH_LC  GEX_FLAG_ENABLE_LEAF_LC
-
 #define GEX_FLAG_USES_GASNET1           (1U <<  0)
 
 #define GEX_FLAG_TM_SCRATCH_SIZE_MIN          (1U <<  0)

@@ -210,7 +210,7 @@ gex_Event_t gasnete_ratomic_nb(
         gni_fma_cmd_type_t cmd, uint64_t operand1, uint64_t operand2,
         gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
   gasnete_eop_t * const eop = gasnete_eop_new(mythread);
   int imm = gasnete_ratomic_inner(fetching, op_cnt, length,
@@ -234,7 +234,7 @@ int gasnete_ratomic_nbi(
         gni_fma_cmd_type_t cmd, uint64_t operand1, uint64_t operand2,
         gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
   gasnete_iop_t * const iop = mythread->current_iop;
   int imm = gasnete_ratomic_inner(fetching, op_cnt, length,
@@ -477,7 +477,7 @@ int gasnete_ratomic_nbi(
     {                                                             \
         _GASNETE_GNIRATOMIC_PREP_SET##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD; \
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD; \
         GASNETC_DIDX_POST(mythread->domain_idx);                  \
         gasnete_iop_t * const iop = mythread->current_iop;        \
         return gasnete_ratomic_inner(0, 1, sizeof(type),          \
@@ -495,7 +495,7 @@ int gasnete_ratomic_nbi(
     {                                                             \
         _GASNETE_GNIRATOMIC_PREP_GET();                           \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD; \
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD; \
         GASNETC_DIDX_POST(mythread->domain_idx);                  \
         gasnete_iop_t * const iop = mythread->current_iop;        \
         return gasnete_ratomic_inner(1, 1, sizeof(type),          \

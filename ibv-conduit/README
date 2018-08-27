@@ -453,21 +453,26 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   process with the largest size when memory is exhausted.  Use of the
   following parameters allows one to bound, or to eliminate, this probe.
 
-  These parameters must be equal across all nodes, and the behavior
-  otherwise is undefined.
-
   + GASNET_PHYSMEM_MAX
     If set, this parameter is used to determine the maximum amount of memory
     ibv-conduit may pin.  This limits how large the GASNet segment can be, and
-    how much memory is available for firehose (see below).
+    how much memory is available for firehose (see below).  The value gives
+    an upper bound on pinnable memory per host, which is divided equally among
+    processes on each host.
     The value may specify either a relative or absolute size.  If the value
     parses as a floating-point value less than 1.0 (including fractions such
     as "5/8"), then this is taken as a fraction of the (estimated) physical
     memory.  Otherwise the value is taken as an absolute memory size, with "M",
     "G" and "T" suffixes accepted to indicate units of Megabytes, Gigabytes,
     and Terabytes, respectively.
+    This parameter *may* validly differ among processes.  However, if the value
+    differs among processes on the same host, the implementation will select
+    just one value per host (the algorithm for the selection is unspecified).
     The default may be set at configure time using --with-ibv-physmem-max=VALUE,
     and otherwise is "2/3" (pin up to 2/3 of the estimated physical memory).
+
+  The following two parameters must be equal across all processes, and the
+  behavior otherwise is undefined.
 
   + GASNET_PHYSMEM_PROBE
     This gives a boolean: "1" to enable or "0" to disable the validation

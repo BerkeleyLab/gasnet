@@ -311,7 +311,7 @@ void gasnete_amref_get_nbi_inner(gex_TM_t tm,
                                  size_t nbytes,
                                  gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_get_cnt++;
@@ -363,7 +363,7 @@ int gasnete_amref_put_nbi_inner (gex_TM_t tm,
                                  gex_Flags_t flags
                                  GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
 
   // TODO-EX: flags?

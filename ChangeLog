@@ -261,6 +261,8 @@ GASNet-1 ChangeLog
     ofi-conduit and psm-conduit remain the recommended conduits for Omni-Path.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
+  - This conduit is now DEPRECATED.
+  - Use of ibv-conduit is recommended for users with InfiniBand hardware.
   - Adjust envvar GASNET_PHYSMEM_{MAX,PROBE} handling to match other conduits
 
 * Portable UDP (udp-conduit)
@@ -287,6 +289,9 @@ GASNet-1 ChangeLog
     that was not probed at configure time.
 
 * General and Misc.
+  - GASNET_MAX_SEGSIZE syntax has been expanded and now defaults to 85% of physical 
+    memory, split evenly between co-located processes on a host. 
+    Configure option to control this default renamed to --with-max-segsize=
   - GASNET_VIS_{AMPIPE,REMOTECONTIG} is now enabled by default on most conduits
   - GASNET_VIS_MAXCHUNK default value adjusted on many conduits to improve perf
   - New knobs GASNET_VIS_{PUT,GET}_MAXCHUNK for tuning put/get VIS chunk size
@@ -297,6 +302,8 @@ GASNet-1 ChangeLog
   - Events leading up to a crash are now more reliably reported in the trace file.
 
 * Platform support/portability
+  - Support for Microsoft Windows 10 Subsystem for Linux (WSL) has graduated
+    out of BETA status
   - Update MALLOC_OPTIONS setting for OpenBSD 6.x
   - Add gasnetrun support for IBM Job Step Manager (jsrun)
   - Add PLATFORM_COMPILER_C(XX)_LANGLVL to portable_platform (v5)
@@ -317,8 +324,11 @@ GASNet-1 ChangeLog
     The flags remain available in GASNET_DEVWARN_C(XX)FLAGS for opt-in.
 
 * Removal of unmaintained platform support
-  - This release no longer supports the following platform:
+  - This release no longer supports the following platforms:
     + Cray/Tera MTA
+    + SGI Altix
+  - This release no longer supports the shmem-conduit, which was specific
+    to the obsolete Cray X1 and SGI Altix NUMAlink networks.
   - This release removes support for the following compilers:
     + Kuck and Associates (KAI) C++ Compiler
     + PGI compilers older than the 7.2-5 release
@@ -327,6 +337,7 @@ GASNet-1 ChangeLog
     ceased to work with GASNet 1.28.0 due to insufficient support for C99:
     + GCC 2.x
     + LCC (a.k.a. "Local C Compiler" or "Little C Compiler")
+  - BLCR integration support is officially deprecated
 
 ----------------------------------------------------------------------
 08-31-2017 : Release 1.30.0

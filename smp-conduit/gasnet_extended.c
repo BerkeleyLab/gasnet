@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#include <gasnet_coll_internal.h> // for refbarrier.c
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 
@@ -39,10 +40,10 @@ extern void gasnete_init(void) {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  { gasnete_threaddata_t *threaddata = NULL;
+  { gasneti_threaddata_t *threaddata = NULL;
   #if GASNETI_MAX_THREADS > 1
     /* register first thread (optimization) */
-    threaddata = gasnete_mythread();
+    threaddata = _gasneti_mythread_slow();
   #else
     /* register only thread (required) */
     threaddata = gasnete_new_threaddata();
@@ -52,7 +53,7 @@ extern void gasnete_init(void) {
     GASNET_POST_THREADINFO(threaddata);
     gasnete_eop_t *eop = gasnete_eop_new(threaddata);
     GASNETE_EOP_MARKDONE(eop);
-    gasnete_eop_free(eop GASNETI_THREAD_GET);
+    gasnete_eop_free(eop GASNETI_THREAD_PASS);
   #endif
   }
 

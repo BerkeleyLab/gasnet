@@ -1,9 +1,9 @@
 UPCXX_GIT_REPO   ?= berkeleylab/upcxx
 UPCXX_GIT_COMMIT ?= develop
-UPCXX_BLDDIR     ?= $(TOP_BUILDDIR)/upcxx
+UPCXX_BLDDIR     ?= $(HARNESS_WORKDIR)/upcxx
 UPCXX_BACKEND    ?= gasnet_seq
-UPCXX_INSTDIR    ?= $(TOP_BUILDDIR)/upcxx-inst-$(UPCXX_BACKEND)
-UPCXX_TMPDIR     ?= $(TOP_BUILDDIR)/upcxx-tmp
+UPCXX_INSTDIR    ?= $(HARNESS_WORKDIR)/upcxx-inst
+UPCXX_TMPDIR     ?= $(HARNESS_WORKDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers, may be set by pushbuild/end-user
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
@@ -13,9 +13,12 @@ export UPCXX_BACKEND
 # 1. set UPCXX_GASNET to an existing build or install path to use
 # The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
 # 2. set UPCXX_INSTALL_GASNET=1 to perform a GASNet install and use it
+#    This one only uses the GASNet build dir during compile but not run.
 # 3. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
-#    this one notably implies nobs will configure and build GASNet
-# 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build
+#    This one notably implies nobs will configure and build GASNet,
+#    although still uses the GASNet build dir during compile and run. 
+# 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build,
+#    which must remain valid during both compile and run
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
   NOBS_GASNET:=$(UPCXX_GASNET)
@@ -26,6 +29,7 @@ else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
 else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
   UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+  # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the nobs gasnet builddir
   # Don't pollute nobs configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
   # use meta to prevent a spurious second configure
@@ -180,12 +184,14 @@ _upcxx-inst-PAR:
 	$(MAKE) upcxx-inst-gasnet_par UPCXX_BACKEND=gasnet_par 2>&1 | tee -a $(LOGFILE)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
+UPCXX_INSTDIR_FULL  := $(UPCXX_INSTDIR)-$(UPCXX_BACKEND)
+
 upcxx-inst-$(UPCXX_BACKEND): upcxx-built
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) UPCXX_BACKEND=$(UPCXX_BACKEND)
-	rm -Rf $(UPCXX_INSTDIR) $@
+	rm -Rf $(UPCXX_INSTDIR_FULL) $@
 	@echo ======== UPCXX install $(UPCXX_BACKEND) ========; set -x; \
-	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install --single $(UPCXX_INSTDIR) && \
-	 /bin/ls -alR $(UPCXX_INSTDIR)
+	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install --single $(UPCXX_INSTDIR_FULL) && \
+	 /bin/ls -alR $(UPCXX_INSTDIR_FULL)
 	@touch upcxx-install-$(UPCXX_BACKEND)
 
 # Build a single test from the nobs build directory
@@ -196,11 +202,12 @@ nobs_test: upcxx-built
 # Build a single test from the installed UPCXX directory
 inst_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
-	META_CXX=`$(UPCXX_INSTDIR)/bin/upcxx-meta CXX` && \
-	PPFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta PPFLAGS` && \
-	LDFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LDFLAGS` && \
-	LIBFLAGS=`$(UPCXX_INSTDIR)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX -std=c++11 $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
+	META_CXX=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXX` && \
+	CXXFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXXFLAGS` && \
+	PPFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta PPFLAGS` && \
+	LDFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LDFLAGS` && \
+	LIBFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LIBFLAGS` && \
+	$$META_CXX $$CXXFLAGS $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
 
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression
 

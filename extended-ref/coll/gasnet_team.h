@@ -22,14 +22,14 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
                             gex_Rank_t myrank,
                             gex_Rank_t *rel2act_map,
                             gasnet_seginfo_t *scratch_segs,
-                            const gasnet_image_t images[] GASNETE_THREAD_FARG);
+                            const gasnet_image_t images[] GASNETI_THREAD_FARG);
 
 
 void gasnete_coll_team_fini(gasnet_team_handle_t team);
 
 gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
                                               gex_Rank_t myrank,
-                                              gex_Rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG);
+                                              gex_Rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETI_THREAD_FARG);
 
 
 void gasnete_coll_team_free(gasnet_team_handle_t team);
@@ -40,7 +40,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
                                              int mycolor,
                                              int myrelrank,
                                              void *clientdata
-                                             GASNETE_THREAD_FARG);
+                                             GASNETI_THREAD_FARG);
 
 void gasnete_print_team(gasnet_team_handle_t team, FILE *fp);
 
@@ -48,12 +48,6 @@ void gasnete_print_team(gasnet_team_handle_t team, FILE *fp);
 #define GASNETE_COLL_TEAMS_OVERRIDE 
 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
-
-gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-
-gex_Rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node);
-
-uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) ;
 
 #define PRINT_ARRAY(fp, A, size, format)        \
   do {                                          \

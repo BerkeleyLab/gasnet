@@ -77,89 +77,75 @@
 /* ------------------------------------------------------------------------------------ */
 /* utility macros for dispatching AM handlers */
 
-typedef void (*gasneti_HandlerShort) (gex_Token_t token, ...);
-typedef void (*gasneti_HandlerMedium)(gex_Token_t token, void *buf, size_t nbytes, ...);
-typedef void (*gasneti_HandlerLong)  (gex_Token_t token, void *buf, size_t nbytes, ...);
+#define _gasneti_harg(a,b,c) ,gex_AM_Arg_t
+#define _gasneti_harg_pass(Nm1,N,Np1) ,_pArgs[Nm1]
 
-/* ------------------------------------------------------------------------------------ */
+#define _gasneti_Short_handlerfn_typedefN(Nm1,N,Np1) \
+  typedef void (*gasneti_Short_handlerfn_type_##N)(gex_Token_t GASNETI_META_DES##N(GASNETI_META_EMPTY,_gasneti_harg));
+GASNETI_META_ASC16(_gasneti_Short_handlerfn_typedefN,_gasneti_Short_handlerfn_typedefN)
+
+#define _gasneti_Short_RunCaseN(Nm1,N,Np1) \
+  case N: ((gasneti_Short_handlerfn_type_##N)_phandlerfn)(_token GASNETI_META_ASC##N(GASNETI_META_EMPTY,_gasneti_harg_pass)); break;
+
 #define GASNETI_RUN_HANDLER_SHORT(isReq, hid, phandlerfn, token, pArgs, numargs) do { \
-  gasneti_assert(phandlerfn);                                                         \
-  if (isReq) GASNETI_TRACE_AMSHORT_REQHANDLER(hid, token, numargs, pArgs);            \
-  else       GASNETI_TRACE_AMSHORT_REPHANDLER(hid, token, numargs, pArgs);            \
-  if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token);          \
-  else {                                                                              \
-    gex_AM_Arg_t *_args = (gex_AM_Arg_t *)(pArgs); /* eval only once */ \
-    switch (numargs) {                                                                \
-      case 1:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0]); break; \
-      case 2:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1]); break;\
-      case 3:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2]); break; \
-      case 4:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3]); break; \
-      case 5:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4]); break; \
-      case 6:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5]); break; \
-      case 7:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6]); break; \
-      case 8:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7]); break; \
-      case 9:  (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8]); break; \
-      case 10: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9]); break; \
-      case 11: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10]); break; \
-      case 12: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11]); break; \
-      case 13: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12]); break; \
-      case 14: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13]); break; \
-      case 15: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14]); break; \
-      case 16: (*(gasneti_HandlerShort)phandlerfn)((gex_Token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14], _args[15]); break; \
-      default: gasneti_fatalerror("Illegal numargs=%i in GASNETI_RUN_HANDLER_SHORT", (int)numargs);        \
-      }                                                                                                    \
-    }                                                                                                      \
-    GASNETI_TRACE_PRINTF(A,("AM%s_SHORT_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
-  } while (0)
-/* ------------------------------------------------------------------------------------ */
-#define _GASNETI_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do { \
-  gasneti_assert(phandlerfn);                                                                \
-  if (numargs == 0) (*phandlerfn)(token, pData, datalen);                                    \
-  else {                                                                                     \
-    gex_AM_Arg_t *_args = (gex_AM_Arg_t *)(pArgs); /* eval only once */        \
-    switch (numargs) {                                                                       \
-      case 1:  (*phandlerfn)(token, pData, datalen, _args[0]); break;                        \
-      case 2:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1]); break;              \
-      case 3:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2]); break;    \
-      case 4:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3]); break; \
-      case 5:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4]); break; \
-      case 6:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5]); break; \
-      case 7:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6]); break; \
-      case 8:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7]); break; \
-      case 9:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8]); break; \
-      case 10: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9]); break; \
-      case 11: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10]); break; \
-      case 12: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11]); break; \
-      case 13: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12]); break; \
-      case 14: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13]); break; \
-      case 15: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14]); break; \
-      case 16: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14], _args[15]); break; \
-      default: gasneti_fatalerror("Illegal numargs=%i in _GASNETI_RUN_HANDLER_MEDLONG", (int)numargs); \
-      }                                                                                 \
-    }                                                                                   \
-  } while (0)
+  gex_AM_Fn_t const _phandlerfn = (gex_AM_Fn_t)(phandlerfn);                    \
+  gex_Token_t const _token = (token);                                           \
+  gex_AM_Arg_t const * const _pArgs = (gex_AM_Arg_t *)(pArgs);                  \
+  int const _numargs = (numargs);                                               \
+  if (isReq) GASNETI_TRACE_AMSHORT_REQHANDLER(hid, _token, _numargs, _pArgs);   \
+  else       GASNETI_TRACE_AMSHORT_REPHANDLER(hid, _token, _numargs, _pArgs);   \
+  gasneti_assert(_phandlerfn); gasneti_assert(_token);                          \
+  gasneti_assert(_pArgs || !_numargs);                                          \
+  switch (_numargs) {                                                           \
+    GASNETI_META_DES16(_gasneti_Short_RunCaseN,_gasneti_Short_RunCaseN)         \
+    default: gasneti_unreachable();                                             \
+  }                                                                             \
+  GASNETI_TRACE_PRINTF(A,("AM%s_SHORT_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
+} while (0)
 
-/* be default, we guarantee double-word alignment for data payload of medium xfers 
- */
+#define _gasneti_MedLong_handlerfn_typedefN(Nm1,N,Np1) \
+  typedef void (*gasneti_MedLong_handlerfn_type_##N)(gex_Token_t, void *, size_t GASNETI_META_DES##N(GASNETI_META_EMPTY,_gasneti_harg));
+GASNETI_META_ASC16(_gasneti_MedLong_handlerfn_typedefN,_gasneti_MedLong_handlerfn_typedefN)
+
+#define _gasneti_MedLong_RunCaseN(Nm1,N,Np1) \
+  case N: ((gasneti_MedLong_handlerfn_type_##N)_phandlerfn)(_token, _pData, _datalen GASNETI_META_ASC##N(GASNETI_META_EMPTY,_gasneti_harg_pass)); break;
+
+#define _GASNETI_RUN_HANDLER_MEDLONG(MEDLONG, isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen, extrachecks) do { \
+  gex_AM_Fn_t const _phandlerfn = (gex_AM_Fn_t)(phandlerfn);                    \
+  gex_Token_t const _token = (token);                                           \
+  gex_AM_Arg_t const * const _pArgs = (gex_AM_Arg_t *)(pArgs);                  \
+  int const _numargs = (numargs);                                               \
+  void * const _pData = (void *)(pData);                                        \
+  size_t const _datalen = (datalen);                                            \
+  if (isReq) GASNETI_TRACE_AM##MEDLONG##_REQHANDLER(hid, _token, _pData, _datalen, _numargs, _pArgs); \
+  else       GASNETI_TRACE_AM##MEDLONG##_REPHANDLER(hid, _token, _pData, _datalen, _numargs, _pArgs); \
+  gasneti_assert(_phandlerfn); gasneti_assert(_token);                          \
+  gasneti_assert(_pArgs || !_numargs);                                          \
+  gasneti_assert(_pData || !_datalen);                                          \
+  extrachecks;                                                                  \
+  switch (_numargs) {                                                           \
+    GASNETI_META_DES16(_gasneti_MedLong_RunCaseN,_gasneti_MedLong_RunCaseN)     \
+    default: gasneti_unreachable();                                             \
+  }                                                                             \
+} while (0)
+
+// by default, we guarantee double-word alignment for data payload of medium xfers
 #ifndef GASNETI_MEDBUF_ALIGNMENT
 #define GASNETI_MEDBUF_ALIGNMENT 8
 #endif
 
-#define GASNETI_RUN_HANDLER_MEDIUM(isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
-    gasneti_assert(((uintptr_t)pData) % GASNETI_MEDBUF_ALIGNMENT == 0 || datalen == 0);                     \
-    if (isReq) GASNETI_TRACE_AMMEDIUM_REQHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
-    else       GASNETI_TRACE_AMMEDIUM_REPHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
-    _GASNETI_RUN_HANDLER_MEDLONG((gasneti_HandlerMedium)phandlerfn, (gex_Token_t)token,                     \
-                                 pArgs, numargs, (void *)pData, (int)datalen);                              \
-    GASNETI_TRACE_PRINTF(A,("AM%s_MEDIUM_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
-  } while (0)
+#define GASNETI_RUN_HANDLER_MEDIUM(isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen) do {    \
+  _GASNETI_RUN_HANDLER_MEDLONG(MEDIUM, isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen,     \
+                     gasneti_assert(!_datalen || ((uintptr_t)_pData) % GASNETI_MEDBUF_ALIGNMENT == 0));   \
+  GASNETI_TRACE_PRINTF(A,("AM%s_MEDIUM_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
+} while (0)
+
 #define GASNETI_RUN_HANDLER_LONG(isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
-    if (isReq) GASNETI_TRACE_AMLONG_REQHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
-    else       GASNETI_TRACE_AMLONG_REPHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
-    _GASNETI_RUN_HANDLER_MEDLONG((gasneti_HandlerLong)phandlerfn, (gex_Token_t)token,                     \
-                                 pArgs, numargs, (void *)pData, (int)datalen);                            \
-    GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
-  } while (0)
+  _GASNETI_RUN_HANDLER_MEDLONG(LONG, isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen,       \
+                     ((void)0));                                                                          \
+  GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY")));   \
+} while (0)
+
 /* ------------------------------------------------------------------------------------ */
 /* AM handler registration and management */
 
@@ -285,7 +271,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
       if (!sd)                                                                                           \
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "passed invalid gex_AM_SrcDesc (GEX_AM_SRCDESC_NO_OP == 0)", _reqrep, nargs); \
-      if (sd->_thread != gasnete_mythread())                                                             \
+      if (sd->_thread != _gasneti_mythread_slow())                                                       \
         gasneti_fatalerror("gex_AM_Commit%s" _STRINGIFY(cat) "%d: "                                      \
                            "return from Prepare passed to Commit in a different thread", _reqrep, nargs);\
       if (sd->_isreq != is_req)                                                                          \
@@ -438,6 +424,7 @@ void gasneti_prepare_common(
                        gex_Flags_t          flags,
                        unsigned int         nargs)
 {
+    sd->_is_nbrhd = 0;
     sd->_lc_opt = lc_opt;
     sd->_flags  = flags;
     sd->_nargs  = nargs;
@@ -512,19 +499,19 @@ extern int gasnetc_AMReplyMediumV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG);
+                int numargs, va_list argptr);
 #ifndef gasneti_AMReplyMediumV
 #define gasneti_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args) \
-        gasnetc_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+        gasnetc_AMReplyMediumV(token,hidx,src_addr,nbytes,lc_opt,flags,nargs,args)
 #endif
 extern int gasnetc_AMReplyLongV(
                 gex_Token_t token, gex_AM_Index_t handler,
                 void *source_addr, size_t nbytes, void *dest_addr,
                 gex_Event_t *lc_opt, gex_Flags_t flags,
-                int numargs, va_list argptr GASNETI_THREAD_FARG);
+                int numargs, va_list argptr);
 #ifndef gasneti_AMReplyLongV
 #define gasneti_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args) \
-        gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args GASNETI_THREAD_GET)
+        gasnetc_AMReplyLongV(token,hidx,src_addr,nbytes,dst_addr,lc_opt,flags,nargs,args)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -574,7 +561,7 @@ extern int gasnetc_AMReplyLongV(
     extern void gasneti_loopback_cleanup_threaddata(void *buf);
     GASNETI_INLINE(gasneti_loopback_alloc_medium_buffer)
     void *gasneti_loopback_alloc_medium_buffer(int isReq GASNETI_THREAD_FARG) {
-        gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
         if_pf (! mythread->loopback_requestBuf) {
             // Allocate both buffers, ensuring GASNETI_MEDBUF_ALIGNMENT (dflt 8-byte) alignment of each
             size_t sz = GASNETI_ALIGNUP(GASNETC_MAX_MEDIUM_NBRHD,8) + GASNETC_MAX_MEDIUM_NBRHD;
@@ -600,15 +587,23 @@ typedef struct {
   int8_t   handlerRunning; 
   int8_t   replyIssued;    
 #endif
+#if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t threadinfo;
+#endif
 } gasnetc_nbrhd_token_t;
 
 #define gasnetc_token_in_nbrhd(tok) ((uintptr_t)(tok)&1)
+
+#define GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token) \
+        GASNET_POST_THREADINFO((gasneti_assert(gasnetc_token_in_nbrhd(token)), \
+                                ((gasnetc_nbrhd_token_t *)(1^(uintptr_t)(token)))->threadinfo))
 
 // gasnetc_nbrhd_token_init is used to forge a conduit-independent nbrhd token that can be used to invoke a client AM handler
 // It currently has three main clients:
 //   Loopback AM delivery, PSHM AM delivery, VIS peer completion callback support
 // NOTE 1: The caller of this function is responsible for populating real_token->ti.gex_is_long after return
 // NOTE 2: src_jobrank is permitted to specify remote ranks, in order to support VIS PC
+// NOTE 3: If real_token->threadinfo is to be used, caller must set after return
 GASNETI_INLINE(gasnetc_nbrhd_token_init)
 gex_Token_t gasnetc_nbrhd_token_init(
                         gasnetc_nbrhd_token_t *real_token,
@@ -751,6 +746,9 @@ void gasnetc_loopback_commit_inner(
 
   gasnetc_nbrhd_token_t real_token;
   const gex_Token_t token = gasnetc_nbrhd_token_init(&real_token, gasneti_mynode, handler_entry, isReq);
+#if GASNETI_THREADINFO_OPT
+  real_token.threadinfo = GASNETI_MYTHREAD;
+#endif
   real_token.ti.gex_is_long = (category == gasneti_Long);
 
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS_NBRHD);
@@ -798,16 +796,16 @@ int gasnetc_loopback_ReqRepGeneric(
                          int isReq, gasneti_category_t category,
                          gex_AM_Index_t handler,
                          void *source_addr, int nbytes, void *dest_addr, 
-                         gex_Flags_t flags, int numargs, va_list argptr)
+                         gex_Flags_t flags, int numargs, va_list argptr
+                         GASNETI_THREAD_FARG)
 {
-  GASNET_BEGIN_FUNCTION(); // TODO-EX: THREAD_FARG
   struct gasneti_AM_SrcDesc the_sd;
 
   gasnetc_loopback_prepare_inner(&the_sd, 1, isReq, category, source_addr, 0, 0,
-                                 dest_addr, NULL, flags, numargs GASNETI_THREAD_GET);
+                                 dest_addr, NULL, flags, numargs GASNETI_THREAD_PASS);
 
   gasnetc_loopback_commit_inner(&the_sd, 1, isReq, category, handler, nbytes,
-                                dest_addr, argptr GASNETI_THREAD_GET);
+                                dest_addr, argptr GASNETI_THREAD_PASS);
 
   return GASNET_OK;
 }
@@ -830,15 +828,15 @@ int gasnetc_nbrhd_RequestGeneric(
 #if GASNET_PSHM
   switch(category) {
     case gasneti_Short:
-        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr);
+        return gasneti_AMPSHM_RequestShort(jobrank, handler, flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     case gasneti_Medium:
         return gasneti_AMPSHM_RequestMedium(jobrank, handler, source_addr, nbytes,
-                                            flags, numargs, argptr);
+                                            flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     case gasneti_Long:
         return gasneti_AMPSHM_RequestLong(jobrank, handler, source_addr, nbytes, dest_ptr,
-                                          flags, numargs, argptr);
+                                          flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
     default:
         gasneti_unreachable();
@@ -848,7 +846,7 @@ int gasnetc_nbrhd_RequestGeneric(
   return gasnetc_loopback_ReqRepGeneric(
                                1, category, handler,
                                source_addr, nbytes, dest_ptr, 
-                               flags, numargs, argptr); 
+                               flags, numargs, argptr GASNETI_THREAD_PASS); 
 #endif
 }
 
@@ -879,10 +877,11 @@ int gasnetc_nbrhd_ReplyGeneric(
         gasneti_unreachable();
   }
 #else
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
   retval = gasnetc_loopback_ReqRepGeneric(
                                  0, category, handler,
                                  source_addr, nbytes, dest_ptr, 
-                                 flags, numargs, argptr); 
+                                 flags, numargs, argptr GASNETI_THREAD_PASS);
 #endif
   gasnetc_token_post_reply_checks(token, retval);
   return retval;
@@ -900,10 +899,10 @@ int gasnetc_loopback_Prepare(
                         const void *client_buf,
                         size_t least_payload, size_t most_payload,
                         void *dest_addr, gex_Event_t *lc_opt,
-                        gex_Flags_t flags, unsigned int nargs
-                        GASNETI_THREAD_FARG)
+                        gex_Flags_t flags, unsigned int nargs)
 {
-  gasneti_assert(sd->_loopback);
+  GASNET_POST_THREADINFO(sd->_thread);
+  gasneti_assert(sd->_is_nbrhd);
   return gasnetc_loopback_prepare_inner(
                         sd, 0, isReq, category, client_buf,
                         least_payload, most_payload, dest_addr, lc_opt,
@@ -920,31 +919,19 @@ void gasnetc_loopback_Commit(
                         void *dest_addr, va_list argptr)
 {
   GASNET_POST_THREADINFO(sd->_thread);
-  gasneti_assert(sd->_loopback);
+  gasneti_assert(sd->_is_nbrhd);
   gasnetc_loopback_commit_inner(
                         sd, 0, isReq, category, handler, nbytes,
-                        dest_addr, argptr GASNETI_THREAD_GET);
+                        dest_addr, argptr GASNETI_THREAD_PASS);
 }
 
 /* ------------------------------------------------------------------------------------ */
 // NP-AM for "nbrhd" (PSHM and loopback)
 
-#if GASNET_PSHM
-  #define _GASNETC_IS_NBRHD_FIELD _pshm._is_pshm
-#else
-  #define _GASNETC_IS_NBRHD_FIELD _loopback
-#endif
-#define GASNETC_IS_NBRHD_PREPARE_REQ(sd,jobrank) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)))
-#define GASNETC_IS_NBRHD_PREPARE_REP(sd,token) \
-    (0 != ((sd)->_GASNETC_IS_NBRHD_FIELD = gasnetc_token_in_nbrhd(token)))
-#define GASNETC_IS_NBRHD_COMMIT(sd) \
-    ((sd)->_GASNETC_IS_NBRHD_FIELD)
-
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareRequest)
-int gasnetc_nbrhd_PrepareRequest(
+gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareRequest(
                         gasneti_AM_SrcDesc_t sd,
                         gasneti_category_t   category,
                         gex_Rank_t           jobrank,
@@ -954,22 +941,30 @@ int gasnetc_nbrhd_PrepareRequest(
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
   gasneti_assert(GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+  sd->_is_nbrhd = 1;
+  int imm;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    return gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
-                                               lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareRequestMedium(sd, jobrank, client_buf, least_payload, most_payload,
+                                               lc_opt, flags, nargs);
   } else {
-    return gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
-                                             dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareRequestLong(sd, jobrank, client_buf, least_payload, most_payload,
+                                             dest_addr, lc_opt, flags, nargs);
   }
 #else
-  return gasnetc_loopback_Prepare(sd, 1, category, client_buf, least_payload, most_payload,
-                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  imm = gasnetc_loopback_Prepare(sd, 1, category, client_buf, least_payload, most_payload,
+                                  dest_addr, lc_opt, flags, nargs);
 #endif
+  if (imm) {
+    gasneti_reset_srcdesc(sd);
+    sd = NULL; // GEX_AM_SRCDESC_NO_OP
+  } else {
+    gasneti_init_sd_poison(sd);
+  }
+  return sd;
 }
 
 // Parameter 'category' will be a manifest constant
@@ -997,8 +992,7 @@ void gasnetc_nbrhd_CommitRequest(
 // Parameter 'category' will be a manifest constant
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_nbrhd_PrepareReply)
-int gasnetc_nbrhd_PrepareReply(
-                        gasneti_AM_SrcDesc_t sd,
+gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareReply(
                         gasneti_category_t   category,
                         gex_Token_t          token,
                         const void          *client_buf,
@@ -1007,25 +1001,40 @@ int gasnetc_nbrhd_PrepareReply(
                         void                *dest_addr,
                         gex_Event_t         *lc_opt,
                         gex_Flags_t          flags,
-                        unsigned int         nargs
-                        GASNETI_THREAD_FARG)
+                        unsigned int         nargs)
 {
+  GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);
+  gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+  sd->_is_nbrhd = 1;
+
+  if (category == gasneti_Medium) {
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Medium);
+  } else {
+    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,dest_addr,lc_opt,flags,nargs,Long);
+  }
+
   gasnetc_token_pre_reply_checks(token);
-  int retval;
+  int imm;
 #if GASNET_PSHM
   if (category == gasneti_Medium) {
-    retval = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, least_payload, most_payload,
-                                             lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareReplyMedium(sd, token, client_buf, least_payload, most_payload,
+                                             lc_opt, flags, nargs);
   } else {
-    retval = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, least_payload, most_payload,
-                                           dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+    imm = gasnetc_AMPSHM_PrepareReplyLong(sd, token, client_buf, least_payload, most_payload,
+                                           dest_addr, lc_opt, flags, nargs);
   }
 #else
-  retval = gasnetc_loopback_Prepare(sd, 0, category, client_buf, least_payload, most_payload,
-                                  dest_addr, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+  imm = gasnetc_loopback_Prepare(sd, 0, category, client_buf, least_payload, most_payload,
+                                  dest_addr, lc_opt, flags, nargs);
 #endif
-  gasnetc_token_post_reply_checks(token, retval);
-  return retval;
+  gasnetc_token_post_reply_checks(token, imm);
+  if (imm) {
+    gasneti_reset_srcdesc(sd);
+    sd = NULL; // GEX_AM_SRCDESC_NO_OP
+  } else {
+    gasneti_init_sd_poison(sd);
+  }
+  return sd;
 }
 
 // Parameter 'category' will be a manifest constant

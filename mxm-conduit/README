@@ -1,6 +1,25 @@
 GASNet mxm-conduit documentation
 ============================================
 
+=====================================================================
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+=====================================================================
+
+The mxm-conduit is now DEPRECATED.
+No further development of this conduit is anticipated.
+It may be removed in a future release.
+
+Users with InfiniBand hardware are recommended to use ibv-conduit
+by passing the following to GASNet's configure script.
+  --enable-ibv --disable-mxm
+
+=====================================================================
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
+=====================================================================
+
+
 User Information:
 -----------------
 

@@ -1089,57 +1089,6 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
   return result;
 }
 
-// Parse an environment variable as a memory size as follows:
-//  + If parses as double between 0. and 1., multiply by "fraction_of".
-//  + If parses as integer (w/ optional suffix) take as an absolute size.
-// In either case, align down to PAGESIZE and then die if below "minimum".
-extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *dflt, uint64_t minimum, uint64_t fraction_of)
-{
-  const char *str = gasneti_getenv(key);
-  int using_default = (NULL == str);
-  if (using_default) str = dflt;
-
-  double dbl;
-  int64_t val;
-  int is_fraction = 0;
-  if (0 == gasneti_parse_dbl(str, &dbl)) {
-    if ((dbl > 0.) && (dbl < 1.)) {
-      is_fraction = 1;
-      val = dbl * fraction_of;
-    } else {
-      val = dbl;
-    }
-  } else {
-    // Note: default suffix is irrelevant since un-suffixed case was parsed as a double
-    val = gasneti_parse_int(str, 1);
-  }
-  gasneti_envint_display(key, val, using_default, 1);
-
-  // check sign before ALIGNDOWN
-  if (val < 0) {
-    gasneti_fatalerror("%s='%s' is negative.", key, str);
-  }
-
-  // ALIGNDOWN before checking against minimum
-  val = GASNETI_PAGE_ALIGNDOWN(val);
-  GASNETI_TRACE_PRINTF(I, ("%s='%s' yields %"PRId64,
-                           key, str, val));
-
-  if (val < minimum) {
-    const char *parsed_as = is_fraction ? "a fraction" : "an amount";
-    char min_display[16];
-    char val_display[16];
-    gasneti_format_number(minimum, min_display, sizeof(min_display), 1);
-    gasneti_format_number(val,     val_display, sizeof(val_display), 1);
-    gasneti_fatalerror(
-            "Parsing '%s' as %s of memory yields %s of %"PRId64" (%s), "
-            "which is less than the minimum supported value of %s.",
-            str, parsed_as, key, val, val_display, min_display);
-  }
-
-  return (uint64_t) val;
-}
-
 /* ------------------------------------------------------------------------------------ */
 /* Bits for conduits which want/need to override pthread_create() */
 
@@ -1197,10 +1146,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"udp")) continue;
         if (!strcmp(name,"ofi")) continue;
         if (!strcmp(name,"portals4")) continue;
-      #if !GASNET_SEQ
-        /* Ignore conduits that lack thread safety */
-        if (!strcmp(name,"shmem")) continue;
-      #endif
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
       }
@@ -1393,7 +1338,9 @@ static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stri
 GASNETI_NEVER_INLINE(gasneti_nodemap_helper,
 static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
   #ifndef GASNETC_DEFAULT_NODEMAP_EXACT
-    #define GASNETC_DEFAULT_NODEMAP_EXACT 0
+    // Default to slow-but-steady (it wins the race)
+    // However, see Bug 3770 - RFE: restore default linear-time nodemap behavior
+    #define GASNETC_DEFAULT_NODEMAP_EXACT 1
   #endif
   gasneti_assert(ids);
   gasneti_assert(sz > 0);

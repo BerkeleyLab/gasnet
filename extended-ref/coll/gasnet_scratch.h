@@ -54,7 +54,7 @@ struct gasnete_coll_scratch_req_t_ {
 
 /* try to allocate scratch space*/
 /* returns 1 on success or zero on failure*/
-int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG);
+int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG);
 
 
 /* release the associated scratch space with this op*/
@@ -62,7 +62,7 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op);
 
 /* function calls for coll init*/
 void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team);
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG);
+void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETI_THREAD_FARG);
 
 
 #endif

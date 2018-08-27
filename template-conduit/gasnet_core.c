@@ -116,7 +116,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
       /* it may be appropriate to use gasneti_segmentInit() here to set 
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
          if your conduit can use memory anywhere in the address space
-         (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
 
          it may also be appropriate to first call gasneti_mmapLimit() to
          get a good value for the first argument to gasneti_segmentInit(), to
@@ -464,6 +463,7 @@ extern gex_TI_t gasnetc_Token_Info(
 
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if (gasnetc_token_in_nbrhd(token)) {
     return gasnetc_nbrhd_Token_Info(token, info, mask);
   }
@@ -739,21 +739,21 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
     gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
-    int imm;
-    if (GASNETC_IS_NBRHD_PREPARE_REQ(sd, jobrank)) {
-        imm = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+        sd = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
                                            client_buf, least_payload, most_payload,
-                                           NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                           NULL, lc_opt, flags, nargs);
     } else {
+        int imm;
         imm = gasnetc_prepare_req_medium(sd,0,jobrank,client_buf,least_payload,most_payload,
                                          lc_opt,flags,nargs GASNETI_THREAD_PASS);
-    }
-
-    if (imm) {
-        gasneti_reset_srcdesc(sd);
-        sd = NULL; // GEX_AM_SRCDESC_NO_OP
-    } else {
-        gasneti_init_sd_poison(sd);
+        if (imm) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        } else {
+            gasneti_init_sd_poison(sd);
+            sd->_is_nbrhd = 0;
+        }
     }
 
     GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
@@ -775,7 +775,7 @@ extern void gasnetc_AM_CommitRequestMediumM(
 
     va_list argptr;
     va_start(argptr, sd_arg);
-    if (GASNETC_IS_NBRHD_COMMIT(sd)) {
+    if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         gasnetc_commit_req_medium(sd,handler,nbytes,argptr);
@@ -844,11 +844,12 @@ extern int gasnetc_AMRequestLongM(
 GASNETI_INLINE(gasnetc_AMReplyShort)
 int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                             gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     retval = gasneti_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
                                          0, 0, 0,
@@ -856,6 +857,7 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
   } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
+       If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
      */
 
     retval = ###;
@@ -872,7 +874,7 @@ extern int gasnetc_AMReplyShortM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -888,11 +890,12 @@ GASNETI_INLINE(gasnetc_AMReplyMedium)
 int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasneti_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
@@ -901,6 +904,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
   } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
+       If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
      */
 
     retval = ###;
@@ -912,9 +916,9 @@ extern int gasnetc_AMReplyMediumV(
                             gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
-  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -928,7 +932,7 @@ extern int gasnetc_AMReplyMediumM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -1007,9 +1011,12 @@ extern int gasnetc_AMReplyMediumM(
                                         source_addr, nbytes, NULL,
                                         flags, numargs, argptr);
   } else {
+    // (###) post threadinfo extracted from token, or call GASNET_BEGIN_FUNCTION() instead:
+    GASNET_POST_THREADINFO(###);
+
     struct gasneti_AM_SrcDesc the_sd;
     retval = gasnetc_prepare_rep_medium(&the_sd,1,token,source_addr,0,nbytes,
-                                        lc_opt,flags,numargs GASNETI_THREAD_GET);
+                                        lc_opt,flags,numargs GASNETI_THREAD_PASS);
     if (!retval) {
       gasnetc_commit_rep_medium(&the_sd,1,handler,nbytes,argptr);
     }
@@ -1026,29 +1033,31 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                        size_t             most_payload,
                        gex_Event_t       *lc_opt,
                        gex_Flags_t        flags
-                       GASNETI_THREAD_FARG,
                        unsigned int       nargs)
 {
-    gasneti_AM_SrcDesc_t sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
-    GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
-
+    gasneti_AM_SrcDesc_t sd;
     flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
 
-    int imm;
-    if (GASNETC_IS_NBRHD_PREPARE_REP(sd, token)) {
-        imm = gasnetc_nbrhd_PrepareReply(sd, gasneti_Medium, token,
+    if (gasnetc_token_in_nbrhd(token)) {
+        sd = gasnetc_nbrhd_PrepareReply(gasneti_Medium, token,
                                          client_buf, least_payload, most_payload,
-                                         NULL, lc_opt, flags, nargs GASNETI_THREAD_PASS);
+                                         NULL, lc_opt, flags, nargs);
     } else {
+        // (###) post threadinfo extracted from token, or call GASNET_BEGIN_FUNCTION() instead:
+        GASNET_POST_THREADINFO(###);
+        sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+        GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+
+        int imm;
         imm = gasnetc_prepare_rep_medium(sd,0,token,client_buf,least_payload,most_payload,
                                         lc_opt,flags,nargs GASNETI_THREAD_PASS);
-    }
-
-    if (imm) {
-        gasneti_reset_srcdesc(sd);
-        sd = NULL; // GEX_AM_SRCDESC_NO_OP
-    } else {
-        gasneti_init_sd_poison(sd);
+        if (imm) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        } else {
+            gasneti_init_sd_poison(sd);
+            sd->_is_nbrhd = 0;
+        }
     }
 
     GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
@@ -1069,7 +1078,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
 
     va_list argptr;
     va_start(argptr, sd_arg);
-    if (GASNETC_IS_NBRHD_COMMIT(sd)) {
+    if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         gasnetc_commit_rep_medium(sd,0,handler,nbytes,argptr);
@@ -1085,11 +1094,12 @@ GASNETI_INLINE(gasnetc_AMReplyLong)
 int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes, void *dest_addr,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval;
   /* (###) If your conduit is using the default support for AMs within
    * a Neighborhood (including loopback) then this hook is necessary.
+   */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasneti_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
@@ -1098,6 +1108,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
   } else {
     /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
              and send the active message 
+       If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
      */
 
     retval = ###;
@@ -1109,9 +1120,9 @@ extern int gasnetc_AMReplyLongV(
                             gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes, void *dest_addr,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
-  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -1126,7 +1137,7 @@ extern int gasnetc_AMReplyLongM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }

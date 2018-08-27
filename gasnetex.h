@@ -508,9 +508,6 @@ typedef const struct {
   // Nothing to see here (yet)
 } gex_RankInfo_t;
 
-// TODO-EX: Temporary backwards compat, Remove this!
-#define gex_NbrhdInfo_t gex_RankInfo_t
-
 extern void gex_System_QueryNbrhdInfo(
             gex_RankInfo_t         **_info_p,
             gex_Rank_t             *_info_count_p,
@@ -659,12 +656,12 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
     int                  _nargs;
-    int                  _loopback;
+    int                  _is_nbrhd;
   #if GASNET_PSHM
     struct {
       gex_Rank_t           _pshmrank; // should be gasneti_pshm_rank_t
       gex_Rank_t           _jobrank;
-      int                  _is_pshm;
+      int                  _loopback;
     }                    _pshm;
   #endif
   #ifdef GASNETI_AM_SRCDESC_EXTRA

@@ -21,7 +21,6 @@ SUBDIRS =            \
   # Directories we manually recurse into:
 CONDUITMODE_DIST_SUBDIRS =    	\
 	mpi-conduit  		\
-	shmem-conduit  		\
 	smp-conduit  		\
 	udp-conduit  		\
 	ibv-conduit 		\
@@ -44,7 +43,6 @@ CONDUITMODE_headers = 		\
 CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
-	template-conduit  	\
 	gasnet_legacy.c         \
 	gasnet_event.c 	        \
 	gasnet_event_internal.h \
@@ -348,7 +346,7 @@ distclean: force
 if TOOLSONLY_MODE
 TESTDIST = README testtools.c test.h Makefile.in
 else
-TESTDIST = `find . -print`
+TESTDIST = `find . -print | grep -v ^./mpi`
 endif
 
 dist-hook:

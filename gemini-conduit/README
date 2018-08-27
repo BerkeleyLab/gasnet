@@ -160,14 +160,26 @@ GASNET_GNI_NUM_PD - number of post descriptors
   can be in-flight at any time.
   The default value is 512, and the minimum is 32.
 
-GASNET_GNI_GET_FMA_RDMA_CUTOVER - default 4096 max 16384
-GASNET_GNI_PUT_FMA_RDMA_CUTOVER - default 4096 max 16384
-  These set the cutover from Fast Memory Access (RDMA commanded in user
-  mode) to RDMA (commanded through the kernel).  Transfers up to and
-  including these sizes will be performed using FMA.  Use of FMA will
-  typically result in lower latency, but at the expense of greater
-  involvement by the CPU (and thus less potential, for instance, for
-  overlap of non-blocking communication with computation).
+GASNET_GNI_GET_FMA_RDMA_CUTOVER
+GASNET_GNI_PUT_FMA_RDMA_CUTOVER
+  These set the cutover from use of FMA (Fast Memory Access) to BTE (Block
+  Transfer Engine) NIC functional units for RMA Put and Get operations.
+  Transfers up to and including these sizes will be performed using FMA.  FMA
+  typically yields lower latency to start an operation at the expense of
+  greater involvement by the CPU (and thus less potential, for instance, for
+  overlap of non-blocking communication with computation).  Because the NIC
+  supports greater concurrency via FMA, it may also yield greater aggregate
+  throughput when multiple processes per node perform RMA concurrently.
+  Advantages of BTE include asynchrony of the transfer without CPU
+  involvement, and the ability to reach peak bandwidth with a lower volume
+  (size and count) of RMA transfers.
+  Performance of Puts and Gets in the 256 to 8192 byte range can be very
+  sensitive to these values and to the degree of communication concurrency.
+  You may want to adjust these parameters if you believe RMA operations in this
+  range determine the performance of your application.
+  On Gemini networks both values default to 4096
+  On Aries networks both values default to 1023
+  The maximum supported value is 16384
 
 GASNET_GNI_GET_BOUNCE_REGISTER_CUTOVER  - default 4096, max 32768
 GASNET_GNI_PUT_BOUNCE_REGISTER_CUTOVER  - default 4096, max 32768

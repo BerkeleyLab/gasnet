@@ -998,7 +998,7 @@ static void op_test(int id) {
 
     { gasneti_eop_t *eop;
       gex_Event_t h;
-      eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
+      eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
       assert_always(eop);
       h = gasneti_eop_to_event(eop);
       assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
@@ -1010,12 +1010,12 @@ static void op_test(int id) {
     }
     PTHREAD_BARRIER(num_threads);
     { /* inc the get and put counts on my iop */
-      gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_GET);
+      gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_PASS);
         assert_always(iop);
         assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_ERR_NOT_READY);
         assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_OK);
         assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY);
-      assert_always(iop == gasneti_iop_register(2, 1 GASNETI_THREAD_GET));
+        assert_always(iop == gasneti_iop_register(2, 1 GASNETI_THREAD_PASS));
         assert_always(gex_NBI_Test(GEX_EC_PUT,0) == GASNET_ERR_NOT_READY);
         assert_always(gex_NBI_Test(GEX_EC_GET,0) == GASNET_ERR_NOT_READY);
         assert_always(gex_NBI_Test(GEX_EC_ALL,0) == GASNET_ERR_NOT_READY);
@@ -1053,7 +1053,7 @@ static void op_test(int id) {
         gasneti_iop_t *iop1, *iop2;
         gasneti_iop_t *peer_iop1, *peer_iop2;
         ASSERT_NBI_SYNCED();
-        iop1 = gasneti_iop_register(5, isget GASNETI_THREAD_GET); /* iop1 = 5 */
+        iop1 = gasneti_iop_register(5, isget GASNETI_THREAD_PASS); /* iop1 = 5 */
         assert_always(iop1);
         ASSERT_NBI_NOTSYNCED();
         PTHREAD_BARRIER(num_threads);
@@ -1070,7 +1070,7 @@ static void op_test(int id) {
           gex_Event_t h2;
 
           gex_NBI_BeginAccessRegion(0);
-          iop2 = gasneti_iop_register(1, isget GASNETI_THREAD_GET); /* iop2 = 1 */
+          iop2 = gasneti_iop_register(1, isget GASNETI_THREAD_PASS); /* iop2 = 1 */
           assert_always(iop2);
           assert_always(iop2 != iop1);
           PTHREAD_BARRIER(num_threads);
@@ -1079,9 +1079,9 @@ static void op_test(int id) {
           peer_iop2 = share[peerid];
           gasneti_iop_markdone(peer_iop2, 1, isget);  /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
-          assert_always(iop2 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop2 += 2 */
+          assert_always(iop2 == gasneti_iop_register(2, isget GASNETI_THREAD_PASS)); /* iop2 += 2 */
 
-          eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
+          eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
           assert_always(eop);
           h2 = gasneti_eop_to_event(eop);
           assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
@@ -1113,7 +1113,7 @@ static void op_test(int id) {
           assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
-          assert_always(iop1 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop1 += 2 */
+          assert_always(iop1 == gasneti_iop_register(2, isget GASNETI_THREAD_PASS)); /* iop1 += 2 */
           ASSERT_NBI_NOTSYNCED();
           assert_always(gex_Event_Test(h) == GASNET_ERR_NOT_READY);
           assert_always(gex_Event_Test(h2) == GASNET_ERR_NOT_READY);
@@ -1151,12 +1151,12 @@ static void op_test(int id) {
           switch (_r) {                                               \
             case 0: case 1: /* IOP put or get */                      \
               gex_NBI_BeginAccessRegion(0);                           \
-              _iop = gasneti_iop_register(1, _r GASNETI_THREAD_GET);  \
+              _iop = gasneti_iop_register(1, _r GASNETI_THREAD_PASS); \
               (output) = gex_NBI_EndAccessRegion(0);                  \
               gasneti_iop_markdone(_iop, 1, _r);                      \
               break;                                                  \
             default: /* EOP */                                        \
-              _eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);    \
+              _eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);   \
               (output) = gasneti_eop_to_event(_eop);                  \
               gasneti_eop_markdone(_eop);                             \
               break;                                                  \

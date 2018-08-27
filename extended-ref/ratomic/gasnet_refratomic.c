@@ -434,8 +434,9 @@ gex_Event_t gasnete_amratomic_request_NB(
     rop->eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
     gex_Event_t result = gasneti_eop_to_event(rop->eop);
     gex_TM_t tm = gasneti_export_tm(ad->_tm);
+    gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;
     int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh),
-                                   payload, length, GEX_EVENT_NOW, flags,
+                                   payload, length, GEX_EVENT_NOW, am_flags,
                                    (op_idx | (datatype << 8)), PACK(tgt_addr), PACK(rop));
     if (imm) {
         gasneti_eop_markdone(rop->eop);
@@ -459,8 +460,9 @@ int gasnete_amratomic_request_NBI(
     rop->iop = gasneti_iop_register_rmw(1 GASNETI_THREAD_PASS); // TODO-EX: EOP_INTERFACE - to be replaced
     rop->iop_type = GEX_EC_RMW;
     gex_TM_t tm = gasneti_export_tm(ad->_tm);
+    gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;
     int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh),
-                                   payload, length, GEX_EVENT_NOW, flags,
+                                   payload, length, GEX_EVENT_NOW, am_flags,
                                    (op_idx | (datatype << 8)), PACK(tgt_addr), PACK(rop));
     if (imm) {
         gasneti_iop_markdone_rmw(rop->iop, 1); // TODO-EX: EOP_INTERFACE - to be replaced
@@ -667,12 +669,13 @@ int gasnete_amratomic_request_NBI(
         gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();\
         rop->result_p = NULL;                                     \
         rop->eop = NULL;                                          \
-        rop->iop = gasneti_iop_register(1,0 GASNETE_THREAD_PASS); \
+        rop->iop = gasneti_iop_register(1,0 GASNETI_THREAD_PASS); \
         rop->iop_type = GEX_EC_PUT;                               \
         gex_TM_t tm = gasneti_export_tm(ad->_tm);                 \
         const gasneti_op_idx_t op_idx = gasneti_op_idx_SET;       \
+        gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;        \
         int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh), \
-                                       &operand1, sizeof(type), GEX_EVENT_NOW, flags,            \
+                                       &operand1, sizeof(type), GEX_EVENT_NOW, am_flags,         \
                                        (op_idx | (datatype << 8)), PACK(tgt_addr), PACK(rop));   \
         if (imm) {                                                \
             gasneti_iop_markdone(rop->iop,1,0);                   \
@@ -690,12 +693,13 @@ int gasnete_amratomic_request_NBI(
         gasnete_amratomic_op_t rop = gasnete_amratomic_op_alloc();\
         rop->result_p = result_p;                                 \
         rop->eop = NULL;                                          \
-        rop->iop = gasneti_iop_register(1,1 GASNETE_THREAD_PASS); \
+        rop->iop = gasneti_iop_register(1,1 GASNETI_THREAD_PASS); \
         rop->iop_type = GEX_EC_GET;                               \
         gex_TM_t tm = gasneti_export_tm(ad->_tm);                 \
         const gasneti_op_idx_t op_idx = gasneti_op_idx_GET;       \
+        gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;        \
         int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh), \
-                                       NULL, 0, GEX_EVENT_NOW, flags,                            \
+                                       NULL, 0, GEX_EVENT_NOW, am_flags,                         \
                                        (op_idx | (datatype << 8)), PACK(tgt_addr), PACK(rop));   \
         if (imm) {                                                \
             gasneti_iop_markdone(rop->iop,1,1);                   \

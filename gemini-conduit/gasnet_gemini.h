@@ -133,6 +133,9 @@ typedef struct {
   int need_reply;
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;
+#if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t threadinfo;
+#endif
 } gasnetc_token_t;
 
 /* Control messages */
@@ -230,8 +233,13 @@ typedef union gasnetc_packet_u {
 #endif
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX 32768
 /* a particular get or put <= this size goes via fma */
+#ifdef GASNET_CONDUIT_ARIES
+#define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 1023
+#define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 1023
+#else
 #define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 4096
 #define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 4096
+#endif
 #define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX (4096*4)
 /* space for immediate bounce buffer in the post descriptor */
 #define GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE 128
@@ -360,7 +368,10 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
-void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_poll(GASNETI_THREAD_FARG_ALONE);
+#if GASNETC_USE_MULTI_DOMAIN
+  void gasnetc_poll_single_domain(GASNETI_THREAD_FARG_ALONE);
+#endif
 
 size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
@@ -465,7 +476,7 @@ gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
 
 // Allocate an eop with the initiated_cnt pre-incremented
 GASNETI_INLINE(gasnete_eop_new_cnt)
-gasnete_eop_t *gasnete_eop_new_cnt(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *gasnete_eop_new_cnt(gasneti_threaddata_t * const thread) {
   gasnete_eop_t *eop = gasnete_eop_new(thread);
   eop->initiated_cnt++;
   return eop;

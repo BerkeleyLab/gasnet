@@ -36,13 +36,13 @@
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2018
 #define GASNET_RELEASE_VERSION_MINOR 6
-#define GASNET_RELEASE_VERSION_PATCH 0
+#define GASNET_RELEASE_VERSION_PATCH 1
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 5
+#define GEX_SPEC_VERSION_MINOR 6
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -1755,7 +1755,7 @@ typedef {...} gex_HSL_t;
 // Synonymous with GASNET_HSL_INITIALIZER
 #define GEX_HSL_INITIALIZER {...}
 
-// The following operations on HSLs are are semantically identical
+// The following operations on HSLs are semantically identical
 // to the corresponding gasnet_hsl_* functions:
 void gex_HSL_Init   (gex_HSL_t *hsl);
 void gex_HSL_Destroy(gex_HSL_t *hsl);
@@ -2917,10 +2917,9 @@ gex_Event_t gex_Coll_BroadcastNB(
 // yields undefined behavior.
 //
 // LIMITATIONS of the current release:
-//  + The current implementation may limit the product `dt_sz * dt_cnt` to as
-//    little as 24 bytes in some configurations.
-//    The precise limit depends on the size of the job and team.
-// It is anticipated that this limitation will be removed in the next release.
+//  + The current implementation may limit `dt_sz` for user-defined types to as
+//    little as 32KB bytes in some configurations and with default parameters.
+//    The precise limit depends on the network and sizes of the job and team.
 
 gex_Event_t gex_Coll_ReduceToOneNB(
             gex_TM_t            tm,           // The team
