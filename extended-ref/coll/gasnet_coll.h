@@ -341,11 +341,11 @@ void _gasnet_coll_exchange(gasnet_team_handle_t _team,
   extern gex_Event_t
   gasnete_tm_broadcast_nb(gex_TM_t _tm, gex_Rank_t _root,
                           void *_dst, const void *_src,
-                          size_t _nbytes, gex_Flags_t _flags
+                          size_t _nbytes, gex_Flags_t _flags, uint32_t _sequence
                           GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_BroadcastNB(tm,root,dst,src,nbytes,flags) \
-        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETI_THREAD_GET)
+        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags,0 GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -354,10 +354,10 @@ void _gasnet_coll_exchange(gasnet_team_handle_t _team,
   gasnete_tm_reduce_nb(gex_TM_t _tm, gex_Rank_t _root, void *_dst, const void *_src,
                        gex_DT_t _dt, size_t _dt_sz, size_t _dt_cnt,
                        gex_OP_t _op, gex_Coll_ReduceFn_t _user_op, void * _user_cdata,
-                       gex_Flags_t _flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+                       gex_Flags_t _flags, uint32_t _sequence GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_ReduceToOneNB(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags) \
-        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags GASNETI_THREAD_GET)
+        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags,0 GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 

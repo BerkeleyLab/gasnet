@@ -2331,13 +2331,14 @@ gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FA
 gex_Event_t
 gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
                                 void *dst, const void *src,
-                                size_t nbytes, gex_Flags_t flags
-                                GASNETI_THREAD_FARG)
+                                size_t nbytes, gex_Flags_t flags,
+                                uint32_t sequence GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
-  return _gasnet_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
-                                   nbytes, coll_flags GASNETI_THREAD_PASS);
+  coll_flags |= (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;
+  return gasnete_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
+                                   nbytes, coll_flags, sequence GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -2419,7 +2420,7 @@ gasnete_tm_reduce_nb_default(
                 void *dst, const void *src,
                 gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
                 gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
-                gex_Flags_t flags GASNETI_THREAD_FARG)
+                gex_Flags_t flags, uint32_t sequence GASNETI_THREAD_FARG)
 {
   gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
 
@@ -2472,11 +2473,12 @@ gasnete_tm_reduce_nb_default(
   }
   
   // TODO-EX: stop abusing implementation_t argument to pass the geom
+  int coll_flags = (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;
   gex_Event_t result =
          (*alg)(e_tm, root, dst, src,
                 dt, dt_sz, dt_cnt,
                 opcode, user_fnptr, user_cdata,
-                0, (void*)geom, 0 GASNETI_THREAD_PASS);
+                coll_flags, (void*)geom, sequence GASNETI_THREAD_PASS);
 
   gasneti_AMPoll(); // No progress made until now
   return result;

@@ -213,7 +213,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager)
   return gasnete_tm_generic_reduce_nb(tm, root, dst, src, dt, dt_sz, dt_cnt,
                                       op, op_fnptr, op_cdata, coll_flags,
                                       &gasnete_coll_pf_tm_reduce_BinomialEager,
-                                      options, NULL, 0, 0, NULL, NULL
+                                      options, NULL, sequence, 0, NULL, NULL
                                       GASNETI_THREAD_PASS);
 }
 
@@ -342,7 +342,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   return gasnete_tm_generic_reduce_nb(tm, root, dst, src, dt, dt_sz, dt_cnt,
                                       op, op_fnptr, op_cdata, coll_flags,
                                       &gasnete_coll_pf_tm_reduce_TreePut,
-                                      options, geom, 0, 0, NULL, scratch_req
+                                      options, geom, sequence, 0, NULL, scratch_req
                                       GASNETI_THREAD_PASS);
 }
 
@@ -688,7 +688,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg)
   return gasnete_tm_generic_reduce_nb(tm, root, dst, src, dt, dt_sz, dt_cnt,
                                       op, op_fnptr, op_cdata, coll_flags,
                                       &gasnete_coll_pf_tm_reduce_TreePutSeg,
-                                      options, geom, 0, 1, &pipe_seg_sz, scratch_req
+                                      options, geom, sequence, 1, &pipe_seg_sz, scratch_req
                                       GASNETI_THREAD_PASS);
 }
 
