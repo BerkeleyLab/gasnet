@@ -31,6 +31,7 @@
         VAL(W, COLL_EXCHANGE, sz)             \
         VAL(W, COLL_EXCHANGE_NB, sz)          \
         VAL(W, COLL_REDUCE_NB, cnt)           \
+        VAL(W, COLL_REDUCE_ALL_NB, cnt)       \
         /*END*/
 #endif
 
