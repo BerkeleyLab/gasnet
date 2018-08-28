@@ -90,20 +90,31 @@ void op_concat(const void * arg1,
 // Test ADD (both built-in and user-defined for a built-in DT
 #define TEST_ADD(DT) do {                                                     \
   typedef DT##_TYPE TYPE;                                                     \
-  TYPE *answers = test_malloc(iters * Nelem * sizeof(TYPE));                  \
-  TYPE *src = test_malloc(iters * Nelem * sizeof(TYPE));                      \
+  size_t nbytes = Nelem * sizeof(TYPE);                                       \
+  TYPE *answers = test_malloc(iters * nbytes);                                \
+  TYPE *src = test_malloc(iters * nbytes);                                    \
   TYPE *dst = answers;                                                        \
   int failures = 0;                                                           \
   int local_count = 0;                                                        \
   for (int i = 0; i < Nelem; ++i) src[i] = (rank + i);                        \
   for (int i = 0; i < iters; ++i) {                                           \
-    gex_Rank_t root = RAND_ROOT(size);                                        \
-    ev[i] = gex_Coll_ReduceToOneNB(tm, root, dst, src,                        \
-                                   GEX_DT_##DT, sizeof(TYPE), Nelem,          \
-                                   GEX_OP_ADD, NULL, NULL, 0);                \
-    if (root == rank) {                                                       \
+    if (TEST_RAND_ONEIN(5)) {                                                 \
+      memset(dst, 0xaa, nbytes);                                              \
+      ev[i] = gex_Coll_ReduceToAllNB(tm, dst, src,                            \
+                                     GEX_DT_##DT, sizeof(TYPE), Nelem,        \
+                                     GEX_OP_ADD, NULL, NULL, 0);              \
       local_count += 1;                                                       \
       dst += Nelem;                                                           \
+    } else {                                                                  \
+      gex_Rank_t root = RAND_ROOT(size);                                      \
+      if (root == rank) memset(dst, 0x55, nbytes);                            \
+      ev[i] = gex_Coll_ReduceToOneNB(tm, root, dst, src,                      \
+                                     GEX_DT_##DT, sizeof(TYPE), Nelem,        \
+                                     GEX_OP_ADD, NULL, NULL, 0);              \
+      if (root == rank) {                                                     \
+        local_count += 1;                                                     \
+        dst += Nelem;                                                         \
+      }                                                                       \
     }                                                                         \
   }                                                                           \
   gex_Event_WaitAll(ev, iters, 0);                                            \
@@ -121,14 +132,25 @@ void op_concat(const void * arg1,
   local_count = 0;                                                            \
   dst = answers;                                                              \
   for (int i = 0; i < iters; ++i) {                                           \
-    gex_Rank_t root = RAND_ROOT(size);                                        \
-    ev[i] = gex_Coll_ReduceToOneNB(tm, root, dst, src,                        \
-                                   GEX_DT_##DT, sizeof(TYPE), Nelem,          \
-                                   GEX_OP_USER, &op_ADD,                      \
-                                   (void*)(uintptr_t)GEX_DT_##DT, 0);         \
-    if (root == rank) {                                                       \
+    if (TEST_RAND_ONEIN(5)) {                                                 \
+      memset(dst, 0xee, nbytes);                                              \
+      ev[i] = gex_Coll_ReduceToAllNB(tm, dst, src,                            \
+                                     GEX_DT_##DT, sizeof(TYPE), Nelem,        \
+                                     GEX_OP_USER, &op_ADD,                    \
+                                     (void*)(uintptr_t)GEX_DT_##DT, 0);       \
       local_count += 1;                                                       \
       dst += Nelem;                                                           \
+    } else {                                                                  \
+      gex_Rank_t root = RAND_ROOT(size);                                      \
+      if (root == rank) memset(dst, 0x33, nbytes);                            \
+      ev[i] = gex_Coll_ReduceToOneNB(tm, root, dst, src,                      \
+                                     GEX_DT_##DT, sizeof(TYPE), Nelem,        \
+                                     GEX_OP_USER, &op_ADD,                    \
+                                     (void*)(uintptr_t)GEX_DT_##DT, 0);       \
+      if (root == rank) {                                                     \
+        local_count += 1;                                                     \
+        dst += Nelem;                                                         \
+      }                                                                       \
     }                                                                         \
   }                                                                           \
   gex_Event_WaitAll(ev, iters, 0);                                            \
