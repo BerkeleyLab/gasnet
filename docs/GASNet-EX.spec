@@ -2936,7 +2936,7 @@ gex_Event_t gex_Coll_ReduceToOneNB(
             void *              user_cdata,   // NOT single-valued
             gex_Flags_t         flags);       // Flags (partially single-valued)
 
-// Reduction to all [UNIMPLEMENTED]
+// Reduction to all
 //
 // This is a collective call over the team named by the 'tm' argument that
 // initiates a non-blocking reduction applying the operation denoted by 'op'
@@ -2964,6 +2964,11 @@ gex_Event_t gex_Coll_ReduceToOneNB(
 // yields undefined behavior.  This includes any case in which 'src' and 'dst'
 // are equal on at least one rank, but less than all ranks in the team (though
 // this last restriction may be relaxed in a future release).
+//
+// LIMITATIONS of the current release:
+//  + The current implementation may limit `dt_sz` for user-defined types to as
+//    little as 32KB bytes in some configurations and with default parameters.
+//    The precise limit depends on the network and sizes of the job and team.
 
 gex_Event_t gex_Coll_ReduceToAllNB(
             gex_TM_t            tm,           // The team

@@ -2592,7 +2592,14 @@ gasnete_tm_reduce_all_nb_default(
     return GEX_EVENT_INVALID;
   }
 
-  gasneti_fatalerror("gex_Coll_ReduceToALLNB: not yet implementated");
+  // TODO-EX: replace this correct-but-horrible implementation:
+  gex_Event_t result =
+         gasnete_tm_reduce_all_Bcast(e_tm, dst, src, dt, dt_sz, dt_cnt,
+                                     opcode, user_fnptr, user_cdata,
+                                     0, NULL, 0 GASNETI_THREAD_PASS);
+
+  gasneti_AMPoll(); // No progress made until now
+  return result;
 }
 
 /*---------------------------------------------------------------------------------*/

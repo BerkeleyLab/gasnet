@@ -1370,6 +1370,8 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg);
     extern gex_Event_t gasnete_tm_reduce_all_##FUNC_EXT(GASNETE_TM_REDUCE_ALL_ARGS)
 typedef gex_Event_t (*gasnete_tm_reduce_all_fn_ptr_t)(GASNETE_TM_REDUCE_ALL_ARGS);
 
+GASNETE_TM_DECLARE_REDUCE_ALL_ALG(Bcast);
+
 /*---------------------------------------------------------------------------------*/
 // Reduction operators
 // TODO-EX: this is not intended to be the final implemenation (or naming)
