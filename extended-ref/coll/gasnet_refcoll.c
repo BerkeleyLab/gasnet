@@ -2472,10 +2472,14 @@ gasnete_tm_reduce_nb_default(
   }
   
   // TODO-EX: stop abusing implementation_t argument to pass the geom
-  return (*alg)(e_tm, root, dst, src,
+  gex_Event_t result =
+         (*alg)(e_tm, root, dst, src,
                 dt, dt_sz, dt_cnt,
                 opcode, user_fnptr, user_cdata,
                 0, (void*)geom, 0 GASNETI_THREAD_PASS);
+
+  gasneti_AMPoll(); // No progress made until now
+  return result;
 }
 
 /*---------------------------------------------------------------------------------*/
