@@ -113,6 +113,12 @@ int main(int argc, char **argv)
   uintptr_t scratch_end = TEST_SEGSZ + (uintptr_t)TEST_MYSEG();
   size_t scratch_sz;
 
+  // Spec says NULL new_tm_p returns zero.
+  scratch_sz = gex_TM_Split(NULL, myteam, 0, 1, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_MIN);
+  assert_always(scratch_sz == 0);
+  scratch_sz = gex_TM_Split(NULL, myteam, 0, 1, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED);
+  assert_always(scratch_sz == 0);
+
   // Row team:
   gex_TM_t rowtm = myteam; // init just to check whether overwritten
   scratch_sz = gex_TM_Split(&rowtm, myteam, myrow, 1+2*mycol, 0, 0, SCRATCH_QUERY_FLAG);

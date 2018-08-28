@@ -712,7 +712,9 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
 //           {minimum permissible, recommended optimal} value to be passed in 
 //           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
-//            value for the other arguments.
+//           value for the other arguments.  In particular, a NULL value of the
+//           'new_tm_p' indicates the caller will not be a member of any team
+//           created by the subsequent split (and thus the return will be zero).
 //   Non-single valued:
 //        None currently defined 
 //
