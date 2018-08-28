@@ -334,7 +334,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
   } else {
     scratch_req->num_out_peers = 1;
     scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(geom));
-    scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1); // TODO: ICK!
+    scratch_req->out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*1); // TODO: ICK!
     scratch_req->out_sizes[0] = nbytes * geom->num_siblings;
   }
 
@@ -680,7 +680,7 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg)
   } else {
     scratch_req->num_out_peers = 1;
     scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(geom));
-    scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1); // TODO: ICK!
+    scratch_req->out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*1); // TODO: ICK!
     scratch_req->out_sizes[0] = chunk_len * (1 + geom->num_siblings);
   }
 

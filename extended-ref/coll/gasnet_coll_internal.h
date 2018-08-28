@@ -392,9 +392,9 @@ struct gasnete_coll_op_t_ {
   void			*data;
   gasnete_coll_poll_fn	poll_fn;
   
-  /*positioons of the valide scratch space for this operation on the peers*/
-  uint64_t *scratchpos;
-  uint64_t myscratchpos;
+  /* positions of the valid scratch space for this operation on the peers*/
+  uintptr_t *scratchpos;
+  uintptr_t myscratchpos;
   uint8_t active_scratch_op; /* is this op on the active scratch list?*/
   uint8_t waiting_scratch_op; /* is this op on the waiting scratch list?*/
   uint8_t waiting_for_reconfig_clear;
