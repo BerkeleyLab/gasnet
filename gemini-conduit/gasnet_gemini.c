@@ -2588,13 +2588,17 @@ gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd, int l
 }
 
 // TODO-EX: this is our auxseg support until real multi-segment support arrives
+//
+// Note len=1 is sufficient since the full (addr,len) will have already passed
+// gasneti_in_fullsegment().  While len=0 might seem cheaper, it is not
+// permitted by gasneti_in_*segment().
 GASNETI_INLINE(gasnetc_local_mh)
 gni_mem_handle_t gasnetc_local_mh(void *addr) {
-  return  gasneti_in_auxsegment(NULL/*tm*/,gasneti_mynode,addr,0) ? my_aux_handle : my_mem_handle;
+  return  gasneti_in_auxsegment(NULL/*tm*/,gasneti_mynode,addr,1) ? my_aux_handle : my_mem_handle;
 }
 GASNETI_INLINE(gasnetc_remote_mh)
 gni_mem_handle_t gasnetc_remote_mh(peer_struct_t * const peer, void *addr) {
-  return  gasneti_in_auxsegment(NULL/*tm*/,peer->pe,addr,0) ? peer->aux_handle : peer->mem_handle;
+  return  gasneti_in_auxsegment(NULL/*tm*/,peer->pe,addr,1) ? peer->aux_handle : peer->mem_handle;
 }
 
 /* Perform an rdma/fma Put with no concern for local completion.
