@@ -963,6 +963,17 @@ typedef struct {
   void *              op_cdata;
 } gasnete_tm_reduce_args_t;
 
+typedef struct {
+  void *              dst;
+  const void *        src;
+  gex_DT_t            dt;
+  size_t              dt_sz;
+  size_t              dt_cnt;
+  gex_OP_t            opcode;
+  gex_Coll_ReduceFn_t op_fnptr;
+  void *              op_cdata;
+} gasnete_tm_reduce_all_args_t;
+
 /* Options for gasnete_coll_generic_* */
 #define GASNETE_COLL_GENERIC_OPT_INSYNC		0x0001
 #define GASNETE_COLL_GENERIC_OPT_OUTSYNC	0x0002
@@ -988,7 +999,8 @@ struct gasnete_coll_generic_data_t_ {
     GASNETE_COLL_GENERIC_TAG(reduce),
 
     /* GEX (tm-based) interfaces: */
-    GASNETE_COLL_GENERIC_TAG(tm_reduce)
+    GASNETE_COLL_GENERIC_TAG(tm_reduce),
+    GASNETE_COLL_GENERIC_TAG(tm_reduce_all)
     
     /* Hook for conduit-specific extension */
 #ifdef GASNETE_COLL_GENERIC_TAG_EXTRA
@@ -1026,6 +1038,7 @@ struct gasnete_coll_generic_data_t_ {
 
       /* GEX interfaces: */
       gasnete_tm_reduce_args_t                  tm_reduce;
+      gasnete_tm_reduce_all_args_t              tm_reduce_all;
 
       /* Hook for conduit-specific extension */
 #ifdef GASNETE_COLL_GENERIC_ARGS_EXTRA
@@ -1217,6 +1230,17 @@ gasnete_tm_generic_reduce_nb(gex_TM_t tm, gex_Rank_t root, void *dst, const void
                              gasnete_coll_scratch_req_t *scratch_req
                              GASNETI_THREAD_FARG);
 
+extern gex_Event_t
+gasnete_tm_generic_reduce_all_nb(
+                             gex_TM_t tm, void *dst, const void *src,
+                             gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                             gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
+                             int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
+                             gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
+                             int num_params, uint32_t *param_list,
+                             gasnete_coll_scratch_req_t *scratch_req
+                             GASNETI_THREAD_FARG);
+
 /*---------------------------------------------------------------------------------*
 * Start of protypes for reference implementations
 *---------------------------------------------------------------------------------*/
@@ -1331,6 +1355,22 @@ typedef gex_Event_t (*gasnete_tm_reduce_fn_ptr_t)(GASNETE_TM_REDUCE_ARGS);
 GASNETE_TM_DECLARE_REDUCE_ALG(BinomialEager);
 GASNETE_TM_DECLARE_REDUCE_ALG(TreePut);
 GASNETE_TM_DECLARE_REDUCE_ALG(TreePutSeg);
+
+/*---------------------------------------------------------------------------------*/
+
+#define GASNETE_TM_REDUCE_ALL_ARGS \
+                             gex_TM_t tm, void *dst, const void *src,\
+                             gex_DT_t dt, size_t dt_sz, size_t dt_cnt,\
+                             gex_OP_t op, gex_Coll_ReduceFn_t op_fnptr, void *op_cdata,\
+                             int coll_flags, \
+                             gasnete_coll_implementation_t coll_params,\
+                             uint32_t sequence\
+                             GASNETI_THREAD_FARG
+#define GASNETE_TM_DECLARE_REDUCE_ALL_ALG(FUNC_EXT) \
+    extern gex_Event_t gasnete_tm_reduce_all_##FUNC_EXT(GASNETE_TM_REDUCE_ALL_ARGS)
+typedef gex_Event_t (*gasnete_tm_reduce_all_fn_ptr_t)(GASNETE_TM_REDUCE_ALL_ARGS);
+
+GASNETE_TM_DECLARE_REDUCE_ALL_ALG(Bcast);
 
 /*---------------------------------------------------------------------------------*/
 // Reduction operators

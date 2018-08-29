@@ -30,6 +30,7 @@ options that is covered testcoll
 #define GATHER_ALL_ENABLED 0
 #define EXCHANGE_ENABLED 0
 #define REDUCE_ENABLED 0
+#define REDUCE_ALL_ENABLED 0
 #endif
 
 #ifndef NB_TESTS_ENABLED 
@@ -496,6 +497,71 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td,  "reduce_NB", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+ #endif
+#endif
+
+#if REDUCE_ALL_ENABLED || ALL_COLL_ENABLED  
+  /*REDUCE_ALL*/
+  for(k=0; k<outer_verification_iters; k++) {
+    COLL_BARRIER();
+    for(i=0; i<inner_verification_iters; i++) {
+      for(j=0; j<nelem; j++) {
+        src[i*nelem+j] = (42*(i+1)+j);
+      }
+    }
+    for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
+      dst[i] = -1;
+    }
+    if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();} 
+    for(i=0; i<inner_verification_iters; i++) {
+        gex_Event_Wait(gex_Coll_ReduceToAllNB(myteam,
+                                         dst+i*nelem, src+i*nelem,
+                                         GEX_DT_I32, sizeof(int), nelem,
+                                         GEX_OP_ADD, NULL, NULL, 0));
+    }
+    if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+    
+    for(i=0; i<inner_verification_iters; i++) {
+      for(j=0; j<nelem; j++) {
+        int expected = (42*(i+1)+j)*THREADS;
+        if(dst[i*nelem+j] != expected) {
+          MSG("%d> reduce_all verification @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
+          ERROR_EXIT();
+        } else if(0) {
+          MSG("%d> reduce_all passed @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
+        }
+      }
+    }
+  }
+
+  COLL_BARRIER();
+  begin = gasnett_ticks_now();
+  if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+  for(i=0; i<performance_iters; i++) { 
+      gex_Event_Wait(gex_Coll_ReduceToAllNB(myteam, dst, src,
+                                       GEX_DT_I32, sizeof(int), nelem,
+                                       GEX_OP_ADD, NULL, NULL, 0));
+  }
+  if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+  end =  gasnett_ticks_now() - begin;
+  COLL_BARRIER();  
+
+  print_timer(td,  "reduce_all", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+
+ #if NB_TESTS_ENABLED
+  COLL_BARRIER();
+  begin = gasnett_ticks_now();
+  if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+  for(i=0; i<performance_iters; i++) { 
+      handles[i] = gex_Coll_ReduceToAllNB(myteam, dst, src,
+                                     GEX_DT_I32, sizeof(int), nelem,
+                                     GEX_OP_ADD, NULL, NULL, 0);
+  }
+  if (handles) gex_Event_WaitAll(handles, performance_iters, 0);
+  if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+  end =  gasnett_ticks_now() - begin;
+  COLL_BARRIER();  
+  print_timer(td,  "reduce_all_NB", output_str,  "SINGLE-addr", flag_str, nelem, end);  
  #endif
 #endif
 

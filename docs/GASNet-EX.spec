@@ -2936,6 +2936,52 @@ gex_Event_t gex_Coll_ReduceToOneNB(
             void *              user_cdata,   // NOT single-valued
             gex_Flags_t         flags);       // Flags (partially single-valued)
 
+// Reduction to all
+//
+// This is a collective call over the team named by the 'tm' argument that
+// initiates a non-blocking reduction applying the operation denoted by 'op'
+// repeatedly to reduce a collection of operands of type denoted by 'dt'.
+// Each member of 'tm' provides a 'src' vector of length 'dt_cnt' (in
+// elements), and the elements are reduced element-wise such that the i'th
+// element of the output vector is the reduction over the i'th elements of the
+// 'src' vectors of all team members.  The result is written to the 'dst' of
+// all ranks.
+//
+// The definition of the element-wise reduction is the same as was given above
+// for gex_Coll_ReduceToOneNB().
+//
+// This call produces an output in the 'dst' buffer of all ranks.  However,
+// the implementation is free to apply associativity (and commutativity for
+// operators other than GEX_OP_USER_NC) *differently* in producing the
+// multiple outputs.  Therefore, when the operator differs from the assumed
+// mathematical properties, the results on different ranks might not be
+// identical.
+//
+// The 'dst' and 'src' buffers have length in bytes of 'dt_sz * dt_cnt'.
+//
+// It is permitted that 'src' and 'dst' be equal pairwise either on every rank,
+// or on none of them.  Any other overlap between 'src' and 'dst' buffers
+// yields undefined behavior.  This includes any case in which 'src' and 'dst'
+// are equal on at least one rank, but less than all ranks in the team (though
+// this last restriction may be relaxed in a future release).
+//
+// LIMITATIONS of the current release:
+//  + The current implementation may limit `dt_sz` for user-defined types to as
+//    little as 32KB bytes in some configurations and with default parameters.
+//    The precise limit depends on the network and sizes of the job and team.
+
+gex_Event_t gex_Coll_ReduceToAllNB(
+            gex_TM_t            tm,           // The team
+            void *              dst,          // NOT single-valued
+            const void *        src,          // NOT single-valued
+            gex_DT_t            dt,           // Data type (single-valued)
+            size_t              dt_sz,        // Data type size (single-valued)
+            size_t              dt_cnt,       // Element count (single-valued)
+            gex_OP_t            op,           // Operation (single-valued)
+            gex_Coll_ReduceFn_t user_op,      // NOT single-valued
+            void *              user_cdata,   // NOT single-valued
+            gex_Flags_t         flags);       // Flags (partially single-valued)
+
 
 // End of section describing APIs provided by gasnet_coll.h
 //----------------------------------------------------------------------
