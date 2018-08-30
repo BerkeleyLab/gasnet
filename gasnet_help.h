@@ -164,7 +164,7 @@ gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _r
 
 // These in-segment checks accept e_tm=NULL to indicate rank is a jobrank
 // (NULL,gasneti_mynode) is a common case for this.
-// NOTE: This behavior will no logner work when multi-{EP,segment} support is
+// NOTE: This behavior will no longer work when multi-{EP,segment} support is
 // added.  So avoid adding new callers which depend upon it.
 #if GASNET_SEGMENT_EVERYTHING
   #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes)  (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
@@ -174,6 +174,7 @@ gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _r
   GASNETI_INLINE(_gasneti_in_seg)
   int _gasneti_in_seg(gex_TM_t _e_tm, gex_Rank_t _rank,
                       const void *_ptr, size_t _nbytes, gasnet_seginfo_t *_seg) {
+    gasneti_assert(_nbytes); // precondition to avoid "fence post" error at top of segment
     gex_Rank_t _jobrank = _gasneti_e_tm_rank_to_jobrank_allownull(_e_tm,_rank);
     return ((_ptr) >= _seg[_jobrank].addr &&
             ((((uintptr_t)(_ptr))+(_nbytes)) <=
@@ -210,6 +211,7 @@ gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _r
                                          : gasneti_nodes;                      \
     const void *_gex_bc_ptr = (const void *)(ptr);                             \
     size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
+    gasneti_assert(_gex_bc_nbytes); /* avoids "fence post" error */            \
     if_pf (_gex_bc_rank >= _gex_bc_size)                                       \
       gasneti_fatalerror("Rank out of range (%lu >= %lu) at %s",               \
               (unsigned long)_gex_bc_rank, (unsigned long)(_gex_bc_size),      \
@@ -240,7 +242,7 @@ gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _r
 // gasneti_boundscheck() and gasneti_boundscheck_allowoutseg()
 // both accept e_tm=NULL to indicate rank is a jobrank
 // (NULL,gasneti_mynode) is a common case for this.
-// NOTE: This behavior will no logner work when multi-{EP,segment} support is
+// NOTE: This behavior will no longer work when multi-{EP,segment} support is
 // added.  So avoid adding new callers which depend upon it.
 #if GASNET_NDEBUG
   #define gasneti_boundscheck(e_tm,rank,ptr,nbytes) ((void)0)

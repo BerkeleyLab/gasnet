@@ -85,7 +85,11 @@
   /* Provide greater alignment than default: */
   static uintptr_t gasneti_mmap_pagesize_huge() {
      static long pagesz = 0;
-     if (!pagesz) pagesz = gethugepagesize();
+     if (!pagesz) {
+       pagesz = gethugepagesize();
+       gasneti_assert(pagesz >= GASNETI_PAGESIZE);
+       gasneti_assert(pagesz % GASNETI_PAGESIZE == 0);
+     }
      return pagesz;
   }
   static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
