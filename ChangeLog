@@ -23,6 +23,9 @@ PENDING:
 * Legacy backward-compatibility layer:
   - gasnet.h now implements gasnet_memset{,_nb,_nbi}
 
+* InfiniBand Verbs (ibv-conduit)
+  - Legacy support for Mellanox FCA has been removed
+
 ----------------------------------------------------------------------
 12-17-2018: GASNet-EX 2018.12.0 Beta release
 

@@ -548,10 +548,6 @@ extern void gasnete_coll_init_subsystem(void)
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 
-#ifdef GASNETI_USE_FCA
-    gasnet_team_fca_enable(GASNET_TEAM_ALL);
-#endif
-
     // TODO-EX:  Move other per-OPs default tree types out of autotune infrastructure?
 
     const char *default_tree_type = gasneti_getenv_withdefault("GASNET_COLL_ROOTED_GEOM",
@@ -1422,13 +1418,6 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
                           size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
 
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_BCAST)){
-    int rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
-    if_pt(rc >= 0) return GEX_EVENT_INVALID;
-  }
-#endif 
-
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST_NB,team,dst,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   handle = gasnete_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags,0 GASNETI_THREAD_PASS);
@@ -1459,13 +1448,6 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcast)
                                  void *dst,
                                  gasnet_image_t srcimage, void *src,
                                  size_t nbytes, int flags GASNETI_THREAD_FARG) {
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_BCAST)){
-    int rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
-    if_pt(rc >= 0) return;
-  }
-#endif     
-
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST,team,dst,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   gasnete_coll_broadcast(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_PASS);
@@ -1611,13 +1593,6 @@ _gasnet_coll_gather_all_nb(gasnet_team_handle_t team,
                            size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
 
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_ALLGATHER)){
-    int rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
-    if_pt(rc >= 0) return GEX_EVENT_INVALID;
-  }
-#endif
-
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL_NB,team,dst,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   handle = gasnete_coll_gather_all_nb(team,dst,src,nbytes,flags,0 GASNETI_THREAD_PASS);
@@ -1644,13 +1619,6 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all)
      void _gasnet_coll_gather_all(gasnet_team_handle_t team,
                                   void *dst, void *src,
                                   size_t nbytes, int flags GASNETI_THREAD_FARG) {
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_ALLGATHER)){
-    int rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
-    if_pt(rc >= 0) return;
-  }
-#endif
-
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL,team,dst,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   gasnete_coll_gather_all(team,dst,src,nbytes,flags GASNETI_THREAD_PASS);

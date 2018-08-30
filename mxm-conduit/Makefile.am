@@ -8,10 +8,6 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=mxm
 
-## Fca
-if FCA_ENABLED
-include $(top_builddir)/other/fca/fca.mak
-endif
 ##
 ## SSH bootstrap support (built unless fork() is unavailable)
 ##
@@ -71,26 +67,26 @@ CONDUIT_SOURCELIST =                  \
       $(srcdir)/gasnet_core_connect.c \
       $(srcdir)/gasnet_core_sndrcv.c  \
       $(srcdir)/gasnet_extended.c     \
-      $(fca_sourcelist) $(ssh_sources) $(pmi_sources)
+      $(ssh_sources) $(pmi_sources)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @MXM_CFLAGS@ $(ssh_defines) $(pmi_cppflags) $(mpi_defines) $(fca_extralibcflags)
+CONDUIT_EXTRALIBCFLAGS = @MXM_CFLAGS@ $(ssh_defines) $(pmi_cppflags) $(mpi_defines) 
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = $(fca_extraheaders)
+CONDUIT_EXTRAHEADERS = 
 
 # headers selected by default rules that should NOT be installed
-CONDUIT_PRIVATEHEADERS = $(fca_privheaders) gasnet_mxm_req.h
+CONDUIT_PRIVATEHEADERS = gasnet_mxm_req.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(ssh_deps) $(pmi_deps) $(mpi_deps) $(fca_extradeps)
+CONDUIT_EXTRADEPS = $(ssh_deps) $(pmi_deps) $(mpi_deps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS = $(mpi_special_objs) $(fca_special_objs)
+CONDUIT_SPECIAL_OBJS = $(mpi_special_objs)
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

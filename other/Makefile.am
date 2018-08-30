@@ -16,8 +16,7 @@ CONDUITMODE_SUBDIRS = \
 	amudp	   \
 	blcr       \
 	contrib    \
-	firehose   \
-	fca	   
+	firehose
 
 CONDUITMODE_EXTRADIST = \
 	amx         \
