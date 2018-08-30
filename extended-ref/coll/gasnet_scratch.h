@@ -23,7 +23,8 @@ typedef enum {GASNETE_COLL_UP_TREE=0, GASNETE_COLL_DOWN_TREE} gasnete_coll_tree_
 typedef enum {GASNETE_COLL_DISSEM_OP=0, GASNETE_COLL_TREE_OP} gasnete_coll_op_type_t;
 
 struct gasnete_coll_scratch_req_t_ {
-  
+  // NOTE: freelist linkage may share space with the first field(s)
+
   gasnete_coll_tree_type_t tree_type;
   gex_Rank_t root;
   gasnete_coll_team_t team;
@@ -49,8 +50,56 @@ struct gasnete_coll_scratch_req_t_ {
   gex_Rank_t *out_peers;
   uintptr_t *out_sizes;
   
-  
+  // A short sizes array
+  // TODO: this could be a flexible array member sized according to team size?
+  #define GASNETE_COLL_NUM_SCRATCH_REQ_INLINE_SIZES 8
+  uintptr_t inline_sizes[GASNETE_COLL_NUM_SCRATCH_REQ_INLINE_SIZES];
 };
+
+// Allocate and free scratch_requests
+// TODO-EX:
+// Storage is currently manged with a simple per-team freelist with no
+// serialization for concurrency.  When multiple endpoints are added then either
+// the calls need to be serialized by team->threads_mutex, or a lifo used here.
+GASNETI_INLINE(gasnete_coll_scratch_alloc_req) GASNETI_MALLOC
+gasnete_coll_scratch_req_t *gasnete_coll_scratch_alloc_req(gasnete_coll_team_t team)
+{
+  gasnete_coll_scratch_req_t *scratch_req = team->scratch_free_list;
+  if_pf (! scratch_req) {
+    scratch_req = gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
+    scratch_req->team = team;
+  } else {
+    team->scratch_free_list = *(gasnete_coll_scratch_req_t **)scratch_req;
+    gasneti_assert(scratch_req->team == team);
+  }
+  return scratch_req;
+}
+GASNETI_INLINE(gasnete_coll_scratch_free_req)
+void gasnete_coll_scratch_free_req(gasnete_coll_scratch_req_t *scratch_req)
+{
+  gasnete_coll_team_t team = scratch_req->team;
+  *(gasnete_coll_scratch_req_t **)scratch_req = team->scratch_free_list;
+  team->scratch_free_list = scratch_req;
+}
+
+// Allocate and free space used for out_sizes
+// For small sizes we use space within the scratch request itself
+GASNETI_INLINE(gasnete_coll_scratch_alloc_out_sizes)
+void gasnete_coll_scratch_alloc_out_sizes(gasnete_coll_scratch_req_t *req, size_t n)
+{
+  if_pf (n > GASNETE_COLL_NUM_SCRATCH_REQ_INLINE_SIZES) {
+    req->out_sizes = gasneti_malloc(n * sizeof(uintptr_t));
+  } else {
+    req->out_sizes = req->inline_sizes;
+  }
+}
+GASNETI_INLINE(gasnete_coll_scratch_free_out_sizes)
+void gasnete_coll_scratch_free_out_sizes(gasnete_coll_scratch_req_t *req)
+{
+  if_pf (req->out_sizes && (req->out_sizes != req->inline_sizes)) {
+    gasneti_free(req->out_sizes);
+  }
+}
 
 /* try to allocate scratch space*/
 /* returns 1 on success or zero on failure*/

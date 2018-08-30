@@ -282,12 +282,8 @@ gasnete_coll_op_info_t* gasnete_coll_scratch_remove_first_waiting_op(gasnete_col
     } else {
       stat->waiting_config_and_ops_head->prev = NULL;
     }
-    temp->prev = NULL;
-    temp->next = NULL;
     gasneti_free(temp);
   }
-  /*fprintf(stderr, "%d,%d> remove from wait\n",  ret->seq_number, gasneti_mynode);*/
-
   return ret;
 }
 
@@ -403,21 +399,28 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
 
   gasneti_assert(scratch_req);
   gasneti_assert(stat);
+  gasneti_assert(op->waiting_scratch_op == 0 || op->waiting_scratch_op == 1);
+  
   /*if the incoming size is greater than the total allocated scratch space signal an error*/
-  if(scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
+  if_pf (!op->waiting_scratch_op &&
+         scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
     gasneti_fatalerror("%d> collective requires temporary storage (%"PRIuPTR" bytes) which is greater than total scratch space (%"PRIuPTR" bytes)\nIncrease size of collective scratch space through GASNET_COLL_SCRATCH_SIZE environment variable to at least %"PRIuPTR" bytes\n", 
                        (int)scratch_req->team->myrank, 
-                       (uintptr_t)scratch_req->incoming_size, (uintptr_t)scratch_req->team->scratch_segs[0].size, (uintptr_t)scratch_req->incoming_size); 
+                       (uintptr_t)scratch_req->incoming_size,
+                       (uintptr_t)scratch_req->team->scratch_segs[0].size,
+                       (uintptr_t)scratch_req->incoming_size);
   }
-  gasneti_assert(op->waiting_scratch_op == 0 || op->waiting_scratch_op == 1);
+
   if(op->waiting_scratch_op) {
     /* this operation is already on the wait queue */
     /* check if this op is at the head of the wait queue 
     (do not modify the wait queue until we know the op can be activated)*/
+    // TODO - what is going on w/ next 3 lines !?
     if(!stat->waiting_config_and_ops_head) 
       
     gasneti_assert(stat->waiting_config_and_ops_head);
     gasneti_assert(stat->waiting_config_and_ops_head->op_list_head);
+    // TODO: following will break if/when 32-bit sequence wraps
     gasneti_assert(stat->waiting_config_and_ops_head->op_list_head->seq_number <= op->sequence); /* make sure that the head is an op w/ a lower sequence # */
     if(stat->waiting_config_and_ops_head->op_list_head->seq_number != op->sequence) {
       /* operation is not at the head of the wait queue so return an allocate fail*/
@@ -425,6 +428,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
     }   
   } else if(stat->num_waiting_ops > 0){
     /* i go at the end of the wait queue*/
+  // TODO: following will break if/when 32-bit sequence wraps
   gasneti_assert(stat->waiting_config_and_ops_head->op_list_head->seq_number <= op->sequence); /* make sure that the head is an op w/ a lower sequence # */
     gasnete_coll_scratch_add_to_wait(scratch_req, op);
     
@@ -586,53 +590,51 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
 
   
 void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
+  gasnete_coll_scratch_req_t *scratch_req = op->scratch_req;
+  gasnete_coll_scratch_config_t *active_config_and_ops = scratch_req->team->scratch_status->active_config_and_ops;
+
   /* find the op in the active scratch op list and remove it*/
-  gasnete_coll_op_info_t *temp= op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head;
+  gasnete_coll_op_info_t *temp= active_config_and_ops->op_list_head;
   int op_found = 0;
-  int first = 1;
 
   gasneti_assert(op->scratch_op_freed==0);
 
-  gasneti_assert(temp);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS 
   fprintf(stderr, "%d,%d> finishing op\n", op->sequence, gasneti_mynode);
 #endif
-  while(temp!=NULL) {
+  gasneti_assert(temp);
+  do {
     if(temp->seq_number == op->sequence) {
       if(temp->next) temp->next->prev = temp->prev;
       if(temp->prev) temp->prev->next = temp->next;
-      if(temp == op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head) {
-        op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head = temp->next;
+      if(temp == active_config_and_ops->op_list_head) {
+        active_config_and_ops->op_list_head = temp->next;
       } 
-      if(temp == op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail) {
-        op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail = temp->prev;
+      if(temp == active_config_and_ops->op_list_tail) {
+        active_config_and_ops->op_list_tail = temp->prev;
       }
       op_found = 1;
       gasneti_free(temp);
-      if(op->scratch_req->out_sizes) {
-        gasneti_free(op->scratch_req->out_sizes);
-      }
       break;
-      
     } else {
       temp = temp->next;
-      first = 0;
     }
-  }
+  } while(temp);
   gasneti_assert(op_found);
 #if GASNET_DEBUG
   op->scratch_op_freed = 1;
 #endif
-  op->scratch_req->team->scratch_status->active_config_and_ops->num_ops--;
+  gasneti_assert(active_config_and_ops->num_ops);
+  active_config_and_ops->num_ops--;
   
-  if(op->scratch_req->team->scratch_status->active_config_and_ops->num_ops==0) {
-    op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head = 
-    op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail = NULL;
+  if(active_config_and_ops->num_ops==0) {
+    active_config_and_ops->op_list_head = 
+    active_config_and_ops->op_list_tail = NULL;
   } else {
-    gasneti_assert(op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head);
-    gasneti_assert(op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail);
+    gasneti_assert(active_config_and_ops->op_list_head);
+    gasneti_assert(active_config_and_ops->op_list_tail);
   }
 
-  gasneti_free(op->scratch_req);
-
+  gasnete_coll_scratch_free_out_sizes(scratch_req);
+  gasnete_coll_scratch_free_req(scratch_req);
 }
