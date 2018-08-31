@@ -1865,7 +1865,8 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
-    remote_slot = 0; // Equates to mask=1
+    mask = 1;
+    remote_slot = 0; // Preserves mask=1
     length = max_length;
   } else if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
     gasneti_assert(slots <= am_maxcredit/2);
