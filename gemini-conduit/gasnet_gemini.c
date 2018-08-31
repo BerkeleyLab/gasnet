@@ -2189,7 +2189,7 @@ void am_rvous_run(GASNETI_THREAD_FARG_ALONE)
     curr = ready_list;
     do {
       gasnetc_post_descriptor_t *gpd = gasneti_container_of(curr, gasnetc_post_descriptor_t, u.am_rvous);
-      gasneti_assert(gpd->gpd_flags == GC_POST_COMPLETION_AMRV | GC_POST_KEEP_GPD);
+      gasneti_assert(gpd->gpd_flags == (GC_POST_COMPLETION_AMRV | GC_POST_KEEP_GPD));
       gasnetc_recv_am_unlocked(curr->peer, (void*) gpd->pd.local_addr, curr->notify GASNETI_THREAD_PASS);
       curr = curr->next;
       gasneti_lifo_push(&am_rvous_pool, gpd);
