@@ -165,7 +165,7 @@ extern void gasnete_coll_eop_signal(gasnete_coll_eop_t eop GASNETI_THREAD_FARG) 
 /*---------------------------------------------------------------------------------*/
 /* Code for list of events to test in progress */
 
-static gasneti_mutex_t gasnete_coll_poll_lock = GASNETI_MUTEX_INITIALIZER;
+gasneti_mutex_t gasnete_coll_poll_lock = GASNETI_MUTEX_INITIALIZER;
 
 static struct {
   gex_Event_t  **addrs;

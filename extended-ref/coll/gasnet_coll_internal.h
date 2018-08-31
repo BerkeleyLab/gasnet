@@ -368,6 +368,9 @@ struct gasnete_coll_team_t_ {
 
 /*---------------------------------------------------------------------------------*/
 
+/* Serialization of polling collective ops: */
+extern gasneti_mutex_t gasnete_coll_poll_lock;
+
 /* Function pointer type for polling collective ops: */
 typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t* GASNETI_THREAD_FARG);
 

@@ -138,14 +138,32 @@ uint8_t gasnete_coll_scratch_compare_config(gasnete_coll_scratch_config_t *A,
   else return 1;
 }
 
+// Init data fields, not linkage
+GASNETI_INLINE(gasnete_coll_scratch_init_config)
+void gasnete_coll_scratch_init_config(gasnete_coll_scratch_config_t *config, gasnete_coll_scratch_req_t *scratch_req)
+{
+  config->root = scratch_req->root;
+  config->tree_type = scratch_req->tree_type;
+  config->op_type = scratch_req->op_type;
+  config->tree_dir = scratch_req->tree_dir;
+}
+
+// Protected by gasnete_coll_poll_lock
+static gasnete_coll_scratch_config_t *gasnete_coll_scratch_config_free_list = NULL;
+
 GASNETI_INLINE(gasnete_coll_scratch_allocate_new_config)
-gasnete_coll_scratch_config_t * gasnete_coll_scratch_allocate_new_config(gasnete_coll_scratch_req_t * scratch_req){
+gasnete_coll_scratch_config_t * gasnete_coll_scratch_allocate_new_config(void)
+{
+  gasneti_mutex_assertlocked(&gasnete_coll_poll_lock);
   gasnete_coll_scratch_config_t *ret;
-  ret = gasneti_calloc(1, sizeof(gasnete_coll_scratch_config_t));
-  ret->root = scratch_req->root;
-  ret->tree_type = scratch_req->tree_type;
-  ret->op_type = scratch_req->op_type;
-  ret->tree_dir = scratch_req->tree_dir;
+  ret = gasnete_coll_scratch_config_free_list;
+  if (ret) {
+    gasnete_coll_scratch_config_free_list = ret->next;
+  } else {
+    ret = gasneti_malloc(sizeof(gasnete_coll_scratch_config_t));
+  }
+  ret->numpeers = 0;
+  ret->op_list_head = NULL;
   ret->op_list_tail_p = &ret->op_list_head;
   return ret;
 }
@@ -153,7 +171,9 @@ gasnete_coll_scratch_config_t * gasnete_coll_scratch_allocate_new_config(gasnete
 GASNETI_INLINE(gasnete_coll_scratch_free_config)
 void gasnete_coll_scratch_free_config(gasnete_coll_scratch_config_t *config)
 {
-  gasneti_free(config);
+  gasneti_mutex_assertlocked(&gasnete_coll_poll_lock);
+  config->next = gasnete_coll_scratch_config_free_list;
+  gasnete_coll_scratch_config_free_list = config;
 }
 
 /* add the op to the tail of the configuration*/
@@ -201,11 +221,12 @@ void gasnete_coll_scratch_add_to_wait(gasnete_coll_scratch_req_t *scratch_req, g
 
   if (!temp || !gasnete_coll_scratch_compare_config(temp, scratch_req)) {
     /* attach to the end of the list*/
-    temp =  gasnete_coll_scratch_allocate_new_config(scratch_req);
+    temp =  gasnete_coll_scratch_allocate_new_config();
+    gasnete_coll_scratch_init_config(temp, scratch_req);
     *stat->waiting_config_and_ops_tail_p = temp;
     temp->prev_p = stat->waiting_config_and_ops_tail_p;
     stat->waiting_config_and_ops_tail_p = &temp->next;
-    gasneti_assert(temp->next == NULL);
+    temp->next = NULL;
   }
   gasnete_coll_scratch_add_op_to_config(temp, scratch_req);
 }
@@ -222,7 +243,7 @@ void gasnete_coll_scratch_remove_first_waiting_op(gasnete_coll_scratch_status_t 
     } else {
       stat->waiting_config_and_ops_tail_p = temp->prev_p;
     }
-    gasneti_free(temp);
+    gasnete_coll_scratch_free_config(temp);
   }
 }
 
@@ -235,9 +256,7 @@ void gasnete_coll_scratch_reconfigure(gasnete_coll_scratch_status_t *stat,
   gasnete_coll_scratch_config_t *config = stat->active_config_and_ops;
   int flag = 0;
   if(!config) {
-    config = stat->active_config_and_ops =
-        (gasnete_coll_scratch_config_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_config_t));
-    config->op_list_tail_p = &config->op_list_head;
+    config = stat->active_config_and_ops = gasnete_coll_scratch_allocate_new_config();
     flag = 1;
   }
   if(flag || !gasnete_coll_scratch_compare_config(stat->active_config_and_ops, req)) {
@@ -383,10 +402,9 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
       if (stat->waiting_config_and_ops_head) {
         gasnete_coll_scratch_reconfigure(stat, scratch_req, stat->waiting_config_and_ops_head);
       } else {
-        gasnete_coll_scratch_config_t *tmp_config;
-        tmp_config = gasnete_coll_scratch_allocate_new_config(scratch_req);
-        gasnete_coll_scratch_reconfigure(stat, scratch_req, tmp_config);
-        gasnete_coll_scratch_free_config(tmp_config);
+        gasnete_coll_scratch_config_t tmp_config;
+        gasnete_coll_scratch_init_config(&tmp_config, scratch_req);
+        gasnete_coll_scratch_reconfigure(stat, scratch_req, &tmp_config);
       } 
     }
     
