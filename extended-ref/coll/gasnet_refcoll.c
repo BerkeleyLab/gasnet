@@ -1338,7 +1338,8 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
     */
 
     op->scratch_req = scratch_req;
-      
+    if (scratch_req) scratch_req->op = op;
+
     /* Allocate the barriers AFTER SCRATCH SPACE*/
     /* This will allow the scratch space to use its own consensus barriers*/
     if_pf (flags & GASNETE_COLL_SUBORDINATE) {

@@ -23,7 +23,10 @@ typedef enum {GASNETE_COLL_UP_TREE=0, GASNETE_COLL_DOWN_TREE} gasnete_coll_tree_
 typedef enum {GASNETE_COLL_DISSEM_OP=0, GASNETE_COLL_TREE_OP} gasnete_coll_op_type_t;
 
 struct gasnete_coll_scratch_req_t_ {
-  // NOTE: freelist linkage may share space with the first field(s)
+  gasnete_coll_scratch_req_t *next;
+  gasnete_coll_scratch_req_t **prev_p;
+
+  gasnete_coll_op_t *op;
 
   gasnete_coll_tree_type_t tree_type;
   gex_Rank_t root;
@@ -69,7 +72,7 @@ gasnete_coll_scratch_req_t *gasnete_coll_scratch_alloc_req(gasnete_coll_team_t t
     scratch_req = gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     scratch_req->team = team;
   } else {
-    team->scratch_free_list = *(gasnete_coll_scratch_req_t **)scratch_req;
+    team->scratch_free_list = scratch_req->next;
     gasneti_assert(scratch_req->team == team);
   }
   return scratch_req;
@@ -78,7 +81,7 @@ GASNETI_INLINE(gasnete_coll_scratch_free_req)
 void gasnete_coll_scratch_free_req(gasnete_coll_scratch_req_t *scratch_req)
 {
   gasnete_coll_team_t team = scratch_req->team;
-  *(gasnete_coll_scratch_req_t **)scratch_req = team->scratch_free_list;
+  scratch_req->next = team->scratch_free_list;
   team->scratch_free_list = scratch_req;
 }
 
