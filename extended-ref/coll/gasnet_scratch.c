@@ -40,6 +40,9 @@ struct gasnete_coll_scratch_config_t_ {
   int numpeers;
   gex_Rank_t *peers;
   
+  // A short peers array
+  // TODO: this could be a flexible array member sized according to team size?
+  gex_Rank_t inline_peers[GASNETE_COLL_NUM_INLINE_IN_PEERS];
 };
 
 
@@ -266,14 +269,22 @@ void gasnete_coll_scratch_reconfigure(gasnete_coll_scratch_status_t *stat,
     config->tree_dir = new_config->tree_dir;
     config->dissem_radix = new_config->dissem_radix;
   
-    if(config->numpeers > 0) {
+    if (config->numpeers && (config->peers != config->inline_peers)) {
       gasneti_free(config->peers);    
     }
   
     /* set the new config and the information about who will send to me*/
-    config->numpeers = req->num_in_peers;
-    config->peers = gasneti_malloc(sizeof(gex_Rank_t)*config->numpeers);
-    GASNETI_MEMCPY_SAFE_EMPTY(config->peers, req->in_peers, sizeof(gex_Rank_t)*config->numpeers);
+    size_t n = req->num_in_peers;
+    config->numpeers = n;
+    if (n) {
+      size_t space = n * sizeof(gex_Rank_t);
+      if (n > GASNETE_COLL_NUM_INLINE_IN_PEERS) {
+        config->peers = gasneti_malloc(space);
+      } else {
+        config->peers = config->inline_peers;
+      }
+      GASNETI_MEMCPY(config->peers, req->in_peers, space);
+    }
   }
 }
 
@@ -436,8 +447,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
        fprintf(stderr, "%d> allocating for op %d\n", gasneti_mynode, op->sequence); 
 #endif
       op->myscratchpos = gasnete_coll_scratch_make_local_alloc(scratch_req, stat);
-      
-      op->scratchpos = gasneti_malloc(sizeof(uintptr_t)*(scratch_req->num_out_peers));
+      gasnete_coll_scratch_alloc_pos(scratch_req);
       gasnete_coll_scratch_make_remote_alloc(scratch_req, stat, op->scratchpos);
       return 1;
     } else { 
@@ -495,7 +505,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
       fprintf(stderr, "%d> allocating for op %d\n", gasneti_mynode, op->sequence); 
 #endif
       op->myscratchpos = gasnete_coll_scratch_make_local_alloc(scratch_req, stat);
-      op->scratchpos = gasneti_malloc(sizeof(uintptr_t)*(scratch_req->num_out_peers));
+      gasnete_coll_scratch_alloc_pos(scratch_req);
       gasnete_coll_scratch_make_remote_alloc(scratch_req, stat, op->scratchpos);
       return 1;
     } else {
@@ -539,6 +549,6 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
   op->scratch_req = NULL;
 #endif
 
-  gasnete_coll_scratch_free_out_sizes(scratch_req);
+  gasnete_coll_scratch_free_inlines(scratch_req);
   gasnete_coll_scratch_free_req(scratch_req);
 }

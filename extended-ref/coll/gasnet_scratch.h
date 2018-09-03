@@ -12,6 +12,9 @@
 #define GASNETE_COLL_SCRATCH_TREE_OP 0
 #define GASNETE_COLL_SCRATCH_DISSEM_OP 1
 
+// How many elements (of appropriate types) to inline in order to avoid dynamic allocations
+#define GASNETE_COLL_NUM_INLINE_OUT_PEERS 8
+#define GASNETE_COLL_NUM_INLINE_IN_PEERS  8
 
 struct gasnete_coll_node_scratch_status_t_;
 typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_status_t;
@@ -53,10 +56,9 @@ struct gasnete_coll_scratch_req_t_ {
   gex_Rank_t *out_peers;
   uintptr_t *out_sizes;
   
-  // A short sizes array
+  // A short array of uintptr_t for out_sizes and scratchpos (thus *2)
   // TODO: this could be a flexible array member sized according to team size?
-  #define GASNETE_COLL_NUM_SCRATCH_REQ_INLINE_SIZES 8
-  uintptr_t inline_sizes[GASNETE_COLL_NUM_SCRATCH_REQ_INLINE_SIZES];
+  uintptr_t inline_uintptr[GASNETE_COLL_NUM_INLINE_OUT_PEERS*2];
 };
 
 // Allocate and free scratch_requests
@@ -85,21 +87,35 @@ void gasnete_coll_scratch_free_req(gasnete_coll_scratch_req_t *scratch_req)
   team->scratch_free_list = scratch_req;
 }
 
-// Allocate and free space used for out_sizes
+// Allocate and free (consecutive) space used for out_sizes and scratchpos
 // For small sizes we use space within the scratch request itself
+// The allocation interfaces are such that one could split the two apart
 GASNETI_INLINE(gasnete_coll_scratch_alloc_out_sizes)
 void gasnete_coll_scratch_alloc_out_sizes(gasnete_coll_scratch_req_t *req, size_t n)
 {
-  if_pf (n > GASNETE_COLL_NUM_SCRATCH_REQ_INLINE_SIZES) {
-    req->out_sizes = gasneti_malloc(n * sizeof(uintptr_t));
+  gasneti_assert(n == (req->op_type == GASNETE_COLL_DISSEM_OP ? 1 : req->num_out_peers));
+  size_t count = n + req->num_out_peers;
+  if (count > 2 * GASNETE_COLL_NUM_INLINE_OUT_PEERS) {
+    req->out_sizes = gasneti_malloc(count * sizeof(uintptr_t));
   } else {
-    req->out_sizes = req->inline_sizes;
+    req->out_sizes = req->inline_uintptr;
   }
 }
-GASNETI_INLINE(gasnete_coll_scratch_free_out_sizes)
-void gasnete_coll_scratch_free_out_sizes(gasnete_coll_scratch_req_t *req)
+GASNETI_INLINE(gasnete_coll_scratch_alloc_pos)
+void gasnete_coll_scratch_alloc_pos(gasnete_coll_scratch_req_t *req)
 {
-  if_pf (req->out_sizes && (req->out_sizes != req->inline_sizes)) {
+  size_t num_out_sizes = (req->op_type == GASNETE_COLL_DISSEM_OP ? 1 : req->num_out_peers);
+  gasnete_coll_op_t *op = req->op;
+  op->scratchpos = req->out_sizes + num_out_sizes;
+}
+GASNETI_INLINE(gasnete_coll_scratch_free_inlines)
+void gasnete_coll_scratch_free_inlines(gasnete_coll_scratch_req_t *req)
+{
+  size_t num_out_sizes = (req->op_type == GASNETE_COLL_DISSEM_OP ? 1 : req->num_out_peers);
+  gasneti_assert(req->op->scratchpos == req->out_sizes + num_out_sizes);
+  size_t n = req->num_out_peers + num_out_sizes;
+  if (n > 2 * GASNETE_COLL_NUM_INLINE_OUT_PEERS) {
+    gasneti_assert(req->out_sizes != req->inline_uintptr);
     gasneti_free(req->out_sizes);
   }
 }
