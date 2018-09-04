@@ -1871,9 +1871,11 @@ extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gasnet_no
 
 /* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slots "offset+" */
 /* XXX: we send addr+"0", when only the addr is needed (want "custom" AM, not eager_put) . */
+// TODO: why are we sending the zero-values 'sent' fields?
 void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                 uint32_t offset, void * const *dstlist,
                                 gasnet_node_t node, size_t nbytes, uint32_t count) {
+  // TODO: alloca?
   struct gasnete_coll_p2p_send_struct *tmp =
 		gasneti_malloc(count * sizeof(struct gasnete_coll_p2p_send_struct));
   int i;
@@ -1886,6 +1888,7 @@ void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
   p2p->state[0] += count * ((nbytes + gasnet_AMMaxMedium() - 1) / gasnet_AMMaxMedium());
   gasnet_hsl_unlock(&p2p->lock);
   gasnete_coll_p2p_eager_putM(op, node, tmp, count, sizeof(*tmp), offset, 1);
+  gasneti_free(tmp);
 }
 
 /* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slot "offset" */
@@ -1893,7 +1896,14 @@ void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
 void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                uint32_t offset, void *dst,
                                gasnet_node_t node, size_t nbytes) {
-  gasnete_coll_p2p_send_rtrM(op, p2p, offset, &dst, node, nbytes, 1);
+  struct gasnete_coll_p2p_send_struct tmp;
+  tmp.addr = dst;
+  tmp.sent = 0;
+  gasnet_hsl_lock(&p2p->lock);
+  /* Record the number of Mediums we know we'll receive. */
+  p2p->state[0] += ((nbytes + gasnet_AMMaxMedium() - 1) / gasnet_AMMaxMedium());
+  gasnet_hsl_unlock(&p2p->lock);
+  gasnete_coll_p2p_eager_put(op, node, &tmp, sizeof(tmp), offset, 1);
 }
 
 /* Check completion of a gasnete_coll_p2p_memcpy (on rcvr) */
