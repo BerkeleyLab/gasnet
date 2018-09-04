@@ -18,7 +18,7 @@ struct gasnete_coll_node_scratch_status_t_  {
   
   /*since the tail is the only one that gets updated by the active message handlers it needs to be the atomic one*/
   gasneti_weakatomic_t reset_signal_sent;
-  gasneti_weakatomic_t reset_signal_recv;
+  gasneti_weakatomic_val_t reset_signal_recv;
 };
 
 struct gasnete_coll_scratch_config_t_ {
@@ -82,7 +82,7 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
   for(i=0; i<team->total_ranks; i++) {
     stat->node_status[i].head = 0;
     gasneti_weakatomic_set(&(stat->node_status[i].reset_signal_sent),0,0);
-    gasneti_weakatomic_set(&(stat->node_status[i].reset_signal_recv),0,0);
+    stat->node_status[i].reset_signal_recv = 0;
   }
   
   team->scratch_status = stat;
@@ -96,20 +96,15 @@ void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETI_
 
 
 void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
-  int i;
   gasnete_coll_scratch_status_t *stat = team->scratch_status;
   
-  /*Becareful with the teams here and how the peer list is specified*/
-  /*for gasnet team all it doesn't matter but in other cases it does
-  stat->active_config_and_ops->peers[i] needs to be translated to an absolute rank*/
-  for(i=0; i<stat->active_config_and_ops->numpeers; i++) {
-    gex_AM_RequestShort(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(team, stat->active_config_and_ops->peers[i]),
+  for (int i = 0; i < stat->active_config_and_ops->numpeers; i++) {
+    gex_AM_RequestShort(team->e_tm, stat->active_config_and_ops->peers[i],
                                 gasneti_handleridx(gasnete_coll_scratch_update_reqh), 0,
                                 team->team_id, team->myrank);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
     fprintf(stderr, "%d,%d> CLEAR!->%d\n", seq, gasneti_mynode, stat->active_config_and_ops->peers[i]); 
 #endif
-    
   }
  }
 
@@ -124,7 +119,6 @@ void gasnete_coll_scratch_update_reqh(gex_Token_t token,
   stat = team->scratch_status;
   gasneti_assert(stat);
   gasneti_assert(stat->node_status);
-  /* for now signal the new val as 1*/
   gasneti_weakatomic_increment(&(stat->node_status[node].reset_signal_sent),0);
 }
 /***************************/
@@ -306,22 +300,22 @@ uintptr_t gasnete_coll_scratch_make_local_alloc(gasnete_coll_scratch_req_t *req,
 
 GASNETI_INLINE(gasnete_coll_scratch_check_remote_clear)
 uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
-                                                gasnete_coll_scratch_status_t *stat) {
-  gex_Rank_t i;
-  
-  for(i=0; i<req->num_out_peers; i++) {
-    /*fprintf(stderr, "%d> waiting for clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
-    if(gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_sent),0)
-       == gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0)
-       ) {
+                                                gasnete_coll_scratch_status_t *stat)
+{
+  const gex_Rank_t n = req->num_out_peers;
+  for (gex_Rank_t i = 0; i < n; i++) {
+    const gex_Rank_t peer = req->out_peers[i];
+    if (gasneti_weakatomic_read(&(stat->node_status[peer].reset_signal_sent),0) ==
+        stat->node_status[peer].reset_signal_recv) {
       return 0;
     }
   }
-  /* reset all the signals once we get all of them*/
-  /*fprintf(stderr, "%d> got all clear\n", gasneti_mynode);*/
-  for(i=0; i<req->num_out_peers; i++) {
-    gasneti_weakatomic_increment(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0);
-    stat->node_status[req->out_peers[i]].head = 0;
+  /* reset all the signals once we get all of them */
+  for (gex_Rank_t i = 0; i < n; i++) {
+    const gex_Rank_t peer = req->out_peers[i];
+    stat->node_status[peer].reset_signal_recv += 1;
+    stat->node_status[peer].reset_signal_recv &= GASNETI_ATOMIC_MAX;
+    stat->node_status[peer].head = 0;
   }
   return 1;
 }
@@ -329,21 +323,20 @@ uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
 GASNETI_INLINE(gasnete_coll_scratch_check_remote_alloc)
 uint8_t gasnete_coll_scratch_check_remote_alloc(gasnete_coll_scratch_req_t *req,
                                                 gasnete_coll_scratch_status_t *stat) {
-  gex_Rank_t i;
-  
-  for(i=0; i<req->num_out_peers; i++) {
-    if(stat->node_status[req->out_peers[i]].head + req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)] >  
-       req->team->scratch_segs[req->out_peers[i]].size) {
-      /*fprintf(stderr, "%d> waiting for clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
+  const gex_Rank_t n = req->num_out_peers;
+  const int is_dissem = (req->op_type == GASNETE_COLL_DISSEM_OP);
+  for (gex_Rank_t i = 0; i < n; i++) {
+    const gex_Rank_t peer = req->out_peers[i];
+    if (stat->node_status[peer].head + req->out_sizes[is_dissem ? 0 : i] >
+        req->team->scratch_segs[peer].size) {
       /* remote space is full */
-      if(gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_sent),0)==
-         gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0)
-         ) {
+      if (gasneti_weakatomic_read(&(stat->node_status[peer].reset_signal_sent),0) ==
+          stat->node_status[peer].reset_signal_recv) {
         return 0;
       } else {
-        /*fprintf(stderr, "%d> got clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
-        stat->node_status[req->out_peers[i]].head = 0;
-        gasneti_weakatomic_increment(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0);
+        stat->node_status[peer].head = 0;
+        stat->node_status[peer].reset_signal_recv += 1;
+        stat->node_status[peer].reset_signal_recv &= GASNETI_ATOMIC_MAX;
       }
     }
   }
@@ -354,10 +347,11 @@ GASNETI_INLINE(gasnete_coll_scratch_make_remote_alloc)
 void gasnete_coll_scratch_make_remote_alloc(gasnete_coll_scratch_req_t *req,
                                             gasnete_coll_scratch_status_t *stat,
                                             uintptr_t *rem_pos) {
-  gex_Rank_t i;
-  for(i=0; i<req->num_out_peers; i++) {
-    rem_pos[i] = stat->node_status[req->out_peers[i]].head;
-    stat->node_status[req->out_peers[i]].head += req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)]; 
+  const int is_dissem = (req->op_type == GASNETE_COLL_DISSEM_OP);
+  for (gex_Rank_t i=0; i<req->num_out_peers; i++) {
+    const gex_Rank_t peer = req->out_peers[i];
+    rem_pos[i] = stat->node_status[peer].head;
+    stat->node_status[peer].head += req->out_sizes[is_dissem ? 0 : i];
   }  
 }
 
