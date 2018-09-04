@@ -26,7 +26,6 @@ struct gasnete_coll_scratch_config_t_ {
   gasnete_coll_tree_type_t tree_type;
   gex_Rank_t root;
   gasnete_coll_tree_dir_t tree_dir;
-  int dissem_radix;
   
   gasnete_coll_scratch_req_t *op_list_head;
   gasnete_coll_scratch_req_t **op_list_tail_p;
@@ -37,7 +36,7 @@ struct gasnete_coll_scratch_config_t_ {
   
   /* this should be ignored when the config is waiting*/
   /*nodes that will send to me*/
-  int numpeers;
+  int numpeers, maxpeers;
   gex_Rank_t *peers;
   
   // A short peers array
@@ -46,23 +45,17 @@ struct gasnete_coll_scratch_config_t_ {
 };
 
 
-/*this structure describes an operation info*/
 struct gasnete_coll_scratch_status_t_ {
-  /*creates an array of node statuses*/
-  /* list of currently active peers*/
-  
-  gasnete_coll_scratch_config_t *active_config_and_ops;
+  gasnete_coll_scratch_config_t active_config_and_ops;
   
   gasnete_coll_scratch_config_t *waiting_config_and_ops_head;
   gasnete_coll_scratch_config_t **waiting_config_and_ops_tail_p;
   
   gasnete_coll_node_scratch_status_t *node_status;
   
-  /*an indicator telling you whether the upcoming collective op is the first after a barrier*/
   uint8_t scratch_empty;
   uint8_t clear_signal_sent;
   gasnete_coll_team_t team;
-
 };
 
 
@@ -73,8 +66,6 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
   stat = (gasnete_coll_scratch_status_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_status_t));
   stat->node_status = (gasnete_coll_node_scratch_status_t*)gasneti_malloc(sizeof(gasnete_coll_node_scratch_status_t)*team->total_ranks);
   
-  stat->active_config_and_ops = NULL;
-  stat->waiting_config_and_ops_head = NULL;
   stat->waiting_config_and_ops_tail_p = & stat->waiting_config_and_ops_head;
   stat->team = team;
   stat->scratch_empty = 1;
@@ -84,9 +75,14 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
     gasneti_weakatomic_set(&(stat->node_status[i].reset_signal_sent),0,0);
     stat->node_status[i].reset_signal_recv = 0;
   }
+
+  // Initialize active_config_and_ops
+  stat->active_config_and_ops.root = GEX_RANK_INVALID;
+  stat->active_config_and_ops.op_list_tail_p = &stat->active_config_and_ops.op_list_head;
+  stat->active_config_and_ops.peers = stat->active_config_and_ops.inline_peers;
+  stat->active_config_and_ops.maxpeers = GASNETE_COLL_NUM_INLINE_IN_PEERS;
   
   team->scratch_status = stat;
-
 }
 
 
@@ -96,14 +92,14 @@ void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETI_
 
 
 void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
-  gasnete_coll_scratch_status_t *stat = team->scratch_status;
+  gasnete_coll_scratch_config_t *config = &team->scratch_status->active_config_and_ops;
   
-  for (int i = 0; i < stat->active_config_and_ops->numpeers; i++) {
-    gex_AM_RequestShort(team->e_tm, stat->active_config_and_ops->peers[i],
+  for (int i = 0; i < config->numpeers; i++) {
+    gex_AM_RequestShort(team->e_tm, config->peers[i],
                                 gasneti_handleridx(gasnete_coll_scratch_update_reqh), 0,
                                 team->team_id, team->myrank);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
-    fprintf(stderr, "%d,%d> CLEAR!->%d\n", seq, gasneti_mynode, stat->active_config_and_ops->peers[i]); 
+    fprintf(stderr, "%d,%d> CLEAR!->%d\n", seq, gasneti_mynode, config->peers[i]);
 #endif
   }
  }
@@ -246,36 +242,27 @@ void gasnete_coll_scratch_remove_first_waiting_op(gasnete_coll_scratch_status_t 
 
 GASNETI_INLINE(gasnete_coll_scratch_reconfigure)
 void gasnete_coll_scratch_reconfigure(gasnete_coll_scratch_status_t *stat, 
-                                      gasnete_coll_scratch_req_t *req,
-                                      gasnete_coll_scratch_config_t *new_config) {
-  /* free the old configuration*/
-  /* the old ops should be empty*/
-  gasnete_coll_scratch_config_t *config = stat->active_config_and_ops;
-  int flag = 0;
-  if(!config) {
-    config = stat->active_config_and_ops = gasnete_coll_scratch_allocate_new_config();
-    flag = 1;
-  }
-  if(flag || !gasnete_coll_scratch_compare_config(stat->active_config_and_ops, req)) {
-    config->op_type = new_config->op_type;
-    config->tree_type = new_config->tree_type;
-    config->root = new_config->root;
-    config->tree_dir = new_config->tree_dir;
-    config->dissem_radix = new_config->dissem_radix;
+                                      gasnete_coll_scratch_req_t *req)
+{
+  gasnete_coll_scratch_config_t *config = &stat->active_config_and_ops;
+  gasneti_assert(!config->op_list_head); // must be empty of ops
+  if (! gasnete_coll_scratch_compare_config(config, req)) {
+    /* set the new config and the information about who will send to me */
+    config->op_type   = req->op_type;
+    config->tree_type = req->tree_type;
+    config->root      = req->root;
+    config->tree_dir  = req->tree_dir;
   
-    if (config->numpeers && (config->peers != config->inline_peers)) {
-      gasneti_free(config->peers);    
-    }
-  
-    /* set the new config and the information about who will send to me*/
     size_t n = req->num_in_peers;
     config->numpeers = n;
     if (n) {
       size_t space = n * sizeof(gex_Rank_t);
-      if (n > GASNETE_COLL_NUM_INLINE_IN_PEERS) {
+      if_pf (n > config->maxpeers) {
+        if (config->peers != config->inline_peers) {
+          gasneti_free(config->peers);
+        }
         config->peers = gasneti_malloc(space);
-      } else {
-        config->peers = config->inline_peers;
+        config->maxpeers = n;
       }
       GASNETI_MEMCPY(config->peers, req->in_peers, space);
     }
@@ -397,22 +384,13 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
   /* if we get here then op is a new op w/ no ops waiting or it is the first on the wait queue */
  /* fprintf(stderr, "%d,%d> polling scratch\n", op->sequence, gasneti_mynode);*/
   if(op->waiting_for_reconfig_clear || 
-     stat->active_config_and_ops == NULL || 
-     (!gasnete_coll_scratch_compare_config(stat->active_config_and_ops, scratch_req) && !stat->active_config_and_ops->op_list_head)) {
+     (!gasnete_coll_scratch_compare_config(&stat->active_config_and_ops, scratch_req) &&
+      !stat->active_config_and_ops.op_list_head)) {
     /* empty scratch space is misconfigured*/
- 
-   
 
     if(!op->waiting_for_reconfig_clear) {
-      if (stat->waiting_config_and_ops_head) {
-        gasnete_coll_scratch_reconfigure(stat, scratch_req, stat->waiting_config_and_ops_head);
-      } else {
-        gasnete_coll_scratch_config_t tmp_config;
-        gasnete_coll_scratch_init_config(&tmp_config, scratch_req);
-        gasnete_coll_scratch_reconfigure(stat, scratch_req, &tmp_config);
-      } 
+      gasnete_coll_scratch_reconfigure(stat, scratch_req);
     }
-    
     
     if(stat->clear_signal_sent==0) {
       stat->node_status[scratch_req->team->myrank].head = 0; 
@@ -435,7 +413,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
         gasnete_coll_scratch_remove_first_waiting_op(stat);
         op->waiting_scratch_op = 0;
       }
-      gasnete_coll_scratch_add_op_to_config(stat->active_config_and_ops, scratch_req);
+      gasnete_coll_scratch_add_op_to_config(&stat->active_config_and_ops, scratch_req);
       /* return the appropriate amount of local/remote scratch space*/
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
        fprintf(stderr, "%d> allocating for op %d\n", gasneti_mynode, op->sequence); 
@@ -454,11 +432,11 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
       }
       return 0;
     }
-  } else if(gasnete_coll_scratch_compare_config(stat->active_config_and_ops, scratch_req)) {
+  } else if(gasnete_coll_scratch_compare_config(&stat->active_config_and_ops, scratch_req)) {
     /*fprintf(stderr, "%d,%d> polling scratch --> correct config check for space\n", op->sequence, gasneti_mynode);*/
     /* configuration matches the current configuration ... check if we can allocate*/
     if(!gasnete_coll_scratch_check_local_alloc(scratch_req, stat)) { 
-      if (!stat->active_config_and_ops->op_list_head) {
+      if (!stat->active_config_and_ops.op_list_head) {
         /*can't make local allocation but old ops have cleared out*/
         /* send clear signal and reset scratch*/
         if(stat->clear_signal_sent==0) {
@@ -493,7 +471,7 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG) 
         gasnete_coll_scratch_remove_first_waiting_op(stat);
         op->waiting_scratch_op = 0;
       }
-      gasnete_coll_scratch_add_op_to_config(stat->active_config_and_ops, scratch_req);
+      gasnete_coll_scratch_add_op_to_config(&stat->active_config_and_ops, scratch_req);
       /* return the appropriate amount of local/remote scratch space*/
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS      
       fprintf(stderr, "%d> allocating for op %d\n", gasneti_mynode, op->sequence); 
@@ -534,7 +512,7 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
   if (scratch_req->next) {
     scratch_req->next->prev_p = scratch_req->prev_p;
   } else {
-    scratch_req->team->scratch_status->active_config_and_ops->op_list_tail_p = scratch_req->prev_p;
+    scratch_req->team->scratch_status->active_config_and_ops.op_list_tail_p = scratch_req->prev_p;
   }
 
 #if GASNET_DEBUG
