@@ -1197,28 +1197,6 @@ extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_
 }
 
 
-/* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slots "offset+" */
-/* XXX: we send addr+"0", when only the addr is needed (want "custom" AM, not eager_put) . */
-// TODO: why are we sending the zero-values 'sent' fields?
-void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                                uint32_t offset, void * const *dstlist,
-                                gex_Rank_t node, size_t nbytes, uint32_t count) {
-  // TODO: alloca?
-  struct gasnete_coll_p2p_send_struct *tmp =
-		gasneti_malloc(count * sizeof(struct gasnete_coll_p2p_send_struct));
-  int i;
-  for (i = 0; i < count; ++i) {
-    tmp[i].addr = dstlist[i];
-    tmp[i].sent = 0;
-  }
-  gex_HSL_Lock(&p2p->lock);
-  /* Record the number of Mediums we know we'll receive. */
-  p2p->state[0] += count * ((nbytes + gex_AM_LUBRequestMedium() - 1) / gex_AM_LUBRequestMedium());
-  gex_HSL_Unlock(&p2p->lock);
-  gasnete_coll_p2p_eager_putM(op, node, tmp, count, sizeof(*tmp), offset, 1);
-  gasneti_free(tmp);
-}
-
 /* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slot "offset" */
 /* XXX: we send addr+"0", when only the addr is needed. */
 void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
