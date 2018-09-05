@@ -1074,10 +1074,7 @@ GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
 
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, buf, nbytes);
   if (decrement) {
-    gasneti_sync_writes();
-    gex_HSL_Lock(&p2p->lock);
-    --(p2p->state[0]);
-    gex_HSL_Unlock(&p2p->lock);
+    gasneti_weakatomic_decrement(&p2p->counter[0], GASNETI_ATOMIC_REL);
   }
 }
 MEDIUM_HANDLER(gasnete_coll_p2p_memcpy_reqh,4,5,
@@ -1175,15 +1172,16 @@ void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
 }
 
 /* Memcpy up to gex_AM_LUBRequestMedium() bytes, signalling the recipient */
-/* Returns as soon as local buffer is reusable */
-void gasnete_coll_p2p_memcpy(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                             void *src, size_t nbytes) {
+int gasnete_tm_p2p_memcpy(gasnete_coll_op_t *op, gex_Rank_t rank, void *dst,
+                          void *src, size_t nbytes, gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+  const uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(nbytes <= gex_AM_LUBRequestMedium());
 
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_memcpy_reqh),
-                           src, nbytes, GEX_EVENT_NOW, 0, PACK(dst), team_id, op->sequence, 1);
+  return gex_AM_RequestMedium(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_memcpy_reqh),
+                              src, nbytes, GEX_EVENT_NOW, flags, PACK(dst), team_id, seq_num, 1);
 }
 
 
@@ -1196,43 +1194,51 @@ extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_
 }
 
 
-/* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slot "offset" */
-/* XXX: we send addr+"0", when only the addr is needed. */
-void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                               uint32_t offset, void *dst,
-                               gex_Rank_t node, size_t nbytes) {
-  struct gasnete_coll_p2p_send_struct tmp;
+/* Indicate ready for a gasnete_tm_p2p_memcpy, placing request in slot "offset" */
+int gasnete_tm_p2p_send_rtr(
+                        gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
+                        gex_Rank_t rank, uint32_t offset,
+                        void *dst, size_t nbytes,
+                        gex_Flags_t flags GASNETI_THREAD_FARG)
+{
+  struct gasnete_tm_p2p_send_struct tmp;
   tmp.addr = dst;
   tmp.sent = 0;
-  gex_HSL_Lock(&p2p->lock);
-  /* Record the number of Mediums we know we'll receive. */
-  p2p->state[0] += ((nbytes + gex_AM_LUBRequestMedium() - 1) / gex_AM_LUBRequestMedium());
-  gex_HSL_Unlock(&p2p->lock);
-  gasnete_coll_p2p_eager_put(op, node, &tmp, sizeof(tmp), offset, 1);
+  /* TODO: we send addr+"0", when only the addr is needed (need custom AM instead of eager_put). */
+  int retval =
+    gasnete_tm_p2p_eager_put(op, op->e_tm, rank, &tmp, sizeof(tmp),
+                             GEX_EVENT_NOW, flags, offset, 1 GASNETI_THREAD_PASS);
+  if (retval) {
+    // back pressure
+    gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
+  } else {
+    /* Compute the number of Mediums we know we'll receive. */
+    const gasneti_weakatomic_val_t msg_count = ((nbytes + gex_AM_LUBRequestMedium() - 1) / gex_AM_LUBRequestMedium());
+    // check for overflow of msg_count:
+    gasneti_assert_uint(nbytes ,<=, (msg_count * gex_AM_LUBRequestMedium()));
+    gasneti_assert_uint(msg_count ,<=, GASNETI_ATOMIC_MAX);
+    gasneti_weakatomic_add(&p2p->counter[0], msg_count, GASNETI_ATOMIC_NONE);
+  }
+  return retval;
 }
 
-/* Check completion of a gasnete_coll_p2p_memcpy (on rcvr) */
-int gasnete_coll_p2p_send_done(gasnete_coll_p2p_t *p2p) {
-  int result;
-  gex_HSL_Lock(&p2p->lock);
-  result = !p2p->state[0];
-  gex_HSL_Unlock(&p2p->lock);
-  return result;
-}
-
-/* Respond to a gasnete_coll_p2p_send_rtr */
-int gasnete_coll_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                               gex_Rank_t node, uint32_t offset,
-                               const void *src, size_t nbytes) {
-  struct gasnete_coll_p2p_send_struct *status = (struct gasnete_coll_p2p_send_struct *)p2p->data;
+/* Respond to a gasnete_tm_p2p_send_rtr */
+int gasnete_tm_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
+                             gex_Rank_t rank, uint32_t offset,
+                             const void *src, size_t nbytes,
+                             gex_Flags_t flags GASNETI_THREAD_FARG) {
+  struct gasnete_tm_p2p_send_struct *status = (struct gasnete_tm_p2p_send_struct *)p2p->data;
   if (p2p->state[offset] == 1) {
     size_t sent = status[offset].sent;
+    gasneti_assert_uint(nbytes ,>=, sent);
     size_t count = nbytes - sent;
     if_pt (count) {
       void *tmp = (void *)((uintptr_t)src + sent);
       void *addr = status[offset].addr;
       count = MIN(count, gex_AM_LUBRequestMedium());
-      gasnete_coll_p2p_memcpy(op, node, addr, tmp, count);
+      if (gasnete_tm_p2p_memcpy(op, rank, addr, tmp, count, flags GASNETI_THREAD_PASS)) {
+        return 0; // back pressure
+      }
       status[offset].addr = (void *)((uintptr_t)addr + count);
       status[offset].sent += count;
     } else {

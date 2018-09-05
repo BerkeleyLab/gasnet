@@ -224,7 +224,8 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
     } else {
       /* Send our addr to root */
-      gasnete_coll_p2p_send_rtr(op, data->p2p, op->team->myrank, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes);
+      gasnete_tm_p2p_send_rtr(op, data->p2p, args->srcnode, op->team->myrank,
+                              args->dst, args->nbytes, 0 GASNETI_THREAD_PASS);
     }
     data->state = 2; GASNETI_FALLTHROUGH
     
@@ -235,10 +236,13 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       int done = 1;
       for (i=0; i<op->team->total_ranks; ++i) {
         if (i == op->team->myrank) continue;
-        done &= gasnete_coll_p2p_send_data(op, data->p2p, GASNETE_COLL_REL2ACT(op->team, i), i, args->src, args->nbytes);
+        done &= gasnete_tm_p2p_send_data(op, data->p2p, i, i, args->src,
+                                         args->nbytes, 0 GASNETI_THREAD_PASS);
       }
       if (!done) {break;}
-    } else if (!gasnete_coll_p2p_send_done(data->p2p)) {
+    } else if (gasnete_tm_p2p_send_done(data->p2p)) {
+      gasneti_sync_reads();
+    } else {
       /* Not all data has arrived yet */
       break;
     }
@@ -368,7 +372,8 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 				      args->nbytes);
       } else {
 	/* Send our addr to root */
-	gasnete_coll_p2p_send_rtr(op, data->p2p, op->team->myrank, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->nbytes);
+	gasnete_tm_p2p_send_rtr(op, data->p2p, args->srcnode, op->team->myrank,
+                                args->dst, args->nbytes, 0 GASNETI_THREAD_PASS);
       }
       data->state = 2; GASNETI_FALLTHROUGH
 
@@ -379,12 +384,14 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 	int done = 1;
 	for (i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
-	  done &= gasnete_coll_p2p_send_data(op, data->p2p, GASNETE_COLL_REL2ACT(op->team, i), i,
-					     gasnete_coll_scale_ptr(args->src, i, args->nbytes),
-					     args->nbytes);
+	  done &= gasnete_tm_p2p_send_data(op, data->p2p, i, i,
+					   gasnete_coll_scale_ptr(args->src, i, args->nbytes),
+					   args->nbytes, 0 GASNETI_THREAD_PASS);
 	}
 	if (!done) {break;}
-      } else if (!gasnete_coll_p2p_send_done(data->p2p)) {
+      } else if (gasnete_tm_p2p_send_done(data->p2p)) {
+        gasneti_sync_reads();
+      } else {
 	/* Not all data has arrived yet */
 	break;
       }
@@ -504,9 +511,9 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 	gex_Rank_t i;
 	for (i = 0; i < op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
-	  gasnete_coll_p2p_send_rtr(op, data->p2p, 0,
-				    gasnete_coll_scale_ptr(args->dst, i, args->nbytes),
-				    GASNETE_COLL_REL2ACT(op->team, i), args->nbytes);
+	  gasnete_tm_p2p_send_rtr(op, data->p2p, i, 0,
+				  gasnete_coll_scale_ptr(args->dst, i, args->nbytes),
+				  args->nbytes, 0 GASNETI_THREAD_PASS);
 	}
 	GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
 				      args->src, args->nbytes);
@@ -516,9 +523,12 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
     case 2:
       if (op->team->myrank != args->dstnode) {
 	/* non-root nodes send at most one AM per poll */
-	int done = gasnete_coll_p2p_send_data(op, data->p2p, GASNETE_COLL_REL2ACT(op->team, args->dstnode), 0, args->src, args->nbytes);
+	int done = gasnete_tm_p2p_send_data(op, data->p2p, args->dstnode, 0,
+                                            args->src, args->nbytes, 0 GASNETI_THREAD_PASS);
 	if (!done) {break;}
-      } else if (!gasnete_coll_p2p_send_done(data->p2p)) {
+      } else if (gasnete_tm_p2p_send_done(data->p2p)) {
+        gasneti_sync_reads();
+      } else {
 	/* Not all data has arrived yet */
 	break;
       }

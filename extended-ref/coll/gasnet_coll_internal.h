@@ -105,8 +105,8 @@ typedef struct gasnete_coll_p2p_t_ gasnete_coll_p2p_t;
 union gasnete_coll_p2p_entry_t_;
 typedef union gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
 
-struct gasnete_coll_p2p_send_struct;
-typedef struct gasnete_coll_p2p_send_struct gasnete_coll_p2p_send_struct_t;
+struct gasnete_tm_p2p_send_struct;
+typedef struct gasnete_tm_p2p_send_struct gasnete_tm_p2p_send_struct_t;
 
 struct gasnete_coll_generic_data_t_;
 typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
@@ -480,14 +480,23 @@ extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t
                                                void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
                                             void *src, size_t size);
-extern void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                                      uint32_t offset, void *dst,
-                                      gex_Rank_t node, size_t nbytes);
-extern int gasnete_coll_p2p_send_done(gasnete_coll_p2p_t *p2p);
-extern  int gasnete_coll_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                                       gex_Rank_t node, uint32_t offset,
-                                       const void *src, size_t nbytes);
-struct gasnete_coll_p2p_send_struct { void *addr; size_t sent; };
+
+extern int gasnete_tm_p2p_send_rtr(
+                        gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
+                        gex_Rank_t rank, uint32_t offset,
+                        void *dst, size_t nbytes,
+                        gex_Flags_t flags GASNETI_THREAD_FARG);
+extern int gasnete_tm_p2p_send_data(
+                        gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
+                        gex_Rank_t rank, uint32_t offset,
+                        const void *src, size_t nbytes,
+                        gex_Flags_t flags GASNETI_THREAD_FARG);
+GASNETI_INLINE(gasnete_tm_p2p_send_done)
+int gasnete_tm_p2p_send_done(gasnete_coll_p2p_t *p2p) {
+  // NOTE: caller is responsible for ACQ, if any
+  return (0 == gasneti_weakatomic_read(&p2p->counter[0], GASNETI_ATOMIC_NONE));
+}
+struct gasnete_tm_p2p_send_struct { void *addr; size_t sent; };
 
 /* Update one or more states w/o delivering any data */
 GASNETI_INLINE(gasnete_tm_p2p_change_states)
