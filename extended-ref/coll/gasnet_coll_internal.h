@@ -476,9 +476,6 @@ extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t
                                                void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
                                             void *src, size_t size);
-extern void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                                       uint32_t offset, void * const *dstlist,
-                                       gex_Rank_t node, size_t nbytes, uint32_t count);
 extern void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                       uint32_t offset, void *dst,
                                       gex_Rank_t node, size_t nbytes);
