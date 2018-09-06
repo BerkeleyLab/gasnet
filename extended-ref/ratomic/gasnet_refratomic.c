@@ -78,6 +78,7 @@ void gasneti_AD_Create(
   // Verify that call is collective and single-valued
   // TODO-EX: should use normal collectives and just a Gather.
   // TODO-EX: needs to be scoped to proper team, of course.
+ #if 0 // DOB: bug 3783: this check is disabled to prevent crashes on subset teams
   {
     struct {
         gex_DT_t       dt;
@@ -99,6 +100,7 @@ void gasneti_AD_Create(
     gasneti_free(allargs);
     GASNETI_SAFE(gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED));
   }
+ #endif
 
   // Does the 'dt' arument name a single valid data type?
   gasneti_assert(gasneti_dt_valid_atomic(dt));

@@ -1197,31 +1197,19 @@ extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_
 }
 
 
-/* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slots "offset+" */
-/* XXX: we send addr+"0", when only the addr is needed (want "custom" AM, not eager_put) . */
-void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                                uint32_t offset, void * const *dstlist,
-                                gex_Rank_t node, size_t nbytes, uint32_t count) {
-  struct gasnete_coll_p2p_send_struct *tmp =
-		gasneti_malloc(count * sizeof(struct gasnete_coll_p2p_send_struct));
-  int i;
-  for (i = 0; i < count; ++i) {
-    tmp[i].addr = dstlist[i];
-    tmp[i].sent = 0;
-  }
-  gex_HSL_Lock(&p2p->lock);
-  /* Record the number of Mediums we know we'll receive. */
-  p2p->state[0] += count * ((nbytes + gex_AM_LUBRequestMedium() - 1) / gex_AM_LUBRequestMedium());
-  gex_HSL_Unlock(&p2p->lock);
-  gasnete_coll_p2p_eager_putM(op, node, tmp, count, sizeof(*tmp), offset, 1);
-}
-
 /* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slot "offset" */
 /* XXX: we send addr+"0", when only the addr is needed. */
 void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                uint32_t offset, void *dst,
                                gex_Rank_t node, size_t nbytes) {
-  gasnete_coll_p2p_send_rtrM(op, p2p, offset, &dst, node, nbytes, 1);
+  struct gasnete_coll_p2p_send_struct tmp;
+  tmp.addr = dst;
+  tmp.sent = 0;
+  gex_HSL_Lock(&p2p->lock);
+  /* Record the number of Mediums we know we'll receive. */
+  p2p->state[0] += ((nbytes + gex_AM_LUBRequestMedium() - 1) / gex_AM_LUBRequestMedium());
+  gex_HSL_Unlock(&p2p->lock);
+  gasnete_coll_p2p_eager_put(op, node, &tmp, sizeof(tmp), offset, 1);
 }
 
 /* Check completion of a gasnete_coll_p2p_memcpy (on rcvr) */
@@ -1725,7 +1713,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
   
   /*fill out a scratch request "form" if you need scratch space with this operation*/
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
-    uint64_t *out_sizes;
+    uintptr_t *out_sizes;
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     
     /*fill out the tree information*/
@@ -1747,7 +1735,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
       scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(geom_info));
 
     }
-    out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info));
+    out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info));
     scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info);
     scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(geom_info);
     for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info); i++) {
@@ -1812,7 +1800,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 GASNETI_THREAD_FARG) {
   gex_Event_t result;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
-  uint64_t *out_sizes;
+  uintptr_t *out_sizes;
   int i;
 
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
@@ -1835,7 +1823,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
       scratch_req->num_in_peers = 1;
       scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(geom_info));
     }
-    out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info));
+    out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info));
     scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info);
     scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(geom_info);
     for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom_info); i++) {
@@ -1924,7 +1912,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     else {
       scratch_req->num_out_peers = 1;
       scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(geom_info));
-      scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1);
+      scratch_req->out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*1);
       scratch_req->out_sizes[0] = nbytes*geom_info->parent_subtree_size;
     }
   }
@@ -2080,7 +2068,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
     scratch_req->num_out_peers = scratch_req->num_in_peers = GASNETE_COLL_DISSEM_GET_PEER_COUNT(dissem);
     scratch_req->out_peers = GASNETE_COLL_DISSEM_GET_BEHIND_PEERS(dissem);
     scratch_req->in_peers = GASNETE_COLL_DISSEM_GET_FRONT_PEERS(dissem);
-    scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1);
+    scratch_req->out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*1);
     scratch_req->out_sizes[0] = scratch_req->incoming_size;
   }  
 
@@ -2223,7 +2211,7 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
     scratch_req->num_out_peers = scratch_req->num_in_peers = GASNETE_COLL_DISSEM_GET_PEER_COUNT(dissem);
     scratch_req->out_peers = GASNETE_COLL_DISSEM_GET_FRONT_PEERS(dissem);
     scratch_req->in_peers = GASNETE_COLL_DISSEM_GET_BEHIND_PEERS(dissem);
-    scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1);
+    scratch_req->out_sizes = (uintptr_t*) gasneti_malloc(sizeof(uintptr_t)*1);
     scratch_req->out_sizes[0] = scratch_req->incoming_size;
   }
   
@@ -2331,13 +2319,14 @@ gasnete_tm_barrier_nb_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FA
 gex_Event_t
 gasnete_tm_broadcast_nb_default(gex_TM_t e_tm, gex_Rank_t root,
                                 void *dst, const void *src,
-                                size_t nbytes, gex_Flags_t flags
-                                GASNETI_THREAD_FARG)
+                                size_t nbytes, gex_Flags_t flags,
+                                uint32_t sequence GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
   int coll_flags = GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC;
-  return _gasnet_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
-                                   nbytes, coll_flags GASNETI_THREAD_PASS);
+  coll_flags |= (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;
+  return gasnete_coll_broadcast_nb(team, dst, root, (/*non-const*/ void*)src,
+                                   nbytes, coll_flags, sequence GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -2419,7 +2408,7 @@ gasnete_tm_reduce_nb_default(
                 void *dst, const void *src,
                 gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
                 gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
-                gex_Flags_t flags GASNETI_THREAD_FARG)
+                gex_Flags_t flags, uint32_t sequence GASNETI_THREAD_FARG)
 {
   gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
 
@@ -2472,10 +2461,133 @@ gasnete_tm_reduce_nb_default(
   }
   
   // TODO-EX: stop abusing implementation_t argument to pass the geom
-  return (*alg)(e_tm, root, dst, src,
+  int coll_flags = (flags & GASNETI_FLAG_COLL_SUBORDINATE) ? GASNETE_COLL_SUBORDINATE : 0;
+  gex_Event_t result =
+         (*alg)(e_tm, root, dst, src,
                 dt, dt_sz, dt_cnt,
                 opcode, user_fnptr, user_cdata,
-                0, (void*)geom, 0 GASNETI_THREAD_PASS);
+                coll_flags, (void*)geom, sequence GASNETI_THREAD_PASS);
+
+  gasneti_AMPoll(); // No progress made until now
+  return result;
+}
+
+/*---------------------------------------------------------------------------------*/
+// GEX Reduce to All
+
+gex_Event_t
+gasnete_tm_generic_reduce_all_nb(
+                        gex_TM_t tm, void *dst, const void *src,
+                        gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                        gex_OP_t opcode, gex_Coll_ReduceFn_t fnptr, void *cdata,
+                        int coll_flags, gasnete_coll_poll_fn poll_fn, int options,
+                        gasnete_coll_local_tree_geom_t *geom_info, uint32_t sequence,
+                        int num_params, uint32_t *param_list,
+                        gasnete_coll_scratch_req_t *scratch_req
+                        GASNETI_THREAD_FARG)
+{
+  gasnet_team_handle_t team = gasneti_import_tm(tm)->_coll_team;
+  gex_Event_t result;
+
+  gasnete_coll_threads_lock(team, coll_flags GASNETI_THREAD_PASS);
+
+  gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETI_THREAD_PASS_ALONE);
+  GASNETE_COLL_GENERIC_SET_TAG(data, tm_reduce_all);
+
+  data->args.tm_reduce_all.dst     = dst;
+  data->args.tm_reduce_all.src     = src;
+
+  data->args.tm_reduce_all.dt      = dt;
+  data->args.tm_reduce_all.dt_sz   = dt_sz;
+  data->args.tm_reduce_all.dt_cnt  = dt_cnt;
+
+  data->args.tm_reduce_all.opcode  = opcode;
+
+  switch (opcode) {
+    case GEX_OP_USER_NC:
+      gasneti_fatalerror("Support for GEX_OP_USER_NC reductions is UNIMPLEMENTED");
+      break;
+
+    case GEX_OP_USER:
+      data->args.tm_reduce_all.op_fnptr  = fnptr;
+      data->args.tm_reduce_all.op_cdata  = cdata;
+      break;
+
+    // Otherwise convert DT/OP pair to an *internal* fnptr and cdata
+    // TODO-EX: this just selects on DT and smuggles the opcode in the
+    // cdata, which then leaves a switch(opcode) in the critical path.
+    default:
+      data->args.tm_reduce_all.op_cdata = (void*)(uintptr_t)opcode;
+      switch (dt) {
+        #define REDUCE_OP_CASE(DT) \
+          case GEX_DT_##DT:                                                  \
+             data->args.tm_reduce_all.op_fnptr =  gasnete_shrinkray_gex_dt_##DT; \
+             break;
+        GASNETE_TM_REDUCE_FOREACH_DT(REDUCE_OP_CASE)
+        #undef REDUCE_OP_CASE
+
+        default: gasneti_unreachable();
+      }
+      break;
+  }
+
+  data->options      = options;
+  data->private_data = NULL;
+  data->tree_geom    = geom_info;
+
+  result = gasnete_coll_op_generic_init_with_scratch(team, coll_flags, data, poll_fn, sequence, scratch_req, num_params, param_list, geom_info GASNETI_THREAD_PASS);
+
+  gasnete_coll_threads_unlock(team GASNETI_THREAD_PASS);
+
+  return result;
+}
+
+#ifndef gasnete_tm_reduce_all_nb
+  // In absence of conduit override we drop the _default suffix
+  #define gasnete_tm_reduce_all_nb_default gasnete_tm_reduce_all_nb
+#endif
+gex_Event_t
+gasnete_tm_reduce_all_nb_default(
+                gex_TM_t e_tm,
+                void *dst, const void *src,
+                gex_DT_t dt, size_t dt_sz, size_t dt_cnt,
+                gex_OP_t opcode, gex_Coll_ReduceFn_t user_fnptr, void *user_cdata,
+                gex_Flags_t flags, uint32_t sequence GASNETI_THREAD_FARG)
+{
+  gasneti_TM_t i_tm = gasneti_import_tm(e_tm);
+
+  GASNETI_TRACE_TM_REDUCE_ALL(COLL_REDUCE_ALL_NB,e_tm,dst,src,dt,dt_sz,dt_cnt,opcode,user_fnptr,user_cdata,flags);
+
+  // Argument validation
+  // TODO-EX: factor to avoid cloning this logic to conduit collectives
+  // TODO-EX: informative fatalerror() in place of assertion failure
+  gasneti_assert(src);
+  gasneti_assert(dst);
+  // Note GASNETI_MEMCPY_SAFE_IDENTICAL will check src/dst overlap
+  gasneti_assert(dt_sz != 0);
+  gasneti_assert(dt_cnt != 0);
+  gasneti_assert((dt == GEX_DT_USER) || (dt_sz == gasneti_dt_size(dt)));
+  gasneti_assert(gasneti_dt_valid_reduce(dt));
+  gasneti_assert(gasneti_op_valid_reduce(opcode));
+  gasneti_assert((dt == GEX_DT_USER) ||
+                 (gasneti_dt_int(dt) && gasneti_op_int(opcode)) ||
+                 (gasneti_dt_fp(dt)  && gasneti_op_fp(opcode)));
+
+  // Short-circuit singleton
+  // TODO-EX:  hoist to gasnet_coll.h?
+  if (i_tm->_size == 1) {
+    GASNETI_MEMCPY_SAFE_IDENTICAL(dst, src, dt_sz * dt_cnt);
+    return GEX_EVENT_INVALID;
+  }
+
+  // TODO-EX: replace this correct-but-horrible implementation:
+  gex_Event_t result =
+         gasnete_tm_reduce_all_Bcast(e_tm, dst, src, dt, dt_sz, dt_cnt,
+                                     opcode, user_fnptr, user_cdata,
+                                     0, NULL, 0 GASNETI_THREAD_PASS);
+
+  gasneti_AMPoll(); // No progress made until now
+  return result;
 }
 
 /*---------------------------------------------------------------------------------*/

@@ -35,9 +35,11 @@
 
 #if defined(GASNETI_MMAP_OR_PSHM) && defined(GASNETI_USE_HUGETLBFS)
   #define gasneti_mmap_aligndown(sz) gasneti_mmap_aligndown_huge(sz)
+  #define gasneti_mmap_alignup(sz)   gasneti_mmap_alignup_huge(sz)
   #define gasneti_mmap_pagesize()    gasneti_mmap_pagesize_huge()
 #else
   #define gasneti_mmap_aligndown(sz) GASNETI_PAGE_ALIGNDOWN(sz)
+  #define gasneti_mmap_alignup(sz) GASNETI_PAGE_ALIGNUP(sz)
   #define gasneti_mmap_pagesize()    GASNETI_PAGESIZE
 #endif
 
@@ -83,11 +85,18 @@
   /* Provide greater alignment than default: */
   static uintptr_t gasneti_mmap_pagesize_huge() {
      static long pagesz = 0;
-     if (!pagesz) pagesz = gethugepagesize();
+     if (!pagesz) {
+       pagesz = gethugepagesize();
+       gasneti_assert(pagesz >= GASNETI_PAGESIZE);
+       gasneti_assert(pagesz % GASNETI_PAGESIZE == 0);
+     }
      return pagesz;
   }
   static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
      return GASNETI_ALIGNDOWN(sz, gasneti_mmap_pagesize_huge());
+  }
+  static uintptr_t gasneti_mmap_alignup_huge(uintptr_t sz) {
+     return GASNETI_ALIGNUP(sz, gasneti_mmap_pagesize_huge());
   }
  #endif
 
@@ -1179,7 +1188,7 @@ uintptr_t gasneti_max_segsize() {
                                                 0);
 
     // round UP to nearest huge page, if needed, to ensure we don't truncate client's MAX_SEGSIZE request
-    val = GASNETI_ALIGNUP(val, gasneti_mmap_pagesize());
+    val = gasneti_mmap_alignup(val);
 
     gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
     gasneti_assert(val >= GASNET_PAGESIZE);
@@ -1261,7 +1270,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   /* Apply intial limits, even if not sharing nodes */
   uintptr_t auxsegsz = gasneti_auxseg_preinit();
   maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
-  maxsz = GASNETI_ALIGNUP(maxsz, gasneti_mmap_pagesize());
+  maxsz = gasneti_mmap_alignup(maxsz);
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
 
@@ -2065,13 +2074,13 @@ uintptr_t gasneti_auxseg_preinit(void) {
       GASNETI_ALIGNUP(gasneti_auxseg_alignedsz[i].optimalsz,GASNETI_CACHE_LINE_BYTES);
   }
   gasneti_auxseg_total_alignedsz.minsz = 
-    GASNETI_PAGE_ALIGNUP(gasneti_auxseg_total_alignedsz.minsz);
+    gasneti_mmap_alignup(gasneti_auxseg_total_alignedsz.minsz);
   gasneti_auxseg_total_alignedsz.optimalsz = 
-    GASNETI_PAGE_ALIGNUP(gasneti_auxseg_total_alignedsz.optimalsz);
+    gasneti_mmap_alignup(gasneti_auxseg_total_alignedsz.optimalsz);
 
   gasneti_auxseg_sz = gasneti_auxseg_total_alignedsz.optimalsz;
   GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_preinit(): gasneti_auxseg_sz = %"PRIuPTR, gasneti_auxseg_sz));
-  gasneti_assert(gasneti_auxseg_sz % GASNET_PAGESIZE == 0);
+  gasneti_assert(gasneti_auxseg_sz % gasneti_mmap_pagesize() == 0);
   return gasneti_auxseg_sz;
 }
 

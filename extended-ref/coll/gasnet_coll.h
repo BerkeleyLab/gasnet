@@ -213,6 +213,25 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
       gasneti_extern_free(_tr_opstr);                                                                   \
     }                                                                                                   \
   } while (0)
+  #define GASNETI_TRACE_TM_REDUCE_ALL(name,tm,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags) do {  \
+    GASNETI_TRACE_EVENT_VAL(W,name,dt_cnt);                                                             \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                     \
+      char *_tr_dtstr = (char *)gasneti_extern_malloc(gasneti_format_dt(NULL,(dt)));                    \
+      gasneti_format_dt(_tr_dtstr,(dt));                                                                \
+      char *_tr_opstr = (char *)gasneti_extern_malloc(gasneti_format_op(NULL,(op)));                    \
+      gasneti_format_op(_tr_opstr,(op));                                                                \
+      GASNETI_TRACE_PRINTF(D, (#name ": dt = %" PRIuSZ "*%s, op = %s",                                  \
+                               (size_t)(dt_cnt), 7+_tr_dtstr, 7+_tr_opstr));                            \
+      GASNETI_TRACE_PRINTF(D, (#name ": src = " GASNETI_LADDRFMT ", dst = " GASNETI_LADDRFMT,           \
+                               GASNETI_LADDRSTR(src), GASNETI_LADDRSTR(dst)));                          \
+      if (op == GEX_OP_USER || op == GEX_OP_USER_NC) {                                                  \
+        GASNETI_TRACE_PRINTF(D, (#name ": User-defined (fnptr, cdata) = (%p, %p)",                      \
+                                 (void*)(op_fnptr), (op_cdata)));                                       \
+      }                                                                                                 \
+      gasneti_extern_free(_tr_dtstr);                                                                   \
+      gasneti_extern_free(_tr_opstr);                                                                   \
+    }                                                                                                   \
+  } while (0)
 #else
   #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_SCATTER(name,team,dst,root,src,nbytes,flags)
@@ -220,6 +239,7 @@ extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t _team, size_t _dis
   #define GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_TM_REDUCE(name,tm,root,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
+  #define GASNETI_TRACE_TM_REDUCE_ALL(name,tm,dst,src,dt,dt_sz,dt_cnt,op,op_fnptr,op_cdata,flags)
 #endif
 
 /*---------------------------------------------------------------------------------*/
@@ -341,11 +361,11 @@ void _gasnet_coll_exchange(gasnet_team_handle_t _team,
   extern gex_Event_t
   gasnete_tm_broadcast_nb(gex_TM_t _tm, gex_Rank_t _root,
                           void *_dst, const void *_src,
-                          size_t _nbytes, gex_Flags_t _flags
+                          size_t _nbytes, gex_Flags_t _flags, uint32_t _sequence
                           GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_BroadcastNB(tm,root,dst,src,nbytes,flags) \
-        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags GASNETI_THREAD_GET)
+        gasnete_tm_broadcast_nb(tm,root,dst,src,nbytes,flags,0 GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -354,10 +374,23 @@ void _gasnet_coll_exchange(gasnet_team_handle_t _team,
   gasnete_tm_reduce_nb(gex_TM_t _tm, gex_Rank_t _root, void *_dst, const void *_src,
                        gex_DT_t _dt, size_t _dt_sz, size_t _dt_cnt,
                        gex_OP_t _op, gex_Coll_ReduceFn_t _user_op, void * _user_cdata,
-                       gex_Flags_t _flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+                       gex_Flags_t _flags, uint32_t _sequence GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 #define gex_Coll_ReduceToOneNB(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags) \
-        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags GASNETI_THREAD_GET)
+        gasnete_tm_reduce_nb(tm,root,dst,src,dt,dts,dtc,op,fn,cdata,flags,0 GASNETI_THREAD_GET)
+
+/*---------------------------------------------------------------------------------*/
+
+#ifndef gasnete_tm_reduce_all_nb
+  extern gex_Event_t
+  gasnete_tm_reduce_all_nb(
+                        gex_TM_t _tm, void *_dst, const void *_src,
+                        gex_DT_t _dt, size_t _dt_sz, size_t _dt_cnt,
+                        gex_OP_t _op, gex_Coll_ReduceFn_t _user_op, void * _user_cdata,
+                        gex_Flags_t _flags, uint32_t _sequence GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+#endif
+#define gex_Coll_ReduceToAllNB(tm,dst,src,dt,dts,dtc,op,fn,cdata,flags) \
+        gasnete_tm_reduce_all_nb(tm,dst,src,dt,dts,dtc,op,fn,cdata,flags,0 GASNETI_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
