@@ -76,6 +76,92 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define gasneti_assert(expr) gasneti_assert_always(expr)
 #endif
 
+// gasneti_assert(_always)_{(u)int,ptr,dbl}(op1, operator, op2);
+// A statement that is mostly equivalent to gasneti_assert(_always)(op1 operator op2);
+// but assumes op1/op2 have (unsigned)integer/pointer/floating type and outputs operand values on failure.
+// E.g.: gasneti_assert_int(idx, >=, 4);
+// C++ NOTE: gasneti_assert_ptr() operates on raw pointer values, and does not perform 
+//   C++'s normal implicit pointer conversions for comparisons on pointers to polymorphic object types.
+#define gasneti_assert_always_int(op1, operator, op2) do {          \
+    int64_t const _gaa_op1 = (op1);                                 \
+    int64_t const _gaa_op2 = (op2);                                 \
+    if (!GASNETT_PREDICT_TRUE(_gaa_op1 operator _gaa_op2)) {        \
+      int const _gaa_bigval = ((int32_t)_gaa_op1 != _gaa_op1) ||    \
+                              ((int32_t)_gaa_op2 != _gaa_op2);      \
+      int const _gaa_negval = (_gaa_op1 < 0) || (_gaa_op2 < 0);     \
+      int const _gaa_decwid = (_gaa_bigval ? 20 : 11);              \
+      int const _gaa_hexwid = (_gaa_bigval || _gaa_negval ? 16 : 8);\
+      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+         "   op1 : %*" PRId64 " (0x%0*" PRIx64 ") == %s\n"          \
+         "   op2 : %*" PRId64 " (0x%0*" PRIx64 ") == %s\n"          \
+       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , _gaa_decwid, _gaa_op1, _gaa_hexwid, _gaa_op1, #op1         \
+       , _gaa_decwid, _gaa_op2, _gaa_hexwid, _gaa_op2, #op2         \
+      );                                                            \
+    }                                                               \
+} while (0)
+#define gasneti_assert_always_uint(op1, operator, op2) do {         \
+    uint64_t const _gaa_op1 = (op1);                                \
+    uint64_t const _gaa_op2 = (op2);                                \
+    if (!GASNETT_PREDICT_TRUE(_gaa_op1 operator _gaa_op2)) {        \
+      int const _gaa_bigval = ((uint32_t)_gaa_op1 != _gaa_op1) ||   \
+                              ((uint32_t)_gaa_op2 != _gaa_op2);     \
+      int const _gaa_decwid = (_gaa_bigval ? 20 : 11);              \
+      int const _gaa_hexwid = (_gaa_bigval ? 16 : 8);               \
+      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+         "   op1 : %*" PRIu64 " (0x%0*" PRIx64 ") == %s\n"          \
+         "   op2 : %*" PRIu64 " (0x%0*" PRIx64 ") == %s\n"          \
+       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , _gaa_decwid, _gaa_op1, _gaa_hexwid, _gaa_op1, #op1         \
+       , _gaa_decwid, _gaa_op2, _gaa_hexwid, _gaa_op2, #op2         \
+      );                                                            \
+    }                                                               \
+} while (0)
+#ifdef __cplusplus
+  #define _gasneti_voidp_cvt(p) (reinterpret_cast<const void *>(p))
+#else
+  #define _gasneti_voidp_cvt(p) (p) // rely on default conversion
+#endif
+#define gasneti_assert_always_ptr(op1, operator, op2) do {          \
+    const void * const _gaa_op1 = _gasneti_voidp_cvt(op1);          \
+    const void * const _gaa_op2 = _gasneti_voidp_cvt(op2);          \
+    if (!GASNETT_PREDICT_TRUE(_gaa_op1 operator _gaa_op2)) {        \
+      int const _gaa_hexwid = 2*sizeof(void *);                     \
+      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+         "   op1 : 0x%0*" PRIxPTR " == %s\n"                        \
+         "   op2 : 0x%0*" PRIxPTR " == %s\n"                        \
+       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , _gaa_hexwid, (uintptr_t)_gaa_op1, #op1                     \
+       , _gaa_hexwid, (uintptr_t)_gaa_op2, #op2                     \
+      );                                                            \
+    }                                                               \
+} while (0)
+#define gasneti_assert_always_dbl(op1, operator, op2) do {          \
+    double const _gaa_op1 = (op1);                                  \
+    double const _gaa_op2 = (op2);                                  \
+    if (!GASNETT_PREDICT_TRUE(_gaa_op1 operator _gaa_op2)) {        \
+      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+         "   op1 : %#13.6g (0x%016" PRIx64 ") == %s\n"              \
+         "   op2 : %#13.6g (0x%016" PRIx64 ") == %s\n"              \
+       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , _gaa_op1, *(uint64_t*)&_gaa_op1, #op1                      \
+       , _gaa_op2, *(uint64_t*)&_gaa_op2, #op2                      \
+      );                                                            \
+    }                                                               \
+} while (0)
+
+#if GASNET_NDEBUG
+  #define gasneti_assert_int(op1, operator, op2)  do{}while(0)
+  #define gasneti_assert_uint(op1, operator, op2) do{}while(0)
+  #define gasneti_assert_ptr(op1, operator, op2)  do{}while(0)
+  #define gasneti_assert_dbl(op1, operator, op2)  do{}while(0)
+#else
+  #define gasneti_assert_int  gasneti_assert_always_int
+  #define gasneti_assert_uint gasneti_assert_always_uint
+  #define gasneti_assert_ptr  gasneti_assert_always_ptr
+  #define gasneti_assert_dbl  gasneti_assert_always_dbl
+#endif
+
 // gasneti_static_assert(cond)
 // statically assert `cond`, which must be a compile-time integer constant expression
 // Invocation is an expression must appear in expression or statement context.
