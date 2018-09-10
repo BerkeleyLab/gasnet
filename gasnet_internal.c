@@ -233,13 +233,13 @@ extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
 
   /*  verify sanity of the core interface */
-  gasneti_assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  gasneti_assert_always(gasnet_AMMaxMedium() >= 512);
-  gasneti_assert_always(gasnet_AMMaxLongRequest() >= 512);
-  gasneti_assert_always(gasnet_AMMaxLongReply() >= 512);  
+  gasneti_assert_always_uint(gasnet_AMMaxArgs() ,>=, 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert_always_uint(gasnet_AMMaxMedium() ,>=, 512);
+  gasneti_assert_always_uint(gasnet_AMMaxLongRequest() ,>=, 512);
+  gasneti_assert_always_uint(gasnet_AMMaxLongReply() ,>=, 512);  
 
-  gasneti_assert_always(gasnet_nodes() >= 1);
-  gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
+  gasneti_assert_always_uint(gasnet_nodes() ,>=, 1);
+  gasneti_assert_always_uint(gasnet_mynode() ,<, gasnet_nodes());
   { static int firstcall = 1;
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
@@ -321,7 +321,7 @@ extern void gasneti_defaultAMHandler(gasnet_token_t token) {
   extern gasneti_handler_fn_t gasnetc_handler[];
   static int gasnetc_amregister(gasnet_handler_t index, gasneti_handler_fn_t fnptr) {
     /* register a single handler */
-    gasneti_assert(gasnetc_handler[index] == gasneti_defaultAMHandler);
+    gasneti_assert_ptr(gasnetc_handler[index] ,==, gasneti_defaultAMHandler);
     gasnetc_handler[index] = fnptr;
     return GASNET_OK;
   }
@@ -513,7 +513,7 @@ static void gasneti_serializeEnvironment(uint8_t **pbuf, int *psz) {
     p += strlen((char*)p) + 1;
     }
   *p = 0;
-  gasneti_assert((p+1) - buf == totalEnvSize);
+  gasneti_assert_int((p+1) - buf ,==, totalEnvSize);
 
   *pbuf = buf;
   *psz = totalEnvSize;
@@ -588,7 +588,7 @@ extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t
         memcpy(gasneti_globalEnv, tmp+rootid*envsize, envsize);
         gasneti_free(tmp);
       }
-      gasneti_assert(gasneti_checksum(gasneti_globalEnv,envsize) == rootdesc.checksum);
+      gasneti_assert_uint(gasneti_checksum(gasneti_globalEnv,envsize) ,==, rootdesc.checksum);
       gasneti_free(allenvdesc);
       gasneti_free(myenv);
       return;
@@ -793,7 +793,7 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 						 MIN(my_max, my_min + my_factor * gasneti_nodes));
 
   if (result < lower_bound) {
-    gasneti_assert(MIN(dflt_max, dflt_min + dflt_factor * gasneti_nodes) >= lower_bound);
+    gasneti_assert_dbl(MIN(dflt_max, dflt_min + dflt_factor * gasneti_nodes) ,>=, lower_bound);
     if (gasneti_getenv("GASNET_EXITTIMEOUT")) {
       gasneti_fatalerror("If used, environment variable GASNET_EXITTIMEOUT must be set to a value no less than %g", lower_bound);
     } else {
@@ -1059,7 +1059,7 @@ static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
   #endif
   gasneti_assert(ids);
   gasneti_assert(sz > 0);
-  gasneti_assert(stride >= sz);
+  gasneti_assert_uint(stride ,>=, sz);
 
   if (gasneti_getenv_yesno_withdefault("GASNET_NODEMAP_EXACT",GASNETC_DEFAULT_NODEMAP_EXACT)) {
     /* "exact" but potentially costly */
@@ -1160,7 +1160,7 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
     int i;
 
     gasneti_assert_zeroret(CNK_SPI_SYSCALL_3(RANKS2COORDS, size, allids, &count));
-    gasneti_assert(count == gasneti_nodes);
+    gasneti_assert_uint(count ,==, gasneti_nodes);
 
     /* Zero out the fields we don't want to have significance and then comparison */
     for (i = 0; i < gasneti_nodes; ++i) {
@@ -1301,10 +1301,10 @@ extern void gasneti_nodemapParse(void) {
   gasneti_myhost.grp_rank = gasneti_nodeinfo[gasneti_mynode].host;
 
   /* Second pass: Construct arrays of local nodes */
-  gasneti_assert(gasneti_myhost.node_count >= gasneti_mysupernode.node_count);
+  gasneti_assert_uint(gasneti_myhost.node_count ,>=, gasneti_mysupernode.node_count);
   gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gasnet_node_t));
   for (i = initial, j = 0; j < gasneti_myhost.node_count; ++i) {
-    gasneti_assert(i < gasneti_nodes);
+    gasneti_assert_uint(i ,<, gasneti_nodes);
     if (s[i].h_lead == initial) {
       if (i == final) gasneti_mysupernode.nodes = gasneti_myhost.nodes + j;
       gasneti_myhost.nodes[j++] = i;
@@ -1407,7 +1407,7 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     size_t  n   = buf ? *n_p : 0;
     ssize_t len = 0;
 
-    gasneti_assert((ssize_t)n >= 0);
+    gasneti_assert_int((ssize_t)n ,>=, 0);
 
     do {
         size_t space = n - len;
@@ -1739,7 +1739,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     uint64_t beginpost = 0;
     uint64_t endpost = 0;
     int doscan = 0;
-    gasneti_assert_always(checktype >= 0 && checktype <= 2);
+    gasneti_assert_always_uint((unsigned int)checktype ,<=, 2);
     if (gasneti_looksaligned(ptr)) {
       gasneti_memalloc_desc_t *desc = ((gasneti_memalloc_desc_t *)ptr) - 1;
       beginpost = (desc->beginpost == GASNETI_MEM_LEAKMARK)
@@ -1845,7 +1845,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
       return NULL;
     }
     ret = malloc(nbytes+GASNETI_MEM_EXTRASZ);
-    gasneti_assert_always((((uintptr_t)ret) & 0x3) == 0); /* should have at least 4-byte alignment */
+    gasneti_assert_always_uint((((uintptr_t)ret) & 0x3) ,==, 0); /* should have at least 4-byte alignment */
     if_pf (ret == NULL) {
       char curlocstr[GASNETI_MAX_LOCSZ];
       strcpy(curlocstr, "\n   at: %s");
