@@ -57,18 +57,6 @@ static gex_Rank_t nbrhdsize; // size of the neighborhood
 static gex_Rank_t nbrhdrank; // rank in the neighborhood
 static gex_RankInfo_t *nbrhdinfo;
 
-// helper for SEGMENT_EVERYTHING
-// TODO: hoist to test.h?
-void *TEST_SEG_TM(gex_TM_t tm, gex_Rank_t rank) {
-#if GASNET_SEGMENT_EVERYTHING
-  return TEST_SEG(gex_TM_TranslateRankToJobrank(tm, rank));
-#else
-  void *result;
-  check_zeroret(gex_Segment_QueryBound(tm, rank, &result, NULL, NULL));
-  return result;
-#endif
-}
-
 // Macros to simplify iteration over types
 #define I32_type  int32_t
 #define I32_isint 1
