@@ -6,6 +6,13 @@
 
 #include <gasnetex.h>
 #include <gasnet_coll.h>
+
+static size_t scratch_sz1;
+static size_t scratch_sz2;
+#ifndef TEST_SEGSZ
+#define TEST_SEGSZ_EXPR (PAGESZ + scratch_sz1 + scratch_sz2) // space for test + 2 teams
+#endif
+
 #include <test.h>
 
 
@@ -32,9 +39,9 @@ static gex_Segment_t mysegment;
 
 static gex_Rank_t myrank;
 static gex_Rank_t numranks;
-
-static int peer;
+static gex_Rank_t peer;
 static void *peerseg;
+
 static int iters = 0;
 
 /* Hidden state for error reporting and recovery */
@@ -43,9 +50,24 @@ static const char* subtest = "N/A";
 static int prev_fail = 0;
 static int failures = 0;
 
+static int multinbrhd;
+static int mynbrhd;          // jobrank of first member of the neighborhood
 static gex_Rank_t neighbor;  // next neighbor w/ wrap-around, possibly self.
 static gex_Rank_t nbrhdsize; // size of the neighborhood
 static gex_Rank_t nbrhdrank; // rank in the neighborhood
+static gex_RankInfo_t *nbrhdinfo;
+
+// helper for SEGMENT_EVERYTHING
+// TODO: hoist to test.h?
+void *TEST_SEG_TM(gex_TM_t tm, gex_Rank_t rank) {
+#if GASNET_SEGMENT_EVERYTHING
+  return TEST_SEG(gex_TM_TranslateRankToJobrank(tm, rank));
+#else
+  void *result;
+  check_zeroret(gex_Segment_QueryBound(tm, rank, &result, NULL, NULL));
+  return result;
+#endif
+}
 
 // Macros to simplify iteration over types
 #define I32_type  int32_t
@@ -260,6 +282,7 @@ FORALL_DT(TEST_RAND_DECL)
 /* Deterministic testing of AD_MY_* flags */
 #define TEST_FLAGS_DECL(_tcode) \
 void test_flags_##_tcode(gex_AD_t ad) {                                      \
+  gex_TM_t testtm = gex_AD_QueryTM(ad);                                      \
   gex_Event_t ev;                                                            \
   _tcode##_type result, operand;                                             \
   _tcode##_type unused = 911; /* garbage */                                  \
@@ -281,7 +304,7 @@ void test_flags_##_tcode(gex_AD_t ad) {                                      \
   BARRIER();                                                                 \
                                                                              \
   /* MY_NBRHD applied to not-self-unless-no-other-valid-choice */            \
-  void * nbr_addr = TEST_SEG(neighbor);                                      \
+  void * nbr_addr = TEST_SEG_TM(testtm, neighbor);                           \
   assert(nbr_addr);                                                          \
   operand = neighbor + 1;                                                    \
   gex_AD_OpNBI_##_tcode(ad,&result,neighbor,nbr_addr,GEX_OP_FADD,            \
@@ -294,6 +317,7 @@ FORALL_DT(TEST_FLAGS_DECL)
 /* (F)ADD/(F)INC race test */
 #define TEST_CNTR_DECL(_tcode) \
 void test_cntr_##_tcode(gex_AD_t ad, int max_goal) {                         \
+  gex_TM_t testtm = gex_AD_QueryTM(ad);                                      \
   MSG0("    Central-counter concurrent updates test (FADD/ADD/FINC/INC)");   \
   _tcode##_type unused = 911; /* garbage */                                  \
   int goal = MIN(iters, max_goal);                                           \
@@ -305,7 +329,7 @@ void test_cntr_##_tcode(gex_AD_t ad, int max_goal) {                         \
   BARRIER();                                                                 \
   _tcode##_type result;                                                      \
   { /* Next line intentionally shadows two globals */                        \
-    gex_Rank_t peer = 0;  void * peerseg = TEST_SEG(0);                      \
+    gex_Rank_t peer = 0;  void * peerseg = TEST_SEG_TM(testtm, 0);           \
     _tcode##_type prev_result = 0;                                           \
     int remain = my_share;                                                   \
     while (remain) {                                                         \
@@ -349,6 +373,7 @@ FORALL_DT(TEST_CNTR_DECL)
 /* FCAS race test */
 #define TEST_FCAS_DECL(_tcode) \
 void test_fcas_##_tcode(gex_AD_t ad, int max_goal) {                         \
+  gex_TM_t testtm = gex_AD_QueryTM(ad);                                      \
   MSG0("    Central-counter concurrent updates test (FCAS)");                \
   _tcode##_type unused = 911; /* garbage */                                  \
   int goal = MIN(iters, max_goal);                                           \
@@ -360,7 +385,7 @@ void test_fcas_##_tcode(gex_AD_t ad, int max_goal) {                         \
   BARRIER();                                                                 \
   _tcode##_type result;                                                      \
   { /* Next line intentionally shadows two globals */                        \
-    gex_Rank_t peer = 0;  void * peerseg = TEST_SEG(0);                      \
+    gex_Rank_t peer = 0;  void * peerseg = TEST_SEG_TM(testtm, 0);           \
     _tcode##_type oldval = 0;                                                \
     int remain = my_share;                                                   \
     while (remain) {                                                         \
@@ -390,6 +415,7 @@ FORALL_DT(TEST_FCAS_DECL)
 /* Producer/consume ring tests */
 #define _TEST_RING_DECL(_tcode,_op) \
 void _test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) {  \
+  gex_TM_t testtm = gex_AD_QueryTM(ad);                                      \
   MSG0("    Producer/consumer %s ring test (" #_op ")",                   \
        (nbrhd ? "multiple" : "single"));                                  \
   const gex_Flags_t flags = nbrhd ? GEX_FLAG_AD_MY_NBRHD : 0;             \
@@ -397,7 +423,7 @@ void _test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) {  \
   const int wrap = (tgt <= myrank);                                       \
   _tcode##_type *myX = (_tcode##_type *)TEST_MYSEG();                     \
   _tcode##_type *myY = myX + 1;                                           \
-  _tcode##_type *tgtX = (_tcode##_type *)TEST_SEG(tgt);                   \
+  _tcode##_type *tgtX = (_tcode##_type *)TEST_SEG_TM(testtm, tgt);        \
   _tcode##_type *tgtY = tgtX + 1;                                         \
   unsigned int limit = iters/numranks;                                    \
   limit = MIN(limit, INT_MAX);                                            \
@@ -532,7 +558,7 @@ void test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd) { \
 FORALL_DT(TEST_RING_DECL)
 
 
-void doit(gex_DT_t dt) {
+void doit(gex_TM_t testtm, gex_DT_t dt) {
   gex_OP_t all_ops =
         GEX_OP_ADD  | GEX_OP_SUB  | GEX_OP_MULT  |
         GEX_OP_MIN  | GEX_OP_MAX  |
@@ -549,13 +575,13 @@ void doit(gex_DT_t dt) {
   }
 
   #define MSG_CASE(dtcode) \
-    case GEX_DT_##dtcode: MSG0("Running remote atomic tests for type " _STRINGIFY(dtcode##_type)); break;
+    case GEX_DT_##dtcode: MSG0("  Tests for type " _STRINGIFY(dtcode##_type)); break;
   switch (dt) { FORALL_DT(MSG_CASE) }
 
   // Test of AD-specific flags
   {
     gex_AD_t ad;
-    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_FADD, 0);
+    gex_AD_Create(&ad, testtm, dt, GEX_OP_SET | GEX_OP_FADD, 0);
 
     BARRIER();
 
@@ -594,12 +620,12 @@ void doit(gex_DT_t dt) {
   max_int = (int) MIN((uint64_t)INT_MAX, max_u64);
 
   // Tests of ACQ/REL signaling on a ring, using several different ops to signal
-  // Only run per-neighborhood rings when there are multiple neighborhoods
-  const int nbrhd = (nbrhdsize != numranks);
+  // Only run per-neighborhood rings on team0, and when there are multiple neighborhoods
+  const int nbrhd = (testtm == myteam) && multinbrhd;
   #define RING_TEST(op1,op2,bitwise) \
   if (!bitwise || (dt!=GEX_DT_FLT && dt!=GEX_DT_DBL)) {  \
     gex_AD_t ad;                                         \
-    gex_AD_Create(&ad, myteam, dt,                       \
+    gex_AD_Create(&ad, testtm, dt,                       \
                   (GEX_OP_SET   | GEX_OP_GET |           \
                    GEX_OP_##op1 | GEX_OP_##op2), 0);     \
     BARRIER();                                           \
@@ -620,7 +646,7 @@ void doit(gex_DT_t dt) {
   // Test of contended (F)ADD/(F)INC (central counter)
   {
     gex_AD_t ad;
-    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_GET  |
+    gex_AD_Create(&ad, testtm, dt, GEX_OP_SET | GEX_OP_GET  |
                                    GEX_OP_ADD | GEX_OP_FADD |
                                    GEX_OP_INC | GEX_OP_FINC, 0);
 
@@ -636,7 +662,7 @@ void doit(gex_DT_t dt) {
   // Test of contended FCAS (central counter)
   {
     gex_AD_t ad;
-    gex_AD_Create(&ad, myteam, dt, GEX_OP_SET | GEX_OP_GET | GEX_OP_FCAS, 0);
+    gex_AD_Create(&ad, testtm, dt, GEX_OP_SET | GEX_OP_GET | GEX_OP_FCAS, 0);
 
     BARRIER();
 
@@ -734,7 +760,7 @@ void doit(gex_DT_t dt) {
     }
 
     gex_AD_t ad;
-    gex_AD_Create(&ad, myteam, dt, ops, 0);
+    gex_AD_Create(&ad, testtm, dt, ops, 0);
 
     BARRIER();
 
@@ -746,6 +772,31 @@ void doit(gex_DT_t dt) {
 
     gex_AD_Destroy(ad);
   }
+}
+
+void doall(gex_TM_t tm) {
+  myrank   = gex_TM_QueryRank(tm);
+  numranks = gex_TM_QuerySize(tm);
+  peer = (myrank + 1) % numranks;
+  peerseg = TEST_SEG_TM(tm, peer);
+
+  if (tm == myteam) {
+    neighbor = nbrhdinfo[(nbrhdrank + 1) % nbrhdsize].gex_jobrank;
+  } else {
+    // Search for a neighbor in the team (eventually finding self if no others).
+    for (gex_Rank_t r = 1; r <= nbrhdsize; ++r) {
+      neighbor = gex_TM_TranslateJobrankToRank(tm, nbrhdinfo[(nbrhdrank + r) % nbrhdsize].gex_jobrank);
+      if (neighbor != GEX_RANK_INVALID) break;
+    }
+    gasneti_assert(neighbor != GEX_RANK_INVALID);
+  }
+
+  doit(tm, GEX_DT_U32);
+  doit(tm, GEX_DT_I32);
+  doit(tm, GEX_DT_U64);
+  doit(tm, GEX_DT_I64);
+  doit(tm, GEX_DT_FLT);
+  doit(tm, GEX_DT_DBL);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -760,37 +811,56 @@ int main(int argc, char **argv) {
   unsigned int seedoffset = 0;
   if (argc > arg) { seedoffset = atoi(argv[arg]); ++arg; }
 
+  gex_System_QueryNbrhdInfo(&nbrhdinfo, &nbrhdsize, &nbrhdrank);
+  multinbrhd = (nbrhdsize != gex_TM_QuerySize(myteam));
+  mynbrhd = (int)nbrhdinfo[0].gex_jobrank;
+
+  // need scratch sizes before Attatch
+  gex_TM_t subtm = GEX_TM_INVALID;
+  int color = gex_TM_QueryRank(myteam) & 1; // odds & evens
+  scratch_sz1 = gex_TM_Split(&subtm, myteam, color, 0, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_MIN);
+  scratch_sz2 = gex_TM_Split(&subtm, myteam, mynbrhd, 0, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_MIN);
+
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
   test_init("testratomic",0,"(iters) (seed0)");
 
-  myrank   = gex_TM_QueryRank(myteam);
-  numranks = gex_TM_QuerySize(myteam);
-  peer = (myrank + 1) % numranks;
-  peerseg = TEST_SEG(peer);
-
-  {
-    gex_RankInfo_t *info;
-    gex_System_QueryNbrhdInfo(&info, &nbrhdsize, &nbrhdrank);
-    neighbor = info[(nbrhdrank + 1) % nbrhdsize].gex_jobrank;
-  }
-
+  gex_Rank_t self = gex_TM_QueryRank(myteam);
   if (seedoffset == 0) {
     seedoffset = (((unsigned int)TIME()) & 0xFFFF);
     TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
   }
-  TEST_SRAND(myrank+seedoffset);
+  TEST_SRAND(self+seedoffset);
 
-  MSG("Running %i iterations of remote atomics tests (seed = %u).", iters, myrank+seedoffset);
+  MSG("Running %i iterations of remote atomics tests (seed = %u).", iters, self+seedoffset);
 
-  doit(GEX_DT_U32);
-  doit(GEX_DT_I32);
-  doit(GEX_DT_U64);
-  doit(GEX_DT_I64);
-  doit(GEX_DT_FLT);
-  doit(GEX_DT_DBL);
+  BARRIER();
+  MSG0("Running tests using all ranks");
+  doall(myteam);
 
-  MSG("done.");
+  // TODO: use gex_TM_Destroy(subtm) and do away with scratch_offset
+  uintptr_t scratch_offset = PAGESZ;
+
+  if (gex_TM_QuerySize(myteam) > 1) {
+    BARRIER();
+    MSG0("Running tests using odd/even subteams");
+    gex_TM_Split(&subtm, myteam, color, 0, (void*)(scratch_offset + (uintptr_t)TEST_MYSEG()), scratch_sz1, 0);
+    scratch_offset + scratch_sz1;
+    assert_always(subtm != GEX_TM_INVALID);
+    doall(subtm);
+  }
+
+  if (multinbrhd) {
+    BARRIER();
+    MSG0("Running tests using nbrhd subteams");
+    gex_TM_Split(&subtm, myteam, mynbrhd, 0, (void*)(scratch_offset + (uintptr_t)TEST_MYSEG()), scratch_sz2, 0);
+    scratch_offset + scratch_sz2;
+    assert_always(subtm != GEX_TM_INVALID);
+    doall(subtm);
+  }
+
+  BARRIER();
+  MSG0("done.");
 
   gasnet_exit(0);
   return 0;
