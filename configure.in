@@ -5121,8 +5121,9 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 # Optional "third-party" libraries
 
 ##                        FCA SUPPORT
-GASNET_IF_ENABLED_WITH_AUTO(fca, [Enable/disable FCA for acceleration of collectives (auto-detected)],
-  [enable_fca=yes], [enable_fca=no], [enable_fca=probe])
+GASNET_IF_ENABLED_WITH_AUTO(fca,
+  [Enable/disable FCA for acceleration of collectives (ifdef([GASNET_BRANCH_1],[auto-detected],[default is no]))],
+  [enable_fca=yes], [enable_fca=no], ifdef([GASNET_BRANCH_1],[enable_fca=probe],[enable_fca=no]))
 
 have_fca=no
 if test "$enable_fca" != "no"; then
