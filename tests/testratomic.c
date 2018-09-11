@@ -212,7 +212,7 @@ void test_rand_##_tcode(gex_AD_t ad, int64_t lo, int64_t hi, const char *msg) {\
     SUBTEST("CAS(mirror,random) - PASS");                     \
       y = (_type)TEST_RAND(lo,hi);                            \
       TEST_ROP(_tcode, GEX_OP_CAS, mirror, y, y);             \
-    SUBTEST("GET(cas2)");                                     \
+    SUBTEST("GET(cas3)");                                     \
       TEST_ROP_FETCH_NC(_tcode, GEX_OP_GET, unused, unused);  \
     SUBTEST("CAS(random,random) - FAIL");                     \
       do { y = (_type)TEST_RAND(lo,hi); } while (y == mirror);\
