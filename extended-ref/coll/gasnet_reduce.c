@@ -190,13 +190,16 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI
                                    GASNETI_THREAD_PASS)) {
         break; // back pressure
       }
+    }
 
     done:
       // Done
       gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
-    }
-  }
+      break;
+
+    default: gasneti_unreachable();
+  } // end switch
   
   return result;
 }
@@ -297,7 +300,10 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
       gasnete_coll_free_scratch(op);
       gasnete_coll_generic_free(team, data GASNETI_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
-  }
+      break;
+
+    default: gasneti_unreachable();
+  } // end switch
 
   return result;
 }
@@ -628,7 +634,10 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       }
       gasnete_coll_free_scratch(op);
       gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
-  }
+      break;
+
+    default: gasneti_unreachable();
+  } // end switch
 
   return result;
 }
@@ -778,7 +787,10 @@ static int gasnete_coll_pf_tm_reduce_all_Bcast(gasnete_coll_op_t *op GASNETI_THR
     // Done
       gasnete_coll_generic_free(op->team, data GASNETI_THREAD_PASS);
       result = GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE;
-  }
+      break;
+
+    default: gasneti_unreachable();
+  } // end switch
 
   return result;
 }
