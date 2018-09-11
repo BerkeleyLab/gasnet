@@ -60,18 +60,6 @@ gex_AM_Entry_t htable[] = {
  };
 #define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
 
-// helper for SEGMENT_EVERYTHING
-// TODO: hoist to test.h?
-void *TEST_SEG_TM(gex_TM_t tm, gex_Rank_t rank) {
-#if GASNET_SEGMENT_EVERYTHING
-  return TEST_SEG(gex_TM_TranslateRankToJobrank(tm, rank));
-#else
-  void *result;
-  check_zeroret(gex_Segment_QueryBound(tm, rank, &result, NULL, NULL));
-  return result;
-#endif
-}
-
 int main(int argc, char **argv)
 {
   gex_Rank_t peer;

@@ -4,6 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
+#define GASNETI_NEED_GASNET_COLL_H GASNET_DEBUG // Yes, this works.
+
 #include <gasnet_internal.h>
 #include <gasnet_ratomic_internal.h>
 #include <gasnet_refratomic.h>
@@ -76,31 +78,22 @@ void gasneti_AD_Create(
 
 #if GASNET_DEBUG
   // Verify that call is collective and single-valued
-  // TODO-EX: should use normal collectives and just a Gather.
-  // TODO-EX: needs to be scoped to proper team, of course.
- #if 0 // DOB: bug 3783: this check is disabled to prevent crashes on subset teams
   {
     struct {
         gex_DT_t       dt;
         gex_OP_t       ops;
         gex_Flags_t    flags;
-    } myargs, *allargs;
-    allargs = gasneti_malloc(real_tm->_size * sizeof(myargs));
-    myargs.dt    = dt;
-    myargs.ops   = ops;
-    myargs.flags = flags;
-    gasneti_defaultExchange(&myargs, sizeof(myargs), allargs);
+    } args;
     if (!real_tm->_rank) {
-      for (gex_Rank_t r = 0; r < real_tm->_size; ++r) {
-        gasneti_assert(allargs[r].dt    == dt);
-        gasneti_assert(allargs[r].ops   == ops);
-        gasneti_assert(allargs[r].flags == flags);
-      }
+      args.dt    = dt;
+      args.ops   = ops;
+      args.flags = flags;
     }
-    gasneti_free(allargs);
-    GASNETI_SAFE(gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED));
+    gex_Event_Wait(gex_Coll_BroadcastNB(tm, 0, &args, &args, sizeof(args), 0));
+    gasneti_assert(args.dt    == dt);
+    gasneti_assert(args.ops   == ops);
+    gasneti_assert(args.flags == flags);
   }
- #endif
 
   // Does the 'dt' arument name a single valid data type?
   gasneti_assert(gasneti_dt_valid_atomic(dt));
