@@ -2334,16 +2334,19 @@
       GASNETI_INLINE(_gasneti_atomic32_compare_and_swap)
       int _gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *_p, uint32_t _oldval, uint32_t _newval) {
         GASNETI_ASM_REGISTER_KEYWORD uint32_t _result;
+        // The following use of _tmp addresses Bug 3742 by clearing the upper
+        // 32 bits of the register on LP64, while being a no-op on ILP32:
+        GASNETI_ASM_REGISTER_KEYWORD uintptr_t _tmp = _oldval;
         __asm__ __volatile__ (
           "0:\t"
 	  "lwarx    %0,0,%2 \n\t"         /* load to result */
-	  "xor.     %0,%0,%3 \n\t"        /* xor result w/ oldval */
+	  "xor.     %0,%0,%3 \n\t"        /* xor result w/ tmp */
 	  "bne      1f \n\t"              /* branch on mismatch */
 	  "stwcx.   %4,0,%2 \n\t"         /* store newval */
 	  "bne-     0b \n\t" 
 	  "1:	"
 	  : "=&r"(_result), "=m"(_p->gasneti_ctr)
-	  : "r" (_p), "r"(_oldval), "r"(_newval), "m"(_p->gasneti_ctr)
+	  : "r" (_p), "r"(_tmp), "r"(_newval), "m"(_p->gasneti_ctr)
 	  : GASNETI_ASM_CR0);
   
         return (_result == 0);
