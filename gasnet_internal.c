@@ -425,6 +425,7 @@ gasneti_Client_t gasneti_alloc_client(
   gasneti_Client_t client = gasneti_malloc(alloc_size ? alloc_size : sizeof(*client));
   gasneti_assert(!alloc_size || alloc_size >= sizeof(*client));
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
+  client->_tm0 = NULL;
   client->_name = gasneti_strdup(name);
   client->_cdata = NULL;
   client->_flags = flags;
@@ -565,11 +566,14 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t rank,
                        gex_Rank_t size,
                        gex_Flags_t flags,
-                       int is_tm0,
                        size_t requested_sz)
 {
   gasneti_assert(rank < size);
   gasneti_assert(size > 0);
+
+  gasneti_assert(ep);
+  gasneti_assert(ep->_client);
+  const int is_tm0 = (ep->_client->_tm0 == NULL);
 
   // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
   gasneti_TM_t tm;
@@ -591,6 +595,8 @@ extern gasneti_TM_t gasneti_alloc_tm(
   
   if (is_tm0) {
     gasneti_legacy_alloc_tm_hook(tm); // init g2ex layer if appropriate
+
+    ep->_client->_tm0 = tm;
 
     // TODO-EX: Please remove this!
     gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
