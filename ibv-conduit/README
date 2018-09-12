@@ -537,7 +537,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     either copy the data into bounce buffers, or block until remote
     completion is signaled by the HCA.  Such transfers up to and including
     size GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers
-    while larger transfers are transfered using blocking PUTs.
+    while larger transfers are transferred using blocking PUTs.
     The default value is 64KB.
     A value of zero disables use of bounce buffers.
     
@@ -590,7 +590,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     operations are required at the Verbs layer.  However, some older Mellanox
     HCAs performed poorly with large pinned regions.  In general there is no
     need to adjust this parameter.
-    The default is to use largest size supportd by the HCA(s).
+    The default is to use largest size supported by the HCA(s).
 
   Resource usage parameters:
   -------------------------
@@ -985,7 +985,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 + Bug 3428
   In this release the code used to checksum AMRDMA traffic is known to be
-  incorrect under agressive compiler optimization.  However, an alternative
+  incorrect under aggressive compiler optimization.  However, an alternative
   implementation is currently enabled for the only compiler (PathScale)
   known to manifest the problem.
   The most up-to-date information on this bug is maintained at:
@@ -1057,7 +1057,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   and to poll for credits when needed to send a REQUEST.  It is also
   simple to ensure the exactly-one-reply.  We already ensure that
   at-most-one reply is sent by the request handler.  Additionally we
-  must check upon handler return for the case that the request hander
+  must check upon handler return for the case that the request handler
   sent no reply, and send one implicitly.  We just use a special
   "system category" handler, gasnetc_SYS_ack, which doesn't even run
   a handler.
@@ -1312,7 +1312,7 @@ _body code from a signal handler context if we can avoided it.
 Therefore we inspect the signal handler and skip the raise() call if
 the handler is the gasnet default handler, SIG_DFL or SIG_IGN.  After
 the raise() returns, or is skipped all together, we are certain that
-the user's hander, if any, has executed and has NOT called
+the user's handler, if any, has executed and has NOT called
 gasnet_exit().  If a user handler had called gasnet_exit(), then
 raise() would not have returned.  So, if we reach the code after the
 possible raise(), we proceed to call gasnetc_exit_body() and _tail to
