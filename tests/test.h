@@ -1051,6 +1051,17 @@ static size_t test_num_am_handlers = 0;
 
 #define TEST_MYSEG()          (TEST_SEG(TEST_MYPROC))
 
+// helper for SEGMENT_EVERYTHING
+static void *TEST_SEG_TM(gex_TM_t tm, gex_Rank_t rank) {
+#if GASNET_SEGMENT_EVERYTHING
+  return TEST_SEG(gex_TM_TranslateRankToJobrank(tm, rank));
+#else
+  void *result;
+  check_zeroret(gex_Segment_QueryBound(tm, rank, &result, NULL, NULL));
+  return result;
+#endif
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* segment alignment */
 #if defined(GASNET_SEGMENT_EVERYTHING) || !GASNET_ALIGNED_SEGMENTS || !defined(_INCLUDED_GASNET_H)

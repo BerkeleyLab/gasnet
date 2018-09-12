@@ -30,7 +30,7 @@ Optional configure-time settings:
 ------------------------------
 
 NOTE: In the descriptions which follow, the token [CONDUIT] should be replaced
-by "aries" or "gemini" (without the quotes), as approptiate.
+by "aries" or "gemini" (without the quotes), as appropriate.
 
 --with-[CONDUIT]-max-medium=[value]
    By default gasnet_AMMaxMedium() is 4032: a 4096 byte buffer minus
@@ -330,8 +330,8 @@ GASNET_AM_DOMAIN_POLL_MASK
 
 MPICH_RANK_REORDER_METHOD
   This environment variable is not processed directly by GASNet itself.
-  Howevever, it controls the numbering of GASNet processes launched with
-  either 'aprun' or 'srun', as descibed in Cray's intro_mpi(3) manpage.
+  However, it controls the numbering of GASNet processes launched with
+  either 'aprun' or 'srun', as described in Cray's intro_mpi(3) manpage.
 
 PMI_GNI_LOC_ADDR   - NIC address on local node
 PMI_GNI_COOKIE     - Access code shared by all nodes in job
@@ -703,7 +703,7 @@ that as an error exit and kill all the other ranks.
 The logic to determine the maximum size pinnable segment is borrowed
 from the portals-conduit.
 
-The gasnetc_bootstrap* functions containsthe interface to PMI.  It also includes
+The gasnetc_bootstrap* functions contain the interface to PMI.  It also includes
 the implementation of AllGather for GASNet bootstrapExchange and GNI
 initialization.  It uses PMI_AllGather.  For some reason,
 PMI_AllGather does not return data in rank order, so it is sorted into
