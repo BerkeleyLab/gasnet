@@ -77,12 +77,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   reduction in latencies by allowing some locking operations to
   compile away.
 
-  By default, ibv-conduit will open at most two Host Channel Adapters
-  (HCAs) on a node.  To utilize more than two HCAs in a host, specify
-  '--with-ibv-max-hcas=N' at configure time.  However, if you
-  have only a single HCA per host, then you may be able to get a small
-  performance improvement by disabling multi-rail support with
-  '--disable-ibv-multirail' at configure time.
+  By default, each ibv-conduit process in a GASNet job will open at most
+  one Host Channel Adapter (HCA).  To allow a process to utilize more
+  than one HCA, specify '--enable-ibv-multirail' at configure time,
+  which will enable use of up to two HCAs.  To use more than two,
+  additionally specify '--with-ibv-max-hcas=N' at configure time (where
+  'N' is the number of HCAs to support per process).
   
   When using dynamic connections (see GASNET_CONNECT_DYNAMIC env var,
   below) there is an extra thread spawned to block for the arrival of
@@ -843,14 +843,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ Section: Multi-rail Support @
 
-  Multi-rail support is ON in GASNet ibv-conduit by default.
+  Multi-rail support is OFF in GASNet ibv-conduit by default.
 
-  By default, GASNet ibv-conduit will open up to two InfiniBand Host
-  Channel Adapters (HCAs) per node, and will stripe communications over
-  one active port on each adapter.  See the sections "Build-time
-  Configuration" and "Runtime Configuration" for information on
-  how to open more or fewer HCAs/ports, or to control which HCAs/ports
-  are used.
+  By default, ibv-conduit will use only the first active port on the
+  first active InfiniBand Host Channel Adapter (HCA).  However, if more
+  than one HCA port is enabled for use, ibv-conduit will stripe
+  communications over them.  See the sections "Build-time Configuration"
+  and "Runtime Configuration" for information on how to enable use of
+  more HCAs/ports, or to control which HCAs/ports are used.
 
   To first order, the use of multiple ports or multiple adapters will
   yield increases in both bandwidth (good) and software overhead (bad).
