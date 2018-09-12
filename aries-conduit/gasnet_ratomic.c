@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#define GASNETI_NEED_GASNET_RATOMIC_H 1
 #include <gasnet_internal.h>
 
 #if GASNETC_BUILD_GNIRATOMIC

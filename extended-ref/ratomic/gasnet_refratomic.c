@@ -5,6 +5,7 @@
  */
 
 #define GASNETI_NEED_GASNET_COLL_H GASNET_DEBUG // Yes, this works.
+#define GASNETI_NEED_GASNET_RATOMIC_H 1
 
 #include <gasnet_internal.h>
 #include <gasnet_ratomic_internal.h>
