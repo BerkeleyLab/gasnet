@@ -343,10 +343,13 @@ typedef [some integer type] gex_Flags_t;
 // RANK_IS_JOBRANK
 //
 // This flag indicates, to those calls explicitly documented as accepting it,
-// that the 'rank' (or equivalent) is a jobrank rather than a rank within the
-// the normal associated team.
+// that the 'rank' (or equivalent argument) is a jobrank rather than a rank
+// within the the normal associated team.
 //
-#define GEX_FLAG_RANK_IS_JOBRANK  ((gex_Flags_t)???)  [UNIMPLEMENTED]
+// Currently this flags is accepted by:
+//   gex_AD_Op*()
+//
+#define GEX_FLAG_RANK_IS_JOBRANK  ((gex_Flags_t)???)
 //
 // AM_PREPARE_LEAST_{CLIENT,ALLOC} [EXPERIMENTAL]
 //
@@ -2259,8 +2262,13 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //
 // + The 'result_p' argument to non-fetching operations is ignored.
 //
-// + The 'tgt_rank' argument names the target endpoint as a valid rank
-//   relative to the team associated with the AD at its creation.
+// + The 'tgt_rank' argument names the target endpoint.  By default, this
+//   argument must be a valid rank relative to the team associated with the AD
+//   at its creation.  However, in the presence of GEX_FLAG_RANK_IS_JOBRANK,
+//   this argument instead names the target endpoint by a valid rank in the
+//   primordial team, created by gex_Client_Init().  In this latter case the
+//   named endpoint must be a member of the team associated with the AD at its
+//   creation.
 //
 // + The 'tgt_addr' argument names the target location, which must be properly
 //   aligned for its data type [TYPE] and (for any operation except
@@ -2332,6 +2340,10 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //       GASNet operations initiated by that thread after synchronization.
 //       However, there is no ordering with respect to other GASNet
 //       operations.
+//     - GEX_FLAG_RANK_IS_JOBRANK: this flag indicates that the 'tgt_rank'
+//       argument is a jobrank (rank in the primordial team created by
+//       gex_Client_Init()), rather than the rank in the team associated with
+//       the AD at its creation.
 //     - [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: 'result_p' is to be
 //       interpreted as an offset relative to the bound segment of the
 //       initiating endpoint (instead of as a virtual address).
