@@ -169,6 +169,8 @@ typedef uint32_t gex_Flags_t;
 #define GEX_FLAG_TM_SCRATCH_SIZE_MIN          (1U <<  0)
 #define GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED  (1U <<  1)
 
+#define GEX_FLAG_RANK_IS_JOBRANK        (1U << 13)
+
 //--------------------------------------------------------
 // Private definitions
 // Identifiers defined below are not for public use

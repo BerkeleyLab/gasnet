@@ -340,6 +340,14 @@ typedef [some integer type] gex_Flags_t;
 #define GEX_FLAG_AD_ACQ          ((gex_Flags_t)???)
 #define GEX_FLAG_AD_REL          ((gex_Flags_t)???)
 //
+// RANK_IS_JOBRANK
+//
+// This flag indicates, to those calls explicitly documented as accepting it,
+// that the 'rank' (or equivalent) is a jobrank rather than a rank within the
+// the normal associated team.
+//
+#define GEX_FLAG_RANK_IS_JOBRANK  ((gex_Flags_t)???)  [UNIMPLEMENTED]
+//
 // AM_PREPARE_LEAST_{CLIENT,ALLOC} [EXPERIMENTAL]
 //
 // This pair of mutually exclusive flags modify the behavior of the
