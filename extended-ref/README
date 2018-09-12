@@ -49,7 +49,7 @@ The extended-ref directory provides a reference implementation of the extended
 API, written solely in terms of the GASNet core API. This provides an easy
 porting path for new networks - once the core API is implemented, the
 extended-ref files provide working implementations of everything else in
-GASNet. Conduits for networks with good hardware support can subseqently
+GASNet. Conduits for networks with good hardware support can subsequently
 customize and optimize selected functions from the extended API using hardware
 support.
 
