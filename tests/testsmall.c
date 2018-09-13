@@ -31,7 +31,7 @@ static gex_Segment_t     mysegment;
 
 gex_AM_Entry_t handler_table[2];
 
-int insegment = 0;
+int insegment = 1;
 
 int myproc;
 int peerproc = -1;
