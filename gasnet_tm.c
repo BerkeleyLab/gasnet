@@ -121,7 +121,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   }
 
   // TODO-EX: use of a conduit-specific hook is needed here
-  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags, 0, 0);
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags, 0);
   i_tm->_coll_team = team;
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;

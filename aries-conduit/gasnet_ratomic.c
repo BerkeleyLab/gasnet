@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#define GASNETI_NEED_GASNET_RATOMIC_H 1
 #include <gasnet_internal.h>
 
 #if GASNETC_BUILD_GNIRATOMIC
@@ -202,6 +203,17 @@ int gasnete_ratomic_inner(
   return !gpd;
 }
 
+GASNETI_INLINE(gasnete_ratomic_jobrank)
+gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t i_tm, gex_Rank_t tgt_rank, gex_Flags_t flags)
+{
+  if (flags & GEX_FLAG_RANK_IS_JOBRANK) {
+    gasneti_assert(GEX_RANK_INVALID != gasneti_i_tm_jobrank_to_rank(i_tm, tgt_rank));
+    return tgt_rank;
+  } else {
+    return gasneti_i_tm_rank_to_jobrank(i_tm, tgt_rank);
+  }
+}
+
 // NB-specific wrapper around gasnete_ratomic_inner()
 GASNETI_INLINE(gasnete_ratomic_nb)
 gex_Event_t gasnete_ratomic_nb(
@@ -213,7 +225,7 @@ gex_Event_t gasnete_ratomic_nb(
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
   gasnete_eop_t * const eop = gasnete_eop_new(mythread);
-  gex_Rank_t job_rank = gasneti_i_tm_rank_to_jobrank(i_tm, tgt_rank);
+  gex_Rank_t job_rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   int imm = gasnete_ratomic_inner(fetching, op_cnt, length,
                                   result_p, job_rank, tgt_addr,
                                   cmd, operand1, operand2,
@@ -238,7 +250,7 @@ int gasnete_ratomic_nbi(
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
   gasnete_iop_t * const iop = mythread->current_iop;
-  gex_Rank_t job_rank = gasneti_i_tm_rank_to_jobrank(i_tm, tgt_rank);
+  gex_Rank_t job_rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   int imm = gasnete_ratomic_inner(fetching, op_cnt, length,
                                   result_p, job_rank, tgt_addr,
                                   cmd, operand1, operand2,
@@ -483,7 +495,7 @@ int gasnete_ratomic_nbi(
         GASNETC_DIDX_POST(mythread->domain_idx);                  \
         gasnete_iop_t * const iop = mythread->current_iop;        \
         gex_Rank_t job_rank =                                     \
-                gasneti_i_tm_rank_to_jobrank(ad->_tm, tgt_rank);  \
+                gasnete_ratomic_jobrank(ad->_tm, tgt_rank, flags);\
         return gasnete_ratomic_inner(0, 1, sizeof(type),          \
                                      NULL, job_rank, tgt_addr,    \
                                      cmd, val, 0,                 \
@@ -503,7 +515,7 @@ int gasnete_ratomic_nbi(
         GASNETC_DIDX_POST(mythread->domain_idx);                  \
         gasnete_iop_t * const iop = mythread->current_iop;        \
         gex_Rank_t job_rank =                                     \
-                gasneti_i_tm_rank_to_jobrank(ad->_tm, tgt_rank);  \
+                gasnete_ratomic_jobrank(ad->_tm, tgt_rank, flags);\
         return gasnete_ratomic_inner(1, 1, sizeof(type),          \
                                      result_p, job_rank, tgt_addr,\
                                      cmd, op1, 0,                 \

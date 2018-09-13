@@ -5,6 +5,7 @@
  */
 
 #define GASNETI_NEED_GASNET_COLL_H GASNET_DEBUG // Yes, this works.
+#define GASNETI_NEED_GASNET_RATOMIC_H 1
 
 #include <gasnet_internal.h>
 #include <gasnet_ratomic_internal.h>
@@ -40,6 +41,8 @@ extern gasneti_AD_t gasneti_alloc_ad(
   ad->_cdata = NULL;
   ad->_tm = tm;
   ad->_rank = tm->_rank; // Used often enough to justify caching
+  ad->_tm0   = tm->_ep->_client->_tm0;
+  ad->_rank0 = tm->_ep->_client->_tm0->_rank;
   ad->_flags = flags;
   ad->_dt = dt;
   ad->_ops = ops;
@@ -152,9 +155,15 @@ void gasnete_ratomic_validate(
     gasneti_assert(ad != GEX_AD_INVALID);
     gasneti_AD_t real_ad = gasneti_import_ad(ad);
 
-    // Rank must be valid (redundant, but clearer than a later failure)
-    if (tgt_rank >= real_ad->_tm->_size) {
-      gasneti_fatalerror("gex_AD_Op*() called with invalid target rank");
+    // Rank must be valid
+    if (flags & GEX_FLAG_RANK_IS_JOBRANK) {
+      if (gasneti_i_tm_jobrank_to_rank(real_ad->_tm, tgt_rank) == GEX_RANK_INVALID) {
+        gasneti_fatalerror("gex_AD_Op*() called with invalid target jobrank");
+      }
+    } else {
+      if (tgt_rank >= real_ad->_tm->_size) {
+        gasneti_fatalerror("gex_AD_Op*() called with invalid target rank");
+      }
     }
 
     // Datatype must match AD
@@ -197,7 +206,7 @@ void gasnete_ratomic_validate(
 
     // Address must be in bound segment
     // TODO: remove this restriction?
-    gasneti_boundscheck(gasneti_export_tm(real_ad->_tm), tgt_rank, tgt_addr, gasneti_dt_size(datatype));
+    gasneti_boundscheck(gasnete_ratomic_e_tm(real_ad, flags), tgt_rank, tgt_addr, gasneti_dt_size(datatype));
 }
 #endif
 
@@ -425,7 +434,7 @@ gex_Event_t gasnete_amratomic_request_NB(
     rop->iop = NULL;
     rop->eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
     gex_Event_t result = gasneti_eop_to_event(rop->eop);
-    gex_TM_t tm = gasneti_export_tm(ad->_tm);
+    gex_TM_t tm = gasnete_ratomic_e_tm(ad, flags);
     gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;
     int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh),
                                    payload, length, GEX_EVENT_NOW, am_flags,
@@ -451,7 +460,7 @@ int gasnete_amratomic_request_NBI(
     rop->eop = NULL;
     rop->iop = gasneti_iop_register_rmw(1 GASNETI_THREAD_PASS); // TODO-EX: EOP_INTERFACE - to be replaced
     rop->iop_type = GEX_EC_RMW;
-    gex_TM_t tm = gasneti_export_tm(ad->_tm);
+    gex_TM_t tm = gasnete_ratomic_e_tm(ad, flags);
     gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;
     int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh),
                                    payload, length, GEX_EVENT_NOW, am_flags,
@@ -663,7 +672,7 @@ int gasnete_amratomic_request_NBI(
         rop->eop = NULL;                                          \
         rop->iop = gasneti_iop_register(1,0 GASNETI_THREAD_PASS); \
         rop->iop_type = GEX_EC_PUT;                               \
-        gex_TM_t tm = gasneti_export_tm(ad->_tm);                 \
+        gex_TM_t tm = gasnete_ratomic_e_tm(ad, flags);            \
         const gasneti_op_idx_t op_idx = gasneti_op_idx_SET;       \
         gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;        \
         int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh), \
@@ -687,7 +696,7 @@ int gasnete_amratomic_request_NBI(
         rop->eop = NULL;                                          \
         rop->iop = gasneti_iop_register(1,1 GASNETI_THREAD_PASS); \
         rop->iop_type = GEX_EC_GET;                               \
-        gex_TM_t tm = gasneti_export_tm(ad->_tm);                 \
+        gex_TM_t tm = gasnete_ratomic_e_tm(ad, flags);            \
         const gasneti_op_idx_t op_idx = gasneti_op_idx_GET;       \
         gex_Flags_t am_flags = flags & GEX_FLAG_IMMEDIATE;        \
         int imm = gex_AM_RequestMedium(tm, tgt_rank, gasneti_handleridx(gasnete_amratomic_reqh), \
@@ -769,20 +778,24 @@ GASNETE_DT_APPLY(GASNETE_AMRATOMIC_MID_NBI)
 #define _GASNETE_AMRATOMIC_SETGET_RMA3(dtcode, type, bits) \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_SET (GASNETE_RATOMIC_ARGS_N1(type)) { \
     union { uint##bits##_t uint; type op1; } u; u.op1 = _operand1;                        \
-    return gex_RMA_PutNBVal(gasneti_export_tm(_real_ad->_tm), _tgt_rank, _tgt_addr,       \
+    gex_TM_t tm = gasnete_ratomic_e_tm(_real_ad, _flags);                                 \
+    return gex_RMA_PutNBVal(tm, _tgt_rank, _tgt_addr,                                     \
                             u.uint, sizeof(type), _flags);                                \
   } \
   static int gasnete_amratomic##dtcode##_NBI_SET (GASNETE_RATOMIC_ARGS_N1(type)) {        \
     union { uint##bits##_t uint; type op1; } u; u.op1 = _operand1;                        \
-    return gex_RMA_PutNBIVal(gasneti_export_tm(_real_ad->_tm), _tgt_rank, _tgt_addr,      \
+    gex_TM_t tm = gasnete_ratomic_e_tm(_real_ad, _flags);                                 \
+    return gex_RMA_PutNBIVal(tm, _tgt_rank, _tgt_addr,                                    \
                              u.uint, sizeof(type), _flags);                               \
   } \
   static gex_Event_t gasnete_amratomic##dtcode##_NB_GET (GASNETE_RATOMIC_ARGS_F0(type)) { \
-    return gex_RMA_GetNB(gasneti_export_tm(_real_ad->_tm), _result_p,                     \
+    gex_TM_t tm = gasnete_ratomic_e_tm(_real_ad, _flags);                                 \
+    return gex_RMA_GetNB(tm, _result_p,                                                   \
                          _tgt_rank, _tgt_addr, sizeof(type), _flags);                     \
   } \
   static int gasnete_amratomic##dtcode##_NBI_GET (GASNETE_RATOMIC_ARGS_F0(type)) {        \
-    return gex_RMA_GetNBI(gasneti_export_tm(_real_ad->_tm), _result_p,                    \
+    gex_TM_t tm = gasnete_ratomic_e_tm(_real_ad, _flags);                                 \
+    return gex_RMA_GetNBI(tm, _result_p,                                                  \
                           _tgt_rank, _tgt_addr, sizeof(type), _flags);                    \
   }
 //

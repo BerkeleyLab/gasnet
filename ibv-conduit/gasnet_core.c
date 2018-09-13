@@ -2399,7 +2399,7 @@ extern int gasnetc_Client_Init(
   gasneti_EP_t ep = gasneti_import_ep(*ep_p);
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {

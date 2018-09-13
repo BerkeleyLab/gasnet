@@ -30,8 +30,8 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
   // appears directly within the AD.
   #define GASNETI_AD_COMMON \
     GASNETI_OBJECT_HEADER              \
-    gasneti_TM_t       _tm;            \
-    gex_Rank_t         _rank;          \
+    gasneti_TM_t       _tm,   _tm0;    \
+    gex_Rank_t         _rank, _rank0;  \
     gex_DT_t           _dt;            \
     gex_OP_t           _ops;           \
     int                _tools_safe;    \
@@ -536,6 +536,22 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #endif
 
 //
+// Helpers for supporting GEX_FLAG_RANK_IS_JOBRANK
+//
+GASNETI_INLINE(gasnete_ratomic_i_tm)
+gasneti_TM_t gasnete_ratomic_i_tm(gasneti_AD_t _ad, gex_Flags_t _flags) {
+  return (_flags & GEX_FLAG_RANK_IS_JOBRANK) ? _ad->_tm0 : _ad->_tm;
+}
+GASNETI_INLINE(gasnete_ratomic_e_tm)
+gex_TM_t gasnete_ratomic_e_tm(gasneti_AD_t _ad, gex_Flags_t _flags) {
+  return gasneti_export_tm(gasnete_ratomic_i_tm(_ad, _flags));
+}
+GASNETI_INLINE(gasnete_ratomic_self)
+gex_Rank_t gasnete_ratomic_self(gasneti_AD_t _ad, gex_Flags_t _flags) {
+  return (_flags & GEX_FLAG_RANK_IS_JOBRANK) ? _ad->_rank0 : _ad->_rank;
+}
+
+//
 // Define of a full family of "dispatch" functions that together
 // constitute the default implementation of remote atomics.
 //
@@ -611,16 +627,16 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #if GASNET_PSHM
   #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
     if (_flags & GEX_FLAG_AD_MY_RANK) {                                  \
-        gasneti_assert(_tgt_rank == _real_ad->_rank);                    \
+        gasneti_assert(_tgt_rank == gasnete_ratomic_self(_real_ad,_flags));\
         /* Will use tools */                                             \
     } else if (GASNETE_RATOMIC_PSHMSAFE##dtcode) {                       \
         if (_flags & GEX_FLAG_AD_MY_NBRHD) {                             \
-            gex_TM_t _tm = gasneti_export_tm(_real_ad->_tm);             \
-            gasneti_assert(GASNETI_NBRHD_LOCAL(_tm,_tgt_rank));      \
+            gex_TM_t _tm = gasnete_ratomic_e_tm(_real_ad,_flags);        \
+            gasneti_assert(GASNETI_NBRHD_LOCAL(_tm,_tgt_rank));          \
             _tgt_addr = GASNETI_NBRHD_LOCAL_ADDR(_tm,_tgt_rank,_tgt_addr);\
             /* Will use tools */                                         \
         } else {                                                         \
-            gex_TM_t _tm = gasneti_export_tm(_real_ad->_tm);             \
+            gex_TM_t _tm = gasnete_ratomic_e_tm(_real_ad,_flags);        \
             void *_tmp_addr = GASNETI_NBRHD_LOCAL_ADDR_OR_NULL(_tm,_tgt_rank,_tgt_addr);\
             if (!_tmp_addr) break; /* Leave enclosing do/while w/o using tools */ \
             _tgt_addr = (dtcode##_type *)_tmp_addr;                      \
@@ -632,8 +648,8 @@ union gasnete_ratomic_fn_tbl_u { GASNETE_DT_APPLY(GASNETE_RATOMIC_FN_UNION) };
 #else
   #define _GASNETE_RATOMIC_DISP_TOOLS_CHECK(dtcode) \
     if ((_flags & (GEX_FLAG_AD_MY_RANK|GEX_FLAG_AD_MY_NBRHD)) ||         \
-        (_tgt_rank == _real_ad->_rank)) {                                \
-        gasneti_assert(_tgt_rank == _real_ad->_rank);                    \
+        (_tgt_rank == gasnete_ratomic_self(_real_ad,_flags))) {          \
+        gasneti_assert(_tgt_rank == gasnete_ratomic_self(_real_ad,_flags));\
         /* Will use tools */                                             \
     } else {                                                             \
        break; /* Leave enclosing do/while w/o using tools */             \

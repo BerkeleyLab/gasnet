@@ -77,19 +77,25 @@ static gex_RankInfo_t *nbrhdinfo;
 
 /* Blocking atomic via either NB or NBI (chosen at random) */
 /* With or without IMMEDIATE (also at random) */
+/* With or without RANK_IS_JOBRANK (also at random) */
 /* Note that some arguments and variables are hard-coded */
 #define _TEST_ROP(_tcode, _result_p, _opcode, _op1, _op2) do { \
     gex_Flags_t flags = TEST_RAND_ONEIN(2) ? GEX_FLAG_IMMEDIATE : 0;                       \
+    gex_Rank_t tgt = peer;                                                                 \
+    if (TEST_RAND_ONEIN(4)) {                                                              \
+      flags |= GEX_FLAG_RANK_IS_JOBRANK;                                                   \
+      tgt = gex_TM_TranslateRankToJobrank(gex_AD_QueryTM(ad), tgt);                        \
+    }                                                                                      \
     if (TEST_RAND_ONEIN(2)) {                                                              \
       gex_Event_t ev;                                                                      \
       while (GEX_EVENT_NO_OP ==                                                            \
-             (ev = gex_AD_OpNB_##_tcode(ad,_result_p,peer,peerseg,_opcode,_op1,_op2,flags))) {\
+             (ev = gex_AD_OpNB_##_tcode(ad,_result_p,tgt,peerseg,_opcode,_op1,_op2,flags))) {\
         assert_always(flags & GEX_FLAG_IMMEDIATE);                                         \
         flags &= ~GEX_FLAG_IMMEDIATE;                                                      \
       }                                                                                    \
       gex_Event_Wait(ev);                                                                  \
     } else {                                                                               \
-      while (gex_AD_OpNBI_##_tcode(ad,_result_p,peer,peerseg,_opcode,_op1,_op2,flags)) {   \
+      while (gex_AD_OpNBI_##_tcode(ad,_result_p,tgt,peerseg,_opcode,_op1,_op2,flags)) {    \
         assert_always(flags & GEX_FLAG_IMMEDIATE);                                         \
         flags &= ~GEX_FLAG_IMMEDIATE;                                                      \
       }                                                                                    \
