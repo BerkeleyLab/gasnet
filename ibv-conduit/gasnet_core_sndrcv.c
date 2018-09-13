@@ -695,8 +695,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
       args = buf->longmsg.args;
       break;
 
-    default:
-    gasneti_fatalerror("invalid AM category on recv");
+    default: gasneti_unreachable_error(("Invalid category in gasnetc_processPacket: 0x%x",(int)category));
   }
 
   if_pt (GASNET_PSHM || (cep != NULL)) { /* Process any flow control info, unless loopback */
@@ -766,6 +765,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
         GASNETI_RUN_HANDLER_LONG(isreq,handler_id,handler_fn,rbuf,args,user_numargs,data,(size_t)nbytes);
       }
       break;
+    default: gasneti_unreachable_error(("Invalid category in gasnetc_processPacket: 0x%x",(int)category));
   }
   
 #if GASNET_DEBUG
@@ -1944,9 +1944,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       args = buf->longmsg.args;
       break;
 
-    default:
-      gasneti_fatalerror("invalid AM category on send");
-      /* NOT REACHED */
+    default: gasneti_unreachable_error(("Invalid category in gasnetc_ReqRepGeneric: 0x%x",(int)category));
     }
 
     /* copy args */
@@ -2090,9 +2088,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       }
       break;
   
-    default:
-      gasneti_fatalerror("invalid AM category on send");
-      /* NOT REACHED */
+    default: gasneti_unreachable_error(("Invalid category in gasnetc_ReqRepGeneric: 0x%x",(int)category));
     }
   
     if (!token) {
@@ -2202,8 +2198,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       args = buf->longmsg.args;
       break;
 
-    default:
-      gasneti_unreachable();
+    default: gasneti_unreachable_error(("Invalid category in gasnetc_ReqRepGeneric: 0x%x",(int)category));
     }
    
     /* Assemble an array of arguments. */
@@ -2742,8 +2737,7 @@ static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq) {
       gasnetc_fh_post(sreq, IBV_WR_RDMA_WRITE);
       break;
 
-    default:
-      gasneti_fatalerror("invalid opcode in sreq");
+    default: gasneti_unreachable_error(("Invalid opcode in gasnetc_fh_do_put sreq: 0x%x",(int)sreq->opcode));
   }
 
   gasnetc_counter_dec_if_pf(am_oust);

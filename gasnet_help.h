@@ -470,10 +470,6 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   #define _GASNETI_THREAD_FARG_NAME    _gasneti_threadinfo_farg
   static uint8_t _GASNETI_THREAD_FARG_NAME = sizeof(_GASNETI_THREAD_FARG_NAME);
   #define _GASNETI_THREAD_FARG_AVAILABLE  (sizeof(_GASNETI_THREAD_FARG_NAME) > 1)
-  // A compile error on the following macro means the assertion failed,
-  // ie a macro that requires FARG/POSTed context was invoked outside either
-  #define _GASNETI_ASSERT_FARG_OR_POSTED() \
-    ((void)(void (*)(int gasneti_MISSING_FARG_OR_POST[(_GASNETI_THREAD_FARG_AVAILABLE||_GASNETI_THREAD_POSTED)?1:-1]))0)
   // -----------------------------------------------------------------------------------------
   // *** Propagating info into GASNETI_THREAD_FARG function context ***
   
@@ -500,14 +496,14 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   // GASNETI_THREAD_PASS(_ALONE): propagate the threadinfo to a callee declared with GASNETI_THREAD_FARG*
   //   this only differs from GASNETI_THREAD_GET* in that it statically requires FARG/POST'd context (and no lookup)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
-  #define GASNETI_THREAD_PASS_ALONE ( _GASNETI_ASSERT_FARG_OR_POSTED(),                              \
+  #define GASNETI_THREAD_PASS_ALONE ( gasneti_static_assert(_GASNETI_THREAD_FARG_AVAILABLE||_GASNETI_THREAD_POSTED), \
                                      ( _GASNETI_THREAD_POSTED ?                                      \
                                       (_GASNETI_THREAD_FARG_RTYPE)_GASNETI_GET_THREADINFO_POSTED() : \
                                       (_GASNETI_THREAD_FARG_RTYPE)(uintptr_t)_GASNETI_THREAD_FARG_NAME ) )
 
   // GASNETI_MYTHREAD: retrieve the value of the threadinfo as a (gasneti_threaddata_t *),
   //                   suitable for access to threaddata fields from internal code
-  #define GASNETI_MYTHREAD  ( _GASNETI_ASSERT_FARG_OR_POSTED(),                                  \
+  #define GASNETI_MYTHREAD  (  gasneti_static_assert(_GASNETI_THREAD_FARG_AVAILABLE||_GASNETI_THREAD_POSTED), \
                              (_GASNETI_THREAD_POSTED ?                                           \
                               (struct _gasneti_threaddata_t *)_GASNETI_GET_THREADINFO_POSTED() : \
                               (struct _gasneti_threaddata_t *)(uintptr_t)_GASNETI_THREAD_FARG_NAME ) )
