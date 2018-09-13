@@ -24,7 +24,7 @@ typedef struct {
 	uint64_t time;
 } stat_struct_t;
 
-int insegment = 0;
+int insegment = 1;
 int dogets = 1;
 int doputs = 1;
 

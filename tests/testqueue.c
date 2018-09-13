@@ -15,7 +15,7 @@ int maxsz = 0;
 #endif
 #include "test.h"
 
-int insegment = 0;
+int insegment = 1;
 
 int myproc;
 int numprocs;
