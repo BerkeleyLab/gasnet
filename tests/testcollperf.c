@@ -798,7 +798,7 @@ int main(int argc, char **argv)
 
   TEST_SET_WAITMODE(threads_per_node);
 
-  if (TEST_SEGSZ_REQUEST) {
+  if (0 != TEST_SEGSZ_REQUEST) {
     GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   }
   {
