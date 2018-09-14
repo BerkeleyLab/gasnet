@@ -68,8 +68,11 @@ int outer_verification_iters;
 int performance_iters;
 size_t max_data_size;
 
-#define TEST_SEGSZ_EXPR (sizeof(int)*(max_data_size*(inner_verification_iters)*TOTAL_THREADS*threads_per_node*2))
+static int src_insegment = 1;
+static int dst_insegment = 1;
+
 #define SEG_PER_THREAD (sizeof(int)*max_data_size*(inner_verification_iters)*TOTAL_THREADS)
+#define TEST_SEGSZ_EXPR ((src_insegment+dst_insegment) * SEG_PER_THREAD*threads_per_node)
 
 #define TEST_USE_PRIMORDIAL_THREAD 1
 #include "test.h"
@@ -88,8 +91,6 @@ typedef struct {
 
 uint8_t **my_srcs;
 uint8_t **my_dsts;
-uint8_t **all_srcs;
-uint8_t **all_dsts;
 
 void fill_flag_str(int flags, char *outstr) {
   
@@ -133,7 +134,9 @@ if(td->my_local_thread==0 && performance_iters>0) MSG0("%c: %d> %s/%s %s sync_mo
 void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int in_flags) {
   /* all threads pass the same pointers for src and dest*/
   int i,j,t,k;
-  int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
+  int flags = in_flags
+            | (src_insegment ? GASNET_COLL_SRC_IN_SEGMENT : 0)
+            | (dst_insegment ? GASNET_COLL_DST_IN_SEGMENT : 0);
   int *src, *dst;
   char output_str[8];
   gasnett_tick_t begin, end;
@@ -641,6 +644,18 @@ int main(int argc, char **argv)
       ++arg;
       if (argc > arg) { szfactor = atof(argv[arg]); arg++; }
       else help = 1;
+    } else if (!strcmp(argv[arg], "-src-in")) {
+      src_insegment = 1;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-out")) {
+      src_insegment = 0;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-in")) {
+      dst_insegment = 1;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-dst-out")) {
+      dst_insegment = 0;
+      ++arg;
     } else if (argv[arg][0] == '-') {
       help = 1;
       ++arg;
@@ -688,6 +703,8 @@ int main(int argc, char **argv)
   /* Need to test_init before gasnet_attach to use TEST_LOCALPROCS() */
   test_init_early("testcollperf",(performance_iters != 0),
                   "[options] (max data size) (outer_verification_iters) (inner_verification_iters) (performance_iters) " PAR_USAGE "(test sections)\n"
+                  "  The '-{src,dst}-{-out} options selects whether src and dst\n"
+                  "  buffers are in the GASNet segment or not (defaults are 'in').\n"
                   "  -szfactor <f>   \n"
                   "            selects f as growth factor for data sizes."
                  );
@@ -739,8 +756,20 @@ int main(int argc, char **argv)
   {
     size_t curr_req = inner_verification_iters * THREADS * threads_per_node * sizeof(int) * max_data_size * 2;
     size_t max_mem_usage = gasnet_getMaxGlobalSegmentSize()/2;
-    MSG0("command line args: max_data_size=%"PRIuPTR" bytes outer_verification_iters=%d inner_verification_iters=%d performance_iters=%d threads_per_node=%d szfactor=%.2f", (uintptr_t)(max_data_size*sizeof(int)), 
-         outer_verification_iters, inner_verification_iters, performance_iters, (int) threads_per_node, szfactor);
+    MSG0("command line args:\n"
+         "    max_data_size = %"PRIuPTR"\n"
+         "    bytes outer_verification_iters = %d\n"
+         "    inner_verification_iters = %d\n"
+         "    performance_iters = %d\n"
+         "    threads_per_node = %d\n"
+         "    szfactor = %.2f\n"
+         "    src addresses %sside the segment\n"
+         "    dst addresses %sside the segment\n",
+         (uintptr_t)(max_data_size*sizeof(int)),
+         outer_verification_iters, inner_verification_iters, performance_iters,
+         (int) threads_per_node, szfactor,
+         (src_insegment ? "in" : "out"),
+         (dst_insegment ? "in" : "out"));
     if(curr_req > max_mem_usage) {
       MSG0("WARNING: inner iterations too large.\n");
       MSG0("Scaling down inner iterations and scaling up outer iterations to compensate\n");
@@ -767,15 +796,19 @@ int main(int argc, char **argv)
     } 
   }
 
- 
-  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   TEST_SET_WAITMODE(threads_per_node);
-  A = TEST_MYSEG();
-  B = A+(SEG_PER_THREAD*threads_per_node);
+
+  if (TEST_SEGSZ_REQUEST) {
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  }
+  {
+    size_t sz = SEG_PER_THREAD * threads_per_node;
+    A = src_insegment ? (uint8_t*)TEST_MYSEG()                    : test_malloc(sz);
+    B = dst_insegment ? (uint8_t*)TEST_MYSEG() + src_insegment*sz : test_malloc(sz);
+  }
+
   my_srcs =  (uint8_t**) test_malloc(sizeof(uint8_t*)*threads_per_node);
   my_dsts =  (uint8_t**) test_malloc(sizeof(uint8_t*)*threads_per_node);
-  all_srcs = (uint8_t**) test_malloc(sizeof(uint8_t*)*THREADS);
-  all_dsts = (uint8_t**) test_malloc(sizeof(uint8_t*)*THREADS);
   td_arr = (thread_data_t*) test_malloc(sizeof(thread_data_t)*threads_per_node);
   
   for(i=0; i<threads_per_node; i++) {
@@ -785,13 +818,6 @@ int main(int argc, char **argv)
     td_arr[i].mythread = mynode*threads_per_node+i;
     td_arr[i].mysrc = my_srcs[i];
     td_arr[i].mydest = my_dsts[i];
-  }
-  for(i=0; i<nodes; i++) {
-    /*    assert_always(TEST_SEG(i).size >= SEG_PER_THREAD*threads_per_node); */
-    for(j=0; j<threads_per_node; j++) {
-      all_srcs[i*threads_per_node+j] = (uint8_t*) TEST_SEG(i) + j*SEG_PER_THREAD;
-      all_dsts[i*threads_per_node+j] = (uint8_t*) TEST_SEG(i) + SEG_PER_THREAD*threads_per_node + j*SEG_PER_THREAD;
-    }
   }
   
 #if GASNET_PAR
