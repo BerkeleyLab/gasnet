@@ -298,8 +298,15 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                             [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3$warnflag"])
      fi
     done
+
+    # Disable DEVWARN flags from -Wall that we don't support in our library code
+    GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-overflow],
+                          [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wno-format-overflow"])
+    GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-truncation],
+                          [DEVWARN_[$1]FLAGS="$DEVWARN_[$1]FLAGS $3-Wno-format-truncation"])
   fi
 
+  # compiler-specific global warning disables
   case "$2" in
     Pathscale) # pathcc default enables -Wformat-security which we don't want
         GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-security],

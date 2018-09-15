@@ -162,22 +162,22 @@ gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
 extern void gasneti_check_config_preinit(void) {
-  gasneti_assert_always(sizeof(int8_t) == 1);
-  gasneti_assert_always(sizeof(uint8_t) == 1);
-  gasneti_assert_always(sizeof(gasnete_anytype8_t) == 1);
+  gasneti_static_assert(sizeof(int8_t) == 1);
+  gasneti_static_assert(sizeof(uint8_t) == 1);
+  gasneti_static_assert(sizeof(gasnete_anytype8_t) == 1);
   #ifndef INTTYPES_16BIT_MISSING
-    gasneti_assert_always(sizeof(int16_t) == 2);
-    gasneti_assert_always(sizeof(uint16_t) == 2);
-    gasneti_assert_always(sizeof(gasnete_anytype16_t) == 2);
+    gasneti_static_assert(sizeof(int16_t) == 2);
+    gasneti_static_assert(sizeof(uint16_t) == 2);
+    gasneti_static_assert(sizeof(gasnete_anytype16_t) == 2);
   #endif
-  gasneti_assert_always(sizeof(int32_t) == 4);
-  gasneti_assert_always(sizeof(uint32_t) == 4);
-  gasneti_assert_always(sizeof(gasnete_anytype32_t) == 4);
-  gasneti_assert_always(sizeof(int64_t) == 8);
-  gasneti_assert_always(sizeof(uint64_t) == 8);
-  gasneti_assert_always(sizeof(gasnete_anytype64_t) == 8);
+  gasneti_static_assert(sizeof(int32_t) == 4);
+  gasneti_static_assert(sizeof(uint32_t) == 4);
+  gasneti_static_assert(sizeof(gasnete_anytype32_t) == 4);
+  gasneti_static_assert(sizeof(int64_t) == 8);
+  gasneti_static_assert(sizeof(uint64_t) == 8);
+  gasneti_static_assert(sizeof(gasnete_anytype64_t) == 8);
 
-  gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
+  gasneti_static_assert(sizeof(uintptr_t) >= sizeof(void *));
 
   #define CHECK_DT(id, type) do { \
       gasneti_assert_always(gasneti_dt_valid(id)); \
@@ -287,17 +287,17 @@ extern void gasneti_check_config_preinit(void) {
   #endif
 
   /* check GASNET_PAGESIZE is a power of 2 and > 0 */
-  gasneti_assert_always(GASNET_PAGESIZE > 0);
-  gasneti_assert_always(GASNETI_POWEROFTWO(GASNET_PAGESIZE));
+  gasneti_static_assert(GASNET_PAGESIZE > 0);
+  gasneti_static_assert(GASNETI_POWEROFTWO(GASNET_PAGESIZE));
 
-  gasneti_assert_always(SIZEOF_GEX_RMA_VALUE_T == sizeof(gex_RMA_Value_t));
-  gasneti_assert_always(SIZEOF_GEX_RMA_VALUE_T >= sizeof(int));
-  gasneti_assert_always(SIZEOF_GEX_RMA_VALUE_T >= sizeof(void *));
+  gasneti_static_assert(SIZEOF_GEX_RMA_VALUE_T == sizeof(gex_RMA_Value_t));
+  gasneti_static_assert(SIZEOF_GEX_RMA_VALUE_T >= sizeof(int));
+  gasneti_static_assert(SIZEOF_GEX_RMA_VALUE_T >= sizeof(void *));
 
   #if    PLATFORM_ARCH_32 && !PLATFORM_ARCH_64
-    gasneti_assert_always(sizeof(void*) == 4);
+    gasneti_static_assert(sizeof(void*) == 4);
   #elif !PLATFORM_ARCH_32 &&  PLATFORM_ARCH_64
-    gasneti_assert_always(sizeof(void*) == 8);
+    gasneti_static_assert(sizeof(void*) == 8);
   #else
     #error must #define exactly one of PLATFORM_ARCH_32 or PLATFORM_ARCH_64
   #endif
@@ -326,14 +326,14 @@ extern void gasneti_check_config_postattach(void) {
   gasneti_check_config_preinit();
 
   /*  verify sanity of the core interface */
-  gasneti_assert_always(gex_AM_MaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  gasneti_assert_always(gex_AM_LUBRequestMedium() >= 512);
-  gasneti_assert_always(gex_AM_LUBReplyMedium() >= 512);
-  gasneti_assert_always(gex_AM_LUBRequestLong() >= 512);
-  gasneti_assert_always(gex_AM_LUBReplyLong() >= 512);
+  gasneti_assert_always_uint(gex_AM_MaxArgs() ,>=, 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert_always_uint(gex_AM_LUBRequestMedium() ,>=, 512);
+  gasneti_assert_always_uint(gex_AM_LUBReplyMedium() ,>=, 512);
+  gasneti_assert_always_uint(gex_AM_LUBRequestLong() ,>=, 512);
+  gasneti_assert_always_uint(gex_AM_LUBReplyLong() ,>=, 512);
 
-  gasneti_assert_always(gasneti_nodes >= 1);
-  gasneti_assert_always(gasneti_mynode < gasneti_nodes);
+  gasneti_assert_always_uint(gasneti_nodes ,>=, 1);
+  gasneti_assert_always_uint(gasneti_mynode ,<, gasneti_nodes);
   { static int firstcall = 1;
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
@@ -425,6 +425,7 @@ gasneti_Client_t gasneti_alloc_client(
   gasneti_Client_t client = gasneti_malloc(alloc_size ? alloc_size : sizeof(*client));
   gasneti_assert(!alloc_size || alloc_size >= sizeof(*client));
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
+  client->_tm0 = NULL;
   client->_name = gasneti_strdup(name);
   client->_cdata = NULL;
   client->_flags = flags;
@@ -565,11 +566,14 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Rank_t rank,
                        gex_Rank_t size,
                        gex_Flags_t flags,
-                       int is_tm0,
                        size_t requested_sz)
 {
   gasneti_assert(rank < size);
   gasneti_assert(size > 0);
+
+  gasneti_assert(ep);
+  gasneti_assert(ep->_client);
+  const int is_tm0 = (ep->_client->_tm0 == NULL);
 
   // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
   gasneti_TM_t tm;
@@ -591,6 +595,8 @@ extern gasneti_TM_t gasneti_alloc_tm(
   
   if (is_tm0) {
     gasneti_legacy_alloc_tm_hook(tm); // init g2ex layer if appropriate
+
+    ep->_client->_tm0 = tm;
 
     // TODO-EX: Please remove this!
     gasneti_assert(! gasneti_thing_that_goes_thunk_in_the_dark);
@@ -798,7 +804,7 @@ static void gasneti_serializeEnvironment(uint8_t **pbuf, int *psz) {
     p += strlen((char*)p) + 1;
     }
   *p = 0;
-  gasneti_assert((p+1) - buf == totalEnvSize);
+  gasneti_assert_int((p+1) - buf ,==, totalEnvSize);
 
   *pbuf = buf;
   *psz = totalEnvSize;
@@ -873,7 +879,7 @@ extern void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynod
         memcpy(gasneti_globalEnv, tmp+rootid*envsize, envsize);
         gasneti_free(tmp);
       }
-      gasneti_assert(gasneti_checksum(gasneti_globalEnv,envsize) == rootdesc.checksum);
+      gasneti_assert_uint(gasneti_checksum(gasneti_globalEnv,envsize) ,==, rootdesc.checksum);
       gasneti_free(allenvdesc);
       gasneti_free(myenv);
       return;
@@ -1078,7 +1084,7 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 						 MIN(my_max, my_min + my_factor * gasneti_nodes));
 
   if (result < lower_bound) {
-    gasneti_assert(MIN(dflt_max, dflt_min + dflt_factor * gasneti_nodes) >= lower_bound);
+    gasneti_assert_dbl(MIN(dflt_max, dflt_min + dflt_factor * gasneti_nodes) ,>=, lower_bound);
     if (gasneti_getenv("GASNET_EXITTIMEOUT")) {
       gasneti_fatalerror("If used, environment variable GASNET_EXITTIMEOUT must be set to a value no less than %g", lower_bound);
     } else {
@@ -1344,7 +1350,7 @@ static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
   #endif
   gasneti_assert(ids);
   gasneti_assert(sz > 0);
-  gasneti_assert(stride >= sz);
+  gasneti_assert_uint(stride ,>=, sz);
 
   if (gasneti_getenv_yesno_withdefault("GASNET_NODEMAP_EXACT",GASNETC_DEFAULT_NODEMAP_EXACT)) {
     /* "exact" but potentially costly */
@@ -1445,7 +1451,7 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
     int i;
 
     gasneti_assert_zeroret(CNK_SPI_SYSCALL_3(RANKS2COORDS, size, allids, &count));
-    gasneti_assert(count == gasneti_nodes);
+    gasneti_assert_uint(count ,==, gasneti_nodes);
 
     /* Zero out the fields we don't want to have significance and then comparison */
     for (i = 0; i < gasneti_nodes; ++i) {
@@ -1586,11 +1592,11 @@ extern void gasneti_nodemapParse(void) {
   gasneti_myhost.grp_rank = gasneti_nodeinfo[gasneti_mynode].host;
 
   /* Second pass: Construct arrays of local nodes */
-  gasneti_assert(gasneti_myhost.node_count >= gasneti_mysupernode.node_count);
+  gasneti_assert_uint(gasneti_myhost.node_count ,>=, gasneti_mysupernode.node_count);
   gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gex_Rank_t));
   gasneti_leak(gasneti_myhost.nodes);
   for (i = initial, j = 0; j < gasneti_myhost.node_count; ++i) {
-    gasneti_assert(i < gasneti_nodes);
+    gasneti_assert_uint(i ,<, gasneti_nodes);
     if (s[i].h_lead == initial) {
       if (i == final) gasneti_mysupernode.nodes = gasneti_myhost.nodes + j;
       gasneti_myhost.nodes[j++] = i;
@@ -1690,7 +1696,7 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
     size_t  n   = buf ? *n_p : 0;
     ssize_t len = 0;
 
-    gasneti_assert((ssize_t)n >= 0);
+    gasneti_assert_int((ssize_t)n ,>=, 0);
 
     do {
         size_t space = n - len;
@@ -2022,7 +2028,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     uint64_t beginpost = 0;
     uint64_t endpost = 0;
     int doscan = 0;
-    gasneti_assert_always(checktype >= 0 && checktype <= 2);
+    gasneti_assert_always_uint((unsigned int)checktype ,<=, 2);
     if (gasneti_looksaligned(ptr)) {
       gasneti_memalloc_desc_t *desc = ((gasneti_memalloc_desc_t *)ptr) - 1;
       beginpost = (desc->beginpost == GASNETI_MEM_LEAKMARK)
@@ -2126,7 +2132,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
       return NULL;
     }
     ret = malloc(nbytes+GASNETI_MEM_EXTRASZ);
-    gasneti_assert_always((((uintptr_t)ret) & 0x3) == 0); /* should have at least 4-byte alignment */
+    gasneti_assert_always_uint((((uintptr_t)ret) & 0x3) ,==, 0); /* should have at least 4-byte alignment */
     if_pf (ret == NULL) {
       char curlocstr[GASNETI_MAX_LOCSZ];
       strcpy(curlocstr, "\n   at: %s");

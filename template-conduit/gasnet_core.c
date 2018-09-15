@@ -325,7 +325,7 @@ extern int gasnetc_Client_Init(
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {

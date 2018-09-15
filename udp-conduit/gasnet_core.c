@@ -537,7 +537,7 @@ extern int gasnetc_Client_Init(
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -1187,7 +1187,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         if (isReq) GASNETI_TRACE_AMLONG_REQHANDLER(handlerId, token, buf, nbytes, numargs, args);
         else       GASNETI_TRACE_AMLONG_REPHANDLER(handlerId, token, buf, nbytes, numargs, args);
         break;
-      default: gasneti_fatalerror("Unknown handler type in gasnetc_enteringHandler_hook(): %i", cat);
+      default: gasneti_unreachable_error(("Unknown handler type in gasnetc_enteringHandler_hook(): 0x%x",(int)cat));
     }
   }
   extern void gasnetc_leavingHandler_hook(amudp_category_t cat, int isReq) {
@@ -1201,7 +1201,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
       case amudp_Long:
         GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
         break;
-      default: gasneti_fatalerror("Unknown handler type in gasnetc_leavingHandler_hook(): %i", cat);
+      default: gasneti_unreachable_error(("Unknown handler type in gasnetc_leavingHandler_hook(): 0x%x",(int)cat));
     }
   }
 #endif

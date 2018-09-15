@@ -7,9 +7,6 @@
 #ifndef _GASNET_RATOMIC_INTERNAL_H
 #define _GASNET_RATOMIC_INTERNAL_H
 
-#include <gasnet_internal.h>
-#include <gasnet_ratomic.h>
-
 /*---------------------------------------------------------------------------------*/
 //
 // Common logic for RAtomic implementatons

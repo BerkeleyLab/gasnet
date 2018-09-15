@@ -827,6 +827,8 @@ void doit0(int partner, int *partnerseg) {
 
     GEX_FLAG_TM_SCRATCH_SIZE_MIN,
     GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED,
+
+    GEX_FLAG_RANK_IS_JOBRANK,
   };
   assert_arr_nonzero(gex_Flags_t, flags_arr); // No zero values
 
@@ -854,6 +856,8 @@ void doit0(int partner, int *partnerseg) {
 
     GEX_FLAG_AD_ACQ,
     GEX_FLAG_AD_REL,
+
+    GEX_FLAG_RANK_IS_JOBRANK,
   };
   assert_arr_unaliased(gex_Flags_t, flags_ad);
   static gex_Flags_t const flags_amreg[] = { // gex_EP_RegisterHandlers

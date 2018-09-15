@@ -338,9 +338,13 @@ typedef struct {
     const void *       _cdata;         \
     gex_Flags_t        _flags;
 
+// Needed to break client/tm0 cycle
+struct gasneti_team_member_internal_s;
+
 #ifndef _GEX_CLIENT_T
   #define GASNETI_CLIENT_COMMON        \
     GASNETI_OBJECT_HEADER              \
+    struct gasneti_team_member_internal_s *_tm0; \
     const char *       _name;
   typedef struct { GASNETI_CLIENT_COMMON } *gasneti_Client_t;
   #if GASNET_DEBUG
@@ -407,7 +411,10 @@ typedef struct {
     gex_Rank_t         _rank;          \
     gex_Rank_t         _size;          \
     void *             _coll_team;
-  typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
+  #ifdef __cplusplus  // ensure this struct is anonymous to prevent C++ linkage issues
+    #define gasneti_team_member_internal_s
+  #endif
+  typedef struct gasneti_team_member_internal_s { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
     extern gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm);
