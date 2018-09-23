@@ -9,6 +9,23 @@ GASNet-EX ChangeLog
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
 
+  GASNet-EX currently implements the following conduits:
+  - InfiniBand Verbs (ibv-conduit)
+  - Cray uGNI (gemini- and aries-conduits)
+  - IBM PAMI (pami-conduit)
+  - Shared-memory (smp-conduit)
+  - Portable UDP (udp-conduit)
+  - Portable MPI (mpi-conduit)
+  Users wishing to use other conduits are recommended to download the GASNet v1.x
+  distribution from http://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
+09-26-2018: GASNet-EX 2018.9.0 Release
+
+* GASNet-EX Spec v0.6:
+  - 
+
+
 ----------------------------------------------------------------------
 06-28-2018: GASNet-EX 2018.6.0 Beta release
 
@@ -54,15 +71,6 @@ GASNet-EX ChangeLog
   - Bug3749: assertion failure in PSHM's NP-AM
   - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
 
-* This release implements the following conduits only:
-  - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (gemini- and aries-conduits)
-  - IBM PAMI (pami-conduit)
-  - Shared-memory (smp-conduit)
-  - Portable UDP (udp-conduit)
-  - Portable MPI (mpi-conduit)
-  Users wishing to use other conduits are recommended to download the GASNet v1.x
-  distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
 03-28-2018: GASNet-EX 2018.3.0 Release
@@ -104,16 +112,6 @@ GASNet-EX ChangeLog
     and smp-conduit) and aries-conduit.  Other conduits with APIs for offloaded
     atomics do not yet utilize them.
 
-* This release implements the following conduits only:
-  - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (gemini- and aries-conduits)
-  - IBM PAMI (pami-conduit)
-  - Shared-memory (smp-conduit)
-  - Portable UDP (udp-conduit)
-  - Portable MPI (mpi-conduit)
-  Users wishing to use other conduits are recommended to download the GASNet v1.x
-  distribution from http://gasnet.lbl.gov.
-
 ----------------------------------------------------------------------
 12-20-2017: GASNet-EX 2017.12.0 Beta release
 
@@ -136,16 +134,6 @@ GASNet-EX ChangeLog
 
 * Notable bugs fixed in this release:
   - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
-
-* This release implements the following conduits only:
-  - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (gemini- and aries-conduits)
-  - IBM PAMI (pami-conduit)
-  - Shared-memory (smp-conduit)
-  - Portable UDP (udp-conduit)
-  - Portable MPI (mpi-conduit)
-  Users wishing to use other conduits are recommended to download the GASNet v1.x
-  distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
 09-28-2017: GASNet-EX 2017.9.0 Release
@@ -170,16 +158,6 @@ GASNet-EX ChangeLog
   - pshm: SEGV at initialization when using System V shared memory
   - pshm: work-around an assertion failure due to a PGI compiler bug
   - aries/gemini: SEGV at startup with multi-domain enabled
-
-* This release implements the following conduits only:
-  - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (gemini- and aries-conduits)
-  - IBM PAMI (pami-conduit)
-  - Shared-memory (smp-conduit)
-  - Portable UDP (udp-conduit)
-  - Portable MPI (mpi-conduit)
-  Users wishing to use other conduits are recommended to download the GASNet v1.x
-  distribution from http://gasnet.lbl.gov.
 
 * Other Known Limitations:
   - This release supports Microsoft Windows Subsystem for Linux, but is
@@ -219,16 +197,6 @@ GASNet-EX ChangeLog
     of the new EX interfaces.
   - Both layers interoperate freely so that legacy client code can be incrementally
     migrated to use of the new EX interfaces and features.
-
-* This release implements the following conduits only:
-  - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (gemini- and aries-conduits)
-  - IBM PAMI (pami-conduit)
-  - Shared-memory (smp-conduit)
-  - Portable UDP (udp-conduit)
-  - Portable MPI (mpi-conduit)
-  Users wishing to use other conduits are recommended to download the GASNet v1.x
-  distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
 The remainder of this file contains the unmodified ChangeLog from the GASNet-1
