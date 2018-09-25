@@ -1,6 +1,23 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
+PENDING:
+
+* InfiniBand Verbs (ibv-conduit)
+  - Multi-rail support is disabled by default, due to bug 3447
+
+* General and Misc.
+  - Performance tests now default to in-segment memory (see --help)
+  - Average values in STATS now output as floating-point, instead of rounding
+  - Fix bug 3742: Atomic CAS failures on PPCle+{pgi,clang}
+  - Silence harmless library compile warnings from gcc 8.*
+
+* Platform support/portability
+  - Improvements to internal logic for handling thread data on platforms
+    lacking native register-level support for thread data.
+  - Internal AM handler dispatch code is now strictly C spec compliant
+
+----------------------------------------------------------------------
 07-20-2018: Release 1.32.0
 
 * Cray uGNI (gemini- and aries-conduits)
