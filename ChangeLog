@@ -22,9 +22,34 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release
 
-* GASNet-EX Spec v0.6:
-  - 
+* GASNet-EX copyright notice and license agreement updated (see license.txt)
 
+* GASNet-EX Spec v0.6:
+  - Add gex_Coll_ReduceToAllNB()
+  - Add GEX_FLAG_RANK_IS_JOBRANK flag to accelerate gex_AD_Op*() on sub-teams
+
+* Cray uGNI (gemini- and aries-conduits)
+  - A new Active Message protocol with more scalable memory utilization is now
+    available, and automatically enabled for large-scale jobs. See details in
+    the conduit README section for GASNET_GNI_AM_RVOUS_CUTOVER
+  - Improved reporting for AM buffer utilization, especially on spawn failure
+  - Adjust the default GASNET_GNI_{PUT,GET}_FMA_RDMA_CUTOVER thresholds that
+    control the GNI-level protocol selection on aries for GASNet RMA
+
+* Configure and Build
+  - Improve configure-time handling of non-EX conduits
+
+* Platform support/portability
+  - Improvements to internal logic for handling thread data on platforms
+    lacking native register-level support for thread data
+
+* Collective Operations
+  - Add initial reference implementation of ReduceToAll
+  - ReduceToOne now supports user-defined types up to at least 32KB in size
+
+* Notable bugs fixed in this release:
+  - bug3783: broken DEBUG check in gex_AD_Create for sub-teams
+  - aries-conduit offloaded atomics defect with sub-teams
 
 ----------------------------------------------------------------------
 06-28-2018: GASNet-EX 2018.6.0 Beta release
