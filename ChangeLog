@@ -45,11 +45,12 @@ GASNet-EX ChangeLog
 
 * Collective Operations
   - Add initial reference implementation of ReduceToAll
-  - ReduceToOne now supports user-defined types up to at least 32KB in size
+  - ReduceToOne now supports user-defined types up to at least 32KB in size,
+    and has no limit on vector length for reductions on built-in types.
 
 * Notable bugs fixed in this release:
   - bug3783: broken DEBUG check in gex_AD_Create for sub-teams
-  - aries-conduit offloaded atomics defect with sub-teams
+  - bug3788: aries-conduit offloaded atomics defect with sub-teams
 
 ----------------------------------------------------------------------
 06-28-2018: GASNet-EX 2018.6.0 Beta release
