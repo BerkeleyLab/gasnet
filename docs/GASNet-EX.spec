@@ -1992,7 +1992,7 @@ typedef [some integer type] gex_OP_t;
 //
 //   It is the intent of this specification to permit access to the same data
 //   using remote atomics and other (non-atomic) mechanisms, and to the same
-//   data using mutiple atomics domains.  However, such different accesses
+//   data using multiple atomics domains.  However, such different accesses
 //   must be NON-concurrent.  This separation is into what we will call
 //   "atomic access phases":
 //     During a given atomic access phase, any given byte in the memory of any
@@ -2555,7 +2555,7 @@ int gex_AD_OpNBI_[DATATYPE](
 void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler, 
         const void *source_addr, size_t nbytes, gex_Flags_t flags);
 
-// The largest permissable size (in bytes) for a client payload in a VIS peer completion handler.
+// The largest permissible size (in bytes) for a client payload in a VIS peer completion handler.
 // Guaranteed to be at least 127 bytes.
 
 #define GEX_VIS_MAX_PEERCOMPLETION ((size_t)???)
