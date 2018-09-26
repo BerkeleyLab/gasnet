@@ -35,8 +35,8 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2018
-#define GASNET_RELEASE_VERSION_MINOR 6
-#define GASNET_RELEASE_VERSION_PATCH 1
+#define GASNET_RELEASE_VERSION_MINOR 9
+#define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
