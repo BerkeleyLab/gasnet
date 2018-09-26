@@ -16,10 +16,10 @@ GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " G
 #ifndef GASNETE_THREADING_CUSTOM /* top-level disable for all threading-related code */
 
 #if GASNETI_MAX_THREADS <= 256
-  gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
+  gasneti_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
 #else
   #define GASNETI_DYNAMIC_THREADTABLE 1
-  gasnete_threaddata_t **gasnete_threadtable = NULL;
+  gasneti_threaddata_t **gasnete_threadtable = NULL;
 #endif
 static int gasnete_numthreads = 0; /* current thread count */
 int gasnete_maxthreadidx = 0; /* high-water mark of thread indexes issued */
@@ -69,7 +69,7 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem) {
 
 #ifndef GASNETE_INIT_THREADDATA
 #define GASNETE_INIT_THREADDATA(thread) gasnete_init_threaddata(thread)
-static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
+static void gasnete_init_threaddata(gasneti_threaddata_t *threaddata) {
 
   // TODO-EX: need an override?
   gasneti_mutex_init(&(threaddata->foreign_lock));
@@ -89,7 +89,7 @@ static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
   GASNETE_NEW_THREADDATA_IOP_INIT(threaddata);
 
   /* give the conduit a chance to setup thread context via callbacks
-     note gasnete_threaddata_t is zero-init, so only non-zero field inits are required
+     note gasneti_threaddata_t is zero-init, so only non-zero field inits are required
    */
   #ifdef GASNETC_NEW_THREADDATA_CALLBACK
     GASNETC_NEW_THREADDATA_CALLBACK(threaddata);
@@ -107,7 +107,7 @@ static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
 #define GASNETE_FREE_THREADDATA(thread) gasnete_free_threaddata(thread)
 
 // Return zero on success
-static int gasnete_free_threaddata(gasnete_threaddata_t *thread) {
+static int gasnete_free_threaddata(gasneti_threaddata_t *thread) {
   int leak = 0;
 
   #ifndef GASNETE_IOP_ISDONE
@@ -225,7 +225,7 @@ static int gasnete_free_threaddata(gasnete_threaddata_t *thread) {
 #endif
 
 extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context) {
-  gasnete_threaddata_t *thread = NULL;
+  gasneti_threaddata_t *thread = NULL;
   gasnete_thread_cleanup_t *newcleanup = gasneti_malloc(sizeof(gasnete_thread_cleanup_t));
   gasneti_leak(newcleanup);
   newcleanup->_cleanupfn = cleanupfn;
@@ -268,7 +268,7 @@ static void gasnete_threadless_cleanup_fn(void *_lifo) {
 }
 
 static void gasnete_threaddata_cleanup_fn(void *_thread) {
-  gasnete_threaddata_t *thread = _thread;
+  gasneti_threaddata_t *thread = _thread;
   int idx = thread->threadidx;
 
   #if GASNETI_MAX_THREADS > 1
@@ -319,7 +319,7 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
 
 GASNETI_NEVER_INLINE(gasnete_new_threaddata,
 extern void * gasnete_new_threaddata(void)) {
-  gasnete_threaddata_t *threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
+  gasneti_threaddata_t *threaddata = (gasneti_threaddata_t *)gasneti_calloc(1,sizeof(gasneti_threaddata_t));
   int idx;
   uint64_t maxthreads = gasneti_max_threads();
   gasneti_assert(maxthreads <= (((uint64_t)1)<<(sizeof(gasnete_threadidx_t)*8)));
@@ -329,7 +329,7 @@ extern void * gasnete_new_threaddata(void)) {
     #if GASNETI_DYNAMIC_THREADTABLE
       if (!gasnete_threadtable) {
         gasneti_assert(gasnete_numthreads == 0);
-        gasnete_threadtable = (gasnete_threaddata_t **)gasneti_calloc(maxthreads, sizeof(gasnete_threaddata_t*));
+        gasnete_threadtable = (gasneti_threaddata_t **)gasneti_calloc(maxthreads, sizeof(gasneti_threaddata_t*));
       }
     #endif
     gasnete_numthreads++;
@@ -365,10 +365,14 @@ extern void * gasnete_new_threaddata(void)) {
 }
 /* PURE function (returns same value for a given thread every time) 
 */
-#if (GASNETI_MAX_THREADS > 1) && !defined(_GASNETE_MYTHREAD)
-  extern gasnete_threaddata_t *gasnete_slow_mythread(void) {
-    gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
-    GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
+#if (GASNETI_MAX_THREADS > 1) && !defined(_GASNETI_MYTHREAD_SLOW)
+  // THIS FUNCTION SHOULD NEVER BE CALLED DIRECTLY
+  // Most code should use GASNETI_MYTHREAD, or as a last resort _gasneti_mythread_slow()
+  extern gasneti_threaddata_t *_gasnete_mythread_slow_slow(void) {
+    gasneti_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
+    #ifdef GASNETI_RECORD_DYNAMIC_THREADLOOKUP
+       GASNETI_RECORD_DYNAMIC_THREADLOOKUP();
+    #endif
     if_pf (!threaddata) {
       /* first time we've seen this thread - need to set it up */
       threaddata = gasnete_new_threaddata();

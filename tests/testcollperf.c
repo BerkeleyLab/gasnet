@@ -12,8 +12,6 @@ at larger message sizes. It is NOT intended as a tester to measure correctness o
 options that is covered testcoll
 */
 
-#include <limits.h> /* For INT_MAX */
-
 #include <gasnetex.h>
 #include "gasnet_coll.h"
 
@@ -32,14 +30,7 @@ options that is covered testcoll
 #define GATHER_ALL_ENABLED 0
 #define EXCHANGE_ENABLED 0
 #define REDUCE_ENABLED 0
-#endif
-
-#ifndef ALL_ADDR_MODE_ENABLED 
-#define ALL_ADDR_MODE_ENABLED 1
-
-
-#define SINGLE_SINGLE_MODE_ENABLED 0
-#define SINGLE_LOCAL_MODE_ENABLED 0
+#define REDUCE_ALL_ENABLED 0
 #endif
 
 #ifndef NB_TESTS_ENABLED 
@@ -77,10 +68,11 @@ int outer_verification_iters;
 int performance_iters;
 size_t max_data_size;
 
-int reduce_limit = 0;
+static int src_insegment = 1;
+static int dst_insegment = 1;
 
-#define TEST_SEGSZ_EXPR (sizeof(int)*(max_data_size*(inner_verification_iters)*TOTAL_THREADS*threads_per_node*2))
 #define SEG_PER_THREAD (sizeof(int)*max_data_size*(inner_verification_iters)*TOTAL_THREADS)
+#define TEST_SEGSZ_EXPR ((src_insegment+dst_insegment) * SEG_PER_THREAD*threads_per_node)
 
 #define TEST_USE_PRIMORDIAL_THREAD 1
 #include "test.h"
@@ -99,8 +91,6 @@ typedef struct {
 
 uint8_t **my_srcs;
 uint8_t **my_dsts;
-uint8_t **all_srcs;
-uint8_t **all_dsts;
 
 void fill_flag_str(int flags, char *outstr) {
   
@@ -141,39 +131,12 @@ if(td->my_local_thread==0 && performance_iters>0) MSG0("%c: %d> %s/%s %s sync_mo
 #else
 #define print_timer(td, coll_str, addr_mode, num_addrs, sync_mode, nelem, total_ticks)
 #endif
-void int_reduce_fn(void *results, size_t result_count,
-                   const void *left_operands, size_t left_count,
-                   const void *right_operands,
-                   size_t elem_size, int flags, int arg) {
-  int i;
-  int *res = (int*) results;
-  int *src1 = (int*) left_operands;
-  int *src2 = (int*) right_operands;
-  assert(elem_size == sizeof(int));
-  assert(result_count==left_count);
-  switch(arg) {
-  case 0:
-    for(i=0; i<result_count; i++) {
-      res[i] = src1[i] + src2[i];
-    } break;
-  case 1:
-    for(i=0; i<result_count; i++) {
-      res[i] = MAX(src1[i],src2[i]);
-    } break;
-  case 2:
-    for(i=0; i<result_count; i++) {
-      res[i] = MIN(src1[i],src2[i]);
-    } break;
-  default:
-    MSG("NOT SUPPORTED reduce op %d\n", arg); ERROR_EXIT();
-  }
-  
-}
-gasnet_coll_fn_entry_t fntable;
 void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int in_flags) {
   /* all threads pass the same pointers for src and dest*/
   int i,j,t,k;
-  int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
+  int flags = in_flags
+            | (src_insegment ? GASNET_COLL_SRC_IN_SEGMENT : 0)
+            | (dst_insegment ? GASNET_COLL_DST_IN_SEGMENT : 0);
   int *src, *dst;
   char output_str[8];
   gasnett_tick_t begin, end;
@@ -181,11 +144,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   gex_Event_t *handles = performance_iters ? test_malloc(sizeof(gasnet_coll_handle_t)*performance_iters) : NULL;
 
   fill_flag_str(flags, flag_str);
-  if(flags & GASNET_COLL_SINGLE) {
-    src = (int*) (src_arr[0]); /* all threads have the same address so just use slot 0*/
-    dst = (int*) (dst_arr[0]); /* all threads have the same address so just use slot 0*/
-    strcpy(output_str, "SINGLE");
-  } else {
+  {
     src = ((int*) td->mysrc);
     dst = ((int*) td->mydest);
     strcpy(output_str, "LOCAL");
@@ -490,13 +449,10 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     }
     if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();} 
     for(i=0; i<inner_verification_iters; i++) {
-      if (nelem <= reduce_limit) {
         gex_Event_Wait(gex_Coll_ReduceToOneNB(myteam, root_thread,
                                          dst+i*nelem, src+i*nelem,
                                          GEX_DT_I32, sizeof(int), nelem,
                                          GEX_OP_ADD, NULL, NULL, 0));
-      } else
-      gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst+i*nelem, src+i*nelem, 0,0, sizeof(int), nelem, 0, 0, flags);
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
     
@@ -520,12 +476,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
-    if (nelem <= reduce_limit) {
       gex_Event_Wait(gex_Coll_ReduceToOneNB(myteam, root_thread, dst, src,
                                        GEX_DT_I32, sizeof(int), nelem,
                                        GEX_OP_ADD, NULL, NULL, 0));
-    } else
-    gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
@@ -538,18 +491,80 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
-    if (nelem <= reduce_limit) {
       handles[i] = gex_Coll_ReduceToOneNB(myteam, root_thread, dst, src,
                                      GEX_DT_I32, sizeof(int), nelem,
                                      GEX_OP_ADD, NULL, NULL, 0);
-    } else
-    handles[i] = gasnet_coll_reduce_nb(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
   if (handles) gex_Event_WaitAll(handles, performance_iters, 0);
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td,  "reduce_NB", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+ #endif
+#endif
+
+#if REDUCE_ALL_ENABLED || ALL_COLL_ENABLED  
+  /*REDUCE_ALL*/
+  for(k=0; k<outer_verification_iters; k++) {
+    COLL_BARRIER();
+    for(i=0; i<inner_verification_iters; i++) {
+      for(j=0; j<nelem; j++) {
+        src[i*nelem+j] = (42*(i+1)+j);
+      }
+    }
+    for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
+      dst[i] = -1;
+    }
+    if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();} 
+    for(i=0; i<inner_verification_iters; i++) {
+        gex_Event_Wait(gex_Coll_ReduceToAllNB(myteam,
+                                         dst+i*nelem, src+i*nelem,
+                                         GEX_DT_I32, sizeof(int), nelem,
+                                         GEX_OP_ADD, NULL, NULL, 0));
+    }
+    if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+    
+    for(i=0; i<inner_verification_iters; i++) {
+      for(j=0; j<nelem; j++) {
+        int expected = (42*(i+1)+j)*THREADS;
+        if(dst[i*nelem+j] != expected) {
+          MSG("%d> reduce_all verification @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
+          ERROR_EXIT();
+        } else if(0) {
+          MSG("%d> reduce_all passed @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
+        }
+      }
+    }
+  }
+
+  COLL_BARRIER();
+  begin = gasnett_ticks_now();
+  if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+  for(i=0; i<performance_iters; i++) { 
+      gex_Event_Wait(gex_Coll_ReduceToAllNB(myteam, dst, src,
+                                       GEX_DT_I32, sizeof(int), nelem,
+                                       GEX_OP_ADD, NULL, NULL, 0));
+  }
+  if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+  end =  gasnett_ticks_now() - begin;
+  COLL_BARRIER();  
+
+  print_timer(td,  "reduce_all", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+
+ #if NB_TESTS_ENABLED
+  COLL_BARRIER();
+  begin = gasnett_ticks_now();
+  if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+  for(i=0; i<performance_iters; i++) { 
+      handles[i] = gex_Coll_ReduceToAllNB(myteam, dst, src,
+                                     GEX_DT_I32, sizeof(int), nelem,
+                                     GEX_OP_ADD, NULL, NULL, 0);
+  }
+  if (handles) gex_Event_WaitAll(handles, performance_iters, 0);
+  if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+  end =  gasnett_ticks_now() - begin;
+  COLL_BARRIER();  
+  print_timer(td,  "reduce_all_NB", output_str,  "SINGLE-addr", flag_str, nelem, end);  
  #endif
 #endif
 
@@ -565,24 +580,9 @@ static double szfactor = 2.;
 void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   double sz;
-  int i,flag_iter;
+  int flag_iter;
   gex_Rank_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
-  gasnet_coll_fn_entry_t fntable[1];
-#if GASNET_PAR
-  gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
-  fntable[0].fnptr = int_reduce_fn;
-  fntable[0].flags = 0;
-
-  for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
-  gasnet_coll_init(imagearray, td->mythread, fntable, 1, 0);
-  test_free(imagearray);
-#else
-  fntable[0].fnptr = int_reduce_fn;
-  fntable[0].flags = 0;
-
-  gasnet_coll_init(NULL, 0, fntable, 1, 0);
-#endif
 
   COLL_BARRIER();
 
@@ -608,26 +608,10 @@ void *thread_main(void *arg) {
       }
     
     COLL_BARRIER();
-#if SINGLE_SINGLE_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
-      if (!TEST_ALIGNED_SEGMENTS()) {
-        if(td->my_local_thread == 0 && !skip_msg_printed)
-          MSG0("Skipping SINGLE/SINGLE test (unaligned segments)");
-      } else if (threads_per_node != 1) { 
-	if(td->my_local_thread == 0 && !skip_msg_printed)
-          MSG0("skipping SINGLE/SINGLE test (multiple threads per node)");
-      } else {
-	for(sz = 1; sz<=max_data_size; sz*=szfactor) {
-	  run_SINGLE_ADDR_test(td, all_dsts, all_srcs, (size_t)sz, root_thread, flags|GASNET_COLL_SINGLE);
-	}
-      }
-      skip_msg_printed =1;
-#endif
 
-#if SINGLE_LOCAL_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
       for(sz = 1; sz<=max_data_size; sz*=szfactor) {
         run_SINGLE_ADDR_test(td, my_dsts, my_srcs, (size_t)sz, root_thread, flags|GASNET_COLL_LOCAL);   
       }
-#endif
 
       if(td->my_local_thread==0  && !VERBOSE_VERIFICATION_OUTPUT) {
         size_t final_size = (size_t) (sz/szfactor);
@@ -660,6 +644,18 @@ int main(int argc, char **argv)
       ++arg;
       if (argc > arg) { szfactor = atof(argv[arg]); arg++; }
       else help = 1;
+    } else if (!strcmp(argv[arg], "-src-in")) {
+      src_insegment = 1;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-out")) {
+      src_insegment = 0;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-src-in")) {
+      dst_insegment = 1;
+      ++arg;
+    } else if (!strcmp(argv[arg], "-dst-out")) {
+      dst_insegment = 0;
+      ++arg;
     } else if (argv[arg][0] == '-') {
       help = 1;
       ++arg;
@@ -707,6 +703,8 @@ int main(int argc, char **argv)
   /* Need to test_init before gasnet_attach to use TEST_LOCALPROCS() */
   test_init_early("testcollperf",(performance_iters != 0),
                   "[options] (max data size) (outer_verification_iters) (inner_verification_iters) (performance_iters) " PAR_USAGE "(test sections)\n"
+                  "  The '-{src,dst}-{-out} options selects whether src and dst\n"
+                  "  buffers are in the GASNet segment or not (defaults are 'in').\n"
                   "  -szfactor <f>   \n"
                   "            selects f as growth factor for data sizes."
                  );
@@ -751,18 +749,6 @@ int main(int argc, char **argv)
   nodes = gex_TM_QuerySize(myteam);
   THREADS = nodes * threads_per_node;
 
-  // TODO: remove this mess when Reduce is unlimited
-  // Apply insider knowledge to push testing of gex_Coll_ReduceToOneNB() to its limits
-  if (nodes == 1) {
-    reduce_limit = INT_MAX;
-  } else {
-    int logN; for (logN = 0; nodes > (1<<logN); ++logN) {/*empty*/}
-    int eager_min = gasnett_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN", 16, 0);
-    int eager_scale = gasnett_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE", 16, 0);
-    int eager_limit = MAX(eager_min, eager_scale * nodes) / logN;
-    reduce_limit = MIN(gex_AM_LUBRequestMedium(), eager_limit) / sizeof(int);
-  }
-  
   /* do some sanity checking of the input arguments*/
   /* the total memory that we will need to attach is inner_verification_iters*total_images*my_images*2*sizeof(int)*max_data_size*/
   /* make sure that this value is about less than or equal to half the maximum gasnet segment */
@@ -770,8 +756,20 @@ int main(int argc, char **argv)
   {
     size_t curr_req = inner_verification_iters * THREADS * threads_per_node * sizeof(int) * max_data_size * 2;
     size_t max_mem_usage = gasnet_getMaxGlobalSegmentSize()/2;
-    MSG0("command line args: max_data_size=%"PRIuPTR" bytes outer_verification_iters=%d inner_verification_iters=%d performance_iters=%d threads_per_node=%d szfactor=%.2f", (uintptr_t)(max_data_size*sizeof(int)), 
-         outer_verification_iters, inner_verification_iters, performance_iters, (int) threads_per_node, szfactor);
+    MSG0("command line args:\n"
+         "    max_data_size = %"PRIuPTR"\n"
+         "    bytes outer_verification_iters = %d\n"
+         "    inner_verification_iters = %d\n"
+         "    performance_iters = %d\n"
+         "    threads_per_node = %d\n"
+         "    szfactor = %.2f\n"
+         "    src addresses %sside the segment\n"
+         "    dst addresses %sside the segment\n",
+         (uintptr_t)(max_data_size*sizeof(int)),
+         outer_verification_iters, inner_verification_iters, performance_iters,
+         (int) threads_per_node, szfactor,
+         (src_insegment ? "in" : "out"),
+         (dst_insegment ? "in" : "out"));
     if(curr_req > max_mem_usage) {
       MSG0("WARNING: inner iterations too large.\n");
       MSG0("Scaling down inner iterations and scaling up outer iterations to compensate\n");
@@ -798,15 +796,19 @@ int main(int argc, char **argv)
     } 
   }
 
- 
-  GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   TEST_SET_WAITMODE(threads_per_node);
-  A = TEST_MYSEG();
-  B = A+(SEG_PER_THREAD*threads_per_node);
+
+  if (0 != TEST_SEGSZ_REQUEST) {
+    GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
+  }
+  {
+    size_t sz = SEG_PER_THREAD * threads_per_node;
+    A = src_insegment ? (uint8_t*)TEST_MYSEG()                    : test_malloc(sz);
+    B = dst_insegment ? (uint8_t*)TEST_MYSEG() + src_insegment*sz : test_malloc(sz);
+  }
+
   my_srcs =  (uint8_t**) test_malloc(sizeof(uint8_t*)*threads_per_node);
   my_dsts =  (uint8_t**) test_malloc(sizeof(uint8_t*)*threads_per_node);
-  all_srcs = (uint8_t**) test_malloc(sizeof(uint8_t*)*THREADS);
-  all_dsts = (uint8_t**) test_malloc(sizeof(uint8_t*)*THREADS);
   td_arr = (thread_data_t*) test_malloc(sizeof(thread_data_t)*threads_per_node);
   
   for(i=0; i<threads_per_node; i++) {
@@ -816,13 +818,6 @@ int main(int argc, char **argv)
     td_arr[i].mythread = mynode*threads_per_node+i;
     td_arr[i].mysrc = my_srcs[i];
     td_arr[i].mydest = my_dsts[i];
-  }
-  for(i=0; i<nodes; i++) {
-    /*    assert_always(TEST_SEG(i).size >= SEG_PER_THREAD*threads_per_node); */
-    for(j=0; j<threads_per_node; j++) {
-      all_srcs[i*threads_per_node+j] = (uint8_t*) TEST_SEG(i) + j*SEG_PER_THREAD;
-      all_dsts[i*threads_per_node+j] = (uint8_t*) TEST_SEG(i) + SEG_PER_THREAD*threads_per_node + j*SEG_PER_THREAD;
-    }
   }
   
 #if GASNET_PAR

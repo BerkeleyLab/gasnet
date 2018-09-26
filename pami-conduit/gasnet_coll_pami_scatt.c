@@ -13,19 +13,7 @@ gasnete_coll_pami_scatt(const gasnet_team_handle_t team, void *dst,
                         gasnet_image_t srcimage, const void *src,
                         size_t nbytes, int flags GASNETI_THREAD_FARG)
 {
-    const int i_am_root = gasnete_coll_image_is_local(team, srcimage);
-
-  #if GASNET_PAR
-    int i_am_leader = gasnete_coll_pami_images_barrier(team); /* XXX: over-synced for IN_NO and IN_MY */
-
-    if ((flags & GASNET_COLL_LOCAL) && i_am_root) {
-        /* root thread must be leader for its node */
-        const gasnete_coll_threaddata_t * const td = GASNETE_COLL_MYTHREAD_NOALLOC;
-        i_am_leader = (srcimage == td->my_image);
-    }
-  #else
     const int i_am_leader = 1;
-  #endif
 
     if (i_am_leader) {
         volatile unsigned int done = 0;
@@ -37,7 +25,7 @@ gasnete_coll_pami_scatt(const gasnet_team_handle_t team, void *dst,
         op = gasnete_op_template_scatt;
         op.cookie = (void *)&done;
         op.algorithm = team->pami.scatt_alg;
-        op.cmd.xfer_scatter.root = gasnetc_endpoint(GASNETE_COLL_REL2ACT(team,gasnete_coll_image_node(team, srcimage)));
+        op.cmd.xfer_scatter.root = gasnetc_endpoint(GASNETE_COLL_REL2ACT(team, srcimage));
         op.cmd.xfer_scatter.sndbuf = (/*not-const*/ void *)src;
         op.cmd.xfer_scatter.stypecount = nbytes;
         op.cmd.xfer_scatter.rcvbuf = dst;
@@ -53,7 +41,6 @@ gasnete_coll_pami_scatt(const gasnet_team_handle_t team, void *dst,
       
     if (flags & GASNET_COLL_OUT_ALLSYNC) {
         if (i_am_leader) gasnetc_fast_barrier();
-        (void) gasnete_coll_pami_images_barrier(team);
     }
 }
 

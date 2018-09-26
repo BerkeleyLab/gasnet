@@ -11,7 +11,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      2.0
+#define GASNET_CORE_VERSION      2.1
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #if defined GASNET_CONDUIT_GEMINI
   #define GASNET_CORE_NAME       GEMINI
@@ -24,7 +24,7 @@
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 
-/* Aries supports only 24 bits of inst_id */
+/* Aries supports only 24 bits of inst_id and we leverage that */
 #define GASNET_MAXNODES 0x1000000
 #define GASNETC_LOG2_MAXNODES 24
 
@@ -113,10 +113,12 @@ extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthrea
         TIME(C, GET_AM_LOC_BUFFER_STALL, stalled time) \
         TIME(C, ALLOC_PD_STALL, stalled time) \
         TIME(C, ALLOC_BB_STALL, stalled time) \
+        TIME(C, ALLOC_AMRV_STALL, stalled time) \
         TIME(C, MEM_REG_STALL, stalled time) \
         VAL(C, POST_FMA_RETRY, retries) \
         VAL(C, POST_RDMA_RETRY, retries) \
         VAL(C, AM_SEND_RETRY, retries) \
+        VAL(C, CTRL_SEND_RETRY, retries) \
         VAL(C, MEM_REG_RETRY, retries) \
         /* blank */
 

@@ -361,12 +361,12 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #define GASNETE_EOP_CHUNKCNT 256  // the number of eops to allocate together as a block
 #endif
 
-extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread);
-extern gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread);
+extern void gasnete_eop_alloc(gasneti_threaddata_t * const thread);
+extern gasnete_iop_t *gasnete_iop_new(gasneti_threaddata_t * const thread);
 
 /*  get a new op */
 GASNETI_INLINE(_gasnete_eop_new)
-gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *_gasnete_eop_new(gasneti_threaddata_t * const thread) {
   gasnete_eop_t *eop = thread->eop_free;
   if_pf (!eop) {
     gasneti_mutex_lock(&thread->foreign_lock);
@@ -399,7 +399,7 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
 
 /*  get a new op AND mark it in flight */
 GASNETI_INLINE(gasnete_eop_new)
-gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *gasnete_eop_new(gasneti_threaddata_t * const thread) {
   gasnete_eop_t *eop = _gasnete_eop_new(thread);
   SET_EVENT_TYPE(eop, 0, gasnete_event_type_eop);
 #ifdef GASNETE_EOP_NEW_EXTRA
@@ -484,7 +484,7 @@ void gasnete_eop_free(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
   gasneti_assert(eop->event[0] == gasnete_event_type_pendingfree_eop);
   eop->event[0] = gasnete_event_type_free_eop;
 #endif
-  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
+  gasneti_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
   if_pt (thread == GASNETI_MYTHREAD) {
     eop->next = thread->eop_free;
     thread->eop_free = eop;

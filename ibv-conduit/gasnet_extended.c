@@ -4,10 +4,10 @@
  * Terms of use are as specified in license.txt
  */
 
+#include <gasnet_coll_internal.h> // for refbarrier.c
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_ibv.h>
-#include <gasnet_coll.h>
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -44,10 +44,10 @@ extern void gasnete_init(void) {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  { gasnete_threaddata_t *threaddata = NULL;
+  { gasneti_threaddata_t *threaddata = NULL;
   #if GASNETI_MAX_THREADS > 1
     /* register first thread (optimization) */
-    threaddata = gasnete_mythread();
+    threaddata = _gasneti_mythread_slow();
   #else
     /* register only thread (required) */
     threaddata = gasnete_new_threaddata();
@@ -57,7 +57,7 @@ extern void gasnete_init(void) {
     GASNET_POST_THREADINFO(threaddata);
     gasnete_eop_t *eop = gasnete_eop_new(threaddata);
     GASNETE_EOP_MARKDONE(eop);
-    gasnete_eop_free(eop GASNETI_THREAD_GET);
+    gasnete_eop_free(eop GASNETI_THREAD_PASS);
   #endif
   }
 
@@ -190,7 +190,7 @@ int gasnete_get_nbi (gex_TM_t tm,
 {
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
  {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
 
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
@@ -212,7 +212,7 @@ int gasnete_put_nbi (gex_TM_t tm,
 {
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
  {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
   gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
   gasnetc_atomic_val_t *local_cnt;
@@ -382,7 +382,7 @@ GASNETI_INLINE(gasnete_ibdbarrier_send)
 void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
                              gex_AM_Arg_t value, gex_AM_Arg_t flags) {
-  GASNETI_THREAD_LOOKUP // TODO-EX: eliminate this?
+  GASNET_BEGIN_FUNCTION(); // TODO-EX: eliminate this?
   unsigned int step = state >> 1;
   gasnete_coll_rmdbarrier_inbox_t *payload;
   int i;

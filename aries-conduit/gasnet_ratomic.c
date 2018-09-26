@@ -4,6 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#define GASNETI_NEED_GASNET_RATOMIC_H 1
 #include <gasnet_internal.h>
 
 #if GASNETC_BUILD_GNIRATOMIC
@@ -175,7 +176,7 @@ GASNETI_WARN_UNUSED_RESULT // Returns non-zero in IMMEDIATE case only
 GASNETI_INLINE(gasnete_ratomic_inner)
 int gasnete_ratomic_inner(
         const int fetching, const int op_cnt, const int length,
-        void *result_p, gex_Rank_t tgt_rank, void *tgt_addr,
+        void *result_p, gex_Rank_t job_rank, void *tgt_addr,
         gni_fma_cmd_type_t cmd, uint64_t operand1, uint64_t operand2,
         gasneti_weakatomic_val_t *initiated_p, gasnete_op_t * const op,
         uint32_t gpd_flags, gex_Flags_t flags GASNETC_DIDX_FARG)
@@ -196,25 +197,37 @@ int gasnete_ratomic_inner(
               break;
       default: gasneti_unreachable();
     }
-    gasnetc_post_amo(tgt_rank, tgt_addr, gpd);
+    gasnetc_post_amo(job_rank, tgt_addr, gpd);
   }
   gasneti_resume_spinpollers();
   return !gpd;
+}
+
+GASNETI_INLINE(gasnete_ratomic_jobrank)
+gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t i_tm, gex_Rank_t tgt_rank, gex_Flags_t flags)
+{
+  if (flags & GEX_FLAG_RANK_IS_JOBRANK) {
+    gasneti_assert(GEX_RANK_INVALID != gasneti_i_tm_jobrank_to_rank(i_tm, tgt_rank));
+    return tgt_rank;
+  } else {
+    return gasneti_i_tm_rank_to_jobrank(i_tm, tgt_rank);
+  }
 }
 
 // NB-specific wrapper around gasnete_ratomic_inner()
 GASNETI_INLINE(gasnete_ratomic_nb)
 gex_Event_t gasnete_ratomic_nb(
         const int fetching, const int op_cnt, const int length,
-        void *result_p, gex_Rank_t tgt_rank, void *tgt_addr,
+        void *result_p, gasneti_TM_t i_tm, gex_Rank_t tgt_rank, void *tgt_addr,
         gni_fma_cmd_type_t cmd, uint64_t operand1, uint64_t operand2,
         gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
   gasnete_eop_t * const eop = gasnete_eop_new(mythread);
+  gex_Rank_t job_rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   int imm = gasnete_ratomic_inner(fetching, op_cnt, length,
-                                  result_p, tgt_rank, tgt_addr,
+                                  result_p, job_rank, tgt_addr,
                                   cmd, operand1, operand2,
                                   GASNETE_EOP_CNTRS(eop),
                                   flags GASNETC_DIDX_PASS);
@@ -230,15 +243,16 @@ gex_Event_t gasnete_ratomic_nb(
 GASNETI_INLINE(gasnete_ratomic_nbi)
 int gasnete_ratomic_nbi(
         const int fetching, const int op_cnt, const int length,
-        void *result_p, gex_Rank_t tgt_rank, void *tgt_addr,
+        void *result_p, gasneti_TM_t i_tm, gex_Rank_t tgt_rank, void *tgt_addr,
         gni_fma_cmd_type_t cmd, uint64_t operand1, uint64_t operand2,
         gex_Flags_t flags GASNETI_THREAD_FARG)
 {
-  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
+  gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   GASNETC_DIDX_POST(mythread->domain_idx);
   gasnete_iop_t * const iop = mythread->current_iop;
+  gex_Rank_t job_rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   int imm = gasnete_ratomic_inner(fetching, op_cnt, length,
-                                  result_p, tgt_rank, tgt_addr,
+                                  result_p, job_rank, tgt_addr,
                                   cmd, operand1, operand2,
                                   GASNETE_IOP_CNTRS(iop, rmw),
                                   flags GASNETC_DIDX_PASS);
@@ -267,8 +281,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_INC##isint(type, op_idx);        \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(0, 1, sizeof(type),             \
-                                  NULL, tgt_rank, tgt_addr,       \
+        return gasnete_ratomic_nb(0, 1, sizeof(type), NULL,       \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, inc, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -282,8 +296,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_NOP##isint(type, op_idx);        \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(0, 1, sizeof(type),             \
-                                  NULL, tgt_rank, tgt_addr,       \
+        return gasnete_ratomic_nb(0, 1, sizeof(type), NULL,       \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, op1, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -297,8 +311,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_CAS##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(0, 2, sizeof(type),             \
-                                  NULL, tgt_rank, tgt_addr,       \
+        return gasnete_ratomic_nb(0, 2, sizeof(type), NULL,       \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, op1, op2,                  \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -312,8 +326,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_FINC##isint(type, op_idx);       \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(1, 1, sizeof(type),             \
-                                  result_p, tgt_rank, tgt_addr,   \
+        return gasnete_ratomic_nb(1, 1, sizeof(type), result_p,   \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, inc, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -328,8 +342,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_FOP##isint(type, op_idx);        \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(1, 1, sizeof(type),             \
-                                  result_p, tgt_rank, tgt_addr,   \
+        return gasnete_ratomic_nb(1, 1, sizeof(type), result_p,   \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, op1, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -344,8 +358,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_CAS##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(1, 2, sizeof(type),             \
-                                  result_p, tgt_rank, tgt_addr,   \
+        return gasnete_ratomic_nb(1, 2, sizeof(type), result_p,   \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, op1, op2,                  \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -358,8 +372,8 @@ int gasnete_ratomic_nbi(
     {                                                             \
         _GASNETE_GNIRATOMIC_PREP_SET##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(0, 1, sizeof(type),             \
-                                  NULL, tgt_rank, tgt_addr,       \
+        return gasnete_ratomic_nb(0, 1, sizeof(type), NULL,       \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, val, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -372,8 +386,8 @@ int gasnete_ratomic_nbi(
     {                                                             \
         _GASNETE_GNIRATOMIC_PREP_GET();                           \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nb(1, 1, sizeof(type),             \
-                                  result_p, tgt_rank, tgt_addr,   \
+        return gasnete_ratomic_nb(1, 1, sizeof(type), result_p,   \
+                                  ad->_tm, tgt_rank, tgt_addr,    \
                                   cmd, op1, 0,                    \
                                   flags GASNETI_THREAD_PASS);     \
     } \
@@ -386,8 +400,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_INC##isint(type, op_idx);        \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nbi(0, 1, sizeof(type),            \
-                                   NULL, tgt_rank, tgt_addr,      \
+        return gasnete_ratomic_nbi(0, 1, sizeof(type), NULL,      \
+                                   ad->_tm, tgt_rank, tgt_addr,   \
                                    cmd, inc, 0,                   \
                                    flags GASNETI_THREAD_PASS);    \
     } \
@@ -401,8 +415,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_NOP##isint(type, op_idx);        \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nbi(0, 1, sizeof(type),            \
-                                   NULL, tgt_rank, tgt_addr,      \
+        return gasnete_ratomic_nbi(0, 1, sizeof(type), NULL,      \
+                                   ad->_tm, tgt_rank, tgt_addr,   \
                                    cmd, op1, 0,                   \
                                    flags GASNETI_THREAD_PASS);    \
     } \
@@ -416,8 +430,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_CAS##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nbi(0, 2, sizeof(type),            \
-                                   NULL, tgt_rank, tgt_addr,      \
+        return gasnete_ratomic_nbi(0, 2, sizeof(type), NULL,      \
+                                   ad->_tm, tgt_rank, tgt_addr,   \
                                    cmd, op1, op2,                 \
                                    flags GASNETI_THREAD_PASS);    \
     } \
@@ -431,8 +445,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_0arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_FINC##isint(type, op_idx);       \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nbi(1, 1, sizeof(type),            \
-                                   result_p, tgt_rank, tgt_addr,  \
+        return gasnete_ratomic_nbi(1, 1, sizeof(type), result_p,  \
+                                   ad->_tm, tgt_rank, tgt_addr,   \
                                    cmd, inc, 0,                   \
                                    flags GASNETI_THREAD_PASS);    \
     } \
@@ -447,8 +461,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_1arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_FOP##isint(type, op_idx);        \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nbi(1, 1, sizeof(type),            \
-                                   result_p, tgt_rank, tgt_addr,  \
+        return gasnete_ratomic_nbi(1, 1, sizeof(type), result_p,  \
+                                   ad->_tm, tgt_rank, tgt_addr,   \
                                    cmd, op1, 0,                   \
                                    flags GASNETI_THREAD_PASS);    \
     } \
@@ -463,8 +477,8 @@ int gasnete_ratomic_nbi(
         gasneti_assert(gasneti_op_2arg(((gex_OP_t)1 << op_idx))); \
         _GASNETE_GNIRATOMIC_PREP_CAS##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        return gasnete_ratomic_nbi(1, 2, sizeof(type),            \
-                                   result_p, tgt_rank, tgt_addr,  \
+        return gasnete_ratomic_nbi(1, 2, sizeof(type), result_p,  \
+                                   ad->_tm, tgt_rank, tgt_addr,   \
                                    cmd, op1, op2,                 \
                                    flags GASNETI_THREAD_PASS);    \
     } \
@@ -477,11 +491,13 @@ int gasnete_ratomic_nbi(
     {                                                             \
         _GASNETE_GNIRATOMIC_PREP_SET##isint(type);                \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD; \
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD; \
         GASNETC_DIDX_POST(mythread->domain_idx);                  \
         gasnete_iop_t * const iop = mythread->current_iop;        \
+        gex_Rank_t job_rank =                                     \
+                gasnete_ratomic_jobrank(ad->_tm, tgt_rank, flags);\
         return gasnete_ratomic_inner(0, 1, sizeof(type),          \
-                                     NULL, tgt_rank, tgt_addr,    \
+                                     NULL, job_rank, tgt_addr,    \
                                      cmd, val, 0,                 \
                                      GASNETE_IOP_CNTRS(iop, put), \
                                      flags GASNETC_DIDX_PASS);    \
@@ -495,11 +511,13 @@ int gasnete_ratomic_nbi(
     {                                                             \
         _GASNETE_GNIRATOMIC_PREP_GET();                           \
         gni_fma_cmd_type_t cmd = amo_cmd_map##dtcode(op_idx);     \
-        gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD; \
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD; \
         GASNETC_DIDX_POST(mythread->domain_idx);                  \
         gasnete_iop_t * const iop = mythread->current_iop;        \
+        gex_Rank_t job_rank =                                     \
+                gasnete_ratomic_jobrank(ad->_tm, tgt_rank, flags);\
         return gasnete_ratomic_inner(1, 1, sizeof(type),          \
-                                     result_p, tgt_rank, tgt_addr,\
+                                     result_p, job_rank, tgt_addr,\
                                      cmd, op1, 0,                 \
                                      GASNETE_IOP_CNTRS(iop, get), \
                                      flags GASNETC_DIDX_PASS);    \

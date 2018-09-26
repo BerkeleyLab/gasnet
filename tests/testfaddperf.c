@@ -1,7 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testfaddperf.c $
  * Description: GASNet remote atomics performance test
  *   Measures average round-trip time and average flood throughput
- *   of the GEX_OP_FADD remote atomic operation
+ *   of the GEX_OP_(F)ADD remote atomic operations
  * Copyright 2002, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright (c) 2017, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -58,22 +58,22 @@ void _update_stat(stat_struct_t *st, uint64_t temptime, int iters)
 	st->time += temptime;
 }
 
-void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
+void _print_stat(int myproc, stat_struct_t *st, const char *type, const char *opstr, int operation)
 {
 	switch (operation) {
 	case PRINT_LATENCY:
-		printf("%c: %2i : %7i iters, latency %10i us total, %9.3f us ave. (%s)\n",
+		printf("%c: %2i : %7i iters, latency %10i us total, %9.3f us ave. (%s %s latency)\n",
                         TEST_SECTION_NAME(), myproc, st->iters,
                         (int) st->time, ((double)st->time) / st->iters,
-			name);
+			type, opstr);
 		fflush(stdout);
 		break;
 	case PRINT_THROUGHPUT:
-		printf("%c: %2i : %7i iters, throughput             %15.3f ops/sec (%s)\n",
+		printf("%c: %2i : %7i iters, throughput             %15.3f ops/sec (%s %s throughput)\n",
                         TEST_SECTION_NAME(), myproc, st->iters,
 			((int)st->time == 0 ? 0.0
                                             : ((1.e6 * (double)st->iters / st->time))),
-			name);
+			type, opstr);
 		fflush(stdout);
 		break;
 	default:
@@ -82,7 +82,7 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 }
 
 #define TEST_DECL(_tcode, _type) \
-void _tcode##fadd_lat_test(void)                                               \
+void _tcode##_lat_test(gex_OP_t opcode, const char *opstr)                     \
 {GASNET_BEGIN_FUNCTION();                                                      \
     int64_t begin, end;                                                        \
     stat_struct_t st;                                                          \
@@ -96,12 +96,12 @@ void _tcode##fadd_lat_test(void)                                               \
     BARRIER();                                                                 \
                                                                                \
     if (iamsender) {                                                           \
-        /* measure the round-trip time of FADD/NB */                           \
+        /* measure the round-trip time of (F)ADD/NB */                         \
         begin = TIME();                                                        \
         for (int i = 0; i < iters; i++) {                                      \
             gex_Event_Wait(                                                    \
-                gex_AD_OpNB_##_tcode(myad, &result, peerproc, peerseg,        \
-                                     GEX_OP_FADD, i&15, 9999, 0));             \
+                gex_AD_OpNB_##_tcode(myad, &result, peerproc, peerseg,         \
+                                     opcode, i&15, 9999, 0));                  \
         }                                                                      \
         end = TIME();                                                          \
         update_stat(&st, (end - begin), iters);                                \
@@ -110,10 +110,10 @@ void _tcode##fadd_lat_test(void)                                               \
     BARRIER();                                                                 \
                                                                                \
     if (iamsender) {                                                           \
-        print_stat(myproc, &st, #_tcode " FADD latency", PRINT_LATENCY);       \
+        print_stat(myproc, &st, #_tcode, opstr, PRINT_LATENCY);                \
     }                                                                          \
 }                                                                              \
-void _tcode##fadd_tput_test()                                                  \
+void _tcode##_tput_test(gex_OP_t opcode, const char *opstr)                    \
 {GASNET_BEGIN_FUNCTION();                                                      \
     int64_t begin, end;                                                        \
     stat_struct_t st;                                                          \
@@ -125,11 +125,11 @@ void _tcode##fadd_tput_test()                                                  \
     BARRIER();                                                                 \
                                                                                \
     if (iamsender) {                                                           \
-        /* measure the throughput of FADD/NBI */                               \
+        /* measure the throughput of (F)ADD/NBI */                             \
         begin = TIME();                                                        \
         for (int i = 0; i < iters; i++) {                                      \
             gex_AD_OpNBI_##_tcode(myad, results + i, peerproc, peerseg,        \
-                                  GEX_OP_FADD, i&15, 9999, 0);                 \
+                                  opcode, i&15, 9999, 0);                      \
         }                                                                      \
         gex_NBI_Wait(GEX_EC_RMW, 0);                                           \
         if (hotspotmode) BARRIER();                                            \
@@ -142,23 +142,23 @@ void _tcode##fadd_tput_test()                                                  \
     BARRIER();                                                                 \
                                                                                \
     if (iamsender) {                                                           \
-        print_stat(myproc, &st, #_tcode " FADD throughput", PRINT_THROUGHPUT); \
+        print_stat(myproc, &st, #_tcode, opstr, PRINT_THROUGHPUT);             \
     }                                                                          \
                                                                                \
     test_free(results);                                                        \
 }                                                                              \
-void do_##_tcode(int skipwarmup)                                               \
+void do_##_tcode(int skipwarmup, gex_OP_t opcode, const char *opstr)           \
 {GASNET_BEGIN_FUNCTION();                                                      \
-    gex_AD_Create(&myad, myteam, GEX_DT_##_tcode, GEX_OP_FADD, 0);             \
+    gex_AD_Create(&myad, myteam, GEX_DT_##_tcode, opcode, 0);                  \
     if (iamsender && !skipwarmup) {                                            \
         _type result;                                                          \
         int warm_iters = MIN(iters, 10000);                                    \
         gex_Event_t *ph = test_malloc(warm_iters * sizeof(gex_Event_t));       \
         for (int i = 0; i < warm_iters; ++i) {                                 \
             ph[i] = gex_AD_OpNB_##_tcode(myad, &result, peerproc, peerseg,     \
-                                         GEX_OP_FADD, 1, 9999, 0);             \
+                                         opcode, 1, 9999, 0);                  \
             gex_AD_OpNBI_##_tcode(myad, &result, peerproc, peerseg,            \
-                                  GEX_OP_FADD, 1, 9999, 0);                    \
+                                  opcode, 1, 9999, 0);                         \
         }                                                                      \
         gex_NBI_Wait(GEX_EC_RMW,0);                                            \
         gex_Event_WaitAll(ph, warm_iters, 0);                                  \
@@ -167,8 +167,8 @@ void do_##_tcode(int skipwarmup)                                               \
                                                                                \
     BARRIER();                                                                 \
                                                                                \
-    if (TEST_SECTION_BEGIN_ENABLED()) _tcode##fadd_lat_test();                 \
-    if (TEST_SECTION_BEGIN_ENABLED()) _tcode##fadd_tput_test();                \
+    if (TEST_SECTION_BEGIN_ENABLED()) _tcode##_lat_test(opcode, opstr);        \
+    if (TEST_SECTION_BEGIN_ENABLED()) _tcode##_tput_test(opcode, opstr);       \
                                                                                \
     BARRIER();                                                                 \
                                                                                \
@@ -270,7 +270,7 @@ int main(int argc, char **argv)
     myseg   = TEST_MYSEG();
     peerseg = TEST_SEG(peerproc);
 
-        MSG0("Running %i iterations of %s%s%s%sremote atomic FADD perfomance tests\n",
+        MSG0("Running %i iterations of %s%s%s%sremote atomic (F)ADD perfomance tests\n",
           iters,
           (firstlastmode ? "first/last " : ""),
           (fullduplexmode ? "full-duplex ": ""),
@@ -278,10 +278,17 @@ int main(int argc, char **argv)
           (hotspotmode ? "single-counter ": ""));
         BARRIER();
 
-        do_U32(skipwarmup);
-        do_U64(skipwarmup);
-        do_FLT(skipwarmup);
-        do_DBL(skipwarmup);
+        do_U32(skipwarmup, GEX_OP_FADD, "FADD");
+        do_U32(skipwarmup, GEX_OP_ADD,  "ADD");
+
+        do_U64(skipwarmup, GEX_OP_FADD, "FADD");
+        do_U64(skipwarmup, GEX_OP_ADD,  "ADD");
+
+        do_FLT(skipwarmup, GEX_OP_FADD, "FADD");
+        do_FLT(skipwarmup, GEX_OP_ADD,  "ADD");
+
+        do_DBL(skipwarmup, GEX_OP_FADD, "FADD");
+        do_DBL(skipwarmup, GEX_OP_ADD,  "ADD");
 
     gasnet_exit(0);
 

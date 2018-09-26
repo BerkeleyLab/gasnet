@@ -20,7 +20,7 @@ static gex_EP_t    myep;
 static gex_TM_t myteam;
 static gex_Segment_t     mysegment;
 
-int insegment = 0;
+int insegment = 1;
 
 int myproc;
 int numprocs;

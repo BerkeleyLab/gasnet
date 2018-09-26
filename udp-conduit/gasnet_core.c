@@ -290,7 +290,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     /* allocate and attach an aux segment */
 
     gasneti_auxsegAttach(mmap_limit, &gasnetc_bootstrapExchange);
-    mmap_limit -= gasneti_seginfo_aux[gasneti_mynode].size;
 
     /* determine Max{Local,GLobal}SegmentSize */
     gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);
@@ -538,7 +537,7 @@ extern int gasnetc_Client_Init(
   gasnetc_handler = ep->_amtbl; // TODO-EX: this global variable to be removed
 
   // TODO-EX: create team
-  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 1, 0);
+  gasneti_TM_t tm = gasneti_alloc_tm(ep, gasneti_mynode, gasneti_nodes, flags, 0);
   *tm_p = gasneti_export_tm(tm);
 
   if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
@@ -964,7 +963,7 @@ extern int gasnetc_AMRequestLongM(
 GASNETI_INLINE(gasnetc_AMReplyShort)
 int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                             gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval;
   if_pt (gasnetc_token_in_nbrhd(token)) {
@@ -989,7 +988,7 @@ extern int gasnetc_AMReplyShortM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyShort(token,handler,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -998,7 +997,7 @@ GASNETI_INLINE(gasnetc_AMReplyMedium)
 int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval;
   gasneti_leaf_finish(lc_opt); // always locally completed
@@ -1019,9 +1018,9 @@ extern int gasnetc_AMReplyMediumV(
                             gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
-  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -1035,7 +1034,7 @@ extern int gasnetc_AMReplyMediumM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -1044,7 +1043,7 @@ GASNETI_INLINE(gasnetc_AMReplyLong)
 int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes, void *dest_addr,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
   int retval;
   gasneti_leaf_finish(lc_opt); // always locally completed
@@ -1074,9 +1073,9 @@ extern int gasnetc_AMReplyLongV(
                             gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes, void *dest_addr,
                             gex_Event_t *lc_opt, gex_Flags_t flags,
-                            int numargs, va_list argptr GASNETI_THREAD_FARG)
+                            int numargs, va_list argptr)
 {
-  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  return gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -1091,7 +1090,7 @@ extern int gasnetc_AMReplyLongM(
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
-  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr GASNETI_THREAD_GET);
+  int retval = gasnetc_AMReplyLong(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs,argptr);
   va_end(argptr);
   return retval;
 }
@@ -1188,7 +1187,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
         if (isReq) GASNETI_TRACE_AMLONG_REQHANDLER(handlerId, token, buf, nbytes, numargs, args);
         else       GASNETI_TRACE_AMLONG_REPHANDLER(handlerId, token, buf, nbytes, numargs, args);
         break;
-      default: gasneti_fatalerror("Unknown handler type in gasnetc_enteringHandler_hook(): %i", cat);
+      default: gasneti_unreachable_error(("Unknown handler type in gasnetc_enteringHandler_hook(): 0x%x",(int)cat));
     }
   }
   extern void gasnetc_leavingHandler_hook(amudp_category_t cat, int isReq) {
@@ -1202,7 +1201,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
       case amudp_Long:
         GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
         break;
-      default: gasneti_fatalerror("Unknown handler type in gasnetc_leavingHandler_hook(): %i", cat);
+      default: gasneti_unreachable_error(("Unknown handler type in gasnetc_leavingHandler_hook(): 0x%x",(int)cat));
     }
   }
 #endif

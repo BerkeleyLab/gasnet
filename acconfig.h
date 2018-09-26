@@ -209,8 +209,8 @@
 /* avoid mmap()-after-munmap() failures */
 #undef GASNETI_BUG3480_WORKAROUND
 
-/* --with-segment-mmap-max value (if given) */
-#undef GASNETI_MMAP_MAX_SIZE
+/* --with-max-segment value (possibly defaulted) */
+#undef GASNETI_MAX_SEGSIZE_CONFIGURE
 
 /* --with-max-threads value (if given) */
 #undef GASNETI_MAX_THREADS_CONFIGURE
@@ -281,7 +281,7 @@
 #undef GASNETI_USE_HUGETLBFS
 
 /* Have Mellanox FCA support?  Where? */
-#undef GASNET_FCA_ENABLED
+#undef GASNETI_FCA_ENABLED
 #undef GASNETI_FCA_HOME
 
 /* BLCR support, path and features */
@@ -351,8 +351,12 @@
 #undef GASNETI_HAVE_SPARC32_64BIT_ASM
 
 /* has _builtin_c[lt]z */
-#undef HAVE_BUILTIN_CLZ
-#undef HAVE_BUILTIN_CTZ
+#undef GASNETI_HAVE_CC_BUILTIN_CLZ
+#undef GASNETI_HAVE_CC_BUILTIN_CLZL
+#undef GASNETI_HAVE_CC_BUILTIN_CLZLL
+#undef GASNETI_HAVE_CC_BUILTIN_CTZ
+#undef GASNETI_HAVE_CC_BUILTIN_CTZL
+#undef GASNETI_HAVE_CC_BUILTIN_CTZLL
 
 /* has __func__ function name defined */
 #undef HAVE_FUNC
@@ -405,10 +409,6 @@
 
 /* compiler is Apple's variant of GCC */
 #undef GASNETI_GCC_APPLE
-
-/* platform is an SGI Altix multiprocessor */
-#undef GASNETI_ARCH_ALTIX
-#undef GASNETI_USE_MMTIMER
 
 /* platform is a Linux cluster running IBM PE software */
 #undef GASNETI_ARCH_IBMPE

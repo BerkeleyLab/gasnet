@@ -35,14 +35,14 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2018
-#define GASNET_RELEASE_VERSION_MINOR 6
+#define GASNET_RELEASE_VERSION_MINOR 9
 #define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 5
+#define GEX_SPEC_VERSION_MINOR 6
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -339,6 +339,17 @@ typedef [some integer type] gex_Flags_t;
 //
 #define GEX_FLAG_AD_ACQ          ((gex_Flags_t)???)
 #define GEX_FLAG_AD_REL          ((gex_Flags_t)???)
+//
+// RANK_IS_JOBRANK
+//
+// This flag indicates, to those calls explicitly documented as accepting it,
+// that the 'rank' (or equivalent argument) is a jobrank rather than a rank
+// within the the normal associated team.
+//
+// Currently this flags is accepted by:
+//   gex_AD_Op*()
+//
+#define GEX_FLAG_RANK_IS_JOBRANK  ((gex_Flags_t)???)
 //
 // AM_PREPARE_LEAST_{CLIENT,ALLOC} [EXPERIMENTAL]
 //
@@ -712,7 +723,9 @@ gex_Rank_t   gex_TM_QuerySize(gex_TM_t tm);
 //         - GEX_FLAG_TM_SCRATCH_SIZE_{MIN,RECOMMENDED} queries and returns the           
 //           {minimum permissible, recommended optimal} value to be passed in 
 //           'scratch_size' for a subsequent call to gex_TM_Split() with the same 
-//            value for the other arguments.
+//           value for the other arguments.  In particular, a NULL value of the
+//           'new_tm_p' indicates the caller will not be a member of any team
+//           created by the subsequent split (and thus the return will be zero).
 //   Non-single valued:
 //        None currently defined 
 //
@@ -1755,7 +1768,7 @@ typedef {...} gex_HSL_t;
 // Synonymous with GASNET_HSL_INITIALIZER
 #define GEX_HSL_INITIALIZER {...}
 
-// The following operations on HSLs are are semantically identical
+// The following operations on HSLs are semantically identical
 // to the corresponding gasnet_hsl_* functions:
 void gex_HSL_Init   (gex_HSL_t *hsl);
 void gex_HSL_Destroy(gex_HSL_t *hsl);
@@ -1979,7 +1992,7 @@ typedef [some integer type] gex_OP_t;
 //
 //   It is the intent of this specification to permit access to the same data
 //   using remote atomics and other (non-atomic) mechanisms, and to the same
-//   data using mutiple atomics domains.  However, such different accesses
+//   data using multiple atomics domains.  However, such different accesses
 //   must be NON-concurrent.  This separation is into what we will call
 //   "atomic access phases":
 //     During a given atomic access phase, any given byte in the memory of any
@@ -2249,8 +2262,13 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //
 // + The 'result_p' argument to non-fetching operations is ignored.
 //
-// + The 'tgt_rank' argument names the target endpoint as a valid rank
-//   relative to the team associated with the AD at its creation.
+// + The 'tgt_rank' argument names the target endpoint.  By default, this
+//   argument must be a valid rank relative to the team associated with the AD
+//   at its creation.  However, in the presence of GEX_FLAG_RANK_IS_JOBRANK,
+//   this argument instead names the target endpoint by a valid rank in the
+//   primordial team, created by gex_Client_Init().  In this latter case the
+//   named endpoint must be a member of the team associated with the AD at its
+//   creation.
 //
 // + The 'tgt_addr' argument names the target location, which must be properly
 //   aligned for its data type [TYPE] and (for any operation except
@@ -2322,6 +2340,10 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //       GASNet operations initiated by that thread after synchronization.
 //       However, there is no ordering with respect to other GASNet
 //       operations.
+//     - GEX_FLAG_RANK_IS_JOBRANK: this flag indicates that the 'tgt_rank'
+//       argument is a jobrank (rank in the primordial team created by
+//       gex_Client_Init()), rather than the rank in the team associated with
+//       the AD at its creation.
 //     - [UNIMPLEMENTED] GEX_FLAG_SELF_SEG_OFFSET: 'result_p' is to be
 //       interpreted as an offset relative to the bound segment of the
 //       initiating endpoint (instead of as a virtual address).
@@ -2533,7 +2555,7 @@ int gex_AD_OpNBI_[DATATYPE](
 void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler, 
         const void *source_addr, size_t nbytes, gex_Flags_t flags);
 
-// The largest permissable size (in bytes) for a client payload in a VIS peer completion handler.
+// The largest permissible size (in bytes) for a client payload in a VIS peer completion handler.
 // Guaranteed to be at least 127 bytes.
 
 #define GEX_VIS_MAX_PEERCOMPLETION ((size_t)???)
@@ -2917,14 +2939,59 @@ gex_Event_t gex_Coll_BroadcastNB(
 // yields undefined behavior.
 //
 // LIMITATIONS of the current release:
-//  + The current implementation may limit the product `dt_sz * dt_cnt` to as
-//    little as 24 bytes in some configurations.
-//    The precise limit depends on the size of the job and team.
-// It is anticipated that this limitation will be removed in the next release.
+//  + The current implementation may limit `dt_sz` for user-defined types to as
+//    little as 32KB bytes in some configurations and with default parameters.
+//    The precise limit depends on the network and sizes of the job and team.
 
 gex_Event_t gex_Coll_ReduceToOneNB(
             gex_TM_t            tm,           // The team
             gex_Rank_t          root,         // Root rank (single-valued)
+            void *              dst,          // NOT single-valued
+            const void *        src,          // NOT single-valued
+            gex_DT_t            dt,           // Data type (single-valued)
+            size_t              dt_sz,        // Data type size (single-valued)
+            size_t              dt_cnt,       // Element count (single-valued)
+            gex_OP_t            op,           // Operation (single-valued)
+            gex_Coll_ReduceFn_t user_op,      // NOT single-valued
+            void *              user_cdata,   // NOT single-valued
+            gex_Flags_t         flags);       // Flags (partially single-valued)
+
+// Reduction to all
+//
+// This is a collective call over the team named by the 'tm' argument that
+// initiates a non-blocking reduction applying the operation denoted by 'op'
+// repeatedly to reduce a collection of operands of type denoted by 'dt'.
+// Each member of 'tm' provides a 'src' vector of length 'dt_cnt' (in
+// elements), and the elements are reduced element-wise such that the i'th
+// element of the output vector is the reduction over the i'th elements of the
+// 'src' vectors of all team members.  The result is written to the 'dst' of
+// all ranks.
+//
+// The definition of the element-wise reduction is the same as was given above
+// for gex_Coll_ReduceToOneNB().
+//
+// This call produces an output in the 'dst' buffer of all ranks.  However,
+// the implementation is free to apply associativity (and commutativity for
+// operators other than GEX_OP_USER_NC) *differently* in producing the
+// multiple outputs.  Therefore, when the operator differs from the assumed
+// mathematical properties, the results on different ranks might not be
+// identical.
+//
+// The 'dst' and 'src' buffers have length in bytes of 'dt_sz * dt_cnt'.
+//
+// It is permitted that 'src' and 'dst' be equal pairwise either on every rank,
+// or on none of them.  Any other overlap between 'src' and 'dst' buffers
+// yields undefined behavior.  This includes any case in which 'src' and 'dst'
+// are equal on at least one rank, but less than all ranks in the team (though
+// this last restriction may be relaxed in a future release).
+//
+// LIMITATIONS of the current release:
+//  + The current implementation may limit `dt_sz` for user-defined types to as
+//    little as 32KB bytes in some configurations and with default parameters.
+//    The precise limit depends on the network and sizes of the job and team.
+
+gex_Event_t gex_Coll_ReduceToAllNB(
+            gex_TM_t            tm,           // The team
             void *              dst,          // NOT single-valued
             const void *        src,          // NOT single-valued
             gex_DT_t            dt,           // Data type (single-valued)

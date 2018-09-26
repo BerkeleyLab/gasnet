@@ -35,7 +35,7 @@ struct gasnete_coll_scratch_req_t_ {
 		
   /*this is the sum incoming space of all the peers sending to me*/
   /*for now, for non treeops this is the amount of data that everyone is requesting*/
-  uint64_t incoming_size; 
+  uintptr_t incoming_size;
   
   /*information for all the data for which i am the target*/
   /*for non tree ops these values not used*/
@@ -47,14 +47,14 @@ struct gasnete_coll_scratch_req_t_ {
   /*for non tree ops this information is not used*/
   int num_out_peers; 
   gex_Rank_t *out_peers;
-  uint64_t *out_sizes;
+  uintptr_t *out_sizes;
   
   
 };
 
 /* try to allocate scratch space*/
 /* returns 1 on success or zero on failure*/
-int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG);
+int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG);
 
 
 /* release the associated scratch space with this op*/
@@ -62,7 +62,7 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op);
 
 /* function calls for coll init*/
 void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team);
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG);
+void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETI_THREAD_FARG);
 
 
 #endif

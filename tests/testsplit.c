@@ -60,18 +60,6 @@ gex_AM_Entry_t htable[] = {
  };
 #define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
 
-// helper for SEGMENT_EVERYTHING
-// TODO: hoist to test.h?
-void *TEST_SEG_TM(gex_TM_t tm, gex_Rank_t rank) {
-#if GASNET_SEGMENT_EVERYTHING
-  return TEST_SEG(gex_TM_TranslateRankToJobrank(tm, rank));
-#else
-  void *result;
-  check_zeroret(gex_Segment_QueryBound(tm, rank, &result, NULL, NULL));
-  return result;
-#endif
-}
-
 int main(int argc, char **argv)
 {
   gex_Rank_t peer;
@@ -112,6 +100,12 @@ int main(int argc, char **argv)
   uintptr_t scratch_addr = PAGESZ + (uintptr_t)TEST_MYSEG();
   uintptr_t scratch_end = TEST_SEGSZ + (uintptr_t)TEST_MYSEG();
   size_t scratch_sz;
+
+  // Spec says NULL new_tm_p returns zero.
+  scratch_sz = gex_TM_Split(NULL, myteam, 0, 1, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_MIN);
+  assert_always(scratch_sz == 0);
+  scratch_sz = gex_TM_Split(NULL, myteam, 0, 1, 0, 0, GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED);
+  assert_always(scratch_sz == 0);
 
   // Row team:
   gex_TM_t rowtm = myteam; // init just to check whether overwritten

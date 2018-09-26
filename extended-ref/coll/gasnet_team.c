@@ -5,8 +5,6 @@
  * Terms of use are as specified in license.txt 
  */
 
-#include <gasnet_internal.h>
-#include <coll/gasnet_coll.h>
 #include <coll/gasnet_coll_internal.h>
 #include <coll/gasnet_refcoll.h>
 
@@ -36,93 +34,23 @@ volatile uint32_t new_team_id = 0; /* new_team_id is for communication
 /*called by only one thread*/
 static void initialize_team_fields(gasnete_coll_team_t team,  
                                    const gasnet_image_t images[], gex_Rank_t myrank, gex_Rank_t num_members,
-                                   gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG) {
+                                   gasnet_seginfo_t * scratch_segments GASNETI_THREAD_FARG) {
 
   size_t image_size = num_members*sizeof(gasnet_image_t);
   int i;
   static size_t smallest_scratch_seg;
 
-#if 0
-#if GASNET_DEBUG
-  static int team_all_made=0;
-#endif
-  
-  if(!allocating_team_all) {
-    /*the space for team all has already been initialized in gasnete_init()*/
-
-  }
-#if GASNET_DEBUG
-  else if(!team_all_made) {
-    team = GASNET_TEAM_ALL;
-    team_all_made = 1;
-  } else {
-    gasneti_fatalerror("TRYING TO RECONSTRUCT TEAM ALL (allocating_team_all variable can be set at most and should not be set for construction of non team all)\n");
-  }
-#endif
-#endif
-  
   team->sequence = 42;
-  team->all_images = gasneti_malloc(image_size);
-  team->all_offset = gasneti_malloc(image_size);
-  if (images != NULL) {
-    memcpy(team->all_images, images, image_size);
-  } else  {
-    for (i = 0; i < num_members; ++i) {
-      team->all_images[i] = 1;
-    }
-  }
-  team->total_images = 0;
-  team->max_images = 0;
-  team->fixed_image_count=1;
+
   smallest_scratch_seg = scratch_segments[0].size;
   for (i = 0; i < num_members; ++i) {
-    team->all_offset[i] = team->total_images;
-    team->total_images += team->all_images[i];
-    team->max_images = MAX(team->max_images,team->all_images[i]);
-    if(team->all_images[i] != team->all_images[0]) {
-      team->fixed_image_count = 0;
-    }
     smallest_scratch_seg = MIN(smallest_scratch_seg, scratch_segments[i].size);
-    
   }
-  team->my_images = team->all_images[myrank];
-  team->my_offset = team->all_offset[myrank];
-  
-#if GASNET_PAR
+
+#if GASNET_PAR && GASNET_DEBUG
   gasneti_mutex_init(&team->threads_mutex);
-  team->threads_sequence = 0;
-
-  if (!images) {
-    team->multi_images = 0;
-    team->multi_images_any = 0;
-  } else if (team->my_images != 1) {
-    team->multi_images = 1;
-    team->multi_images_any = 1;
-  } else {
-    team->multi_images = 0;
-    team->multi_images_any = 0;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      if (team->all_images[i] > 1) {
-        team->multi_images_any = 1;
-        break;
-      }
-    }
-  }
 #endif
   
-#if !GASNET_SEQ
-  {
-    gasnet_image_t j;
-    team->image_to_node = gasneti_malloc(team->total_images * sizeof(gex_Rank_t));
-    for (j = 0, i = 0; j < team->total_images; ++j) {
-      if (j >= (team->all_offset[i] + team->all_images[i])) {
-        i += 1;
-      }
-      team->image_to_node[j] = i;
-    }
-  }
-#endif
-
   team->tree_geom_cache_head = NULL;
   team->tree_geom_cache_tail = NULL;
   gasneti_mutex_init(&team->tree_geom_cache_lock);
@@ -134,17 +62,10 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->total_ranks = num_members;
   team->scratch_segs = scratch_segments;
   team->smallest_scratch_seg = smallest_scratch_seg;
-  team->autotune_info = gasnete_coll_autotune_init(team, myrank, num_members, 
-                                                   team->my_images, team->total_images,
-                                                   smallest_scratch_seg GASNETE_THREAD_PASS);
+  team->autotune_info = gasnete_coll_autotune_init(team, smallest_scratch_seg GASNETI_THREAD_PASS);
   team->consensus_issued_id = 0;
   team->consensus_id = 0;
   gasnete_coll_alloc_new_scratch_status(team);
-  gasneti_weakatomic_set(&team->num_multi_addr_collectives_started, 0, GASNETT_ATOMIC_WMB_PRE);
-  if(!team->fixed_image_count && team->myrank ==0) {
-    fprintf(stderr, "WARNING: Current collective implementation requires a constant number\n");
-    fprintf(stderr, "WARNING: of threads per process for optimized collectives.\n");
-  }
   
 #ifndef GASNETE_COLL_P2P_OVERRIDE
   gex_HSL_Init(&team->p2p_lock);
@@ -177,7 +98,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
                             gex_Rank_t myrank,
                             gex_Rank_t *rel2act_map,
                             gasnet_seginfo_t *scratch_segs,
-                            const gasnet_image_t images[] GASNETE_THREAD_FARG)
+                            const gasnet_image_t images[] GASNETI_THREAD_FARG)
 {
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_init: team %p, team_id %x, total_ranks %u, myrank %u\n", 
@@ -191,7 +112,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   
   gex_Rank_t *supernodes = NULL;
   uint32_t i;
-  initialize_team_fields(team, images, myrank, total_ranks, scratch_segs GASNETE_THREAD_PASS); 
+  initialize_team_fields(team, images, myrank, total_ranks, scratch_segs GASNETI_THREAD_PASS); 
   team->team_id = team_id;
   team->total_ranks = total_ranks;
   team->myrank = myrank;
@@ -352,7 +273,7 @@ void gasnete_coll_teamid_reqh(gex_Token_t token,
 /* collective function that should be called by all participating nodes */
 gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
                                               gex_Rank_t myrank,
-                                              gex_Rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG)
+                                              gex_Rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t team;
   gex_Rank_t team_lead = rel2act_map[0];
@@ -396,7 +317,7 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
 
   /* create the team locally */
   team = (gasnet_team_handle_t)gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
-  gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETE_THREAD_PASS);
+  gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETI_THREAD_PASS);
   new_team_id = 0;
   
   /* unlock */
@@ -431,7 +352,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
                                              int mycolor,
                                              int myrelrank,
                                              void *clientdata
-                                             GASNETE_THREAD_FARG)
+                                             GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t newteam;
   gex_Rank_t new_total_ranks;
@@ -461,8 +382,8 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   /* short-circuit if excluded */
   if (mycolor == -1) {
     gasneti_free(all_args);
-    gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
-    gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+    gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETI_THREAD_PASS);
+    gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETI_THREAD_PASS);
     return NULL;
   }
 
@@ -501,7 +422,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   
   /* create a team */
   new_team_id = 0;
-  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETI_THREAD_PASS);
 
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_split: new_total_ranks %u, new_myrank %u.\n",
@@ -510,15 +431,10 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   fflush(stderr);
 #endif
 
-#if GASNET_PAR
-  if (team->multi_images_any) {
-    gasneti_fatalerror("can't yet call team_init when using multiple images");
-  }
-#endif
-  newteam = gasnete_coll_team_create(new_total_ranks, new_myrank, rel2act_map, segments GASNETE_THREAD_PASS);
+  newteam = gasnete_coll_team_create(new_total_ranks, new_myrank, rel2act_map, segments GASNETI_THREAD_PASS);
   
   gasneti_free(rel2act_map);
-  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETE_THREAD_PASS);
+  gasnete_coll_barrier(team, 0, GASNET_BARRIERFLAG_UNNAMED GASNETI_THREAD_PASS);
 #ifdef GASNETI_USE_FCA
   gasnet_team_fca_enable(newteam);
 #endif
@@ -542,31 +458,6 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
   }
   
   return team;
-}
-
-gex_Rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank)
-{
-  gasneti_assert(team != NULL);
-  gasneti_assert(rank < team->total_ranks);
-  return team->rel2act_map[rank];
-}
-
-gex_Rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gex_Rank_t node)
-{
-  uint32_t i;
-  gasneti_assert(team != NULL);
-  for (i=0; i<team->total_ranks; i++)
-    if (team->rel2act_map[i] == node)
-      return i;
-   
-  gasneti_fatalerror("Cannot find node %u in team %p with id %x!\n", 
-                     (unsigned int)node, (void *)team, (unsigned int)team->team_id);
-  return (gex_Rank_t)(-1); /* NOT REACHED */
-}
-
-uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) 
-{
-  return team->team_id;
 }
 
 void gasnete_print_team(gasnet_team_handle_t team, FILE *fp)

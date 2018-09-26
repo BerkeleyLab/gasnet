@@ -56,6 +56,20 @@ GASNet Release Procedure
   GASNet document spec version: docs/gasnet.texi
   GASNet tools document spec version: README-tools
 
+* On 'develop' advance the version numbers in configure.in (odd minor and patch
+  numbers for development), and apply a corresponding annotated tag for use by
+  the "git describe" command:
+    $ git checkout develop
+    [ edit GASNET_RELEASE_VERSION_* in configure.in, and commit it ]
+    $ git tag -a -m "GASNet development version 9.9.1" gasnet-9.9.1 develop
+    $ git push origin develop gasnet-9.9.1
+  This change is made immediately after creation of the release branch to ensure
+  concurrent development commits on develop have appropriate git describe and
+  version ids reflecting the fact they won't appear until the NEXT release.
+  However this commit will also cause a conflict when the release branch is later
+  merged that will need to be resolved. If no concurrent development is expected,
+  this step can be postponed until after the release branch is merged.
+
 * Review commit messages and write a summary of user-visible changes and 
   bug fixes since last public release - add to ChangeLog
 
@@ -101,7 +115,6 @@ GASNet Release Procedure
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv (and portals4 & mxm, if possible)
    Linux-OmniPath: psm, ofi (plus mpi and ibv if time/allocation allows)
-   Linux-Altix: smp, shmem (NOTE: no current access)
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads, smp+sysv
   SEGMENT_EVERYTHING should be tested on all conduits supporting it.
@@ -217,17 +230,6 @@ GASNet Release Procedure
     $ git tag berkeley-upc-2.34.0 master
     $ git push origin berkeley-upc-2.34.0
   We avoid using an annotated tag here so that "git describe" won't use it.
-
-* On 'develop' advance the version numbers in configure.in (odd minor and patch
-  numbers for development), and apply a corresponding annotated tag for use by
-  the "git describe" command:
-    $ git checkout develop
-    [ edit GASNET_RELEASE_VERSION_* in configure.in, and commit it ]
-    $ git tag -a -m "GASNet development version 9.9.1" gasnet-9.9.1 develop
-    $ git push origin develop gasnet-9.9.1
-  Please resist the urge to make this change right after creating the release
-  branch.  While that might seem logical, it will cause an entirely unnecessary
-  merge conflict at the "finish" step.
 
 * In Bugzilla (before publishing the release):
   + Add the version number of this release

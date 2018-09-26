@@ -114,8 +114,7 @@ typedef uint64_t gasnetc_notify_t;
 enum gc_notify_type {
   gc_notify_request = 0x01000000,
   gc_notify_reply   = 0x02000000,
-  gc_notify_credit  = 0x03000000,
-  gc_notify_ctrl    = 0x04000000
+  gc_notify_rvous   = 0x03000000
 };
 
 #define gc_build_notify(_type, _initiator, _target)\
@@ -133,10 +132,14 @@ typedef struct {
   int need_reply;
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;
+#if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t threadinfo;
+#endif
 } gasnetc_token_t;
 
 /* Control messages */
 enum {
+    GC_CTRL_CREDIT,
     GC_CTRL_SHUTDOWN 
 };
 
@@ -230,8 +233,13 @@ typedef union gasnetc_packet_u {
 #endif
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX 32768
 /* a particular get or put <= this size goes via fma */
+#ifdef GASNET_CONDUIT_ARIES
+#define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 1023
+#define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 1023
+#else
 #define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 4096
 #define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 4096
+#endif
 #define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX (4096*4)
 /* space for immediate bounce buffer in the post descriptor */
 #define GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE 128
@@ -264,6 +272,7 @@ enum {
   _gc_post_completion_iput,
   _gc_post_completion_iget,
   _gc_post_completion_irmw,
+  _gc_post_completion_amrv,
   _gc_post_completion_send,
   /* local-completion variation(s) */
   _gc_post_lc_now,
@@ -286,6 +295,7 @@ enum {
 #define GC_POST_COMPLETION_IPUT GC_POST(completion_iput)
 #define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
 #define GC_POST_COMPLETION_IRMW GC_POST(completion_irmw)
+#define GC_POST_COMPLETION_AMRV GC_POST(completion_amrv)
 #define GC_POST_COMPLETION_SEND GC_POST(completion_send)
 #define GC_POST_LC_NOW          GC_POST(lc_now)
 #define GC_POST_KEEP_GPD        GC_POST(keep_gpd)
@@ -296,7 +306,18 @@ enum {
                                  GC_POST_COMPLETION_IPUT | \
                                  GC_POST_COMPLETION_IGET | \
                                  GC_POST_COMPLETION_IRMW | \
+                                 GC_POST_COMPLETION_AMRV | \
                                  GC_POST_COMPLETION_SEND)
+
+struct peer_struct_t_;
+typedef struct peer_struct_t_ peer_struct_t;
+
+typedef struct am_rvous_t_ {
+  struct am_rvous_t_   *next;
+  peer_struct_t        *peer;
+  gasnetc_notify_t      notify;
+  volatile int          ready;
+} am_rvous_t;
 
 /* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
  * you must update the value of GASNETC_SIZEOF_GDP below */
@@ -308,6 +329,7 @@ struct gasnetc_post_descriptor {
     gex_RMA_Value_t put_val;
     uint64_t u64;
     uint64_t u32;
+    am_rvous_t am_rvous;
   #if GASNETC_GNI_UDREG
     udreg_entry_t *udreg_entry;
   #endif
@@ -360,7 +382,10 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
-void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_poll(GASNETI_THREAD_FARG_ALONE);
+#if GASNETC_USE_MULTI_DOMAIN
+  void gasnetc_poll_single_domain(GASNETI_THREAD_FARG_ALONE);
+#endif
 
 size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
@@ -465,7 +490,7 @@ gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
 
 // Allocate an eop with the initiated_cnt pre-incremented
 GASNETI_INLINE(gasnete_eop_new_cnt)
-gasnete_eop_t *gasnete_eop_new_cnt(gasnete_threaddata_t * const thread) {
+gasnete_eop_t *gasnete_eop_new_cnt(gasneti_threaddata_t * const thread) {
   gasnete_eop_t *eop = gasnete_eop_new(thread);
   eop->initiated_cnt++;
   return eop;

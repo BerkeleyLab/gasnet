@@ -338,9 +338,13 @@ typedef struct {
     const void *       _cdata;         \
     gex_Flags_t        _flags;
 
+// Needed to break client/tm0 cycle
+struct gasneti_team_member_internal_s;
+
 #ifndef _GEX_CLIENT_T
   #define GASNETI_CLIENT_COMMON        \
     GASNETI_OBJECT_HEADER              \
+    struct gasneti_team_member_internal_s *_tm0; \
     const char *       _name;
   typedef struct { GASNETI_CLIENT_COMMON } *gasneti_Client_t;
   #if GASNET_DEBUG
@@ -407,7 +411,10 @@ typedef struct {
     gex_Rank_t         _rank;          \
     gex_Rank_t         _size;          \
     void *             _coll_team;
-  typedef struct { GASNETI_TM_COMMON } *gasneti_TM_t;
+  #ifdef __cplusplus  // ensure this struct is anonymous to prevent C++ linkage issues
+    #define gasneti_team_member_internal_s
+  #endif
+  typedef struct gasneti_team_member_internal_s { GASNETI_TM_COMMON } *gasneti_TM_t;
   #if GASNET_DEBUG
     extern gasneti_TM_t gasneti_import_tm(gex_TM_t _tm);
     extern gex_TM_t gasneti_export_tm(gasneti_TM_t _real_tm);
@@ -507,9 +514,6 @@ typedef const struct {
 
   // Nothing to see here (yet)
 } gex_RankInfo_t;
-
-// TODO-EX: Temporary backwards compat, Remove this!
-#define gex_NbrhdInfo_t gex_RankInfo_t
 
 extern void gex_System_QueryNbrhdInfo(
             gex_RankInfo_t         **_info_p,
@@ -659,12 +663,12 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
     gex_Event_t *        _lc_opt;
     gex_Flags_t          _flags;
     int                  _nargs;
-    int                  _loopback;
+    int                  _is_nbrhd;
   #if GASNET_PSHM
     struct {
       gex_Rank_t           _pshmrank; // should be gasneti_pshm_rank_t
       gex_Rank_t           _jobrank;
-      int                  _is_pshm;
+      int                  _loopback;
     }                    _pshm;
   #endif
   #ifdef GASNETI_AM_SRCDESC_EXTRA
@@ -688,6 +692,7 @@ typedef struct gasneti_srcdesc_s *gex_AM_SrcDesc_t;
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
+  #define GASNETI_FLAG_COLL_SUBORDINATE      (1U << 30)
 #endif
 
 #define GASNETI_FLAG_INIT_LEGACY           (1U << 31)

@@ -4,7 +4,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_internal.h>
 #include <gasnet_coll_internal.h>
 
 // TODO-EX:
@@ -77,7 +76,7 @@ static size_t split_scratch_size(gex_TM_t *new_tm_p, gasneti_TM_t i_parent,
 
 size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int key,
                         void *addr, size_t len, gex_Flags_t flags
-                        GASNETE_THREAD_FARG)
+                        GASNETI_THREAD_FARG)
 {
   gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
   gasneti_EP_t ep = i_parent->_ep;
@@ -122,7 +121,7 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   }
 
   // TODO-EX: use of a conduit-specific hook is needed here
-  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags, 0, 0);
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, team->myrank, team->total_ranks, flags, 0);
   i_tm->_coll_team = team;
   gex_TM_t e_tm = gasneti_export_tm(i_tm);
   team->e_tm = e_tm;
