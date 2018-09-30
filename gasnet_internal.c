@@ -181,7 +181,7 @@ extern void gasneti_check_config_preinit(void) {
 
   #define CHECK_DT(id, type) do { \
       gasneti_assert_always(gasneti_dt_valid(id)); \
-      gasneti_assert_always(gasneti_dt_size(id) == sizeof(type)); \
+      gasneti_assert_always_uint(gasneti_dt_size(id) ,==, sizeof(type)); \
       gasneti_assert_always(!!gasneti_dt_int(id) == !gasneti_dt_fp(id)); \
     } while (0)
   #define CHECK_INT_DT(id, type, sign) do { \
@@ -423,7 +423,7 @@ gasneti_Client_t gasneti_alloc_client(
                        size_t alloc_size)
 {
   gasneti_Client_t client = gasneti_malloc(alloc_size ? alloc_size : sizeof(*client));
-  gasneti_assert(!alloc_size || alloc_size >= sizeof(*client));
+  if (alloc_size) gasneti_assert_uint(alloc_size ,>=, sizeof(*client));
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
   client->_tm0 = NULL;
   client->_name = gasneti_strdup(name);
@@ -472,7 +472,7 @@ gasneti_Segment_t gasneti_alloc_segment(
                        size_t alloc_size)
 {
   gasneti_Segment_t segment = gasneti_malloc(alloc_size ? alloc_size : sizeof(*segment));
-  gasneti_assert(!alloc_size || alloc_size >= sizeof(*segment));
+  if (alloc_size) gasneti_assert_uint(alloc_size ,>=, sizeof(*segment));
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
   segment->_client = client;
   segment->_cdata = NULL;
@@ -520,7 +520,7 @@ extern gasneti_EP_t gasneti_alloc_ep(
                        size_t alloc_size)
 {
   gasneti_EP_t endpoint = gasneti_malloc(alloc_size ? alloc_size : sizeof(*endpoint));
-  gasneti_assert(!alloc_size || alloc_size >= sizeof(*endpoint));
+  if (alloc_size) gasneti_assert_uint(alloc_size ,>=, sizeof(*endpoint));
   GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
   endpoint->_client = client;
   endpoint->_cdata = NULL;
@@ -568,8 +568,8 @@ extern gasneti_TM_t gasneti_alloc_tm(
                        gex_Flags_t flags,
                        size_t requested_sz)
 {
-  gasneti_assert(rank < size);
-  gasneti_assert(size > 0);
+  gasneti_assert_uint(rank ,<, size);
+  gasneti_assert_uint(size ,>, 0);
 
   gasneti_assert(ep);
   gasneti_assert(ep->_client);
@@ -577,7 +577,7 @@ extern gasneti_TM_t gasneti_alloc_tm(
 
   // TM0 is aligned to GASNETI_TM0_ALIGN, and all others to half that
   gasneti_TM_t tm;
-  gasneti_assert(!requested_sz || requested_sz >= sizeof(*tm));
+  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*tm));
   size_t disalign = (is_tm0 ? 0 : GASNETI_TM0_ALIGN/2);
   size_t actual_sz = (requested_sz ? requested_sz : sizeof(*tm)) + disalign;
   tm = (gasneti_TM_t)(disalign + (uintptr_t)gasneti_malloc_aligned(GASNETI_TM0_ALIGN, actual_sz));
@@ -1310,7 +1310,7 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
   const char *val2 = _gasneti_nodemap_sort_aux.ids + key2 * _gasneti_nodemap_sort_aux.stride;
   int retval = memcmp(val1, val2, _gasneti_nodemap_sort_aux.sz);
   if (!retval) { /* keep sort stable */
-    gasneti_assert(key1 != key2);
+    gasneti_assert_uint(key1 ,!=, key2);
     retval = (key1 < key2) ? -1 : 1;
   }
   return retval;
@@ -1349,7 +1349,7 @@ static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
     #define GASNETC_DEFAULT_NODEMAP_EXACT 1
   #endif
   gasneti_assert(ids);
-  gasneti_assert(sz > 0);
+  gasneti_assert_uint(sz ,>, 0);
   gasneti_assert_uint(stride ,>=, sz);
 
   if (gasneti_getenv_yesno_withdefault("GASNET_NODEMAP_EXACT",GASNETC_DEFAULT_NODEMAP_EXACT)) {
@@ -1521,7 +1521,7 @@ extern void gasneti_nodemapParse(void) {
 
   gasneti_assert(gasneti_nodemap);
   gasneti_assert(gasneti_nodemap[0] == 0);
-  gasneti_assert(gasneti_nodemap[gasneti_mynode] <= gasneti_mynode);
+  gasneti_assert_uint(gasneti_nodemap[gasneti_mynode] ,<=, gasneti_mynode);
 
   /* Check for user-imposed limit: 0 (or negative) means no limit */
 #if GASNET_PSHM

@@ -440,9 +440,12 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #if GASNETI_USE_TRUE_MUTEXES
       #define GASNETI_THREADID_T        pthread_t
       #define GASNETI_THREADIDQUERY()   pthread_self()
+      #define _gasneti_assert_owner(op1, operator, op2) \
+          gasneti_assert_ptr((void*)(uintptr_t)(op1), operator, (void*)(uintptr_t)(op2))
     #else
       #define GASNETI_THREADID_T        uintptr_t
       #define GASNETI_THREADIDQUERY()   ((uintptr_t)0)
+      #define _gasneti_assert_owner     gasneti_assert_uint
     #endif
   #endif
   #if GASNETI_USE_TRUE_MUTEXES
@@ -467,28 +470,28 @@ int gasneti_count0s_uint32_t(uint32_t x) {
                                       }
     #define gasneti_mutex_lock(pl) do {                                        \
               _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);                          \
-              gasneti_assert(GASNETI_THREADIDQUERY() != GASNETI_MUTEX_NOOWNER);\
-              gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());          \
+              _gasneti_assert_owner(GASNETI_THREADIDQUERY() ,!=, GASNETI_MUTEX_NOOWNER);\
+              _gasneti_assert_owner((pl)->owner ,!=, GASNETI_THREADIDQUERY()); \
               gasneti_assert_zeroret(pthread_mutex_lock(&((pl)->lock)));       \
-              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);            \
+              _gasneti_assert_owner((pl)->owner ,==, GASNETI_MUTEX_NOOWNER);   \
               (pl)->owner = GASNETI_THREADIDQUERY();                           \
             } while (0)
     GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
               int retval;
               _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);
-              gasneti_assert(GASNETI_THREADIDQUERY() != GASNETI_MUTEX_NOOWNER);
-              gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());
+              _gasneti_assert_owner(GASNETI_THREADIDQUERY() ,!=, GASNETI_MUTEX_NOOWNER);
+              _gasneti_assert_owner((pl)->owner ,!=, GASNETI_THREADIDQUERY());
               retval = pthread_mutex_trylock(&((pl)->lock));
               if (retval == EBUSY) return EBUSY;
               if (retval) gasneti_fatalerror("pthread_mutex_trylock()=%s",strerror(retval));
-              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);
+              _gasneti_assert_owner((pl)->owner ,==, GASNETI_MUTEX_NOOWNER);
               (pl)->owner = GASNETI_THREADIDQUERY();
               return 0;
     }
     #define gasneti_mutex_unlock(pl) do {                                  \
-              gasneti_assert( GASNETI_THREADIDQUERY() !=  GASNETI_MUTEX_NOOWNER); \
-              gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());      \
+              _gasneti_assert_owner(GASNETI_THREADIDQUERY() ,!=, GASNETI_MUTEX_NOOWNER); \
+              _gasneti_assert_owner((pl)->owner ,==, GASNETI_THREADIDQUERY()); \
               (pl)->owner = GASNETI_MUTEX_NOOWNER;                         \
               gasneti_assert_zeroret(pthread_mutex_unlock(&((pl)->lock))); \
             } while (0)
@@ -528,17 +531,17 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
-              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
+              _gasneti_assert_owner((pl)->owner ,==, GASNETI_MUTEX_NOOWNER); \
               (pl)->owner = GASNETI_THREADIDQUERY();                \
             } while (0)
     GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
-              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);
+              _gasneti_assert_owner((pl)->owner ,==, GASNETI_MUTEX_NOOWNER);
               (pl)->owner = GASNETI_THREADIDQUERY();
               return 0;
     }
     #define gasneti_mutex_unlock(pl) do {                             \
-              gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY()); \
+              _gasneti_assert_owner((pl)->owner ,==, GASNETI_THREADIDQUERY()); \
               (pl)->owner = GASNETI_MUTEX_NOOWNER;                    \
             } while (0)
     #define gasneti_mutex_init(pl) do {                       \
@@ -547,8 +550,8 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #define gasneti_mutex_destroy_ignoreerr(pl) 0
     #define gasneti_mutex_destroy(pl) ((void)0)
   #endif
-  #define gasneti_mutex_assertlocked(pl)    gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY())
-  #define gasneti_mutex_assertunlocked(pl)  gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY())
+  #define gasneti_mutex_assertlocked(pl)    _gasneti_assert_owner((pl)->owner ,==, GASNETI_THREADIDQUERY())
+  #define gasneti_mutex_assertunlocked(pl)  _gasneti_assert_owner((pl)->owner ,!=, GASNETI_THREADIDQUERY())
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
@@ -631,11 +634,11 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 
   #if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND || GASNETI_MUTEX_CAUTIOUS_INIT
     #define gasneti_cond_wait(pc,pl)  do {                          \
-      gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());       \
+      _gasneti_assert_owner((pl)->owner ,==, GASNETI_THREADIDQUERY()); \
       (pl)->owner = GASNETI_MUTEX_NOOWNER;                          \
       _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);                       \
       gasneti_assert_zeroret(pthread_cond_wait(&((pc)->cond), &((pl)->lock))); \
-      gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);         \
+      _gasneti_assert_owner((pl)->owner ,==, GASNETI_MUTEX_NOOWNER); \
       (pl)->owner = GASNETI_THREADIDQUERY();                        \
     } while (0)
   #else
@@ -691,11 +694,11 @@ typedef enum {
   #define gasneti_rwlock_assertlocked(pl)   \
           gasneti_assert(_gasneti_rwlock_query(pl))
   #define gasneti_rwlock_assertrdlocked(pl) \
-          gasneti_assert(_gasneti_rwlock_query(pl) == _GASNETI_RWLOCK_RDLOCKED)
+          gasneti_assert_uint(_gasneti_rwlock_query(pl) ,==, _GASNETI_RWLOCK_RDLOCKED)
   #define gasneti_rwlock_assertwrlocked(pl) \
-          gasneti_assert(_gasneti_rwlock_query(pl) == _GASNETI_RWLOCK_WRLOCKED)
+          gasneti_assert_uint(_gasneti_rwlock_query(pl) ,==, _GASNETI_RWLOCK_WRLOCKED)
   #define gasneti_rwlock_assertunlocked(pl) \
-          gasneti_assert(!_gasneti_rwlock_query(pl)) 
+          gasneti_assert_uint(_gasneti_rwlock_query(pl) ,==, _GASNETI_RWLOCK_UNLOCKED) 
 
   #define gasneti_rwlock_init(pl) \
           gasneti_assert_zeroret(pthread_rwlock_init(pl,NULL))

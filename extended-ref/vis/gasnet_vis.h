@@ -718,7 +718,7 @@ int _gex_VIS_StridedGetNBI(
 // These translate the Strided metadata from legacy to EX format
 
 #define _GASNETE_G2EX_STRIDED_COMMON() \
-  gasneti_assert(sizeof(size_t) == sizeof(ptrdiff_t)); \
+  gasneti_assert_uint(sizeof(size_t) ,==, sizeof(ptrdiff_t)); \
   gasnete_check_stridesNT(_dststrides, _srcstrides, _count, _stridelevels)
 
 GASNETI_INLINE(_gasnet_puts_bulk)

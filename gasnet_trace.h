@@ -136,7 +136,7 @@
     }
     GASNETI_INLINE(gasneti_trace_unfreezesourceline)
     void gasneti_trace_unfreezesourceline(void) {
-      gasneti_assert(gasneti_srcfreeze > 0);
+      gasneti_assert_int(gasneti_srcfreeze ,>, 0);
       gasneti_srcfreeze--;
     }
   #endif

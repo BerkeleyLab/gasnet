@@ -346,7 +346,7 @@
 typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if GASNET_DEBUG
   #define GASNETI_INIT_MAGIC(p,m)  ((void)((p)->_magic._u = (m)))
-  #define GASNETI_CHECK_MAGIC(p,m) gasneti_assert(!(p) || ((p)->_magic._u == (m)))
+  #define GASNETI_CHECK_MAGIC(p,m) do { if (p) gasneti_assert_uint((p)->_magic._u ,==, (m)); } while (0)
   #define GASNETI_IMPORT_MAGIC(p,type) do { \
       if ((p) && ((p)->_magic._u == GASNETI_##type##_BAD_MAGIC)) {              \
         gasneti_fatalerror("Likely use-after-free error for " #type " object"); \
