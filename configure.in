@@ -280,6 +280,9 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                     -Wmissing-format-attribute  \
                 dnl Selected warnings:
                     -Winit-self                 \
+                    -Wvla                       \
+                    -Wexpansion-to-defined      \
+                    -Woverlength-strings        \
                 dnl -Wextra subset:
                     -Wclobbered                 \
                     -Wcast-function-type        \
