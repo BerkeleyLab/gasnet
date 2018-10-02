@@ -317,6 +317,7 @@ struct gasnete_coll_team_t_ {
   
   /*scratch space management*/
   gasnete_coll_scratch_status_t* scratch_status;
+  gasnete_coll_scratch_req_t* scratch_free_list;
   
   /*autotuning info*/
   gasnete_coll_autotune_info_t* autotune_info;
@@ -366,6 +367,9 @@ struct gasnete_coll_team_t_ {
 #define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
 
 /*---------------------------------------------------------------------------------*/
+
+/* Serialization of polling collective ops: */
+extern gasneti_mutex_t gasnete_coll_poll_lock;
 
 /* Function pointer type for polling collective ops: */
 typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t* GASNETI_THREAD_FARG);
