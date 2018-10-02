@@ -50,7 +50,7 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t _count, gex_Memvec_t 
   _retval._minaddr = _minaddr;
   _retval._maxaddr = _maxaddr;
   _retval._totalsz = _totalsz;
-  gasneti_assert(_totalsz == gasnete_memveclist_totalsz(_count, _list));
+  gasneti_assert_uint(_totalsz ,==, gasnete_memveclist_totalsz(_count, _list));
   return _retval;
 }
 /*---------------------------------------------------------------------------------*/
@@ -474,10 +474,10 @@ int _gex_VIS_VectorGetNBI(
 #define _GASNETE_INDEXED_COMMON(degencontigop,degentoken)                  \
   gasnete_addrlist_checksizematch(_dstcount, _dstlen, _srccount, _srclen); \
   if_pf (_dstcount*_dstlen == 0) {  /* no-op */                            \
-    gasneti_assert(_srccount*_srclen == 0);                                \
+    gasneti_assert_uint(_srccount*_srclen ,==, 0);                         \
     GASNETI_TRACE_EVENT(C, degentoken);                                    \
     return 0;                                                              \
-  } else gasneti_assert(_srccount*_srclen > 0);                            \
+  } else gasneti_assert_uint(_srccount*_srclen ,>, 0);                     \
   gasneti_assert(_dstlist); gasneti_assert(_srclist);                      \
   if_pf (_dstcount + _srccount == 2) {                                     \
     gasneti_assert(_dstcount == 1 && _srccount == 1);                      \

@@ -96,7 +96,7 @@ extern void gasnete_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
   if (!handler) { // disarm
     pcinfo->_handler = 0; 
   } else { // arm
-    gasneti_assert(nbytes <= GEX_VIS_MAX_PEERCOMPLETION);
+    gasneti_assert_uint(nbytes ,<=, GEX_VIS_MAX_PEERCOMPLETION);
     gasneti_assert(!nbytes || source_addr);
     pcinfo->_handler = handler; 
     pcinfo->_nbytes = nbytes; 
