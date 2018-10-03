@@ -2586,7 +2586,7 @@ extern void gasnete_coll_stat(void) {
 
   if (used) {
     for (int i = 0; i < used; ++i) {
-      fprintf(stderr, "EVENT %p\n", gasnete_coll_event_list.events[i]);
+      fprintf(stderr, "EVENT %p\n", (void *)gasnete_coll_event_list.events[i]);
     }
   }
 

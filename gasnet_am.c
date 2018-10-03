@@ -337,7 +337,7 @@ static void check_max_payload_args(
   if (lc_opt && gasneti_leaf_is_pointer(lc_opt)) {
     // Following assumes minimum 4-byte alignment of gex_Event_t
     if (0x3 & (uintptr_t)lc_opt) {
-      gasneti_fatalerror("Call to %s() with invalid lc_opt=%p", fname, lc_opt);
+      gasneti_fatalerror("Call to %s() with invalid lc_opt=%p", fname, (void *)lc_opt);
     }
     // Following attempts to elicit SIGSEGV/SIGBUS/SIGILL on bogus pointers
     static uintptr_t dummy;
