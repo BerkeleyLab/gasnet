@@ -104,7 +104,7 @@ GASNETI_META_ASC16(_gasneti_Short_handlerfn_typedefN,_gasneti_Short_handlerfn_ty
   gasneti_assert(_pArgs || !_numargs);                                          \
   switch (_numargs) {                                                           \
     GASNETI_META_DES16(_gasneti_Short_RunCaseN,_gasneti_Short_RunCaseN)         \
-    default: gasneti_unreachable();                                             \
+    default: gasneti_unreachable_error(("Invalid numargs=%i",_numargs));        \
   }                                                                             \
   GASNETI_TRACE_PRINTF(A,("AM%s_SHORT_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
 } while (0)
@@ -131,7 +131,7 @@ GASNETI_META_ASC16(_gasneti_MedLong_handlerfn_typedefN,_gasneti_MedLong_handlerf
   extrachecks;                                                                  \
   switch (_numargs) {                                                           \
     GASNETI_META_DES16(_gasneti_MedLong_RunCaseN,_gasneti_MedLong_RunCaseN)     \
-    default: gasneti_unreachable();                                             \
+    default: gasneti_unreachable_error(("Invalid numargs=%i",_numargs));        \
   }                                                                             \
 } while (0)
 
@@ -741,8 +741,7 @@ void gasnetc_loopback_commit_inner(
         buf = dest_addr;
         GASNETI_MEMCPY_SAFE_EMPTY(buf, sd->_addr, nbytes);
         break;
-    default:
-        gasneti_unreachable();
+    default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
   }
 
   gex_AM_Arg_t pargs[GASNETC_MAX_ARGS_NBRHD];
@@ -776,8 +775,7 @@ void gasnetc_loopback_commit_inner(
     case gasneti_Long:
         GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
         break;
-    default:
-        gasneti_unreachable();
+    default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
   }
   GASNETC_NBRHD_LEAVING_HANDLER_HOOK(category,isReq);
 
@@ -845,8 +843,7 @@ int gasnetc_nbrhd_RequestGeneric(
         return gasneti_AMPSHM_RequestLong(jobrank, handler, source_addr, nbytes, dest_ptr,
                                           flags, numargs, argptr GASNETI_THREAD_PASS);
         break;
-    default:
-        gasneti_unreachable();
+    default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
   }
   return 0;
 #else
@@ -880,8 +877,7 @@ int gasnetc_nbrhd_ReplyGeneric(
         retval = gasneti_AMPSHM_ReplyLong(token, handler, source_addr, nbytes, dest_ptr,
                                         flags, numargs, argptr);
         break;
-    default:
-        gasneti_unreachable();
+    default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
   }
 #else
   GASNETI_POST_THREADINFO_FROM_NBRHD_TOKEN(token);

@@ -1219,8 +1219,7 @@ static void * ampshm_buf_alloc(
       case gasneti_Long:
         msgsz = sizeof(gasneti_AMPSHM_longmsg_t);
         break;
-      default:
-        gasneti_unreachable();
+      default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
     }
     gasneti_assert_uint(msgsz ,<=, sizeof(gasneti_AMPSHM_maxmsg_t));
 
@@ -1363,8 +1362,7 @@ void ampshm_commit_inner(
         GASNETI_MEMCPY_SAFE_EMPTY(data, sd->_addr, nbytes);
         break;
     }
-    default:
-        gasneti_unreachable();
+    default: gasneti_unreachable_error(("Invalid category=%i",(int)category));
   }
 
   /* Deliver message */
