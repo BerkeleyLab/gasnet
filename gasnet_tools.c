@@ -539,7 +539,7 @@ extern uint64_t gasneti_wallclock_ns(void) { return _gasneti_wallclock_ns(); }
 
 extern double gasneti_tick_metric(int idx) {
   static double *_gasneti_tick_metric = NULL;
-  gasneti_assert(idx <= 1);
+  gasneti_assert_int(idx ,<=, 1);
   if_pf (_gasneti_tick_metric == NULL) {
     int i, ticks, iters = 1000, minticks = 10;
     double *_tmp_metric;
@@ -1167,7 +1167,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
   p[len] = '\0';
 
-  gasneti_assert(strlen(filename) < limit);
+  gasneti_assert_int(strlen(filename) ,<, limit);
   return mkstemp(filename);
 }
 
@@ -2155,7 +2155,7 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
   int got_h = 0;
   if (pph) {
     size_t len = strlen(str);
-    gasneti_assert(sizeof(tmp) > len);
+    gasneti_assert_uint(sizeof(tmp) ,>, len);
     strncpy(tmp,str,sizeof(tmp));
     char *p = &tmp[len-1];
     while (p >= tmp && isspace(*p)) *(p--) = 0; // strip end whitespace
@@ -2223,9 +2223,9 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     val = MIN(val, maximum);
   }
 
-  gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
-  gasneti_assert(val <= maxrep);
-  gasneti_assert(val <= maximum);
+  gasneti_assert_uint(val ,==, GASNETI_PAGE_ALIGNDOWN(val));
+  gasneti_assert_uint(val ,<=, maxrep);
+  gasneti_assert_uint(val ,<=, maximum);
   GASNETT_TRACE_PRINTF("%s='%s' final value: %"PRId64, key, input, val);
 
   if (val < minimum) {
@@ -2322,7 +2322,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
   int success = 0;
 
   char ctrl_var[32] = "GASNET_MAXIMIZE_";
-  gasneti_assert(strlen(ctrl_var) + strlen(lim_desc) < sizeof(ctrl_var));
+  gasneti_assert_uint(strlen(ctrl_var) + strlen(lim_desc) ,<, sizeof(ctrl_var));
   if (!gasneti_getenv_yesno_withdefault(strncat(ctrl_var, lim_desc, sizeof(ctrl_var)-1), 1))
     return 1;
 
@@ -2344,7 +2344,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
         newval.rlim_cur = RLIM_INFINITY;                                                        \
         strncpy(newvalstr, "RLIM_INFINITY", sizeof(newvalstr));                                 \
       } else {                                                                                  \
-        gasneti_assert(newval.rlim_cur <= newval.rlim_max);                                     \
+        gasneti_assert_uint(newval.rlim_cur ,<=, newval.rlim_max);                              \
         newval.rlim_cur = newval.rlim_max;                                                      \
         snprintf(newvalstr, sizeof(newvalstr), "%"PRIu64, (uint64_t)newval.rlim_cur);           \
       }                                                                                         \
@@ -2840,7 +2840,7 @@ int gasneti_count0s_copy_bytes(void * GASNETI_RESTRICT dst, const void * GASNETI
   int non_zeros = 0;
   uint8_t *d = dst;
   const uint8_t *s = src;
-  gasneti_assert(bytes < SIZEOF_VOID_P);
+  gasneti_assert_uint(bytes ,<, SIZEOF_VOID_P);
 
   switch (bytes) {
   #if PLATFORM_ARCH_64
@@ -3294,7 +3294,7 @@ retry_calibration:;
   }
 
   // Find mid-point between the two bounds, and its associated relative error
-  gasneti_assert(lo <= hi);
+  gasneti_assert_dbl(lo ,<=, hi);
   double mid = (hi + lo) / 2.;
   double half_width = mid - lo;
   double err = half_width / hi;
@@ -3326,7 +3326,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     size_t len = sizeof(cpuspeed);
     if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1)
       gasneti_fatalerror("*** ERROR: Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
-    gasneti_assert(cpuspeed > 1E6 && cpuspeed < 1E11); /* ensure it looks reasonable */
+    // ensure it looks reasonable
+    gasneti_assert_dbl(cpuspeed ,>, 1E6); 
+    gasneti_assert_dbl(cpuspeed ,<, 1E11); 
     Tick = 1.0E9 / cpuspeed;
   #elif PLATFORM_OS_OPENBSD
     int MHz = 0;
@@ -3336,7 +3338,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     mib[1] = HW_CPUSPEED;
     if (sysctl(mib, 2, &MHz, &len, NULL, 0))
       gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
-    gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+    // ensure it looks reasonable
+    gasneti_assert_int(MHz ,>, 1);
+    gasneti_assert_int(MHz ,<, 100000); 
     Tick = 1000. / MHz;
   #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
     FILE *fp = fopen("/proc/cpuinfo","r");
@@ -3347,7 +3351,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
         char *p = strchr(input,':');
         double MHz = 0.0;
         if (p) MHz = atof(p+1);
-        gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+        // ensure it looks reasonable
+        gasneti_assert_dbl(MHz ,>, 1);
+        gasneti_assert_dbl(MHz ,<, 100000); 
         Tick = 1000. / MHz;
         break;
       }
@@ -3366,7 +3372,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     if (strstr(input,"cpu MHz")) {
       char *p = strchr(input,':');
       if (p) MHz = atof(p+1);
-      gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+      // ensure it looks reasonable
+      gasneti_assert_dbl(MHz ,>, 1);
+      gasneti_assert_dbl(MHz ,<, 100000); 
       Tick = 1000. / MHz;
       break;
     }
@@ -3386,7 +3394,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
       /* cpuinfo_max_freq contains a "round" value in KHz */
       MHz = atof(input) / 1000.0;
       fclose(fp2);
-      gasneti_assert(MHz > 1 && MHz < 10000); /* ensure it looks reasonable */
+      // ensure it looks reasonable
+      gasneti_assert_dbl(MHz ,>, 1);
+      gasneti_assert_dbl(MHz ,<, 100000); 
 
       /* Now use mean of measured bogomips values to correct the "round" MHz */
       rewind(fp);
