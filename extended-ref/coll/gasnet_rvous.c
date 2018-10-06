@@ -210,6 +210,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   int result = 0;
+  gex_Flags_t imm_flag = 0;
 
   switch (data->state) {
   case 0:	/* Optional IN barrier */
@@ -217,6 +218,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
         !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
+    imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
     data->state = 1; GASNETI_FALLTHROUGH
     
   case 1:	/* Rendevous w/ root to pass addr */
@@ -224,20 +226,22 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
     } else {
       /* Send our addr to root */
-      gasnete_tm_p2p_send_rtr(op, data->p2p, args->srcnode, op->team->myrank,
-                              args->dst, args->nbytes, 0 GASNETI_THREAD_PASS);
+      if (gasnete_tm_p2p_send_rtr(op, data->p2p, args->srcnode, op->team->myrank,
+                                  args->dst, args->nbytes, imm_flag GASNETI_THREAD_PASS)) {
+        break; // back pressure
+      }
     }
+    imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
     data->state = 2; GASNETI_FALLTHROUGH
     
   case 2:
     if (op->team->myrank == args->srcnode) {
       /* Root sends at most one AM per peer for each poll */
-      gex_Rank_t i;
       int done = 1;
-      for (i=0; i<op->team->total_ranks; ++i) {
+      for (gex_Rank_t i=0; i<op->team->total_ranks; ++i) {
         if (i == op->team->myrank) continue;
         done &= gasnete_tm_p2p_send_data(op, data->p2p, i, i, args->src,
-                                         args->nbytes, 0 GASNETI_THREAD_PASS);
+                                         args->nbytes, imm_flag GASNETI_THREAD_PASS);
       }
       if (!done) {break;}
     } else if (gasnete_tm_p2p_send_done(data->p2p)) {
@@ -356,6 +360,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_scatter_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatter);
   int result = 0;
+  gex_Flags_t imm_flag = 0;
 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -363,6 +368,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
+      imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
       data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Rendevous w/ root to pass addr */
@@ -372,21 +378,23 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 				      args->nbytes);
       } else {
 	/* Send our addr to root */
-	gasnete_tm_p2p_send_rtr(op, data->p2p, args->srcnode, op->team->myrank,
-                                args->dst, args->nbytes, 0 GASNETI_THREAD_PASS);
+	if (gasnete_tm_p2p_send_rtr(op, data->p2p, args->srcnode, op->team->myrank,
+                                    args->dst, args->nbytes, imm_flag GASNETI_THREAD_PASS)) {
+          break; // back pressure
+        }
       }
+      imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
       data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	gex_Rank_t i;
 	int done = 1;
-	for (i=0; i<op->team->total_ranks; ++i) {
+	for (gex_Rank_t i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
 	  done &= gasnete_tm_p2p_send_data(op, data->p2p, i, i,
 					   gasnete_coll_scale_ptr(args->src, i, args->nbytes),
-					   args->nbytes, 0 GASNETI_THREAD_PASS);
+					   args->nbytes, imm_flag GASNETI_THREAD_PASS);
 	}
 	if (!done) {break;}
       } else if (gasnete_tm_p2p_send_done(data->p2p)) {
@@ -497,6 +505,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
   int result = 0;
+  gex_Flags_t imm_flag = 0;
 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -504,27 +513,35 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 	  !gasnete_coll_generic_insync(op->team, data)) {
 	break;
       }
+      imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
       data->state = 1; GASNETI_FALLTHROUGH
 
     case 1:	/* Root send addrs */
       if (op->team->myrank == args->dstnode) {
-	gex_Rank_t i;
-	for (i = 0; i < op->team->total_ranks; ++i) {
+	int done = 1;
+	for (gex_Rank_t i = 0; i < op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
-	  gasnete_tm_p2p_send_rtr(op, data->p2p, i, 0,
-				  gasnete_coll_scale_ptr(args->dst, i, args->nbytes),
-				  args->nbytes, 0 GASNETI_THREAD_PASS);
+          if (data->p2p->state[i]) continue;
+          if (gasnete_tm_p2p_send_rtr(op, data->p2p, i, 0,
+				      gasnete_coll_scale_ptr(args->dst, i, args->nbytes),
+				      args->nbytes, imm_flag GASNETI_THREAD_PASS)) {
+            done = 0;
+          } else {
+            data->p2p->state[i] = 1;
+          }
 	}
+        if (!done) break; // back pressure from at least one child
 	GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
 				      args->src, args->nbytes);
       }
+      imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
       data->state = 2; GASNETI_FALLTHROUGH
 
     case 2:
       if (op->team->myrank != args->dstnode) {
 	/* non-root nodes send at most one AM per poll */
 	int done = gasnete_tm_p2p_send_data(op, data->p2p, args->dstnode, 0,
-                                            args->src, args->nbytes, 0 GASNETI_THREAD_PASS);
+                                            args->src, args->nbytes, imm_flag GASNETI_THREAD_PASS);
 	if (!done) {break;}
       } else if (gasnete_tm_p2p_send_done(data->p2p)) {
         gasneti_sync_reads();
