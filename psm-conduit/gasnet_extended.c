@@ -426,7 +426,7 @@ typedef struct _gasnete_getreq {
     union {
         gasnetc_item_t item;
         void *dest_addr;
-    };
+    } u;
     void *op;
 } gasnete_getreq_t;
 
@@ -445,9 +445,9 @@ static void gasnete_get_getreq_inner(void)
     gasnetc_psm_state.getreq_alloc = alloc_len;
 
     for (i = alloc_len - GASNETE_GETREQS_INCR; i < alloc_len - 1; i++)
-        slab[i].item.next = (gasnetc_item_t *)&slab[i + 1];
+        slab[i].u.item.next = (gasnetc_item_t *)&slab[i + 1];
 
-    slab[alloc_len - 1].item.next = NULL;
+    slab[alloc_len - 1].u.item.next = NULL;
     list->head.next = (gasnetc_item_t *)
         &slab[alloc_len - GASNETE_GETREQS_INCR];
     /* List tail is unused. */
@@ -525,7 +525,7 @@ int gasnete_handler_get_reply(psm2_am_token_t token,
     gasneti_assert(nargs == 1);
     req = gasnete_offset_to_getreq(args[0].u32w0);
 
-    GASNETE_FAST_UNALIGNED_MEMCPY(req->dest_addr, addr, len);
+    GASNETE_FAST_UNALIGNED_MEMCPY(req->u.dest_addr, addr, len);
 
     if(req->op != NULL)
     PSM_MARK_DONE(req->op, 1);
@@ -640,7 +640,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     GASNETC_PSM_LOCK();
     while(bytes_remaining > mtu_size) {
         req = gasnete_get_getreq();
-        req->dest_addr = (void *)dest_addr;
+        req->u.dest_addr = (void *)dest_addr;
         req->op = NULL;
 
         args[0].u64w0 = src_addr;
@@ -661,7 +661,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 
     /* Request final MTU worth of payload transfer */
     req = gasnete_get_getreq();
-    req->dest_addr = (void *)dest_addr;
+    req->u.dest_addr = (void *)dest_addr;
     req->op = op;
 
     args[0].u64w0 = src_addr;
@@ -786,7 +786,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     GASNETC_PSM_LOCK();
     while(bytes_remaining > mtu_size) {
         req = gasnete_get_getreq();
-        req->dest_addr = (void *)dest_addr;
+        req->u.dest_addr = (void *)dest_addr;
         req->op = NULL;
 
         args[0].u64w0 = src_addr;
@@ -807,7 +807,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
     /* Request final MTU worth of payload transfer */
     req = gasnete_get_getreq();
-    req->dest_addr = (void *)dest_addr;
+    req->u.dest_addr = (void *)dest_addr;
     req->op = op;
 
     args[0].u64w0 = src_addr;
