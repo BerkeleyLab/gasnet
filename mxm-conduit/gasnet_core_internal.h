@@ -62,7 +62,7 @@ enum {
 #if GASNET_DEBUG_VERBOSE
 #define MXM_LOG(fmt, ...) do { \
                 printf("[I] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+                       gasneti_mynode, GASNETI_CURRENT_FUNCTION, ## __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 #else
@@ -72,7 +72,7 @@ enum {
 #if GASNET_DEBUG_VERBOSE
 #define MXM_DEBUG(fmt, ...) do { \
                 printf("[D] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+                       gasneti_mynode, GASNETI_CURRENT_FUNCTION, ## __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 #else
@@ -91,13 +91,13 @@ enum {
 
 #define MXM_WARN(fmt, ...) do { \
                 printf("[WARNING] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+                       gasneti_mynode, GASNETI_CURRENT_FUNCTION, ## __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 
 #define MXM_ERROR(fmt, ...) do { \
                 printf("[ERROR] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+                       gasneti_mynode, GASNETI_CURRENT_FUNCTION, ## __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 
