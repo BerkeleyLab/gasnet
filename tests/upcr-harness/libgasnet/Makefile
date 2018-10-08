@@ -1,0 +1,62 @@
+all: 
+	@echo This Makefile is not intended to be called directly.
+	@echo It is used for running unit tests within the automated testing harness provided with the Berkeley UPC runtime.
+	@echo For information on downloading and using Berkeley UPC, see: http://upc.lbl.gov
+	@exit 1
+
+PERL ?= perl
+LIBGASNET_LOGDIR ?= $(HARNESS_LOGDIR)
+LIBGASNET_CONFIGURE ?= configure# can also be cross-configure-*
+LIBGASNET_CONFIGURE_ARGS ?=# extra configure args to append
+SUITE_BUILD_DIR:=$(shell pwd)/bgasnet
+
+_configure: force
+	@rm -f $@
+	rm -Rf $(SUITE_BUILD_DIR)
+	mkdir $(SUITE_BUILD_DIR)
+	@logfile=$(LIBGASNET_LOGDIR)/libgasnet-configure.log ; \
+	 configure=$(TOP_SRCDIR)/gasnet/$(LIBGASNET_CONFIGURE) ; \
+	 crossconfig=$(TOP_SRCDIR)/gasnet/other/contrib/$(LIBGASNET_CONFIGURE) ; \
+	 if ! test -x $$configure && test -x $$crossconfig ; then \
+	   ln -s $$crossconfig $$configure ; \
+	 fi ; \
+	 set -x ; \
+	 ( cd $(SUITE_BUILD_DIR) && \
+	   $$configure $(LIBGASNET_CONFIGURE_ARGS) ) > $$logfile 2>&1 ; \
+	 rc=$$? ; cat $$logfile ; exit $$rc
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
+do-preclean-mpi: force
+	$(MAKE) -C $(SUITE_BUILD_DIR)/other/ammpi clean
+
+do-preclean-udp: force
+	$(MAKE) -C $(SUITE_BUILD_DIR)/other/amudp clean
+
+do-preclean-%: force
+	echo $@
+
+do-clean: force
+	$(MAKE) do-preclean-$(NETWORK)
+	$(MAKE) -C $(SUITE_BUILD_DIR)/$(NETWORK)-conduit clean
+
+do-conduit: force
+	$(MAKE) do-clean
+	$(MAKE) -C $(SUITE_BUILD_DIR)/$(NETWORK)-conduit $(MAKE_TARGET)
+	$(MAKE) do-clean
+
+LIBGASNET_PEDANTIC_FLAGS ?= MANUAL_CFLAGS="-std=c99 -pedantic" MANUAL_CXXFLAGS="-std=c++11 -pedantic"
+
+pedantic-%: $(SUITE_BUILD_DIR) force
+	@rm -f $@
+	@network=`echo $@ | $(PERL) -pe 's/^(.*)-(.*)-(.*)$$/$$2/'`; \
+	 target=`echo $@ | $(PERL) -pe 's/^(.*)-(.*)-(.*)$$/$$3/'`; \
+	 logfile=$(LIBGASNET_LOGDIR)/libgasnet-$@.log ; \
+	 set -x ; \
+	 ( $(MAKE) do-conduit NETWORK=$$network MAKE_TARGET=$$target $(LIBGASNET_PEDANTIC_FLAGS) ) > $$logfile 2>&1 ; \
+	 rc=$$? ; cat $$logfile ; exit $$rc
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+	 
+force:
+
+.PHONY: force
+
