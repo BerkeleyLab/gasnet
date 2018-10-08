@@ -575,7 +575,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for am reply cq to am_reply_epfd failed: %d\n", ret);
 
   /* Low-water mark for shared receive buffer */
-  min_multi_recv = OFI_AM_MAX_DATA_LENGTH + offsetof(gasnetc_ofi_am_send_buf_t,long_buf)
+  min_multi_recv = OFI_AM_MAX_DATA_LENGTH + offsetof(gasnetc_ofi_am_send_buf_t,buf.long_buf)
                     + offsetof(gasnetc_ofi_am_long_buf_t, data);
   optlen = min_multi_recv;
   ret	 = fi_setopt(&gasnetc_ofi_request_epfd->fid, FI_OPT_ENDPOINT, FI_OPT_MIN_MULTI_RECV,
@@ -784,26 +784,26 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
     int data_offset;
 	switch(header->type) {
 		case OFI_AM_SHORT:
-            args = (gasnet_handlerarg_t *)header->short_buf.data;
+            args = (gasnet_handlerarg_t *)header->buf.short_buf.data;
 			GASNETI_RUN_HANDLER_SHORT(isreq, handler, handler_fn, header, args, numargs);
 			break;
 		case OFI_AM_MEDIUM:
             data_offset = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
-            args = (gasnet_handlerarg_t *)header->medium_buf.data;
-			addr = header->medium_buf.data + data_offset;
+            args = (gasnet_handlerarg_t *)header->buf.medium_buf.data;
+			addr = header->buf.medium_buf.data + data_offset;
 			GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG:
             data_offset = sizeof(gasnet_handlerarg_t)*numargs;
-            args = (gasnet_handlerarg_t *)header->long_buf.data;
-			addr = header->long_buf.dest_ptr;
+            args = (gasnet_handlerarg_t *)header->buf.long_buf.data;
+			addr = header->buf.long_buf.dest_ptr;
 			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG_MEDIUM:
             data_offset = sizeof(gasnet_handlerarg_t)*numargs;
-            args = (gasnet_handlerarg_t *)header->long_buf.data;
-			addr = header->long_buf.dest_ptr;
-			memcpy(addr, header->long_buf.data + data_offset, nbytes);
+            args = (gasnet_handlerarg_t *)header->buf.long_buf.data;
+			addr = header->buf.long_buf.dest_ptr;
+			memcpy(addr, header->buf.long_buf.data + data_offset, nbytes);
 			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		default:
@@ -1149,7 +1149,7 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
-	arglist = (gasnet_handlerarg_t*) sendbuf->short_buf.data;
+	arglist = (gasnet_handlerarg_t*) sendbuf->buf.short_buf.data;
 	for (i = 0 ; i < numargs ; ++i) {
 		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
 	}
@@ -1160,7 +1160,7 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 	sendbuf->type = OFI_AM_SHORT;
 	sendbuf->argnum = numargs;
 
-	len = sizeof(gasnet_handlerarg_t) * numargs + offsetof(gasnetc_ofi_am_send_buf_t, short_buf);
+	len = sizeof(gasnet_handlerarg_t) * numargs + offsetof(gasnetc_ofi_am_send_buf_t, buf.short_buf);
     /* Alignment is added in order to ensure that all messages will be placed into the
      * multi-recv buffer at an 8 byte aligned address. This is due to medium message
      * payloads needing to be placed at an 8-byte aligned address. */
@@ -1222,15 +1222,15 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
-	arglist = (gasnet_handlerarg_t*) sendbuf->medium_buf.data;
+	arglist = (gasnet_handlerarg_t*) sendbuf->buf.medium_buf.data;
 	for (i = 0 ; i < numargs ; ++i) {
 		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
 	}
 	len = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
 
-	memcpy((uint8_t *)(sendbuf->medium_buf.data)+ len, source_addr, nbytes);
+	memcpy((uint8_t *)(sendbuf->buf.medium_buf.data)+ len, source_addr, nbytes);
 
-	len += (nbytes + offsetof(gasnetc_ofi_am_send_buf_t, medium_buf));
+	len += (nbytes + offsetof(gasnetc_ofi_am_send_buf_t, buf.medium_buf));
     len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT);
 
 	/* Copy arg and handle into the buffer */
@@ -1298,7 +1298,7 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
-	arglist = (gasnet_handlerarg_t*) sendbuf->long_buf.data;
+	arglist = (gasnet_handlerarg_t*) sendbuf->buf.long_buf.data;
 	for (i = 0 ; i < numargs ; ++i) {
 		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
 	}
@@ -1312,7 +1312,7 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 	if(len + nbytes < long_rma_threshold)
 	{
 		/* Pack the payload if it's small enough */
-		memcpy(sendbuf->long_buf.data + len, source_addr, nbytes);
+		memcpy(sendbuf->buf.long_buf.data + len, source_addr, nbytes);
 		len += nbytes;
 		sendbuf->type = OFI_AM_LONG_MEDIUM;
 	} else {
@@ -1343,14 +1343,14 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 			}
 		sendbuf->type = OFI_AM_LONG;
 	}
-    len += offsetof(gasnetc_ofi_am_long_buf_t, data) + offsetof(gasnetc_ofi_am_send_buf_t, long_buf);
+    len += offsetof(gasnetc_ofi_am_long_buf_t, data) + offsetof(gasnetc_ofi_am_send_buf_t, buf.long_buf);
     len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT);
 
 	/* Copy arg and handle into the buffer */
 	sendbuf->handler = (uint8_t) handler;
 	sendbuf->sourceid = gasneti_mynode;
 	sendbuf->argnum = numargs;
-	sendbuf->long_buf.dest_ptr = dest_addr;
+	sendbuf->buf.long_buf.dest_ptr = dest_addr;
 
 #if !GASNET_PSHM
 	if (dest == gasneti_mynode) {
