@@ -255,6 +255,8 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
    on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0 */
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal); 
 
+extern const char *gasneti_procid_str; // process identifier for error messages
+
 GASNETI_FORMAT_PRINTF(gasneti_fatalerror,1,2,
 extern void gasneti_fatalerror(const char *msg, ...) GASNETI_NORETURN);
 GASNETI_NORETURNP(gasneti_fatalerror)
