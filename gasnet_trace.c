@@ -1047,6 +1047,10 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
   gasneti_free(gasneti_malloc(1)); /* touch the malloc system to ensure it's intialized */
 
+  static char procid_str[32]; // init the process identifier used in error reporting
+  sprintf(procid_str, "proc %i", (int)gasneti_mynode);
+  gasneti_procid_str = procid_str;
+
   /* If we didn't receive argc and argv from caller, try to get the full
    * command line from the system.  Some systems may support multiple
    * mechanisms and we try them all until we get something.

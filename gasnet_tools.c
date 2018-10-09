@@ -575,14 +575,20 @@ extern double gasneti_tick_metric(int idx) {
     #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
   #endif
 #endif
-volatile int gasnet_frozen = 0;
+extern const char *gasneti_procid_str;
+const char *gasneti_procid_str = NULL;
+
 extern void gasneti_fatalerror(const char *msg, ...) {
   #ifndef GASNETI_FATALERROR_LEN
-  #define GASNETI_FATALERROR_LEN 80
+  #define GASNETI_FATALERROR_LEN 128
   #endif
   char expandedmsg[GASNETI_FATALERROR_LEN];
-  const char prefix[] = "*** FATAL ERROR: ";
-  const size_t maxmsg = sizeof(expandedmsg)-sizeof(prefix)-4;
+  if (gasneti_procid_str) {
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** FATAL ERROR (%s): ", gasneti_procid_str);
+  } else {
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** FATAL ERROR: ");
+  }
+  const size_t maxmsg = sizeof(expandedmsg)-4 - strlen(expandedmsg);
   const size_t msglen = strlen(msg);
 
   FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
@@ -592,12 +598,11 @@ extern void gasneti_fatalerror(const char *msg, ...) {
       va_list argptr;
       va_start(argptr, msg); /*  pass in last argument */
         if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
-          strcpy(expandedmsg, prefix);
           strncat(expandedmsg, msg, maxmsg);
           if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
           vfprintf(stream, expandedmsg, argptr);
         } else { /* long format msg */
-          fprintf(stream, prefix);
+          fprintf(stream, expandedmsg);
           vfprintf(stream, msg, argptr);
           if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
         }
@@ -906,6 +911,7 @@ extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsym
   _freezeForDebugger(0);
 }
 
+volatile int gasnet_frozen = 0;
 static int gasneti_freezeonerr_isinit = 0;
 static int gasneti_freezeonerr_userenabled = 0;
 static int gasneti_freezesignal = 0;
