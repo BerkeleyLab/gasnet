@@ -60,23 +60,23 @@ enum {
 #define GASNETC_MXM_CHECK_PTR(ptr,msg) GASNETC_MXM_CHECK((ptr)==NULL,(msg))
 
 #if GASNET_DEBUG_VERBOSE
-#define MXM_LOG(fmt, ...) do { \
-                printf("[I] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+#define MXM_LOG(...) do { \
+                printf("[I] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
+                printf( __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 #else
-#define MXM_LOG(fmt, ...)
+#define MXM_LOG(...)
 #endif
 
 #if GASNET_DEBUG_VERBOSE
-#define MXM_DEBUG(fmt, ...) do { \
-                printf("[D] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+#define MXM_DEBUG(...) do { \
+                printf("[D] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
+                printf( __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 #else
-#define MXM_DEBUG(fmt, ...)
+#define MXM_DEBUG(...)
 #endif
 
 #define GASNET_DEBUG_EXIT_FLOW 0
@@ -84,20 +84,20 @@ enum {
 #if GASNET_DEBUG_EXIT_FLOW
 #define MXM_DEBUG_EXIT_FLOW MXM_LOG
 #else
-#define MXM_DEBUG_EXIT_FLOW(fmt, ...)
+#define MXM_DEBUG_EXIT_FLOW(...)
 #endif
 
 
 
-#define MXM_WARN(fmt, ...) do { \
-                printf("[WARNING] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+#define MXM_WARN(...) do { \
+                printf("[WARNING] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
+                printf( __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 
-#define MXM_ERROR(fmt, ...) do { \
-                printf("[ERROR] [node %d] %s(): " fmt, \
-                       gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
+#define MXM_ERROR(...) do { \
+                printf("[ERROR] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
+                printf( __VA_ARGS__); \
                 fflush(stdout); fflush(stderr); \
         } while (0)
 

@@ -110,7 +110,7 @@ typedef struct gasnetc_ofi_am_send_buf {
         gasnetc_ofi_am_short_buf_t short_buf;
         gasnetc_ofi_am_medium_buf_t medium_buf;
         gasnetc_ofi_am_long_buf_t long_buf;
-    };
+    } buf;
 } gasnetc_ofi_am_send_buf_t;
 
 typedef struct gasnetc_ofi_am_buf {

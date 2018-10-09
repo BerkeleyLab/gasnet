@@ -98,7 +98,7 @@ extern int gasnete_fca_barrier(gasnet_team_handle_t team, int *id_p, int *flags_
 #define FCA_ERROR(format, ... ) FCA_VERBOSE(0,format, ## __VA_ARGS__)
 #define FCA_VERBOSE(level,format, ... ) do{ \
     if (level <= gasnet_fca_verbose_level) \
-    fprintf(stderr,"%s:%d - %s(): rank %d: " format "\n", __FILE__, __LINE__, __FUNCTION__, \
+    fprintf(stderr,"%s:%d - %s(): rank %d: " format "\n", __FILE__, __LINE__, GASNETI_CURRENT_FUNCTION, \
                 gasnet_mynode(), ## __VA_ARGS__); \
 }while(0);
 
