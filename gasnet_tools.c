@@ -602,7 +602,7 @@ extern void gasneti_fatalerror(const char *msg, ...) {
           if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
           vfprintf(stream, expandedmsg, argptr);
         } else { /* long format msg */
-          fprintf(stream, expandedmsg);
+          fputs(expandedmsg, stream);
           vfprintf(stream, msg, argptr);
           if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
         }
