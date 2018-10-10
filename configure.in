@@ -3767,6 +3767,36 @@ if test "$enabled_ibv" = yes; then
         GASNET_MSG_ERROR([IBV XRC support was requested with --enable-ibv-xrc but is not available])
       fi
     fi
+
+    if test $gasnet_branch = EX; then
+      GASNET_IF_ENABLED_WITH_AUTO([ibv-odp],
+          [Enable/disable On Demand Paging (ODP) support in ibv-conduit (default is to probe)],
+          [enabled_ibv_odp="yes"; force_ibv_odp="yes"],
+          [enabled_ibv_odp="no"],
+          [enabled_ibv_odp="yes"])
+      if test "$enabled_ibv_odp" = yes; then
+        GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_CFLAGS $GASNET_THREAD_DEFINES")
+        GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $IBV_LDFLAGS")
+        GASNET_PUSHVAR(LIBS,"$LIBS $IBV_LIBS $GASNET_THREAD_LIBS")
+        GASNET_TRY_CACHE_LINK(for ibv ODP support, ibv_odp_support, [
+          #include <infiniband/verbs.h>
+          #include <infiniband/verbs_exp.h>
+        ], [
+          struct ibv_exp_reg_mr_in x;
+          x.exp_access = IBV_EXP_ACCESS_ON_DEMAND;
+          x.length = IBV_EXP_IMPLICIT_MR_SIZE;
+          struct ibv_mr *mr = ibv_exp_reg_mr(&x);
+        ], [have_ibv_odp=yes], [have_ibv_odp=no])
+        GASNET_POPVAR(CFLAGS)
+        GASNET_POPVAR(LDFLAGS)
+        GASNET_POPVAR(LIBS)
+        if test "$have_ibv_odp$force_ibv_odp" = noyes; then
+          GASNET_MSG_ERROR([IBV ODP support was requested with --enable-ibv-odp but is not available])
+        elif test "$have_ibv_odp" = yes; then
+          AC_DEFINE(GASNETC_IBV_ODP)
+        fi
+      fi
+    fi
   fi
 fi
 AC_SUBST(IBV_CFLAGS)
