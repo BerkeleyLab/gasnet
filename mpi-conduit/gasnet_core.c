@@ -148,8 +148,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     { // this scope silences a warning on Cray C about INITERR bypassing this initialization:
       #if GASNETI_THREADS
         int usingthreads = 1;
+        #define GASNETI_THREADMODE_MSG \
+                      "*** WARNING: The thread-safe version of mpi-conduit recommends an MPI implementation\n" \
+                      "*** WARNING: which supports at least MPI_THREAD_SERIALIZED to ensure correct operation.\n"
       #else
         int usingthreads = 0;
+        #define GASNETI_THREADMODE_MSG 
       #endif
       // for verbose documentation only:
       gasnett_getenv_withdefault("GASNET_MPI_THREAD", (usingthreads?"MPI_THREAD_SERIALIZED":"MPI_THREAD_SINGLE"));
@@ -159,10 +163,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         static char tmsg[1024];
         snprintf(tmsg, sizeof(tmsg),
                       "*** WARNING: This MPI implementation reports it can only support %s.\n"
-                    #if GASNETI_THREADS
-                      "*** WARNING: The thread-safe version of mpi-conduit recommends an MPI implementation\n"
-                      "*** WARNING: which supports at least MPI_THREAD_SERIALIZED to ensure correct operation.\n"
-                    #endif
+                      GASNETI_THREADMODE_MSG
                       "*** WARNING: You can override the requested thread mode by setting GASNET_MPI_THREAD.\n"
                       , pstr);
         tmsgstr = tmsg;
