@@ -22,7 +22,7 @@ _configure: force
 	 fi ; \
 	 set -x ; \
 	 ( cd $(SUITE_BUILD_DIR) && \
-	   $$configure $(LIBGASNET_CONFIGURE_ARGS) ) > $$logfile 2>&1 ; \
+	   $$configure $(LIBGASNET_CONFIGURE_DEBUG) $(LIBGASNET_CONFIGURE_ARGS) ) > $$logfile 2>&1 ; \
 	 rc=$$? ; cat $$logfile ; exit $$rc
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
