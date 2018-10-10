@@ -1796,6 +1796,51 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
   }
 #endif /* GASNETC_IBV_XRC */
+#if GASNETC_IBV_ODP
+  gasnetc_use_odp = gasneti_getenv_int_withdefault("GASNET_USE_ODP", 1, 0);
+  if (gasnetc_use_odp) {
+    GASNETC_FOR_ALL_HCA(hca) {
+      const char *missing = NULL;
+      struct ibv_exp_device_attr attr;
+      memset(&attr, 0, sizeof(attr));
+      attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
+      int ret = ibv_exp_query_device(hca->handle, &attr);
+      if (! (attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP)) {
+        missing = "general ODP";
+      } else if (! (attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT)) {
+        missing = "Implicit ODP";
+        // TODO-EX: maybe support older systems lacking this bit?
+        // Prior to ConnectX-4, implicit ODP was done in s/w and
+        //  + This can be identified because this caps bit was not set
+        //  + Implicit ODP emulation had 128MB limit
+        //  + Implicit ODP was valid for local only (invalid rkey)
+      } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
+        missing = "RC READ";
+      } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
+        missing = "RC WRITE";
+      }
+      if (missing) {
+        fprintf(stderr,
+                "WARNING: ODP has been disabled because required %s support is missing.\n"
+                "         To suppress this message set environment variable\n"
+                "         GASNET_USE_ODP=0 or reconfigure with --disable-ibv-odp.\n",
+                missing);
+        gasnetc_use_odp = 0;
+      } else {
+        // Create implict ODP registration (currently only used locally)
+        struct ibv_exp_reg_mr_in in;
+        memset(&in, 0, sizeof(in));
+        in.pd = hca->pd;
+        in.exp_access = (enum ibv_exp_access_flags)( IBV_EXP_ACCESS_ON_DEMAND |
+                                                     IBV_EXP_ACCESS_LOCAL_WRITE );
+        in.length = IBV_EXP_IMPLICIT_MR_SIZE;
+        hca->implicit_odp.handle = ibv_exp_reg_mr(&in);
+        GASNETC_IBV_CHECK_PTR(hca->implicit_odp.handle, "from ibv_exp_reg_mr(implicit)");
+        hca->implicit_odp.lkey = hca->implicit_odp.handle->lkey; // flatten for quick access
+      }
+    }
+  }
+#endif // GASNETC_IBV_ODP
 
   /* Determine gasnetc_max_msg_sz and dependent variables */
   gasnetc_max_msg_sz = gasnetc_port_tbl[0].port.max_msg_sz;
@@ -2551,6 +2596,13 @@ gasnetc_shutdown(void) {
       for (i=0; i<gasnetc_seg_regs; ++i) {
         gasnetc_unpin(hca, &hca->seg_regs[i]);
       }
+    }
+  #endif
+  #if GASNETC_IBV_ODP
+    if (hca->implicit_odp.handle) {
+      gasneti_assert(gasnetc_use_odp);
+      rc = ibv_dereg_mr(hca->implicit_odp.handle);
+      GASNETC_IBV_CHECK(rc, "from ibv_dereg_mr(implicit_odp)");
     }
   #endif
 

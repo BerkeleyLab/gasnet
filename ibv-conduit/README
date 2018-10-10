@@ -576,11 +576,17 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_USE_XRC
     This controls whether IBV eXtended Reliable Connection (XRC) support
-    is used.  However, it is is ignored if GASNet was was configured with
+    is used.  However, it is is ignored if GASNet was configured with
     --disable-ibv-xrc, if XRC support was not found at configure time, or
     if SRQ support is not used (regardless of why),
     This setting defaults to 1 if SRQ support was enabled at configure
     time.  As a result XRC will be used anytime SRQ is used.
+
+  + GASNET_USE_ODP
+    This boolean setting controls whether IBV On-Demand Paging (ODP) support
+    is used.  However, it is ignored if GASNet was configured with
+    --disable-ibv-odp, or if ODP support was not found at configure time.
+    This setting defaults to 1 if ODP support was enabled at configure time.
 
    + GASNET_PIN_MAXSZ
     This controls the maximum size of a pinned memory region.  The value must

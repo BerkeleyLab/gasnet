@@ -62,6 +62,9 @@ int					gasnetc_use_rcv_thread = GASNETC_USE_RCV_THREAD;
 #if GASNETC_IBV_XRC
   int					gasnetc_use_xrc = 1;
 #endif
+#if GASNETC_IBV_ODP
+  int					gasnetc_use_odp = 1;
+#endif
 int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
@@ -2505,8 +2508,8 @@ void gasnetc_bounce_common(gasnetc_epid_t epid, int rkey_index, struct ibv_send_
   sr_desc->wr.rdma.remote_addr += len;
 }
 
-/* Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkeys table or
- * firehose to obtain the lkeys.  Both cases delay the bind to a qp until the
+/* Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkeys table,
+ * ODP, or firehose to obtain the lkeys.  All cases delay the bind to a qp until the
  * total xfer len is known.
  */
 GASNETI_INLINE(gasnetc_zerocp_common)
@@ -2551,6 +2554,17 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
       /* Xlate index to actual lkey */
       sr_desc->sg_list[seg].lkey = GASNETC_SEG_LKEY(cep, base+seg);
     }
+#if GASNETC_IBV_ODP
+  } else if (gasnetc_use_odp) {
+    // TODO-EX: older implicit ODP emulation had 128MB limit.  May need to chunk here.
+    cep = gasnetc_bind_cep(epid, sreq, op, len);
+    sr_desc->sg_list[0].lkey = cep->hca->implicit_odp.lkey;
+    gasneti_assert_uint(sr_desc->sg_list[0].addr ,==, loc_addr);
+    sr_desc->sg_list[0].length = len;
+    sr_desc->num_sge = 1;
+    sreq->fh_count = 0;
+    remain = 0;
+#endif
   } else {
     const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
     int seg;
@@ -2990,6 +3004,7 @@ size_t gasnetc_get_local_fh(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len
     sreq->fh_count = i;
     len -= remain;
   } else {
+    // TODO-EX: ODP support for segment everything?
     const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
     len = MIN(remain, (fh_loc->addr + fh_loc->len - loc_addr));
     sreq->fh_ptr[1] = fh_loc;
