@@ -972,7 +972,7 @@ extern void gasnetc_exit(int exitcode) {
   #if GASNET_DEBUG && !GASNETC_USE_SPINLOCK
     /* prevent deadlock and assertion failures ONLY if we already hold the lock */
     #define GASNETC_CLOBBER_LOCK(pl) \
-          if ((pl)->owner == GASNETI_THREADIDQUERY()) gasneti_mutex_unlock(pl)
+          if ((pl)->_owner == GASNETI_THREADIDQUERY()) gasneti_mutex_unlock(pl)
   #else
     /* clobber the lock, even if held by another thread! */
     #define GASNETC_CLOBBER_LOCK _GASNETC_CLOBBER_LOCK
