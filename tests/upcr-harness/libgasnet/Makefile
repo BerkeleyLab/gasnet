@@ -7,7 +7,9 @@ all:
 PERL ?= perl
 LIBGASNET_LOGDIR ?= $(HARNESS_LOGDIR)
 LIBGASNET_CONFIGURE ?= configure# can also be cross-configure-*
-LIBGASNET_CONFIGURE_ARGS ?=# extra configure args to append
+LIBGASNET_CONFIGURE_ARGS ?=$(shell $(PERL) -ne 'if (m/^\s*CONFIGURE_ARGS\s*=\s*(.*)$$/) { print $$1; }' < $(TOP_BUILDDIR)/gasnet/Makefile )# configure args
+LIBGASNET_CONFIGURE_ARGS_EXTRA ?=# extra configure args to append
+LIBGASNET_CONFIGURE_ENV ?=# envvars for configure
 SUITE_BUILD_DIR:=$(shell pwd)/bgasnet
 
 _configure: force
@@ -22,7 +24,8 @@ _configure: force
 	 fi ; \
 	 set -x ; \
 	 ( cd $(SUITE_BUILD_DIR) && \
-	   $$configure $(LIBGASNET_CONFIGURE_DEBUG) $(LIBGASNET_CONFIGURE_ARGS) ) > $$logfile 2>&1 ; \
+	   env $(LIBGASNET_CONFIGURE_ENV) \
+	   $$configure $(LIBGASNET_CONFIGURE_ARGS) $(LIBGASNET_CONFIGURE_ARGS_EXTRA) ) > $$logfile 2>&1 ; \
 	 rc=$$? ; cat $$logfile ; exit $$rc
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
