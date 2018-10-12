@@ -22,6 +22,15 @@
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
+#if GASNETC_IBV_SRQ
+  GASNETI_IDENT(gasnetc_IdentString_SRQ, "$GASNetIbvSRQ: 1 $");
+#endif
+#if GASNETC_IBV_XRC
+  GASNETI_IDENT(gasnetc_IdentString_XRC, "$GASNetIbvXRC: 1 $");
+#endif
+#if GASNETC_IBV_ODP
+  GASNETI_IDENT(gasnetc_IdentString_ODP, "$GASNetIbvODP: 1 $");
+#endif
 
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
