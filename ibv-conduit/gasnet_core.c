@@ -2149,7 +2149,12 @@ static int gasnetc_attach_primary(void) {
 
   /* ------------------------------------------------------------------------------------ */
   /* Initialize firehose */
-  if (GASNETC_USE_FIREHOSE && (gasneti_nodes > 1)) {
+  int using_firehose = GASNETC_USE_FIREHOSE && (gasneti_nodes > 1);
+#if GASNETC_IBV_ODP && GASNETC_PIN_SEGMENT
+  // If using Impicit ODP for local addrs, then local firehose is unused
+  using_firehose &= ! gasnetc_use_odp;
+#endif
+  if (using_firehose) {
     int reg_count;
     firehose_region_t *prereg = gasnetc_prereg_list(&reg_count);
     size_t maxsz;
