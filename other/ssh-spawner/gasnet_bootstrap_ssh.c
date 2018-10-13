@@ -1944,11 +1944,15 @@ static void cmd_EXCHG(char cmd, int i) {
   int s = child[i].sock;
 
   if (cmd == cmd0) {
+    static size_t exchg_len;
 
     do_read(s, &len, sizeof(len));
     if (!count) {
       gasneti_assert_always(!data);
       data = gasneti_malloc(len * nranks);
+      exchg_len = len;
+    } else {
+      gasneti_assert_always_int(len ,==, exchg_len);
     }
     do_read(s, data + len * child[i].rank, len * child[i].tree_ranks);
 
@@ -2011,6 +2015,7 @@ static void cmd_TRANS(char cmd, int i) {
   int s = child[i].sock;
 
   if (cmd == cmd0) {
+    static size_t trans_len;
     size_t row_len;
 
     do_read(s, &len, sizeof(len));
@@ -2019,6 +2024,9 @@ static void cmd_TRANS(char cmd, int i) {
       gasneti_assert_always(!data);
       data = gasneti_malloc(row_len * tree_ranks);
       iov = gasneti_calloc(3 + tree_ranks, sizeof(struct iovec));
+      trans_len = len;
+    } else {
+      gasneti_assert_always_int(len ,==, trans_len);
     }
     build_all2all_iov(iov, data, len, child[i].rank, child[i].tree_ranks);
     do_readv(s, iov, child[i].tree_ranks + 1);
@@ -2075,6 +2083,7 @@ static void cmd_SNBCAST(char cmd, int i) {
   int s = child[i].sock;
 
   if (cmd == cmd0) {
+    static size_t snbcast_len;
     gasnet_node_t *r;
 
     do_read(s, &len, sizeof(len));
@@ -2085,6 +2094,9 @@ static void cmd_SNBCAST(char cmd, int i) {
       if (! is_root) {
         iov = gasneti_calloc(3 + children, sizeof(struct iovec));
       }
+      snbcast_len = len;
+    } else {
+      gasneti_assert_always_int(len ,==, snbcast_len);
     }
 
     {
@@ -2866,12 +2878,14 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     do_writev(parent, iov, 3);
     if (dest != src) memcpy(dest, src, len);
   } else {
+    const size_t bcast_len;
     wait_cmd(cmd1);
-    iov[0].iov_base = (void *)&len;
-    iov[0].iov_len  = sizeof(len);
+    iov[0].iov_base = (void *)&bcast_len;
+    iov[0].iov_len  = sizeof(bcast_len);
     iov[1].iov_base = dest;
     iov[1].iov_len  = len;
     do_readv(parent, iov, 2);
+    gasneti_assert_always_int(len ,==, bcast_len);
   }
 }
 
