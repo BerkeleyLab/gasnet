@@ -1531,9 +1531,8 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
   }
 }
 
-GASNETI_INLINE(gasnetc_do_poll)
-void gasnetc_do_poll(int poll_rcv, int poll_snd) {
-  if (poll_rcv) {
+GASNETI_INLINE(gasnetc_poll_rcv_all)
+void gasnetc_poll_rcv_all(int limit) {
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
     /* Note use of casts to volatile are require to work around bug 1586 */
@@ -1548,8 +1547,13 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   #if GASNET_PSHM
     gasneti_AMPSHMPoll(0);
   #endif
-  }
+}
 
+GASNETI_INLINE(gasnetc_do_poll)
+void gasnetc_do_poll(int poll_rcv, int poll_snd) {
+  if (poll_rcv) {
+    gasnetc_poll_rcv_all(GASNETC_RCV_REAP_LIMIT);
+  }
   if (poll_snd) {
     (void)gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT);
   }
@@ -2105,7 +2109,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           GASNETC_TRACE_WAIT_BEGIN();
           do {
 	    GASNETI_WAITHOOK();
-            gasnetc_poll_rcv_hca(cep->hca, 1);
+            gasnetc_poll_rcv_all(1);
           } while (!gasnetc_sema_trydown(sema));
           GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
         }
@@ -2119,7 +2123,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           GASNETC_TRACE_WAIT_BEGIN();
           do {
 	    GASNETI_WAITHOOK();
-            gasnetc_poll_rcv_hca(cep->hca, 1);
+            gasnetc_poll_rcv_all(1);
           } while (!gasnetc_sema_trydown(sema));
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
         }
@@ -2134,7 +2138,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           GASNETC_TRACE_WAIT_BEGIN();
           do {
 	    GASNETI_WAITHOOK();
-            gasnetc_poll_rcv_hca(cep->hca, 1);
+            gasnetc_poll_rcv_all(1);
 	    if (gasnetc_sema_trydown(&cep->am_loc)) {
 	      break;
 	    }
