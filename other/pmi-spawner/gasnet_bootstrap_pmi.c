@@ -111,7 +111,7 @@ void do_encode(uint8_t *in, size_t len) {
 }
 
 static
-void do_decode(uint8_t *out, size_t len) {
+void do_decode(uint8_t *out, size_t len, size_t in_len) {
     const char *p = kvs_value;
     while (len) {
         uint32_t x;
@@ -149,6 +149,9 @@ void do_decode(uint8_t *out, size_t len) {
         len -= sz;
         out += sz;
     }
+    // Check that we consumed the entire input
+    size_t decoded = p - kvs_value;
+    gasneti_assert_always_uint(decoded ,==, in_len);
 }
 
 /* Put/Get/Fence wrappers */
@@ -173,11 +176,12 @@ void do_kvs_get(void *value, size_t sz) {
     int len;
     rc = PMI2_KVS_Get(kvs_name, PMI2_ID_NULL, kvs_key, kvs_value, max_val_len, &len);
     gasneti_assert_always(PMI2_SUCCESS == rc);
+    gasneti_assert_always(len > 0); // Negative would mean value larger than max_val_len
 #else
     rc = PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len);
     gasneti_assert_always(PMI_SUCCESS == rc);
 #endif
-    do_decode(value, sz);
+    do_decode(value, sz, len);
 }
 
 GASNETI_INLINE(do_kvs_fence)
