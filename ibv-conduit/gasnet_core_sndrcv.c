@@ -1932,13 +1932,13 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       break;
 
     case gasnetc_Medium:
-      memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
+      GASNETI_MEMCPY_SAFE_EMPTY(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
       buf->medmsg.nBytes = nbytes;
       args = buf->medmsg.args;
       break;
 
     case gasnetc_Long:
-      memcpy(dst_addr, src_addr, nbytes);
+      GASNETI_MEMCPY_SAFE_EMPTY(dst_addr, src_addr, nbytes);
       buf->longmsg.destLoc = (uintptr_t)dst_addr;
       buf->longmsg.nBytes  = nbytes;
       args = buf->longmsg.args;
