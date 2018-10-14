@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #if GASNETI_THREADS
   #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX
@@ -59,13 +60,20 @@ extern void gasneti_filesystem_sync(void);
 #endif
 
 extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename, int _linenum);
+// NOTE: this returns a malloced buffer!
 #define gasneti_current_loc gasneti_build_loc_str(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__)
+
+GASNETI_FORMAT_PRINTF(_gasneti_assert_fail,4,5,
+extern void _gasneti_assert_fail(const char *_funcname, const char *_filename, int _linenum,
+                                 const char *_fmt, ...) GASNETI_NORETURN);
+GASNETI_NORETURNP(_gasneti_assert_fail)
 
 /* gasneti_assert_always():
  * an assertion that never compiles away - for sanity checks in non-critical paths 
  */
 #define gasneti_assert_always(expr) \
-    (GASNETT_PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+    (GASNETT_PREDICT_TRUE(expr) ? (void)0 : \
+     _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,"%s",#expr))
 
 /* gasneti_assert():
  * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
@@ -91,10 +99,11 @@ extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename,
       int const _gaa_negval = (_gaa_op1 < 0) || (_gaa_op2 < 0);     \
       int const _gaa_decwid = (_gaa_bigval ? 20 : 11);              \
       int const _gaa_hexwid = (_gaa_bigval || _gaa_negval ? 16 : 8);\
-      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+      _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,\
+         "%s %s %s\n"                                               \
          "   op1 : %*" PRId64 " (0x%0*" PRIx64 ") == %s\n"          \
          "   op2 : %*" PRId64 " (0x%0*" PRIx64 ") == %s\n"          \
-       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , #op1, #operator, #op2                                      \
        , _gaa_decwid, _gaa_op1, _gaa_hexwid, _gaa_op1, #op1         \
        , _gaa_decwid, _gaa_op2, _gaa_hexwid, _gaa_op2, #op2         \
       );                                                            \
@@ -108,10 +117,11 @@ extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename,
                               ((uint32_t)_gaa_op2 != _gaa_op2);     \
       int const _gaa_decwid = (_gaa_bigval ? 20 : 11);              \
       int const _gaa_hexwid = (_gaa_bigval ? 16 : 8);               \
-      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+      _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,\
+         "%s %s %s\n"                                               \
          "   op1 : %*" PRIu64 " (0x%0*" PRIx64 ") == %s\n"          \
          "   op2 : %*" PRIu64 " (0x%0*" PRIx64 ") == %s\n"          \
-       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , #op1, #operator, #op2                                      \
        , _gaa_decwid, _gaa_op1, _gaa_hexwid, _gaa_op1, #op1         \
        , _gaa_decwid, _gaa_op2, _gaa_hexwid, _gaa_op2, #op2         \
       );                                                            \
@@ -127,10 +137,11 @@ extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename,
     const void * const _gaa_op2 = _gasneti_voidp_cvt(op2);          \
     if (!GASNETT_PREDICT_TRUE(_gaa_op1 operator _gaa_op2)) {        \
       int const _gaa_hexwid = 2*sizeof(void *);                     \
-      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+      _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,\
+         "%s %s %s\n"                                               \
          "   op1 : 0x%0*" PRIxPTR " == %s\n"                        \
          "   op2 : 0x%0*" PRIxPTR " == %s\n"                        \
-       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , #op1, #operator, #op2                                      \
        , _gaa_hexwid, (uintptr_t)_gaa_op1, #op1                     \
        , _gaa_hexwid, (uintptr_t)_gaa_op2, #op2                     \
       );                                                            \
@@ -140,10 +151,11 @@ extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename,
     double const _gaa_op1 = (op1);                                  \
     double const _gaa_op2 = (op2);                                  \
     if (!GASNETT_PREDICT_TRUE(_gaa_op1 operator _gaa_op2)) {        \
-      gasneti_fatalerror("Assertion failure at %s: %s %s %s\n"      \
+      _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,\
+         "%s %s %s\n"                                               \
          "   op1 : %#13.6g (0x%016" PRIx64 ") == %s\n"              \
          "   op2 : %#13.6g (0x%016" PRIx64 ") == %s\n"              \
-       , gasneti_current_loc, #op1, #operator, #op2                 \
+       , #op1, #operator, #op2                                      \
        , _gaa_op1, *(uint64_t*)&_gaa_op1, #op1                      \
        , _gaa_op2, *(uint64_t*)&_gaa_op2, #op2                      \
       );                                                            \
@@ -229,9 +241,9 @@ extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename,
       char _tmp[128];                                       \
       strncpy(_tmp, strerror(_retval), sizeof(_tmp));       \
       _tmp[sizeof(_tmp)-1] = '\0';                          \
-      gasneti_fatalerror(#op": %s(%i), errno=%s(%i) at %s", \
-        _tmp, _retval, strerror(errno), errno,              \
-        gasneti_current_loc);                               \
+      _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,\
+        "%s yielded %s(%i), errno=%s(%i)",                  \
+        #op, _tmp, _retval, strerror(errno), errno);        \
     }                                                       \
   } while (0)
   #define gasneti_assert_nzeroret(op) do {                  \
@@ -241,14 +253,14 @@ extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename,
       char _tmp[128];                                       \
       strncpy(_tmp, strerror(_retval), sizeof(_tmp));       \
       _tmp[sizeof(_tmp)-1] = '\0';                          \
-      gasneti_fatalerror(#op": %s(%i), errno=%s(%i) at %s", \
-        _tmp, _retval, strerror(errno), errno,              \
-        gasneti_current_loc);                               \
+      _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,\
+        "%s yielded %s(%i), errno=%s(%i)",                  \
+        #op, _tmp, _retval, strerror(errno), errno);        \
     }                                                       \
   } while (0)
 #else
-  #define gasneti_assert_zeroret(op)  op
-  #define gasneti_assert_nzeroret(op) op
+  #define gasneti_assert_zeroret(op)  do { op; } while(0)
+  #define gasneti_assert_nzeroret(op) do { op; } while(0)
 #endif
 
 /* return physical memory of machine
@@ -257,9 +269,17 @@ extern uint64_t gasneti_getPhysMemSz(int _failureIsFatal);
 
 extern const char *gasneti_procid_str; // process identifier for error messages
 
+GASNETI_FORMAT_PRINTF(gasneti_console_message,2,3, // output a formatted message with a prefix type
+extern void gasneti_console_message(const char *_prefix, const char *_msg, ...));
+GASNETI_FORMAT_PRINTF(gasneti_console_messageVA,2,0,
+extern void gasneti_console_messageVA(const char *_prefix, const char *_msg, va_list _argptr));
+
 GASNETI_FORMAT_PRINTF(gasneti_fatalerror,1,2,
 extern void gasneti_fatalerror(const char *_msg, ...) GASNETI_NORETURN);
 GASNETI_NORETURNP(gasneti_fatalerror)
+
+extern void gasneti_error_abort(void) GASNETI_NORETURN; // perform pre-abort actions then abort
+GASNETI_NORETURNP(gasneti_error_abort)
 
 extern void gasneti_killmyprocess(int _exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasneti_killmyprocess)
