@@ -73,7 +73,7 @@ uint8_t a85_dec(uint8_t c) {
 static
 void do_encode(uint8_t *in, size_t len) {
     char *p = kvs_value;
-    gasneti_assert(5 * ((len + 3) / 4) <= max_val_len);
+    gasneti_assert_always(5 * ((len + 3) / 4) <= max_val_len);
     while (len) {
         uint32_t x = 0;
         const int sz = MIN(4, len);
@@ -126,7 +126,7 @@ void do_decode(uint8_t *out, size_t len) {
             p += 1;
         } else {
             const int pad = 4 - sz;
-            gasneti_assert(!pad || (strlen(p) == (5 - pad)));
+            gasneti_assert_always(!pad || (strlen(p) == (5 - pad)));
             x  = a85_dec(p[0]);
             x *= 85;
             x += a85_dec(p[1]);
@@ -159,10 +159,10 @@ void do_kvs_put(void *value, size_t sz) {
     do_encode(value, sz);
 #if USE_PMI2_API
     rc = PMI2_KVS_Put(kvs_key, kvs_value);
-    gasneti_assert(PMI2_SUCCESS == rc);
+    gasneti_assert_always(PMI2_SUCCESS == rc);
 #else
     rc = PMI_KVS_Put(kvs_name, kvs_key, kvs_value);
-    gasneti_assert(PMI_SUCCESS == rc);
+    gasneti_assert_always(PMI_SUCCESS == rc);
 #endif
 }
 
@@ -172,10 +172,10 @@ void do_kvs_get(void *value, size_t sz) {
 #if USE_PMI2_API
     int len;
     rc = PMI2_KVS_Get(kvs_name, PMI2_ID_NULL, kvs_key, kvs_value, max_val_len, &len);
-    gasneti_assert(PMI2_SUCCESS == rc);
+    gasneti_assert_always(PMI2_SUCCESS == rc);
 #else
     rc = PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len);
-    gasneti_assert(PMI_SUCCESS == rc);
+    gasneti_assert_always(PMI_SUCCESS == rc);
 #endif
     do_decode(value, sz);
 }
@@ -326,7 +326,7 @@ void gasnetc_pmi_allgather_init(void) {
         int rc;
         gasnetc_pmi_allgather_order = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
         rc = PMI_Allgather(&gasneti_mynode, gasnetc_pmi_allgather_order, sizeof(gasnet_node_t));
-        gasneti_assert(PMI_SUCCESS == rc);
+        gasneti_assert_always(PMI_SUCCESS == rc);
     }
 }
 #endif
@@ -342,12 +342,12 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
     /* Allgather the callers data to a temporary array */
     gasnetc_pmi_allgather_init();
     rc = PMI_Allgather(src, unsorted, len);
-    gasneti_assert(PMI_SUCCESS == rc);
+    gasneti_assert_always(PMI_SUCCESS == rc);
 
     /* extract the records from the unsorted array by using the 'order' array */
     for (i = 0; i < gasneti_nodes; i += 1) {
       gasnet_node_t peer = gasnetc_pmi_allgather_order[i];
-      gasneti_assert(peer < gasneti_nodes);
+      gasneti_assert_always(peer < gasneti_nodes);
       memcpy((void *) ((uintptr_t) dest + (peer * len)), &unsorted[i * len], len);
     }
 
@@ -464,7 +464,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
     /* Allgather the data to the temporary array */
     gasnetc_pmi_allgather_init();
     rc = PMI_Allgather(src ? src : dest, tmp, len);
-    gasneti_assert(PMI_SUCCESS == rc);
+    gasneti_assert_always(PMI_SUCCESS == rc);
 
     /* Find the right piece */
     for (i = 0; i < gasneti_nodes; i += 1) {
