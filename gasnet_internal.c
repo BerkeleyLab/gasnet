@@ -412,15 +412,7 @@ void gasneti_defaultSignalHandler(int sig) {
 
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
 
-      FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
-      for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
-        FILE *stream = streams[s];
-        if (stream) {
-          fprintf(stream, "*** Caught a fatal signal: %s(%i) on node %i/%i\n", 
-                        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes());
-          fflush(stream);
-        }
-      }
+      gasneti_console_message("Caught a fatal signal", "%s(%i)", signame, sig);
 
       gasnett_freezeForDebuggerErr(); /* allow freeze */
 
@@ -449,9 +441,7 @@ void gasneti_defaultSignalHandler(int sig) {
       }
 
       oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
-      fprintf(stderr,"*** Caught a signal: %s(%i) on node %i/%i\n",
-        signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
-      fflush(stderr);
+      gasneti_console_message("Caught a signal", "%s(%i)", signame, sig);
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
       do_raise(SIGQUIT);

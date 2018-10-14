@@ -578,38 +578,53 @@ extern double gasneti_tick_metric(int idx) {
 extern const char *gasneti_procid_str;
 const char *gasneti_procid_str = NULL;
 
-extern void gasneti_fatalerror(const char *msg, ...) {
-  #ifndef GASNETI_FATALERROR_LEN
-  #define GASNETI_FATALERROR_LEN 128
+extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_list argptr) {
+  #ifndef GASNETI_CONSOLEMSG_PREFIX_LEN
+  #define GASNETI_CONSOLEMSG_PREFIX_LEN 128
   #endif
-  char expandedmsg[GASNETI_FATALERROR_LEN];
+  char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+16];
   if (gasneti_procid_str) {
-    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** FATAL ERROR (%s): ", gasneti_procid_str);
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s): ", prefix, gasneti_procid_str);
   } else {
-    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** FATAL ERROR: ");
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s: ", prefix);
   }
   const size_t maxmsg = sizeof(expandedmsg)-4 - strlen(expandedmsg);
   const size_t msglen = strlen(msg);
+
+  int isshort = 0;
+  if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+    strncat(expandedmsg, msg, maxmsg);
+    if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
+    isshort = 1;
+  }
 
   FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
   for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
     FILE *stream = streams[s];
     if (stream) {
-      va_list argptr;
-      va_start(argptr, msg); /*  pass in last argument */
-        if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
-          strncat(expandedmsg, msg, maxmsg);
-          if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
-          vfprintf(stream, expandedmsg, argptr);
+      va_list args;
+      va_copy(args, argptr);
+        if (isshort) {
+          vfprintf(stream, expandedmsg, args);
         } else { /* long format msg */
           fputs(expandedmsg, stream);
-          vfprintf(stream, msg, argptr);
-          if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
+          vfprintf(stream, msg, args);
+          if (msg[msglen-1] != '\n') fprintf(stream, "\n");
         }
-      va_end(argptr);
+      va_end(args);
       fflush(stream);
     }
   }
+}
+
+extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA(prefix, msg, argptr);
+  va_end(argptr);
+}
+
+extern void gasneti_error_abort(void) {
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
@@ -623,6 +638,51 @@ extern void gasneti_fatalerror(const char *msg, ...) {
 
   abort();
 }
+
+extern void gasneti_fatalerror(const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA("FATAL ERROR", msg, argptr);
+  va_end(argptr);
+  gasneti_error_abort();
+}
+
+extern void _gasneti_assert_fail(const char *funcname, const char *filename, int linenum,
+                                 const char *fmt, ...) {
+  #ifndef GASNETI_ASSERT_FMT_LEN
+  #define GASNETI_ASSERT_FMT_LEN 256
+  #endif
+  #ifndef GASNETI_ASSERT_NAME_LEN
+  #define GASNETI_ASSERT_NAME_LEN  80
+  #endif
+  // use the last NAME_LEN characters of funcname and filename
+  if (!funcname) funcname = "";
+  size_t funclen = strlen(funcname);
+  if (funclen > GASNETI_ASSERT_NAME_LEN) funcname += (funclen - GASNETI_ASSERT_NAME_LEN);
+  if (!filename || !*filename) filename = "*unknown file*";
+  size_t filelen = strlen(filename);
+  if (filelen > GASNETI_ASSERT_NAME_LEN) filename += (filelen - GASNETI_ASSERT_NAME_LEN);
+
+  // prepend formatted location info to the assertion format string
+  char expandedfmt[GASNETI_ASSERT_FMT_LEN];
+  if (*funcname)
+    snprintf(expandedfmt, sizeof(expandedfmt), 
+             "Assertion failure in %s%s at %s:%i: %s",
+             funcname, (funcname[strlen(funcname)-1] != ')'?"()":""),
+             filename, linenum, fmt);
+  else
+    snprintf(expandedfmt, sizeof(expandedfmt), 
+             "Assertion failure at %s:%i: %s",
+             filename, linenum, fmt);
+
+  // generate the fatal error and crash
+  va_list argptr;
+  va_start(argptr, fmt); /*  pass in last argument */
+    gasneti_console_messageVA("FATAL ERROR", expandedfmt, argptr);
+  va_end(argptr);
+  gasneti_error_abort();
+}
+
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_killmyprocess(int exitcode) {
   /* wrapper for _exit() that does the "right thing" to immediately kill this process */
