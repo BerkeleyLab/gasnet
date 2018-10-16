@@ -12,6 +12,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
+  #include <sys/statvfs.h>
+#endif
+
 #if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
 #define GASNETI_BUG3480_MSG "\nYour system is suspected to be impacted by bug 3480"
 #else
@@ -1265,6 +1269,35 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     /* Start at something reasonable if we expect to avoid swapping */
     const uint64_t nodemem = gasneti_getPhysMemSz(0);
     if (nodemem) sharedLimit = nodemem; /* no change if getPhysMemSz failed */
+  }
+#endif
+
+#if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
+  { // Apply limits appropriate to filesystem-backed allocation
+    const int flags = O_RDWR | O_CREAT | O_EXCL;
+    const mode_t mode = S_IRUSR | S_IWUSR;
+    const char *filename = gasneti_pshmname[gasneti_pshm_mynode];
+    struct statvfs buf;
+
+  #if GASNETI_PSHM_POSIX
+    int fd = shm_open(filename, flags, mode);
+  #else
+    int fd = open(filename, flags, mode);
+  #endif
+
+    if (fd >= 0) {
+      // TODO: for now we ignore any errors here
+      if (0 == fstatvfs(fd, &buf)) {
+        uint64_t free_space = buf.f_bsize * buf.f_bavail;
+        if (free_space) sharedLimit = MIN(sharedLimit, free_space);
+      }
+      (void) close(fd);
+    #if GASNETI_PSHM_POSIX
+      (void) shm_unlink(filename);
+    #else
+      (void) unlink(filename);
+    #endif
+    }
   }
 #endif
 
