@@ -66,16 +66,7 @@
 /* debug support */
 #define gasnetc_GNIT_Abort(...) gasneti_fatalerror(__VA_ARGS__)
 
-#define gasnetc_GNIT_Log(...) do {                               \
-    char _gnitl_buf[255]; char *_gnitl_p = _gnitl_buf;           \
-    _gnitl_p += sprintf(_gnitl_p, "node %d log %s: ",            \
-             gasneti_mynode, gasnett_current_loc);               \
-    _gnitl_p += sprintf(_gnitl_p, __VA_ARGS__);                  \
-    _gnitl_p += sprintf(_gnitl_p, "\n");                         \
-    fputs(_gnitl_buf, stderr);                                   \
-    fflush(stderr);                                              \
-  } while(0)
-
+#define gasnetc_GNIT_Log(...) gasneti_console_message("log", __VA_ARGS__)
 
 /* global vars from environment */
 extern int      gasnetc_dev_id;
