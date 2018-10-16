@@ -2093,8 +2093,8 @@ static char *_gasneti_getenv_withdefault(const char *keyname, const char *defaul
   } else if (valmode == 1) { /* yes/no value */
     char s[10];
     int i;
-    strncpy(s, retval, 10); s[9] = '\0';
-    for (i = 0; i < 10; i++) s[i] = toupper(s[i]);
+    strncpy(s, retval, sizeof(s)-1); s[sizeof(s)-1] = '\0';
+    for (i = 0; i < sizeof(s); i++) s[i] = toupper(s[i]);
     if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) retval = "NO";
     else if (!strcmp(s, "Y") || !strcmp(s, "YES") || !strcmp(s, "1")) retval = "YES";
     else gasneti_fatalerror("If used, environment variable '%s' must be set to 'Y|YES|y|yes|1' or 'N|n|NO|no|0'", keyname);
