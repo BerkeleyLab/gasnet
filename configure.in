@@ -1929,6 +1929,8 @@ nodes, you need to re-run configure without --enable-aligned-segments"
 		    GASNETI_DISABLE_ALIGNED_SEGMENTS=1
 		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)
                    ])
+
+AC_CHECK_HEADER([sys/statvfs.h],[AC_CHECK_FUNCS([fstatvfs])])
 dnl GASNET_TOOLSONLY_FALSE_END
 
 AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
