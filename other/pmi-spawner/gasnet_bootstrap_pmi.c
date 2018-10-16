@@ -180,6 +180,7 @@ void do_kvs_get(void *value, size_t sz) {
 #else
     rc = PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len);
     gasneti_assert_always(PMI_SUCCESS == rc);
+    size_t len = strlen(kvs_value);
 #endif
     do_decode(value, sz, len);
 }
