@@ -655,7 +655,7 @@ void  _gasnet_memset (gasnet_node_t _node, void *_dest, int _val, size_t _nbytes
 
 GASNETI_INLINE(_gasnet_put_val)
 void _gasnet_put_val(gasnet_node_t _node, void *_dest, gasnet_register_value_t _value, size_t _nbytes GASNETI_THREAD_FARG) {
-  gasneti_assert(_nbytes > 0 && _nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assume(_nbytes > 0 && _nbytes <= sizeof(gasnet_register_value_t));
   gasneti_boundscheck(_node, _dest, _nbytes);
   gasnete_aligncheck(_dest, _nbytes);
   if (gasnete_islocal(_node)) {
@@ -676,7 +676,7 @@ void _gasnet_put_val(gasnet_node_t _node, void *_dest, gasnet_register_value_t _
 
 GASNETI_INLINE(_gasnet_put_nb_val) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t _node, void *_dest, gasnet_register_value_t _value, size_t _nbytes GASNETI_THREAD_FARG) {
-  gasneti_assert(_nbytes > 0 && _nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assume(_nbytes > 0 && _nbytes <= sizeof(gasnet_register_value_t));
   gasneti_boundscheck(_node, _dest, _nbytes);
   gasnete_aligncheck(_dest, _nbytes);
   if (gasnete_islocal(_node)) {
@@ -709,7 +709,7 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t _node, void *_dest, gasnet_reg
 
 GASNETI_INLINE(_gasnet_put_nbi_val)
 void _gasnet_put_nbi_val(gasnet_node_t _node, void *_dest, gasnet_register_value_t _value, size_t _nbytes GASNETI_THREAD_FARG) {
-  gasneti_assert(_nbytes > 0 && _nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assume(_nbytes > 0 && _nbytes <= sizeof(gasnet_register_value_t));
   gasneti_boundscheck(_node, _dest, _nbytes);
   gasnete_aligncheck(_dest, _nbytes);
   if (gasnete_islocal(_node)) {
