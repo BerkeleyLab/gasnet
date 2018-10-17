@@ -641,6 +641,7 @@ void gasneti_free_tm(gasneti_TM_t tm)
   extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd) {
     if (!gasneti_sd_init_enabled) return;
     if (sd->_addr != sd->_gex_buf) return;
+    gasneti_assert_uint(((uintptr_t)sd->_addr) % GASNETI_MEDBUF_ALIGNMENT ,==, 0)
     static int isinit = 0;
     if_pf (!isinit) {
       static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
@@ -1830,6 +1831,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     return val;
   }
   static void gasneti_memalloc_valset(void *p, size_t len, uint64_t val) {
+    gasneti_assert(! ((uintptr_t)p & 7));
     uint64_t *output = p;
     size_t blocks = len/8;
     size_t extra = len%8;
@@ -1841,6 +1843,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     if (extra) memcpy(output, &val, extra);
   }
   static const void *gasneti_memalloc_valcmp(const void *p, size_t len, uint64_t val) {
+    gasneti_assert(! ((uintptr_t)p & 7));
     const uint64_t *input = p;
     size_t blocks = len/8;
     size_t extra = len%8;

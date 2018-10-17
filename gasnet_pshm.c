@@ -1094,10 +1094,14 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #define GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) (((gasneti_AMPSHM_longmsg_t*)msg)->numbytes)
 #define GASNETI_AMPSHM_MSG_LONG_DATA(msg)     (((gasneti_AMPSHM_longmsg_t*)msg)->longdata)
 
-// Free space after the long header
-#define GASNETI_AMPSHM_MSG_LONG_INLINE        (GASNETI_PSHMNET_MIN_PAYLOAD - \
-                                               sizeof(gasneti_AMPSHM_longmsg_t))
-#define GASNETI_AMPSHM_MSG_LONG_TMP(msg)      ((uint8_t*)((gasneti_AMPSHM_longmsg_t*)msg + 1))
+// Free space after the long header, GASNETI_MEDBUF_ALIGNMENT aligned for use by NP-AM Longs
+// Note "GASNETI_MEDBUF_ALIGNMENT-4" allows for either 4- or 8-byte natural alignment.
+#define GASNETI_AMPSHM_MSG_LONG_INLINE        (GASNETI_PSHMNET_MIN_PAYLOAD -       \
+                                               (sizeof(gasneti_AMPSHM_longmsg_t) + \
+                                                (GASNETI_MEDBUF_ALIGNMENT - 4)))
+#define GASNETI_AMPSHM_MSG_LONG_TMP(msg)      ((uint8_t*)                                          \
+                                               GASNETI_ALIGNUP((gasneti_AMPSHM_longmsg_t*)msg + 1, \
+                                                               GASNETI_MEDBUF_ALIGNMENT))
 
 #define GASNETI_AMPSHM_MAX_REPLY_PER_POLL 10
 #define GASNETI_AMPSHM_MAX_REQUEST_PER_POLL 10
