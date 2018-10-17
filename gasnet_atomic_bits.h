@@ -1700,13 +1700,21 @@
           #define gasneti_atomic64_init(v)       { (v) }
           GASNETI_INLINE(_gasneti_atomic64_set)
           void _gasneti_atomic64_set(gasneti_atomic64_t *_p, uint64_t _v) {
+          #if PLATFORM_OS_SOLARIS // Bug 3797
+            __asm__ __volatile__ ( "std	%1, %0" : "=m"(_p->gasneti_ctr) : "U!f"(_v) );
+          #else
             __asm__ __volatile__ ( "std	%1, %0" : "=m"(_p->gasneti_ctr) : "U"(_v) );
+          #endif
 	  }
           #define _gasneti_atomic64_set _gasneti_atomic64_set
           GASNETI_INLINE(_gasneti_atomic64_read)
           uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *_p) {
 	    GASNETI_ASM_REGISTER_KEYWORD uint64_t _retval;
+          #if PLATFORM_OS_SOLARIS // Bug 3797
+            __asm__ __volatile__ ( "ldd	%1, %0" : "=U!f"(_retval) : "m"(_p->gasneti_ctr) );
+          #else
             __asm__ __volatile__ ( "ldd	%1, %0" : "=U"(_retval) : "m"(_p->gasneti_ctr) );
+          #endif
 	    return _retval;
 	  }
           #define _gasneti_atomic64_read _gasneti_atomic64_read
