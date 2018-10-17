@@ -1602,6 +1602,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     return val;
   }
   static void gasneti_memalloc_valset(void *p, size_t len, uint64_t val) {
+    gasneti_assert(! ((uintptr_t)p & 7));
     uint64_t *output = p;
     size_t blocks = len/8;
     size_t extra = len%8;
@@ -1613,6 +1614,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     if (extra) memcpy(output, &val, extra);
   }
   static const void *gasneti_memalloc_valcmp(const void *p, size_t len, uint64_t val) {
+    gasneti_assert(! ((uintptr_t)p & 7));
     const uint64_t *input = p;
     size_t blocks = len/8;
     size_t extra = len%8;
