@@ -460,6 +460,7 @@ int _gex_RMA_PutBlocking  (gex_TM_t _tm,
                         size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
   {
+    gasneti_assume(_nbytes > 0); gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
     gex_RMA_Value_t _src = _value;
     return gasnete_put(_tm, _rank, _dest, GASNETE_STARTOFBITS(&_src,_nbytes),
                        _nbytes, _flags GASNETI_THREAD_PASS);
@@ -473,8 +474,9 @@ int _gex_RMA_PutVal(  gex_TM_t _tm,
                         size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(_nbytes > 0);
+  gasneti_assume(_nbytes > 0);
   gasneti_assert_uint(_nbytes ,<=, sizeof(gex_RMA_Value_t));
+  gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
   if (gasnete_islocal(_tm,_rank)) {
     GASNETI_TRACE_PUT_LOCAL(VAL,_tm,_rank,_dest,&_value,_nbytes);
@@ -506,8 +508,9 @@ gex_Event_t _gex_RMA_PutNBVal (
                         size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(_nbytes > 0);
+  gasneti_assume(_nbytes > 0);
   gasneti_assert_uint(_nbytes ,<=, sizeof(gex_RMA_Value_t));
+  gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
   if (gasnete_islocal(_tm,_rank)) {
     GASNETI_TRACE_PUT_LOCAL(NB_VAL,_tm,_rank,_dest,&_value,_nbytes);
@@ -545,6 +548,7 @@ gex_Event_t _gex_RMA_PutNBVal (
                         size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
   {
+    gasneti_assume(_nbytes > 0); gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
     gex_RMA_Value_t _src = _value;
     return gasnete_put_nbi(_tm, _rank, _dest, GASNETE_STARTOFBITS(&_src,_nbytes),
                            _nbytes, GEX_EVENT_NOW, _flags GASNETI_THREAD_PASS);
@@ -559,8 +563,9 @@ int _gex_RMA_PutNBIVal(
                         size_t _nbytes, gex_Flags_t _flags
                         GASNETI_THREAD_FARG)
 {
-  gasneti_assert(_nbytes > 0);
+  gasneti_assume(_nbytes > 0);
   gasneti_assert_uint(_nbytes ,<=, sizeof(gex_RMA_Value_t));
+  gasneti_assume(_nbytes <= sizeof(gex_RMA_Value_t));
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
   if (gasnete_islocal(_tm,_rank)) {
     GASNETI_TRACE_PUT_LOCAL(NBI_VAL,_tm,_rank,_dest,&_value,_nbytes);
