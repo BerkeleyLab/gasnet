@@ -907,7 +907,7 @@ typedef enum {
   /* struct prevents accidental direct access, magic provides extra safety checks */
  #if GASNET_DEBUG
   #define _gasneti_threadkey_check(key, requireinit)           \
-   ( gasneti_assert_uint((key)._magic ,==, _GASNETI_THREADKEY_MAGIC), \
+   ( gasneti_assert((key)._magic == _GASNETI_THREADKEY_MAGIC), \
      (requireinit ? gasneti_assert((key)._isinit) : ((void)0)))
  #else
   /* Special case needed to suppress -Wunused-value warnings.
