@@ -641,7 +641,7 @@ void gasneti_free_tm(gasneti_TM_t tm)
   extern void gasneti_init_sd_poison(gasneti_AM_SrcDesc_t sd) {
     if (!gasneti_sd_init_enabled) return;
     if (sd->_addr != sd->_gex_buf) return;
-    gasneti_assert_uint(((uintptr_t)sd->_addr) % GASNETI_MEDBUF_ALIGNMENT ,==, 0)
+    gasneti_assert_uint(((uintptr_t)sd->_addr) % GASNETI_MEDBUF_ALIGNMENT ,==, 0);
     static int isinit = 0;
     if_pf (!isinit) {
       static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
