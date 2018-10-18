@@ -1724,8 +1724,12 @@ static void gasneti_odp_init() {
       size_t max_len = sizeof(my_odp_support[0].hca_id) - 1;
       strncpy(my_odp_support[hca->hca_index].hca_id, hca->hca_id, max_len);
       my_odp_support[hca->hca_index].hca_id[max_len] = '\0';
-    } else {
-      // Create implict ODP registration (currently only used locally)
+    }
+    my_odp_support[hca->hca_index].missing = missing;
+  }
+  if (gasnetc_use_odp) {
+    // Create implict ODP registrations (currently only used locally)
+    GASNETC_FOR_ALL_HCA(hca) {
       struct ibv_exp_reg_mr_in in;
       memset(&in, 0, sizeof(in));
       in.pd = hca->pd;
@@ -1735,9 +1739,7 @@ static void gasneti_odp_init() {
       hca->implicit_odp.handle = ibv_exp_reg_mr(&in);
       GASNETC_IBV_CHECK_PTR(hca->implicit_odp.handle, "from ibv_exp_reg_mr(implicit)");
       hca->implicit_odp.lkey = hca->implicit_odp.handle->lkey; // flatten for quick access
-      // TODO: heterogenous multi-rail may create ODP registrations which are never used
     }
-    my_odp_support[hca->hca_index].missing = missing;
   }
   // Results by value of GASNET_ODP_VERBOSE:
   //  0: No output (and no comms either)
