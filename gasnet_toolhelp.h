@@ -533,14 +533,14 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
        * thread (unlocking another thread's held lock also has undefined effects).
        */
       GASNETI_INLINE(gasneti_mutex_destroy_ignoreerr)
-      int gasneti_mutex_destroy_ignoreerr(gasneti_mutex_t *_pl) {
-        if ((_pl->_owner == GASNETI_THREADIDQUERY()) || !gasneti_mutex_trylock(_pl)) {
+      int gasneti_mutex_destroy_ignoreerr(gasneti_mutex_t *_gmdi_pl) {
+        if ((_gmdi_pl->_owner == GASNETI_THREADIDQUERY()) || !gasneti_mutex_trylock(_gmdi_pl)) {
           /* held by us */
-          gasneti_mutex_unlock(_pl);
-          return pthread_mutex_destroy(&(_pl->_lock));
+          gasneti_mutex_unlock(_gmdi_pl);
+          return pthread_mutex_destroy(&(_gmdi_pl->_lock));
         } else {
           /* held by someone else */
-          memset(_pl,0,sizeof(*_pl)); /* clobber */
+          memset(_gmdi_pl,0,sizeof(*_gmdi_pl)); /* clobber */
           return 0;
         }
       }
