@@ -1674,6 +1674,134 @@ static int gasnetc_hca_report(void) {
   return GASNET_OK;
 }
 
+#if GASNETC_IBV_ODP
+static void gasneti_odp_init() {
+  struct gasneti_odp_support {
+    uint8_t missing;
+    char    hca_id[15];
+  } my_odp_support[GASNETC_IB_MAX_HCAS];
+  enum gasneti_odp_missing {
+    missing_none = 0, // not missing anything == OK
+    missing_general,
+    missing_implicit,
+    missing_rc_read,
+    missing_rc_write
+  };
+  const char *message[] = {
+      "",
+      "general ODP",
+      "Implicit ODP",
+      "RC READ",
+      "RC WRITE"
+  };
+  // TODO: support heterogenous multi-rail with some HCAs having ODP and others not.
+  // This is not trivial because the RDMA logic picks ODP vs FH before picking an HCA.
+  gasnetc_hca_t	*hca;
+  GASNETC_FOR_ALL_HCA(hca) {
+    enum gasneti_odp_missing missing = missing_none;
+    struct ibv_exp_device_attr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
+    int ret = ibv_exp_query_device(hca->handle, &attr);
+    if (! (attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP)) {
+      missing = missing_general;
+    } else if (! (attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT)) {
+      missing = missing_implicit;
+      // TODO-EX: maybe support older systems lacking this bit?
+      // Prior to ConnectX-4, implicit ODP was done in s/w and
+      //  + This can be identified because this caps bit was not set
+      //  + Implicit ODP emulation had 128MB limit
+      //  + Implicit ODP was valid for local only (invalid rkey)
+    } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
+      missing = missing_rc_read;
+    } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
+      missing = missing_rc_write;
+    }
+    if (missing != missing_none) {
+      GASNETI_TRACE_PRINTF(C,("Disabled ODP - %s: %s support is missing.",
+                              hca->hca_id, message[(int)missing]));
+      gasnetc_use_odp = 0;
+      size_t max_len = sizeof(my_odp_support[0].hca_id) - 1;
+      strncpy(my_odp_support[hca->hca_index].hca_id, hca->hca_id, max_len);
+      my_odp_support[hca->hca_index].hca_id[max_len] = '\0';
+    } else {
+      // Create implict ODP registration (currently only used locally)
+      struct ibv_exp_reg_mr_in in;
+      memset(&in, 0, sizeof(in));
+      in.pd = hca->pd;
+      in.exp_access = (enum ibv_exp_access_flags)( IBV_EXP_ACCESS_ON_DEMAND |
+                                                   IBV_EXP_ACCESS_LOCAL_WRITE );
+      in.length = IBV_EXP_IMPLICIT_MR_SIZE;
+      hca->implicit_odp.handle = ibv_exp_reg_mr(&in);
+      GASNETC_IBV_CHECK_PTR(hca->implicit_odp.handle, "from ibv_exp_reg_mr(implicit)");
+      hca->implicit_odp.lkey = hca->implicit_odp.handle->lkey; // flatten for quick access
+      // TODO: heterogenous multi-rail may create ODP registrations which are never used
+    }
+    my_odp_support[hca->hca_index].missing = missing;
+  }
+  // Results by value of GASNET_ODP_VERBOSE:
+  //  0: No output (and no comms either)
+  //  1: Reports count of proceses missing support
+  //  2: Reports detail, w/ HCA ids IFF multi-hca
+  //  3: Reports detail w/ HCA ids unconditionally
+  int verbose = gasneti_getenv_int_withdefault("GASNET_ODP_VERBOSE", 1, 0);
+  if (verbose) {
+    // Will exchange just a single byte when not reporting HCA ids
+    // TODO: Only one process reports, so gather to 0 would be sufficient
+    int show_ids = (verbose > 2) || (gasnetc_num_hcas > 1);
+    size_t exchg_len = show_ids ? gasnetc_num_hcas * sizeof(struct gasneti_odp_support) : 1;
+    size_t stride = show_ids ? sizeof(struct gasneti_odp_support) : 1;
+    struct gasneti_odp_support *all_odp_support = gasneti_malloc(gasneti_nodes * exchg_len);
+    gasneti_bootstrapExchange(my_odp_support, exchg_len, all_odp_support);
+    if (! gasneti_mynode) {
+      struct gasneti_odp_support *p = all_odp_support;
+      // First just count the number of procs w/o OPD
+      int non_odp_procs = 0;
+      for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+        int non_odp = 0;
+        GASNETC_FOR_ALL_HCA(hca) {
+          non_odp |= (p->missing != missing_none);
+          p = (struct gasneti_odp_support *)((uintptr_t)p + stride);
+        }
+        non_odp_procs += non_odp;
+      }
+      if (non_odp_procs) {
+        const char *less_msg =
+                "         To suppress this message set environment variable\n"
+                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp.\n";
+        const char *more_msg = (verbose > 1) ? "" :
+                "         To see additional details set environment variable\n"
+                "         GASNET_ODP_VERBOSE=2 (or higher).\n";
+        // report the summary information (verbose > 0)
+        fprintf(stderr,
+                "WARNING: ODP disabled on %d of %d processes which are missing support.\n%s%s",
+                (int)non_odp_procs, (int)gasneti_nodes, less_msg, more_msg);
+        // report detailed information (verbose > 1)
+        if (verbose > 1) {
+          p = all_odp_support;
+          for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+            GASNETC_FOR_ALL_HCA(hca) {
+              if (p->missing != missing_none) {
+                const char *msg = message[(int)p->missing];
+                if (show_ids) {
+                   fprintf(stderr, "    Process %d (hca '%s'): %s support is missing.\n",
+                           i, p->hca_id, msg);
+                } else {
+                   fprintf(stderr, "    Process %d: %s support is missing.\n",
+                           i, msg);
+                }
+              }
+              p = (struct gasneti_odp_support *)((uintptr_t)p + stride);
+            }
+          }
+        }
+      }
+    }
+    gasneti_free(all_odp_support);
+  }
+}
+#endif // GASNETC_IBV_ODP
+
 static int gasnetc_init( gex_Client_t            *client_p,
                          gex_EP_t                *ep_p,
                          const char              *clientName,
@@ -1808,46 +1936,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 #if GASNETC_IBV_ODP
   gasnetc_use_odp = gasneti_getenv_int_withdefault("GASNET_USE_ODP", 1, 0);
   if (gasnetc_use_odp) {
-    GASNETC_FOR_ALL_HCA(hca) {
-      const char *missing = NULL;
-      struct ibv_exp_device_attr attr;
-      memset(&attr, 0, sizeof(attr));
-      attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
-      int ret = ibv_exp_query_device(hca->handle, &attr);
-      if (! (attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP)) {
-        missing = "general ODP";
-      } else if (! (attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT)) {
-        missing = "Implicit ODP";
-        // TODO-EX: maybe support older systems lacking this bit?
-        // Prior to ConnectX-4, implicit ODP was done in s/w and
-        //  + This can be identified because this caps bit was not set
-        //  + Implicit ODP emulation had 128MB limit
-        //  + Implicit ODP was valid for local only (invalid rkey)
-      } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
-        missing = "RC READ";
-      } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
-        missing = "RC WRITE";
-      }
-      if (missing) {
-        fprintf(stderr,
-                "WARNING: ODP has been disabled because required %s support is missing.\n"
-                "         To suppress this message set environment variable\n"
-                "         GASNET_USE_ODP=0 or reconfigure with --disable-ibv-odp.\n",
-                missing);
-        gasnetc_use_odp = 0;
-      } else {
-        // Create implict ODP registration (currently only used locally)
-        struct ibv_exp_reg_mr_in in;
-        memset(&in, 0, sizeof(in));
-        in.pd = hca->pd;
-        in.exp_access = (enum ibv_exp_access_flags)( IBV_EXP_ACCESS_ON_DEMAND |
-                                                     IBV_EXP_ACCESS_LOCAL_WRITE );
-        in.length = IBV_EXP_IMPLICIT_MR_SIZE;
-        hca->implicit_odp.handle = ibv_exp_reg_mr(&in);
-        GASNETC_IBV_CHECK_PTR(hca->implicit_odp.handle, "from ibv_exp_reg_mr(implicit)");
-        hca->implicit_odp.lkey = hca->implicit_odp.handle->lkey; // flatten for quick access
-      }
-    }
+    gasneti_odp_init();
   }
 #endif // GASNETC_IBV_ODP
 

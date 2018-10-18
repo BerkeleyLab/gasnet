@@ -588,6 +588,15 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     --disable-ibv-odp, or if ODP support was not found at configure time.
     This setting defaults to 1 if ODP support was enabled at configure time.
 
+  + GASNET_ODP_VERBOSE
+    This integer setting controls the detail of the warning printed when ODP
+    support is enabled but is not present on one or more HCAs in the job.
+    A value of 0 supresses the warning entirely.
+    A value of 1 will report a count of processes lacking support.
+    Values of 2 or higher give increasing levels of detail concerning the
+    missing support.
+    This setting defaults to 1 if ODP support was enabled at configure time.
+
    + GASNET_PIN_MAXSZ
     This controls the maximum size of a pinned memory region.  The value must
     be a power-of-two, and no less than the page size.  If the value is larger
