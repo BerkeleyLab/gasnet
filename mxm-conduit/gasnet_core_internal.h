@@ -60,21 +60,13 @@ enum {
 #define GASNETC_MXM_CHECK_PTR(ptr,msg) GASNETC_MXM_CHECK((ptr)==NULL,(msg))
 
 #if GASNET_DEBUG_VERBOSE
-#define MXM_LOG(...) do { \
-                printf("[I] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
-                printf( __VA_ARGS__); \
-                fflush(stdout); fflush(stderr); \
-        } while (0)
+#define MXM_LOG(...) gasneti_console_message("log", __VA_ARGS__)
 #else
 #define MXM_LOG(...)
 #endif
 
 #if GASNET_DEBUG_VERBOSE
-#define MXM_DEBUG(...) do { \
-                printf("[D] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
-                printf( __VA_ARGS__); \
-                fflush(stdout); fflush(stderr); \
-        } while (0)
+#define MXM_DEBUG(...) gasneti_console_message("debug", __VA_ARGS__)
 #else
 #define MXM_DEBUG(...)
 #endif
@@ -89,17 +81,9 @@ enum {
 
 
 
-#define MXM_WARN(...) do { \
-                printf("[WARNING] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
-                printf( __VA_ARGS__); \
-                fflush(stdout); fflush(stderr); \
-        } while (0)
+#define MXM_WARN(...) gasneti_console_message("WARNING", __VA_ARGS__)
 
-#define MXM_ERROR(...) do { \
-                printf("[ERROR] [node %d] %s(): ", gasneti_mynode, GASNETI_CURRENT_FUNCTION); \
-                printf( __VA_ARGS__); \
-                fflush(stdout); fflush(stderr); \
-        } while (0)
+#define MXM_ERROR(...) gasneti_console_message("ERROR", __VA_ARGS__)
 
 #include <mxm/api/mxm_version.h>
 #include <mxm/api/mxm_api.h>

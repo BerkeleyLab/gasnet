@@ -482,7 +482,7 @@ extern void gasnetc_exit(int exitcode) {
    for (i=0; i < 5; i++) {
      #if GASNET_DEBUG
        /* ignore recursive lock attempts */
-       if (gasnetc_AMlock.owner == GASNETI_THREADIDQUERY()) break;
+       if (gasnetc_AMlock._owner == GASNETI_THREADIDQUERY()) break;
      #endif
      if (!gasneti_mutex_trylock(&gasnetc_AMlock)) break;
      gasneti_sched_yield();
