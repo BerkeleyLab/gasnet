@@ -1499,6 +1499,7 @@ static int gasneti_backtrace_userenabled = 0;
 static int gasneti_backtrace_userdisabled = 0;
 #endif
 static const char *gasneti_backtrace_list = 0;
+static int gasneti_backtrace_prctl = -2;
 GASNETT_TENTATIVE_EXTERN
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
@@ -1507,7 +1508,8 @@ extern void gasneti_backtrace_init(const char *exename) {
 
 #if HAVE_PR_SET_PTRACER
   // May be necessary to allow ptrace_attach():
-  (void) prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+  // errors here are ignored, but saved to possibly assist in later diagnosis
+  gasneti_backtrace_prctl = prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
 #endif
 
   gasneti_qualify_path(gasneti_exename_bt, exename);
@@ -1660,7 +1662,9 @@ extern int gasneti_print_backtrace(int fd) {
           { int ptracefd = 0;
             if (!access(YAMA_PTRACE_SCOPE,R_OK) && (ptracefd = open(YAMA_PTRACE_SCOPE,O_RDONLY))) {
               char scope = 0; // docs: https://www.kernel.org/doc/Documentation/security/Yama.txt
-              if (read(ptracefd, &scope, 1) == 1 && scope != '0' && scope != '1') {
+              if (read(ptracefd, &scope, 1) == 1 
+                  && scope != '0' // 0 = no restrictions
+                  && !(scope == '1' && !gasneti_backtrace_prctl)) { // 1 = restricted, only works if prctl succeeded
                 snprintf(linep, linelen, "WARNING: %s=%c may be preventing debugger attach\n", YAMA_PTRACE_SCOPE, scope);
                 gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
               }
