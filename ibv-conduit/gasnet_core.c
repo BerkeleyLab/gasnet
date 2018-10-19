@@ -1935,10 +1935,42 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
   }
 #endif /* GASNETC_IBV_XRC */
+
 #if GASNETC_IBV_ODP
   gasnetc_use_odp = gasneti_getenv_int_withdefault("GASNET_USE_ODP", 1, 0);
   if (gasnetc_use_odp) {
     gasneti_odp_init();
+  }
+#elif !GASNETC_IBV_ODP_DISABLED
+  if (gasneti_getenv_int_withdefault("GASNET_ODP_VERBOSE", 1, 0)) {
+    uint8_t found_odp_hca = 0;
+    GASNETC_FOR_ALL_HCA(hca) {
+      // Assume hca_id starting with "mlx5" (or higher) has ODP support
+      if (!strncmp(hca->hca_id, "mlx", 3) && (atoi(hca->hca_id+3) >= 5)) {
+        found_odp_hca = 1;
+        break;
+      }
+    }
+    // TODO: Only one process reports, so gather to 0 would be sufficient and
+    //       a SUM reduction even would be even better.
+    uint8_t *all = gasneti_malloc(gasneti_nodes);
+    gasneti_bootstrapExchange(&found_odp_hca, 1, all);
+    if (!gasneti_mynode) {
+      gex_Rank_t count = 0;
+      for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+        count += all[i];
+      }
+      if (count) {
+        fprintf(stderr,
+                "WARNING: %d of %d processes have HCAs believed to support ODP.  However, the\n"
+                "         corresponding software support was not found at configure time.\n"
+                "         Please see the README for GASNet's ibv-conduit for more info on ODP.\n"
+                "         To suppress this message set environment variable\n"
+                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp.\n",
+                (int)count, (int)gasneti_nodes);
+      }
+    }
+    gasneti_free(all);
   }
 #endif // GASNETC_IBV_ODP
 
