@@ -9,6 +9,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: Job Spawning @
 @ Section: Runtime Configuration @
 @ Section: Multi-rail Support @
+@ Section: On-Demand Paging (ODP) Support @
 @ Section: HCA Configuration @
 @ Section: Known Problems @
 @ Section: Core API @
@@ -875,6 +876,23 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   the GASNET_NUM_QPS and/or GASNET_IBV_PORTS environment variables
   (documented in "Runtime Configuration") to determine how a given
   application runs best.
+
+@ Section: On-Demand Paging (ODP) Support @
+
+   Recent Mellanox HCAs (ConnectX-4 and newer) support a feature known as
+   On-Demand Paging (ODP).  Where this support is available, ibv-conduit
+   can use it to reduce resource pressure on physical memory.  By default,
+   ibv-conduit will attempt to warn at runtime if this support does not
+   appear to be available despite having either the required software or
+   hardware.  If you are using Mellanox Connect4-X HCAs or newer and
+   ibv-conduit warns about missing ODP support, we recommend that you
+   install the latest "Mellenox OFED" (aka MLNX_OFED) distribution,
+   available for download from Mellanox.  Mellanox provides documentation
+   on installing the software and upgrading the HCA firmware (if needed).
+
+   If you cannot install MLNX_OFED, or ibv-conduit has mistakenly warned
+   about an HCA which is not ODP-capable, then we recommend configuring
+   GASNet using --disable-ibv-odp.
 
 @ Section: HCA Configuration @
 
