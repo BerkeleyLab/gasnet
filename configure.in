@@ -3772,7 +3772,7 @@ if test "$enabled_ibv" = yes; then
       GASNET_IF_ENABLED_WITH_AUTO([ibv-odp],
           [Enable/disable On Demand Paging (ODP) support in ibv-conduit (default is to probe)],
           [enabled_ibv_odp="yes"; force_ibv_odp="yes"],
-          [enabled_ibv_odp="no"],
+          [enabled_ibv_odp="no"; AC_DEFINE(GASNETC_IBV_ODP_DISABLED)],
           [enabled_ibv_odp="yes"])
       if test "$enabled_ibv_odp" = yes; then
         GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_CFLAGS $GASNET_THREAD_DEFINES")
