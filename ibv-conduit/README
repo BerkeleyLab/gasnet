@@ -877,6 +877,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   (documented in "Runtime Configuration") to determine how a given
   application runs best.
 
+  IMPORTANT NOTE:
+  The multi-rail support in ibv-conduit makes the assumption that the
+  number of HCAs used in every process will be identical.  One must use
+  GASNET_IBV_PORTS to ensure that this property is true.  Otherwise, the
+  behavior is undefined (startup crash being the most likely).
+
 @ Section: On-Demand Paging (ODP) Support @
 
    Recent Mellanox HCAs (ConnectX-4 and newer) support a feature known as
