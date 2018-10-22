@@ -113,6 +113,11 @@
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
 #endif
 
+#if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_LT(3,6,0)
+  // bug3801: old clangs report __has_attribute(__fallthrough__)=1, but incorrectly implement the attribute
+  // in a way that leads to empty statement warnings when used as per GNU instructions
+  #define GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH 0
+#endif
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
