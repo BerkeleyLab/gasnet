@@ -476,8 +476,8 @@ int main(int argc, char **argv)
     #endif
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     test_init("testsmall",1, "[options] (iters) (maxsz) (test_sections)\n"
-               "  The 'in' or 'out' option selects whether the initiator-side\n"
-               "   memory is in the GASNet segment or not (default is not).\n"
+               "  The '-in' or '-out' option selects whether the initiator-side\n"
+               "   memory is in the GASNet segment or not (default is 'in').\n"
                "  The -p/-g option selects puts only or gets only (default is both).\n"
                "  The -s option skips warm-up iterations\n"
                "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).\n"

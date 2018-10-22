@@ -148,8 +148,8 @@ int main(int argc, char **argv) {
     GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), 
                               TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     test_init("testqueue",1,"[-in|-out|-a|-f] (iters) (maxdepth) (maxsz)\n"
-               "  The 'in' or 'out' option selects whether the initiator-side\n"
-               "  memory is in the GASNet segment or not (default is not).\n"
+               "  The '-in' or '-out' option selects whether the initiator-side\n"
+               "    memory is in the GASNet segment or not (default is 'in').\n"
                "  The -a option enables full-duplex mode, where all nodes send.\n"
                "  The -f option enables 'first/last' mode, where the first node\n"
                "  sends to the last, while all other nodes sit idle.\n"
