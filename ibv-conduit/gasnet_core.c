@@ -1936,6 +1936,77 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
 #endif /* GASNETC_IBV_XRC */
 
+  // Detect configuration differences (likely to be) due to heterogeneous clusters
+  {
+    const uint32_t srq_flag = 0x80000000;
+    const uint32_t xrc_flag = 0x40000000;
+    uint32_t config_word =
+        (gasnetc_use_srq ? srq_flag : 0) |
+        (gasnetc_use_xrc ? xrc_flag : 0) |
+        ((gasnetc_num_hcas & 0xff) << 8) |
+        (gasnetc_num_ports & 0xff);
+    int srq_squashed = 0;
+    uint32_t *all_configs = gasneti_malloc(gasneti_nodes * sizeof(config_word));
+    gasneti_bootstrapExchange(&config_word, sizeof(config_word), all_configs);
+#if GASNETC_IBV_SRQ
+    // Auto-disable (with warning) SRQ if inhomogeneous
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+      if (srq_flag & (config_word ^ all_configs[i])) {
+        gasnetc_use_srq = 0;
+      #if GASNETC_IBV_XRC
+        gasnetc_use_xrc = 0;
+        srq_squashed = 1;
+      #endif
+        GASNETI_TRACE_PRINTF(I, ("SRQ disabled because availability differs across nodes"));
+        if (!gasneti_mynode) {
+          fprintf(stderr,
+                  "WARNING: SRQ disabled because availability differs across nodes.\n"
+                  "         To suppress this message set environment variable\n"
+                  "         GASNET_USE_SRQ=0 or reconfigure with --disable-ibv-srq.\n");
+        }
+      }
+    }
+#endif // GASNETC_IBV_SRQ
+#if GASNETC_IBV_XRC
+    // Auto-disable (with warning) XRC if inhomogeneous
+    // Note that if SRQ was "squashed" above, then we won't complain about both
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+      if (xrc_flag & (config_word ^ all_configs[i])) {
+        gasnetc_use_xrc = 0;
+        if (!srq_squashed) {
+          GASNETI_TRACE_PRINTF(I, ("XRC disabled because availability differs across nodes"));
+          if (!gasneti_mynode) {
+            fprintf(stderr,
+                    "WARNING: XRC disabled because availability differs across nodes.\n"
+                    "         To suppress this message set environment variable\n"
+                    "         GASNET_USE_XRC=0 or reconfigure with --disable-ibv-xrc.\n");
+          }
+        }
+      }
+    }
+#endif // GASNETC_IBV_XRC
+    // Fail gracefully if HCA or port counts are inhomogeneous
+    if (!gasneti_mynode) {
+      for (gex_Rank_t i = 1; i < gasneti_nodes; ++i) {
+        if (0xff00 & (config_word ^ all_configs[i])) {
+          gasneti_fatalerror("Inhomogeneous IB HCA count - cannot continue.\n"
+                             "See README for GASNet's ibv-conduit for more information, especially\n"
+                             "on multi-rail support and the GASNET_IBV_PORTS environment variable.\n"
+                             "First detected mismatch: proc 0: %d vs. proc %d: %d\n",
+                             gasnetc_num_hcas, (int)i, (int)(0xff & (all_configs[i] >> 8)));
+        }
+        if (0xff & (config_word ^ all_configs[i])) {
+          gasneti_fatalerror("Inhomogeneous IB PORT count - cannot continue.\n"
+                             "See README for GASNet's ibv-conduit for more information, especially\n"
+                             "on multi-rail support and the GASNET_IBV_PORTS environment variable.\n"
+                             "First detected mismatch: proc 0: %d vs. proc %d: %d\n",
+                             gasnetc_num_ports, (int)i, (int)(0xff & all_configs[i]));
+        }
+      }
+    }
+    gasneti_free(all_configs);
+  }
+
 #if GASNETC_IBV_ODP
   gasnetc_use_odp = gasneti_getenv_int_withdefault("GASNET_USE_ODP", 1, 0);
   if (gasnetc_use_odp) {
