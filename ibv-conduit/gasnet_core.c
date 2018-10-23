@@ -1017,6 +1017,30 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_physmem_check("Probing O/S limits and HCA capabilities", limit);
 }
 
+GASNETI_NORETURN
+static void gasneti_segreg_failed(const char *which, int why) {
+  const char *hint = "";
+#if !GASNETI_PSHM_POSIX
+  // N/A
+#elif PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL
+  #define GASNETC_PSHM_FS "/dev/shm"
+#elif PLATFORM_OS_NETBSD
+  #define GASNETC_PSHM_FS "/var/shm"
+#elif PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+  #define GASNETC_PSHM_FS "/tmp"
+#else
+  // Cygwin, macOS and Solaris are not believed to back with a filesystem
+  // Others are unknown
+#endif
+#ifdef GASNETC_PSHM_FS
+  if (why == EFAULT) {
+    hint = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar)";
+  }
+#endif
+  gasneti_fatalerror("Unexpected error %s (errno=%d) when registering the%s segment%s",
+                     strerror(why), why, which, hint);
+}
+
 #if GASNET_TRACE
 static const char *mtu_to_str(enum ibv_mtu mtu) {
   switch (mtu) {
@@ -2205,8 +2229,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           if (0 != gasnetc_pin(hca, (void *)addr, len,
 			      (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ),
 			      &memreg)) {
-             gasneti_fatalerror("Unexpected error %s (errno=%d) when registering the segment",
-                                strerror(errno), errno);
+             gasneti_segreg_failed("", errno);
           }
 	  my_rkeys[j] = memreg.handle->rkey;
 	  hca->seg_lkeys[j] = memreg.handle->lkey;
