@@ -20,6 +20,14 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING:
+
+* InfiniBand Verbs (ibv-conduit)
+  - When available, Mellanox ODP support now replaces local dynamic memory
+    registration.  This resolves bug 495 for clients using SEGMENT_FAST when
+    ODP support is available.
+
+----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release
 
 * GASNet-EX copyright notice and license agreement updated (see license.txt)
