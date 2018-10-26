@@ -97,7 +97,7 @@ legion-patch: force
 
 # Either install GASNet (empty LEGION_GASNET) or use in-place
 ifeq ($(LEGION_GASNET),)
-LEGION_GASNET_INST = $(LEGION_BLDDIR)/gasnet
+export LEGION_GASNET_INST = $(LEGION_BLDDIR)/gasnet
 legion-gasnet: force
 	if test -d "$(LEGION_GASNET_INST)"; then \
 	  rm -Rf "$(LEGION_GASNET_INST)";  \
@@ -107,7 +107,7 @@ legion-gasnet: force
 	@echo ======== Installing GASNet at $(LEGION_GASNET_INST) ========
 	$(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(LEGION_GASNET_INST)"
 else
-LEGION_GASNET_INST = $(LEGION_GASNET)
+export LEGION_GASNET_INST = $(LEGION_GASNET)
 legion-gasnet: force
 	@if test -f "$(LEGION_GASNET_INST)/include/gasnet.h"; then \
 	  echo ======== Using GASNet pre-installed at $(LEGION_GASNET_INST) ========; \
