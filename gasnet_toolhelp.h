@@ -462,8 +462,14 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     #if GASNETI_USE_TRUE_MUTEXES
       #define GASNETI_THREADID_T        pthread_t
       #define GASNETI_THREADIDQUERY()   pthread_self()
-      #define _gasneti_assert_owner(op1, operator, op2) \
+      #if PLATFORM_COMPILER_PGI
+        // PGI 18.4 on MacOS observed to generate incorrect code for assert_ptr version below
+        #define _gasneti_assert_owner(op1, operator, op2) \
+          gasneti_assert((op1) operator (op2))
+      #else
+        #define _gasneti_assert_owner(op1, operator, op2) \
           gasneti_assert_ptr((void*)(uintptr_t)(op1), operator, (void*)(uintptr_t)(op2))
+      #endif
     #else
       #define GASNETI_THREADID_T        uintptr_t
       #define GASNETI_THREADIDQUERY()   ((uintptr_t)0)
