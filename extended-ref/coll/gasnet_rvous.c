@@ -249,10 +249,13 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       /* Not all data has arrived yet */
       break;
     }
-    imm_flag = GEX_FLAG_IMMEDIATE; // execute next step w/ IMM flag only on first attempt
     data->state = 3; GASNETI_FALLTHROUGH
 
   case 3: {	/* Send data */
+    // We execute this step w/ IMM flag when the private_data field is NULL.
+    // TODO: we are using an otherwise unused pointer field as a Boolean,
+    // to avoid dynamic allocation, but could/should do something less obscure.
+    imm_flag = data->private_data ? 0 : GEX_FLAG_IMMEDIATE;
     gex_Rank_t child_cnt = gasnete_tm_binom_children(tm, rel_rank);
     if (child_cnt) {
       /* Internal nodes send at most one AM per peer for each poll */
@@ -260,14 +263,22 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       const gex_Rank_t size = gex_TM_QuerySize(tm);
       int idx = child_cnt;
       int work_remains = 0;
+      int sent = 0;
       while (idx--) { // Note reverse order for deepest subtree first
         gex_Rank_t distance = 1 << idx;
         gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
         int status = gasnete_tm_p2p_send_data(op, data->p2p, peer, idx, args->dst,
                                          args->nbytes, imm_flag GASNETI_THREAD_PASS);
         work_remains |= status;
+        sent |= (status == 1);
       }
-      if (work_remains) { break; }
+      if (work_remains) {
+        // At least one send_data call indicated some data is still unsent.
+        // If nothing was sent this poll, turn off IMM flag for next poll.
+        // Otherwise, enable IMM flag (even if already enabled).
+        data->private_data = (void*)(uintptr_t)(! sent);
+        break;
+      }
     }
     data->state = 4; GASNETI_FALLTHROUGH
   }
