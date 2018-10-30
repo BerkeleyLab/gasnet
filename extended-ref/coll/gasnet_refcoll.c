@@ -1223,6 +1223,10 @@ int gasnete_tm_p2p_send_rtr(
 }
 
 /* Respond to a gasnete_tm_p2p_send_rtr */
+// Return:
+//   0: no data remains to be sent (done)
+//   1: unsent data remains OR xfer has not even started
+//   2: unsent data remains, but was not sent due to IMMEDIATE back-pressure
 int gasnete_tm_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                              gex_Rank_t rank, uint32_t offset,
                              const void *src, size_t nbytes,
@@ -1235,17 +1239,21 @@ int gasnete_tm_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
     if_pt (count) {
       void *tmp = (void *)((uintptr_t)src + sent);
       void *addr = status[offset].addr;
-      count = MIN(count, gex_AM_LUBRequestMedium());
+      const size_t limit = gex_AM_LUBRequestMedium();
+      const int more = (count > limit);
+      if (more) count = limit;
       if (gasnete_tm_p2p_memcpy(op, rank, addr, tmp, count, flags GASNETI_THREAD_PASS)) {
-        return 0; // back pressure
+        return 2; // back pressure
       }
       status[offset].addr = (void *)((uintptr_t)addr + count);
       status[offset].sent += count;
+      return more;
     } else {
       p2p->state[offset] = 2;
+      return 0;
     }
   }
-  return (p2p->state[offset] == 2);
+  return (p2p->state[offset] != 2);
 }
 #endif
 

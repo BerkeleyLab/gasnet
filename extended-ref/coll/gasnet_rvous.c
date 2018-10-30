@@ -259,14 +259,15 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       const gex_Rank_t self = gex_TM_QueryRank(tm);
       const gex_Rank_t size = gex_TM_QuerySize(tm);
       int idx = child_cnt;
-      int done = 1;
+      int work_remains = 0;
       while (idx--) { // Note reverse order for deepest subtree first
         gex_Rank_t distance = 1 << idx;
         gex_Rank_t peer = (distance >= size - self) ? self - (size - distance) : self + distance;
-        done &= gasnete_tm_p2p_send_data(op, data->p2p, peer, idx, args->dst,
+        int status = gasnete_tm_p2p_send_data(op, data->p2p, peer, idx, args->dst,
                                          args->nbytes, imm_flag GASNETI_THREAD_PASS);
+        work_remains |= status;
       }
-      if (!done) {break;}
+      if (work_remains) { break; }
     }
     data->state = 4; GASNETI_FALLTHROUGH
   }
@@ -408,14 +409,15 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
     case 2:
       if (op->team->myrank == args->srcnode) {
 	/* Root sends at most one AM per peer for each poll */
-	int done = 1;
+	int work_remains = 0;
 	for (gex_Rank_t i=0; i<op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
-	  done &= gasnete_tm_p2p_send_data(op, data->p2p, i, i,
+	  int status = gasnete_tm_p2p_send_data(op, data->p2p, i, i,
 					   gasnete_coll_scale_ptr(args->src, i, args->nbytes),
 					   args->nbytes, imm_flag GASNETI_THREAD_PASS);
+          work_remains |= status;
 	}
-	if (!done) {break;}
+	if (work_remains) {break;}
       } else if (gasnete_tm_p2p_send_done(data->p2p)) {
         gasneti_sync_reads();
       } else {
@@ -559,9 +561,9 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
     case 2:
       if (op->team->myrank != args->dstnode) {
 	/* non-root nodes send at most one AM per poll */
-	int done = gasnete_tm_p2p_send_data(op, data->p2p, args->dstnode, 0,
+	int work_remains = gasnete_tm_p2p_send_data(op, data->p2p, args->dstnode, 0,
                                             args->src, args->nbytes, imm_flag GASNETI_THREAD_PASS);
-	if (!done) {break;}
+	if (work_remains) break;
       } else if (gasnete_tm_p2p_send_done(data->p2p)) {
         gasneti_sync_reads();
       } else {
