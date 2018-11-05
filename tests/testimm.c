@@ -184,16 +184,16 @@ int main(int argc, char **argv) {
 
   char *space = NULL;
   char nbrhd_warning[64] = "";
-  int nbrhd_only = 0;
+  gex_System_QueryNbrhdInfo(&nbrhdinfo, &nbrhdsize, NULL);
+  int nbrhd_only = (nbrhdsize == numrank);
   if (!myrank) {
-    gex_System_QueryNbrhdInfo(&nbrhdinfo, &nbrhdsize, NULL);
     if (nbrhdsize == 1) {
       // The passive ranks are all OUTSIDE our neighborhood
     } else if (nbrhdsize == numrank) {
       // The passive ranks are all INSIDE our neighborhood
       nbrhdinfo = NULL; // suppress filtering
       nbrhdsize = 1;    // and correct reported passive rank count
-      nbrhd_only = 1;
+      assert(nbrhd_only);
     #if !GASNET_CONDUIT_SMP // would be "just noise" for smp-conduit
       strcpy(nbrhd_warning, "\n  WARNING: all ranks are reachable via shared-memory");
     #endif
