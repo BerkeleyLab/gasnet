@@ -275,10 +275,11 @@ int main(int argc, char **argv) {
 
 void passive(void) {
   uint64_t interval_ns = 1000 * param_Z;
-  gasnet_barrier_notify(0,0);
+  gex_Event_t bar = gex_Coll_BarrierNB(myteam,0);
   do {
     gasnett_nsleep(interval_ns);
-  } while (gasnet_barrier_try(0,0) == GASNET_ERR_NOT_READY);
+    gasnet_AMPoll();
+  } while (gex_Event_Test(bar) != GASNET_OK);
 }
 
 #define ACTIVE(OPERATION, SYNC) do {                    \
@@ -345,7 +346,7 @@ void doMed(gex_Flags_t imm_flag) {
     static double prev;
     report("MEDIUM:", imm_flag, elapsed, &prev);
 
-    gasnet_barrier(0,0);
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
   }
 }
 
@@ -364,7 +365,7 @@ void doLong(gex_Flags_t imm_flag) {
     static double prev;
     report("LONG:", imm_flag, elapsed, &prev);
 
-    gasnet_barrier(0,0);
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
   }
 }
 
@@ -383,7 +384,7 @@ void doPut(gex_Flags_t imm_flag) {
     static double prev;
     report("PUT:", imm_flag, elapsed, &prev);
 
-    gasnet_barrier(0,0);
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
   }
 }
 
@@ -401,6 +402,6 @@ void doGet(gex_Flags_t imm_flag) {
     static double prev;
     report("GET:", imm_flag, elapsed, &prev);
 
-    gasnet_barrier(0,0);
+    gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
   }
 }
