@@ -12,6 +12,10 @@ PENDING:
   - Fix bug 3742: Atomic CAS failures on PPCle+{pgi,clang}
   - Silence harmless library compile warnings from gcc 8.*
 
+* Configure and Build
+  - cross-configure scripts can now optionally be run without copying them to
+    the source directory, by setting $SRCDIR to indicate the source directory.
+
 * Platform support/portability
   - Improvements to internal logic for handling thread data on platforms
     lacking native register-level support for thread data.

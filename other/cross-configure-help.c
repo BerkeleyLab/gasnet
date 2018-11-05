@@ -240,11 +240,14 @@ int main(void) {
   CHECK_SIG(USR1);
 
   printf(
-"\n\nSRCDIR=`dirname $0`\n"
-"if test ! -f \"$SRCDIR/configure\" ; then\n"
-"  echo \"ERROR: The $0 script should be placed in the same directory as the configure script before execution\"\n"
-"  exit 1\n"
+"\n# Find source directory\n\n"
+"if test -z \"$SRCDIR\" || test ! -f \"$SRCDIR/configure\" ; then\n"
+"  SRCDIR=`dirname $0`\n"
 "fi\n"
+"if test ! -f \"$SRCDIR/configure\" ; then\n"
+"  echo \"ERROR: Source directory not found. Either set \\$SRCDIR=/path/to/src or copy/link the `basename $0` script to the same directory as the configure script\"\n"
+"  exit 1\n"
+"fi\n\n"
 "# Detect the build+host machine type\n"
 "HOST_APPEND=\n"
 "for sys in host build; do\n"
