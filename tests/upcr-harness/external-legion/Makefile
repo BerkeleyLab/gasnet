@@ -145,10 +145,10 @@ _legion_clean: force
 	
 _legion: force
 	rm -Rf legion-built launcher $(LOGFILE)
-	$(MAKE) legion-download 2>&1 | tee $(LOGFILE)
-	$(MAKE) legion-patch 2>&1 | tee -a $(LOGFILE)
+	$(call safe_tee_dance, $(MAKE) legion-download)
+	$(call safe_tee_dance, $(MAKE) legion-patch)
 	$(PERL) -pi -e s,mpi_interop,realm_saxpy,g -- $(LEGION_BLDDIR)/test.py # replace bogus test
-	$(MAKE) legion-gasnet 2>&1 | tee -a $(LOGFILE)
+	$(call safe_tee_dance, $(MAKE) legion-gasnet)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 	$(MAKE) launcher rtlibs
 	@touch legion-built
@@ -189,3 +189,7 @@ $(TESTS): force; $(MAKE) one_test TEST_DIR=test/$@ TEST_EXE=$@
 force:
 
 .PHONY: force one_test $(TESTS_PY)
+
+# Run a command, with output to both stdout and $(LOGFILE), preserving exit code of the command
+# Based on https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/70675#70675
+safe_tee_dance = (((($1; echo $$? >&3) 2>&1 | tee -a $(LOGFILE) >&4) 3>&1) | (read rc; exit $$rc)) 4>&1
