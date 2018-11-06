@@ -22,6 +22,10 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 PENDING:
 
+* GASNet-EX Spec v0.X:
+  - Barriers initiated using gex_Coll_BarrierNB() are now permitted to
+    overlap with collectives on the same team (including other barriers).
+
 * InfiniBand Verbs (ibv-conduit)
   - When available, Mellanox ODP support now replaces local dynamic memory
     registration.  This resolves bug 495 for clients using SEGMENT_FAST when

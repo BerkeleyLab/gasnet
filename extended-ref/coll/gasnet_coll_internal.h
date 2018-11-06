@@ -227,7 +227,7 @@ typedef struct gasnete_coll_consensus_t_* gasnete_coll_consensus_t;
 extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team);
 extern void gasnete_coll_consensus_free(gasnete_coll_team_t team, gasnete_coll_consensus_t consensus);
 extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id);
-extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETI_THREAD_FARG);
+extern int gasnete_coll_consensus_barrier(gasnete_coll_team_t team GASNETI_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 
