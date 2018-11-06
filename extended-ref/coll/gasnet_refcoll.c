@@ -672,7 +672,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
     : GASNET_ERR_NOT_READY;
 }
 /* Allocate a new barrier and wait for all barriers to finish before this id*/
-extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETI_THREAD_FARG) {
+extern int gasnete_coll_consensus_barrier(gasnete_coll_team_t team GASNETI_THREAD_FARG) {
   gasnete_coll_consensus_t mybarr;
   
   mybarr = gasnete_coll_consensus_create(team);
@@ -2306,7 +2306,7 @@ extern void
 gasnete_tm_barrier_default(gex_TM_t e_tm, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t team = gasneti_import_tm(e_tm)->_coll_team;
-  gasnete_coll_consensus_wait(team GASNETI_THREAD_PASS);
+  gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
