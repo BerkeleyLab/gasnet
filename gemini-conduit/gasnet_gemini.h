@@ -64,18 +64,9 @@
 #endif
 
 /* debug support */
-#define gasnetc_GNIT_Abort(msg, args...) do {			  \
-    fprintf(stderr, "node %d error %s: " msg "\n", gasneti_mynode,	  \
-	    gasnett_current_loc, ##args);		  \
-    gasnett_fatalerror("fatalerror (see above)");	  \
-  } while(0)
+#define gasnetc_GNIT_Abort(...) gasneti_fatalerror(__VA_ARGS__)
 
-#define gasnetc_GNIT_Log(msg, args...) do {			  \
-    fprintf(stderr, "node %d log %s: " msg "\n", gasneti_mynode,	  \
-	    gasnett_current_loc, ##args);		  \
-    fflush(stderr); \
-  } while(0)
-
+#define gasnetc_GNIT_Log(...) gasneti_console_message("log", __VA_ARGS__)
 
 /* global vars from environment */
 extern int      gasnetc_dev_id;

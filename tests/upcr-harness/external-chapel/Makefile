@@ -113,7 +113,7 @@ endif
 # Build and (optionally) install Chapel compiler and runtime
 _chapel: force
 	rm -f chapel-built
-	$(MAKE) chapel-download 2>&1 | tee $(LOGFILE)
+	$(call safe_tee_dance, $(MAKE) chapel-download)
 	$(MAKE) chapel-launcher
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
@@ -209,3 +209,7 @@ $(PROGRAMS): force; $(MAKE) one_test TEST_EXE=$@ TEST_DIR=examples/programs/$@
 force:
 
 .PHONY: force
+
+# Run a command, with output to both stdout and $(LOGFILE), preserving exit code of the command
+# Based on https://unix.stackexchange.com/questions/14270/get-exit-status-of-process-thats-piped-to-another/70675#70675
+safe_tee_dance = (((($1; echo $$? >&3) 2>&1 | tee -a $(LOGFILE) >&4) 3>&1) | (read rc; exit $$rc)) 4>&1

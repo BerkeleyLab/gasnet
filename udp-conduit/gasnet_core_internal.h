@@ -46,7 +46,7 @@ extern volatile int gasnetc_AMLockYield;
    is unknown, eg exit-time processing */
 #if GASNET_DEBUG
   /* ignore recursive lock attempts */
-  #define _AMLOCK_CAUTIOUS_HELPER() if (gasnetc_AMlock.owner == GASNETI_THREADIDQUERY()) break
+  #define _AMLOCK_CAUTIOUS_HELPER() if (gasnetc_AMlock._owner == GASNETI_THREADIDQUERY()) break
 #else
   #define _AMLOCK_CAUTIOUS_HELPER() ((void)0)
 #endif
@@ -95,7 +95,7 @@ const char *gasneti_AMErrorName(int errval) {
  * else, set retval to zero
  */
 #define GASNETI_AM_SAFE_NORETURN(retval,fncall) do {                   \
-   gasneti_assert(AM_OK == 0);                                         \
+   gasneti_static_assert(AM_OK == 0);                                  \
    retval = (fncall);                                                  \
    if_pf (retval) {                                                    \
      if (gasneti_VerboseErrors) {                                      \

@@ -9,6 +9,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: Job Spawning @
 @ Section: Runtime Configuration @
 @ Section: Multi-rail Support @
+@ Section: On-Demand Paging (ODP) Support @
 @ Section: HCA Configuration @
 @ Section: Known Problems @
 @ Section: Core API @
@@ -576,11 +577,26 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_USE_XRC
     This controls whether IBV eXtended Reliable Connection (XRC) support
-    is used.  However, it is is ignored if GASNet was was configured with
+    is used.  However, it is is ignored if GASNet was configured with
     --disable-ibv-xrc, if XRC support was not found at configure time, or
     if SRQ support is not used (regardless of why),
     This setting defaults to 1 if SRQ support was enabled at configure
     time.  As a result XRC will be used anytime SRQ is used.
+
+  + GASNET_USE_ODP
+    This boolean setting controls whether IBV On-Demand Paging (ODP) support
+    is used.  However, it is ignored if GASNet was configured with
+    --disable-ibv-odp, or if ODP support was not found at configure time.
+    This setting defaults to 1 if ODP support was enabled at configure time.
+
+  + GASNET_ODP_VERBOSE
+    This integer setting controls the detail of the warning printed when ODP
+    support is enabled but is not present on one or more HCAs in the job.
+    A value of 0 supresses the warning entirely.
+    A value of 1 will report a count of processes lacking support.
+    Values of 2 or higher give increasing levels of detail concerning the
+    missing support.
+    This setting defaults to 1 if ODP support was enabled at configure time.
 
    + GASNET_PIN_MAXSZ
     This controls the maximum size of a pinned memory region.  The value must
@@ -860,6 +876,29 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   the GASNET_NUM_QPS and/or GASNET_IBV_PORTS environment variables
   (documented in "Runtime Configuration") to determine how a given
   application runs best.
+
+  IMPORTANT NOTE:
+  The multi-rail support in ibv-conduit makes the assumption that the
+  number of HCAs used in every process will be identical.  One must use
+  GASNET_IBV_PORTS to ensure that this property is true.  Otherwise, the
+  behavior is undefined (startup crash being the most likely).
+
+@ Section: On-Demand Paging (ODP) Support @
+
+   Recent Mellanox HCAs (ConnectX-4 and newer) support a feature known as
+   On-Demand Paging (ODP).  Where this support is available, ibv-conduit
+   can use it to reduce resource pressure on physical memory.  By default,
+   ibv-conduit will attempt to warn at runtime if this support does not
+   appear to be available despite having either the required software or
+   hardware.  If you are using Mellanox Connect4-X HCAs or newer and
+   ibv-conduit warns about missing ODP support, we recommend that you
+   install the latest "Mellenox OFED" (aka MLNX_OFED) distribution,
+   available for download from Mellanox.  Mellanox provides documentation
+   on installing the software and upgrading the HCA firmware (if needed).
+
+   If you cannot install MLNX_OFED, or ibv-conduit has mistakenly warned
+   about an HCA which is not ODP-capable, then we recommend configuring
+   GASNet using --disable-ibv-odp.
 
 @ Section: HCA Configuration @
 

@@ -12,6 +12,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
+  #include <sys/statvfs.h>
+#endif
+
 #if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
 #define GASNETI_BUG3480_MSG "\nYour system is suspected to be impacted by bug 3480"
 #else
@@ -87,8 +91,8 @@
      static long pagesz = 0;
      if (!pagesz) {
        pagesz = gethugepagesize();
-       gasneti_assert(pagesz >= GASNETI_PAGESIZE);
-       gasneti_assert(pagesz % GASNETI_PAGESIZE == 0);
+       gasneti_assert_uint(pagesz ,>=, GASNETI_PAGESIZE);
+       gasneti_assert_uint(pagesz % GASNETI_PAGESIZE ,==, 0);
      }
      return pagesz;
   }
@@ -321,7 +325,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 #endif
   int i;
 
-  gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
+  gasneti_assert_uint(strlen(prefix) ,==, GASNETI_PSHM_PREFIX_LEN);
 
 #if defined(GASNETI_PSHM_FILE) && defined(GASNETI_USE_HUGETLBFS)
   { const char *hugedir = hugetlbfs_find_path();
@@ -360,7 +364,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 
     /* Strip away the tmpdir to yield a unique prefix */
     unique = strrchr(gasneti_pshm_tmpfile, '/');
-    gasneti_assert(strlen(unique) == GASNETI_PSHM_PREFIX_LEN);
+    gasneti_assert_uint(strlen(unique) ,==, GASNETI_PSHM_PREFIX_LEN);
     unique += GASNETI_PSHM_PREFIX_LEN1;
   }
 
@@ -392,7 +396,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 #else
   /* Three base-36 "digits" provide 46,656 unique names, even if case-insensitive. */
  #if GASNETI_PSHM_MAX_NODES > 255
-  gasneti_assert_always(gasneti_pshm_nodes < (36*36*36));
+  gasneti_assert_always_uint(gasneti_pshm_nodes ,<, (36*36*36));
  #endif
 
   /* Note: 'unique' might not be NUL terminated */
@@ -438,7 +442,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 static uintptr_t huge_pagesz(void *addr, uintptr_t size) {
   static long pagesz = 0;
   if (!pagesz) pagesz = gethugepagesize();
-  gasneti_assert((uintptr_t)addr % pagesz == 0); /* alignment check */
+  gasneti_assert_uint((uintptr_t)addr % pagesz ,==, 0); /* alignment check */
   return GASNETI_ALIGNUP(size, pagesz);
 }
 
@@ -816,7 +820,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 }
 
 static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gex_Rank_t pshmnode) {
-  gasneti_assert(pshmnode < gasneti_pshm_nodes);
+  gasneti_assert_uint(pshmnode ,<, gasneti_pshm_nodes);
   return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
@@ -1069,7 +1073,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   gasnet_seginfo_t si;
   int mmaped = 0;
 
-  gasneti_assert(maxsz == GASNETI_PAGE_ALIGNDOWN(maxsz));
+  gasneti_assert_uint(maxsz ,==, GASNETI_PAGE_ALIGNDOWN(maxsz));
 
   si.addr = gasneti_do_mmap(maxsz);
   if (si.addr != MAP_FAILED) { /* succeeded at max value - done */
@@ -1100,7 +1104,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
-  gasneti_assert(si.size % GASNET_PAGESIZE == 0);
+  gasneti_assert_uint(si.size % GASNET_PAGESIZE ,==, 0);
   if (mmaped && ((uintptr_t)si.addr) % GASNET_PAGESIZE == 0) {
     /* aligned and mmaped - nothing to do */
   } else { /* need to page-align base */
@@ -1117,7 +1121,8 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
-  gasneti_assert(((uintptr_t)si.addr) % GASNET_PAGESIZE == 0 && si.size % GASNET_PAGESIZE == 0);
+  gasneti_assert_uint(((uintptr_t)si.addr) % GASNET_PAGESIZE ,==, 0);
+  gasneti_assert_uint(si.size % GASNET_PAGESIZE ,==, 0);
   return si;
 }
 
@@ -1190,11 +1195,11 @@ uintptr_t gasneti_max_segsize() {
     // round UP to nearest huge page, if needed, to ensure we don't truncate client's MAX_SEGSIZE request
     val = gasneti_mmap_alignup(val);
 
-    gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
-    gasneti_assert(val >= GASNET_PAGESIZE);
-    gasneti_assert(val <= hardmax);
+    gasneti_assert_uint(val ,==, GASNETI_PAGE_ALIGNDOWN(val));
+    gasneti_assert_uint(val ,>=, GASNET_PAGESIZE);
+    gasneti_assert_uint(val ,<=, hardmax);
     result = (uintptr_t)val;
-    gasneti_assert(result == val); // overflow check
+    gasneti_assert_uint(result ,==, val); // overflow check
   }
   return result;
 }
@@ -1267,6 +1272,35 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   }
 #endif
 
+#if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
+  { // Apply limits appropriate to filesystem-backed allocation
+    const int flags = O_RDWR | O_CREAT | O_EXCL;
+    const mode_t mode = S_IRUSR | S_IWUSR;
+    const char *filename = gasneti_pshmname[gasneti_pshm_mynode];
+    struct statvfs buf;
+
+  #if GASNETI_PSHM_POSIX
+    int fd = shm_open(filename, flags, mode);
+  #else
+    int fd = open(filename, flags, mode);
+  #endif
+
+    if (fd >= 0) {
+      // TODO: for now we ignore any errors here
+      if (0 == fstatvfs(fd, &buf)) {
+        uint64_t free_space = buf.f_bsize * buf.f_bavail;
+        if (free_space) sharedLimit = MIN(sharedLimit, free_space);
+      }
+      (void) close(fd);
+    #if GASNETI_PSHM_POSIX
+      (void) shm_unlink(filename);
+    #else
+      (void) unlink(filename);
+    #endif
+    }
+  }
+#endif
+
   /* Apply intial limits, even if not sharing nodes */
   uintptr_t auxsegsz = gasneti_auxseg_preinit();
   maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
@@ -1313,7 +1347,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
         gex_Rank_t *tmp = gasneti_calloc(num_hosts, sizeof(gex_Rank_t));
         for (i = 0; i < gasneti_nodes; ++i) {
           const gex_Rank_t host = gasneti_nodeinfo[i].host;
-          gasneti_assert(host < num_hosts);
+          gasneti_assert_uint(host ,<, num_hosts);
           tmp[host] += 1;
           rounds = MAX(rounds, tmp[host]);
         }
@@ -1433,11 +1467,11 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
 
-  gasneti_assert(gasneti_MaxLocalSegmentSize == 0);
-  gasneti_assert(gasneti_MaxGlobalSegmentSize == 0);
+  gasneti_assert_uint(gasneti_MaxLocalSegmentSize ,==, 0);
+  gasneti_assert_uint(gasneti_MaxGlobalSegmentSize ,==, 0);
   gasneti_assert(exchangefn);
-  gasneti_assert(gasneti_nodes > 0);
-  gasneti_assert(gasneti_mynode < gasneti_nodes);
+  gasneti_assert_uint(gasneti_nodes ,>, 0);
+  gasneti_assert_uint(gasneti_mynode ,<, gasneti_nodes);
 
 #if GASNET_SEGMENT_EVERYTHING
 
@@ -1606,10 +1640,10 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     GASNETI_TRACE_PRINTF(C, ("MaxLocalSegmentSize = %"PRIuPTR"   MaxGlobalSegmentSize = %"PRIuPTR,
                            gasneti_MaxLocalSegmentSize, gasneti_MaxGlobalSegmentSize));
 
-    gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
-    gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
-    gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
-    gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
+    gasneti_assert_uint(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE ,==, 0);
+    gasneti_assert_uint(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE ,==, 0);
+    gasneti_assert_uint(gasneti_MaxGlobalSegmentSize ,<=, gasneti_MaxLocalSegmentSize);
+    gasneti_assert_uint(gasneti_MaxLocalSegmentSize ,<=, localSegmentLimit);
   }
 
   // PART V: Discard the pre-segment if not supporting GASNet-1's attach
@@ -1646,7 +1680,7 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
     #else
       segbase = segment_p->addr;
     #endif
-      gasneti_assert(segsize <= segment_p->size);
+      gasneti_assert_uint(segsize ,<=, segment_p->size);
       if (GASNET_PSHM || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
         gasneti_do_munmap(segment_p->addr, segment_p->size);
         gasneti_bug3480_fence(exchangefn);
@@ -1686,8 +1720,8 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
       segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
     }
   #endif /* GASNETI_MMAP_OR_PSHM */
-  gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+  gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
+  gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%"PRIuPTR,
     GASNETI_LADDRSTR(segbase), segsize));
 
@@ -1710,14 +1744,14 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
     // For the case of supernode peers with contiguous ranks we examine no extra nodes
     for (gex_Rank_t node = gasneti_pshm_firstnode; local_rank < gasneti_pshm_nodes; node++) {
         if (! gasneti_pshm_jobrank_in_supernode(node)) continue;
-        gasneti_assert(local_rank == gasneti_pshm_jobrank_to_local_rank(node));
+        gasneti_assert_uint(local_rank ,==, gasneti_pshm_jobrank_to_local_rank(node));
         if (node != gasneti_mynode) {
 
             const uintptr_t size = seginfo[node].size;
             void *segbase = gasneti_mmap_remote_shared(NULL, size, local_rank);
 
-            gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-            gasneti_assert(size % GASNET_PAGESIZE == 0);
+            gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
+            gasneti_assert_uint(size % GASNET_PAGESIZE ,==, 0);
 
             // TODO-EX: single global gasneti_nodeinfo is a problem (eg for aux vs client)
             gasneti_nodeinfo[node].offset = (uintptr_t)segbase - (uintptr_t)seginfo[node].addr;
@@ -1809,7 +1843,7 @@ extern void gex_System_QueryNbrhdInfo(
   GASNETI_CHECKINIT();
 #if GASNET_PSHM
   if (info_p) {
-    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    gasneti_static_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
     *info_p = (gex_RankInfo_t *) gasneti_mysupernode.nodes;
   }
   if (info_count_p) {
@@ -1820,7 +1854,7 @@ extern void gex_System_QueryNbrhdInfo(
   }
 #else
   if (info_p) {
-    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    gasneti_static_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
     *info_p = (gex_RankInfo_t *) &gasneti_mynode;
   }
   if (info_count_p) {
@@ -1843,7 +1877,7 @@ extern void gex_System_QueryHostInfo(
 {
   GASNETI_CHECKINIT();
   if (info_p) {
-    gasneti_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
+    gasneti_static_assert(sizeof(gex_RankInfo_t) == sizeof(gex_Rank_t));
     *info_p = (gex_RankInfo_t *) gasneti_myhost.nodes;
   }
   if (info_count_p) {
@@ -1914,8 +1948,8 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
                            (aux_ub <= (uintptr_t)gasneti_seginfo[i].addr));
           }
           /* misc segment sanity checks */
-          gasneti_assert(((uintptr_t)gasneti_seginfo_aux[i].addr) % GASNET_PAGESIZE == 0);
-          gasneti_assert(((uintptr_t)gasneti_seginfo[i].addr) % GASNET_PAGESIZE == 0);
+          gasneti_assert_uint(((uintptr_t)gasneti_seginfo_aux[i].addr) % GASNET_PAGESIZE ,==, 0);
+          gasneti_assert_uint(((uintptr_t)gasneti_seginfo[i].addr) % GASNET_PAGESIZE ,==, 0);
         }
       }
     }
@@ -2036,15 +2070,15 @@ static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
     }
     for (i=0; i < gasneti_nodes; i++) {
       gasneti_assert(auxseg_save[i].addr);
-      gasneti_assert(((uintptr_t)auxseg_save[i].addr) % GASNETI_CACHE_LINE_BYTES == 0);
-      gasneti_assert(((uintptr_t)auxseg_save[i].addr) % 8 == 0);
-      gasneti_assert(auxseg_save[i].size >= retval.minsz);
-      gasneti_assert(auxseg_save[i].size <= retval.optimalsz);
+      gasneti_assert_uint(((uintptr_t)auxseg_save[i].addr) % GASNETI_CACHE_LINE_BYTES ,==, 0);
+      gasneti_assert_uint(((uintptr_t)auxseg_save[i].addr) % 8 ,==, 0);
+      gasneti_assert_uint(auxseg_save[i].size ,>=, retval.minsz);
+      gasneti_assert_uint(auxseg_save[i].size ,<=, retval.optimalsz);
     }
     for (i=0; i < auxseg_save[gasneti_mynode].size; i++) {
       uint8_t *p = (uint8_t *)auxseg_save[gasneti_mynode].addr;
       #define AUXSEG_TESTVAL(i) ((uint8_t)(8|((i+0x3F)^(i>>8))))
-      if (selftest) gasneti_assert(p[i] == AUXSEG_TESTVAL(i));
+      if (selftest) gasneti_assert_uint(p[i] ,==, AUXSEG_TESTVAL(i));
       else p[i] = AUXSEG_TESTVAL(i);
       #undef AUXSEG_TESTVAL
     }
@@ -2080,7 +2114,7 @@ uintptr_t gasneti_auxseg_preinit(void) {
 
   gasneti_auxseg_sz = gasneti_auxseg_total_alignedsz.optimalsz;
   GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_preinit(): gasneti_auxseg_sz = %"PRIuPTR, gasneti_auxseg_sz));
-  gasneti_assert(gasneti_auxseg_sz % gasneti_mmap_pagesize() == 0);
+  gasneti_assert_uint(gasneti_auxseg_sz % gasneti_mmap_pagesize() ,==, 0);
   return gasneti_auxseg_sz;
 }
 
@@ -2098,9 +2132,9 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
     uintptr_t auxseg_sz = auxseg_info[gasneti_mynode].size;
 
     for (int j = 0; j < gasneti_nodes; j++) {
-      gasneti_assert((uintptr_t)si[j].addr % GASNET_PAGESIZE == 0);
-      gasneti_assert((uintptr_t)si[j].addr % GASNETI_CACHE_LINE_BYTES == 0);
-      gasneti_assert((uintptr_t)si[j].size == auxseg_sz);
+      gasneti_assert_uint((uintptr_t)si[j].addr % GASNET_PAGESIZE ,==, 0);
+      gasneti_assert_uint((uintptr_t)si[j].addr % GASNETI_CACHE_LINE_BYTES ,==, 0);
+      gasneti_assert_uint((uintptr_t)si[j].size ,==, auxseg_sz);
       si[j].size = gasneti_auxseg_alignedsz[0].optimalsz;
     }
 
@@ -2141,7 +2175,7 @@ void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t excha
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
   gasneti_segmentAttach(auxsize, gasneti_seginfo_aux, exchangefn, 0);
   gasneti_auxseg_attach(gasneti_seginfo_aux);
-  gasneti_assert(gasneti_seginfo_aux[gasneti_mynode].size == auxsize);
+  gasneti_assert_uint(gasneti_seginfo_aux[gasneti_mynode].size ,==, auxsize);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -2171,10 +2205,10 @@ extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
     const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps            => 2^32 nodes
     const int seq  = (arg0 >> 6);        // Max 2^26 fragments * 512 => 32GB (and max sent is elemsz*nodes/2)
     const int distance = (1 << step);
-    gasneti_assert(distance < gasneti_nodes);
+    gasneti_assert_uint(distance ,<, gasneti_nodes);
     uint8_t *data = gasneti_exchg_data(phase, elemsz);
     uint8_t *dest = data + (elemsz * distance) + (seq * gex_AM_LUBRequestMedium());
-    gasneti_assert(dest + nbytes <= data + elemsz * gasneti_nodes);
+    gasneti_assert_ptr(dest + nbytes ,<=, data + elemsz * gasneti_nodes);
     memcpy(dest, buf, nbytes);
     gasneti_weakatomic32_increment(&gasneti_exchg_rcvd[phase][step], GASNETI_ATOMIC_REL);
 }
@@ -2210,7 +2244,7 @@ extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
 
     /* Poll until we have received the same number of messages as we sent */
     GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) >= (int)seq);
-    gasneti_assert((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) == (int)seq);
+    gasneti_assert_int((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) ,==, (int)seq);
     gasneti_weakatomic32_set(&gasneti_exchg_rcvd[phase][step], 0, 0);
   }
 

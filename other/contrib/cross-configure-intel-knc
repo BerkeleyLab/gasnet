@@ -101,11 +101,16 @@ CROSS_HAVE_X86_CMPXCHG16B='0'; export CROSS_HAVE_X86_CMPXCHG16B
 # Enable Posix shared memory
 CROSS_HAVE_SHM_OPEN='1'; export CROSS_HAVE_SHM_OPEN
 
-SRCDIR=`dirname $0`
+# Find source directory
+
+if test -z "$SRCDIR" || test ! -f "$SRCDIR/configure" ; then
+  SRCDIR=`dirname $0`
+fi
 if test ! -f "$SRCDIR/configure" ; then
-  echo "ERROR: The $0 script should be placed in the same directory as the configure script before execution"
+  echo "ERROR: Source directory not found. Either set \$SRCDIR=/path/to/src or copy/link the `basename $0` script to the same directory as the configure script"
   exit 1
 fi
+
 # Detect the build+host machine type
 HOST_APPEND=
 for sys in host build; do

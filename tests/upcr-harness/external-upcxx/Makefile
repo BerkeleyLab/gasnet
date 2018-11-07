@@ -47,6 +47,7 @@ TO_LOG = >> $(LOGFILE) 2>&1
 
 # nobs requires bash
 SHELL := /bin/bash
+PIPEEXIT := ; ( exit $${PIPESTATUS[0]} ) # bashism to preserve first exit code in a pipe
 
 # Paths and options for standard tools
 WGET              ?= wget -nv
@@ -148,7 +149,7 @@ launcher:
 
 _upcxx: force
 	rm -Rf upcxx-built launcher $(LOGFILE)
-	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE)
+	$(MAKE) upcxx-download 2>&1 | tee $(LOGFILE) $(PIPEEXIT)
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
@@ -177,11 +178,11 @@ _upcxx: force
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 _upcxx-inst-SEQ:
-	$(MAKE) upcxx-inst-gasnet_seq UPCXX_BACKEND=gasnet_seq 2>&1 | tee -a $(LOGFILE)
+	$(MAKE) upcxx-inst-gasnet_seq UPCXX_BACKEND=gasnet_seq 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 _upcxx-inst-PAR:
-	$(MAKE) upcxx-inst-gasnet_par UPCXX_BACKEND=gasnet_par 2>&1 | tee -a $(LOGFILE)
+	$(MAKE) upcxx-inst-gasnet_par UPCXX_BACKEND=gasnet_par 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 UPCXX_INSTDIR_FULL  := $(UPCXX_INSTDIR)-$(UPCXX_BACKEND)

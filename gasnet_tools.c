@@ -539,7 +539,7 @@ extern uint64_t gasneti_wallclock_ns(void) { return _gasneti_wallclock_ns(); }
 
 extern double gasneti_tick_metric(int idx) {
   static double *_gasneti_tick_metric = NULL;
-  gasneti_assert(idx <= 1);
+  gasneti_assert_int(idx ,<=, 1);
   if_pf (_gasneti_tick_metric == NULL) {
     int i, ticks, iters = 1000, minticks = 10;
     double *_tmp_metric;
@@ -575,36 +575,56 @@ extern double gasneti_tick_metric(int idx) {
     #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
   #endif
 #endif
-volatile int gasnet_frozen = 0;
-extern void gasneti_fatalerror(const char *msg, ...) {
-  #ifndef GASNETI_FATALERROR_LEN
-  #define GASNETI_FATALERROR_LEN 80
+extern const char *gasneti_procid_str;
+const char *gasneti_procid_str = NULL;
+
+extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_list argptr) {
+  #ifndef GASNETI_CONSOLEMSG_PREFIX_LEN
+  #define GASNETI_CONSOLEMSG_PREFIX_LEN 128
   #endif
-  char expandedmsg[GASNETI_FATALERROR_LEN];
-  const char prefix[] = "*** FATAL ERROR: ";
-  const size_t maxmsg = sizeof(expandedmsg)-sizeof(prefix)-4;
+  char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+16];
+  if (gasneti_procid_str) {
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s): ", prefix, gasneti_procid_str);
+  } else {
+    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s: ", prefix);
+  }
+  const size_t maxmsg = sizeof(expandedmsg)-4 - strlen(expandedmsg);
   const size_t msglen = strlen(msg);
+
+  int isshort = 0;
+  if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+    strncat(expandedmsg, msg, maxmsg);
+    if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
+    isshort = 1;
+  }
 
   FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
   for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
     FILE *stream = streams[s];
     if (stream) {
-      va_list argptr;
-      va_start(argptr, msg); /*  pass in last argument */
-        if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
-          strcpy(expandedmsg, prefix);
-          strncat(expandedmsg, msg, maxmsg);
-          if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
-          vfprintf(stream, expandedmsg, argptr);
+      va_list args;
+      va_copy(args, argptr);
+        if (isshort) {
+          vfprintf(stream, expandedmsg, args);
         } else { /* long format msg */
-          fprintf(stream, prefix);
-          vfprintf(stream, msg, argptr);
-          if (msg[strlen(msg)-1] != '\n') fprintf(stream, "\n");
+          fputs(expandedmsg, stream);
+          vfprintf(stream, msg, args);
+          if (msg[msglen-1] != '\n') fprintf(stream, "\n");
         }
-      va_end(argptr);
+      va_end(args);
       fflush(stream);
     }
   }
+}
+
+extern void gasneti_console_message(const char *prefix, const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA(prefix, msg, argptr);
+  va_end(argptr);
+}
+
+extern void gasneti_error_abort(void) {
 
   gasnett_freezeForDebuggerErr(); /* allow freeze */
 
@@ -618,6 +638,51 @@ extern void gasneti_fatalerror(const char *msg, ...) {
 
   abort();
 }
+
+extern void gasneti_fatalerror(const char *msg, ...) {
+  va_list argptr;
+  va_start(argptr, msg); /*  pass in last argument */
+    gasneti_console_messageVA("FATAL ERROR", msg, argptr);
+  va_end(argptr);
+  gasneti_error_abort();
+}
+
+extern void _gasneti_assert_fail(const char *funcname, const char *filename, int linenum,
+                                 const char *fmt, ...) {
+  #ifndef GASNETI_ASSERT_FMT_LEN
+  #define GASNETI_ASSERT_FMT_LEN 256
+  #endif
+  #ifndef GASNETI_ASSERT_NAME_LEN
+  #define GASNETI_ASSERT_NAME_LEN  80
+  #endif
+  // use the last NAME_LEN characters of funcname and filename
+  if (!funcname) funcname = "";
+  size_t funclen = strlen(funcname);
+  if (funclen > GASNETI_ASSERT_NAME_LEN) funcname += (funclen - GASNETI_ASSERT_NAME_LEN);
+  if (!filename || !*filename) filename = "*unknown file*";
+  size_t filelen = strlen(filename);
+  if (filelen > GASNETI_ASSERT_NAME_LEN) filename += (filelen - GASNETI_ASSERT_NAME_LEN);
+
+  // prepend formatted location info to the assertion format string
+  char expandedfmt[GASNETI_ASSERT_FMT_LEN];
+  if (*funcname)
+    snprintf(expandedfmt, sizeof(expandedfmt), 
+             "Assertion failure in %s%s at %s:%i: %s",
+             funcname, (funcname[strlen(funcname)-1] != ')'?"()":""),
+             filename, linenum, fmt);
+  else
+    snprintf(expandedfmt, sizeof(expandedfmt), 
+             "Assertion failure at %s:%i: %s",
+             filename, linenum, fmt);
+
+  // generate the fatal error and crash
+  va_list argptr;
+  va_start(argptr, fmt); /*  pass in last argument */
+    gasneti_console_messageVA("FATAL ERROR", expandedfmt, argptr);
+  va_end(argptr);
+  gasneti_error_abort();
+}
+
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_killmyprocess(int exitcode) {
   /* wrapper for _exit() that does the "right thing" to immediately kill this process */
@@ -906,6 +971,7 @@ extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsym
   _freezeForDebugger(0);
 }
 
+volatile int gasnet_frozen = 0;
 static int gasneti_freezeonerr_isinit = 0;
 static int gasneti_freezeonerr_userenabled = 0;
 static int gasneti_freezesignal = 0;
@@ -1167,7 +1233,7 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
 
   p[len] = '\0';
 
-  gasneti_assert(strlen(filename) < limit);
+  gasneti_assert_int(strlen(filename) ,<, limit);
   return mkstemp(filename);
 }
 
@@ -1433,6 +1499,7 @@ static int gasneti_backtrace_userenabled = 0;
 static int gasneti_backtrace_userdisabled = 0;
 #endif
 static const char *gasneti_backtrace_list = 0;
+static int gasneti_backtrace_prctl = -2;
 GASNETT_TENTATIVE_EXTERN
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
@@ -1441,7 +1508,8 @@ extern void gasneti_backtrace_init(const char *exename) {
 
 #if HAVE_PR_SET_PTRACER
   // May be necessary to allow ptrace_attach():
-  (void) prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
+  // errors here are ignored, but saved to possibly assist in later diagnosis
+  gasneti_backtrace_prctl = prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
 #endif
 
   gasneti_qualify_path(gasneti_exename_bt, exename);
@@ -1594,7 +1662,9 @@ extern int gasneti_print_backtrace(int fd) {
           { int ptracefd = 0;
             if (!access(YAMA_PTRACE_SCOPE,R_OK) && (ptracefd = open(YAMA_PTRACE_SCOPE,O_RDONLY))) {
               char scope = 0; // docs: https://www.kernel.org/doc/Documentation/security/Yama.txt
-              if (read(ptracefd, &scope, 1) == 1 && scope != '0' && scope != '1') {
+              if (read(ptracefd, &scope, 1) == 1 
+                  && scope != '0' // 0 = no restrictions
+                  && !(scope == '1' && !gasneti_backtrace_prctl)) { // 1 = restricted, only works if prctl succeeded
                 snprintf(linep, linelen, "WARNING: %s=%c may be preventing debugger attach\n", YAMA_PTRACE_SCOPE, scope);
                 gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
               }
@@ -2087,8 +2157,8 @@ static char *_gasneti_getenv_withdefault(const char *keyname, const char *defaul
   } else if (valmode == 1) { /* yes/no value */
     char s[10];
     int i;
-    strncpy(s, retval, 10); s[9] = '\0';
-    for (i = 0; i < 10; i++) s[i] = toupper(s[i]);
+    strncpy(s, retval, sizeof(s)-1); s[sizeof(s)-1] = '\0';
+    for (i = 0; i < sizeof(s); i++) s[i] = toupper(s[i]);
     if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) retval = "NO";
     else if (!strcmp(s, "Y") || !strcmp(s, "YES") || !strcmp(s, "1")) retval = "YES";
     else gasneti_fatalerror("If used, environment variable '%s' must be set to 'Y|YES|y|yes|1' or 'N|n|NO|no|0'", keyname);
@@ -2155,7 +2225,7 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
   int got_h = 0;
   if (pph) {
     size_t len = strlen(str);
-    gasneti_assert(sizeof(tmp) > len);
+    gasneti_assert_uint(sizeof(tmp) ,>, len);
     strncpy(tmp,str,sizeof(tmp));
     char *p = &tmp[len-1];
     while (p >= tmp && isspace(*p)) *(p--) = 0; // strip end whitespace
@@ -2223,9 +2293,9 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     val = MIN(val, maximum);
   }
 
-  gasneti_assert(val == GASNETI_PAGE_ALIGNDOWN(val));
-  gasneti_assert(val <= maxrep);
-  gasneti_assert(val <= maximum);
+  gasneti_assert_uint(val ,==, GASNETI_PAGE_ALIGNDOWN(val));
+  gasneti_assert_uint(val ,<=, maxrep);
+  gasneti_assert_uint(val ,<=, maximum);
   GASNETT_TRACE_PRINTF("%s='%s' final value: %"PRId64, key, input, val);
 
   if (val < minimum) {
@@ -2322,7 +2392,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
   int success = 0;
 
   char ctrl_var[32] = "GASNET_MAXIMIZE_";
-  gasneti_assert(strlen(ctrl_var) + strlen(lim_desc) < sizeof(ctrl_var));
+  gasneti_assert_uint(strlen(ctrl_var) + strlen(lim_desc) ,<, sizeof(ctrl_var));
   if (!gasneti_getenv_yesno_withdefault(strncat(ctrl_var, lim_desc, sizeof(ctrl_var)-1), 1))
     return 1;
 
@@ -2344,7 +2414,7 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
         newval.rlim_cur = RLIM_INFINITY;                                                        \
         strncpy(newvalstr, "RLIM_INFINITY", sizeof(newvalstr));                                 \
       } else {                                                                                  \
-        gasneti_assert(newval.rlim_cur <= newval.rlim_max);                                     \
+        gasneti_assert_uint(newval.rlim_cur ,<=, newval.rlim_max);                              \
         newval.rlim_cur = newval.rlim_max;                                                      \
         snprintf(newvalstr, sizeof(newvalstr), "%"PRIu64, (uint64_t)newval.rlim_cur);           \
       }                                                                                         \
@@ -2840,7 +2910,7 @@ int gasneti_count0s_copy_bytes(void * GASNETI_RESTRICT dst, const void * GASNETI
   int non_zeros = 0;
   uint8_t *d = dst;
   const uint8_t *s = src;
-  gasneti_assert(bytes < SIZEOF_VOID_P);
+  gasneti_assert_uint(bytes ,<, SIZEOF_VOID_P);
 
   switch (bytes) {
   #if PLATFORM_ARCH_64
@@ -3294,7 +3364,7 @@ retry_calibration:;
   }
 
   // Find mid-point between the two bounds, and its associated relative error
-  gasneti_assert(lo <= hi);
+  gasneti_assert_dbl(lo ,<=, hi);
   double mid = (hi + lo) / 2.;
   double half_width = mid - lo;
   double err = half_width / hi;
@@ -3326,7 +3396,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     size_t len = sizeof(cpuspeed);
     if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1)
       gasneti_fatalerror("*** ERROR: Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
-    gasneti_assert(cpuspeed > 1E6 && cpuspeed < 1E11); /* ensure it looks reasonable */
+    // ensure it looks reasonable
+    gasneti_assert_dbl(cpuspeed ,>, 1E6); 
+    gasneti_assert_dbl(cpuspeed ,<, 1E11); 
     Tick = 1.0E9 / cpuspeed;
   #elif PLATFORM_OS_OPENBSD
     int MHz = 0;
@@ -3336,7 +3408,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     mib[1] = HW_CPUSPEED;
     if (sysctl(mib, 2, &MHz, &len, NULL, 0))
       gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
-    gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+    // ensure it looks reasonable
+    gasneti_assert_int(MHz ,>, 1);
+    gasneti_assert_int(MHz ,<, 100000); 
     Tick = 1000. / MHz;
   #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
     FILE *fp = fopen("/proc/cpuinfo","r");
@@ -3347,7 +3421,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
         char *p = strchr(input,':');
         double MHz = 0.0;
         if (p) MHz = atof(p+1);
-        gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+        // ensure it looks reasonable
+        gasneti_assert_dbl(MHz ,>, 1);
+        gasneti_assert_dbl(MHz ,<, 100000); 
         Tick = 1000. / MHz;
         break;
       }
@@ -3366,7 +3442,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     if (strstr(input,"cpu MHz")) {
       char *p = strchr(input,':');
       if (p) MHz = atof(p+1);
-      gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+      // ensure it looks reasonable
+      gasneti_assert_dbl(MHz ,>, 1);
+      gasneti_assert_dbl(MHz ,<, 100000); 
       Tick = 1000. / MHz;
       break;
     }
@@ -3386,7 +3464,9 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
       /* cpuinfo_max_freq contains a "round" value in KHz */
       MHz = atof(input) / 1000.0;
       fclose(fp2);
-      gasneti_assert(MHz > 1 && MHz < 10000); /* ensure it looks reasonable */
+      // ensure it looks reasonable
+      gasneti_assert_dbl(MHz ,>, 1);
+      gasneti_assert_dbl(MHz ,<, 100000); 
 
       /* Now use mean of measured bogomips values to correct the "round" MHz */
       rewind(fp);

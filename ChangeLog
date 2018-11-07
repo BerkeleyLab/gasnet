@@ -20,6 +20,18 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING:
+
+* GASNet-EX Spec v0.X:
+  - Barriers initiated using gex_Coll_BarrierNB() are now permitted to
+    overlap with collectives on the same team (including other barriers).
+
+* InfiniBand Verbs (ibv-conduit)
+  - When available, Mellanox ODP support now replaces local dynamic memory
+    registration.  This resolves bug 495 for clients using SEGMENT_FAST when
+    ODP support is available.
+
+----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release
 
 * GASNet-EX copyright notice and license agreement updated (see license.txt)
@@ -244,10 +256,16 @@ GASNet-1 ChangeLog
   - Fix bug 3742: Atomic CAS failures on PPCle+{pgi,clang}
   - Silence harmless library compile warnings from gcc 8.*
 
+* Configure and Build
+  - cross-configure scripts can now optionally be run without copying them to
+    the source directory, by setting $SRCDIR to indicate the source directory.
+
 * Platform support/portability
   - Improvements to internal logic for handling thread data on platforms
     lacking native register-level support for thread data.
   - Internal AM handler dispatch code is now strictly C spec compliant
+  - Fix bug 3806, providing support for -N option to gasnetrun_* scripts
+    when mpirun from Open MPI 3.x is used for job launch.
 
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0

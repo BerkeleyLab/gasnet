@@ -66,6 +66,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->consensus_issued_id = 0;
   team->consensus_id = 0;
   gasnete_coll_alloc_new_scratch_status(team);
+  team->scratch_free_list = NULL;
   
 #ifndef GASNETE_COLL_P2P_OVERRIDE
   gex_HSL_Init(&team->p2p_lock);

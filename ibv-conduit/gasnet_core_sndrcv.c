@@ -62,6 +62,9 @@ int					gasnetc_use_rcv_thread = GASNETC_USE_RCV_THREAD;
 #if GASNETC_IBV_XRC
   int					gasnetc_use_xrc = 1;
 #endif
+#if GASNETC_IBV_ODP
+  int					gasnetc_use_odp = 1;
+#endif
 int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
@@ -1618,10 +1621,8 @@ void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI
   }
 }
 
-GASNETI_INLINE(gasnetc_do_poll)
-void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
-  const gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: replace this via args
-  if (poll_rcv) {
+GASNETI_INLINE(gasnetc_poll_rcv_all)
+void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG) {
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
     /* Note use of casts to volatile are require to work around bug 1586 */
@@ -1636,8 +1637,14 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
   #if GASNET_PSHM
     gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
   #endif
-  }
+}
 
+GASNETI_INLINE(gasnetc_do_poll)
+void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
+  const gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: replace this via args
+  if (poll_rcv) {
+    gasnetc_poll_rcv_all(ep, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+  }
   if (poll_snd) {
     (void)gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT);
   }
@@ -2195,7 +2202,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           GASNETC_TRACE_WAIT_BEGIN();
           if (immediate) {
           #if GASNETC_IMMEDIATE_AMPOLLS
-            // A *full* Poll, but only once
+            // A full Poll, but only once and only the selected HCA
             gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
             if (!gasnetc_sema_trydown(sema)) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
@@ -2207,7 +2214,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           } else {
             do {
 	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_hca(ep, cep->hca, 1 GASNETI_THREAD_PASS);
+              gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS);
             } while (!gasnetc_sema_trydown(sema));
             GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
           }
@@ -2222,7 +2229,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           GASNETC_TRACE_WAIT_BEGIN();
           if (immediate) {
           #if GASNETC_IMMEDIATE_AMPOLLS
-            // A *full* Poll, but only once
+            // A full Poll, but only once and only the selected HCA
             gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
             if (!gasnetc_sema_trydown(sema)) {
               // TODO-EX: stats/trace for this as distinct from ..._STALL
@@ -2234,7 +2241,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           } else {
             do {
 	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_hca(ep, cep->hca, 1 GASNETI_THREAD_PASS);
+              gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS);
             } while (!gasnetc_sema_trydown(sema));
           }
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
@@ -2250,7 +2257,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           GASNETC_TRACE_WAIT_BEGIN();
           if (immediate) {
           #if GASNETC_IMMEDIATE_AMPOLLS
-            // A *full* Poll, but only once
+            // A full Poll, but only once and only the selected HCA
             gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
 	    if (!gasnetc_sema_trydown(&cep->am_loc) &&
 	        !(rbuf = gasnetc_lifo_pop(cep->rbuf_freelist))) {
@@ -2263,7 +2270,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           } else {
             do {
 	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_hca(ep, cep->hca, 1 GASNETI_THREAD_PASS);
+              gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS);
 	      if (gasnetc_sema_trydown(&cep->am_loc)) {
 	        break;
 	      }
@@ -2501,8 +2508,8 @@ void gasnetc_bounce_common(gasnetc_epid_t epid, int rkey_index, struct ibv_send_
   sr_desc->wr.rdma.remote_addr += len;
 }
 
-/* Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkeys table or
- * firehose to obtain the lkeys.  Both cases delay the bind to a qp until the
+/* Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkeys table,
+ * ODP, or firehose to obtain the lkeys.  All cases delay the bind to a qp until the
  * total xfer len is known.
  */
 GASNETI_INLINE(gasnetc_zerocp_common)
@@ -2547,6 +2554,17 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
       /* Xlate index to actual lkey */
       sr_desc->sg_list[seg].lkey = GASNETC_SEG_LKEY(cep, base+seg);
     }
+#if GASNETC_IBV_ODP
+  } else if (gasnetc_use_odp) {
+    // TODO-EX: older implicit ODP emulation had 128MB limit.  May need to chunk here.
+    cep = gasnetc_bind_cep(epid, sreq, op, len);
+    sr_desc->sg_list[0].lkey = cep->hca->implicit_odp.lkey;
+    gasneti_assert_uint(sr_desc->sg_list[0].addr ,==, loc_addr);
+    sr_desc->sg_list[0].length = len;
+    sr_desc->num_sge = 1;
+    sreq->fh_count = 0;
+    remain = 0;
+#endif
   } else {
     const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
     int seg;
@@ -2986,6 +3004,7 @@ size_t gasnetc_get_local_fh(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len
     sreq->fh_count = i;
     len -= remain;
   } else {
+    // TODO-EX: ODP support for segment everything?
     const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
     len = MIN(remain, (fh_loc->addr + fh_loc->len - loc_addr));
     sreq->fh_ptr[1] = fh_loc;
