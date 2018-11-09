@@ -406,15 +406,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
-    gasnetc_exit(exitcode);
-}
-#else
-static void gasnetc_atexit(void) {
-    gasnetc_exit(0);
-}
-#endif
 
 /* Exit coordination timeouts */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MAX         360.0   /* 6 minutes! */
@@ -467,11 +458,8 @@ static int gasnetc_exit_init(int use_exit_geom) {
   memset(&gasnetc_exit_reduce_op, 0, sizeof(gasnetc_exit_reduce_op));
   gasnetc_dflt_coll_alg(gasnetc_exit_geom, PAMI_XFER_ALLREDUCE, &gasnetc_exit_reduce_op.algorithm);
 
-#if HAVE_ON_EXIT
-  on_exit(gasnetc_on_exit, NULL);
-#else
-  atexit(gasnetc_atexit);
-#endif
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_exit);
 
   return GASNET_OK;
 }

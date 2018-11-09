@@ -26,11 +26,8 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
+
+static void gasnetc_atexit(int exitcode);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
@@ -803,13 +800,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
    *        (e.g. to support interrupt-based messaging)
    */
 
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_atexit);
+
   /* set the number of seconds we poll until forceful shutdown. */
   gasnetc_shutdown_seconds = gasneti_get_exittimeout(120., 3., 0.125, 0.);
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
 
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
@@ -891,15 +886,9 @@ extern void gasnetc_fatalsignal_callback(int sig) {
 
 static int gasnetc_remoteShutdown = 0;
 
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
+static void gasnetc_atexit(int exitcode) {
   if (!gasnetc_shutdownInProgress) gasnetc_exit(exitcode);
 }
-#else
-static void gasnetc_atexit(void) {
-  if (!gasnetc_shutdownInProgress) gasnetc_exit(0);
-}
-#endif
 
 static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t exitcode) {
   if (!gasnetc_shutdownInProgress) {

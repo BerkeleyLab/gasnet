@@ -17,11 +17,7 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
+static void gasnetc_atexit(int exitcode);
 static int gasnetc_AMPoll_nocheckattach(void);
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
@@ -1059,11 +1055,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /*  prepare exit handling */
 
     /* Handler for non-collective returns from main() */
-#if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-#else
-    atexit(gasnetc_atexit);
-#endif
+    // register process exit-time hook
+    gasneti_registerExitHandler(gasnetc_atexit);
 
     /* Extract info from nodemap that we'll need at exit */
     gasnetc_exit_init();
@@ -1194,7 +1187,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 /* ------------------------------------------------------------------------------------ */
 
-/* gasnetc_atexit OR gasnetc_on_exit
+/* gasnetc_atexit
  *
  * This is a simple (at,on_}exit() handler to achieve a hopefully graceful exit.
  * We use the functions gasnetc_exit_{head,body}() to coordinate the shutdown.
@@ -1202,23 +1195,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
  * exit() procedures to shutdown the multi-threaded process nicely and also
  * because with atexit() we don't have access to the exit code!
  */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg)
-{
+static void gasnetc_atexit(int exitcode) {
     /* Check return from _head to avoid reentrance */
     if (gasnetc_exit_head(exitcode)) {
         gasnetc_exit_body();
     }
 }
-#else
-static void gasnetc_atexit(void)
-{
-    /* Check return from _head to avoid reentrance */
-    if (gasnetc_exit_head(0)) { /* real exit code is outside our control */
-        gasnetc_exit_body();
-    }
-}
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 
