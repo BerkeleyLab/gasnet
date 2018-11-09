@@ -21,12 +21,6 @@ gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -630,11 +624,8 @@ static int gasnetc_attach_primary(void) {
    *        (e.g. to support interrupt-based messaging)
    */
 
-#if HAVE_ON_EXIT
-  on_exit(gasnetc_on_exit, NULL);
-#else
-  atexit(gasnetc_atexit);
-#endif
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_exit);
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
@@ -872,16 +863,6 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
   return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
-    gasnetc_exit(exitcode);
-}
-#else
-static void gasnetc_atexit(void) {
-    gasnetc_exit(0);
-}
-#endif
-
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);

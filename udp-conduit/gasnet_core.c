@@ -32,11 +32,6 @@ gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 #endif
 
 static void gasnetc_traceoutput(int);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
 
 static uint64_t gasnetc_networkpid;
 eb_t gasnetc_bundle;
@@ -340,11 +335,8 @@ static int gasnetc_attach_primary(void) {
     /* catch fatal signals and convert to SIGQUIT */
     gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
 
-#if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-#else
-    atexit(gasnetc_atexit);
-#endif
+    // register process exit-time hook
+    gasneti_registerExitHandler(gasnetc_exit);
 
     #if GASNET_TRACE || GASNET_DEBUG
      #if !GASNET_DEBUG
@@ -622,15 +614,6 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
   return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
-  gasnetc_exit(exitcode);
-}
-#else
-static void gasnetc_atexit(void) {
-  gasnetc_exit(0);
-}
-#endif
 static int gasnetc_exitcalled = 0;
 static void gasnetc_traceoutput(int exitcode) {
   if (!gasnetc_exitcalled) {

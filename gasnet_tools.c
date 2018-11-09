@@ -725,6 +725,28 @@ extern void gasneti_close_streams(void) {
   gasneti_sched_yield();
 }
 /* ------------------------------------------------------------------------------------ */
+static void (*_gasneti_exitfn)(int);
+#if HAVE_ON_EXIT
+  static void gasneti_on_exit(int exitcode, void *arg) {
+    if (_gasneti_exitfn) _gasneti_exitfn(exitcode);
+  }
+#else
+  static void gasneti_atexit(void) {
+    if (_gasneti_exitfn) _gasneti_exitfn(0);
+  }
+#endif
+extern void gasneti_registerExitHandler(void (*_exitfn)(int)) {
+  _gasneti_exitfn = _exitfn;
+  static int firstcall = 1;
+  if (!firstcall) return;
+  firstcall = 0;
+  #if HAVE_ON_EXIT
+    on_exit(gasneti_on_exit, NULL);
+  #else
+    atexit(gasneti_atexit);
+  #endif
+}
+/* ------------------------------------------------------------------------------------ */
 extern gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp) {
   gasneti_sighandlerfn_t fpret = (gasneti_sighandlerfn_t)signal(sigtocatch, fp); 
   if (fpret == (gasneti_sighandlerfn_t)SIG_ERR) {
