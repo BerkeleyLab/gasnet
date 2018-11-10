@@ -740,11 +740,13 @@ extern void gasneti_registerExitHandler(void (*_exitfn)(int)) {
   static int firstcall = 1;
   if (!firstcall) return;
   firstcall = 0;
-  #if HAVE_ON_EXIT
-    on_exit(gasneti_on_exit, NULL);
-  #else
-    atexit(gasneti_atexit);
-  #endif
+  if (gasneti_getenv_yesno_withdefault("GASNET_CATCH_EXIT", 1)) {
+    #if HAVE_ON_EXIT
+      on_exit(gasneti_on_exit, NULL);
+    #else
+      atexit(gasneti_atexit);
+    #endif
+  }
 }
 /* ------------------------------------------------------------------------------------ */
 extern gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp) {
