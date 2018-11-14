@@ -256,7 +256,7 @@ static void gasnetc_ofi_read_env_vars() {
 
     if (multirecv_buff_size < sizeof(gasnetc_ofi_am_buf_t)) {
         gasneti_fatalerror("%s must be at least %d bytes on this build.\n"
-                "This is the size of gasnet_AMMaxMedium() plus the message header.\n", \
+                "This is the size of the largest AM Medium plus the message header.\n", \
                 multirecv_size_env, (int)sizeof(gasnetc_ofi_am_buf_t));
     }
     const char* long_rma_threshold_env = "GASNET_OFI_LONG_AM_RMA_THRESH";
@@ -349,7 +349,7 @@ static void ofi_exchange_addresses() {
  * Initialize OFI conduit
  * ----------------------------------------------*/
 int gasnetc_ofi_init(int *argc, char ***argv, 
-                     gasnet_node_t *nodes_p, gasnet_node_t *mynode_p)
+                     gex_Rank_t *nodes_p, gex_Rank_t *mynode_p)
 {
   int ret = GASNET_OK;
   int result = GASNET_ERR_NOT_INIT;
@@ -778,30 +778,30 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
 {
 	uint8_t *addr;
 	int handler = header->handler;
-	gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
-	gasnet_handlerarg_t *args;
+	gex_AM_Entry_t handler_fn = gasnetc_handler[handler];
+	gex_AM_Arg_t *args;
 	int numargs = header->argnum;
     int data_offset;
 	switch(header->type) {
 		case OFI_AM_SHORT:
-            args = (gasnet_handlerarg_t *)header->buf.short_buf.data;
+            args = (gex_AM_Arg_t *)header->buf.short_buf.data;
 			GASNETI_RUN_HANDLER_SHORT(isreq, handler, handler_fn, header, args, numargs);
 			break;
 		case OFI_AM_MEDIUM:
-            data_offset = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
-            args = (gasnet_handlerarg_t *)header->buf.medium_buf.data;
+            data_offset = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
+            args = (gex_AM_Arg_t *)header->buf.medium_buf.data;
 			addr = header->buf.medium_buf.data + data_offset;
 			GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG:
-            data_offset = sizeof(gasnet_handlerarg_t)*numargs;
-            args = (gasnet_handlerarg_t *)header->buf.long_buf.data;
+            data_offset = sizeof(gex_AM_Arg_t)*numargs;
+            args = (gex_AM_Arg_t *)header->buf.long_buf.data;
 			addr = header->buf.long_buf.dest_ptr;
 			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG_MEDIUM:
-            data_offset = sizeof(gasnet_handlerarg_t)*numargs;
-            args = (gasnet_handlerarg_t *)header->buf.long_buf.data;
+            data_offset = sizeof(gex_AM_Arg_t)*numargs;
+            args = (gex_AM_Arg_t *)header->buf.long_buf.data;
 			addr = header->buf.long_buf.dest_ptr;
 			memcpy(addr, header->buf.long_buf.data + data_offset, nbytes);
 			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
@@ -1121,11 +1121,11 @@ void gasnetc_ofi_poll()
  * OFI conduit am send functions
  * ----------------------------------------------*/
 
-int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
+int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
                      int numargs, va_list argptr, int isreq)
 {
 	int ret = FI_SUCCESS;
-	gasnet_handlerarg_t *arglist;
+	gex_AM_Arg_t *arglist;
 	int i;
     unsigned int len;
 	gasnetc_ofi_am_buf_t *header;
@@ -1149,9 +1149,9 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
-	arglist = (gasnet_handlerarg_t*) sendbuf->buf.short_buf.data;
+	arglist = (gex_AM_Arg_t*) sendbuf->buf.short_buf.data;
 	for (i = 0 ; i < numargs ; ++i) {
-		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
+		arglist[i] = va_arg(argptr, gex_AM_Arg_t);
 	}
 
 	/* Copy arg and handle into the buffer */
@@ -1160,7 +1160,7 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 	sendbuf->type = OFI_AM_SHORT;
 	sendbuf->argnum = numargs;
 
-	len = sizeof(gasnet_handlerarg_t) * numargs + offsetof(gasnetc_ofi_am_send_buf_t, buf.short_buf);
+	len = sizeof(gex_AM_Arg_t) * numargs + offsetof(gasnetc_ofi_am_send_buf_t, buf.short_buf);
     /* Alignment is added in order to ensure that all messages will be placed into the
      * multi-recv buffer at an 8 byte aligned address. This is due to medium message
      * payloads needing to be placed at an 8-byte aligned address. */
@@ -1191,12 +1191,12 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 	return ret;
 }
 
-int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler, 
+int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
                      void *source_addr, size_t nbytes,   /* data payload */
                      int numargs, va_list argptr, int isreq)
 {
 	int ret = FI_SUCCESS;
-	gasnet_handlerarg_t *arglist;
+	gex_AM_Arg_t *arglist;
 	int i;
     unsigned int len;
 	gasnetc_ofi_am_buf_t *header;
@@ -1208,25 +1208,26 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
         ep = gasnetc_ofi_request_epfd;
         am_dest = GET_AM_REQUEST_DEST(dest);
         poll_type = OFI_POLL_ALL;
+	gasneti_assert (nbytes <= gex_AM_LUBRequestMedium());
     } 
     else {
         ep = gasnetc_ofi_reply_epfd;
         am_dest = GET_AM_REPLY_DEST(dest);
         poll_type = OFI_POLL_REPLY;
+	gasneti_assert (nbytes <= gex_AM_LUBReplyMedium());
     }
 
-	gasneti_assert (nbytes <= gasnet_AMMaxMedium());
 
 	/* Get a send buffer */
 	header = gasnetc_ofi_am_header(isreq);
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
-	arglist = (gasnet_handlerarg_t*) sendbuf->buf.medium_buf.data;
+	arglist = (gex_AM_Arg_t*) sendbuf->buf.medium_buf.data;
 	for (i = 0 ; i < numargs ; ++i) {
-		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
+		arglist[i] = va_arg(argptr, gex_AM_Arg_t);
 	}
-	len = GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
+	len = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
 
 	memcpy((uint8_t *)(sendbuf->buf.medium_buf.data)+ len, source_addr, nbytes);
 
@@ -1263,13 +1264,13 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
 	return ret;
 }
 
-int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
+int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 		               void *source_addr, size_t nbytes,   /* data payload */
 		               void *dest_addr,
 		               int numargs, va_list argptr, int isreq, int isasync)
 {
 	int ret = FI_SUCCESS;
-	gasnet_handlerarg_t *arglist;
+	gex_AM_Arg_t *arglist;
 	int i;
     unsigned int len;
 	gasnetc_ofi_am_buf_t *header;
@@ -1289,20 +1290,20 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
     }
 
 	if(isreq)
-		gasneti_assert (nbytes <= gasnet_AMMaxLongRequest());
+		gasneti_assert (nbytes <= gex_AM_LUBRequestLong());
 	else
-		gasneti_assert (nbytes <= gasnet_AMMaxLongReply());
+		gasneti_assert (nbytes <= gex_AM_LUBReplyLong());
 
 	/* Get a send buffer */
 	header = gasnetc_ofi_am_header(isreq);
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
-	arglist = (gasnet_handlerarg_t*) sendbuf->buf.long_buf.data;
+	arglist = (gex_AM_Arg_t*) sendbuf->buf.long_buf.data;
 	for (i = 0 ; i < numargs ; ++i) {
-		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
+		arglist[i] = va_arg(argptr, gex_AM_Arg_t);
 	}
-	len = sizeof(gasnet_handlerarg_t)*numargs;
+	len = sizeof(gex_AM_Arg_t)*numargs;
 #if !GASNET_PSHM
 	if(dest == gasneti_mynode) {
 		memcpy(dest_addr, source_addr, nbytes);
@@ -1405,7 +1406,7 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  *
  * Returns non-zero if a wait is needed for remote completion. Returns 0 if the
  * buffer may be safely returned to the app */
-int gasnetc_rdma_put_non_bulk(gasnet_node_t dest, void* dest_addr, void* src_addr, 
+int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
         size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr)
 {
 
@@ -1509,7 +1510,7 @@ block_anyways:
 }
 
 void
-gasnetc_rdma_put(gasnet_node_t dest, void *dest_addr, void *src_addr, size_t nbytes,
+gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
 		gasnetc_ofi_op_ctxt_t *ctxt_ptr)
 {
 	int ret = FI_SUCCESS;
@@ -1527,7 +1528,7 @@ gasnetc_rdma_put(gasnet_node_t dest, void *dest_addr, void *src_addr, size_t nby
 }
 
 void
-gasnetc_rdma_get(void *dest_addr, gasnet_node_t dest, void * src_addr, size_t nbytes,
+gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbytes,
 		gasnetc_ofi_op_ctxt_t *ctxt_ptr)
 {
 	int ret = FI_SUCCESS;
@@ -1547,7 +1548,7 @@ gasnetc_rdma_get(void *dest_addr, gasnet_node_t dest, void * src_addr, size_t nb
 }
 
 void
-gasnetc_rdma_put_wait(gasnet_handle_t oph)
+gasnetc_rdma_put_wait(gex_Event_t oph)
 {
 	gasnete_op_t *op = (gasnete_op_t*) oph;
 
@@ -1565,7 +1566,7 @@ gasnetc_rdma_put_wait(gasnet_handle_t oph)
 }
 
 void
-gasnetc_rdma_get_wait(gasnet_handle_t oph)
+gasnetc_rdma_get_wait(gex_Event_t oph)
 {
 	gasnete_op_t *op = (gasnete_op_t*) oph;
 
