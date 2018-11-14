@@ -3455,7 +3455,7 @@ static void gasnetc_exit_reph(gasnet_token_t token) {
   gasneti_atomic_increment(&gasnetc_exit_reps, 0);
 }
   
-/* gasnetc_atexit OR gasnetc_on_exit
+/* gasnetc_atexit
  *
  * This is a simple (at,on_}exit() handler to achieve a hopefully graceful exit.
  * We use the functions gasnetc_exit_{head,body}() to coordinate the shutdown.
@@ -3471,31 +3471,18 @@ static void gasnetc_exit_reph(gasnet_token_t token) {
  * expect to preserve a non-zero exit code for the GASNet job as a whole.  Of course
  * there is no _guarantee_ this will work with all bootstraps.
  */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
+static void gasnetc_atexit(int exitcode) {
   /* Check return from _head to avoid reentrance */
   if (gasnetc_exit_head(exitcode)) {
     gasnetc_exit_body();
   }
   return;
 }
-#else
-static void gasnetc_atexit(void) {
-  /* Check return from _head to avoid reentrance */
-  if (gasnetc_exit_head(0)) { /* real exit code is outside our control */
-    gasnetc_exit_body();
-  }
-  return;
-}
-#endif
 
 static void gasnetc_exit_init(void) {
   /* Handler for non-collective returns from main() */
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_atexit);
 
 #if GASNET_PSHM
   /* Extract info from nodemap that we'll need at exit */

@@ -18,11 +18,7 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
+static void gasnetc_atexit(int exitcode);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
@@ -180,11 +176,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* catch fatal signals and convert to SIGQUIT */
   gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
 
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_atexit);
 
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
@@ -249,17 +242,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 static int gasnetc_exit_in_progress = 0;
 
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
+static void gasnetc_atexit(int exitcode) {
   if (!gasnetc_exit_in_progress)
     gasnetc_exit(exitcode);
 }
-#else
-static void gasnetc_atexit(void) {
-  if (!gasnetc_exit_in_progress)
-    gasnetc_exit(0);
-}
-#endif
 
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */

@@ -19,11 +19,7 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
+static void gasnetc_atexit(int);
 
 /* Exit coordination timeouts */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MAX         360.0   /* 6 minutes! */
@@ -185,11 +181,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
+
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_atexit);
 
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
@@ -254,17 +248,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 /* ------------------------------------------------------------------------------------ */
 int gasnetc_exit_in_progress = 0;
 
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
+static void gasnetc_atexit(int exitcode) {
   if (!gasnetc_exit_in_progress)
     gasnetc_exit(exitcode);
 }
-#else
-static void gasnetc_atexit(void) {
-  if (!gasnetc_exit_in_progress)
-    gasnetc_exit(0);
-}
-#endif
 
 /* This signal handler is for a last-ditch exit when a signal arrives while
  * attempting the graceful exit.  That includes SIGALRM if we get wedged.
