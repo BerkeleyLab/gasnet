@@ -206,7 +206,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
   #else
   { /* GASNET_SEGMENT_EVERYTHING */
-    gasnet_node_t i;
+    gex_Rank_t i;
     for (i=0; i<gasneti_nodes; i++) {
       gasneti_seginfo[i].addr = (void *)0;
       gasneti_seginfo[i].size = (uintptr_t)-1;
@@ -289,9 +289,9 @@ static void gasnetc_exit_sighandler(int sig) {
 /* AM Handlers for exit handling */
 static void gasnetc_noop(void) { return; }
 static gasneti_atomic_t gasnetc_exit_dist = gasneti_atomic_init(0);     /* OR of reduce distances */
-static void gasnetc_exit_reqh(gasnet_token_t token,
-                              gasnet_handlerarg_t arg0,
-                              gasnet_handlerarg_t arg1) {
+static void gasnetc_exit_reqh(gex_Token_t token,
+                              gex_AM_Arg_t arg0,
+                              gex_AM_Arg_t arg1) {
   gasneti_atomic_val_t distance = arg1;
 #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
   /* atomic OR via ADD since no bit will be set more than once */
@@ -418,8 +418,8 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
-  gasnet_node_t sourceid;
+extern int gasnetc_AMGetMsgSource(gex_Token_t token, gex_Rank_t *srcindex) {
+  gex_Rank_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
@@ -462,8 +462,8 @@ extern int gasnetc_AMPoll(void) {
 */
 
 extern int gasnetc_AMRequestShortM( 
-                            gasnet_node_t dest,       /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gex_Rank_t dest,       /* destination node */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -472,7 +472,7 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Short, dest, handler,
                                            0, 0, 0,
                                            numargs, argptr);
   } else
@@ -486,8 +486,8 @@ extern int gasnetc_AMRequestShortM(
 }
 
 extern int gasnetc_AMRequestMediumM( 
-                            gasnet_node_t dest,      /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gex_Rank_t dest,      /* destination node */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
   int retval;
@@ -497,7 +497,7 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Medium, dest, handler,
                                            source_addr, nbytes, 0,
                                            numargs, argptr);
   } else
@@ -509,8 +509,8 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMRequestLongM( gex_Rank_t dest,        /* destination node */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
@@ -521,7 +521,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, dest, handler,
                                            source_addr, nbytes, dest_addr,
                                            numargs, argptr);
   } else
@@ -533,8 +533,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMRequestLongAsyncM( gex_Rank_t dest,        /* destination node */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
@@ -545,7 +545,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
+    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, dest, handler,
                                            source_addr, nbytes, dest_addr,
                                            numargs, argptr);
   } else
@@ -558,8 +558,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 }
 
 extern int gasnetc_AMReplyShortM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gex_Token_t token,       /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -567,7 +567,7 @@ extern int gasnetc_AMReplyShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Short, token, handler,
                                          0, 0, 0,
                                          numargs, argptr);
   } else
@@ -580,8 +580,8 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gex_Token_t token,       /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
   int retval;
@@ -590,7 +590,7 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Medium, token, handler,
                                          source_addr, nbytes, 0,
                                          numargs, argptr);
   } else
@@ -603,8 +603,8 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gex_Token_t token,       /* token provided on handler entry */
+                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
@@ -614,7 +614,7 @@ extern int gasnetc_AMReplyLongM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(gasneti_Long, token, handler,
                                          source_addr, nbytes, dest_addr,
                                          numargs, argptr);
   } else
