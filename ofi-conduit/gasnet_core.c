@@ -7,13 +7,12 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
-#include <gasnet_am.h>
+#include <gasnet_ofi.h>
 
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
 
-#include <gasnet_ofi.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");

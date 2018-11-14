@@ -7,6 +7,8 @@
 #ifndef GASNET_OFI_H
 #define GASNET_OFI_H
 
+#include <gasnet_am.h>
+
 #include <rdma/fabric.h>
 #include <rdma/fi_endpoint.h>
 #include <rdma/fi_domain.h>

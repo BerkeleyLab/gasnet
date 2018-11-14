@@ -6,7 +6,6 @@
  */
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_am.h>
 #include <gasnet_ofi.h>
 
 #include <rdma/fabric.h>
