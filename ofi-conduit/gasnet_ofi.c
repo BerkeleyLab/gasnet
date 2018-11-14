@@ -778,33 +778,35 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
 {
 	uint8_t *addr;
 	int handler = header->handler;
-	gex_AM_Entry_t handler_fn = gasnetc_handler[handler];
+    const gex_AM_Entry_t * const handler_entry = &gasnetc_handler[handler];
+    gex_AM_Fn_t handler_fn = handler_entry->gex_fnptr;
 	gex_AM_Arg_t *args;
 	int numargs = header->argnum;
     int data_offset;
+    gex_Token_t token = (gex_Token_t)header;
 	switch(header->type) {
 		case OFI_AM_SHORT:
             args = (gex_AM_Arg_t *)header->buf.short_buf.data;
-			GASNETI_RUN_HANDLER_SHORT(isreq, handler, handler_fn, header, args, numargs);
+			GASNETI_RUN_HANDLER_SHORT(isreq, handler, handler_fn, token, args, numargs);
 			break;
 		case OFI_AM_MEDIUM:
             data_offset = GASNETI_ALIGNUP(sizeof(gex_AM_Arg_t)*numargs, GASNETI_MEDBUF_ALIGNMENT);
             args = (gex_AM_Arg_t *)header->buf.medium_buf.data;
 			addr = header->buf.medium_buf.data + data_offset;
-			GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
+			GASNETI_RUN_HANDLER_MEDIUM(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG:
             data_offset = sizeof(gex_AM_Arg_t)*numargs;
             args = (gex_AM_Arg_t *)header->buf.long_buf.data;
 			addr = header->buf.long_buf.dest_ptr;
-			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
+			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
 			break;
 		case OFI_AM_LONG_MEDIUM:
             data_offset = sizeof(gex_AM_Arg_t)*numargs;
             args = (gex_AM_Arg_t *)header->buf.long_buf.data;
 			addr = header->buf.long_buf.dest_ptr;
 			memcpy(addr, header->buf.long_buf.data + data_offset, nbytes);
-			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, header, args, numargs, addr, nbytes);
+			GASNETI_RUN_HANDLER_LONG(isreq, handler, handler_fn, token, args, numargs, addr, nbytes);
 			break;
 		default:
 			gasneti_fatalerror("undefined header type in gasnetc_ofi_handle_am: %d\n",
