@@ -32,6 +32,13 @@ extern gex_AM_Entry_t *gasnetc_handler;
 // Define if conduit performs local-completion detection:
 // TODO-EX:  #define GASNETE_HAVE_LC
 
+/* Additions to default eop and iop types */
+#define GASNETE_CONDUIT_EOP_FIELDS \
+                gasnetc_ofi_op_ctxt_t ofi;
+#define GASNETE_CONDUIT_IOP_FIELDS      \
+                gasnetc_ofi_op_ctxt_t get_ofi;  \
+                gasnetc_ofi_op_ctxt_t put_ofi;
+
 /* ------------------------------------------------------------------------------------ */
 
 /* FI_THREAD_DOMAIN providers in PAR mode */
