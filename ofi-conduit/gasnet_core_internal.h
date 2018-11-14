@@ -9,27 +9,30 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
 /* ------------------------------------------------------------------------------------ */
-#define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_exchg_reqh              (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+1)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
-#ifndef GASNETE_HANDLER_BASE
-  #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#elif GASNETE_HANDLER_BASE != 64
-  #error "GASNETE_HANDLER_BASE mismatch between core and extended"
-#endif
+/* ------------------------------------------------------------------------------------ */
+/* handler table (temporary global impl) */
+extern gex_AM_Entry_t *gasnetc_handler;
 
 /* ------------------------------------------------------------------------------------ */
-/* handler table (recommended impl) */
-#define GASNETC_MAX_NUMHANDLERS   256
-extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+/* Configure gasnet_event_internal.h and gasnet_event.c */
+// TODO-EX: prefix needs to move from "extended" to "core"
+
+// Define as needed if iop counters should use something other than weakatomics:
+/* #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id */
+
+// Define if conduit performs local-completion detection:
+// TODO-EX:  #define GASNETE_HAVE_LC
+
+/* ------------------------------------------------------------------------------------ */
 
 /* FI_THREAD_DOMAIN providers in PAR mode */
 #if GASNET_PAR && GASNETC_OFI_USE_THREAD_DOMAIN
@@ -72,29 +75,10 @@ extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
                                           } while(0)
 
 /* ------------------------------------------------------------------------------------ */
-/* AM category (recommended impl if supporting PSHM) */
-typedef enum {
-  gasnetc_Short=0,
-  gasnetc_Medium=1,
-  gasnetc_Long=2
-} gasnetc_category_t;
+/* handler table (temporary global impl) */
+extern gex_AM_Entry_t *gasnetc_handler;
 
-#if GASNETI_STATS_OR_TRACE
-#define GASNETC_TRACE_WAIT_BEGIN() \
-    gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(C)
-#else
-#define GASNETC_TRACE_WAIT_BEGIN() \
-    static char _dummy = (char)sizeof(_dummy)
-#endif
-
-#define GASNETC_TRACE_WAIT_END(name) \
-    GASNETI_TRACE_EVENT_TIME(C,name,gasneti_ticks_now() - _waitstart)
-
-#define GASNETC_STAT_EVENT(name) \
-    _GASNETI_STAT_EVENT(C,name)
-#define GASNETC_STAT_EVENT_VAL(name,val) \
-    _GASNETI_STAT_EVENT_VAL(C,name,val)
-
+/* ------------------------------------------------------------------------------------ */
 /* Unnamed struct to hold all the locks needed */
 #if GASNET_PAR && GASNETC_OFI_USE_THREAD_DOMAIN
 struct {
@@ -130,6 +114,11 @@ struct {
  * networks easier to read and understand*/
 #define OFI_POLL_ALL   1
 #define OFI_POLL_REPLY 0
+
+#define GASNETC_STAT_EVENT(name) \
+    _GASNETI_STAT_EVENT(C,name)
+#define GASNETC_STAT_EVENT_VAL(name,val) \
+    _GASNETI_STAT_EVENT_VAL(C,name,val)
 
 /* ------------------------------------------------------------------------------------ */
 /* Job Spawn / Bootstrap */
