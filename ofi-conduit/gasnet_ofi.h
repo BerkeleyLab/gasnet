@@ -64,15 +64,6 @@ typedef struct
   conn_entry_t 			table[];
 }addr_table_t;
 
-typedef enum GASNETC_OFI_OP_TYPE {
-  OFI_TYPE_AM = 0,
-  OFI_TYPE_AM_DATA,
-  OFI_TYPE_EGET,
-  OFI_TYPE_EPUT,
-  OFI_TYPE_IGET,
-  OFI_TYPE_IPUT
-} gasnetc_ofi_op_type;
-
 typedef enum GASNETC_OFI_AM_TYPE {
   OFI_AM_SHORT = 0,
   OFI_AM_MEDIUM,
@@ -81,7 +72,6 @@ typedef enum GASNETC_OFI_AM_TYPE {
 } gasnetc_ofi_am_type;
 
 typedef  void (*event_callback_fn) (struct fi_cq_data_entry *re, void *buf);
-typedef  void (*rdma_callback_fn) (void *buf);
 
 
 typedef struct gasnetc_ofi_am_short_buf {
@@ -131,14 +121,6 @@ typedef struct gasnetc_ofi_ctxt {
   char _pad2[GASNETI_CACHE_PAD(sizeof(uint64_t))];
   uint64_t event_cntr;
 } gasnetc_ofi_ctxt_t;
-
-
-typedef struct gasnetc_ofi_op_ctxt {
-  struct fi_context 	ctxt;
-  rdma_callback_fn		callback;
-  gasnetc_ofi_op_type   type;
-  int					data_sent;
-} gasnetc_ofi_op_ctxt_t;
 
 
 /* The following struct is for storing certain dynamically allocated

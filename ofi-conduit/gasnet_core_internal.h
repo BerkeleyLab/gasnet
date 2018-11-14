@@ -40,6 +40,29 @@ extern gex_AM_Entry_t *gasnetc_handler;
                 gasnetc_ofi_op_ctxt_t put_ofi;
 
 /* ------------------------------------------------------------------------------------ */
+// For EOP/IOP fields, above
+
+#include <rdma/fabric.h>
+
+typedef void (*rdma_callback_fn) (void *buf);
+
+typedef enum GASNETC_OFI_OP_TYPE {
+  OFI_TYPE_AM = 0,
+  OFI_TYPE_AM_DATA,
+  OFI_TYPE_EGET,
+  OFI_TYPE_EPUT,
+  OFI_TYPE_IGET,
+  OFI_TYPE_IPUT
+} gasnetc_ofi_op_type;
+
+typedef struct gasnetc_ofi_op_ctxt {
+  struct fi_context     ctxt;
+  rdma_callback_fn      callback;
+  gasnetc_ofi_op_type   type;
+  int                   data_sent;
+} gasnetc_ofi_op_ctxt_t;
+
+/* ------------------------------------------------------------------------------------ */
 
 /* FI_THREAD_DOMAIN providers in PAR mode */
 #if GASNET_PAR && GASNETC_OFI_USE_THREAD_DOMAIN
