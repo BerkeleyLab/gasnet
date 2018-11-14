@@ -5,9 +5,9 @@
  * Terms of use are as specified in license.txt
  */
 #include <gasnet_core_internal.h>
-#include <gasnet_ofi.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_handler.h>
+#include <gasnet_am.h>
+#include <gasnet_ofi.h>
 
 #include <rdma/fabric.h>
 #include <rdma/fi_endpoint.h>

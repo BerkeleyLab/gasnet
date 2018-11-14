@@ -6,8 +6,8 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_am.h>
 
 #include <errno.h>
 #include <unistd.h>
@@ -30,8 +30,6 @@ static void gasnetc_atexit(void);
 #define GASNETC_DEFAULT_EXITTIMEOUT_MIN         10      /* 10 seconds */
 #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    /* 1/4 second */
 static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
-
-gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 /* ------------------------------------------------------------------------------------ */
 /*
