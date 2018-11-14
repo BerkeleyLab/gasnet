@@ -16,8 +16,8 @@
 #include <rdma/fi_errno.h>
 
 #define OFI_AM_MAX_DATA_LENGTH \
-  GASNETI_ALIGNUP_NOASSERT(gasnet_AMMaxMedium() + \
-                           GASNETI_ALIGNUP_NOASSERT(sizeof(gasnet_handlerarg_t) * gasnet_AMMaxArgs(), \
+  GASNETI_ALIGNUP_NOASSERT(GASNETC_OFI_MAX_MEDIUM + \
+                           GASNETI_ALIGNUP_NOASSERT(sizeof(gex_AM_Arg_t) * gex_AM_MaxArgs(), \
                                                     GASNETI_MEDBUF_ALIGNMENT), \
                            GASNETI_MEDBUF_ALIGNMENT)
 
@@ -85,7 +85,7 @@ typedef  void (*rdma_callback_fn) (void *buf);
 
 
 typedef struct gasnetc_ofi_am_short_buf {
-    gasnet_handlerarg_t     data[gasnet_AMMaxArgs()];
+    gex_AM_Arg_t     data[gex_AM_MaxArgs()];
 
 } gasnetc_ofi_am_short_buf_t;
 
@@ -105,7 +105,7 @@ typedef struct gasnetc_ofi_am_send_buf {
     gasnetc_ofi_am_type type:2;
     uint8_t argnum:6;
     uint8_t handler;
-    gasnet_node_t			sourceid;
+    gex_Rank_t sourceid;
     union {
         gasnetc_ofi_am_short_buf_t short_buf;
         gasnetc_ofi_am_medium_buf_t medium_buf;
@@ -162,25 +162,25 @@ typedef struct gasnetc_ofi_bounce_op_ctxt {
 } gasnetc_ofi_bounce_op_ctxt_t;
 
 int gasnetc_ofi_init(int *argc, char ***argv,
-		gasnet_node_t *nodes_p, gasnet_node_t *mynode_p);
+		gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
 void gasnetc_ofi_poll();
 void gasnetc_ofi_attach(void *segbase, uintptr_t segsize);
 void gasnetc_ofi_exit(void);
 
 /* Active Messages Send Functions */
-int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler, 
+int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler, 
 		int numargs, va_list argptr, int isreq);
-int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler, 
+int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
 		void *source_addr, size_t nbytes,
 		int numargs, va_list argptr, int isreq);
-int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
+int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 		void *source_addr, size_t nbytes,
 		void *dest_addr, int numargs, va_list argptr, int isReq, int isAsync);
 
 /* One-siede PUT/GET Functions */
-void gasnetc_rdma_put(gasnet_node_t node, void *dest, void * src, size_t nbytes,
+void gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
 		gasnetc_ofi_op_ctxt_t *ctxt_ptr);
-void gasnetc_rdma_get(void *dest, gasnet_node_t node, void * src, size_t nbytes,
+void gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
 		gasnetc_ofi_op_ctxt_t *ctxt_ptr);
 
 GASNETI_INLINE(gasnetc_rdma_put_will_block)
@@ -188,10 +188,10 @@ int gasnetc_rdma_put_will_block (size_t nbytes) {
     return nbytes > gasnetc_ofi_bbuf_threshold ? 1 : 0;
 } 
 
-int gasnetc_rdma_put_non_bulk(gasnet_node_t dest, void* dest_addr, void* src_addr, 
+int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
         size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr);
-void gasnetc_rdma_put_wait(gasnet_handle_t op);
-void gasnetc_rdma_get_wait(gasnet_handle_t op);
+void gasnetc_rdma_put_wait(gex_Event_t op);
+void gasnetc_rdma_get_wait(gex_Event_t op);
 
 int gasnetc_exit_in_progress;
 
