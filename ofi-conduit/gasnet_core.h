@@ -19,60 +19,59 @@
   Initialization
   ==============
 */
-/* gasnet_init not inlined or renamed because we use redef-name trick on  
-   it to ensure proper version linkage */
-extern int gasnet_init(int *argc, char ***argv);
-
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
-                          uintptr_t segsize, uintptr_t minheapoffset);
-#define gasnet_attach gasnetc_attach
 
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasnetc_exit)
 #define gasnet_exit gasnetc_exit
 
 /* Some conduits permit gasnet_init(NULL,NULL).
-   Define to 1 if this conduit supports this extension, or to 0 otherwise.
-*/
+   Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #if !HAVE_MPI_SPAWNER || (GASNETI_MPI_VERSION >= 2)
   #define GASNET_NULL_ARGV_OK 1
 #else
   #define GASNET_NULL_ARGV_OK 0
 #endif
+
 /* ------------------------------------------------------------------------------------ */
-/*
-  No-interrupt sections
-  =====================
-*/
-/* conduit may or may not need this based on whether interrupts are used for running handlers */
-#if GASNETC_USE_INTERRUPTS
-  extern void gasnetc_hold_interrupts(void);
-  extern void gasnetc_resume_interrupts(void);
+extern int gasnetc_Client_Init(
+                gex_Client_t           *client_p,
+                gex_EP_t               *ep_p,
+                gex_TM_t               *tm_p,
+                const char             *clientName,
+                int                    *argc,
+                char                   ***argv,
+                gex_Flags_t            flags);
+// gasnetex.h handles name-shifting of gex_Client_Init()
 
-  #define gasnet_hold_interrupts    gasnetc_hold_interrupts
-  #define gasnet_resume_interrupts  gasnetc_resume_interrupts
-#else
-  #define gasnet_hold_interrupts()   ((void)0)
-  #define gasnet_resume_interrupts() ((void)0)
-#endif
+extern int gasnetc_Segment_Attach(
+                gex_Segment_t          *segment_p,
+                gex_TM_t               tm,
+                uintptr_t              length);
+#define gex_Segment_Attach gasnetc_Segment_Attach
 
+extern int gasnetc_EP_Create(
+                gex_EP_t                *ep_p,
+                gex_Client_t            client,
+                gex_Flags_t             flags);
+#define gex_EP_Create gasnetc_EP_Create
+
+extern int gasnetc_EP_RegisterHandlers(
+                gex_EP_t                ep,
+                gex_AM_Entry_t          *table,
+                size_t                  numentries);
+#define gex_EP_RegisterHandlers gasnetc_EP_RegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*
   Handler-safe locks
   ==================
 */
-typedef struct _gasnet_hsl_t {
+typedef struct {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t acquiretime;
   #endif
-
-  #if GASNETC_USE_INTERRUPTS
-    /* more state may be required for conduits using interrupts */
-    #error interrupts not implemented
-  #endif
-} gasnet_hsl_t;
+} gex_HSL_t;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -80,21 +79,13 @@ typedef struct _gasnet_hsl_t {
   #define GASNETC_LOCK_STAT_INIT  
 #endif
 
-#if GASNETC_USE_INTERRUPTS
-  #error interrupts not implemented
-  #define GASNETC_LOCK_INTERRUPT_INIT 
-#else
-  #define GASNETC_LOCK_INTERRUPT_INIT  
-#endif
-
-#define GASNET_HSL_INITIALIZER { \
+#define GEX_HSL_INITIALIZER { \
   GASNETI_MUTEX_INITIALIZER      \
   GASNETC_LOCK_STAT_INIT         \
-  GASNETC_LOCK_INTERRUPT_INIT    \
   }
 
 /* decide whether we have "real" HSL's */
-#if GASNETI_THREADS || GASNETC_USE_INTERRUPTS || /* need for safety */ \
+#if GASNETI_THREADS ||                           /* need for safety */ \
     GASNET_DEBUG || GASNETI_STATS_OR_TRACE       /* or debug/tracing */
   #ifdef GASNETC_NULL_HSL 
     #error bad defn of GASNETC_NULL_HSL
@@ -105,23 +96,23 @@ typedef struct _gasnet_hsl_t {
 
 #if GASNETC_NULL_HSL
   /* HSL's unnecessary - compile away to nothing */
-  #define gasnet_hsl_init(hsl)
-  #define gasnet_hsl_destroy(hsl)
-  #define gasnet_hsl_lock(hsl)
-  #define gasnet_hsl_unlock(hsl)
-  #define gasnet_hsl_trylock(hsl)	GASNET_OK
+  #define gex_HSL_Init(hsl)
+  #define gex_HSL_Destroy(hsl)
+  #define gex_HSL_Lock(hsl)
+  #define gex_HSL_Unlock(hsl)
+  #define gex_HSL_Trylock(hsl)	GASNET_OK
 #else
-  extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl);
-  extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl);
-  extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl);
-  extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
-  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
+  extern void gasnetc_hsl_init   (gex_HSL_t *hsl);
+  extern void gasnetc_hsl_destroy(gex_HSL_t *hsl);
+  extern void gasnetc_hsl_lock   (gex_HSL_t *hsl);
+  extern void gasnetc_hsl_unlock (gex_HSL_t *hsl);
+  extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) GASNETI_WARN_UNUSED_RESULT;
 
-  #define gasnet_hsl_init    gasnetc_hsl_init
-  #define gasnet_hsl_destroy gasnetc_hsl_destroy
-  #define gasnet_hsl_lock    gasnetc_hsl_lock
-  #define gasnet_hsl_unlock  gasnetc_hsl_unlock
-  #define gasnet_hsl_trylock gasnetc_hsl_trylock
+  #define gex_HSL_Init    gasnetc_hsl_init
+  #define gex_HSL_Destroy gasnetc_hsl_destroy
+  #define gex_HSL_Lock    gasnetc_hsl_lock
+  #define gex_HSL_Unlock  gasnetc_hsl_unlock
+  #define gex_HSL_Trylock gasnetc_hsl_trylock
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -129,20 +120,29 @@ typedef struct _gasnet_hsl_t {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)16)
+#define gex_AM_MaxArgs()          ((unsigned int)16)
+
+  /* Define least-upper-bound (worst case) limits on payload sizes */
 #define GASNETC_LONG_MSG_LIMIT (0x7fffffff)
-#define gasnet_AMMaxMedium()        ((size_t)MIN(GASNETC_OFI_MAX_MEDIUM, GASNETC_MAX_MEDIUM_PSHM_DFLTMAX))
-#define gasnet_AMMaxLongRequest()   ((size_t)GASNETC_LONG_MSG_LIMIT)
-#define gasnet_AMMaxLongReply()     ((size_t)GASNETC_LONG_MSG_LIMIT)
+#define gex_AM_LUBRequestMedium() ((size_t)MIN(GASNETC_OFI_MAX_MEDIUM, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
+#define gex_AM_LUBReplyMedium()   ((size_t)MIN(GASNETC_OFI_MAX_MEDIUM, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
+#define gex_AM_LUBRequestLong()   ((size_t)GASNETC_LONG_MSG_LIMIT)
+#define gex_AM_LUBReplyLong()     ((size_t)GASNETC_LONG_MSG_LIMIT)
+
+  /* Provide tigher bounds based on parameters */
+  // TODO-EX: Medium sizes can be further improved upon for PSHM case
+#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  gex_AM_LUBRequestMedium()
+#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    gex_AM_LUBReplyMedium()
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    gex_AM_LUBRequestLong()
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      gex_AM_LUBReplyLong()
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   gex_AM_LUBReplyMedium()
+#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     gex_AM_LUBReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
-
-#define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
 #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 
