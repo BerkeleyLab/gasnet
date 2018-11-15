@@ -594,7 +594,7 @@ extern void gasnetc_exit(int exitcode) {
        if (gasnetc_AMlock._owner == GASNETI_THREADIDQUERY()) break;
      #endif
      if (!gasneti_mutex_trylock(&gasnetc_AMlock)) break;
-     gasneti_sched_yield();
+     else gasneti_sched_yield();
    }
   }
 
