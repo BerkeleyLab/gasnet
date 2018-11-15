@@ -56,7 +56,7 @@ extern volatile int gasnetc_AMLockYield;
     for (_i=0; _i < 50; _i++) {                           \
       _AMLOCK_CAUTIOUS_HELPER();                          \
       if (!gasneti_mutex_trylock(&gasnetc_AMlock)) break; \
-      gasneti_sched_yield();                              \
+      else gasneti_sched_yield();                         \
     }                                                     \
     gasnetc_AMLockYield = 0;                              \
 } while (0)
