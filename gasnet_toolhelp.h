@@ -453,37 +453,39 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
 #endif
 
 #if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND || GASNETI_MUTEX_CAUTIOUS_INIT
-  /* NOTE: We are making an unfounded assumption that the pthread_t is
-   * an arithmetic type, but the standard allows it to be a struct (and
-   * provides pthread_equal() for that reason).
-   * Additionally, we've assumed '-1' will never be a valid id.
-   * If either assumption is ever wrong, then the most expedient solution
-   * would be to disable the debug checking entirely.
+  /* Here we deliberately avoid assuming pthread_t is an arithmetic type, 
+   * because the POSIX standard allows it to be a struct.
+   * We assume only that the bit pattern below (deliberately chosen to be an
+   * unlikely value for an index or aligned pointer) will not correspond to the
+   * pthread_t identifier of any valid thread.
+   * If this assumption is ever wrong, then the most expedient solution is to
+   * redefine this constant appropriately, otherwise disable the debug checking entirely.
    */
-  #define GASNETI_MUTEX_NOOWNER         ((GASNETI_THREADID_T)(uintptr_t)-1)
-  #ifndef GASNETI_THREADIDQUERY
-    /* allow conduit override of thread-id query */
-    #if GASNETI_USE_TRUE_MUTEXES
-      #define GASNETI_THREADID_T        pthread_t
-      #define GASNETI_THREADIDQUERY()   pthread_self()
-      #if PLATFORM_COMPILER_PGI
-        // PGI 18.4 on MacOS observed to generate incorrect code for assert_ptr version below
-        #define _gasneti_assert_owner(op1, operator, op2) \
-          gasneti_assert((op1) operator (op2))
-      #else
-        #define _gasneti_assert_owner(op1, operator, op2) \
-          gasneti_assert_ptr((void*)(uintptr_t)(op1), operator, (void*)(uintptr_t)(op2))
-      #endif
-    #else
-      #define GASNETI_THREADID_T        uintptr_t
-      #define GASNETI_THREADIDQUERY()   ((uintptr_t)0)
-      #define _gasneti_assert_owner     gasneti_assert_uint
-    #endif
+  #ifndef GASNETI_OWNERID_NONE
+  #define GASNETI_OWNERID_NONE               (0x5005500550055005u)
+  #endif
+  #define _GASNETI_MUTEXOWNER_INIT           { GASNETI_OWNERID_NONE }
+  // boolean ownership queries, only available in debug mode:
+  // _gasneti_mutex_heldbysomeone(pl) and _gasneti_mutex_heldbyme(pl)
+  #define _gasneti_mutex_heldbysomeone(pl) ((pl)->_owner._id64 != GASNETI_OWNERID_NONE)
+  #if GASNETI_USE_TRUE_MUTEXES
+    typedef union {
+      volatile uint64_t  _id64;
+      volatile pthread_t _id;
+    } _gasneti_mutexowner_t;
+    #define _gasneti_mutex_heldbyme(pl)      (_gasneti_mutex_heldbysomeone(pl) && \
+                                             pthread_equal(pthread_self(), (pl)->_owner._id))
+  #else
+    typedef struct {
+      volatile uint64_t  _id64;
+    } _gasneti_mutexowner_t;
+    #define _gasneti_ownerid64_me            (0x1111111111111111u)
+    #define _gasneti_mutex_heldbyme(pl)      ((pl)->_owner._id64 == _gasneti_ownerid64_me)
   #endif
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
     typedef struct {
-      volatile GASNETI_THREADID_T _owner;
+      _gasneti_mutexowner_t _owner;
       pthread_mutex_t _lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
@@ -496,44 +498,43 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     #else
       #define _GASNETI_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
     #endif
-    #define GASNETI_MUTEX_INITIALIZER { GASNETI_MUTEX_NOOWNER,                   \
+    #define GASNETI_MUTEX_INITIALIZER { _GASNETI_MUTEXOWNER_INIT,                \
                                         _GASNETI_PTHREAD_MUTEX_INITIALIZER       \
                                         _GASNETI_MUTEX_CAUTIOUS_INIT_INITIALIZER \
                                       }
-    #define gasneti_mutex_lock(pl) do {                                        \
-              gasneti_mutex_t * const _pl = (pl);                              \
-              _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(_pl);                         \
-              _gasneti_assert_owner(GASNETI_THREADIDQUERY() ,!=, GASNETI_MUTEX_NOOWNER);\
-              _gasneti_assert_owner(_pl->_owner ,!=, GASNETI_THREADIDQUERY()); \
-              gasneti_assert_zeroret(pthread_mutex_lock(&(_pl->_lock)));       \
-              _gasneti_assert_owner(_pl->_owner ,==, GASNETI_MUTEX_NOOWNER);   \
-              _pl->_owner = GASNETI_THREADIDQUERY();                           \
+    #define gasneti_mutex_lock(pl) do {                                                      \
+              gasneti_mutex_t * const _pl = (pl);                                            \
+              _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(_pl);                                       \
+              gasneti_assert(!_gasneti_mutex_heldbyme(_pl)); /* not recursive */             \
+              gasneti_assert_zeroret(pthread_mutex_lock(&(_pl->_lock)));   /* LOCK */        \
+              gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl)); /* lock sanity */          \
+              _pl->_owner._id = pthread_self();                  /* record ownership */      \
+              gasneti_assert(_gasneti_mutex_heldbysomeone(_pl)); /* sanity check NONE val */ \
             } while (0)
     GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *_pl) {
               int _retval;
               _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(_pl);
-              _gasneti_assert_owner(GASNETI_THREADIDQUERY() ,!=, GASNETI_MUTEX_NOOWNER);
-              _gasneti_assert_owner(_pl->_owner ,!=, GASNETI_THREADIDQUERY());
-              _retval = pthread_mutex_trylock(&(_pl->_lock));
+              gasneti_assert(!_gasneti_mutex_heldbyme(_pl));  // not recursive
+              _retval = pthread_mutex_trylock(&(_pl->_lock)); // LOCK
               if (_retval == EBUSY) return EBUSY;
               if (_retval) gasneti_fatalerror("pthread_mutex_trylock()=%s",strerror(_retval));
-              _gasneti_assert_owner(_pl->_owner ,==, GASNETI_MUTEX_NOOWNER);
-              _pl->_owner = GASNETI_THREADIDQUERY();
+              gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl)); // lock sanity
+              _pl->_owner._id = pthread_self();                   // record ownership
+              gasneti_assert(_gasneti_mutex_heldbysomeone(_pl));  // sanity check NONE val
               return 0;
     }
     #define gasneti_mutex_unlock(pl) do {                                       \
               gasneti_mutex_t * const _pl = (pl);                               \
-              _gasneti_assert_owner(GASNETI_THREADIDQUERY() ,!=, GASNETI_MUTEX_NOOWNER); \
-              _gasneti_assert_owner(_pl->_owner ,==, GASNETI_THREADIDQUERY());  \
-              _pl->_owner = GASNETI_MUTEX_NOOWNER;                              \
+              gasneti_assert(_gasneti_mutex_heldbyme(_pl)); /* check held */    \
+              _pl->_owner._id64 = GASNETI_OWNERID_NONE; /* release ownership */ \
               gasneti_assert_zeroret(pthread_mutex_unlock(&(_pl->_lock)));      \
             } while (0)
     #define gasneti_mutex_init(pl) do {                                         \
               gasneti_mutex_t * const _pl = (pl);                               \
               GASNETI_MUTEX_INITCLEAR(&(_pl->_lock));                           \
               gasneti_assert_zeroret(pthread_mutex_init(&(_pl->_lock),NULL));   \
-              _pl->_owner = GASNETI_MUTEX_NOOWNER;                              \
+              _pl->_owner._id64 = GASNETI_OWNERID_NONE; /* clear ownership */   \
               _GASNETI_MUTEX_CAUTIOUS_INIT_INIT(_pl);                           \
             } while (0)
     #if PLATFORM_OS_NETBSD
@@ -544,7 +545,7 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
        */
       GASNETI_INLINE(gasneti_mutex_destroy_ignoreerr)
       int gasneti_mutex_destroy_ignoreerr(gasneti_mutex_t *_gmdi_pl) {
-        if ((_gmdi_pl->_owner == GASNETI_THREADIDQUERY()) || !gasneti_mutex_trylock(_gmdi_pl)) {
+        if (_gasneti_mutex_heldbyme(_gmdi_pl) || !gasneti_mutex_trylock(_gmdi_pl)) {
           /* held by us */
           gasneti_mutex_unlock(_gmdi_pl);
           return pthread_mutex_destroy(&(_gmdi_pl->_lock));
@@ -562,34 +563,35 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
               gasneti_assert_zeroret(gasneti_mutex_destroy_ignoreerr(pl))
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
-      volatile GASNETI_THREADID_T _owner;
+      _gasneti_mutexowner_t _owner;
     } gasneti_mutex_t;
-    #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
+    #define GASNETI_MUTEX_INITIALIZER   { _GASNETI_MUTEXOWNER_INIT }
     #define gasneti_mutex_lock(pl) do {                             \
               gasneti_mutex_t * const _pl = (pl);                   \
-              _gasneti_assert_owner(_pl->_owner ,==, GASNETI_MUTEX_NOOWNER); \
-              _pl->_owner = GASNETI_THREADIDQUERY();                \
+              gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl));   \
+              _pl->_owner._id64 = _gasneti_ownerid64_me;            \
             } while (0)
     GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *_pl) {
-              _gasneti_assert_owner(_pl->_owner ,==, GASNETI_MUTEX_NOOWNER);
-              _pl->_owner = GASNETI_THREADIDQUERY();
+              gasneti_static_assert(_gasneti_ownerid64_me != GASNETI_OWNERID_NONE);
+              gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl)); 
+              _pl->_owner._id64 = _gasneti_ownerid64_me;
               return 0;
     }
     #define gasneti_mutex_unlock(pl) do {                           \
               gasneti_mutex_t * const _pl = (pl);                   \
-              _gasneti_assert_owner(_pl->_owner ,==, GASNETI_THREADIDQUERY()); \
-              _pl->_owner = GASNETI_MUTEX_NOOWNER;                  \
+              gasneti_assert(_gasneti_mutex_heldbyme(_pl));         \
+              _pl->_owner._id64 = GASNETI_OWNERID_NONE;             \
             } while (0)
     #define gasneti_mutex_init(pl) do {                             \
               gasneti_mutex_t * const _pl = (pl);                   \
-              _pl->_owner = GASNETI_MUTEX_NOOWNER;                  \
+              _pl->_owner._id64 = GASNETI_OWNERID_NONE;             \
             } while (0)
     #define gasneti_mutex_destroy_ignoreerr(pl) 0
     #define gasneti_mutex_destroy(pl) ((void)0)
   #endif
-  #define gasneti_mutex_assertlocked(pl)    _gasneti_assert_owner((pl)->_owner ,==, GASNETI_THREADIDQUERY())
-  #define gasneti_mutex_assertunlocked(pl)  _gasneti_assert_owner((pl)->_owner ,!=, GASNETI_THREADIDQUERY())
+  #define gasneti_mutex_assertlocked(pl)    gasneti_assert(_gasneti_mutex_heldbyme(pl))
+  #define gasneti_mutex_assertunlocked(pl)  gasneti_assert(!_gasneti_mutex_heldbyme(pl))
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
@@ -677,12 +679,13 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     #define gasneti_cond_wait(pc,pl)  do {                                     \
       gasneti_cond_t * const _pc = (pc);                                       \
       gasneti_mutex_t * const _pl = (pl);                                      \
-      _gasneti_assert_owner(_pl->_owner ,==, GASNETI_THREADIDQUERY());         \
-      _pl->_owner = GASNETI_MUTEX_NOOWNER;                                     \
+      gasneti_mutex_assertlocked(_pl);                                         \
+      _gasneti_mutexowner_t _ownersave = _pl->_owner;                          \
+      _pl->_owner._id64 = GASNETI_OWNERID_NONE;                                \
       _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(_pl);                                 \
       gasneti_assert_zeroret(pthread_cond_wait(&(_pc->_cond), &(_pl->_lock))); \
-      _gasneti_assert_owner(_pl->_owner ,==, GASNETI_MUTEX_NOOWNER);           \
-      _pl->_owner = GASNETI_THREADIDQUERY();                                   \
+      gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl));                      \
+      _pl->_owner = _ownersave;                                                \
     } while (0)
   #else
     #define gasneti_cond_wait(pc,pl)  do {               \
