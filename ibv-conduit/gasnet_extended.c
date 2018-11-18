@@ -124,38 +124,28 @@ gex_Event_t gasnete_put_nb(
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
- {
-  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
-  gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_atomic_val_t *local_cnt, start_cnt;
-  gasnetc_cb_t         local_cb;
-  gasnetc_atomic_val_t lc_start;
-
-  if (gasneti_leaf_is_pointer(lc_opt)) {
-    GASNETE_EOP_LC_START(op);
-    start_cnt = op->initiated_alc;
-    local_cnt = &op->initiated_alc;
-    local_cb = gasnetc_cb_eop_alc;
-  } else if (lc_opt == GEX_EVENT_NOW) {
-    local_cnt = &counter.initiated;
-    local_cb = gasnetc_cb_counter;
-  } else if (lc_opt == GEX_EVENT_DEFER) {
-    local_cnt = NULL;
-    local_cb = NULL;
-  } else {
-    gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
-  }
 
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
+
   /* XXX check error returns */
-  gasnetc_rdma_put(jobrank, src, dest, nbytes, flags,
-                   local_cnt, local_cb,
-                   &op->initiated_cnt, gasnetc_cb_eop_put
-                   GASNETI_THREAD_PASS);
+  #define GASNETC_RDMA_PUT(local_cnt, local_cb)              \
+    gasnetc_rdma_put(jobrank, src, dest, nbytes, flags,      \
+                     local_cnt, local_cb,                    \
+                     &op->initiated_cnt, gasnetc_cb_eop_put  \
+                     GASNETI_THREAD_PASS)
 
   if (lc_opt == GEX_EVENT_NOW) {
+    gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
+    GASNETC_RDMA_PUT(&counter.initiated, gasnetc_cb_counter);
     gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
-  } else if (gasneti_leaf_is_pointer(lc_opt)) {
+  } else if (lc_opt == GEX_EVENT_DEFER) {
+    GASNETC_RDMA_PUT(NULL, NULL);
+  } else {
+    gasneti_assume(gasneti_leaf_is_pointer(lc_opt));
+    GASNETE_EOP_LC_START(op);
+    gasnetc_atomic_val_t start_cnt = op->initiated_alc;
+    GASNETC_RDMA_PUT(&op->initiated_alc, gasnetc_cb_eop_alc);
     if (start_cnt == op->initiated_alc) {
       // Synchronous LC - reset the eop's LC state
       GASNETE_EOP_LC_FINISH(op);
@@ -166,8 +156,8 @@ gex_Event_t gasnete_put_nb(
   }
 
   return (gex_Event_t)op;
- }
 }
+#undef GASNETC_RDMA_PUT
 
 /* ------------------------------------------------------------------------------------ */
 /*
