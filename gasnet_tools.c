@@ -1566,6 +1566,8 @@ extern void gasneti_backtrace_init(const char *exename) {
     #endif
       {
         for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
+          // silence a buggy array-bounds warning from gcc-5:
+          gasneti_assume(i < sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0]));
           #if GASNETI_THREADS
           if (th == gasneti_backtrace_mechanisms[i].threadsupport) 
           #endif
@@ -1650,6 +1652,8 @@ extern int gasneti_print_backtrace(int fd) {
         if (*plist) plist++;
 
         for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
+          // silence a buggy array-bounds warning from gcc-5:
+          gasneti_assume(i < sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0]));
           if (!strcmp(gasneti_backtrace_mechanisms[i].name,btsel)) {
             snprintf(linep, linelen, "Invoking %s for backtrace...\n", btsel);
             gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
