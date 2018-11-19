@@ -1177,81 +1177,96 @@ void * thread_fn(void *arg) {
     {
       static gasnett_atomic32_t counter32 = gasnett_atomic32_init(0);
       uint32_t woncnt = 0;
-      uint32_t share = ((unsigned)iters >= (0xffffffffU / NUM_THREADS)) ? (0xffffffffU / NUM_THREADS) : iters;
+      uint32_t share = MIN((unsigned)iters, (0xffffffffU / NUM_THREADS));
       uint32_t goal = NUM_THREADS * share;
       uint32_t oldval;
 
       /* Look for missing or doubled updates by taking an equal share of increments */
-      while (woncnt < share && (oldval = gasnett_atomic32_read(&counter32,0)) != goal) {
+      while (woncnt < share && (oldval = gasnett_atomic32_read(&counter32,0)) < goal) {
         if (gasnett_atomic32_compare_and_swap(&counter32, oldval, (oldval + 1), 0)) {
            woncnt++;
         }
       }
+      if (woncnt != share)
+        ERR("failed 32-bit compare-and-swap test: woncnt=%u share=%u", (unsigned)woncnt, (unsigned)share);
       THREAD_BARRIER();
       oldval = gasnett_atomic32_read(&counter32,0);
       if (oldval != goal) 
         ERR("failed 32-bit compare-and-swap test: counter=%u expecting=%u", (unsigned)oldval, (unsigned)goal);
-      if (woncnt != share) 
-        ERR("failed 32-bit compare-and-swap test: woncnt=%u share=%u", (unsigned)woncnt, (unsigned)share);
     }
 
     {
       static gasnett_atomic64_t counter64 = gasnett_atomic64_init(0);
-      uint64_t woncnt = 0;
-      uint64_t share = iters;
-      uint64_t goal = NUM_THREADS * share; /* Not going to overflow */
-      uint64_t oldval;
+      uint64_t share = MIN((unsigned)iters, (0xffffffffU / NUM_THREADS));
+      const uint64_t one = 1;
+      const uint64_t incrs[] = { one, one<<32, one + one<<32 };
+      for (i = 0; i < sizeof(incrs)/sizeof(incrs[0]); ++i) {
+        uint64_t incr = incrs[i];
+        uint64_t goal = NUM_THREADS * share * incr;
+        uint64_t woncnt = 0;
+        uint64_t oldval;
 
-      /* Look for missing or doubled updates by taking an equal share of increments */
-      while (woncnt < share && (oldval = gasnett_atomic64_read(&counter64,0)) != goal) {
-        if (gasnett_atomic64_compare_and_swap(&counter64, oldval, (oldval + 1), 0)) {
-           woncnt++;
+        /* Look for missing or doubled updates by taking an equal share of increments */
+        while (woncnt < share && (oldval = gasnett_atomic64_read(&counter64,0)) < goal) {
+          if (gasnett_atomic64_compare_and_swap(&counter64, oldval, (oldval + incr), 0)) {
+             woncnt++;
+          }
         }
+        if (woncnt != share)
+          ERR("failed 64-bit compare-and-swap test: woncnt=%" PRIu64 " share=%" PRIu64, woncnt, share);
+        THREAD_BARRIER();
+        if (!id) {
+          oldval = gasnett_atomic64_read(&counter64,0);
+          if (oldval != goal)
+            ERR("failed 64-bit compare-and-swap test: counter=%" PRIu64 " expecting=%" PRIu64, oldval, goal);
+          gasnett_atomic64_set(&counter64,0,0);
+        }
+        THREAD_BARRIER();
       }
-      THREAD_BARRIER();
-      oldval = gasnett_atomic64_read(&counter64,0);
-      if (oldval != goal) 
-        ERR("failed 64-bit compare-and-swap test: counter=%" PRIu64 " expecting=%" PRIu64, oldval, goal);
-      if (woncnt != share) 
-        ERR("failed 64-bit compare-and-swap test: woncnt=%" PRIu64 " share=%" PRIu64, woncnt, share);
     }
   }
 
   TEST_HEADER("parallel swap test...") {
-    #if GASNETT_HAVE_STRONGATOMIC_CAS
-      const gasnett_atomic_val_t limit = MIN(GASNETT_ATOMIC_MAX, 8192);
-      static gasnett_atomic_t var;
-      static char *array;
+    const gasnett_atomic_val_t limit = MIN(GASNETT_ATOMIC_MAX, 8192);
+    static char *array;
+    if (!id) {
+      array = (char *)test_calloc(sizeof(char), limit);
+    }
 
-      if (0 == id) {
-        gasnett_atomic_set(&var, GASNETT_ATOMIC_MAX, 0);
-        array = (char *)test_calloc(sizeof(char), limit);
-      }
+    #if GASNETT_HAVE_ATOMIC_CAS
+    {
+      static gasnett_atomic_t var = gasnett_atomic_init(GASNETT_ATOMIC_MAX);
 
       THREAD_BARRIER();
 
       for (i = 0; i < iters; ++i) {
-        gasnett_atomic_val_t j;
- 
         /* Write all values in [0,limit) with each thread owning a share of the space.
            The 'array' tracks which values have been seen and ensures no duplicates. */
-        for (j = id; j < limit; j += NUM_THREADS) {
+        for (gasnett_atomic_val_t j = id; j < limit; j += NUM_THREADS) {
           gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, j, 0);
           if_pt (idx != GASNETT_ATOMIC_MAX) {
-            if (array[idx] != 0)
-              ERR("gasnett_atomic_swap produced a duplicate value %d", idx);
-            array[idx] = 1;
+            if_pf (idx >= limit) {
+              ERR("gasnett_atomic_swap read an impossible value %d", idx);
+            } else {
+              if_pf (array[idx] != 0)
+                ERR("gasnett_atomic_swap produced a duplicate value %d", idx);
+              array[idx] = 1;
+            }
           }
         }
 
         THREAD_BARRIER();
 
-        if (0 == id) {
+        if (!id) {
           /* One final swap to simplify the validation */
           gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, GASNETT_ATOMIC_MAX, 0);
-          if (array[idx] != 0)
-            ERR("gasnett_atomic_swap produced a duplicate value %d", i);
-          array[idx] = 1;
+          if_pf (idx >= limit) {
+            ERR("gasnett_atomic_swap read an impossible value %d", idx);
+          } else {
+            if_pf (array[idx] != 0)
+              ERR("gasnett_atomic_swap produced a duplicate value %d", i);
+            array[idx] = 1;
+          }
 
           /* Now scan the array to ensure no values were missed */
           for (idx = 0; idx < limit; ++idx) {
@@ -1263,11 +1278,230 @@ void * thread_fn(void *arg) {
 
         THREAD_BARRIER();
       }
-
-      if (0 == id) {
-        test_free(array);
-      }
+    }
+    #else
+      MSG0("  NOTE: gasnett_atomic_swap() is missing");
     #endif
+
+    { // Same for 32-bit fixed-width atomics
+      static gasnett_atomic32_t var = gasnett_atomic32_init(GASNETT_ATOMIC_MAX);
+
+      THREAD_BARRIER();
+
+      for (i = 0; i < iters; ++i) {
+        for (uint32_t j = id; j < limit; j += NUM_THREADS) {
+          uint32_t idx = gasnett_atomic32_swap(&var, j, 0);
+          if_pt (idx != GASNETT_ATOMIC_MAX) {
+            if_pf (idx >= limit) {
+              ERR("gasnett_atomic32_swap read an impossible value %d", idx);
+            } else {
+              if (array[idx] != 0)
+                ERR("gasnett_atomic32_swap produced a duplicate value %d", idx);
+              array[idx] = 1;
+            }
+          }
+        }
+
+        THREAD_BARRIER();
+
+        if (!id) {
+          uint32_t idx = gasnett_atomic32_swap(&var, GASNETT_ATOMIC_MAX, 0);
+          if (idx >= limit) {
+            ERR("gasnett_atomic32_swap read an impossible value %u", (int)idx);
+          } else {
+            if (array[idx] != 0)
+              ERR("gasnett_atomic32_swap produced a duplicate value %d", (int)i);
+            array[idx] = 1;
+          }
+
+          for (idx = 0; idx < limit; ++idx) {
+            if (array[idx] != 1)
+              ERR("gasnett_atomic32_swap missed an update at %d", (int)idx);
+            array[idx] = 0;
+          }
+        }
+
+        THREAD_BARRIER();
+      }
+    }
+
+    { // Same for 64-bit fixed-width atomics
+      // There is an extra wrinkle in this case:
+      // We map the updates into both upper and lower halves of a 64-bit word
+      #define FWD(n) ((n)&1 ? (n) : (uint64_t)(n)<<32)
+      #define BWD(n) (((n)&0xFFFFFFFFu | (n)>>32))
+
+      static gasnett_atomic64_t var = gasnett_atomic64_init(GASNETT_ATOMIC_MAX);
+
+      THREAD_BARRIER();
+
+      for (i = 0; i < iters; ++i) {
+        for (uint64_t j = id; j < limit; j += NUM_THREADS) {
+          uint64_t read = gasnett_atomic64_swap(&var, FWD(j), 0);
+          if_pt (read != GASNETT_ATOMIC_MAX) {
+            uint64_t idx = BWD(read);
+            if_pf ((idx >= limit) || ((read & 0xFFFFFFFFu) && (read >> 32))) {
+              ERR("gasnett_atomic64_swap read an impossible value 0x%" PRIx64, read);
+            } else {
+              if_pf (array[idx] != 0)
+                ERR("gasnett_atomic64_swap produced a duplicate value %d", (int)idx);
+              array[idx] = 1;
+            }
+          }
+        }
+
+        THREAD_BARRIER();
+
+        if (!id) {
+          uint64_t read = gasnett_atomic64_swap(&var, GASNETT_ATOMIC_MAX, 0);
+          uint64_t idx = BWD(read);
+          if_pf ((idx >= limit) || ((read & 0xFFFFFFFFu) && (read >> 32))) {
+            ERR("gasnett_atomic64_swap read an impossible value 0x%" PRIx64, read);
+          } else {
+            if_pf (array[idx] != 0)
+              ERR("gasnett_atomic64_swap produced a duplicate value %d", (int)idx);
+            array[idx] = 1;
+          }
+
+          for (idx = 0; idx < limit; ++idx) {
+            if (array[idx] != 1)
+              ERR("gasnett_atomic64_swap missed an update at %d", (int)idx);
+            array[idx] = 0;
+          }
+        }
+
+        THREAD_BARRIER();
+      }
+      #undef FWD
+      #undef BWD
+    }
+
+    if (0 == id) {
+      test_free(array);
+    }
+  }
+
+  TEST_HEADER("parallel add test...") {
+    const gasnett_atomic_val_t limit = MIN(GASNETT_ATOMIC_MAX, 8192);
+    static char *array;
+    if (!id) {
+      array = (char *)test_calloc(sizeof(char), limit);
+    }
+
+    #if GASNETT_HAVE_ATOMIC_ADD_SUB
+    {
+      static gasnett_atomic_t var = gasnett_atomic_init(0);
+
+      THREAD_BARRIER();
+
+      for (i = 0; i < iters; ++i) {
+        /* Produce all values in [0,limit) with each thread owning a share of the space.
+           The 'array' tracks which values have been seen and ensures no duplicates. */
+        for (gasnett_atomic_val_t j = id; j < limit; j += NUM_THREADS) {
+          gasnett_atomic_val_t idx = gasnett_atomic_add(&var, 1, 0) - 1;
+          if_pf (idx >= limit) {
+            ERR("gasnett_atomic_add read an impossible value %d", idx);
+          } else {
+            if_pf (array[idx] != 0)
+              ERR("gasnett_atomic_add produced a duplicate value %d", idx);
+            array[idx] = 1;
+          }
+        }
+
+        THREAD_BARRIER();
+
+        if (!id) {
+          /* Now scan the array to ensure no values were missed */
+          for (gasnett_atomic_val_t idx = 0; idx < limit; ++idx) {
+            if (array[idx] != 1)
+              ERR("gasnett_atomic_add missed an update at %d", idx);
+            array[idx] = 0; /* reset for next iteration */
+          }
+          gasnett_atomic_set(&var, 0, 0);
+        }
+
+        THREAD_BARRIER();
+      }
+    }
+    #else
+      MSG0("  NOTE: gasnett_atomic_add() is missing");
+    #endif
+
+    { // Same for 32-bit fixed-width atomics
+      static gasnett_atomic32_t var = gasnett_atomic32_init(0);
+
+      THREAD_BARRIER();
+
+      for (i = 0; i < iters; ++i) {
+        for (uint32_t j = id; j < limit; j += NUM_THREADS) {
+          uint32_t idx = gasnett_atomic32_add(&var, 1, 0) - 1;
+          if_pf (idx >= limit) {
+            ERR("gasnett_atomic32_add read an impossible value %d", (int)idx);
+          } else {
+            if_pf (array[idx] != 0)
+              ERR("gasnett_atomic32_add produced a duplicate value %d", (int)idx);
+            array[idx] = 1;
+          }
+        }
+
+        THREAD_BARRIER();
+
+        if (!id) {
+          for (uint32_t idx = 0; idx < limit; ++idx) {
+            if (array[idx] != 1)
+              ERR("gasnett_atomic32_add missed an update at %d", (int)idx);
+            array[idx] = 0;
+          }
+          gasnett_atomic32_set(&var, 0, 0);
+        }
+
+        THREAD_BARRIER();
+      }
+    }
+
+    { // Same for 64-bit fixed-width atomics
+      // There is an extra wrinkle in this case:
+      // We map the updates into both upper and lower halves of a 64-bit word
+      #define FWD(n) ((n)&1 ? (1) : (uint64_t)1<<32)
+      #define BWD(n) (((n)&0xFFFFFFFFu) + ((n)>>32))
+
+      static gasnett_atomic64_t var = gasnett_atomic64_init(0);
+
+      THREAD_BARRIER();
+
+      for (i = 0; i < iters; ++i) {
+        for (uint64_t j = id; j < limit; j += NUM_THREADS) {
+          uint64_t read = gasnett_atomic64_add(&var, FWD(j), 0);
+          uint64_t idx = BWD(read) - 1;
+          if_pf (idx >= limit) {
+            ERR("gasnett_atomic64_add read an impossible value 0x%" PRIx64, read);
+          } else {
+            if_pf (array[idx] != 0)
+              ERR("gasnett_atomic64_add produced a duplicate value %d", (int)idx);
+            array[idx] = 1;
+          }
+        }
+
+        THREAD_BARRIER();
+
+        if (!id) {
+          for (uint64_t idx = 0; idx < limit; ++idx) {
+            if (array[idx] != 1)
+              ERR("gasnett_atomic64_add missed an update at %d", idx);
+            array[idx] = 0;
+          }
+          gasnett_atomic64_set(&var, 0, 0);
+        }
+
+        THREAD_BARRIER();
+      }
+      #undef FWD
+      #undef BWD
+    }
+
+    if (0 == id) {
+      test_free(array);
+    }
   }
 
   TEST_HEADER("parallel atomic-op fence test...") {
