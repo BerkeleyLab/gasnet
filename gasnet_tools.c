@@ -725,6 +725,30 @@ extern void gasneti_close_streams(void) {
   gasneti_sched_yield();
 }
 /* ------------------------------------------------------------------------------------ */
+static void (*_gasneti_exitfn)(int);
+#if HAVE_ON_EXIT
+  static void gasneti_on_exit(int exitcode, void *arg) {
+    if (_gasneti_exitfn) _gasneti_exitfn(exitcode);
+  }
+#else
+  static void gasneti_atexit(void) {
+    if (_gasneti_exitfn) _gasneti_exitfn(0);
+  }
+#endif
+extern void gasneti_registerExitHandler(void (*_exitfn)(int)) {
+  _gasneti_exitfn = _exitfn;
+  static int firstcall = 1;
+  if (!firstcall) return;
+  firstcall = 0;
+  if (gasneti_getenv_yesno_withdefault("GASNET_CATCH_EXIT", 1)) {
+    #if HAVE_ON_EXIT
+      on_exit(gasneti_on_exit, NULL);
+    #else
+      atexit(gasneti_atexit);
+    #endif
+  }
+}
+/* ------------------------------------------------------------------------------------ */
 extern gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp) {
   gasneti_sighandlerfn_t fpret = (gasneti_sighandlerfn_t)signal(sigtocatch, fp); 
   if (fpret == (gasneti_sighandlerfn_t)SIG_ERR) {
@@ -1542,6 +1566,8 @@ extern void gasneti_backtrace_init(const char *exename) {
     #endif
       {
         for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
+          // silence a buggy array-bounds warning from gcc-5:
+          gasneti_assume(i < sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0]));
           #if GASNETI_THREADS
           if (th == gasneti_backtrace_mechanisms[i].threadsupport) 
           #endif
@@ -1626,6 +1652,8 @@ extern int gasneti_print_backtrace(int fd) {
         if (*plist) plist++;
 
         for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
+          // silence a buggy array-bounds warning from gcc-5:
+          gasneti_assume(i < sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0]));
           if (!strcmp(gasneti_backtrace_mechanisms[i].name,btsel)) {
             snprintf(linep, linelen, "Invoking %s for backtrace...\n", btsel);
             gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));

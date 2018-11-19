@@ -311,6 +311,10 @@ gasneti_sighandlerfn_t gasneti_reghandler(int _sigtocatch, gasneti_sighandlerfn_
 void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t _handler);
 const char *gasnett_signame_fromval(int _sigval);
 
+// register a function to be called at libc exit time
+// passing NULL disables the exit handler
+extern void gasneti_registerExitHandler(void (*_exitfn)(int));
+
 extern int gasneti_blocksig(int _sig);
 extern int gasneti_unblocksig(int _sig);
 

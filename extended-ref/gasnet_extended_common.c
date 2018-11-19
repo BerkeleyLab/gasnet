@@ -338,6 +338,7 @@ extern void * gasnete_new_threaddata(void)) {
     if (gasnete_threadtable[gasnete_numthreads-1] == NULL) idx = gasnete_numthreads-1;
     else { /* keep table somewhat compacted */
       for (idx = 0; idx < maxthreads; idx++) {
+        gasneti_assume(idx < GASNETI_MAX_THREADS); // silence a buggy array-bounds warning from gcc-5
         if (gasnete_threadtable[idx] == NULL) break;
       }
     }

@@ -643,6 +643,20 @@ application-specific support.
  coordinates within each supernode before communicating across the network.
  This variable can be set to 0 to disable this optimization.
 
+* GASNET_CATCH_EXIT - set to 0 to prevent GASNet from forcing global job
+ termination (via atexit() or on_exit()) when a process calls exit() or returns
+ from main().  GASNet's default behavior helps prevent orphaned processes that
+ can occur in some systems after an incomplete job termination, but may interfere 
+ with some profiling tools that write output inside atexit handlers. Setting this
+ variable may allow those tools to operate, but the client code (or other entity) 
+ must assume responsibility for ensuring no orphan processes are left behind.
+
+ Note this variable does not affect the behavior of explicit calls to gasnet_exit() 
+ (either directly or indirectly via calls like upc_global_exit(), returning from 
+ UPC main(), or reaching the GASNet default fatal signal handler) which will still bypass
+ atexit handlers and kill the job. The recommended method to ensure the execution of 
+ atexit handlers is to run with GASNET_CATCH_EXIT=0 and collectively invoke libc exit().
+
 * GASNET_NO_CATCH_SIGNAL - specify a comma separated list of signals
  to exclude from GASNet default signal handling. Formats "SIGSEGV",
  "SEGV", "sigsegv", "segv", and "11" are accepted. If the value of
