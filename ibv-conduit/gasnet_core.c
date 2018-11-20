@@ -1770,7 +1770,8 @@ static void gasneti_odp_init() {
       if (non_odp_procs) {
         const char *less_msg =
                 "         To suppress this message set environment variable\n"
-                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp.\n";
+                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp\n"
+                "         (see ibv-conduit's README for more information).\n";
         const char *more_msg = (verbose > 1) ? "" :
                 "         To see additional details set environment variable\n"
                 "         GASNET_ODP_VERBOSE=2 (or higher).\n";
@@ -2037,7 +2038,8 @@ static int gasnetc_init( gex_Client_t            *client_p,
                 "         corresponding software support was not found at configure time.\n"
                 "         Please see the README for GASNet's ibv-conduit for more info on ODP.\n"
                 "         To suppress this message set environment variable\n"
-                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp.\n",
+                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp\n"
+                "         (see ibv-conduit's README for more information).\n",
                 (int)count, (int)gasneti_nodes);
       }
     }
