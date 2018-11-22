@@ -407,7 +407,8 @@ the section on strong atomics below.
  use mutexes or lack signal-safety, even where gasnett_atomic_t does not.
  Additionally, unlike gasnett_atomic_t, the same set of operations is present
  on all platforms, even if that requires a mutex-based approach to support
- the full range of operations.
+ the full range of operations.  Therefore, there are no GASNETT_HAVE_ defines
+ for the fixed-width atomic operations.
 
   gasnett_atomic32_t
   gasnett_atomic64_t
@@ -535,6 +536,12 @@ the section on strong atomics below.
   are defined to 1 IFF the implementation of the fixed-width atomics is not signal-safe.
   Note that these two are set independently.
 
+  GASNETT_HAVE_STRONGATOMIC_ADD_SUB will be defined to 1 when gasnett_strongatomic_add()
+  and gasnett_strongatomic_subtract() are available.  GASNETT_HAVE_STRONGATOMIC_CAS will
+  be defined to 1 when gasnett_strongatomic_compare_and_swap() and gasnett_strongatomic_swap()
+  are available.  As with the non-strong case, these operations are always available for
+  the fixed-width types and thus there are no GASNETT_HAVE_ defines for the fixed-width
+  strong atomic operations.
 
 -------------------------
 Portable platform defines
