@@ -1329,7 +1329,7 @@ void * thread_fn(void *arg) {
       // There is an extra wrinkle in this case:
       // We map the updates into both upper and lower halves of a 64-bit word
       #define FWD(n) ((n)&1 ? (n) : (uint64_t)(n)<<32)
-      #define BWD(n) (((n)&0xFFFFFFFFu | (n)>>32))
+      #define BWD(n) (((n)&0xFFFFFFFFu) | ((n)>>32))
 
       static gasnett_atomic64_t var = gasnett_atomic64_init(GASNETT_ATOMIC_MAX);
 
