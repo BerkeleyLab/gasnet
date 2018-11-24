@@ -87,6 +87,7 @@ gex_Event_t _gex_RMA_PutNB(
                         /*const*/ void *_src,  // TODO-EX: un-comment const
                         size_t _nbytes, gex_Event_t *_lc_opt,
                         gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  GASNETI_CHECK_PUT_LCOPT(_lc_opt, 0);
   GASNETI_CHECKZEROSZ_PUT(NB,_tm,_rank,_dest,_src,_nbytes);
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
   if (gasnete_islocal(_tm,_rank)) {
@@ -250,6 +251,7 @@ int _gex_RMA_PutNBI  (gex_TM_t _tm,
                         /*const*/ void *_src,  // TODO-EX: un-comment const
                         size_t _nbytes, gex_Event_t *_lc_opt,
                         gex_Flags_t _flags GASNETI_THREAD_FARG) {
+  GASNETI_CHECK_PUT_LCOPT(_lc_opt, 1);
   GASNETI_CHECKZEROSZ_PUT(NBI,_tm,_rank,_dest,_src,_nbytes);
   gasneti_boundscheck(_tm, _rank, _dest, _nbytes);
   if (gasnete_islocal(_tm,_rank)) {
