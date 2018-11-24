@@ -265,6 +265,9 @@ install-data-local:
 	@$(MAKE) $(recurse_local) DO_WHAT=install-data
 	@$(MAKE) recurse_special DO_WHAT=install-data
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
+	if test -f $(top_srcdir)/version.git ; then \
+	  $(INSTALL_DATA) $(top_srcdir)/version.git $(DESTDIR)$(docdir)/version.git || exit $$? ; \
+	fi
 	if test -f $(top_srcdir)/extended-ref/README ; then \
 	  $(INSTALL_DATA) $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
 	fi
