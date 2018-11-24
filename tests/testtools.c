@@ -1225,10 +1225,10 @@ void * thread_fn(void *arg) {
           gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, j, 0);
           if_pt (idx != GASNETT_ATOMIC_MAX) {
             if_pf (idx >= limit) {
-              ERR("gasnett_atomic_swap read an impossible value %d", idx);
+              ERR("gasnett_atomic_swap read an impossible value 0x%x", (unsigned)idx);
             } else {
               if_pf (array[idx] != 0)
-                ERR("gasnett_atomic_swap produced a duplicate value %d", idx);
+                ERR("gasnett_atomic_swap produced a duplicate value %d", (int)idx);
               array[idx] = 1;
             }
           }
@@ -1240,17 +1240,17 @@ void * thread_fn(void *arg) {
           /* One final swap to simplify the validation */
           gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, GASNETT_ATOMIC_MAX, 0);
           if_pf (idx >= limit) {
-            ERR("gasnett_atomic_swap read an impossible value %d", idx);
+            ERR("gasnett_atomic_swap read an impossible value 0x%x", (unsigned)idx);
           } else {
             if_pf (array[idx] != 0)
-              ERR("gasnett_atomic_swap produced a duplicate value %d", i);
+              ERR("gasnett_atomic_swap produced a duplicate value %d", (int)idx);
             array[idx] = 1;
           }
 
           /* Now scan the array to ensure no values were missed */
           for (idx = 0; idx < limit; ++idx) {
             if (array[idx] != 1)
-              ERR("gasnett_atomic_swap missed an update at %d", idx);
+              ERR("gasnett_atomic_swap missed an update at %d", (int)idx);
             array[idx] = 0; /* reset for next iteration */
           }
         }
@@ -1272,10 +1272,10 @@ void * thread_fn(void *arg) {
           uint32_t idx = gasnett_atomic32_swap(&var, j, 0);
           if_pt (idx != GASNETT_ATOMIC_MAX) {
             if_pf (idx >= limit) {
-              ERR("gasnett_atomic32_swap read an impossible value %d", idx);
+              ERR("gasnett_atomic32_swap read an impossible value 0x%x", (unsigned)idx);
             } else {
               if (array[idx] != 0)
-                ERR("gasnett_atomic32_swap produced a duplicate value %d", idx);
+                ERR("gasnett_atomic32_swap produced a duplicate value %d", (int)idx);
               array[idx] = 1;
             }
           }
@@ -1286,10 +1286,10 @@ void * thread_fn(void *arg) {
         if (!id) {
           uint32_t idx = gasnett_atomic32_swap(&var, GASNETT_ATOMIC_MAX, 0);
           if (idx >= limit) {
-            ERR("gasnett_atomic32_swap read an impossible value %u", (int)idx);
+            ERR("gasnett_atomic32_swap read an impossible value 0x%x", (unsigned)idx);
           } else {
             if (array[idx] != 0)
-              ERR("gasnett_atomic32_swap produced a duplicate value %d", (int)i);
+              ERR("gasnett_atomic32_swap produced a duplicate value %u", (int)idx);
             array[idx] = 1;
           }
 
@@ -1379,10 +1379,10 @@ void * thread_fn(void *arg) {
         for (gasnett_atomic_val_t j = id; j < limit; j += NUM_THREADS) {
           gasnett_atomic_val_t idx = gasnett_atomic_add(&var, 1, 0) - 1;
           if_pf (idx >= limit) {
-            ERR("gasnett_atomic_add read an impossible value %d", idx);
+            ERR("gasnett_atomic_add read an impossible value 0x%x", (unsigned)idx);
           } else {
             if_pf (array[idx] != 0)
-              ERR("gasnett_atomic_add produced a duplicate value %d", idx);
+              ERR("gasnett_atomic_add produced a duplicate value %d", (int)idx);
             array[idx] = 1;
           }
         }
@@ -1393,7 +1393,7 @@ void * thread_fn(void *arg) {
           /* Now scan the array to ensure no values were missed */
           for (gasnett_atomic_val_t idx = 0; idx < limit; ++idx) {
             if (array[idx] != 1)
-              ERR("gasnett_atomic_add missed an update at %d", idx);
+              ERR("gasnett_atomic_add missed an update at %d", (int)idx);
             array[idx] = 0; /* reset for next iteration */
           }
           gasnett_atomic_set(&var, 0, 0);
@@ -1415,7 +1415,7 @@ void * thread_fn(void *arg) {
         for (uint32_t j = id; j < limit; j += NUM_THREADS) {
           uint32_t idx = gasnett_atomic32_add(&var, 1, 0) - 1;
           if_pf (idx >= limit) {
-            ERR("gasnett_atomic32_add read an impossible value %d", (int)idx);
+            ERR("gasnett_atomic32_add read an impossible value 0x%x", (unsigned)idx);
           } else {
             if_pf (array[idx] != 0)
               ERR("gasnett_atomic32_add produced a duplicate value %d", (int)idx);
