@@ -1199,7 +1199,7 @@ void * thread_fn(void *arg) {
       static gasnett_atomic64_t counter64 = gasnett_atomic64_init(0);
       uint64_t share = MIN((unsigned)iters, (0xffffffffU / NUM_THREADS));
       const uint64_t one = 1;
-      const uint64_t incrs[] = { one, one<<32, one + one<<32 };
+      const uint64_t incrs[] = { one, one<<32, one + (one<<32) };
       for (i = 0; i < sizeof(incrs)/sizeof(incrs[0]); ++i) {
         uint64_t incr = incrs[i];
         uint64_t goal = NUM_THREADS * share * incr;
