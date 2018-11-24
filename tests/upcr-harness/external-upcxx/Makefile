@@ -263,6 +263,13 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 	  echo "Unrecognized UPCXX_TESTMODE=$(UPCXX_TESTMODE)" ; exit 100; \
 	fi
 
+# upcxx-examples guppie
+guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_CODEMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_CODEMODE=par ;; esac; \
+	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean guppie-$*
+	mv $</guppie-$* $@
+
 force:
 
 .PHONY: force nobs_test inst_test
