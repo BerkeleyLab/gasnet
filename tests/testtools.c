@@ -1487,7 +1487,7 @@ void * thread_fn(void *arg) {
         if (!id) {
           for (uint64_t idx = 0; idx < limit; ++idx) {
             if (array[idx] != 1)
-              ERR("gasnett_atomic64_add missed an update at %d", idx);
+              ERR("gasnett_atomic64_add missed an update at %d", (int)idx);
             array[idx] = 0;
           }
           gasnett_atomic64_set(&var, 0, 0);
