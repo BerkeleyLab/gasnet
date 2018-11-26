@@ -2933,7 +2933,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     ;;
     Clang)
        CXXOPTFLAGS="-O3"
-       CXXDEBUGFLAGS="-g" 
+       CXXDEBUGFLAGS="-g -O0" # consistent with CCDEBUGFLAGS
     ;;
   esac  
   if test "$BUILDCONFIG" = "optimize" ; then
