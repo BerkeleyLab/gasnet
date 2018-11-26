@@ -534,6 +534,7 @@ case "$CC_FAMILY" in
   Pathscale) CCDEBUGFLAGS="-g3 -O0" ;; # need to explicitly disable optimization
   Open64)    CCDEBUGFLAGS="-g3" ;;
   Clang)     CCDEBUGFLAGS="-g -O0" ;;
+  Cray)      CCDEBUGFLAGS="-g -O0" ;;
   *)         CCDEBUGFLAGS="-g" ;;
 esac
 
@@ -2913,7 +2914,9 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
       ;;
     Cray)
      case "$target_cpu" in
-      x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc.
+      x86_64) # XT, XE, XK, XC, etc.
+                CXXDEBUGFLAGS="-g -O0"   # consistent with CCDEBUGFLAGS
+                MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;;
       *)        AC_MSG_ERROR(Cray C++ compiler for unknown target CPU) ;;
      esac ;;
     Pathscale)  GASNET_PATHSCALE_VERSION_CHECK(CXX)
