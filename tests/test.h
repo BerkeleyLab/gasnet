@@ -245,6 +245,7 @@ static void _test_makeErrMsg(const char *format, ...)) {
   #define TEST_SRAND(seed)  srand(seed)
 #endif
 
+// NOTE: (high - low + 1) must be <= INT64_MAX to avoid undefined behavior
 static int64_t _test_rand(int64_t low, int64_t high) {
   assert(low <= high);
   assert(low <= high+1); /* We will overflow otherwise */
