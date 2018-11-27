@@ -164,7 +164,7 @@
 
 #if HAVE_MMAP
 /* ------------------------------------------------------------------------------------ */
-static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
+static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize, int fixed_mayfail) {
   static int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
   int mmap_errno;
@@ -224,6 +224,10 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
          return MAP_FAILED; // Caller will retry
       }
     #endif
+      if (fixed_mayfail) {
+         errno = mmap_errno;
+         return MAP_FAILED;
+      }
       gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %"PRIuPTR": %s" GASNETI_BUG3480_MSG,
 	      GASNETI_LADDRSTR(segbase), segsize, strerror(mmap_errno));
   }
@@ -233,11 +237,11 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   }
   return ptr;
 }
-extern void *gasneti_mmap_fixed(void *segbase, uintptr_t segsize) {
-  return gasneti_mmap_internal(segbase, segsize);
+extern void *gasneti_mmap_fixed(void *segbase, uintptr_t segsize, int mayfail) {
+  return gasneti_mmap_internal(segbase, segsize, mayfail);
 }
 extern void *gasneti_mmap(uintptr_t segsize) {
-  return gasneti_mmap_internal(NULL, segsize);
+  return gasneti_mmap_internal(NULL, segsize, 0);
 }
 #endif /* HAVE_MMAP */
 
@@ -819,8 +823,8 @@ static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet
   gasneti_assert(pshmnode < gasneti_pshm_nodes);
   return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0);
 }
-extern void *gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, segbase, segsize, 0);
+extern void *gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize, int mayfail) {
+  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, segbase, segsize, mayfail);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
   return gasneti_mmap_shared_internal(gasneti_pshm_mynode, NULL, segsize, 1);
@@ -977,22 +981,22 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
 
 #if GASNETI_BUG3480_WORKAROUND
 // Bounded retry on FIXED mappings
-static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize) {
+static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize, int mayfail) {
   const uint64_t max_delay = 2e7;
   uint64_t delay = 1e3;
   const int max_retries = 100;
   int retries = 0;
 
-  void *ptr = gasneti_do_mmap_fixed(segbase, segsize);
+  void *ptr = gasneti_do_mmap_fixed(segbase, segsize, 0);
 
   while ((ptr == MAP_FAILED) && (errno == ENOMEM) && (retries++ < max_retries)) {
     GASNETI_TRACE_PRINTF(I, ("Bug 3480: retry #%d delay %gs\n", retries, 1e-9*delay));
     (void) gasneti_nsleep(delay);
     delay = MIN(max_delay, delay * 2);
-    ptr = gasneti_do_mmap_fixed(segbase, segsize);
+    ptr = gasneti_do_mmap_fixed(segbase, segsize, 0);
   }
 
-  if (ptr == MAP_FAILED) {
+  if (ptr == MAP_FAILED && !mayfail) {
     int save_errno = errno;
   #if GASNET_PSHM
     gasneti_cleanup_shm();
@@ -1122,7 +1126,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
       si.addr = (void *)begin;
       si.size = end - begin;
     }
-    gasneti_do_mmap_fixed(si.addr, si.size);
+    gasneti_do_mmap_fixed(si.addr, si.size, 0);
   }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
@@ -1725,7 +1729,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segbase =
 #endif
-        gasneti_do_mmap_fixed(segbase, segsize);
+        gasneti_do_mmap_fixed(segbase, segsize, 0);
       }
     }
     gasneti_free(gasneti_segexch);
