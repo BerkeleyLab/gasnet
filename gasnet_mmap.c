@@ -1035,11 +1035,12 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t h
 }
 /* descending linear search for segment - returns location mmaped */
 static gasnet_seginfo_t gasneti_mmap_lineardesc_segsrch(uintptr_t highsz) {
+  const uintptr_t pagesize = gasneti_mmap_pagesize();
   gasnet_seginfo_t si;
   si.addr = MAP_FAILED;
   si.size = highsz;
-  while (si.addr == MAP_FAILED && si.size > GASNET_PAGESIZE) {
-    si.size -= GASNET_PAGESIZE;
+  while (si.addr == MAP_FAILED && si.size > pagesize) {
+    si.size -= pagesize;
     si.addr = gasneti_do_mmap(si.size);
   }
   if (si.addr == MAP_FAILED) {
@@ -1050,15 +1051,16 @@ static gasnet_seginfo_t gasneti_mmap_lineardesc_segsrch(uintptr_t highsz) {
 }
 /* ascending linear search for segment - returns location, not mmaped */
 static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
+  const uintptr_t pagesize = gasneti_mmap_pagesize();
   gasnet_seginfo_t si;
   gasnet_seginfo_t last_si = { NULL, 0 };
-  si.size = GASNET_PAGESIZE;
+  si.size = pagesize;
   si.addr = gasneti_do_mmap(si.size);
 
   while (si.addr != MAP_FAILED && si.size <= highsz) {
     last_si = si;
     gasneti_do_munmap(last_si.addr, last_si.size);
-    si.size += GASNET_PAGESIZE;
+    si.size += pagesize;
     si.addr = gasneti_do_mmap(si.size);
   }
   if (si.addr == MAP_FAILED) return last_si;
@@ -1076,7 +1078,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   gasnet_seginfo_t si;
   int mmaped = 0;
 
-  gasneti_assert(maxsz == GASNETI_PAGE_ALIGNDOWN(maxsz));
+  gasneti_assert_uint(maxsz ,==, gasneti_mmap_aligndown(maxsz));
 
   si.addr = gasneti_do_mmap(maxsz);
   if (si.addr != MAP_FAILED) { /* succeeded at max value - done */
@@ -1112,7 +1114,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
     /* aligned and mmaped - nothing to do */
   } else { /* need to page-align base */
     if (mmaped) gasneti_do_munmap(si.addr, si.size); 
-    /*  ensure page-alignment of base and size */
+    //  ensure page-alignment of base and size (TODO: probably a no-op. remove?)
     { uintptr_t begin = (uintptr_t)si.addr;
       uintptr_t end = (uintptr_t)si.addr + si.size;
       begin = GASNETI_PAGE_ALIGNUP(begin);
