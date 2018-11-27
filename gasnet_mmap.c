@@ -218,12 +218,6 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize, int fixed_m
               GASNETI_LADDRSTR(ptr), (unsigned long)GASNET_PAGESIZE, (unsigned long)GASNET_PAGESIZE);
   }
   if (segbase && ptr == MAP_FAILED) {
-    #if GASNETI_BUG3480_WORKAROUND
-      if (mmap_errno == ENOMEM) {
-         errno = ENOMEM;
-         return MAP_FAILED; // Caller will retry
-      }
-    #endif
       if (fixed_mayfail) {
          errno = mmap_errno;
          return MAP_FAILED;
@@ -775,13 +769,6 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
         (ptr == MAP_FAILED?strerror(mmap_errno):"")));
 
   if ((ptr == MAP_FAILED) && !may_fail) {
-  #if GASNETI_BUG3480_WORKAROUND
-    if (segbase && (mmap_errno == ENOMEM)) {
-      errno = ENOMEM;
-      return MAP_FAILED; // Caller will retry
-    }
-  #endif
-
     gasneti_cleanup_shm();
 
     if (mmap_errno != ENOMEM) {
@@ -987,13 +974,13 @@ static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize, int
   const int max_retries = 100;
   int retries = 0;
 
-  void *ptr = gasneti_do_mmap_fixed(segbase, segsize, 0);
+  void *ptr = gasneti_do_mmap_fixed(segbase, segsize, 1);
 
   while ((ptr == MAP_FAILED) && (errno == ENOMEM) && (retries++ < max_retries)) {
     GASNETI_TRACE_PRINTF(I, ("Bug 3480: retry #%d delay %gs\n", retries, 1e-9*delay));
     (void) gasneti_nsleep(delay);
     delay = MIN(max_delay, delay * 2);
-    ptr = gasneti_do_mmap_fixed(segbase, segsize, 0);
+    ptr = gasneti_do_mmap_fixed(segbase, segsize, 1);
   }
 
   if (ptr == MAP_FAILED && !mayfail) {
