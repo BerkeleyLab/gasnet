@@ -991,11 +991,12 @@ static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize) {
   }
 
   if (ptr == MAP_FAILED) {
+    int save_errno = errno;
   #if GASNET_PSHM
     gasneti_cleanup_shm();
   #endif
     gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %"PRIuPTR": %s",
-            GASNETI_LADDRSTR(segbase), segsize, strerror(errno));
+            GASNETI_LADDRSTR(segbase), segsize, strerror(save_errno));
   }
 
   return ptr;
