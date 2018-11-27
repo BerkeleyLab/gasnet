@@ -103,8 +103,8 @@ int main(int argc, char **argv)
     shadow_region_2 = (char *) test_malloc(segsize);
    
     /* Fill up the shadow region with random data */
-    for(i=0;i < segsize;i++) {
-      shadow_region_1[i] = (char) TEST_RAND(0,255);
+    for(size_t k=0;k < segsize / sizeof(uint32_t);k++) {
+      ((uint32_t *)shadow_region_1)[k] = TEST_RAND(0, UINT32_MAX);
     }
     memset(shadow_region_2,0,segsize);
 
