@@ -241,6 +241,10 @@ static void _test_makeErrMsg(const char *format, ...)) {
 static int64_t _test_rand(int64_t low, int64_t high) {
   assert(low <= high);
   assert(low <= high+1); /* We will overflow otherwise */
+  // conservatively avoid the use of the high bit to avoid any chance of overflow
+  // this could be made tighter, but this utility is not intended for generating 64-bits of randomness
+  assert(low > INT64_MIN/2);
+  assert(high < INT64_MAX/2);
   uint64_t const range = high - low + 1;
 #if _TEST_USE_LCG64
   // Implement the well-known LCG PRNG with widely used parameters.
