@@ -245,6 +245,18 @@ static void _test_makeErrMsg(const char *format, ...)) {
   #define TEST_SRAND(seed)  srand(seed)
 #endif
 
+// Some platforms are missing these from stdint.h by default in C++ mode (without __STDC_LIMIT_MACROS)
+#ifndef INT64_MAX
+  #ifdef __INT64_MAX__
+    #define INT64_MAX __INT64_MAX__
+  #else
+    #define INT64_MAX (0x7fffffffffffffffLL)
+  #endif
+#endif
+#ifndef INT64_MIN
+#define INT64_MIN (-INT64_MAX - 1)
+#endif
+
 // NOTE: (high - low + 1) must be <= INT64_MAX to avoid undefined behavior
 static int64_t _test_rand(int64_t low, int64_t high) {
   assert(low <= high);
