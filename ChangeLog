@@ -31,6 +31,9 @@ PENDING:
     registration.  This resolves bug 495 for clients using SEGMENT_FAST when
     ODP support is available.
 
+* Notable bugs fixed in this release:
+  - bug3812: Intermittent mmap failures at startup: cannot allocate memory
+
 ----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release
 
