@@ -23,6 +23,9 @@ PENDING:
   - Fix bug 3806, providing support for -N option to gasnetrun_* scripts
     when mpirun from Open MPI 3.x is used for job launch.
 
+* Notable bugs fixed in this release:
+  - bug3812: Intermittent mmap failures at startup: cannot allocate memory
+
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0
 

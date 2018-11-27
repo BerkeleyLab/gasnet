@@ -1067,8 +1067,11 @@ static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
  */
 static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   gasnet_seginfo_t si;
+  uintptr_t prevsz = 0;
   int mmaped = 0;
 
+again:
+  gasneti_assert_uint(maxsz ,!=, 0);
   gasneti_assert_uint(maxsz ,==, gasneti_mmap_aligndown(maxsz));
 
   si.addr = gasneti_do_mmap(maxsz);
@@ -1105,19 +1108,65 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
     /* aligned and mmaped - nothing to do */
   } else { /* need to page-align base */
     if (mmaped) gasneti_do_munmap(si.addr, si.size); 
-    //  ensure page-alignment of base and size (TODO: probably a no-op. remove?)
+    // ensure alignment of base and size to expected granularity, even if system's page size is smaller
     { uintptr_t begin = (uintptr_t)si.addr;
       uintptr_t end = (uintptr_t)si.addr + si.size;
       begin = GASNETI_PAGE_ALIGNUP(begin);
       end = GASNETI_PAGE_ALIGNDOWN(end);
       si.addr = (void *)begin;
       si.size = end - begin;
+      if (si.size == 0) goto fail;
     }
-    gasneti_do_mmap_fixed(si.addr, si.size, 0);
+    // perform a *fixed* mapping to preserve alignment achieved above
+    void *ptr = gasneti_do_mmap_fixed(si.addr, si.size, 1);
+    if (ptr == MAP_FAILED && errno == ENOMEM) {
+      // Failed to mmap a size at which the probe had once succeeded (bug 3812).
+      // Attempt bounded linear-descending retries.
+      const uintptr_t pagesize = gasneti_mmap_pagesize();
+      for (int i = 1; i <= 4; ++i) {
+        if (si.size <= pagesize) goto fail;
+        si.size -= pagesize;
+        ptr = gasneti_do_mmap_fixed(si.addr, si.size, 1);
+        if (ptr != MAP_FAILED) {
+          GASNETI_TRACE_PRINTF(I, ("Segment search final mmap trimmed by %"PRIuPTR, i * pagesize));
+          break;
+        } else if (errno != ENOMEM) {
+          // unexpected failure - skip to "second chance" or give up
+          break;
+        }
+      }
+    }
+    if (ptr == MAP_FAILED) {
+      if (!prevsz) {
+        // "Second chance" (used at most once)
+        // Restart using the most recent failed size as the new maximum
+        GASNETI_TRACE_PRINTF(I, ("Segment search final mmap failed.  Starting second-chance search."));
+        prevsz = maxsz = si.size;
+        goto again;
+      } else {
+        goto fail;
+      }
+    }
+#if GASNETI_PSHM_MAP_FIXED_IGNORED
+    si.addr = ptr;
+#else
+    gasneti_assert_ptr(si.addr ,==, ptr);
+#endif
   }
+
+  if (prevsz) {
+    GASNETI_TRACE_PRINTF(I, ("Segment search second-chance reduced size by %"PRIuPTR, prevsz - si.size));
+  }
+  GASNETI_TRACE_PRINTF(I, ("Segment search final size: %"PRIuPTR, si.size));
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
   gasneti_assert(((uintptr_t)si.addr) % GASNET_PAGESIZE == 0 && si.size % GASNET_PAGESIZE == 0);
+  return si;
+
+fail:
+  GASNETI_TRACE_PRINTF(I, ("Segment search failed (found max size of 0)"));
+  si.addr = NULL;
+  si.size = 0;
   return si;
 }
 
@@ -1243,6 +1292,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #if GASNET_PSHM
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
+
+  // This is assumed implictly
+  gasneti_assert_uint(gasneti_mmap_pagesize() ,>=, GASNETI_PAGESIZE);
 
   gasneti_assert(exchangefn);
   gasneti_assert(barrierfn); /* No longer optional */
