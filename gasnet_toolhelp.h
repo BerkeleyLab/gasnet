@@ -513,7 +513,8 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     #define gasneti_mutex_lock(pl) do {                                                      \
               gasneti_mutex_t * const _pl = (pl);                                            \
               _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(_pl);                                       \
-              gasneti_assert(!_gasneti_mutex_heldbyme(_pl)); /* not recursive */             \
+              gasneti_assert_reason(!_gasneti_mutex_heldbyme(_pl),                           \
+                                    "Invalid recursive mutex acquire in gasneti_mutex_lock");\
               gasneti_assert_zeroret(pthread_mutex_lock(&(_pl->_lock)));   /* LOCK */        \
               gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl)); /* lock sanity */          \
               _pl->_owner._id = pthread_self();                  /* record ownership */      \
@@ -523,7 +524,8 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     int gasneti_mutex_trylock(gasneti_mutex_t *_pl) {
               int _retval;
               _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(_pl);
-              gasneti_assert(!_gasneti_mutex_heldbyme(_pl));  // not recursive
+              gasneti_assert_reason(!_gasneti_mutex_heldbyme(_pl),
+                                    "Invalid recursive mutex acquire in gasneti_mutex_trylock");
               _retval = pthread_mutex_trylock(&(_pl->_lock)); // LOCK
               if (_retval == EBUSY) return EBUSY;
               if (_retval) gasneti_fatalerror("pthread_mutex_trylock()=%s",strerror(_retval));
@@ -534,7 +536,8 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     }
     #define gasneti_mutex_unlock(pl) do {                                       \
               gasneti_mutex_t * const _pl = (pl);                               \
-              gasneti_assert(_gasneti_mutex_heldbyme(_pl)); /* check held */    \
+              gasneti_assert_reason(_gasneti_mutex_heldbyme(_pl),               \
+                 "Invalid release of an unheld mutex in gasneti_mutex_unlock"); \
               _pl->_owner._id64 = GASNETI_OWNERID_NONE; /* release ownership */ \
               gasneti_assert_zeroret(pthread_mutex_unlock(&(_pl->_lock)));      \
             } while (0)
@@ -574,22 +577,29 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
       _gasneti_mutexowner_t _owner;
     } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { _GASNETI_MUTEXOWNER_INIT }
-    #define gasneti_mutex_lock(pl) do {                             \
-              gasneti_mutex_t * const _pl = (pl);                   \
-              gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl));   \
-              _pl->_owner._id64 = _gasneti_ownerid64_me;            \
+    #define gasneti_mutex_lock(pl) do {                                     \
+              gasneti_mutex_t * const _pl = (pl);                           \
+              gasneti_assert_reason(!_gasneti_mutex_heldbyme(_pl),          \
+                  "Invalid recursive mutex acquire in gasneti_mutex_lock"); \
+              gasneti_assert_reason(!_gasneti_mutex_heldbysomeone(_pl),     \
+                  "gasneti_mutex_lock detected mutex corruption");          \
+              _pl->_owner._id64 = _gasneti_ownerid64_me;                    \
             } while (0)
     GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *_pl) {
               gasneti_static_assert(_gasneti_ownerid64_me != GASNETI_OWNERID_NONE);
-              gasneti_assert(!_gasneti_mutex_heldbysomeone(_pl)); 
+              gasneti_assert_reason(!_gasneti_mutex_heldbyme(_pl),
+                  "Invalid recursive mutex acquire in gasneti_mutex_trylock");
+              gasneti_assert_reason(!_gasneti_mutex_heldbysomeone(_pl),
+                  "gasneti_mutex_trylock detected mutex corruption");
               _pl->_owner._id64 = _gasneti_ownerid64_me;
               return 0;
     }
-    #define gasneti_mutex_unlock(pl) do {                           \
-              gasneti_mutex_t * const _pl = (pl);                   \
-              gasneti_assert(_gasneti_mutex_heldbyme(_pl));         \
-              _pl->_owner._id64 = GASNETI_OWNERID_NONE;             \
+    #define gasneti_mutex_unlock(pl) do {                                       \
+              gasneti_mutex_t * const _pl = (pl);                               \
+              gasneti_assert_reason(_gasneti_mutex_heldbyme(_pl),               \
+                 "Invalid release of an unheld mutex in gasneti_mutex_unlock"); \
+              _pl->_owner._id64 = GASNETI_OWNERID_NONE;                         \
             } while (0)
     #define gasneti_mutex_init(pl) do {                             \
               gasneti_mutex_t * const _pl = (pl);                   \
@@ -598,8 +608,10 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     #define gasneti_mutex_destroy_ignoreerr(pl) 0
     #define gasneti_mutex_destroy(pl) ((void)0)
   #endif
-  #define gasneti_mutex_assertlocked(pl)    gasneti_assert(_gasneti_mutex_heldbyme(pl))
-  #define gasneti_mutex_assertunlocked(pl)  gasneti_assert(!_gasneti_mutex_heldbyme(pl))
+  #define gasneti_mutex_assertlocked(pl) \
+          gasneti_assert_reason( _gasneti_mutex_heldbyme(pl), "gasneti_mutex_assertlocked(" #pl ")")
+  #define gasneti_mutex_assertunlocked(pl) \
+          gasneti_assert_reason(!_gasneti_mutex_heldbyme(pl), "gasneti_mutex_assertunlocked(" #pl ")")
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
