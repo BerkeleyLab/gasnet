@@ -243,16 +243,15 @@ wrap_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
 	$(UPCXX_INSTDIR_FULL)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)
 
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression
 
-# Pattern rule builds any named test with a corresponding cpp in test directory
+# Pattern rule builds tests, using logic dependent on their location
+VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench
 %-seq %-par :: %.cpp force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; set -x ; \
-	$(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)'
-
-# Pattern rule builds example/prog-guide tests
-%-seq %-par :: $(UPCXX_BLDDIR)/example/prog-guide/%.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
+	case "$<" in \
+         *$(UPCXX_BLDDIR)/test/*) set -x ; \
+	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)' ;; \
+	 *) \
 	if test "$(strip $(UPCXX_TESTMODE))" = "meta" ; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	elif test "$(strip $(UPCXX_TESTMODE))" = "wrap" ; then set -x ; \
@@ -261,7 +260,8 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) '-DUPCXX_BACKEND=$$UPCXX_BACKEND ; \
 	else \
 	  echo "Unrecognized UPCXX_TESTMODE=$(UPCXX_TESTMODE)" ; exit 100; \
-	fi
+	fi ;; \
+	esac
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
