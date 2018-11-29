@@ -68,20 +68,28 @@ extern void _gasneti_assert_fail(const char *_funcname, const char *_filename, i
                                  const char *_fmt, ...) GASNETI_NORETURN);
 GASNETI_NORETURNP(_gasneti_assert_fail)
 
-/* gasneti_assert_always():
- * an assertion that never compiles away - for sanity checks in non-critical paths 
+/* gasneti_assert_always(expr):
+ *   an assertion that never compiles away - for sanity checks in non-critical paths 
+ * gasneti_assert_reason_always(expr, reason): 
+ *   same, but with a string reason to explain the failure (defaults to preprocessed expression)
  */
-#define gasneti_assert_always(expr) \
+#define gasneti_assert_reason_always(expr, reason) \
     (GASNETT_PREDICT_TRUE(expr) ? (void)0 : \
-     _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,"%s",#expr))
+     _gasneti_assert_fail(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__,"%s",reason))
 
-/* gasneti_assert():
- * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
+#define gasneti_assert_always(expr) gasneti_assert_reason_always(expr,#expr)
+
+/* gasneti_assert(expr):
+ *   an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
+ * gasneti_assert_reason(expr, reason):
+ *   same, but with a string reason to explain the failure (defaults to preprocessed expression)
  */
 #if GASNET_NDEBUG
-  #define gasneti_assert(expr) ((void)0)
+  #define gasneti_assert(expr)        ((void)0)
+  #define gasneti_assert_reason(expr) ((void)0)
 #else
-  #define gasneti_assert(expr) gasneti_assert_always(expr)
+  #define gasneti_assert(expr)               gasneti_assert_always(expr)
+  #define gasneti_assert_reason(expr,reason) gasneti_assert_reason_always(expr,reason)
 #endif
 
 // gasneti_assert(_always)_{(u)int,ptr,dbl}(op1, operator, op2);
