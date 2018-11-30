@@ -1069,7 +1069,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   int mmaped = 0;
 
 again:
-  gasneti_assert_uint(maxsz ,!=, 0);
+  gasneti_assert(maxsz);
   gasneti_assert_uint(maxsz ,==, gasneti_mmap_aligndown(maxsz));
 
   si.addr = gasneti_do_mmap(maxsz);
@@ -1356,7 +1356,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
   /* Coordinate the search IFF there are any shared nodes. */
   if (gasneti_myhost.grp_count != gasneti_nodes) {
-    uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
+    uintptr_t *sz_exchg = gasneti_calloc(gasneti_nodes, sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */
@@ -1382,6 +1382,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
         /* Bcast because we can use "declining expectations" to potentially speed later probes */
         gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &maxsz, sizeof(uintptr_t), &maxsz, i);
         sz_exchg[gasneti_nodemap_local[i]] = maxsz;
+        if (!maxsz) break;
       }
     } else
 #endif
@@ -1433,7 +1434,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
       se.size = 0;
 
-      if (gasneti_pshm_mynode == 0) {
+      if (gasneti_pshm_mynode == 0 && maxsz) {
         gasnet_seginfo_t *tmp_se = gasneti_calloc(gasneti_pshm_nodes,sizeof(gasnet_seginfo_t));
 	int done;
 	/* Iterate until we find a size for which N segments fit.
@@ -1460,7 +1461,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
             tmp_se[i].size = 0;
           }
           maxsz = gasneti_mmap_aligndown(sum / gasneti_pshm_nodes);
-        } while (!done);
+        } while (!done && maxsz);
         gasneti_free(tmp_se);
       }
 
