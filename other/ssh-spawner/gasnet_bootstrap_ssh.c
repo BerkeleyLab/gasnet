@@ -688,6 +688,7 @@ static void do_write(int fd, const void *buf, size_t len)
       do_abort(-1);
     }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
     p += rc;
     len -= rc;
   }
@@ -723,8 +724,8 @@ static void do_writev(int fd, struct iovec *iov, int iovcnt)
       do_abort(-1);
     }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
 
-    gasneti_assert_always(rc > 0);
     do {
       size_t len = iov->iov_len;
       if (rc >= len) {
@@ -764,6 +765,7 @@ static void do_read(int fd, void *buf, size_t len)
       do_abort(-1);
     }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
     p += rc;
     len -= rc;
   }
@@ -803,8 +805,8 @@ static void do_readv(int fd, struct iovec *iov, int iovcnt)
       do_abort(-1);
     }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
 
-    gasneti_assert_always(rc > 0);
     do {
       size_t len = iov->iov_len;
       if (rc >= len) {
