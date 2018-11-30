@@ -682,8 +682,13 @@ static void do_write(int fd, const void *buf, size_t len)
   const char *p = (const char *)buf;
   while (len) {
     ssize_t rc = write(fd, p, len);
-    if_pf (!rc || ((rc < 0) && (errno != EINTR))) do_abort(-1);
+    if_pf (!rc || ((rc < 0) && (errno != EINTR))) {
+      fprintf(stderr, "Spawner: write() returned %d, errno = %d(%s)\n",
+              (int)rc, errno, strerror(errno));
+      do_abort(-1);
+    }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
     p += rc;
     len -= rc;
   }
@@ -713,10 +718,14 @@ static void do_writev(int fd, struct iovec *iov, int iovcnt)
       iov_max /= 2;
       continue;
     }
-    if_pf (!rc || ((rc < 0) && (errno != EINTR))) do_abort(-1);
+    if_pf (!rc || ((rc < 0) && (errno != EINTR))) {
+      fprintf(stderr, "Spawner: writev() returned %d, errno = %d(%s)\n",
+              (int)rc, errno, strerror(errno));
+      do_abort(-1);
+    }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
 
-    gasneti_assert_always(rc > 0);
     do {
       size_t len = iov->iov_len;
       if (rc >= len) {
@@ -750,8 +759,13 @@ static void do_read(int fd, void *buf, size_t len)
   char *p = (char *)buf;
   while (len) {
     ssize_t rc = read(fd, p, len);
-    if_pf (!rc || ((rc < 0) && (errno != EINTR))) do_abort(-1);
+    if_pf (!rc || ((rc < 0) && (errno != EINTR))) {
+      fprintf(stderr, "Spawner: read() returned %d, errno = %d(%s)\n",
+              (int)rc, errno, strerror(errno));
+      do_abort(-1);
+    }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
     p += rc;
     len -= rc;
   }
@@ -785,10 +799,14 @@ static void do_readv(int fd, struct iovec *iov, int iovcnt)
       iov_max /= 2;
       continue;
     }
-    if_pf (!rc || ((rc < 0) && (errno != EINTR))) do_abort(-1);
+    if_pf (!rc || ((rc < 0) && (errno != EINTR))) {
+      fprintf(stderr, "Spawner: readv() returned %d, errno = %d(%s)\n",
+              (int)rc, errno, strerror(errno));
+      do_abort(-1);
+    }
     if_pf (in_abort) break;
+    if_pf (rc < 0) continue; // EINTR
 
-    gasneti_assert_always(rc > 0);
     do {
       size_t len = iov->iov_len;
       if (rc >= len) {
