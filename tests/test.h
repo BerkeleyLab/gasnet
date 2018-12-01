@@ -26,7 +26,9 @@
 #include <signal.h>
 #include <ctype.h>
 
-#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
+#if defined(HAVE_PTHREAD_H) && \
+    (defined(GASNET_PAR) || defined(GASNET_PARSYNC) || GASNETT_THREAD_SAFE)
+  #define TEST_PAR 1
   #include <pthread.h>
 #endif
 
@@ -152,7 +154,7 @@ static int test_errs = 0;
 #define _TEST_MSG_BUFSZ 1024
 static char _test_baseformat[_TEST_MSG_BUFSZ];
 static volatile int _test_squashmsg = 0;
-#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
+#if TEST_PAR
   static gasnett_mutex_t _test_msg_lock = GASNETT_MUTEX_INITIALIZER;
   #define _test_LOCKMSG()   gasnett_mutex_lock(&_test_msg_lock)
   #define _test_UNLOCKMSG() gasnett_mutex_unlock(&_test_msg_lock)
@@ -551,7 +553,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
  "$GASNetConfig: (<link>) " TEST_CONFIG_STRING " $");
-#ifndef HAVE_PTHREAD_H
+#if !TEST_PAR
   /* for systems lacking pthread support - ensure upcrun never tries to use it */
   #if GASNET_PSHM || (defined(GASNETI_PSHM_ENABLED) && defined(TEST_GASNET_TOOLS_ONLY))
     #define TEST_SHMEM_CONFIG "pshm"
@@ -594,7 +596,7 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
  "$TitaniumCompilerFlags: *** GASNet test *** -g $");
 #endif
 
-#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
+#if TEST_PAR
 /* create numthreads pthreads to call start_routine. 
    if threadarg_arr is NULL, then a unique 0-based integer threadid is passed as arg to start_routine
    else threadarg_arr is an array of numthreads opaque datastructures of size threadarg_elemsz bytes each,
@@ -1118,7 +1120,7 @@ static int _test_localprocs(void) { /* First call is not thread safe */
 static void _test_set_waitmode(int threads) {
   const int local_procs = TEST_LOCALPROCS();
   if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) return;
-#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
+#if TEST_PAR
   if (threads > 1) {
     int threads_serialized = 0;
   #if PLATFORM_OS_OPENBSD
