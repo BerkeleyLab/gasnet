@@ -1675,7 +1675,7 @@ static int gasnetc_hca_report(void) {
 }
 
 #if GASNETC_IBV_ODP
-static void gasneti_odp_init() {
+static void gasneti_odp_init(void) {
   struct gasneti_odp_support {
     uint8_t missing;
     char    hca_id[15];
@@ -1802,6 +1802,28 @@ static void gasneti_odp_init() {
     }
     gasneti_free(all_odp_support);
   }
+}
+
+// Testing shows that exiting without releasing the implicit ODP registration
+// leads to an (eventually fatal!) irreversible system memory leak.
+// So, we *must* do this for both normal and abnormal exits.
+static void gasnetc_odp_shutdown(void) {
+  if (gasnetc_use_odp) {
+    gasnetc_use_odp = 0;
+    gasnetc_hca_t *hca;
+    GASNETC_FOR_ALL_HCA(hca) {
+      if (hca->implicit_odp.handle) {
+        ibv_dereg_mr(hca->implicit_odp.handle);
+        hca->implicit_odp.handle = NULL;
+      }
+    }
+  }
+}
+extern void gasnetc_fatalsignal_cleanup_callback(int sig) {
+  // Note: caller has set SIGALRM handler
+  alarm(30);
+  gasnetc_odp_shutdown();
+  alarm(0);
 }
 #endif // GASNETC_IBV_ODP
 
@@ -2812,6 +2834,7 @@ gasnetc_shutdown(void) {
     if (hca->implicit_odp.handle) {
       gasneti_assert(gasnetc_use_odp);
       rc = ibv_dereg_mr(hca->implicit_odp.handle);
+      hca->implicit_odp.handle = NULL;
       GASNETC_IBV_CHECK(rc, "from ibv_dereg_mr(implicit_odp)");
     }
   #endif
@@ -3475,6 +3498,18 @@ static void gasnetc_exit_sighandler(int sig) {
   int exitcode = (int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
   static gasneti_atomic_t once = gasneti_atomic_init(1);
 
+#if GASNET_DEBUG || GASNETC_IBV_ODP
+  // protect until we reach reentrance check
+  GASNETC_EXIT_STATE("in exit sighandler");
+  gasneti_reghandler(SIGALRM, _exit);
+  gasneti_unblocksig(SIGALRM);
+  alarm(30);
+#endif
+
+#if GASNETC_IBV_ODP
+  gasnetc_odp_shutdown(); // Avoid possible system memory leak
+#endif
+
   #if GASNET_DEBUG
   /* note - can't call trace macros here, or even sprintf */
   if (sig == SIGALRM) {
@@ -3507,8 +3542,9 @@ static void gasnetc_exit_sighandler(int sig) {
 
   if (gasneti_atomic_decrement_and_test(&once, 0)) {
     /* We ask the bootstrap support to kill us, but only once */
-    gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
     GASNETC_EXIT_STATE("in suicide timer");
+    gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+    gasneti_unblocksig(SIGALRM);
     alarm(5);
     gasneti_bootstrapAbort(exitcode);
   } else {
@@ -3762,6 +3798,13 @@ static void gasnetc_exit_body(void) {
   #endif
     alarm(0);
   }
+
+#if GASNETC_IBV_ODP
+  // Always need to shutdown ODP (safe no-op if we did full shutdown above)
+  GASNETC_EXIT_STATE("odp shutdown");
+  alarm(30);
+  gasnetc_odp_shutdown(); // Avoid possible system memory leak
+#endif
 
   /* Try again to flush out any recent output, allowing upto 30s */
   GASNETC_EXIT_STATE("closing output");

@@ -151,6 +151,11 @@
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 	extern void gasnetc_fatalsignal_callback(int sig);
 
+#if GASNETC_IBV_ODP
+  #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig) gasnetc_fatalsignal_cleanup_callback(sig)
+  extern void gasnetc_fatalsignal_cleanup_callback(int sig);
+#endif
+
 #if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
