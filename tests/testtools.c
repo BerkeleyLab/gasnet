@@ -13,7 +13,7 @@
 #error testtools should *not* include gasnetex.h
 #endif
 
-#ifdef HAVE_PTHREAD_H
+#if GASNETT_THREAD_SAFE
   int NUM_THREADS = 0;
   gasnett_atomic_t thread_flag[TEST_MAXTHREADS];
   int valX[TEST_MAXTHREADS];
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
   
   if (argc > 1) iters = atoi(argv[1]);
   if (iters < 1) iters = DEFAULT_ITERS;
-  #ifdef HAVE_PTHREAD_H
+  #if GASNETT_THREAD_SAFE
     if (argc > 2) NUM_THREADS = atoi(argv[2]);
     if (NUM_THREADS < 1) NUM_THREADS = DEFAULT_THREADS;
     NUM_THREADS = test_thread_limit(NUM_THREADS);
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
   if (argc > 4) test_usage();
 
   TEST_GENERICS_WARNING();
-  #ifdef HAVE_PTHREAD_H
+  #if GASNETT_THREAD_SAFE
     MSG("Running testtools with %i iterations and %i threads", iters, NUM_THREADS);
   #else
     MSG("Running testtools with %i iterations", iters);
@@ -753,7 +753,7 @@ int main(int argc, char **argv) {
     TEST_BACKTRACE();
   }
 
-#ifdef HAVE_PTHREAD_H
+#if GASNETT_THREAD_SAFE
   MSG("Spawning pthreads...");
   { 
     for(int i=0;i<NUM_THREADS;i++) gasnett_atomic_set(thread_flag+i,1,0);
@@ -766,7 +766,7 @@ int main(int argc, char **argv) {
   return (test_errs > 0 ? 1 : 0);
 }
 
-#ifdef HAVE_PTHREAD_H
+#if GASNETT_THREAD_SAFE
 
 #undef MSG0
 #undef ERR
