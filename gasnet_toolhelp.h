@@ -470,7 +470,8 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
    * redefine this constant appropriately, otherwise disable the debug checking entirely.
    */
   #ifndef GASNETI_OWNERID_NONE
-  #define GASNETI_OWNERID_NONE               (0x5005500550055005u)
+  #define _GASNETI_OWNERID_WORD (0x50055005u)
+  #define GASNETI_OWNERID_NONE  GASNETI_MAKEWORD(_GASNETI_OWNERID_WORD,_GASNETI_OWNERID_WORD)
   #endif
   #define _GASNETI_MUTEXOWNER_INIT           { GASNETI_OWNERID_NONE }
   // boolean ownership queries, only available in debug mode:
@@ -487,7 +488,8 @@ int gasneti_count0s_uint32_t(uint32_t _x) {
     typedef struct {
       volatile uint64_t  _id64;
     } _gasneti_mutexowner_t;
-    #define _gasneti_ownerid64_me            (0x1111111111111111u)
+    #define _gasneti_ownerid_me_word (0x11111111u)
+    #define _gasneti_ownerid64_me    GASNETI_MAKEWORD(_gasneti_ownerid_me_word,_gasneti_ownerid_me_word)
     #define _gasneti_mutex_heldbyme(pl)      ((pl)->_owner._id64 == _gasneti_ownerid64_me)
   #endif
   #if GASNETI_USE_TRUE_MUTEXES
