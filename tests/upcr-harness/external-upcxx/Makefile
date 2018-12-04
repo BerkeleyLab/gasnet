@@ -107,7 +107,7 @@ upcxx-download: force
 	@if test -n "$(GIT_REPO)" ; then \
 	    set -x ; cd $(UPCXX_TMPDIR) && $(GIT) archive --remote=$(GIT_REPO) --format=zip --prefix=git-archive/ --output=git-archive.zip $(GIT_COMMIT) || exit 2 ; \
 	 else \
-	    set -x ; cd $(UPCXX_TMPDIR) && $(WGET) $(URL) 2>&1 || exit 3 ; \
+	    set -x ; cd $(UPCXX_TMPDIR) && $(WGET) $(URL) 2>&1 || ( cat wget-log 2> /dev/null ; exit 3 ) || exit $$? ; \
 	 fi
 	cd $(UPCXX_TMPDIR) && cat wget-log 2> /dev/null ; rm -f wget-log ; exit 0
 	@UPCXX_TESTDIR=`pwd` && \
