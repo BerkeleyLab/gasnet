@@ -29,6 +29,7 @@ Contents of this file:
  * Single-node Development Options
  * Supported Platforms
  * Recognized Environment Variables
+ * GASNet exit
  * GASNet tracing & statistical collection
  * GASNet Collectives
  * GASNet debug malloc services
@@ -776,6 +777,21 @@ application-specific support.
  default size for thread stacks.
 
 * see conduit-specific documentation in conduit directories for more settings
+
+GASNet exit
+===========
+
+GASNet clients desiring robustness and portability should not call _exit().
+Normal process termination should be done using gasnet_exit(), exit() or
+return from main().  Use of these paths allows GASNet to ensure proper
+shutdown.  This includes efforts to avoid zombie/orphan processes in the case
+of non-collective exits, and proper release of network resources.  This second
+point is important because we are aware of multiple network stacks which can
+permanently leak system resources if they are not explicitly released.
+
+We acknowledge that this represents a restriction that may be hard to satisfy.
+We fully intend to separate library termination from process termination in a
+future release.
  
 GASNet tracing & statistical collection
 =======================================
