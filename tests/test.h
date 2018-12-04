@@ -560,15 +560,14 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
  "$GASNetConfig: (<link>) " TEST_CONFIG_STRING " $");
 #if !TEST_PAR
-  /* for systems lacking pthread support - ensure upcrun never tries to use it */
+  /* pthread support is compiled out - ensure upcrun never tries to use it */
   #if GASNET_PSHM || (defined(GASNETI_PSHM_ENABLED) && defined(TEST_GASNET_TOOLS_ONLY))
     #define TEST_SHMEM_CONFIG "pshm"
   #else
     #define TEST_SHMEM_CONFIG "none"
   #endif
 #else 
-  /* unconditionally mimic pthreads, to ensure harness -pthreads=T -threads=N will run us 
-     (otherwise upcrun will give an error about no -pthreads support)
+  /* mimic pthreads, to ensure harness -pthreads=T -threads=N will run us 
      such a setup will only run the gasnet test on N/T nodes (as opposed to N as one might like)
      but the alternative is not to run at all. harness -nopthreads does not have this problem.
    */
