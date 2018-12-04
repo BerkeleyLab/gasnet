@@ -4,11 +4,16 @@
  * Terms of use are as specified in license.txt
  */
 
-#if defined(GASNET_PARSYNC) || defined(GASNET_PAR) 
+#if defined(GASNETT_THREAD_SAFE) || defined(GASNETT_THREAD_SINGLE)
+  /* nothing */
+#elif defined(GASNET_PARSYNC) || defined(GASNET_PAR)
   #define GASNETT_THREAD_SAFE 1
 #elif defined(GASNET_SEQ)
-  #define GASNETI_THREAD_SINGLE 1
+  #define GASNETT_THREAD_SINGLE 1
+#else
+  #error Missing threading definition
 #endif
+
 #undef GASNET_SEQ
 #undef GASNET_PAR
 #undef GASNET_PARSYNC
@@ -430,7 +435,7 @@ extern const char *gasnett_performance_warning_str(void) {
     #elif defined(GASNETI_FORCE_OS_ATOMICOPS)
       "        FORCED os-provided atomicops\n"
     #endif
-    #if defined(GASNETI_FORCE_TRUE_WEAKATOMICS) && GASNETI_THREAD_SINGLE
+    #if defined(GASNETI_FORCE_TRUE_WEAKATOMICS) && GASNETT_THREAD_SINGLE
       "        FORCED atomics in sequential code\n"
     #endif
     #if defined(GASNETI_FORCE_GENERIC_SEMAPHORES) && GASNETT_THREAD_SAFE
