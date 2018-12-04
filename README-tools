@@ -62,7 +62,7 @@ tools).
   Where $prefix is the prefix passed during Step 1. 
   
   Clients which never use pthreads may link the single-threaded version of the
-  tools using -lgasnet_tools-seq and omitting the GASNETT_THREAD_SAFE define.
+  tools using -lgasnet_tools-seq and the GASNETT_THREAD_SINGLE define.
 
   Additionally, client code used to build shared libraries (compiled with
   -fPIC, -KPIC or a similar compiler-dependent flag) should pass
