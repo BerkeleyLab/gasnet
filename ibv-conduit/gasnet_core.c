@@ -1825,6 +1825,15 @@ extern void gasnetc_fatalsignal_cleanup_callback(int sig) {
   gasnetc_odp_shutdown();
   alarm(0);
 }
+#if HAVE_ON_EXIT
+  static void gasnetc_odp_on_exit(int exitcode, void *arg) {
+    gasnetc_odp_shutdown();
+  }
+#else
+  static void gasnetc_odp_atexit(void) {
+    gasnetc_odp_shutdown();
+  }
+#endif
 #endif // GASNETC_IBV_ODP
 
 static int gasnetc_init( gex_Client_t            *client_p,
@@ -3950,6 +3959,17 @@ static void gasnetc_atexit(int exitcode) {
 }
 
 static void gasnetc_exit_init(void) {
+  // register an exit-time callback for ODP (needed for GASNET_CATCH_EXIT=0 case)
+#if GASNETC_IBV_ODP
+  if (gasnetc_use_odp) {
+  #if HAVE_ON_EXIT
+    on_exit(gasnetc_odp_on_exit, NULL);
+  #else
+    atexit(gasnetc_odp_atexit);
+  #endif
+  }
+#endif
+
   /* Handler for non-collective returns from main() */
   // register process exit-time hook
   gasneti_registerExitHandler(gasnetc_atexit);
