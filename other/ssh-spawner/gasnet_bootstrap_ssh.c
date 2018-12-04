@@ -759,7 +759,10 @@ static void do_read(int fd, void *buf, size_t len)
   char *p = (char *)buf;
   while (len) {
     ssize_t rc = read(fd, p, len);
-    if_pf (!rc || ((rc < 0) && (errno != EINTR))) {
+    if_pf (!rc) {
+      fprintf(stderr, "Spawner: read() returned 0 (EOF)\n");
+      do_abort(-1);
+    } else if_pf ((rc < 0) && (errno != EINTR)) {
       fprintf(stderr, "Spawner: read() returned %d, errno = %d(%s)\n",
               (int)rc, errno, strerror(errno));
       do_abort(-1);
@@ -799,7 +802,10 @@ static void do_readv(int fd, struct iovec *iov, int iovcnt)
       iov_max /= 2;
       continue;
     }
-    if_pf (!rc || ((rc < 0) && (errno != EINTR))) {
+    if_pf (!rc) {
+      fprintf(stderr, "Spawner: readv() returned 0 (EOF)\n");
+      do_abort(-1);
+    } else if_pf ((rc < 0) && (errno != EINTR)) {
       fprintf(stderr, "Spawner: readv() returned %d, errno = %d(%s)\n",
               (int)rc, errno, strerror(errno));
       do_abort(-1);
