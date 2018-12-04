@@ -1199,10 +1199,12 @@ static void _test_usage(int early) {
       gasnet_exit(1);
     } else { /* wait to die */
       if (early) {
+        // we are waiting for node 0 to kill the job, but cannot safely AMpoll before attach
+        // wait for a bounded time, and then force an exit to prevent zombies on polling-only conduits
         gasnett_tick_t starttime = gasnett_ticks_now();
-        /* only wait for a bounded time to prevent zombies on polling-only conduits */
+        sleep(1);
         while (gasnett_ticks_to_us(gasnett_ticks_now()-starttime)<5000000) gasnett_sched_yield();
-        gasnett_killmyprocess(-1);
+        gasnet_exit(-1);
       }
       else BARRIER();
     }
