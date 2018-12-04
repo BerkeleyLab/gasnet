@@ -101,7 +101,8 @@ testtools testtoolscxx: force
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 testtool%-seq: force
-	@$(MAKE) `basename $@ -seq` tools_fragment=@TOP_BUILDDIR@/gasnet_tools-seq.mak
+	@$(MAKE) `basename $@ -seq` tools_fragment=@TOP_BUILDDIR@/gasnet_tools-seq.mak \
+	         MANUAL_DEFINES="-DGASNETI_THREAD_SINGLE $(MANUAL_DEFINES)"
 
 testtool%-par: force
 	@$(PTHREADS_ERROR_CHECK)
