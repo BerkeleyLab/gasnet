@@ -55,7 +55,7 @@ LEGION_URL      ?= https://github.com/$(LEGION_GIT_REPO)/archive/$(LEGION_GIT_CO
 LEGION_ARCHIVE  ?= $(notdir $(LEGION_URL))
 legion-download: force
 	rm -Rf $(LEGION_BLDDIR) $(LEGION_TMPDIR) && mkdir $(LEGION_TMPDIR)
-	cd $(LEGION_TMPDIR) && $(WGET) $(LEGION_URL) 2>&1
+	cd $(LEGION_TMPDIR) && $(WGET) $(LEGION_URL) 2>&1 || ( cat wget-log 2> /dev/null ; exit 3 ) || exit $$?
 	cd $(LEGION_TMPDIR) && cat wget-log 2> /dev/null ; rm -f wget-log ; exit 0
 	@LEGION_TESTDIR=`pwd` && \
 	 cd $(LEGION_TMPDIR) && LEGION_ARCHIVE=`/bin/ls` && LEGION_DOWNLOAD="$(LEGION_DOWNLOAD)" && \
