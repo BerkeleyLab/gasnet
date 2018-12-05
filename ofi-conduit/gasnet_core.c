@@ -532,30 +532,6 @@ extern int gasnetc_AMRequestLongM( gex_Rank_t dest,        /* destination node *
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongAsyncM( gex_Rank_t dest,        /* destination node */
-                            gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
-                            void *source_addr, size_t nbytes,   /* data payload */
-                            void *dest_addr,                    /* data destination on destination node */
-                            int numargs, ...) {
-  int retval;
-  va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
-  gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasneti_Long, dest, handler,
-                                           source_addr, nbytes, dest_addr,
-                                           numargs, argptr);
-  } else
-#endif
-  {
-    retval = gasnetc_ofi_am_send_long(dest, handler, source_addr, nbytes, dest_addr, numargs, argptr, 1, 1);
-  }
-  va_end(argptr);
-  GASNETI_RETURN(retval);
-}
-
 extern int gasnetc_AMReplyShortM( 
                             gex_Token_t token,       /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */ 
