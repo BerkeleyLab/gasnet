@@ -534,6 +534,7 @@ case "$CC_FAMILY" in
   Pathscale) CCDEBUGFLAGS="-g3 -O0" ;; # need to explicitly disable optimization
   Open64)    CCDEBUGFLAGS="-g3" ;;
   Clang)     CCDEBUGFLAGS="-g -O0" ;;
+  Cray)      CCDEBUGFLAGS="-g -O0" ;;
   *)         CCDEBUGFLAGS="-g" ;;
 esac
 
@@ -2913,7 +2914,9 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
       ;;
     Cray)
      case "$target_cpu" in
-      x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc.
+      x86_64) # XT, XE, XK, XC, etc.
+                CXXDEBUGFLAGS="-g -O0"   # consistent with CCDEBUGFLAGS
+                MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;;
       *)        AC_MSG_ERROR(Cray C++ compiler for unknown target CPU) ;;
      esac ;;
     Pathscale)  GASNET_PATHSCALE_VERSION_CHECK(CXX)
@@ -2930,7 +2933,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     ;;
     Clang)
        CXXOPTFLAGS="-O3"
-       CXXDEBUGFLAGS="-g" 
+       CXXDEBUGFLAGS="-g -O0" # consistent with CCDEBUGFLAGS
     ;;
   esac  
   if test "$BUILDCONFIG" = "optimize" ; then
@@ -3784,8 +3787,15 @@ if test "$enabled_ibv" = yes; then
           #include <infiniband/verbs.h>
           #include <infiniband/verbs_exp.h>
         ], [
+          struct ibv_exp_device_attr attr;
+          attr.comp_mask = IBV_EXP_DEVICE_ATTR_ODP | IBV_EXP_DEVICE_ATTR_EXP_CAP_FLAGS;
+          int ret = ibv_exp_query_device(NULL, &attr);
+          int ok = (attr.exp_device_cap_flags & IBV_EXP_DEVICE_ODP) &&
+                   (attr.odp_caps.general_odp_caps & IBV_EXP_ODP_SUPPORT_IMPLICIT) &&
+                   (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ) &&
+                   (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE);
           struct ibv_exp_reg_mr_in x;
-          x.exp_access = IBV_EXP_ACCESS_ON_DEMAND;
+          x.exp_access = IBV_EXP_ACCESS_ON_DEMAND | IBV_EXP_ACCESS_LOCAL_WRITE;
           x.length = IBV_EXP_IMPLICIT_MR_SIZE;
           struct ibv_mr *mr = ibv_exp_reg_mr(&x);
         ], [have_ibv_odp=yes], [have_ibv_odp=no])

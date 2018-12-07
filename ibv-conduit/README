@@ -896,9 +896,19 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
    available for download from Mellanox.  Mellanox provides documentation
    on installing the software and upgrading the HCA firmware (if needed).
 
-   If you cannot install MLNX_OFED, or ibv-conduit has mistakenly warned
-   about an HCA which is not ODP-capable, then we recommend configuring
-   GASNet using --disable-ibv-odp.
+   At configure time, ibv-conduit does not know the hardware, firmware, or
+   driver versions on the compute nodes and cannot, in general, assume the
+   host running configure represents every node in the system.  Therefore,
+   ODP support is enabled by default whenever the necessary library support
+   is detected by the configure script.
+
+   If ibv-conduit warns about missing ODP support on a system in which there
+   are no ODP-capable nodes, then we recommend reconfiguring GASNet using
+   --disable-ibv-odp to both eliminate the warnings and avoid the small
+   overhead of ODP support.  However, in a heterogeneous system in which some
+   subset of compute nodes do support ODP, one should set GASNET_ODP_VERBOSE=0
+   in the environment to suppress warnings from nodes lacking ODP support,
+   while allowing ibv-conduit to continue using ODP on the remaining nodes.
 
 @ Section: HCA Configuration @
 

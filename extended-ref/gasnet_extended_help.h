@@ -347,6 +347,21 @@ typedef union {
   #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) ((void)0)
 #endif
 
+#if GASNET_DEBUG
+  #define GASNETI_CHECK_PUT_LCOPT(lc_opt, isnbi) do {                                    \
+    gex_Event_t *_gcpl_lc_opt = (lc_opt);                                                \
+    /* GEX_EVENT_{NOW,DEFER} always permitted */                                         \
+    if_pf (_gcpl_lc_opt == NULL)                                                         \
+      gasneti_fatalerror("gex_RMA_Put*(lc_opt=NULL) is invalid");                        \
+    else if_pf (isnbi && gasneti_leaf_is_pointer(_gcpl_lc_opt))                          \
+      gasneti_fatalerror("gex_RMA_PutNBI(lc_opt=<pointer>) is invalid (NB only)");       \
+    else if_pf (!isnbi && _gcpl_lc_opt == GEX_EVENT_GROUP)                               \
+      gasneti_fatalerror("gex_RMA_PutNB(lc_opt=GEX_EVENT_GROUP) is invalid (NBI only)"); \
+  } while (0)
+#else
+  #define GASNETI_CHECK_PUT_LCOPT(lc_opt, isnbi) do { } while (0)
+#endif
+
 // GASNETI_NBRHD_* convenience macros (same semantics w/ and w/o PSHM)
 //    LOCAL(e_tm,rank)                   -> non-zero iff the indicated rank is in caller's neighborhood
 //    LOCAL_ADDR(e_tm,rank,addr)         -> address in caller's address space if the indicated rank is

@@ -4818,6 +4818,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
           gasneti_assert(iop->next); // Within an NBI access region
           local_cnt = &iop->initiated_alc_cnt;
           local_cb = gasnetc_cb_nar_alc;
+          start_cnt = 0; // DEAD STORE: avoid a warning from gcc-7.3.0/aarch64
         } else {
           eop = (gasnete_eop_t*)op;
           gasneti_assert(gasneti_event_idx(*lc_opt) == gasnete_eop_event_alc);
@@ -4837,6 +4838,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     } else if (lc_opt == GEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
+      start_cnt = 0; // DEAD STORE: avoid a warning from gcc-7.3.0/aarch64
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");
     }

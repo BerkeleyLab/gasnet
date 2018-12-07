@@ -29,7 +29,11 @@ PENDING:
 * InfiniBand Verbs (ibv-conduit)
   - When available, Mellanox ODP support now replaces local dynamic memory
     registration.  This resolves bug 495 for clients using SEGMENT_FAST when
-    ODP support is available.
+    ODP support is available.  However, ODP may interact badly with improper
+    job shutdown (see "GASNet exit" section of README for more information).
+
+* Notable bugs fixed in this release:
+  - bug3812: Intermittent mmap failures at startup: cannot allocate memory
 
 ----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release

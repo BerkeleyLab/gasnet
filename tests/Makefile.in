@@ -17,16 +17,16 @@ srcdir="@TOP_SRCDIR@/tests"
 configfile=/dev/null # must be overridden by caller
 include $(configfile)
 
-@HAVE_PTHREAD_TRUE@fragment = @TOP_BUILDDIR@/gasnet_tools-par.mak
-@HAVE_PTHREAD_FALSE@fragment = @TOP_BUILDDIR@/gasnet_tools-seq.mak
+@HAVE_PTHREAD_TRUE@tools_fragment = @TOP_BUILDDIR@/gasnet_tools-par.mak
+@HAVE_PTHREAD_FALSE@tools_fragment = @TOP_BUILDDIR@/gasnet_tools-seq.mak
 
-$(fragment): force
+$(tools_fragment): force
 	cd @TOP_BUILDDIR@ && $(MAKE) `basename $@`
 
--include $(fragment)
+-include $(tools_fragment)
 
 
-Makefile: @TOP_SRCDIR@/tests/Makefile.in $(fragment)
+Makefile: @TOP_SRCDIR@/tests/Makefile.in $(tools_fragment)
 	cd @TOP_BUILDDIR@ ; \
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 

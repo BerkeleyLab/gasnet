@@ -46,7 +46,7 @@ extern volatile int gasnetc_AMLockYield;
    is unknown, eg exit-time processing */
 #if GASNET_DEBUG
   /* ignore recursive lock attempts */
-  #define _AMLOCK_CAUTIOUS_HELPER() if (gasnetc_AMlock._owner == GASNETI_THREADIDQUERY()) break
+  #define _AMLOCK_CAUTIOUS_HELPER() if (_gasneti_mutex_heldbyme(&gasnetc_AMlock)) break
 #else
   #define _AMLOCK_CAUTIOUS_HELPER() ((void)0)
 #endif
