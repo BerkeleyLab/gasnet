@@ -617,6 +617,7 @@ struct gasnetc_cep_t_ {
 typedef struct {
   int                   hca_index;      /* Slot in gasnetc_hca[] */
   uint8_t               port_num;       /* Port number */
+  uint16_t              pkey_index;
   struct                ibv_port_attr    port;           /* Port info */
   int                   rd_atom;
   uint16_t             *remote_lids;

@@ -632,7 +632,6 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
 
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
     qp_attr.qp_state        = IBV_QPS_INIT;
-    qp_attr.pkey_index      = 0;
     qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
@@ -644,6 +643,7 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
                                     : IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
     #endif
       qp_attr.port_num = port->port_num;
+      qp_attr.pkey_index = port->pkey_index;
 
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
@@ -1308,7 +1308,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
     /* RESET -> INIT */
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
     qp_attr.qp_state        = IBV_QPS_INIT;
-    qp_attr.pkey_index      = 0;
+    qp_attr.pkey_index      = port->pkey_index;
     qp_attr.qkey            = my_qkey;
     qp_attr.port_num        = port->port_num;
     rc = ibv_modify_qp(conn_ud_qp, &qp_attr, qp_mask);
