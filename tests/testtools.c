@@ -215,13 +215,16 @@ int main(int argc, char **argv) {
     if (!(gasnett_ticks_now() > ticktimemin)) ERR("!(now > min)");
     if (!(gasnett_ticks_now() < ticktimemax)) ERR("!(now < max)");
 
-    if (granularity <= 0.0 || overhead <= 0.0 ||
-        (granularity+10*slack) < 0.5*overhead)
+    if (granularity <= 0.0 || overhead <= 0.0) {
+        ERR("nonsensical timer overhead/granularity measurements:\n"
+             "  overhead: %.3fus  granularity: %.3fus\n",overhead, granularity);
+    } else if ((granularity+10*slack) < 0.5*overhead) {
         /* allow some leeway for noise at granularities approaching cycle speed */
         // leeway is scaled by slack to allow disabling this test
         // on platforms where timers are unreliable (eg cpu emulator)
-        ERR("nonsensical timer overhead/granularity measurements:\n"
+        MSG("WARNING: suspicious timer overhead/granularity measurements: (this can be caused by high system noise)\n"
              "  overhead: %.3fus  granularity: %.3fus\n",overhead, granularity);
+    }
 
     gasnett_tick_t start, begin = gasnett_ticks_now();  /* outer time point */
     uint64_t startref, beginref = gasnett_gettimeofday_us();
