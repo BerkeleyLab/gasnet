@@ -1,10 +1,8 @@
 GASNet-EX ChangeLog
 -------------------
 
-  This archive represents a lightly-tested snapshot of a work-in-progress.
-
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
+  GASNet-EX is a work-in-progress.
+  Many features remain to be specified, implemented, and/or tuned.
 
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
@@ -20,7 +18,7 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-12-17-2018: GASNet-EX 2018.12.0 Release
+12-17-2018: GASNet-EX 2018.12.0 Beta release
 
 * InfiniBand Verbs (ibv-conduit)
   - Mellanox On-Demand Pinning (ODP) feature now replaces explicit out-of-segment 
