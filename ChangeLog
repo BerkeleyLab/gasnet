@@ -20,20 +20,24 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING:
+12-17-2018: GASNet-EX 2018.12.0 Release
 
-* GASNet-EX Spec v0.X:
+* InfiniBand Verbs (ibv-conduit)
+  - Mellanox On-Demand Pinning (ODP) feature now replaces explicit out-of-segment 
+    memory registration on systems with appropriate hardware/driver support.
+    This resolves bug 495 for clients using SEGMENT_FAST with ODP support.  
+    Note that ODP support may interact badly with improper job shutdown 
+    (see "GASNet exit" section of README for more information).
+  - Add startup checks for required HCA homogeneity properties
+
+* GASNet-EX Spec v0.7:
   - Barriers initiated using gex_Coll_BarrierNB() are now permitted to
     overlap with collectives on the same team (including other barriers).
 
-* InfiniBand Verbs (ibv-conduit)
-  - When available, Mellanox ODP support now replaces local dynamic memory
-    registration.  This resolves bug 495 for clients using SEGMENT_FAST when
-    ODP support is available.  However, ODP may interact badly with improper
-    job shutdown (see "GASNet exit" section of README for more information).
-
-* Notable bugs fixed in this release:
-  - bug3812: Intermittent mmap failures at startup: cannot allocate memory
+* Collective Operations
+  - Improve serial overheads for out-of-segment collectives
+  - Improve congestion tolerance for some cases
+  - Improve scalability of large or out-of-segment broadcasts
 
 ----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release
