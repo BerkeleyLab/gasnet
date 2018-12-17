@@ -32,11 +32,6 @@ gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 #endif
 
 static void gasnetc_traceoutput(int);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
 
 static uint64_t gasnetc_networkpid;
 eb_t gasnetc_bundle;
@@ -68,13 +63,13 @@ GASNETI_IDENT(gasnetc_IdentString_DefaultSpawnFn, "$GASNetDefaultSpawnFunction: 
 static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
-  gasneti_assert(GASNET_MAXNODES <= AMUDP_MAX_SPMDPROCS);
-  gasneti_assert(AMUDP_MAX_NUMHANDLERS >= 256);
-  gasneti_assert(AMUDP_MAX_SEGLENGTH == (uintptr_t)-1);
+  gasneti_static_assert(GASNET_MAXNODES <= AMUDP_MAX_SPMDPROCS);
+  gasneti_static_assert(AMUDP_MAX_NUMHANDLERS >= 256);
+  gasneti_static_assert(AMUDP_MAX_SEGLENGTH == (uintptr_t)-1);
 
-  gasneti_assert(GASNET_ERR_NOT_INIT == AM_ERR_NOT_INIT);
-  gasneti_assert(GASNET_ERR_RESOURCE == AM_ERR_RESOURCE);
-  gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
+  gasneti_static_assert(GASNET_ERR_NOT_INIT == AM_ERR_NOT_INIT);
+  gasneti_static_assert(GASNET_ERR_RESOURCE == AM_ERR_RESOURCE);
+  gasneti_static_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 }
 
 void gasnetc_bootstrapBarrier(void) {
@@ -340,11 +335,8 @@ static int gasnetc_attach_primary(void) {
     /* catch fatal signals and convert to SIGQUIT */
     gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
 
-#if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-#else
-    atexit(gasnetc_atexit);
-#endif
+    // register process exit-time hook
+    gasneti_registerExitHandler(gasnetc_exit);
 
     #if GASNET_TRACE || GASNET_DEBUG
      #if !GASNET_DEBUG
@@ -402,8 +394,8 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
     void *segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
 
-    gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-    gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+    gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
+    gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
     gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
     ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
@@ -599,7 +591,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     while (ctable[len].gex_fnptr) len++; /* calc len */
     if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    gasneti_assert(numreg == len);
+    gasneti_assert_int(numreg ,==, len);
   }
 
   { /*  extended API handlers */
@@ -610,7 +602,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     while (etable[len].gex_fnptr) len++; /* calc len */
     if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
-    gasneti_assert(numreg == len);
+    gasneti_assert_int(numreg ,==, len);
   }
 
   return GASNET_OK;
@@ -622,15 +614,6 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
   return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
-  gasnetc_exit(exitcode);
-}
-#else
-static void gasnetc_atexit(void) {
-  gasnetc_exit(0);
-}
-#endif
 static int gasnetc_exitcalled = 0;
 static void gasnetc_traceoutput(int exitcode) {
   if (!gasnetc_exitcalled) {
@@ -746,7 +729,7 @@ gex_Rank_t gasnetc_msgsource(gex_Token_t token) {
     gasneti_assert_zeroret(AMUDP_GetSourceId(token, &tmp));
     gasneti_assert(tmp >= 0);
     gex_Rank_t sourceid = tmp;
-    gasneti_assert(sourceid < gasneti_nodes);
+    gasneti_assert_uint(sourceid ,<, gasneti_nodes);
     return sourceid;
 }
 

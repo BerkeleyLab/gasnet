@@ -15,7 +15,7 @@
   #error "VAPI-conduit is no longer supported"
 #endif
 
-#define GASNET_CORE_VERSION      2.0
+#define GASNET_CORE_VERSION      2.1
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         IBV
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -150,6 +150,11 @@
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 	extern void gasnetc_fatalsignal_callback(int sig);
+
+#if GASNETC_IBV_ODP
+  #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig) gasnetc_fatalsignal_cleanup_callback(sig)
+  extern void gasnetc_fatalsignal_cleanup_callback(int sig);
+#endif
 
 #if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \

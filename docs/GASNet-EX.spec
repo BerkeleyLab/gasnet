@@ -3,10 +3,7 @@
 ///////////////////////////////
 //
 // This is *not* a final normative document.
-// This is "beta documentation" for a beta release.
-//
-// It is a place for collection of agreed-upon APIs and for initial
-// drafting of what may become the normative text.
+// This is "beta documentation" for a work-in-progress.
 //
 // This document assumes a reasonable degree of familiarity with the current
 // (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
@@ -35,14 +32,14 @@
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
 #define GASNET_RELEASE_VERSION_MAJOR 2018
-#define GASNET_RELEASE_VERSION_MINOR 9
+#define GASNET_RELEASE_VERSION_MINOR 12
 #define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
 // This is currently a version number for *this* document.
 #define GEX_SPEC_VERSION_MAJOR 0
-#define GEX_SPEC_VERSION_MINOR 6
+#define GEX_SPEC_VERSION_MINOR 7
 
 // Major and Minor versions of the GASNet-1 specification.
 //
@@ -2328,18 +2325,19 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //         document) of the calling process.  This may allow the
 //         implementation to perform the operation more efficiently.
 //     - GEX_FLAG_AD_REL: this atomic operation shall perform a "release".
-//       Within the thread that initiates this operation, reads or writes
-//       issued before the initiation call shall not be reordered after that
-//       call.  Additionally, this includes accesses to memory by any GASNet
-//       operations synchronized by that thread before initiation.  However,
-//       there is no ordering with respect to other GASNet operations.
+//       Within the thread that initiates this operation, memory accesses by
+//       the processor, issued before the initiation call, shall not be
+//       reordered after that call.  Additionally, this includes accesses to
+//       memory by any GASNet operations synchronized by that thread before
+//       initiation.  However, there is no ordering with respect to other
+//       GASNet operations.
 //     - GEX_FLAG_AD_ACQ: this atomic operation shall perform an "acquire".
-//       Within the thread that synchronizes this operation, reads or writes
-//       issued after the synchronization call shall not be reordered before
-//       that call.  Additionally, this includes accesses to memory by any
-//       GASNet operations initiated by that thread after synchronization.
-//       However, there is no ordering with respect to other GASNet
-//       operations.
+//       Within the thread that synchronizes this operation, memory accesses by
+//       the processor, issued after the synchronization call, shall not be
+//       reordered before that call.  Additionally, this includes accesses to
+//       memory by any GASNet operations initiated by that thread after
+//       synchronization.  However, there is no ordering with respect to other
+//       GASNet operations.
 //     - GEX_FLAG_RANK_IS_JOBRANK: this flag indicates that the 'tgt_rank'
 //       argument is a jobrank (rank in the primordial team created by
 //       gex_Client_Init()), rather than the rank in the team associated with
@@ -2565,7 +2563,7 @@ void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 //
 // Collectives (Coll) [EXPERIMENTAL]
 //
-// With the exception of gex_Coll_Barrier(), APIs in this section are provided
+// With the exception of gex_Coll_BarrierNB(), APIs in this section are provided
 // by gasnet_coll.h
 //
 
@@ -2584,10 +2582,25 @@ void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 // All functions in this section are "Collective Calls" as defined in the
 // Glossary.
 
-// Multiple collective operations from this section may be active
-// concurrently, over multiple teams or over a single team, with the exception
-// of Barrier.  See gex_Coll_BarrierNB() for more information.
+// Multiple collective operations from this section may be active concurrently,
+// over multiple teams or over a single team.  There is no longer an exception
+// regarding gex_Coll_BarrierNB(), as was the case in an earlier release.
+
+// GASNet-EX collectives and the GASNet-1 barrier must not operate concurrently.
+// Specifically, the gasnet_barrier*() family of calls may not operate
+// concurrently with any gex_Coll_*() operation (including barriers) over the
+// primordial team (created by gex_Client_Init(flags=GEX_FLAG_USES_GASNET1) or
+// obtained from a call to gasnet_QueryGexObjects()).
+//   - Collective operations over the primordial team issued prior to a
+//     GASNet-1 barrier over the same team must be complete/synchronized prior
+//     to initiating the barrier.
+//   - No collective call may be initiated over the primordial team between the
+//     initiation and completion/synchronization of any GASNet-1 barrier over
+//     the same team.
 // [This restriction may be relaxed in a future release]
+//
+// Uses of the GASNet-1 barrier APIs which do not violate the restriction above
+// are permitted in the same program as GASNet-EX collectives.
 
 // In contrast to the UPC-influenced design of the GASNet-1 collectives, the
 // GASNet-EX collectives do not support "NOSYNC" or "ALLSYNC" flags (they
@@ -2635,25 +2648,23 @@ void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 //   only after all members of the team have issued a corresponding call.
 // + This call is non-blocking (may return before other team members have
 //   issued a corresponding call).
-// + Barriers may not operate concurrently with any other collective
-//   operations over the same team, including other barriers.
-//   - Collective operations over a team issued prior to a barrier over the same
-//     team must be complete/synchronized prior to initiating the barrier.
-//   - No collective call may be initiated over a team between the initiation
-//     and completion/synchronization of any barrier over the same team.
-//   - The term "barrier" as used here includes not only this call, but also
-//     the gasnet_barrier*() family of calls.  More specifically, use of the
-//     GASNet-1 barrier may not locally overlap with any gex_Coll_*()
-//     operation (Barrier or otherwise) over the primordial team (created by
-//     gex_Client_Init(flags=GEX_FLAG_USES_GASNET1) or obtained from a call to
-//     gasnet_QueryGexObjects()).  Other uses of the GASNet-1 barrier APIs are
-//     permitted in the same program as GASNet-EX collectives.
-//   [This restriction may be relaxed in a future release]
-//
 // + Calls to gex_Coll_BarrierNB() are not "compatible" with calls to
 //   gasnet_barrier() or gasnet_barrier_notify() for the purpose of
 //   determining collective calling order.
-//   [Limited compatibility may be defined in a future release]
+// + The barrier operation provides the following memory ordering behaviors:
+//   - Initiating a barrier operation shall perform a "release".
+//     Within the thread that initiates the operation, memory accesses by the
+//     processor, issued before the initiation call, shall not be reordered
+//     after that call.  Additionally, this includes accesses to memory by any
+//     GASNet operations synchronized by that thread before initiation.
+//     However, there is no ordering with respect to other GASNet operations.
+//   - Synchronizing a barrier operation shall perform an "acquire".
+//     Within the thread that synchronizes the operation, memory accesses by
+//     the processor, issued after the synchronization call, shall not be
+//     reordered before that call.  Additionally, this includes accesses to
+//     memory by any GASNet operations initiated by that thread after
+//     synchronization.  However, there is no ordering with respect to other
+//     GASNet operations.
 //
 // tm:      The call is collective over the associated team.
 // flags:   Flags are reserved for future use and must currently be zero

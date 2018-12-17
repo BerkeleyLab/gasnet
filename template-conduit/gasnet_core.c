@@ -19,12 +19,6 @@ gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
-
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 /* ------------------------------------------------------------------------------------ */
@@ -162,11 +156,8 @@ static int gasnetc_attach_primary(void) {
    *        (e.g. to support interrupt-based messaging)
    */
 
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_exit);
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
@@ -209,8 +200,8 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   void *segbase = ###;
   segsize = ###
 
-  gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+  gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
+  gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
@@ -370,7 +361,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     while (ctable[len].gex_fnptr) len++; /* calc len */
     if (gasneti_amregister(ep->_amtbl, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    gasneti_assert(numreg == len);
+    gasneti_assert_int(numreg ,==, len);
   }
 
   { /*  extended API handlers */
@@ -381,7 +372,7 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
     while (etable[len].gex_fnptr) len++; /* calc len */
     if (gasneti_amregister(ep->_amtbl, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
-    gasneti_assert(numreg == len);
+    gasneti_assert_int(numreg ,==, len);
   }
 
   return GASNET_OK;
@@ -393,15 +384,6 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
   return gasneti_amregister_client(gasneti_import_ep(ep)->_amtbl, table, numentries);
 }
 /* ------------------------------------------------------------------------------------ */
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
-    gasnetc_exit(exitcode);
-}
-#else
-static void gasnetc_atexit(void) {
-    gasnetc_exit(0);
-}
-#endif
 
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */

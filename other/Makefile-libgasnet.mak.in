@@ -168,7 +168,7 @@ do-libgasnet_tools:
 
 do-libgasnet_tools-seq: $(libgasnet_tools_dependencies)
 	@$(MAKE) THREAD_MODEL=SEQ                            \
-	  LIBGASNET_THREAD_DEFINES=                          \
+	  LIBGASNET_THREAD_DEFINES=-DGASNETT_THREAD_SINGLE   \
           $(set_dirs) do-libgasnet_tools
 
 do-libgasnet_tools-par: $(libgasnet_tools_dependencies)

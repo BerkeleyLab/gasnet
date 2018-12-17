@@ -1,7 +1,7 @@
 =======================================================================
 =======================================================================
 
-              *** GASNet-EX Software Preview ***
+              *** GASNet-EX Software Release ***
 
 GASNet-EX is the next generation of the GASNet-1 communication system. 
 The GASNet interfaces are being redesigned to accommodate the emerging
@@ -10,9 +10,8 @@ variety of PGAS programming models on current and future HPC architectures.
 This upgrade is being done over the next several years as part of the DOE
 Exascale Computing Program (ECP).
 
-This archive represents a lightly-tested snapshot of a work-in-progress.
-Many planned features remain to be specified and/or implemented.
-All interfaces and implementations are subject to change without notice.
+GASNet-EX is a work-in-progress.
+Many features remain to be specified, implemented, and/or tuned.
 
 Users interested in learning what's new in GASNet-EX are recommended to peruse 
 the ChangeLog file in this directory for a summary of recent developments.
@@ -75,6 +74,7 @@ Contents of this file:
  * Single-node Development Options
  * Supported Platforms
  * Recognized Environment Variables
+ * GASNet exit
  * GASNet tracing & statistical collection
  * GASNet Collectives
  * GASNet debug malloc services
@@ -643,6 +643,20 @@ application-specific support.
  coordinates within each supernode before communicating across the network.
  This variable can be set to 0 to disable this optimization.
 
+* GASNET_CATCH_EXIT - set to 0 to prevent GASNet from forcing global job
+ termination (via atexit() or on_exit()) when a process calls exit() or returns
+ from main().  GASNet's default behavior helps prevent orphaned processes that
+ can occur in some systems after an incomplete job termination, but may interfere 
+ with some profiling tools that write output inside atexit handlers. Setting this
+ variable may allow those tools to operate, but the client code (or other entity) 
+ must assume responsibility for ensuring no orphan processes are left behind.
+
+ Note this variable does not affect the behavior of explicit calls to gasnet_exit() 
+ (either directly or indirectly via calls like upc_global_exit(), returning from 
+ UPC main(), or reaching the GASNet default fatal signal handler) which will still bypass
+ atexit handlers and kill the job. The recommended method to ensure the execution of 
+ atexit handlers is to run with GASNET_CATCH_EXIT=0 and collectively invoke libc exit().
+
 * GASNET_NO_CATCH_SIGNAL - specify a comma separated list of signals
  to exclude from GASNet default signal handling. Formats "SIGSEGV",
  "SEGV", "sigsegv", "segv", and "11" are accepted. If the value of
@@ -838,6 +852,21 @@ application-specific support.
  default size for thread stacks.
 
 * see conduit-specific documentation in conduit directories for more settings
+
+GASNet exit
+===========
+
+GASNet clients desiring robustness and portability should not call _exit().
+Normal process termination should be done using gasnet_exit(), exit() or
+return from main().  Use of these paths allows GASNet to ensure proper
+shutdown.  This includes efforts to avoid zombie/orphan processes in the case
+of non-collective exits, and proper release of network resources.  This second
+point is important because we are aware of multiple network stacks which can
+permanently leak system resources if they are not explicitly released.
+
+We acknowledge that this represents a restriction that may be hard to satisfy.
+We fully intend to separate library termination from process termination in a
+future release.
  
 GASNet tracing & statistical collection
 =======================================

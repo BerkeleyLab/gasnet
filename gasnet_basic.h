@@ -113,6 +113,11 @@
   #define _GASNETI_HAS_CXX11_ATTRIBUTE(x) 0
 #endif
 
+#if PLATFORM_COMPILER_CLANG && PLATFORM_COMPILER_VERSION_LT(3,6,0)
+  // bug3801: old clangs report __has_attribute(__fallthrough__)=1, but incorrectly implement the attribute
+  // in a way that leads to empty statement warnings when used as per GNU instructions
+  #define GASNETT_USE_GCC_ATTRIBUTE_FALLTHROUGH 0
+#endif
 
 // token expansion: expands to configure-detected token GASNETI_<id>_<feature> for the current compiler
 //                  (which MUST NOT be #undef, although it can be #defined to blank)
@@ -346,7 +351,7 @@
 typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #if GASNET_DEBUG
   #define GASNETI_INIT_MAGIC(p,m)  ((void)((p)->_magic._u = (m)))
-  #define GASNETI_CHECK_MAGIC(p,m) gasneti_assert(!(p) || ((p)->_magic._u == (m)))
+  #define GASNETI_CHECK_MAGIC(p,m) do { if (p) gasneti_assert_uint((p)->_magic._u ,==, (m)); } while (0)
   #define GASNETI_IMPORT_MAGIC(p,type) do { \
       if ((p) && ((p)->_magic._u == GASNETI_##type##_BAD_MAGIC)) {              \
         gasneti_fatalerror("Likely use-after-free error for " #type " object"); \

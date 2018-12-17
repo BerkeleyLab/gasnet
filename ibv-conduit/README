@@ -9,6 +9,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: Job Spawning @
 @ Section: Runtime Configuration @
 @ Section: Multi-rail Support @
+@ Section: On-Demand Paging (ODP) Support @
 @ Section: HCA Configuration @
 @ Section: Known Problems @
 @ Section: Core API @
@@ -576,11 +577,26 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_USE_XRC
     This controls whether IBV eXtended Reliable Connection (XRC) support
-    is used.  However, it is is ignored if GASNet was was configured with
+    is used.  However, it is is ignored if GASNet was configured with
     --disable-ibv-xrc, if XRC support was not found at configure time, or
     if SRQ support is not used (regardless of why),
     This setting defaults to 1 if SRQ support was enabled at configure
     time.  As a result XRC will be used anytime SRQ is used.
+
+  + GASNET_USE_ODP
+    This boolean setting controls whether IBV On-Demand Paging (ODP) support
+    is used.  However, it is ignored if GASNet was configured with
+    --disable-ibv-odp, or if ODP support was not found at configure time.
+    This setting defaults to 1 if ODP support was enabled at configure time.
+
+  + GASNET_ODP_VERBOSE
+    This integer setting controls the detail of the warning printed when ODP
+    support is enabled but is not present on one or more HCAs in the job.
+    A value of 0 supresses the warning entirely.
+    A value of 1 will report a count of processes lacking support.
+    Values of 2 or higher give increasing levels of detail concerning the
+    missing support.
+    This setting defaults to 1 if ODP support was enabled at configure time.
 
    + GASNET_PIN_MAXSZ
     This controls the maximum size of a pinned memory region.  The value must
@@ -861,6 +877,39 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   (documented in "Runtime Configuration") to determine how a given
   application runs best.
 
+  IMPORTANT NOTE:
+  The multi-rail support in ibv-conduit makes the assumption that the
+  number of HCAs used in every process will be identical.  One must use
+  GASNET_IBV_PORTS to ensure that this property is true.  Otherwise, the
+  behavior is undefined (startup crash being the most likely).
+
+@ Section: On-Demand Paging (ODP) Support @
+
+   Recent Mellanox HCAs (ConnectX-4 and newer) support a feature known as
+   On-Demand Paging (ODP).  Where this support is available, ibv-conduit
+   can use it to reduce resource pressure on physical memory.  By default,
+   ibv-conduit will attempt to warn at runtime if this support does not
+   appear to be available despite having either the required software or
+   hardware.  If you are using Mellanox Connect4-X HCAs or newer and
+   ibv-conduit warns about missing ODP support, we recommend that you
+   install the latest "Mellenox OFED" (aka MLNX_OFED) distribution,
+   available for download from Mellanox.  Mellanox provides documentation
+   on installing the software and upgrading the HCA firmware (if needed).
+
+   At configure time, ibv-conduit does not know the hardware, firmware, or
+   driver versions on the compute nodes and cannot, in general, assume the
+   host running configure represents every node in the system.  Therefore,
+   ODP support is enabled by default whenever the necessary library support
+   is detected by the configure script.
+
+   If ibv-conduit warns about missing ODP support on a system in which there
+   are no ODP-capable nodes, then we recommend reconfiguring GASNet using
+   --disable-ibv-odp to both eliminate the warnings and avoid the small
+   overhead of ODP support.  However, in a heterogeneous system in which some
+   subset of compute nodes do support ODP, one should set GASNET_ODP_VERBOSE=0
+   in the environment to suppress warnings from nodes lacking ODP support,
+   while allowing ibv-conduit to continue using ODP on the remaining nodes.
+
 @ Section: HCA Configuration @
 
   GASNet ibv-conduit should *not* require any specialized configuration of
@@ -1014,6 +1063,34 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   top-level README.
   The most up-to-date information on this bug is maintained at:
     http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3693
+  That bug report describes more about the problem, and provides more detail
+  regarding the recommended work-around(s).
+
++ Bug 3816
+  When using Mellanox On-Demand Paging (ODP), it is possible that abnormal exits
+  (SIGKILL or _exit(), in particular) may lead to leaking memory at the system
+  level, requiring a reboot to reclaim the lost memory.  In extreme cases, the
+  cumulative effect of many leaks could eventually lead to the Linux
+  Out-Of-Memory killer being invoked, or even a kernel panic.
+  If you use ODP and see evidence of available memory declining over time, and
+  have reason to suspect a GASNet application is experiencing an abnormal exit,
+  then it may be advisable to disable ODP (see On-Demand Paging (ODP) Support
+  section).
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3816
+  That bug report describes more about the problem, and provides more detail
+  regarding the recommended work-around(s).
+
++ Bug 3817
+  When using Mellanox On-Demand Paging (ODP), it has been observed that certain
+  patterns of many small RMA operations (as seen in GASNet's testvis) may lead
+  to communications "locking up" such that RMA operations issued do not complete
+  and eventually new RMA operations cannot be initiated.
+  If you use ODP and experience hangs from an application with many fine-grained
+  RMA operations, then you should retry with ODP disabled (see On-Demand Paging
+  (ODP) Support section).
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3817
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 

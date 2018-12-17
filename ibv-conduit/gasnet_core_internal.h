@@ -10,7 +10,14 @@
 #include <gasnet_internal.h>
 #include <firehose.h>
 
+#if GASNETC_IBV_ODP
+  #define GASNETI_NEED_VERBS_EXP_H 1
+#endif
+
 #include <infiniband/verbs.h>
+#if GASNETI_NEED_VERBS_EXP_H
+  #include <infiniband/verbs_exp.h>
+#endif
 
 /* TODO: flatten these? */
   #if HAVE_IBV_SRQ
@@ -469,6 +476,12 @@ typedef struct {
     gasnetc_memreg_t    *seg_regs;
   #endif
 #endif
+#if GASNETC_IBV_ODP
+  struct {
+    struct ibv_mr *     handle;
+    uint32_t            lkey;
+  } implicit_odp;
+#endif
   uint32_t              *aux_rkeys;
 #if GASNETC_IBV_SRQ
   struct ibv_srq	*rqst_srq;
@@ -775,6 +788,12 @@ extern gasnetc_atomic_val_t gasnetc_amrdma_cycle;
   extern int			gasnetc_use_xrc;
 #else
   #define gasnetc_use_xrc	0
+#endif
+
+#if GASNETC_IBV_ODP
+  extern int			gasnetc_use_odp;
+#else
+  #define gasnetc_use_odp	0
 #endif
 
 /* Global variables */

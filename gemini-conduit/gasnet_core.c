@@ -28,15 +28,11 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
+static void gasnetc_atexit(int exitcode);
+
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
-
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
@@ -741,13 +737,11 @@ static int gasnetc_attach_primary(void) {
    *        (e.g. to support interrupt-based messaging)
    */
 
+  // register process exit-time hook
+  gasneti_registerExitHandler(gasnetc_atexit);
+
   /* set the number of seconds we poll until forceful shutdown. */
   gasnetc_shutdown_seconds = gasneti_get_exittimeout(120., 3., 0.125, 0.);
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
@@ -1003,15 +997,9 @@ extern void gasnetc_fatalsignal_callback(int sig) {
 
 static int gasnetc_remoteShutdown = 0;
 
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int exitcode, void *arg) {
+static void gasnetc_atexit(int exitcode) {
   if (!gasnetc_shutdownInProgress) gasnetc_exit(exitcode);
 }
-#else
-static void gasnetc_atexit(void) {
-  if (!gasnetc_shutdownInProgress) gasnetc_exit(0);
-}
-#endif
 
 static void gasnetc_exit_reqh(gex_Token_t token, gex_AM_Arg_t exitcode) {
   if (!gasnetc_shutdownInProgress) {
@@ -1084,7 +1072,7 @@ extern void gasnetc_exit(int exitcode) {
   #if GASNET_DEBUG && !GASNETC_USE_SPINLOCK
     /* prevent deadlock and assertion failures ONLY if we already hold the lock */
     #define GASNETC_CLOBBER_LOCK(pl) \
-          if ((pl)->owner == GASNETI_THREADIDQUERY()) gasneti_mutex_unlock(pl)
+          if (_gasneti_mutex_heldbyme(pl)) gasneti_mutex_unlock(pl)
   #else
     /* clobber the lock, even if held by another thread! */
     #define GASNETC_CLOBBER_LOCK _GASNETC_CLOBBER_LOCK
