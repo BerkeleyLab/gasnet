@@ -1066,6 +1066,34 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
++ Bug 3816
+  When using Mellanox On-Demand Paging (ODP), it is possible that abnormal exits
+  (SIGKILL or _exit(), in particular) may lead to leaking memory at the system
+  level, requiring a reboot to reclaim the lost memory.  In extreme cases, the
+  cumulative effect of many leaks could eventually lead to the Linux
+  Out-Of-Memory killer being invoked, or even a kernel panic.
+  If you use ODP and see evidence of available memory declining over time, and
+  have reason to suspect a GASNet application is experiencing an abnormal exit,
+  then it may be advisable to disable ODP (see On-Demand Paging (ODP) Support
+  section).
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3816
+  That bug report describes more about the problem, and provides more detail
+  regarding the recommended work-around(s).
+
++ Bug 3817
+  When using Mellanox On-Demand Paging (ODP), it has been observed that certain
+  patterns of many small RMA operations (as seen in GASNet's testvis) may lead
+  to communications "locking up" such that RMA operations issued do not complete
+  and eventually new RMA operations cannot be initiated.
+  If you use ODP and experience hangs from an application with many fine-grained
+  RMA operations, then you should retry with ODP disabled (see On-Demand Paging
+  (ODP) Support section).
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3817
+  That bug report describes more about the problem, and provides more detail
+  regarding the recommended work-around(s).
+
 + See the GASNet Bugzilla server for details on other known bugs:
   http://gasnet-bugs.lbl.gov/
 

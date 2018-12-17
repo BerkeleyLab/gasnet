@@ -51,9 +51,13 @@ fi
 #   by running config-aux/config.guess on the target machine
 TARGET_ID='x86_64-cnl-linux-gnu'
 
-# 3. Review the automatically-detected settings below and make corrections as necessary.
+# 3. Optionally cross-compile and run the detect-cachesz.c utility and
+#    fill in the value below and uncomment.  If not set the default is 128.
+CROSS_CACHE_LINE_BYTES=64; export CROSS_CACHE_LINE_BYTES
 
-# 4. Place this output script in your top-level source directory and run it,
+# 4. Review the automatically-detected settings below and make corrections as necessary.
+
+# 5. Place this output script in your top-level source directory and run it,
 #   passing it any additional configure arguments as usual (see configure --help).
 
 ################################################

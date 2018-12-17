@@ -1,10 +1,8 @@
 GASNet-EX ChangeLog
 -------------------
 
-  This archive represents a lightly-tested snapshot of a work-in-progress.
-
-  Many additional new features are coming soon, and are not yet reflected in this
-  archive. All new interfaces are subject to change without notice.
+  GASNet-EX is a work-in-progress.
+  Many features remain to be specified, implemented, and/or tuned.
 
   Feedback or questions on any matters related to the EX project are
   welcomed at: gasnet-devel@lbl.gov
@@ -20,20 +18,24 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING:
+12-17-2018: GASNet-EX 2018.12.0 Beta release
 
-* GASNet-EX Spec v0.X:
+* InfiniBand Verbs (ibv-conduit)
+  - Mellanox On-Demand Pinning (ODP) feature now replaces explicit out-of-segment 
+    memory registration on systems with appropriate hardware/driver support.
+    This resolves bug 495 for clients using SEGMENT_FAST with ODP support.  
+    Note that ODP support may interact badly with improper job shutdown 
+    (see "GASNet exit" section of README for more information).
+  - Add startup checks for required HCA homogeneity properties
+
+* GASNet-EX Spec v0.7:
   - Barriers initiated using gex_Coll_BarrierNB() are now permitted to
     overlap with collectives on the same team (including other barriers).
 
-* InfiniBand Verbs (ibv-conduit)
-  - When available, Mellanox ODP support now replaces local dynamic memory
-    registration.  This resolves bug 495 for clients using SEGMENT_FAST when
-    ODP support is available.  However, ODP may interact badly with improper
-    job shutdown (see "GASNet exit" section of README for more information).
-
-* Notable bugs fixed in this release:
-  - bug3812: Intermittent mmap failures at startup: cannot allocate memory
+* Collective Operations
+  - Improve serial overheads for out-of-segment collectives
+  - Improve congestion tolerance for some cases
+  - Improve scalability of large or out-of-segment broadcasts
 
 ----------------------------------------------------------------------
 09-26-2018: GASNet-EX 2018.9.0 Release
@@ -249,27 +251,47 @@ Note some entries below do not apply to the EX branch.
 GASNet-1 ChangeLog 
 ------------------
 ----------------------------------------------------------------------
-09-26-2018: pending work @06f79b2
+12-17-2018: pending work @a7112a6
 
 * InfiniBand Verbs (ibv-conduit)
   - Multi-rail support is disabled by default, due to bug 3447
 
+* Cray uGNI (gemini- and aries-conduits)
+  - Now tolerate unequal GASNET_DOMAIN_COUNT in multi-domain mode
+
 * General and Misc.
+  - New GASNET_CATCH_EXIT envvar improves interop with tools like CrayPat
   - Performance tests now default to in-segment memory (see --help)
   - Average values in STATS now output as floating-point, instead of rounding
-  - Fix bug 3742: Atomic CAS failures on PPCle+{pgi,clang}
   - Silence harmless library compile warnings from gcc 8.*
+  - Most fatal errors now include the process rank
+  - Other minor improvements to fatal error paths
+
+* GASNet tools
+  - New define GASNETT_THREAD_SINGLE selects single-threaded build
 
 * Configure and Build
   - cross-configure scripts can now optionally be run without copying them to
     the source directory, by setting $SRCDIR to indicate the source directory.
 
+* SSH-based job-launch (ssh-spawner)
+  - Improve error checking and reporting
+
 * Platform support/portability
   - Improvements to internal logic for handling thread data on platforms
     lacking native register-level support for thread data.
   - Internal AM handler dispatch code is now strictly C spec compliant
-  - Fix bug 3806, providing support for -N option to gasnetrun_* scripts
-    when mpirun from Open MPI 3.x is used for job launch.
+  - Cray X{C,E,K}: Correct default cache line padding size
+
+* Notable bugs fixed in this release:
+  - bug3815: XPMEM incompatibility with gprof
+  - bug3812: Intermittent mmap failures at startup: cannot allocate memory
+  - bug3803: gasnetrun_* -N command-line support for Open MPI 3.X
+  - bug3797: invalid asm on Solaris/SPARC 
+  - bug3796: Fix LDFLAGS/LIBS processing for library names
+  - bug3790: ibv-conduit AM flow-control hangs with multiple HCAs
+  - bug3742: Atomic CAS failures on PPCle+{pgi,clang}
+  - bug3693: Reduce segment registration failures due to insufficient /dev/shm
 
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0

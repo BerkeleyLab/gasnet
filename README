@@ -1,7 +1,7 @@
 =======================================================================
 =======================================================================
 
-              *** GASNet-EX Software Preview ***
+              *** GASNet-EX Software Release ***
 
 GASNet-EX is the next generation of the GASNet-1 communication system. 
 The GASNet interfaces are being redesigned to accommodate the emerging
@@ -10,9 +10,8 @@ variety of PGAS programming models on current and future HPC architectures.
 This upgrade is being done over the next several years as part of the DOE
 Exascale Computing Program (ECP).
 
-This archive represents a lightly-tested snapshot of a work-in-progress.
-Many planned features remain to be specified and/or implemented.
-All interfaces and implementations are subject to change without notice.
+GASNet-EX is a work-in-progress.
+Many features remain to be specified, implemented, and/or tuned.
 
 Users interested in learning what's new in GASNet-EX are recommended to peruse 
 the ChangeLog file in this directory for a summary of recent developments.
