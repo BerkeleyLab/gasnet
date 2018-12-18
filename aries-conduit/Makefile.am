@@ -25,8 +25,7 @@ SUBDIRS = contrib
 # and any subdirectories not containing Makefile.am's
 CONDUIT_FILELIST =            \
       gasnet_empty_internal.h \
-      README                  \
-      license.txt
+      README                  
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
