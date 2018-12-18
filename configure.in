@@ -1673,10 +1673,6 @@ AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
 PTHREADS="$have_pthread"
 AC_SUBST(PTHREADS)
 
-## Solaris threads
-
-AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
-
 ########################################################################
 ## Process-shared memory (pshm)
 
