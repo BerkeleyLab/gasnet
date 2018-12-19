@@ -236,6 +236,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     the available HCAs and the status of their ports.
     The default is no filter.
 
+  + GASNET_IBV_PKEY
+    If set, this specifies the 15-bit InfiniBand Partition Key to use.
+    Valid values are in the range 2 to 0x7fff.
+    For compatibility, the membership bit (0x8000) is ignored.
+    The default is to use the Partition Key installed at table index 0.
+
   + GASNET_QP_TIMEOUT
     This sets the timeout value used to configure InfiniBand QueuePairs.
     The IB specification uses (4.096us * 2^qp_timeout) as the length of

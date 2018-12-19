@@ -17,6 +17,10 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+// ntohs() should be in one of these:
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
@@ -1470,6 +1474,17 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, enable, num_hcas);
   }
 
+  int64_t pkey = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
+  uint64_t pkey_mask = ~(uint64_t)0x8000;  // to strip membership bit
+  if (pkey == -1) {
+    // Nothing to do
+  } else {
+    pkey &= pkey_mask;
+    if ((pkey > 0x7fff) || (pkey < 2)) {
+      gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
+    }
+  }
+
   /* Loop over list of HCAs */
   for (curr_hca = 0;
        (hca_count < GASNETC_IB_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
@@ -1526,6 +1541,30 @@ static void gasnetc_probe_ports(int max_ports) {
         ++found;
         this_port->port_num = curr_port;
         this_port->hca_index = hca_count;
+        if (pkey < 0) {
+          GASNETI_TRACE_PRINTF(C,("Using default pkey_index=0 for HCA '%s', port %d",
+                                  hca_name, curr_port));
+          this_port->pkey_index = 0;
+        } else {
+          int i;
+          for (i = 0; i < hca_cap.max_pkeys; ++i) {
+            uint16_t pkey_val;
+            if (ibv_query_pkey(hca_handle, curr_port, i, &pkey_val)) {
+              gasneti_fatalerror("Failed to query pkeys for HCA '%s', port %d", hca_name, curr_port);
+            }
+            pkey_val = ntohs(pkey_val) & pkey_mask;
+            if (pkey_val == pkey) {
+              GASNETI_TRACE_PRINTF(C,("Using pkey_index %d for HCA '%s', port %d",
+                                      i, hca_name, curr_port));
+              this_port->pkey_index = i;
+              break;
+            }
+          }
+          if (i == hca_cap.max_pkeys) {
+            gasneti_fatalerror("Failed to locate index of requested pkey 0x%04x for HCA '%s', port %d",
+                               (unsigned int)pkey, hca_name, curr_port);
+          }
+        }
         if (gasnetc_qp_rd_atom) { /* Zero means use HCA/port limit */
           int limit = MIN(hca_cap.max_qp_init_rd_atom, hca_cap.max_qp_rd_atom);
           if (gasnetc_qp_rd_atom > limit) {
