@@ -72,7 +72,7 @@ TARGET_ID='powerpc64-bgq-linux'
 
 # 3. Review the automatically-detected settings below and make corrections as necessary.
 
-CROSS_CACHE_LINE_BYTES=128; export CROSS_CACHE_LINE_BYTES
+CACHE_LINE_BYTES=128; export CACHE_LINE_BYTES
 
 # 4. Place this output script in your top-level source directory and run it,
 #   passing it any additional configure arguments as usual (see configure --help).

@@ -45,8 +45,8 @@ EXTRA_CONFIGURE_ARGS='--disable-aligned-segments --enable-pshm --enable-large-ps
 TARGET_ID='x86_64-unknown-linux-gnu'
 
 # 3. Optionally cross-compile and run the detect-cachesz.c utility and
-#    fill in the value below and uncomment.  If not set the default is 128.
-CROSS_CACHE_LINE_BYTES=64; export CROSS_CACHE_LINE_BYTES
+#    fill in the value below and uncomment.  If not set the default is platform-dependent.
+CACHE_LINE_BYTES=64; export CACHE_LINE_BYTES
 
 # 4. Review the automatically-detected settings below and make corrections as necessary.
 
