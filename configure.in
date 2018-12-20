@@ -1641,7 +1641,7 @@ if test "$cross_compiling" = "no"; then
       cache_line_guess_os=`(cat /sys/devices/system/cpu/cpu0/cache/index{0,1,2,3}/coherency_line_size | tail -1) 2>/dev/null` ;;
     *) ;;
   esac
-  if test -n $cache_line_guess_os ; then
+  if test -n "$cache_line_guess_os" ; then
     cache_line_guess=$cache_line_guess_os
   fi
 fi
