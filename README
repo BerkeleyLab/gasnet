@@ -149,7 +149,7 @@ or similarly, if you want libgasnet to contain debugging symbols:
       Note that not all conduits and operating systems support this feature.
       For more information, see the section below entitled "GASNet inter-Process
       SHared Memory (PSHM)".
-    --with-max-segment=<val> - configure-time default value for GASNET_MAX_SEGSIZE,
+    --with-max-segsize=<val> - configure-time default value for GASNET_MAX_SEGSIZE,
       which is used when GASNET_MAX_SEGSIZE is not set at runtime. See the description 
       of the GASNET_MAX_SEGSIZE environment variable below for details.
       
