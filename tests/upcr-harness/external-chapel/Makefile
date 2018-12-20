@@ -110,10 +110,18 @@ ifneq ($(strip $(CHPL_COMM_DEBUG)),)
 COMMON_ENV += CHPL_COMM_DEBUG=$(CHPL_COMM_DEBUG)
 endif
 
+# Apply upsteam or local patches, if any
+chapel_patches =
+chapel-patch: force
+	cd $(CHAPEL_BLDDIR) && \
+	for p in $(chapel_patches); do $(WGET) $$p && patch -p1 < `basename $$p`; done
+.PHONY: chapel-patch
+
 # Build and (optionally) install Chapel compiler and runtime
 _chapel: force
 	rm -f chapel-built
 	$(call safe_tee_dance, $(MAKE) chapel-download)
+	$(call safe_tee_dance, $(MAKE) chapel-patch)
 	$(MAKE) chapel-launcher
 	cd $(CHAPEL_BLDDIR)/third-party/gasnet && mv gasnet-src gasnet-src.dist
 	cp -Rp $(TOP_SRCDIR)/gasnet $(CHAPEL_BLDDIR)/third-party/gasnet/gasnet-src
