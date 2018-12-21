@@ -52,6 +52,10 @@
   #error "Don't know socklen_t or equivalent"
 #endif
 
+#ifndef PATH_MAX
+  #define PATH_MAX 1024
+#endif
+
 /* NOTES
 
    This is a ssh-based (or rsh if you want) spawner for GASNet.  It is
@@ -188,7 +192,7 @@ static int is_control = 0;
 static int is_verbose = 0;
 static char args_delim = ':';
 static gasnet_node_t nranks = 0;
-static char cwd[1024];
+static char cwd[PATH_MAX];
 static int listener = -1;
 static int listen_port = -1;
 static const char *argv0 = "[unknown]";
@@ -1374,7 +1378,8 @@ static void pre_spawn(int count) {
 
   /* Get the cwd */
   if ((env_string = my_getenv(ENV_PREFIX "SSH_REMOTE_PATH")) != NULL) {
-    strncpy(cwd, env_string, sizeof(cwd));
+    strncpy(cwd, env_string, sizeof(cwd)-1);
+    cwd[sizeof(cwd) - 1] = '\0';
   } else if (!getcwd(cwd, sizeof(cwd))) {
     gasneti_fatalerror("getcwd() failed");
   }
