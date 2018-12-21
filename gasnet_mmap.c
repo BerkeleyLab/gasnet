@@ -1447,7 +1447,12 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        * NOTE: must use pshm's view of supernode, which may be less than nodemap's.
        */
       if (se.size) gasneti_do_munmap(se.addr, se.size);
-      gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
+      gasneti_unlink_segments(); /* Includes supernode-scoped barrier to complete munmap()s */
+      if (gasneti_myhost.grp_count != gasneti_mysupernode.grp_count) {
+        // num_hosts != num_supernodes (multiple supernodes on at least one node)
+        // Lacking a node-scoped barrier, we require a full barrier to complete munmap()s
+        (*barrierfn)();
+      }
       se.size = 0;
 
       if (gasneti_pshm_mynode == 0 && maxsz) {
