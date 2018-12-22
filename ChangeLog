@@ -292,6 +292,7 @@ GASNet-1 ChangeLog
   - bug3790: ibv-conduit AM flow-control hangs with multiple HCAs
   - bug3742: Atomic CAS failures on PPCle+{pgi,clang}
   - bug3693: Reduce segment registration failures due to insufficient /dev/shm
+  - bug3834: GASNet ctype wrappers break for C++ clients
 
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0

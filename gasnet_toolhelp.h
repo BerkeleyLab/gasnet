@@ -1106,7 +1106,7 @@ int gasnett_maximize_rlimit(int _res, const char *_lim_desc);
    Clients who want the buggy OS version can -DGASNETT_USE_CTYPE_WRAPPERS=0
  */
 #ifndef GASNETT_USE_CTYPE_WRAPPERS
-   #if GASNETI_NEED_CTYPE_WRAPPERS
+   #if GASNETI_NEED_CTYPE_WRAPPERS && !__cplusplus // bug 3834
       #define GASNETT_USE_CTYPE_WRAPPERS 1
    #else
       #define GASNETT_USE_CTYPE_WRAPPERS 0
