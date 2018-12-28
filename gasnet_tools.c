@@ -597,26 +597,41 @@ extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_li
   const size_t msglen = strlen(msg);
 
   int isshort = 0;
-  if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+  int isveryshort = 0;
+  #ifndef GASNETI_CONSOLEMSG_VERYSHORT_LEN
+  #define GASNETI_CONSOLEMSG_VERYSHORT_LEN 256
+  #endif
+  char veryshort_msg[GASNETI_CONSOLEMSG_VERYSHORT_LEN];
+  if (msglen <= maxmsg) { // short enough to send to fprintf(stderr) in a single operation
     strncat(expandedmsg, msg, maxmsg);
     if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
     isshort = 1;
+
+    va_list args;
+    va_copy(args, argptr);
+      int result = vsnprintf(veryshort_msg, sizeof(veryshort_msg), expandedmsg, args);
+      if (result < sizeof(veryshort_msg)) isveryshort = 1; // short enough to send as a formatted buffer
+    va_end(args);
   }
 
   FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
   for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
     FILE *stream = streams[s];
     if (stream) {
-      va_list args;
-      va_copy(args, argptr);
-        if (isshort) {
-          vfprintf(stream, expandedmsg, args);
-        } else { /* long format msg */
-          fputs(expandedmsg, stream);
-          vfprintf(stream, msg, args);
-          if (msg[msglen-1] != '\n') fprintf(stream, "\n");
-        }
-      va_end(args);
+      if (isveryshort) {
+        fputs(veryshort_msg, stream);
+      } else {
+        va_list args;
+        va_copy(args, argptr);
+          if (isshort) {
+            vfprintf(stream, expandedmsg, args);
+          } else { /* long format msg */
+            fputs(expandedmsg, stream);
+            vfprintf(stream, msg, args);
+            if (msg[msglen-1] != '\n') fprintf(stream, "\n");
+          }
+        va_end(args);
+      }
       fflush(stream);
     }
   }
