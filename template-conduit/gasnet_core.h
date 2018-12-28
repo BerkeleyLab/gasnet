@@ -156,11 +156,11 @@ extern GASNETI_PURE size_t gasnetc_AM_MaxReplyLong(
            const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
 GASNETI_PUREP(gasnetc_AM_MaxReplyLong)
 extern GASNETI_PURE size_t gasnetc_Token_MaxReplyMedium(
-           gex_AM_Token_t token,
+           gex_Token_t token,
            const gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
 GASNETI_PUREP(gasnetc_Token_MaxReplyMedium)
 extern GASNETI_PURE size_t gasnetc_Token_MaxReplyLong(
-           const gex_AM_Token_t token,
+           const gex_Token_t token,
            gex_Event_t *lc_opt, gex_Flags_t flags, unsigned int nargs);
 GASNETI_PUREP(gasnetc_Token_MaxReplyLong)
  */

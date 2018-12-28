@@ -955,7 +955,7 @@ size_t gex_AM_MaxReplyMedium(
 // Token-specific max fixed-payload queries for specific nargs, lc_opt and flags
 //
 // Semantics are identical to the may payload queries above, except that
-// a gex_AM_Token_t replaces the (tm,rank) pair.  The token represents a (tm,
+// a gex_Token_t replaces the (tm,rank) pair.  The token represents a (tm,
 // rank) pair, where tm is the local representative of the gex_TM_t used to
 // initiate the AM which resulted in the execution of the handler which
 // received that token, and rank denotes the rank in that team that initiated
@@ -964,12 +964,12 @@ size_t gex_AM_MaxReplyMedium(
 //
 // These are only permitted in Request handlers.
 size_t gex_Token_MaxReplyLong(
-           gex_AM_Token_t token,
+           gex_Token_t token,
            const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
 size_t gex_Token_MaxReplyMedium(
-           gex_AM_Token_t token,
+           gex_Token_t token,
            const gex_Event_t *lc_opt,
            gex_Flags_t flags,
            unsigned int numargs);
