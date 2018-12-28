@@ -61,11 +61,6 @@
 // This release should continue to support nearly all GASNet-1 APIs,
 // provided the client #includes <gasnet.h>, which implements the
 // GASNet-1 APIs in terms of the new GASNet-EX interfaces.
-// The following GASNet-1 APIs are the only ones known *not* to be
-// supported in this release:
-//   gasnet_memset()
-//   gasnet_memset_nb()
-//   gasnet_memset_nbi()
 //
 // Most gasnet_ APIs have gex_ counterparts that are either interoperable,
 // or which provide a superset of the most closely-related gasnet_ APIs.
