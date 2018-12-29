@@ -798,6 +798,11 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
   } while (0)
 #endif
 
+#if GEX_SPEC_VERSION_MAJOR > 0 || GEX_SPEC_VERSION_MINOR >= 6
+// gasnet_coll_init is not normative and was removed in GASNet-EX spec v0.6
+// Skip it if we are compiling against GASNet-EX
+#define TEST_COLL_INIT() do {} while (0)
+#else
 static int test_collinit = 0;
 #define TEST_COLL_INIT() do {          \
     if (!test_collinit) {              \
@@ -805,6 +810,7 @@ static int test_collinit = 0;
       test_collinit = 1;               \
     }                                  \
   } while(0)
+#endif
 /* cheap and simple broadcast operation */
 #define TEST_BCAST(dst, rootid, src, sz) do {                         \
   TEST_COLL_INIT();                                                   \
