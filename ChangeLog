@@ -5,17 +5,21 @@ PENDING:
 
 * InfiniBand Verbs (ibv-conduit)
   - Multi-rail support is disabled by default, due to bug 3447
+  - Add support for non-default IB Partition Keys - see docs for GASNET_IBV_PKEY
+  - Fix compilation problem with alloca.h on FreeBSD 12.0
 
 * Cray uGNI (gemini- and aries-conduits)
   - Now tolerate unequal GASNET_DOMAIN_COUNT in multi-domain mode
 
 * General and Misc.
+  - Removed outdated subdir license.txt files, where top-level license applies
   - New GASNET_CATCH_EXIT envvar improves interop with tools like CrayPat
   - Performance tests now default to in-segment memory (see --help)
   - Average values in STATS now output as floating-point, instead of rounding
   - Silence harmless library compile warnings from gcc 8.*
   - Most fatal errors now include the process rank
   - Other minor improvements to fatal error paths
+  - Reduce sub-line interleaving of diagnostic output, especially on smp-conduit
 
 * GASNet tools
   - New define GASNETT_THREAD_SINGLE selects single-threaded build
@@ -23,6 +27,7 @@ PENDING:
 * Configure and Build
   - cross-configure scripts can now optionally be run without copying them to
     the source directory, by setting $SRCDIR to indicate the source directory.
+  - Updated handling for cache line size, see --with-cache-line-bytes
 
 * SSH-based job-launch (ssh-spawner)
   - Improve error checking and reporting
@@ -42,6 +47,7 @@ PENDING:
   - bug3790: ibv-conduit AM flow-control hangs with multiple HCAs
   - bug3742: Atomic CAS failures on PPCle+{pgi,clang}
   - bug3693: Reduce segment registration failures due to insufficient /dev/shm
+  - bug3829: Co-located segment probe failures
   - bug3834: GASNet ctype wrappers break for C++ clients
 
 ----------------------------------------------------------------------
