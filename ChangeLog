@@ -251,7 +251,7 @@ Note some entries below do not apply to the EX branch.
 GASNet-1 ChangeLog 
 ------------------
 ----------------------------------------------------------------------
-12-17-2018: pending work @a7112a6
+PENDING: pending work @XXXXXX
 
 * InfiniBand Verbs (ibv-conduit)
   - Multi-rail support is disabled by default, due to bug 3447
