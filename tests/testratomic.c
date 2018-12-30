@@ -898,9 +898,15 @@ int main(int argc, char **argv) {
     doall(subtm);
   }
 
-  BARRIER();
-  MSG0("done.");
+  int32_t errs = test_errs;
+  gex_Event_Wait(
+    gex_Coll_ReduceToAllNB(myteam, &errs, &errs,
+                           GEX_DT_I32, sizeof(errs), 1,
+                           GEX_OP_ADD, NULL, NULL, 0));
+  MSG0("done. (detected %i errors)", (int)errs);
 
-  gasnet_exit(0);
-  return 0;
+  BARRIER();
+
+  gasnet_exit(!!errs);
+  return !!errs;
 }
