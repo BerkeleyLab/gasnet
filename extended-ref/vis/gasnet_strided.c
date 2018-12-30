@@ -948,13 +948,10 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline1_reqh,4,6,
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1),      a2,a3),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3), a4,a5));
 /* ------------------------------------------------------------------------------------ */
-#include "gasnet_event_internal.h" // TODO-EX: REMOVE THIS
 GASNETI_INLINE(gasnete_puts_AMPipeline1_reph_inner)
 void gasnete_puts_AMPipeline1_reph_inner(gex_Token_t token,
   void *_op) {
-  // TODO-EX: Internal op interface needs a way to express this pattern
-  gasnete_op_t * op = _op;
-  if (OPTYPE(op) == OPTYPE_EXPLICIT) {
+  if (gasneti_op_is_eop(_op)) {
     gasneti_eop_t * eop = _op; 
     gasneti_eop_markdone(eop);
   } else { 

@@ -607,7 +607,6 @@ void doit4(int partner, int32_t *partnerseg) {
 
   BARRIER();
 
-#if 0 // memset calls are not suported in GASNet-EX and not currently emulated in gasnet2ex.h
   { /*  memset test */
     GASNET_BEGIN_FUNCTION();
     int i, success=1;
@@ -639,7 +638,6 @@ void doit4(int partner, int32_t *partnerseg) {
     }
     if (success) MSG("*** passed memset test!!");
   }
-#endif
 
 #ifndef TESTGASNET_NO_SPLIT
   doit5(partner, (int *)partnerseg);

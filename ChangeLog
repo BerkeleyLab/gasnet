@@ -18,6 +18,12 @@ GASNet-EX ChangeLog
   distribution from http://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING:
+
+* Legacy backward-compatibility layer:
+  - gasnet.h now implements gasnet_memset{,_nb,_nbi}
+
+----------------------------------------------------------------------
 12-17-2018: GASNet-EX 2018.12.0 Beta release
 
 * InfiniBand Verbs (ibv-conduit)

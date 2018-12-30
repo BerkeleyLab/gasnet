@@ -542,6 +542,11 @@ gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE);
    if isput is non-zero, the registered operations are puts, otherwise they are gets */
 gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_THREAD_FARG);
 
+/* given a valid (gasneti_eop_t*) or (gasneti_iop_t*) returned by an earlier call from any thread
+ * to gasneti_new_eop() or gasneti_iop_register(), return non-zero iff it is the former (an eop)
+   AMSAFE: must be safe to call in AM context */
+int gasneti_op_is_eop(void *op);
+
 /* given an gasneti_eop_t* returned by an earlier call from any thread
    to gasneti_new_eop(), mark that explicit-event NB operation complete
    such that a subsequent sync call on the relevant operation by the initiating
