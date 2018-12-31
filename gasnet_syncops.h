@@ -901,7 +901,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial_SEQ(gasneti_semaphore_t_S
 
     GASNETI_INLINE(_gasneti_lifo_push)
     void _gasneti_lifo_push(gasneti_lifo_head_t_PAR *p, void **newhead, void **tail) {
-    #if (PLATFORM_COMPILER_PGI && PLATFORM_COMPILER_VERSION_GE(16,4,0)) /* XXX: no end version */
+    #if PLATFORM_COMPILER_PGI && PLATFORM_COMPILER_VERSION_GE(16,4,0) && PLATFORM_COMPILER_VERSION_LT(17,1,0)
       volatile uintptr_t tag; /* See GASNet bug #3324 */
     #else
       uintptr_t tag;
