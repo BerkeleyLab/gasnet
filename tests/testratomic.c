@@ -495,6 +495,7 @@ void _test_ring_##_op##_##_tcode(gex_AD_t ad, uint64_t max_val, int nbrhd)) {  \
           once = 1;                                                       \
         }                                                                 \
       }                                                                   \
+      test_yield_if_polite();                                             \
       gasnet_AMPoll();                                                    \
     }                                                                     \
     if (readX != expect) {                                                \
@@ -863,6 +864,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
 
   test_init("testratomic",0,"(iters) (seed0)");
+  TEST_SET_WAITMODE(1);
 
   gex_Rank_t self = gex_TM_QueryRank(myteam);
   if (seedoffset == 0) {
