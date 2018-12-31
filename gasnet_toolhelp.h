@@ -85,8 +85,8 @@ GASNETI_NORETURNP(_gasneti_assert_fail)
  *   same, but with a string reason to explain the failure (defaults to preprocessed expression)
  */
 #if GASNET_NDEBUG
-  #define gasneti_assert(expr)        ((void)0)
-  #define gasneti_assert_reason(expr) ((void)0)
+  #define gasneti_assert(expr)               ((void)0)
+  #define gasneti_assert_reason(expr,reason) ((void)0)
 #else
   #define gasneti_assert(expr)               gasneti_assert_always(expr)
   #define gasneti_assert_reason(expr,reason) gasneti_assert_reason_always(expr,reason)
