@@ -1843,18 +1843,26 @@ static void gasneti_odp_init(void) {
   }
 }
 
+static void gasnetc_odp_dereg(gasnetc_hca_t *hca) {
+  struct ibv_mr *handle;
+#if PLATFORM_ARCH_32
+  handle = (struct ibv_mr *) gasneti_atomic32_swap((gasneti_atomic32_t *) &hca->implicit_odp.handle, 0, 0);
+#else
+  handle = (struct ibv_mr *) gasneti_atomic64_swap((gasneti_atomic64_t *) &hca->implicit_odp.handle, 0, 0);
+#endif
+  if (handle) {
+    ibv_dereg_mr(handle);
+  }
+}
+
 // Testing shows that exiting without releasing the implicit ODP registration
 // leads to an (eventually fatal!) irreversible system memory leak.
 // So, we *must* do this for both normal and abnormal exits.
 static void gasnetc_odp_shutdown(void) {
   if (gasnetc_use_odp) {
-    gasnetc_use_odp = 0;
     gasnetc_hca_t *hca;
     GASNETC_FOR_ALL_HCA(hca) {
-      if (hca->implicit_odp.handle) {
-        ibv_dereg_mr(hca->implicit_odp.handle);
-        hca->implicit_odp.handle = NULL;
-      }
+      gasnetc_odp_dereg(hca);
     }
   }
 }
@@ -2879,9 +2887,8 @@ gasnetc_shutdown(void) {
     }
   #endif
   #if GASNETC_IBV_ODP
-    if (hca->implicit_odp.handle) {
-      rc = ibv_dereg_mr(hca->implicit_odp.handle);
-      hca->implicit_odp.handle = NULL;
+    if (gasnetc_use_odp) {
+      gasnetc_odp_dereg(hca);
     }
   #endif
 
