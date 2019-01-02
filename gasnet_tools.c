@@ -2637,22 +2637,25 @@ extern int gasneti_platform_isWSL(void) {
     else return 0;
 }
 #endif
-void gasneti_set_affinity_default(int rank) {
+//
+// NOTE: when adding implementations here, update the #define of
+// GASNETT_SET_AFFINITY_SUPPORT in gasnet_toolhelp.h to match.
+//
+int gasneti_set_affinity_default(int rank) {
   #if HAVE_PLPA
   {
-    static int no_op = 0;
+    static int fails = 0;
     gasneti_plpa_cpu_set_t mask;
     int cpus = gasneti_set_affinity_cpus();
 
-    if (no_op == 1) {
-      /* NO-OP as determined by an earlier call */
-      return;
+    if (cpus == 1) {
+      /* NO-OP (success) on single-processor platform */
+      return 0;
     }
 
-    if (cpus == 1) {
-      /* NO-OP on single-processor platform */
-      no_op = 1;
-      return;
+    if (fails == 1) {
+      /* NO-OP (failure) as determined by an earlier call */
+      return 1;
     }
 
     // Dynamically handle binaries built on native Ubuntu and ported to Microsoft's WSL kernel
@@ -2660,23 +2663,23 @@ void gasneti_set_affinity_default(int rank) {
   #if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
     if (gasneti_platform_isWSL()) {
         /* NO-OP on WSL */
-        no_op = 1;
-        return;
+        fails = 1;
+        return 1;
     }
   #endif
     
     /* Try a GET first to check for support */
     if_pf (ENOSYS == gasneti_plpa_sched_getaffinity(0, sizeof(mask), &mask)) {
-      /* becomes a NO-OP */
-      no_op = 1;
-      return;
+      /* becomes a NO-OP on next call*/
+      fails = 1;
+      return 1;
     }
     
     {
       int local_rank = rank % cpus;
       PLPA_CPU_ZERO(&mask);
       PLPA_CPU_SET(local_rank, &mask);
-      gasneti_assert_zeroret(gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask));
+      return gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask);
     }
   }
   #elif PLATFORM_OS_SOLARIS
@@ -2725,17 +2728,19 @@ void gasneti_set_affinity_default(int rank) {
      */
     {
       int local_rank = rank % num_cpus;
-      gasneti_assert_zeroret(processor_bind(P_LWPID, P_MYID, avail_cpus[local_rank], NULL));
+      return processor_bind(P_LWPID, P_MYID, avail_cpus[local_rank], NULL);
     }
   }
+  #elif defined(GASNETT_SET_AFFINITY_SUPPORT)
+    #error "GASNETT_SET_AFFINITY_SUPPORT defined, but no implementation is reachable."
   #else
     /* No implementation -> NO-OP */
-    return;
+    return 1;
   #endif
 }
-void gasneti_set_affinity(int rank) {
+int gasneti_set_affinity(int rank) {
   GASNETT_TRACE_PRINTF("gasnett_set_affinity(%d)", rank);
-  gasneti_set_affinity_default(rank)
+  return gasneti_set_affinity_default(rank);
 }
 /* ------------------------------------------------------------------------------------ */
 /* hostname query */

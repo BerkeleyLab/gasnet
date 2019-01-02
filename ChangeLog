@@ -278,7 +278,10 @@ PENDING: pending work @XXXXXX
   - Reduce sub-line interleaving of diagnostic output, especially on smp-conduit
 
 * GASNet tools
+  - Specification version now 1.13
   - New define GASNETT_THREAD_SINGLE selects single-threaded build
+  - New define GASNETT_SET_AFFINITY_SUPPORT
+  - gasnett_set_affinity() now returns zero on success or non-zero otherwise.
 
 * Configure and Build
   - cross-configure scripts can now optionally be run without copying them to

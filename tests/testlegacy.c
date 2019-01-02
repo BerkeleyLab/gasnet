@@ -144,7 +144,22 @@ void test_threadinfo(int threadid, int numthreads) {
   #elif GASNETI_ARCH_IBMPE
     /* Don't pin threads because system s/w will have already done so */
   #else
-    gasnett_set_affinity(idx);
+    if (gasnett_getenv_yesno_withdefault("GASNET_TEST_SET_AFFINITY",1)) {
+      // We can do little more than test for lack of crash here.
+      // We will warn if the call fails on a platforms we support.
+      // However, it is an ERROR if the call returns success when
+      // GASNETT_SET_AFFINITY_SUPPORT is not defined.
+      int rc = gasnett_set_affinity(idx);
+    #if GASNETT_SET_AFFINITY_SUPPORT
+      if (rc) {
+        MSG("*** WARNING - gasnett_set_affinity() failed unexpectedly, possibly due to running in an environment which has already pinned processes.  One may set GASNET_TEST_SET_AFFINITY=0 to skip this test.");
+      }
+    #else
+      if (!rc) {
+        MSG("*** ERROR - GASNETT_SET_AFFINITY RETURNED SUCCESS UNEXPECTEDLY!!!!!");
+      }
+    #endif
+    }
   #endif
     PTHREAD_LOCALBARRIER(num_threads);
     return NULL;
