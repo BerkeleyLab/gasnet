@@ -2880,10 +2880,8 @@ gasnetc_shutdown(void) {
   #endif
   #if GASNETC_IBV_ODP
     if (hca->implicit_odp.handle) {
-      gasneti_assert(gasnetc_use_odp);
       rc = ibv_dereg_mr(hca->implicit_odp.handle);
       hca->implicit_odp.handle = NULL;
-      GASNETC_IBV_CHECK(rc, "from ibv_dereg_mr(implicit_odp)");
     }
   #endif
 
