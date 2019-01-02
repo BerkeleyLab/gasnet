@@ -2733,14 +2733,9 @@ void gasneti_set_affinity_default(int rank) {
     return;
   #endif
 }
-#ifndef GASNETC_SET_AFFINITY
-  #define GASNETC_SET_AFFINITY(rank) gasneti_set_affinity_default(rank)
-#else
-  /* Will use conduit-specific GASNETC_SET_AFFINITY() */
-#endif
 void gasneti_set_affinity(int rank) {
   GASNETT_TRACE_PRINTF("gasnett_set_affinity(%d)", rank);
-  GASNETC_SET_AFFINITY(rank);
+  gasneti_set_affinity_default(rank)
 }
 /* ------------------------------------------------------------------------------------ */
 /* hostname query */
