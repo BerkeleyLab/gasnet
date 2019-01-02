@@ -1113,16 +1113,25 @@ GASNETT_IDENT(identName, identText);
       "$[A-Za-z]+: [A-Za-z0-9_()<>.,|-]+ $"
   Note ident is particularly picky about the part before the initial colon and the final " $".
 
-void gasnett_set_affinity(int rank);
+int gasnett_set_affinity(int rank);
+
+  THIS CALL IS DEPRECATED.  Users are encouraged to use hwloc instead.
+
+  On systems where GASNet Tools lacks cpu-binding support, the preprocessor
+  identifier GASNETT_SET_AFFINITY_SUPPORT will be undefined and this function
+  always returns non-zero.
+
+  On systems where GASNet Tools supports cpu-binding, GASNETT_SET_AFFINITY_SUPPORT
+  will be defined to 1 and the following description applies.
 
   Attempt to "pin" the calling thread to the processor indicated by rank, so that
   this thread will run only on the named processor (does not guarantee exclusive use of the
-  processor, only trys to ensure the thread will not migrate to other processors).
+  processor, only tries to ensure the thread will not migrate to other processors).
   The definition and numbering of "processors" follow those of the system-specific
   underlying API, but typically treat each thread of an HT/SMT/HMT CPU as a distinct
   processor.
-  On systems where no cpu-binding support is avaialable, this function is a NO-OP.
   Rank is interpreted mod the number of processors in the system.
+  This call returns 0 on success and non-zero otherwise.
 
 void gasnett_sched_yield();
 
