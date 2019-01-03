@@ -565,23 +565,26 @@ int main(int argc, char **argv)
 
         BARRIER();
 
+        /* Double payload at each iter, but include max_payload which may not be power-of-2 */
+        #define NEXT_SZ(sz) (MIN(sz*2,max_payload)+(sz==max_payload))
+
 	if (TEST_SECTION_BEGIN_ENABLED()) 
-        for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_test(iters, j); 
+        for (j = min_payload; j <= max_payload && j > 0; j = NEXT_SZ(j))  roundtrip_test(iters, j); 
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-        for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_test(iters, j);
+        for (j = min_payload; j <= max_payload && j > 0; j = NEXT_SZ(j))  oneway_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_nbi_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j = NEXT_SZ(j))  roundtrip_nbi_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_nbi_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j = NEXT_SZ(j))  oneway_nbi_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_nb_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j = NEXT_SZ(j))  roundtrip_nb_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_nb_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j = NEXT_SZ(j))  oneway_nb_test(iters, j);
 
         BARRIER();
         if (alloc) test_free(alloc);
