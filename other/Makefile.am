@@ -37,10 +37,12 @@ EXTRA_DIST =        			\
         $(CONDUITMODE_EXTRADIST) 	\
 	Makefile-echovar.mak            \
 	pkgconfig-tools.pc              \
-	detect-cachesz.c 		\
 	check-pp.c                      \
 	check-header-erase.pl           \
 	tools-toggle.pl
+# Excluded from distribution:
+#	detect-cachesz.c 		\
+#
 
 include_HEADERS = \
 	gasnet_arch_arm.h \

@@ -11,7 +11,7 @@ define([cv_prefix],[gasnet_cv_])
 dnl Public release version packaging identifier:
 define([GASNET_RELEASE_VERSION_MAJOR_D],[2018])
 define([GASNET_RELEASE_VERSION_MINOR_D],[12])
-define([GASNET_RELEASE_VERSION_PATCH_D],[0])
+define([GASNET_RELEASE_VERSION_PATCH_D],[1])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[7])
@@ -1561,7 +1561,6 @@ GASNET_WITH(max-pthreads-per-node, [Set max pthreads supported per GASNet node],
   [AC_DEFINE_UNQUOTED(GASNETI_MAX_THREADS_CONFIGURE, $withval)]
   )
 
-GASNETI_CACHE_LINE_BYTES=""
 if test "$have_pthread" = no ; then
   GASNET_THREAD_DEFINES=""
   GASNET_THREAD_LIBS=""
@@ -1613,22 +1612,6 @@ else
     [AC_DEFINE_UNQUOTED(GASNETI_THREADINFO_OPT_CONFIGURE, 1)],
     [AC_DEFINE_UNQUOTED(GASNETI_THREADINFO_OPT_CONFIGURE, 0)])
 
- if test "$cross_compiling" = "no"; then
-  case "$target_os" in
-    darwin*)
-      AC_MSG_CHECKING(for shared data cache line size)
-      GASNETI_CACHE_LINE_BYTES=`/usr/sbin/sysctl hw.cachelinesize | cut '-d ' -f2`
-      AC_MSG_RESULT($GASNETI_CACHE_LINE_BYTES)
-      ;;
-    *)
-      GASNET_TRY_CACHE_RUN_EXPR(for shared data cache line size, datacache_line_size, 
-      [ #define CONFIG_TEST 1
-        #include "detect-cachesz.c" ], [ 
-       val = detect_cachesz(79.0, 0); if (val<=0) exit(1); ], GASNETI_CACHE_LINE_BYTES)
-      ;;
-  esac
- fi
-
   case "$target_os" in
     freebsd*) ;; # bug 1205: intentionally avoid -lpthread on BSD, where it causes problems
     netbsd*)  ;;
@@ -1638,25 +1621,40 @@ else
   GASNET_POPVAR(CPPFLAGS)
   GASNET_POPVAR(LIBS)
 fi
-if test "$cross_compiling" = "yes"; then
-  GASNET_CROSS_VAR(GASNETI_CACHE_LINE_BYTES, CACHE_LINE_BYTES, unset)
-  if test "$GASNETI_CACHE_LINE_BYTES" = unset; then
-    GASNETI_CACHE_LINE_BYTES='';
+
+# Determine the cache line size we should use for padding to avoid false sharing cache traffic
+AC_MSG_CHECKING(for shared data cache line size)
+# initial guess based on architecture
+case "$target_cpu" in # when chip revs differ, we should err on the larger size
+  i*86)     cache_line_guess=64 ;;
+  x86_64)   cache_line_guess=64 ;;
+  arm*)     cache_line_guess=64 ;;
+  aarch64)  cache_line_guess=64 ;;
+  rs6000)   cache_line_guess=32 ;;  # https://www.csee.umbc.edu/portal/help/architecture/rs6000_arch.ps
+  powerpc*) cache_line_guess=128 ;; # https://www.7-cpu.com/cpu/Power8.html
+  ia64)     cache_line_guess=128 ;; # https://www.7-cpu.com/cpu/Itanium2.html
+  sparc)    cache_line_guess=128 ;; # https://en.wikipedia.org/wiki/SPARC64_V
+  *)        cache_line_guess=128 ;; # the default when we have no other info
+esac
+# allow the OS to refine our guess
+if test "$cross_compiling" = "no"; then
+  cache_line_guess_os=
+  case "$target_os" in
+    darwin*) # could also use `sysctl machdep.cpu.cache.linesize`
+      cache_line_guess_os=`(/usr/sbin/sysctl hw.cachelinesize | cut '-d ' -f2) 2>/dev/null` ;;
+    linux*) # `getconf LEVEL1_DCACHE_LINESIZE` and cache_alignment in /proc/cpuinfo seem less reliable
+      cache_line_guess_os=`(cat /sys/devices/system/cpu/cpu0/cache/index{0,1,2,3}/coherency_line_size | tail -1) 2>/dev/null` ;;
+    *) ;;
+  esac
+  if test -n "$cache_line_guess_os" ; then
+    cache_line_guess=$cache_line_guess_os
   fi
 fi
-if test "$GASNETI_CACHE_LINE_BYTES" = "" ; then
-  GASNETI_CACHE_LINE_BYTES=128
-  if test "$cross_compiling" = "no"; then
-    GASNET_MSG_WARN([Unable to automatically detect a shared data cache line size (either system load too high, pthreads is broken or this is not a cache-coherent SMP).  Using a safe default size of $GASNETI_CACHE_LINE_BYTES])
-  else
-    GASNET_MSG_WARN([Unable to automatically detect a shared data cache line size when cross compiling.  Using a safe default size of $GASNETI_CACHE_LINE_BYTES])
-  fi
-fi
-AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_BYTES,$GASNETI_CACHE_LINE_BYTES)
-case "$GASNETI_CACHE_LINE_BYTES" in
-     1)     GASNETI_CACHE_LINE_SHIFT=0  ;;
-     2)     GASNETI_CACHE_LINE_SHIFT=1  ;;
-     4)     GASNETI_CACHE_LINE_SHIFT=2  ;;
+AC_MSG_RESULT($cache_line_guess)
+GASNET_ENV_DEFAULT(CACHE_LINE_BYTES, $cache_line_guess,
+                     [shared data cache line width, in bytes (default is platform-dependent)])
+AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_BYTES,$CACHE_LINE_BYTES)
+case "$CACHE_LINE_BYTES" in
      8)     GASNETI_CACHE_LINE_SHIFT=3  ;;
     16)     GASNETI_CACHE_LINE_SHIFT=4  ;;
     32)     GASNETI_CACHE_LINE_SHIFT=5  ;;
@@ -1665,17 +1663,13 @@ case "$GASNETI_CACHE_LINE_BYTES" in
    256)     GASNETI_CACHE_LINE_SHIFT=8  ;;
    512)     GASNETI_CACHE_LINE_SHIFT=9  ;;
   1024)     GASNETI_CACHE_LINE_SHIFT=10 ;;
-  *) AC_MSG_ERROR(unknown GASNETI_CACHE_LINE_BYTES=$GASNETI_CACHE_LINE_BYTES) ;;
-  esac
+  *) AC_MSG_ERROR(unsupported CACHE_LINE_BYTES=$CACHE_LINE_BYTES) ;;
+esac
 AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_SHIFT,$GASNETI_CACHE_LINE_SHIFT)
           
 AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
 PTHREADS="$have_pthread"
 AC_SUBST(PTHREADS)
-
-## Solaris threads
-
-AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 
 ########################################################################
 ## Process-shared memory (pshm)

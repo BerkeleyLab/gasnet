@@ -476,6 +476,16 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t _handle
          ((void)gex_RMA_PutNBIVal(gasneti_thunk_tm,node,dest,value,nbytes,0))
 
 /* ------------------------------------------------------------------------------------ */
+/* Memset */
+
+extern gex_Event_t gasneti_legacy_memset_nb (gex_Rank_t _node, void *_dest, int _val, size_t _nbytes GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+extern int         gasneti_legacy_memset_nbi(gex_Rank_t _node, void *_dest, int _val, size_t _nbytes GASNETI_THREAD_FARG);
+
+#define gasnet_memset(node,dest,val,nbytes)     gasnet_wait_syncnb(gasneti_legacy_memset_nb(node,dest,val,nbytes GASNETI_THREAD_GET))
+#define gasnet_memset_nb(node,dest,val,nbytes)  gasneti_legacy_memset_nb(node,dest,val,nbytes GASNETI_THREAD_GET)
+#define gasnet_memset_nbi(node,dest,val,nbytes) ((void)gasneti_legacy_memset_nbi(node,dest,val,nbytes GASNETI_THREAD_GET))
+
+/* ------------------------------------------------------------------------------------ */
 /* Explicit-handle sync operations */
 
 #define gasnet_try_syncnb_nopoll(h)          gex_Event_Test(h)

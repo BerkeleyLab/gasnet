@@ -1116,6 +1116,11 @@ static int _test_localprocs(void) { /* First call is not thread safe */
 }
 #define TEST_LOCALPROCS() (_test_localprocs())
 
+static int _test_in_polite_mode = 0;
+static void test_yield_if_polite(void) {
+  if (_test_in_polite_mode) gasnett_sched_yield();
+}
+
 static void _test_set_waitmode(int threads) {
   const int local_procs = TEST_LOCALPROCS();
   if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) return;
@@ -1134,6 +1139,7 @@ static void _test_set_waitmode(int threads) {
             "- enabling  \"polite\", low-performance synchronization algorithms",
             threads);
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
+      _test_in_polite_mode = 1;
       return;
     }
   }
@@ -1148,6 +1154,7 @@ static void _test_set_waitmode(int threads) {
           "- enabling  \"polite\", low-performance synchronization algorithms",
           threads, gasnett_cpu_count());
     gasnet_set_waitmode(GASNET_WAIT_BLOCK);
+    _test_in_polite_mode = 1;
   }
 #endif
 }
@@ -1244,6 +1251,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
     if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) {
       MSG0("WARNING: GASNET_TEST_POLITE_SYNC is set - enabling  \"polite\", low-performance synchronization algorithms");
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
+      _test_in_polite_mode = 1;
     }
     MSG0("=====> %s nprocs=%d config=%s compiler=%s/%s sys=%s",
         testname, (int)TEST_PROCS, GASNET_CONFIG_STRING,

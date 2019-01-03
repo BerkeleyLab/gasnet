@@ -209,7 +209,7 @@
 /* avoid mmap()-after-munmap() failures */
 #undef GASNETI_BUG3480_WORKAROUND
 
-/* --with-max-segment value (possibly defaulted) */
+/* --with-max-segsize value (possibly defaulted) */
 #undef GASNETI_MAX_SEGSIZE_CONFIGURE
 
 /* --with-max-threads value (if given) */

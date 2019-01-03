@@ -84,8 +84,7 @@ CONDUIT_FILELIST =               \
       gasnet_extended_fwd.h      \
       gasnet_firehose.c          \
       gasnet_ibv.h               \
-      firehose_fwd.h             \
-      license.txt                
+      firehose_fwd.h             
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
