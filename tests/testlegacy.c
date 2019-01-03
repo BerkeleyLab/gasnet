@@ -875,36 +875,6 @@ void doit7(int partner, int *partnerseg) {
     TEST_ATOMICS(uint64_t, atomic64);
     TEST_ATOMICS(uint64_t, strongatomic64);
   }
-  { /* attempt to generate alignment problems: */
-    gasnett_atomic32_t *ptr32;
-    uint32_t tmp32;
-    gasnett_atomic64_t *ptr64;
-    uint64_t tmp64;
-    { struct { char c; gasnett_atomic32_t val32; } s = {0, gasnett_atomic32_init(1)};
-      ptr32 = &s.val32;
-      tmp32 = gasnett_atomic32_read(ptr32, 0);
-      gasnett_atomic32_set(ptr32, tmp32, 0);
-      (void)gasnett_atomic32_compare_and_swap(ptr32, 0, 1, 0);
-    }
-    { struct { char c; gasnett_atomic64_t val64; } s = {0, gasnett_atomic64_init(1)};
-      ptr64 = &s.val64;
-      tmp64 = gasnett_atomic64_read(ptr64, 0);
-      gasnett_atomic64_set(ptr64, tmp64, 0);
-      (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
-    }
-    { double dbl = 1.0;
-      ptr64 = (gasnett_atomic64_t *)(void *)&dbl; /* (void*) suppresses g++ warning (bug 2158) */
-      tmp64 = gasnett_atomic64_read(ptr64, 0);
-      gasnett_atomic64_set(ptr64, tmp64, 0);
-      (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
-    }
-    { struct { char c; double dbl; } s = {0, 1.0};
-      ptr64 = (gasnett_atomic64_t *)(void *)&s.dbl; /* (void*) suppresses g++ warning (bug 2158) */
-      tmp64 = gasnett_atomic64_read(ptr64, 0);
-      gasnett_atomic64_set(ptr64, tmp64, 0);
-      (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
-    }
-  }
 
   /* Serial tests of optional internal 128-bit atomics have
    * moved to gasnet_diagnostic.c (run from testinternal).
