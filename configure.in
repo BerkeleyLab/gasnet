@@ -5169,9 +5169,14 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 # Optional "third-party" libraries
 
 ##                        FCA SUPPORT
-GASNET_IF_ENABLED_WITH_AUTO(fca,
-  [Enable/disable FCA for acceleration of collectives (ifdef([GASNET_BRANCH_1],[auto-detected],[default is no]))],
-  [enable_fca=yes], [enable_fca=no], ifdef([GASNET_BRANCH_1],[enable_fca=probe],[enable_fca=no]))
+dnl FCA support is GASNet-1 only, pending collectives reimplementation in GASNet-EX
+ifdef([GASNET_BRANCH_1],[
+  GASNET_IF_ENABLED_WITH_AUTO(fca,
+    [Enable/disable FCA for acceleration of collectives (auto-detected)],
+    [enable_fca=yes], [enable_fca=no], [enable_fca=probe])
+],[
+  enable_fca=no
+])
 
 have_fca=no
 if test "$enable_fca" != "no"; then
@@ -5308,7 +5313,9 @@ cat >>$CONDUIT_LIST <<EOF
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
   PSHM support:           $with_pshm
+ifdef([GASNET_BRANCH_1],[dnl
   FCA support:            $have_fca
+])dnl
   BLCR support:           $have_blcr
   Atomics support:        $atomics_config
 EOF
@@ -5367,8 +5374,10 @@ other/contrib/Makefile
 other/contrib/gasnet_trace
 other/firehose/Makefile
 other/firehose/firehose.mak
+ifdef([GASNET_BRANCH_1],[
 other/fca/Makefile
 other/fca/fca.mak
+])
 other/blcr/Makefile
 other/blcr/blcr.mak
 
