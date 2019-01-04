@@ -117,9 +117,6 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   team->team_id = team_id;
   team->total_ranks = total_ranks;
   team->myrank = myrank;
-#ifdef GASNETI_USE_FCA
-  team->use_fca = 0;
-#endif
 
   /* Build rel2act map (unless already constructed) */
   if (team->rel2act_map == NULL) {
@@ -436,9 +433,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   
   gasneti_free(rel2act_map);
   gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
-#ifdef GASNETI_USE_FCA
-  gasnet_team_fca_enable(newteam);
-#endif
   return newteam;
 }
 

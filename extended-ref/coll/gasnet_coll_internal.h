@@ -17,10 +17,6 @@
 #include <gasnet_core_internal.h>
 #endif
 
-#if GASNETI_USE_FCA
-#include <other/fca/gasnet_fca_team.h>
-#endif
-
 #include <coll/gasnet_team.h>
 
 // Upon implementing GASNETI_MEMCPY() (with assertions), it was discovered
@@ -356,11 +352,6 @@ struct gasnete_coll_team_t_ {
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
-#endif
-
-#ifdef GASNETI_USE_FCA
-  fca_comm_data_t fca_comm_data;
-  int use_fca;
 #endif
 };
 
@@ -1566,10 +1557,6 @@ extern void gasnete_coll_init_conduit(void);
 extern void gasnete_coll_team_init_conduit(gasnet_team_handle_t team);
 extern void gasnete_coll_team_fini_conduit(gasnet_team_handle_t team);
 
-/*---------------------------------------------------------------------------------*/
-#if GASNETI_USE_FCA
-#include <other/fca/gasnet_fca.h>
-#endif
 /*---------------------------------------------------------------------------------*/
 
 #endif

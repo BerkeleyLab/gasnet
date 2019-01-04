@@ -5173,50 +5173,6 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 ########################################################################
 # Optional "third-party" libraries
 
-##                        FCA SUPPORT
-GASNET_IF_ENABLED_WITH_AUTO(fca,
-  [Enable/disable FCA for acceleration of collectives (ifdef([GASNET_BRANCH_1],[auto-detected],[default is no]))],
-  [enable_fca=yes], [enable_fca=no], ifdef([GASNET_BRANCH_1],[enable_fca=probe],[enable_fca=no]))
-
-have_fca=no
-if test "$enable_fca" != "no"; then
-  GASNET_PACKAGE_HOME([FCA],[FCA drivers],[fca_config],[/opt/mellanox/fca],[include/fca/fca_api.h])
-  GASNET_PACKAGE_CFLAGS([FCA],[],0)
-  GASNET_PACKAGE_LDFLAGS([FCA],[fca],[],0)
-  FCA_LIBS='-lfca'
-  GASNET_SPLIT_LINKER_OPTS(FCA_LDFLAGS,FCA_LIBS)
-
-  # Try to compile and link a basic FCA program
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $FCA_CFLAGS")
-  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $FCA_LDFLAGS")
-  GASNET_PUSHVAR(LIBS,"$LIBS $FCA_LIBS")
-    GASNET_TRY_CACHE_LINK(for working FCA configuration, fca_works,
-      [#include <fca/fca_api.h>],
-      [{ struct fca_init_spec fca_spec;
-         fca_t *fca_context;
-         int rc = fca_init(&fca_spec, &fca_context);
-       }], [ have_fca=yes ], [ GASNET_ERR_SAVE() ] )
-  GASNET_POPVAR(CFLAGS)
-  GASNET_POPVAR(LDFLAGS)
-  GASNET_POPVAR(LIBS)
-fi
-if test "$have_fca" = yes; then
-    AC_DEFINE_UNQUOTED(GASNETI_FCA_HOME, "$FCA_HOME")
-    AC_DEFINE(GASNETI_FCA_ENABLED)
-elif test "$enable_fca" = yes; then
-    GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found. Perhaps you need to pass --with-fca-home=/path/to/fca ?])
-else
-    FCA_CFLAGS=
-    FCA_LDFLAGS=
-    FCA_LIBS=
-fi
-FCA_ENABLED="$have_fca"
-AC_SUBST(FCA_ENABLED) # extracted by UPCR
-AM_CONDITIONAL(FCA_ENABLED, test "$have_fca" = "yes")
-AC_SUBST(FCA_CFLAGS) # extracted by UPCR
-AC_SUBST(FCA_LDFLAGS)
-AC_SUBST(FCA_LIBS)
-
 ##                        BLCR SUPPORT
 have_blcr=no
 pushdef([GASNET_SUPPRESSHELP],1)
@@ -5313,7 +5269,6 @@ cat >>$CONDUIT_LIST <<EOF
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
   PSHM support:           $with_pshm
-  FCA support:            $have_fca
   BLCR support:           $have_blcr
   Atomics support:        $atomics_config
 EOF
@@ -5372,8 +5327,6 @@ other/contrib/Makefile
 other/contrib/gasnet_trace
 other/firehose/Makefile
 other/firehose/firehose.mak
-other/fca/Makefile
-other/fca/fca.mak
 other/blcr/Makefile
 other/blcr/blcr.mak
 

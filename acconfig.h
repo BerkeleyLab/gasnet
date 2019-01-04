@@ -280,10 +280,6 @@
 /* hugetlbfs support enabled */
 #undef GASNETI_USE_HUGETLBFS
 
-/* Have Mellanox FCA support?  Where? */
-#undef GASNETI_FCA_ENABLED
-#undef GASNETI_FCA_HOME
-
 /* BLCR support, path and features */
 #undef GASNETI_BLCR_ENABLED
 
