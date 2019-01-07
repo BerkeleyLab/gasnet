@@ -22,6 +22,7 @@ PENDING:
 
 * Legacy backward-compatibility layer:
   - gasnet.h now implements gasnet_memset{,_nb,_nbi}
+  - gasnet.h now conditionally implements the unofficial var-arg gasnet_AM* fns
 
 * InfiniBand Verbs (ibv-conduit)
   - Legacy support for Mellanox FCA has been removed
