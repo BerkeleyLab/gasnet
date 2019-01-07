@@ -497,10 +497,14 @@ the section on strong atomics below.
   under-alignment occurs such casts could result in a fatal SIGBUS when the
   pointer is dereferenced.  To avoid this problem apply this rule-of-thumb:
     Storage to be accessed via both a pointer to a fixed-width atomic
-    type and another pointer type must be declared as the non-atomic type.
+    type and another pointer type must be declared as the non-atomic type,
+    or as a union of both types.
   This will ensure the storage is suitably aligned for accesses via pointers
   to both the atomic and non-atomic types (assuming, of course, that the
-  non-atomic type is one allowed by the previous paragraph.)
+  non-atomic type is one allowed by the previous paragraph.) Note that as a
+  general rule, use of union types may be preferable because they avoid
+  running afowl of pointer-aliasing rules in C/C++ that might otherwise
+  lead to incorrect behavior at high optimization levels.
 
   It is not safe to concurrently access the same memory location as both
   an atomic type and a non-atomic type.  For the purpose of this distinction
