@@ -444,7 +444,8 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
              _STRINGIFY(GASNETI_MEMBAR_CONFIG) ","                        \
              _STRINGIFY(GASNETI_ATOMIC_CONFIG) ","                        \
              _STRINGIFY(GASNETI_ATOMIC32_CONFIG) ","                      \
-             _STRINGIFY(GASNETI_ATOMIC64_CONFIG)                          \
+             _STRINGIFY(GASNETI_ATOMIC64_CONFIG) ","                      \
+             _STRINGIFY(GASNETI_TIOPT_CONFIG)                             \
              GASNETC_BUG1389_CONFIG_INFO                                  \
              GASNETC_EXTRA_CONFIG_INFO                                    \
              GASNETE_EXTRA_CONFIG_INFO                                    
