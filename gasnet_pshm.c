@@ -56,6 +56,14 @@ static struct gasneti_pshm_info {
 
 static void (*gasnetc_pshm_abort_callback)(void);
 
+void gasneti_pshm_prefault(void *addr, size_t len) {
+  uint8_t *p = addr;
+  // Full pages:
+  for (size_t i = 0; i < len; i+= GASNET_PAGESIZE) { p[i] = 0; }
+  // Final byte, possibly redundant
+  p[len-1] = 0;
+}
+
 void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
@@ -91,8 +99,8 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   /* compute size of vnet shared memory region */
   vnetsz = gasneti_pshmnet_memory_needed(gasneti_pshm_nodes); 
   mmapsz = (2*vnetsz);
+  size_t info_sz;
   { /* gasneti_pshm_info contains multiple variable-length arrays in the same space */
-    size_t info_sz;
     /* space for gasneti_pshm_firsts: */
     info_sz = gasneti_nodemap_global_count * sizeof(gasnet_node_t);
     /* optional space for gasneti_pshm_rankmap: */
@@ -128,6 +136,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   /* Prepare the shared info struct (including bootstrap barrier) */
   gasneti_pshm_info = (struct gasneti_pshm_info *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
   if (gasneti_pshm_mynode == 0) {
+    gasneti_pshm_prefault(gasneti_pshm_info, info_sz);
     gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier_cnt, gasneti_pshm_nodes, 0);
     gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier_gen, 0, 0);
   }
@@ -1031,6 +1040,9 @@ static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region,
   /* make sure we've arranged for page alignment */
   gasneti_assert_align(GASNETI_PSHMNET_ALLOC_MAXSZ, GASNETI_PSHMNET_PAGESIZE);
   gasneti_assert_align(region, GASNETI_PSHMNET_PAGESIZE);
+
+  /* Ensure affinity to writer and prevent later starvation */
+  gasneti_pshm_prefault(region, len);
 
   /* Initial state is one large free block */
   a->next = 0;
