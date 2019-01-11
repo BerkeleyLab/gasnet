@@ -1022,8 +1022,9 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 }
 
 GASNETI_NORETURN
-static void gasneti_segreg_failed(const char *which, int why) {
-  const char *hint = "";
+static void gasneti_segreg_failed(size_t size, const char *which, int why) {
+  const char *hint1 = "";
+  const char *hint2 = "";
 #if !GASNETI_PSHM_POSIX
   // N/A
 #elif PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL
@@ -1038,11 +1039,17 @@ static void gasneti_segreg_failed(const char *which, int why) {
 #endif
 #ifdef GASNETC_PSHM_FS
   if (why == EFAULT) {
-    hint = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar)";
+    hint1 = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar).";
   }
 #endif
-  gasneti_fatalerror("Unexpected error %s (errno=%d) when registering the%s segment%s",
-                     strerror(why), why, which, hint);
+  if (! *which) { // empty string == NOT " aux"
+    hint2 = "\n        Reducing the value of environment variable GASNET_MAX_SEGSIZE may help.";
+  }
+  char sizestr[16];
+  gasneti_fatalerror("Unexpected error %s (errno=%d) when registering a %s%s segment%s%s",
+                     strerror(why), why,
+                     gasnett_format_number(size, sizestr, sizeof(sizestr), 1),
+                     which, hint1, hint2);
 }
 
 #if GASNET_TRACE
@@ -2268,7 +2275,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           if (0 != gasnetc_pin(hca, (void *)addr, len,
 			      (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ),
 			      &memreg)) {
-             gasneti_segreg_failed("", errno);
+             gasneti_segreg_failed(len, "", errno);
           }
 	  my_rkeys[j] = memreg.handle->rkey;
 	  hca->seg_lkeys[j] = memreg.handle->lkey;
