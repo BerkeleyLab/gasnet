@@ -353,15 +353,19 @@ gasnetc_xrc_init(void **shared_mem_p) {
     (void) close(fd);
   }
 
-  /* Clean up once everyone is done w/ all files */
+  /* Place RCV QPN table in shared memory */
+  gasnetc_xrc_rcv_qpn = (uint32_t *)(*shared_mem_p);
+  size_t count = gasneti_nodes * gasnetc_alloc_qps;
+  if (!gasneti_pshm_mynode) {
+    gasneti_pshm_prefault(gasnetc_xrc_rcv_qpn, count * sizeof(uint32_t));
+  }
+  *shared_mem_p = (void *)GASNETI_ALIGNUP(gasnetc_xrc_rcv_qpn + count, GASNETI_CACHE_LINE_BYTES);
+
+  /* Clean up once everyone is done w/ all files, and RCV QPN table is prefaulted */
   gasneti_pshmnet_bootstrapBarrier();
   GASNETC_FOR_ALL_HCA_INDEX(index) {
     (void)unlink(filename[index]); gasneti_free(filename[index]);
   }
-
-  /* Place RCV QPN table in shared memory */
-  gasnetc_xrc_rcv_qpn = (uint32_t *)(*shared_mem_p);
-  *shared_mem_p = (void *)GASNETI_ALIGNUP(gasnetc_xrc_rcv_qpn + gasneti_nodes * gasnetc_alloc_qps, GASNETI_CACHE_LINE_BYTES);
 
   /* Allocate SND QP table */
   gasnetc_xrc_snd_qp = gasneti_calloc(gasneti_nodemap_global_count * gasnetc_alloc_qps,
