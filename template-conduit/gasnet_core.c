@@ -87,8 +87,11 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     /* (###) If your conduit will support PSHM, you should initialize it here.
      * The 1st argument is normally gasneti_spawner->SNodeBroadcast or equivalent
      * The 2nd argument is the amount of shared memory space needed for any
-     * conduit-specific uses.  The return value is a pointer to the space
-     * requested by the 2nd argument.
+     * conduit-specific uses.
+     * The return value is a pointer to the space requested by the 2nd argument.
+     * It is advisable that the conduit ensure pages in this space are touched,
+     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_mmapLimit()
+     * or similar memory probes.
      */
     ### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
   #endif
