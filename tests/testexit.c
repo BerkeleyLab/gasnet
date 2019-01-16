@@ -417,7 +417,7 @@ void do_crash_test(int crashid) {
         raise(SIGBUS);
         gasnett_sched_yield();
         sleep(1);
-        MSG("Failed to generate implicit SIGBUS, trying kill(%i,SIGBUS)..",getpid());
+        MSG("Failed to generate implicit SIGBUS, trying kill(%li,SIGBUS)..",(long)getpid());
         kill(getpid(), SIGBUS);
         gasnett_sched_yield();
         sleep(1);
@@ -441,7 +441,7 @@ void do_crash_test(int crashid) {
         raise(SIGFPE);
         gasnett_sched_yield();
         sleep(1);
-        MSG("Failed to generate implicit SIGFPE, trying kill(%i,SIGFPE)..",getpid());
+        MSG("Failed to generate implicit SIGFPE, trying kill(%li,SIGFPE)..",(long)getpid());
         kill(getpid(), SIGFPE);
         gasnett_sched_yield();
         sleep(1);
