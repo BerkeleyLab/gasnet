@@ -629,6 +629,12 @@ void gasnete_coll_consensus_do_notify(gasnete_coll_team_t team) {
 
 
 extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id) {
+#if GASNET_DEBUG
+  // This function is neither thread-safe nor recursion-safe
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_assert_always_int(gasneti_mutex_trylock(&lock) ,==, GASNET_OK);
+#endif
+
   uint32_t tmp = id << 1;	/* low bit is used for barrier phase (notify vs wait) */
   /* We can only notify when our own turn comes up.
    * Thus, the most progress we could make in one call
@@ -639,16 +645,16 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
   case 1:
 	  /* Try for our predecessor, hoping we can then notify */
 	  if (!gasnete_coll_consensus_do_try(team)) {
-	    gasneti_assert((tmp - team->consensus_id) == 1);
+	    gasneti_assert_uint((tmp - team->consensus_id) ,==, 1);
 	    /* Sucessor is not yet done */
 	    break;
 	  }
-	  gasneti_assert(tmp == team->consensus_id);
+	  gasneti_assert_uint(tmp ,==, team->consensus_id);
 	  /* ready to advance, so fall through... */ GASNETI_FALLTHROUGH
   case 0:
 	  /* Our own turn has come - notify and try */
 	  gasnete_coll_consensus_do_notify(team);
-	  gasneti_assert((team->consensus_id - tmp) == 1);
+	  gasneti_assert_uint((team->consensus_id - tmp) ,==,1);
 	  gasnete_coll_consensus_do_try(team);
 	  gasneti_assert(((team->consensus_id - tmp) == 1) ||
                    ((team->consensus_id - tmp) == 2));
@@ -661,11 +667,14 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
 	  }
   }
 
-  /* Note that we need to be careful of wrapping, thus the (int32_t)(a-b) construct
-   * must be used in place of simply (a-b).
-   */
-  return ((int32_t)(team->consensus_id - tmp) > 1) ? GASNET_OK
-    : GASNET_ERR_NOT_READY;
+  // Note that we need to be careful of wrapping, thus distance must be signed
+  int32_t distance = team->consensus_id - tmp;
+
+#if GASNET_DEBUG
+  gasneti_mutex_unlock(&lock);
+#endif
+
+  return (distance > 1) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 /* Allocate a new barrier and wait for all barriers to finish before this id*/
 extern int gasnete_coll_consensus_barrier(gasnete_coll_team_t team GASNETI_THREAD_FARG) {
