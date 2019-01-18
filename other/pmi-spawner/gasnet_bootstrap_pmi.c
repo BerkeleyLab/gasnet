@@ -136,7 +136,7 @@ void do_decode(uint8_t *out, size_t len, size_t in_len) {
             x += a85_dec((pad < 2) ? p[3] : 'u');
             x *= 85;
             x += a85_dec((pad < 1) ? p[4] : 'u');
-            p += 5;
+            p += (5 - pad);
             x = x >> (8 * pad);
         }
 
