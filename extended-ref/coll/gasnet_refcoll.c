@@ -667,14 +667,14 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
 	  }
   }
 
-  // Note that we need to be careful of wrapping, thus distance must be signed
-  int32_t distance = team->consensus_id - tmp;
+  // Use of macro takes care with respect to wrap-around
+  int done = GASNETE_COLL_SEQ32_GT(team->consensus_id, tmp + 1);
 
 #if GASNET_DEBUG
   gasneti_mutex_unlock(&lock);
 #endif
 
-  return (distance > 1) ? GASNET_OK : GASNET_ERR_NOT_READY;
+  return done ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 
 // Helper for gasnete_coll_consensus_barrier()
