@@ -1087,7 +1087,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
-+ Bug 3817
++ Bug 3838
   When using Mellanox On-Demand Paging (ODP), it has been observed that certain
   patterns of many small RMA operations (as seen in GASNet's testvis) may lead
   to communications "locking up" such that RMA operations issued do not complete
@@ -1096,7 +1096,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   RMA operations, then you should retry with ODP disabled (see On-Demand Paging
   (ODP) Support section).
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3817
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3838
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 

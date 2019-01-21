@@ -24,7 +24,6 @@ CONDUITMODE_EXTRADIST = \
 	ssh-spawner \
 	mpi-spawner \
 	pmi-spawner \
-	smp-collectives	\
 	myxml	\
 	detect-pshm.c \
 	pkgconfig-conduit.pc \

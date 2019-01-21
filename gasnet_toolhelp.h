@@ -308,7 +308,10 @@ extern void gasneti_close_streams(void); /* close standard streams (for shutdown
 
 extern int gasneti_cpu_count(void);
 
-extern void gasneti_set_affinity(int _rank);
+extern int gasneti_set_affinity(int _rank);
+#if HAVE_PLPA || PLATFORM_OS_SOLARIS
+  #define GASNETT_SET_AFFINITY_SUPPORT 1
+#endif
 
 const char *gasneti_gethostname(void); /* returns the current host name - dies with an error on failure */
 

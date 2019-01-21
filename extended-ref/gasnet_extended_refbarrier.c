@@ -1051,29 +1051,6 @@ static int gasnete_amdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   else return GASNET_ERR_NOT_READY;
 }
 
-#ifdef GASNETI_USE_FCA
-static int gasnete_amdbarrier(gasnete_coll_team_t team, int id, int flags) {
-  int retval;
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t barrier_start = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
-
-  GASNETE_SPLITSTATE_BARRIER(team);
-
-  retval = gasnete_fca_barrier(team, &id, &flags);
-  if (retval != GASNET_ERR_RESOURCE) {
-    gasnete_coll_amdbarrier_t * const barrier_data = team->barrier_data;
-    barrier_data->amdbarrier_value = id;
-    barrier_data->amdbarrier_flags = flags;
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_start);
-    return retval;
-  } else {
-    (team->barrier_notify)(team, id, flags);
-    return gasnete_amdbarrier_wait(team, id, flags);
-  }
-}
-#endif
-
 static int gasnete_amdbarrier_result(gasnete_coll_team_t team, int *id) {
   gasneti_sync_reads(); /* ensure we read only up-to-date values */
   GASNETE_SPLITSTATE_RESULT(team);
@@ -1129,9 +1106,6 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = steps ? &gasnete_amdbarrier_notify : &gasnete_amdbarrier_notify_singleton;
   team->barrier_wait =   &gasnete_amdbarrier_wait;
   team->barrier_try =    &gasnete_amdbarrier_try;
-#ifdef GASNETI_USE_FCA
-  team->barrier        = &gasnete_amdbarrier;
-#endif
   team->barrier_result = &gasnete_amdbarrier_result;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_amdbarrier_kick_team_all : NULL;
 }
@@ -1585,29 +1559,6 @@ static int gasnete_rmdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   else return GASNET_ERR_NOT_READY;
 }
 
-#ifdef GASNETI_USE_FCA
-static int gasnete_rmdbarrier(gasnete_coll_team_t team, int id, int flags) {
-  int retval;
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t barrier_start = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
-
-  GASNETE_SPLITSTATE_BARRIER(team);
-
-  retval = gasnete_fca_barrier(team, &id, &flags);
-  if (retval != GASNET_ERR_RESOURCE) {
-    gasnete_coll_rmdbarrier_t * const barrier_data = team->barrier_data;
-    barrier_data->barrier_value = id;
-    barrier_data->barrier_flags = flags;
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_start);
-    return retval;
-  } else {
-    (team->barrier_notify)(team, id, flags);
-    return gasnete_rmdbarrier_wait(team, id, flags);
-  }
-}
-#endif
-
 static int gasnete_rmdbarrier_result(gasnete_coll_team_t team, int *id) {
   gasneti_sync_reads(); /* ensure we read up-to-date values */
   GASNETE_SPLITSTATE_RESULT(team);
@@ -1696,9 +1647,6 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = steps ? &gasnete_rmdbarrier_notify : &gasnete_rmdbarrier_notify_singleton;
   team->barrier_wait =   &gasnete_rmdbarrier_wait;
   team->barrier_try =    &gasnete_rmdbarrier_try;
-#ifdef GASNETI_USE_FCA
-  team->barrier        = &gasnete_rmdbarrier;
-#endif
   team->barrier_result = &gasnete_rmdbarrier_result;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_rmdbarrier_kick_team_all : NULL;
 }
@@ -2205,17 +2153,6 @@ int gasnete_barrier_default(gasnete_coll_team_t team, int id, int flags) {
 
   GASNETE_SPLITSTATE_BARRIER(team);
   
-  #ifdef GASNETI_USE_FCA
-  /* Don't have a generic way to implement gasnet_barrier_result() - so only UNNAMED */
-  if (flags & GASNETE_BARRIERFLAG_UNNAMED) {
-    retval = gasnete_fca_barrier(team, &id, &flags);
-    if (retval != GASNET_ERR_RESOURCE) {
-      GASNETI_TRACE_EVENT_TIME(B,BARRIER,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_start);
-      return retval;
-    }
-  }
-  #endif
-
   gasneti_assert(team->barrier_notify);
   (*team->barrier_notify)(team, id, flags);  
 

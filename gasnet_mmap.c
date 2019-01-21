@@ -1737,7 +1737,9 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
   #ifdef GASNETI_MMAP_OR_PSHM
   {
     if (segsize == 0) { /* no segment */
-      if (segment_p->addr) gasneti_do_munmap(segment_p->addr, segment_p->size);
+      if (segment_p->addr && segment_p->size) {
+        gasneti_do_munmap(segment_p->addr, segment_p->size);
+      }
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
     #if GASNET_ALIGNED_SEGMENTS
