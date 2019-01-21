@@ -1283,11 +1283,10 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
 	  }
   }
 
-  /* Note that we need to be careful of wrapping, thus the (int32_t)(a-b) construct
-   * must be used in place of simply (a-b).
-   */
-  return ((int32_t)(team->consensus_id - tmp) > 1) ? GASNET_OK
-    : GASNET_ERR_NOT_READY;
+  // Use of macro takes care with respect to wrap-around
+  int done = GASNETE_COLL_SEQ32_GT(team->consensus_id, tmp + 1);
+
+  return done ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 /* Allocate a new barrier and wait for all barriers to finish before this id*/
 extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETI_THREAD_FARG) {
