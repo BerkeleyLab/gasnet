@@ -1885,4 +1885,39 @@ extern void gasnete_coll_init_conduit(void);
 extern void gasnete_coll_team_init_conduit(gasnet_team_handle_t team);
 extern void gasnete_coll_team_fini_conduit(gasnet_team_handle_t team);
 
+/*---------------------------------------------------------------------------------*/
+// Helpers for uint32_t sequence numbers (which, by their nature, may wrap-around).
+
+// Assert that absolute difference is less than 2^30 (give or take 1)
+#if GASNET_DEBUG
+  GASNETI_INLINE(gasnete_coll_seq32_safe)
+  void gasnete_coll_seq32_safe(uint32_t _u, uint32_t _v) {
+    if (_u - _v + 0x40000000u >= 0x80000000u) {
+      gasneti_fatalerror("Absolute difference between unsigned 32-bit sequence "
+                         "numbers %u and %u (0x%x and 0x%x) is larger than 2^30",
+                         (unsigned int)_u, (unsigned int)_v,
+                         (unsigned int)_u, (unsigned int)_v);
+    }
+  }
+  #define GASNETE_COLL_SEQ32_SAFE(u,v) gasnete_coll_seq32_safe((u),(v))
+#else
+  #define GASNETE_COLL_SEQ32_SAFE(u,v) ((void)0)
+#endif
+
+// GASNETE_COLL_SEQ32_{LT,LE,GT,GE}(u,v)  true (non-zero) if "u {<,<=,>,>=} v"
+//   In all cases the comparison takes into consideration the wrap around.
+//   Also asserts that the difference remains less than half-way to the
+//   point at which wrap-around would cause ambiguity.
+GASNETI_INLINE(gasnete_coll_seq32_ge)
+int gasnete_coll_seq32_ge(uint32_t _u, uint32_t _v) {
+  GASNETE_COLL_SEQ32_SAFE(_u,_v);
+  return _u - _v < 0x80000000u;
+}
+#define GASNETE_COLL_SEQ32_GE(u,v) gasnete_coll_seq32_ge((u),(v))
+#define GASNETE_COLL_SEQ32_GT(u,v) gasnete_coll_seq32_ge((u),(uint32_t)(v)+1)
+#define GASNETE_COLL_SEQ32_LE(u,v) gasnete_coll_seq32_ge((v),(u))
+#define GASNETE_COLL_SEQ32_LT(u,v) gasnete_coll_seq32_ge((v),(uint32_t)(u)+1)
+
+/*---------------------------------------------------------------------------------*/
+
 #endif
