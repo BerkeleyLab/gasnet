@@ -1320,7 +1320,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
   /* Search table, which is sorted by sequence */
   prev_p = &(team->p2p_table[slot_nr]);
   p2p = team->p2p_table[slot_nr];
-  while (p2p && (p2p->sequence < sequence)) {
+  while (p2p && GASNETE_COLL_SEQ32_LT(p2p->sequence, sequence)) {
     prev_p = &p2p->p2p_next;
     p2p = p2p->p2p_next;
   }
@@ -2044,6 +2044,20 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
     team->sequence += (1 + sequence);
     sequence = tmp;
 	
+#if GASNET_DEBUG
+    // Check largest allocated sequence number lies is within safe range of oldest "live"
+    // Depends on order of the active list (oldest first)
+    uint32_t last = team->sequence - 1;
+    gasneti_mutex_lock(&gasnete_coll_active_lock);
+      gasnete_coll_op_t *op = gasnete_coll_active_first();
+      while (op && op->team != team) {
+        op = gasnete_coll_active_next(op);
+      }
+    gasneti_mutex_unlock(&gasnete_coll_active_lock);
+    if (op) {
+      GASNETE_COLL_SEQ32_SAFE(last, op->sequence);
+    }
+#endif
   }
 
     /* Conditionally allocate data for point-to-point syncs */
