@@ -676,16 +676,37 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
 
   return (distance > 1) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
-/* Allocate a new barrier and wait for all barriers to finish before this id*/
+
+// Helper for gasnete_coll_consensus_barrier()
+// Bug 3854 identified an undesired recursion when calling
+// gasnete_coll_consensus_try() from gasnete_coll_consensus_barrier() since the
+// "try" operation could lead to an AMPoll which runs the collectives progress
+// function (and thus a nested gasnete_coll_consensus_try).
+// So, here we masquerade as an instance of the progress function to prevent
+// that recursion.
+GASNETI_INLINE(gasnete_coll_consensus_try_as_poller)
+int gasnete_coll_consensus_try_as_poller(gasnete_coll_threaddata_t *td, gasnete_coll_team_t team, gasnete_coll_consensus_t id)
+{
+  gasneti_assert(! td->in_poll);
+  td->in_poll = 1;
+  int rc = gasnete_coll_consensus_try(team, id);
+  td->in_poll = 0;
+  return rc;
+}
+
+// gasnete_coll_consensus_barrier():
+// Allocate a new barrier and wait for all earlier barriers to finish.
+// This omits the overheads of allocating a collective op, but the cost is
+// that we must interlock with the collectives progress function.
+// NOTE: therefore illegal to call from a collective poll fn
 extern int gasnete_coll_consensus_barrier(gasnete_coll_team_t team GASNETI_THREAD_FARG) {
-  gasnete_coll_consensus_t mybarr;
-  
-  mybarr = gasnete_coll_consensus_create(team);
-  
-  while(gasnete_coll_consensus_try(team, mybarr)==GASNET_ERR_NOT_READY) {
-    /*Try to make progress on other collectives*/
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  gasnete_coll_consensus_t mybarr = gasnete_coll_consensus_create(team);
+
+  while (gasnete_coll_consensus_try_as_poller(td, team, mybarr) == GASNET_ERR_NOT_READY) {
     gasneti_AMPoll();
   }
+
   return GASNET_OK;
 }
 #endif
