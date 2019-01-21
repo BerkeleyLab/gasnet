@@ -136,8 +136,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->autotune_info = gasnete_coll_autotune_init(team, myrank, num_members, 
                                                    team->my_images, team->total_images,
                                                    smallest_scratch_seg GASNETI_THREAD_PASS);
-  team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
-  team->consensus_id = team->consensus_issued_id << 1;
+  team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
   gasneti_weakatomic_set(&team->num_multi_addr_collectives_started, 0, GASNETT_ATOMIC_WMB_PRE);
   if(!team->fixed_image_count && team->myrank ==0) {
