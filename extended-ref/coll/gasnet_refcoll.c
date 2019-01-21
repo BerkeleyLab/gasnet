@@ -563,15 +563,16 @@ extern void gasnete_coll_init_subsystem(void)
 
 #ifndef GASNETE_COLL_CONSENSUS_OVERRIDE
 /* team->consensus_issued_id counts barrier sequence numbers as they are allocated
- * to collective operations. */
+ * to collective operations.  They are always even (see below).
+ */
 
 
 /* team->consensus_id holds the current barrier state and sequence.
- * The upper 31 bits of team->issued_id holds the lower 31 bits of
- * the barrier sequence number of the current barrier.  This imposes a
- * limit of around 1 billion simultaneous outstanding collective ops before
- * counter overflow could introduce ambiguity.  Otherwise, careful use of
- * unsigned arithmetic eliminates problems due to wrap.
+ * The upper 31 bits are the sequence, and the least significant bit
+ * is the notify-vs-wait phase of the current barrier.  This imposes a
+ * limit of around 1 billion simultaneous outstanding barriers before
+ * counter overflow could introduce ambiguity.  Otherwise, careful use
+ * of unsigned arithmetic eliminates problems due to wrap.
  * The least significant bit of team->consensus_id is 0 if the next
  * operation is to be a notify, or a 1 if the next is a try.
  * Any caller may issue a try (when the phase indicates a try) and must
@@ -585,10 +586,14 @@ extern void gasnete_coll_init_subsystem(void)
 
 
 extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team) {
-  return team->consensus_issued_id++;
+  gasnete_coll_consensus_t result = team->consensus_issued_id;
+  team->consensus_issued_id = result + 2;
+  GASNETE_COLL_SEQ32_SAFE(result, team->consensus_id);
+  return result;
 }
 
 void gasnete_coll_consensus_free(gasnete_coll_team_t team, gasnete_coll_consensus_t consensus) {
+  // Nothing to do
 }
 
 GASNETI_INLINE(gasnete_coll_consensus_do_try)
@@ -635,29 +640,29 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
   gasneti_assert_always_int(gasneti_mutex_trylock(&lock) ,==, GASNET_OK);
 #endif
 
-  uint32_t tmp = id << 1;	/* low bit is used for barrier phase (notify vs wait) */
+  gasneti_assert(! (id & 1)); // always even
   /* We can only notify when our own turn comes up.
    * Thus, the most progress we could make in one call
    * would be to sucessfully 'try' for our predecessor,
    * 'notify' our our barrier, and then 'try' our own.
    */
-  switch (tmp - team->consensus_id) {
+  switch (id - team->consensus_id) {
   case 1:
 	  /* Try for our predecessor, hoping we can then notify */
 	  if (!gasnete_coll_consensus_do_try(team)) {
-	    gasneti_assert_uint((tmp - team->consensus_id) ,==, 1);
+	    gasneti_assert_uint((id - team->consensus_id) ,==, 1);
 	    /* Sucessor is not yet done */
 	    break;
 	  }
-	  gasneti_assert_uint(tmp ,==, team->consensus_id);
+	  gasneti_assert_uint(id ,==, team->consensus_id);
 	  /* ready to advance, so fall through... */ GASNETI_FALLTHROUGH
   case 0:
 	  /* Our own turn has come - notify and try */
 	  gasnete_coll_consensus_do_notify(team);
-	  gasneti_assert_uint((team->consensus_id - tmp) ,==,1);
+	  gasneti_assert_uint((team->consensus_id - id) ,==,1);
 	  gasnete_coll_consensus_do_try(team);
-	  gasneti_assert(((team->consensus_id - tmp) == 1) ||
-                   ((team->consensus_id - tmp) == 2));
+	  gasneti_assert(((team->consensus_id - id) == 1) ||
+                         ((team->consensus_id - id) == 2));
 	  break;
 
   default:
@@ -668,7 +673,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
   }
 
   // Use of macro takes care with respect to wrap-around
-  int done = GASNETE_COLL_SEQ32_GT(team->consensus_id, tmp + 1);
+  int done = GASNETE_COLL_SEQ32_GE(team->consensus_id, id + 2);
 
 #if GASNET_DEBUG
   gasneti_mutex_unlock(&lock);

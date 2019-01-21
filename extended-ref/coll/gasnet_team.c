@@ -63,8 +63,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->scratch_segs = scratch_segments;
   team->smallest_scratch_seg = smallest_scratch_seg;
   team->autotune_info = gasnete_coll_autotune_init(team, smallest_scratch_seg GASNETI_THREAD_PASS);
-  team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
-  team->consensus_id = team->consensus_issued_id << 1;
+  team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
   team->scratch_free_list = NULL;
   
