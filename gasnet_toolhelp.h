@@ -326,6 +326,8 @@ const char *gasnett_signame_fromval(int _sigval);
 // passing NULL disables the exit handler
 extern void gasneti_registerExitHandler(void (*_exitfn)(int));
 
+extern int gasneti_raise(int sig); // portability wrapper around POSIX raise(3)
+
 extern int gasneti_blocksig(int _sig);
 extern int gasneti_unblocksig(int _sig);
 
