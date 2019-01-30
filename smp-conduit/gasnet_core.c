@@ -238,7 +238,7 @@ static void gasnetc_remote_exit_sighand(int sig) {
       (handler != (gasneti_sighandlerfn_t)SIG_DFL)) {
       (void)gasneti_reghandler(SIGQUIT, handler);
       #if 1
-        raise(SIGQUIT);
+        gasneti_raise(SIGQUIT);
         /* Note: Both ISO C and POSIX assure us that raise() won't return until after the signal handler
          * (if any) has executed.  However, if that handler calls gasnetc_exit(), we'll never return here. */
       #elif 0
