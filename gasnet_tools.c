@@ -47,6 +47,10 @@
 #include <sys/resource.h>
 #endif
 
+#if PLATFORM_OS_CYGWIN
+#include <cygwin/version.h>
+#endif
+
 #if HAVE_PR_SET_PTRACER
   #include <sys/prctl.h>
   #ifndef PR_SET_PTRACER
@@ -656,9 +660,9 @@ extern void gasneti_error_abort(void) {
   signal(SIGALRM, _exit); alarm(5); 
   gasneti_flush_streams();
 
-  #if PLATFORM_OS_CYGWIN && GASNETT_THREAD_SAFE
+  #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && GASNETT_THREAD_SAFE
     // Bug 3856 - Cygwin signal-handling discrepancies with multiple threads
-    // Following should be equivalent to abort(), but Cygwin abort is non-compliant
+    // Following should be equivalent to abort(), but Cygwin 2.x abort is non-compliant
     // and this generates more reliable behavior:
     if (gasneti_raise(SIGABRT) == 0) (void)0; // success
     else
@@ -963,9 +967,10 @@ gasnett_siginfo_t *gasnett_siginfo_fromstr(const char *str) {
 }
 /* ------------------------------------------------------------------------------------ */
 extern int gasneti_raise(int sig) {
-  #if PLATFORM_OS_CYGWIN && GASNETT_THREAD_SAFE && HAVE_PTHREAD_KILL
+  #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && \
+      GASNETT_THREAD_SAFE && HAVE_PTHREAD_KILL 
     // Bug 3856 - Cygwin signal-handling discrepancies with multiple threads
-    // Following should be equivalent to raise(), but Cygwin raise is non-compliant
+    // Following should be equivalent to raise(), but Cygwin 2.x raise is non-compliant
     // and this generates more reliable behavior.
     // This workaround was previously used for a bug in OpenBSD-5.2 kernel, fixed in OpenBSD-current in Nov 2012
     if (pthread_kill(pthread_self(), sig) == 0) return 0; // success
