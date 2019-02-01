@@ -293,7 +293,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 /* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
-void gasneti_defaultSignalHandler(int sig);
+GASNETI_COLD
+extern void gasneti_defaultSignalHandler(int sig);
 
 /* gasneti_max_segsize() is the user-selected limit for the max mmap size, as gleaned from several sources */
 uintptr_t gasneti_max_segsize();
@@ -684,6 +685,7 @@ GASNETI_META_ASC16(_gasneti_MedLong_handlerfn_typedefN,_gasneti_MedLong_handlerf
 /* AM handler registration and management */
 
 /* default AM handler for unregistered entries - prints a fatal error */
+GASNETI_COLD
 extern void gasneti_defaultAMHandler(gasnet_token_t token);
 
 extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
