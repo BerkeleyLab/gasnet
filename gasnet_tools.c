@@ -3432,6 +3432,30 @@ retry_calibration:;
                     ticks_res, ref_res,
                     (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
+
+    char sample_msg[GASNETI_TICKS_WC_ITERS*400];
+    char *p = sample_msg;
+    for (int n0 = 0; n0 < count; ++n0) {
+      if (p < &sample_msg[sizeof(sample_msg)]) {
+        int n1 = count-1-n0;
+        uint64_t wc0_n0 = gasneti_clock_to_ns(wc0[n0]);
+        uint64_t wc1_n1 = gasneti_clock_to_ns(wc1[n1]);
+        const uint64_t delta  = wc1_n1 - wc0_n0;
+        double new_lo = (lo1[n1] - lo0[n0] - ticks_res) / (double)(delta + ref_res);
+        double new_hi = (hi1[n1] - hi0[n0] + ticks_res) / (double)(delta - ref_res);
+        p += snprintf(p, sizeof(sample_msg) - (p - sample_msg),
+             " wc1[%i]=%-10"PRIu64" wc0[%i]=%-10"PRIu64" diff=%-10"PRId64
+             " lo1[%i]=%-10"PRIu64" lo0[%i]=%-10"PRIu64" diff=%-10"PRId64
+             " hi1[%i]=%-10"PRIu64" hi0[%i]=%-10"PRIu64" diff=%-10"PRId64
+             " lo=%8.6f hi=%8.6f\n",
+             n1, wc1_n1,  n0, wc0_n0,  ((int64_t)wc1_n1-(int64_t)wc0_n0),
+             n1, lo1[n1], n0, lo0[n0], ((int64_t)lo1[n1]-(int64_t)lo0[n0]),
+             n1, hi1[n1], n0, hi0[n0], ((int64_t)hi1[n1]-(int64_t)hi0[n0]),
+             new_lo, new_hi);
+      }
+    }
+    gasneti_console_message("TICKS: Debugging information:","\n%s",sample_msg);
+
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
     if (lo > hi) { // retry did not help
