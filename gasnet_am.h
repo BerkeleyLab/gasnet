@@ -162,6 +162,7 @@ typedef enum {
 } gasneti_category_t;
 
 /* default AM handler for unregistered entries - prints a fatal error */
+GASNETI_COLD
 extern void gasneti_defaultAMHandler(gex_Token_t token);
 
 extern int gasneti_amtbl_init(gex_AM_Entry_t *output);

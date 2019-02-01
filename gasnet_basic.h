@@ -736,6 +736,7 @@ typedef union { uint64_t _u; char _c[8]; } gasneti_magic_t;
 #define _GASNETI_IDENT(identName, identText)                         \
   extern char volatile identName[];                                  \
   char volatile identName[] = identText;                             \
+  GASNETI_COLD                                                       \
   extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if PLATFORM_COMPILER_CRAY && !PLATFORM_ARCH_X86_64 /* fouls up concatenation in ident string */
