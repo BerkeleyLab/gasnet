@@ -625,7 +625,7 @@
 #else
   #define GASNETI_HOT
 #endif
-#if GASNETT_USE_GCC_ATTRIBUTE_HOT
+#if GASNETT_USE_GCC_ATTRIBUTE_COLD
   #define GASNETI_COLD __attribute__((__cold__))
 #else
   #define GASNETI_COLD
