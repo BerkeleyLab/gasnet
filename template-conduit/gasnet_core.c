@@ -123,25 +123,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
       */
   }
 
-  #if ###
-    /* Enable this if you wish to use the default GASNet services for broadcasting 
-        the environment from one compute node to all the others (for use in gasnet_getenv(),
-        which needs to return environment variable values from the "spawning console").
-        You need to provide two functions (bootstrapExchange and bootstrapBroadcast)
-        which the system can safely and immediately use to broadcast and exchange information 
-        between nodes (bootstrapBroadcast is optional but highly recommended).
-        See gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c for definitions of these two
-        functions in terms of MPI collective operations.
-       This system assumes that at least one of the compute nodes has a copy of the 
-        full environment from the "spawning console" (if this is not true, you'll need to
-        implement something yourself to get the values from the spawning console)
-       If your job system already always propagates environment variables to all the compute
-        nodes, then you probably don't need this.
-     */
-    gasneti_setupGlobalEnvironment(gasneti_nodes, gasneti_mynode, 
-                                   gasneti_spawner->Exchange, gasneti_spawner->Broadcast);
-  #endif
-
   gasneti_init_done = 1;  
 
   return GASNET_OK;
@@ -471,6 +452,14 @@ extern gex_TI_t gasnetc_Token_Info(
   info->gex_entry = ###;
   result |= GEX_TI_ENTRY;
 
+  /* (###) add code here to set boolean "is a request" field info->gex_is_req (optional) */
+  info->gex_is_req = real_token->u.generic.is_req;
+  result |= GEX_TI_IS_REQ;
+
+  /* (###) add code here to set boolean "is a long" field info->gex_is_long (optional) */
+  info->gex_is_long = real_token->is_long;
+  result |= GEX_TI_IS_LONG;
+
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
@@ -505,7 +494,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
    */
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
-    retval = gasneti_nbrhd_RequestGeneric( gasneti_Short, jobrank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, jobrank, handler,
                                            0, 0, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -523,7 +512,7 @@ extern int gasnetc_AMRequestShortM(
                             gex_Rank_t rank,       /* with tm, defines remote context */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
                             gex_Flags_t flags
-                            GASNETI_THREAD_FARG
+                            GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
@@ -562,7 +551,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasneti_nbrhd_RequestGeneric( gasneti_Medium, jobrank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, jobrank, handler,
                                            source_addr, nbytes, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -591,7 +580,7 @@ extern int gasnetc_AMRequestMediumM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags
-                            GASNETI_THREAD_FARG
+                            GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
@@ -784,7 +773,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasneti_nbrhd_RequestGeneric( gasneti_Long, jobrank, handler,
+    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, jobrank, handler,
                                            source_addr, nbytes, dest_addr,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
@@ -814,7 +803,7 @@ extern int gasnetc_AMRequestLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             gex_Event_t *lc_opt,       /* local completion of payload */
                             gex_Flags_t flags
-                            GASNETI_THREAD_FARG
+                            GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
@@ -836,7 +825,7 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
    * a Neighborhood (including loopback) then this hook is necessary.
    */
   if_pt (gasnetc_token_in_nbrhd(token)) {
-    retval = gasneti_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
+    retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
                                          0, 0, 0,
                                          flags, numargs, argptr);
   } else {
@@ -883,7 +872,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
    */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasneti_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
+    retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
                                          source_addr, nbytes, 0,
                                          flags, numargs, argptr);
   } else {
@@ -1087,7 +1076,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
    */
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
-    retval = gasneti_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
+    retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
                                          source_addr, nbytes, dest_addr,
                                          flags, numargs, argptr);
   } else {
