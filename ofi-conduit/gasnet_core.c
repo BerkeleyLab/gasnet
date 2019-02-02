@@ -612,6 +612,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     retval = gasnetc_ofi_am_send_short(jobrank, handler, numargs, argptr, 1 GASNETI_THREAD_PASS);
+    gasneti_assert(! retval); // TODO-EX: IMM AM support
   }
   return retval;
 }
@@ -649,6 +650,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
     retval = gasnetc_ofi_am_send_medium(jobrank, handler, source_addr, nbytes, numargs, argptr, 1 GASNETI_THREAD_PASS);
+    gasneti_assert(! retval); // TODO-EX: IMM AM support
   }
   return retval;
 }
@@ -697,6 +699,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
     retval = gasnetc_ofi_am_send_long(jobrank, handler, source_addr, nbytes, dest_addr, numargs, argptr, 1, 0 GASNETI_THREAD_PASS);
+    gasneti_assert(! retval); // TODO-EX: IMM AM support
   }
   return retval;
 }
@@ -743,6 +746,7 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
   } else {
     GASNET_BEGIN_FUNCTION(); // TODO-EX: stash threadinfo in token
     retval = gasnetc_ofi_am_send_short(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, numargs, argptr, 0 GASNETI_THREAD_PASS);
+    gasneti_assert(! retval); // TODO-EX: IMM AM support
   }
   return retval;
 }
@@ -777,6 +781,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
     GASNET_BEGIN_FUNCTION(); // TODO-EX: stash threadinfo in token
     retval = gasnetc_ofi_am_send_medium(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, source_addr, nbytes, numargs, argptr, 0 GASNETI_THREAD_PASS);
+    gasneti_assert(! retval); // TODO-EX: IMM AM support
   }
   return retval;
 }
@@ -822,6 +827,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
     GASNET_BEGIN_FUNCTION(); // TODO-EX: stash threadinfo in token
     retval = gasnetc_ofi_am_send_long(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, source_addr, nbytes, dest_addr, numargs, argptr, 0, 0 GASNETI_THREAD_PASS);
+    gasneti_assert(! retval); // TODO-EX: IMM AM support
   }
   return retval;
 }
