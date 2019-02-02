@@ -398,44 +398,56 @@ extern void gasnetc_exit(int exitcode) {
 /* (###) GASNETC_GET_HANDLER
  *   If your conduit will support PSHM, then there needs to be a way
  *   for PSHM to see your handler table.  If you use the recommended
- *   implementation (gasnetc_handler[]) then you don't need to do
- *   anything special.  Othwerwise, #define GASNETC_GET_HANDLER in
- *   gasnet_core_fwd.h and implement gasnetc_get_handler() here, or
- *   as a macro or inline in gasnet_core_internal.h
+ *   implementation then you don't need to do anything special.
+ *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
+ *   implement gasnetc_get_handler() as a macro in
+ *   gasnet_core_internal.h
  *
- * (###) GASNETC_TOKEN_CREATE
- *   If your conduit will support PSHM, then there needs to be a way
- *   for the conduit-specific and PSHM token spaces to co-exist.
- *   The default PSHM implementation produces tokens with the least-
- *   significant bit set and assumes the conduit never will.  If that
- *   is true, you don't need to do anything special here.
- *   If your conduit cannot use the default PSHM token code, then
- *   #define GASNETC_TOKEN_CREATE in gasnet_core_fwd.h and implement
- *   the associated routines described in gasnet_pshm.h.  That code
- *   could be functions located here, or could be macros or inlines
- *   in gasnet_core_internal.h.
+ * (###) Tokens and "nbrhd" (loopback and PSHM):
+ *   To permit conduit-specific tokens to co-exist with ones used by the
+ *   conduit-independent implementation of AMs within the neighborhood,
+ *   the nbrhd implementation produces tokens with the least-significant
+ *   bit set (assuming the conduit never will).  This restricts the
+ *   conduit's implemention of tokens, but allows the common choice in
+ *   which tokens are pointers to a type with alignment greater than 1.
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gex_Token_t token, gex_Rank_t *srcindex) {
-  gex_Rank_t sourceid;
-  GASNETI_CHECKATTACH();
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+extern gex_TI_t gasnetc_Token_Info(
+                gex_Token_t         token,
+                gex_Token_Info_t    *info,
+                gex_TI_t            mask)
+{
+  gasneti_assert(token);
+  gasneti_assert(info);
 
-#if GASNET_PSHM
-  /* If your conduit will support PSHM, let the PSHM code
-   * have a chance to recognize the token first, as shown here. */
-  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
-#endif
-  {
-    /* add code here to write the source index into sourceid. */
-    sourceid = ((gasnetc_ofi_am_send_buf_t*)token)->sourceid;
+  if (gasnetc_token_in_nbrhd(token)) {
+    return gasnetc_nbrhd_Token_Info(token, info, mask);
   }
 
-  gasneti_assert(sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
+  gex_TI_t result = 0;
+
+  info->gex_srcrank = ((gasnetc_ofi_am_send_buf_t*)token)->sourceid;
+  result |= GEX_TI_SRCRANK;
+
+  info->gex_ep = gasneti_THUNK_EP;
+  result |= GEX_TI_EP;
+
+#if 0 // TODO-EX: implement these
+  /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
+  info->gex_entry = ###;
+  result |= GEX_TI_ENTRY;
+
+  /* (###) add code here to set boolean "is a request" field info->gex_is_req (optional) */
+  info->gex_is_req = real_token->u.generic.is_req;
+  result |= GEX_TI_IS_REQ;
+
+  /* (###) add code here to set boolean "is a long" field info->gex_is_long (optional) */
+  info->gex_is_long = real_token->is_long;
+  result |= GEX_TI_IS_LONG;
+#endif
+
+  return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
 extern int gasnetc_AMPoll(void) {
