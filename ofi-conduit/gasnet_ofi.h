@@ -152,19 +152,20 @@ void gasnetc_ofi_exit(void);
 
 /* Active Messages Send Functions */
 int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler, 
-		int numargs, va_list argptr, int isreq);
+		int numargs, va_list argptr, int isreq GASNETI_THREAD_FARG);
 int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
 		void *source_addr, size_t nbytes,
-		int numargs, va_list argptr, int isreq);
+		int numargs, va_list argptr, int isreq GASNETI_THREAD_FARG);
 int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 		void *source_addr, size_t nbytes,
-		void *dest_addr, int numargs, va_list argptr, int isReq, int isAsync);
+		void *dest_addr, int numargs, va_list argptr, int isReq, int isAsync
+                GASNETI_THREAD_FARG);
 
 /* One-siede PUT/GET Functions */
 void gasnetc_rdma_put(gex_Rank_t node, void *dest, void * src, size_t nbytes,
-		gasnetc_ofi_op_ctxt_t *ctxt_ptr);
+		gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
 void gasnetc_rdma_get(void *dest, gex_Rank_t node, void * src, size_t nbytes,
-		gasnetc_ofi_op_ctxt_t *ctxt_ptr);
+		gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG);
 
 GASNETI_INLINE(gasnetc_rdma_put_will_block)
 int gasnetc_rdma_put_will_block (size_t nbytes) {
@@ -172,9 +173,9 @@ int gasnetc_rdma_put_will_block (size_t nbytes) {
 } 
 
 int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
-        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr);
-void gasnetc_rdma_put_wait(gex_Event_t op);
-void gasnetc_rdma_get_wait(gex_Event_t op);
+        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG);
+void gasnetc_rdma_put_wait(gex_Event_t op GASNETI_THREAD_FARG);
+void gasnetc_rdma_get_wait(gex_Event_t op GASNETI_THREAD_FARG);
 
 int gasnetc_exit_in_progress;
 

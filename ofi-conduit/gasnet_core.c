@@ -439,6 +439,8 @@ static void gasnetc_exit_reqh(gex_Token_t token,
 
 /* Coordinate a global exit, returning non-zero on success */
 static int gasnetc_exit_coordinate(int exitcode) {
+  GASNET_BEGIN_FUNCTION(); // OK - not a critical-path
+
   /* Disable processing of user's AMs, to avoid reentrance if user's handler exits */
   for (int i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
     gasnetc_handler[i].gex_fnptr = (gex_AM_Fn_t)&gasnetc_noop;
@@ -456,7 +458,7 @@ static int gasnetc_exit_coordinate(int exitcode) {
     if (ret != GASNET_OK) return 0;
     do { /* wait for completion of the proper receive, which might arrive out of order */
       if (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - t_start)) return 0;
-      gasnetc_AMPoll();
+      gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
     } while (!(distance & gasneti_atomic_read(&gasnetc_exit_dist, 0)));
   }
   return 1;
@@ -575,13 +577,13 @@ extern gex_TI_t gasnetc_Token_Info(
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
-extern int gasnetc_AMPoll(void) {
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   int retval;
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
   /* If your conduit will support PSHM, let it make progress here. */
-  gasneti_AMPSHMPoll(0);
+  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
 
   /* add code here to run your AM progress engine */
@@ -609,7 +611,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                            0, 0, 0,
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
-    retval = gasnetc_ofi_am_send_short(jobrank, handler, numargs, argptr, 1);
+    retval = gasnetc_ofi_am_send_short(jobrank, handler, numargs, argptr, 1 GASNETI_THREAD_PASS);
   }
   return retval;
 }
@@ -646,7 +648,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
-    retval = gasnetc_ofi_am_send_medium(jobrank, handler, source_addr, nbytes, numargs, argptr, 1);
+    retval = gasnetc_ofi_am_send_medium(jobrank, handler, source_addr, nbytes, numargs, argptr, 1 GASNETI_THREAD_PASS);
   }
   return retval;
 }
@@ -694,7 +696,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                            flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
-    retval = gasnetc_ofi_am_send_long(jobrank, handler, source_addr, nbytes, dest_addr, numargs, argptr, 1, 0);
+    retval = gasnetc_ofi_am_send_long(jobrank, handler, source_addr, nbytes, dest_addr, numargs, argptr, 1, 0 GASNETI_THREAD_PASS);
   }
   return retval;
 }
@@ -739,7 +741,8 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                                          0, 0, 0,
                                          flags, numargs, argptr);
   } else {
-    retval = gasnetc_ofi_am_send_short(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, numargs, argptr, 0);
+    GASNET_BEGIN_FUNCTION(); // TODO-EX: stash threadinfo in token
+    retval = gasnetc_ofi_am_send_short(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, numargs, argptr, 0 GASNETI_THREAD_PASS);
   }
   return retval;
 }
@@ -772,7 +775,8 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                                          flags, numargs, argptr);
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
-    retval = gasnetc_ofi_am_send_medium(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, source_addr, nbytes, numargs, argptr, 0);
+    GASNET_BEGIN_FUNCTION(); // TODO-EX: stash threadinfo in token
+    retval = gasnetc_ofi_am_send_medium(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, source_addr, nbytes, numargs, argptr, 0 GASNETI_THREAD_PASS);
   }
   return retval;
 }
@@ -816,7 +820,8 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                                          flags, numargs, argptr);
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: async LC
-    retval = gasnetc_ofi_am_send_long(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, source_addr, nbytes, dest_addr, numargs, argptr, 0, 0);
+    GASNET_BEGIN_FUNCTION(); // TODO-EX: stash threadinfo in token
+    retval = gasnetc_ofi_am_send_long(((gasnetc_ofi_am_send_buf_t*)token)->sourceid, handler, source_addr, nbytes, dest_addr, numargs, argptr, 0, 0 GASNETI_THREAD_PASS);
   }
   return retval;
 }

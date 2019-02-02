@@ -159,7 +159,7 @@ static int gasnetc_ofi_inited = 0;
 #define OFI_CONDUIT_VERSION FI_VERSION(1, 0)
 
 #if GASNET_PSHM
-    #define gasnetc_AMPSHMPoll(repliesOnly) gasneti_AMPSHMPoll(repliesOnly)
+    #define gasnetc_AMPSHMPoll(repliesOnly) gasneti_AMPSHMPoll(repliesOnly GASNETI_THREAD_PASS)
 #else
     #define gasnetc_AMPSHMPoll(repliesOnly) ((void)0)
 #endif 
@@ -866,7 +866,7 @@ void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf)
 
 /* Get a send buffer */
 GASNETI_INLINE(gasnetc_ofi_am_header)
-gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq)
+gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq GASNETI_THREAD_FARG)
 {
     gasneti_lifo_head_t* pool;
     int poll_type;
@@ -1114,7 +1114,7 @@ void gasnetc_ofi_poll()
  * ----------------------------------------------*/
 
 int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
-                     int numargs, va_list argptr, int isreq)
+                     int numargs, va_list argptr, int isreq GASNETI_THREAD_FARG)
 {
 	int ret = FI_SUCCESS;
 	gex_AM_Arg_t *arglist;
@@ -1137,7 +1137,7 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
     }
 
 	/* Get a send buffer */
-	header = gasnetc_ofi_am_header(isreq);
+	header = gasnetc_ofi_am_header(isreq GASNETI_THREAD_PASS);
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
@@ -1185,7 +1185,7 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
 
 int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler, 
                      void *source_addr, size_t nbytes,   /* data payload */
-                     int numargs, va_list argptr, int isreq)
+                     int numargs, va_list argptr, int isreq GASNETI_THREAD_FARG)
 {
 	int ret = FI_SUCCESS;
 	gex_AM_Arg_t *arglist;
@@ -1211,7 +1211,7 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
 
 
 	/* Get a send buffer */
-	header = gasnetc_ofi_am_header(isreq);
+	header = gasnetc_ofi_am_header(isreq GASNETI_THREAD_PASS);
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
@@ -1259,7 +1259,8 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
 int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 		               void *source_addr, size_t nbytes,   /* data payload */
 		               void *dest_addr,
-		               int numargs, va_list argptr, int isreq, int isasync)
+		               int numargs, va_list argptr, int isreq, int isasync
+                               GASNETI_THREAD_FARG)
 {
 	int ret = FI_SUCCESS;
 	gex_AM_Arg_t *arglist;
@@ -1287,7 +1288,7 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 		gasneti_assert (nbytes <= gex_AM_LUBReplyLong());
 
 	/* Get a send buffer */
-	header = gasnetc_ofi_am_header(isreq);
+	header = gasnetc_ofi_am_header(isreq GASNETI_THREAD_PASS);
 
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
@@ -1399,7 +1400,7 @@ int get_bounce_bufs(int n, gasnetc_ofi_bounce_buf_t ** arr) {
  * Returns non-zero if a wait is needed for remote completion. Returns 0 if the
  * buffer may be safely returned to the app */
 int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr, 
-        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr)
+        size_t nbytes, gasnetc_ofi_op_ctxt_t* ctxt_ptr GASNETI_THREAD_FARG)
 {
 
     int i;
@@ -1494,7 +1495,7 @@ int gasnetc_rdma_put_non_bulk(gex_Rank_t dest, void* dest_addr, void* src_addr,
     /* We tried our best to optimize this. Just wait for remote completion */
     else {
 block_anyways:
-        gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, ctxt_ptr);
+        gasnetc_rdma_put(dest, dest_addr, src_addr, nbytes, ctxt_ptr GASNETI_THREAD_PASS);
         GASNETC_STAT_EVENT(NB_PUT_BLOCK);
         return 1;
     }
@@ -1503,7 +1504,7 @@ block_anyways:
 
 void
 gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes,
-		gasnetc_ofi_op_ctxt_t *ctxt_ptr)
+		gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
 {
 	int ret = FI_SUCCESS;
 
@@ -1521,7 +1522,7 @@ gasnetc_rdma_put(gex_Rank_t dest, void *dest_addr, void *src_addr, size_t nbytes
 
 void
 gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbytes,
-		gasnetc_ofi_op_ctxt_t *ctxt_ptr)
+		gasnetc_ofi_op_ctxt_t *ctxt_ptr GASNETI_THREAD_FARG)
 {
 	int ret = FI_SUCCESS;
 
@@ -1540,7 +1541,7 @@ gasnetc_rdma_get(void *dest_addr, gex_Rank_t dest, void * src_addr, size_t nbyte
 }
 
 void
-gasnetc_rdma_put_wait(gex_Event_t oph)
+gasnetc_rdma_put_wait(gex_Event_t oph GASNETI_THREAD_FARG)
 {
 	gasnete_op_t *op = (gasnete_op_t*) oph;
 
@@ -1558,7 +1559,7 @@ gasnetc_rdma_put_wait(gex_Event_t oph)
 }
 
 void
-gasnetc_rdma_get_wait(gex_Event_t oph)
+gasnetc_rdma_get_wait(gex_Event_t oph GASNETI_THREAD_FARG)
 {
 	gasnete_op_t *op = (gasnete_op_t*) oph;
 
