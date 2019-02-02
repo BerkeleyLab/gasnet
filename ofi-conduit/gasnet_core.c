@@ -325,9 +325,9 @@ static int gasnetc_exit_coordinate(int exitcode) {
   const uint64_t timeout_ns = gasnetc_exittimeout * 1000000000L;
   const gasneti_tick_t t_start = gasneti_ticks_now();
   for (int distance = 1; distance < gasneti_nodes; distance *= 2) {
-    int peer = (gasneti_mynode + distance) % gasneti_nodes;
-    int ret = gasnetc_AMRequestShortM(peer, gasneti_handleridx(gasnetc_exit_reqh),
-                                      2, exitcode, distance);
+    gex_Rank_t jobrank = (gasneti_mynode + distance) % gasneti_nodes;
+    int ret = gasnetc_AMRequestShortM(gasneti_THUNK_TM, jobrank, gasneti_handleridx(gasnetc_exit_reqh),
+                                      0 GASNETI_THREAD_PASS, 2, exitcode, distance);
     if (ret != GASNET_OK) return 0;
     do { /* wait for completion of the proper receive, which might arrive out of order */
       if (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - t_start)) return 0;
