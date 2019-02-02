@@ -804,16 +804,6 @@ void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq, size_t 
 	}
 }
 
-#if !GASNET_PSHM
-/* Handle Active Messages from self (not necessary if PSHM is enabled) */
-GASNETI_INLINE(gasnetc_ofi_handle_local_am)
-void gasnetc_ofi_handle_local_am(gasnetc_ofi_am_buf_t *buf, int isreq, size_t msg_len, int nbytes)
-{
-    gasnetc_ofi_handle_am(&buf->sendbuf, isreq, msg_len, nbytes);
-    gasneti_lifo_push( isreq ? &ofi_am_request_pool : &ofi_am_reply_pool, buf);
-}
-#endif
-
 /* Handle RDMA completion as the initiator */
 GASNETI_INLINE(gasnetc_ofi_handle_rdma)
 void gasnetc_ofi_handle_rdma(void *buf)
@@ -1158,13 +1148,6 @@ int gasnetc_ofi_am_send_short(gex_Rank_t dest, gex_AM_Index_t handler,
      * payloads needing to be placed at an 8-byte aligned address. */
     len = GASNETI_ALIGNUP(len, GASNETI_MEDBUF_ALIGNMENT);
 
-#if !GASNET_PSHM
-	if (dest == gasneti_mynode) {
-		gasnetc_ofi_handle_local_am(header, isreq, len, 0);
-		return 0;
-	}
-#endif
-
 	if(len <= max_buffered_send) {
             OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
                 ret = fi_inject(ep, sendbuf, len, am_dest), poll_type);
@@ -1231,13 +1214,6 @@ int gasnetc_ofi_am_send_medium(gex_Rank_t dest, gex_AM_Index_t handler,
 	sendbuf->sourceid = gasneti_mynode;
 	sendbuf->type = OFI_AM_MEDIUM;
 	sendbuf->argnum = numargs;
-
-#if !GASNET_PSHM
-	if (dest == gasneti_mynode) {
-		gasnetc_ofi_handle_local_am(header, isreq, len, nbytes);
-		return 0;
-	}
-#endif
 
 	if(len <= max_buffered_send) {
             OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
@@ -1345,13 +1321,6 @@ int gasnetc_ofi_am_send_long(gex_Rank_t dest, gex_AM_Index_t handler,
 	sendbuf->sourceid = gasneti_mynode;
 	sendbuf->argnum = numargs;
 	sendbuf->buf.long_buf.dest_ptr = dest_addr;
-
-#if !GASNET_PSHM
-	if (dest == gasneti_mynode) {
-		gasnetc_ofi_handle_local_am(header, isreq, len, nbytes);
-		return 0;
-	}
-#endif
 
 	if(len <= max_buffered_send) {
         OFI_INJECT_RETRY(&gasnetc_ofi_locks.am_tx,
