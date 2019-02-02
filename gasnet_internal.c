@@ -1172,7 +1172,8 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
           { "/dev/hw/cpunum",      S_IFDIR, "SGI Altix", 0 },
           { "/dev/xpmem",          S_IFCHR, "SGI Altix", 0 },
         #endif
-        { "/dev/infiniband/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
+        { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
+        { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* Solaris */
         #if !GASNET_SEGMENT_EVERYTHING
           { "/dev/kgni0",            S_IFCHR, "Cray Gemini", 6 },
           { "/proc/kgnilnd",         S_IFDIR, "Cray Gemini", 6 },
