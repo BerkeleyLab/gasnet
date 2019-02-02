@@ -816,10 +816,25 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   mn = GASNET_EXTENDED_NAME_STR;
   m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
   *m = '\0';
+  int haveOmniPath = 0; // bug 3609: this oddball needs special handling
+  #if PLATFORM_OS_LINUX
+    const char *filename = "/sys/class/infiniband/hfi1_0/board_id";
+    FILE *fp = fopen(filename,"r");
+    if (fp) {
+      char buffer[128];
+      size_t r = fread(&buffer, 1, sizeof(buffer), fp);
+      if (r) { // eg: "Intel Omni-Path HFI Adapter 100 Series, 1 Port, PCIe x16"
+        buffer[r-1] = 0;
+        if (strstr(buffer, "Omni-Path")) haveOmniPath = 1;
+      }
+      fclose(fp);
+    }
+  #endif
+  
   if ( /* is a portable network conduit */
          (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
-      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext))
+      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !haveOmniPath)
       || (!strcmp("portals4",mycore) && !strcmp("portals4",myext))
       ) {
     const char *p = GASNETI_CONDUITS;
@@ -841,7 +856,8 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"smp")) continue;
         if (!strcmp(name,"mpi")) continue;
         if (!strcmp(name,"udp")) continue;
-        if (!strcmp(name,"ofi")) continue;
+        if (!strcmp(name,"ofi") && !haveOmniPath) continue;
+        if (!strcmp(name,"ibv") && haveOmniPath) continue; // never recommend ibv over OPA
         if (!strcmp(name,"portals4")) continue;
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
@@ -878,6 +894,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!stat(known_devs[i].filename,&stat_buf) && 
             (!known_devs[i].filemode || (known_devs[i].filemode & stat_buf.st_mode))) {
             int hwid = known_devs[i].hwid;
+            if (hwid == 2 && haveOmniPath) continue; // never recommend ibv over OPA
             if (strlen(natives)) strcat(natives,", ");
             strcat(natives,known_devs[i].desc);
             while (i < lim && hwid == known_devs[i].hwid) i++; /* don't report a network twice */
