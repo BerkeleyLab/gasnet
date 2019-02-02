@@ -145,9 +145,8 @@ typedef struct gasnetc_ofi_bounce_op_ctxt {
     gasnetc_paratomic_t cntr;
 } gasnetc_ofi_bounce_op_ctxt_t;
 
-int gasnetc_ofi_init(int *argc, char ***argv,
-		gex_Rank_t *nodes_p, gex_Rank_t *mynode_p);
-void gasnetc_ofi_poll();
+int gasnetc_ofi_init(void);
+void gasnetc_ofi_poll(void);
 void gasnetc_ofi_attach(void *segbase, uintptr_t segsize);
 void gasnetc_ofi_exit(void);
 

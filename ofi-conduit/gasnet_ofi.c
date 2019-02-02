@@ -347,8 +347,7 @@ static void ofi_exchange_addresses() {
 /*------------------------------------------------
  * Initialize OFI conduit
  * ----------------------------------------------*/
-int gasnetc_ofi_init(int *argc, char ***argv, 
-                     gex_Rank_t *nodes_p, gex_Rank_t *mynode_p)
+int gasnetc_ofi_init(void)
 {
   int ret = GASNET_OK;
   int result = GASNET_ERR_NOT_INIT;
@@ -359,12 +358,6 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   int i;
   
   int high_perf_prov = 0;
-
-  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
-  if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
-
-  /* Must init timers after global env, and preferably before tracing */
-  GASNETI_TICKS_INIT();
 
   gasnetc_ofi_read_env_vars();
   /* Ensure uniform FI_* env vars */
@@ -465,7 +458,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 
   int quiet = gasneti_getenv_yesno_withdefault("GASNET_QUIET", 0);
 #if GASNET_PAR
-  if(!*mynode_p) {
+  if (!gasneti_mynode) {
       if (!using_psm_provider && GASNETC_OFI_USE_THREAD_DOMAIN) {
           const char * msg =
             "WARNING: Using OFI provider \"%s\" when the ofi-conduit was configured for FI_THREAD_DOMAIN\n"
@@ -478,7 +471,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   }
 #endif
 
-  if (!high_perf_prov && !*mynode_p) {
+  if (!high_perf_prov && !gasneti_mynode) {
           const char * msg = 
           "WARNING: Using OFI provider (%s), which has not been validated to provide\n"
           "WARNING: acceptable GASNet performance. You should consider using a more\n"
@@ -598,8 +591,6 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_enable for am request ep failed: %d\n", ret);
   ret = fi_enable(gasnetc_ofi_reply_epfd);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_enable for am reply ep failed: %d\n", ret);
-
-  gasneti_nodemapInit(gasneti_bootstrapExchange, NULL, 0, 0);
 
   ofi_exchange_addresses();
 

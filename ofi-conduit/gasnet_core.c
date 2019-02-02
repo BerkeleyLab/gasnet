@@ -37,9 +37,7 @@ static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 }
 
-static int gasnetc_init(int *argc, char ***argv) 
-{
-  int ret = GASNET_OK;
+static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -53,8 +51,14 @@ static int gasnetc_init(int *argc, char ***argv)
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
 
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+  if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
+
+  /* Must init timers after global env, and preferably before tracing */
+  GASNETI_TICKS_INIT();
+
   /* bootstrap the nodes for ofi conduit */
-  ret = gasnetc_ofi_init(argc, argv, &gasneti_nodes, &gasneti_mynode);
+  int ret = gasnetc_ofi_init();
   if (GASNET_OK != ret)
 	 return ret;
 
@@ -65,38 +69,47 @@ static int gasnetc_init(int *argc, char ***argv)
 
   gasneti_assert_zeroret(gasnetc_exit_init());
 
+  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
+
   #if GASNET_PSHM
   gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
   #endif
 
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  { uintptr_t limit;
-    limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
-                              gasneti_bootstrapExchange,
-                              gasneti_bootstrapBarrier);
-    gasneti_segmentInit(limit, gasneti_bootstrapExchange);
-  }
-  #elif GASNET_SEGMENT_EVERYTHING
-    /* segment is everything - nothing to do */
+  uintptr_t mmap_limit;
+  #if HAVE_MMAP
+    // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
+    // while properly reserving space for aux segments.
+    uint64_t sharedLimit = gasneti_sharedLimit();
+    uint64_t hostAuxSegs = gasneti_myhost.node_count * gasneti_auxseg_preinit();
+    if (sharedLimit <= hostAuxSegs) {
+      gasneti_fatalerror("per-host segment limit %"PRIu64" is too small to accommodate %i aux segments, "
+                         "total size %"PRIu64". You may need to adjust OS shared memory limits.",
+                         sharedLimit, gasneti_myhost.node_count, hostAuxSegs);
+    }
+    sharedLimit -= hostAuxSegs;
+
+    mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
+                                gasneti_spawner->Exchange,
+                                gasneti_spawner->Barrier);
   #else
-    #error Bad segment config
+    // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
+    mmap_limit = (intptr_t)-1;
   #endif
+
+  /* allocate and attach an aux segment */
+
+  gasneti_auxsegAttach((uintptr_t)-1, gasneti_spawner->Exchange);
+
+  /* determine Max{Local,GLobal}SegmentSize */
+  gasneti_segmentInit(mmap_limit, gasneti_spawner->Exchange, flags);
+
+  // TODO-EX: MUST REGISTER THE AUXSEG AND UPDATE (AT LEAST) OFI_{WRITE,READ}()
 
   gasneti_init_done = 1;  
 
-  gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-
   return GASNET_OK;
 }
 
-/* ------------------------------------------------------------------------------------ */
-extern int gasnet_init(int *argc, char ***argv) 
-{
-  int retval = gasnetc_init(argc, argv);
-  if (retval != GASNET_OK) GASNETI_RETURN(retval);
-  gasneti_trace_init(argc, argv);
-  return GASNET_OK;
-}
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
