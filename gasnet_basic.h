@@ -625,7 +625,7 @@
 #else
   #define GASNETI_HOT
 #endif
-#if GASNETT_USE_GCC_ATTRIBUTE_HOT
+#if GASNETT_USE_GCC_ATTRIBUTE_COLD
   #define GASNETI_COLD __attribute__((__cold__))
 #else
   #define GASNETI_COLD
@@ -681,6 +681,7 @@
 #define _GASNETI_IDENT(identName, identText)                         \
   extern char volatile identName[];                                  \
   char volatile identName[] = identText;                             \
+  GASNETI_COLD                                                       \
   extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if PLATFORM_COMPILER_CRAY && !PLATFORM_ARCH_X86_64 /* fouls up concatenation in ident string */

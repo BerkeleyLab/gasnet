@@ -384,15 +384,6 @@ extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
 #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig)
 #endif
 
-static void do_raise(int sig) {
-#if defined(PTHREAD_MUTEX_INITIALIZER) && !GASNET_SEQ && HAVE_PTHREAD_KILL && 0 
-  /* XXX: This works-around a bug in OpenBSD-5.2 kernel, fixed in OpenBSD-current in Nov 2012 */
-  /* Might fail if unimplemented OR since pthread_self() isn't required to be signal safe */
-  if (0 == pthread_kill(pthread_self(),sig)) return;
-#endif
-  raise(sig);
-}
-
 void gasneti_defaultSignalHandler(int sig) {
   gasneti_sighandlerfn_t oldsigpipe = NULL;
   const char *signame =  gasnett_signame_fromval(sig);
@@ -429,7 +420,7 @@ void gasneti_defaultSignalHandler(int sig) {
       GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig); /* conduit hook to kill the job */
 
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
-      do_raise(sig);
+      gasneti_raise(sig);
       break;
     }
     default: 
@@ -445,7 +436,7 @@ void gasneti_defaultSignalHandler(int sig) {
       gasneti_console_message("Caught a signal", "%s(%i)", signame, sig);
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
-      do_raise(SIGQUIT);
+      gasneti_raise(SIGQUIT);
   }
 }
 

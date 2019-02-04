@@ -849,7 +849,7 @@ static void gasneti_pshm_abort_handler(int sig) {
     sigprocmask(SIG_UNBLOCK, &new_set, &old_set);
   }
 #endif
-  raise(sig);
+  gasneti_raise(sig);
 }
 
 void gasneti_pshm_cs_enter(void (*callback)(void))
