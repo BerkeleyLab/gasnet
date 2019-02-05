@@ -3407,12 +3407,18 @@ retry_calibration:;
   // Compute the best lower- and upper-bounds from the collected samples
   // Worst case each difference is too high or low by its respective granulatity
   double lo = 0;
-  double hi = 1E12;
+  double hi = 1E30;
   for (int i = 0; i < count; ++i) {
     for (int j = 0; j < count; ++j) {
-      const uint64_t delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]);
-      double new_lo = (lo1[i] - lo0[j] - ticks_res) / (double)(delta + ref_res);
-      double new_hi = (hi1[i] - hi0[j] + ticks_res) / (double)(delta - ref_res);
+      // bug 3866: following expressions are carefully written to encourage isolated "backward steps" in the
+      // tick samples to end up as double values that will be discarded by the MIN/MAX operation,
+      // instead of overflowing into values that corrupt the entire calculation.
+      // Backward steps in the ref timer are not tolerated here, but will trigger a repeat of sample collection.
+      const double wc_delta  = (double)(int64_t)(gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]));
+      const double lo_delta  = (double)(int64_t)(lo1[i] - lo0[j]); // bias overflow to negative
+      const double hi_delta  = (double)(uint64_t)(hi1[i] - hi0[j]); // bias overflow to large positive
+      double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+      double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
       lo = MAX(lo, new_lo);
       hi = MIN(hi, new_hi);
     }
@@ -3432,6 +3438,32 @@ retry_calibration:;
                     ticks_res, ref_res,
                     (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
+
+    char sample_msg[GASNETI_TICKS_WC_ITERS*400];
+    char *p = sample_msg;
+    for (int n0 = 0; n0 < count; ++n0) {
+      if (p < &sample_msg[sizeof(sample_msg)]) {
+        int n1 = count-1-n0;
+        uint64_t wc0_n0 = gasneti_clock_to_ns(wc0[n0]);
+        uint64_t wc1_n1 = gasneti_clock_to_ns(wc1[n1]);
+        const double wc_delta  = (double)(int64_t)(wc1_n1 - wc0_n0);
+        const double lo_delta  = (double)(int64_t)(lo1[n1] - lo0[n0]);
+        const double hi_delta  = (double)(uint64_t)(hi1[n1] - hi0[n0]);
+        double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+        double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
+        p += snprintf(p, sizeof(sample_msg) - (p - sample_msg),
+             " wc1[%i]=%-10"PRIu64" wc0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " lo1[%i]=%-10"PRIu64" lo0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " hi1[%i]=%-10"PRIu64" hi0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " lo=%8.6f hi=%8.6f\n",
+             n1, wc1_n1,  n0, wc0_n0,  wc_delta,
+             n1, lo1[n1], n0, lo0[n0], lo_delta,
+             n1, hi1[n1], n0, hi0[n0], hi_delta,
+             new_lo, new_hi);
+      }
+    }
+    gasneti_console_message("TICKS: Debugging information:","\n%s",sample_msg);
+
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
     if (lo > hi) { // retry did not help
