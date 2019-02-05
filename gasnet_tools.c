@@ -3407,7 +3407,7 @@ retry_calibration:;
   // Compute the best lower- and upper-bounds from the collected samples
   // Worst case each difference is too high or low by its respective granulatity
   double lo = 0;
-  double hi = 1E12;
+  double hi = 1E30;
   for (int i = 0; i < count; ++i) {
     for (int j = 0; j < count; ++j) {
       const uint64_t delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]);
