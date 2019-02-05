@@ -930,7 +930,7 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
   #if PLATFORM_OS_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
   { FILE *fp = fopen("/proc/cpuinfo","r");
     char model[255];
-    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
     while (!feof(fp) && fgets(model, sizeof(model), fp)) {
       if (strstr(model,"model name")) break;
     }

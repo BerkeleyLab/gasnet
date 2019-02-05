@@ -3431,9 +3431,10 @@ retry_calibration:;
   // with a process migration across cores with sufficiently de-synchronized time bases.
   if (lo > hi || 
       max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
-    gasneti_console_message("WARNING","GASNet timer calibration detected non-linear timer behavior: "
+    gasneti_console_message("WARNING","GASNet timer calibration on %s detected non-linear timer behavior: "
                     "max_err_tick=%"PRIu64" max_err_wcns=%"PRIu64" ticks_res=%"PRIu64" ref_res=%"PRIu64" lo=%"PRIu64" hi=%"PRIu64". See docs for GASNET_TSC_RATE."
                     "%s\n",
+                    gasneti_gethostname(),
                     max_err_tick, max_err_wcns, 
                     ticks_res, ref_res,
                     (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
@@ -3736,9 +3737,9 @@ extern double gasneti_calibrate_tsc(void) {
                       (int)ref_res, i, (unsigned long)sum);
       #endif
       if_pf (ref_res > max_res) {
-        gasneti_fatalerror("Reference timer resolution of %lu ns is not acceptable for calibration of the TSC.\n"
+        gasneti_fatalerror("Reference timer resolution of %lu ns on %s is not acceptable for calibration of the TSC.\n"
                            "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-                           (unsigned long)ref_res);
+                           (unsigned long)ref_res, gasneti_gethostname());
       }
     }
 
@@ -3751,17 +3752,17 @@ extern double gasneti_calibrate_tsc(void) {
       // Check that we converged within given tolerance
       if (check_hard && (err > hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (%g > %g).\n"
+            "TSC calibration did not converge with reasonable certainty on %s (%g > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            err, hard_tolerance);
+            gasneti_gethostname(), err, hard_tolerance);
       }
       if (check_soft && (err > soft_tolerance)) {
         gasneti_console_message("WARNING",
-            "TSC calibration did not converge with reasonable certainty (%g > %g).  "
+            "TSC calibration did not converge with reasonable certainty on %s (%g > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            err, soft_tolerance);
+            gasneti_gethostname(), err, soft_tolerance);
       }
     } else {
       gasneti_assert(tsc_source == tsc_source_user);
@@ -3784,17 +3785,17 @@ extern double gasneti_calibrate_tsc(void) {
       if (i == max_tries) {
         if (check_hard && ((best < (1. - hard_tolerance)) || (best > (1. + hard_tolerance)))) {
             gasneti_fatalerror(
-                "Reference timer and calibrated TSC differ too much (ratio %g).\n"
+                "Reference timer and calibrated TSC differ too much on %s (ratio %g).\n"
                 "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
                 "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-                best);
+                gasneti_gethostname(), best);
         }
         if (check_soft && ((best < (1. - soft_tolerance)) || (best > (1. + soft_tolerance)))) {
             gasneti_console_message("WARNING",
-                "Reference timer and calibrated TSC differ too much (ratio %g).  "
+                "Reference timer and calibrated TSC differ too much on %s (ratio %g).  "
                 "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
                 "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-                best);
+                gasneti_gethostname(), best);
         }
       }
       #if GASNET_DEBUG_VERBOSE
