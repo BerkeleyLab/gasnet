@@ -27,6 +27,9 @@ PENDING:
 * InfiniBand Verbs (ibv-conduit)
   - Legacy support for Mellanox FCA has been removed
 
+* Notable bugs fixed in this release:
+  - bug3854: Fix assertion failure in gex_TM_Split
+
 ----------------------------------------------------------------------
 12-17-2018: GASNet-EX 2018.12.0 Beta release
 
@@ -261,7 +264,7 @@ Note some entries below do not apply to the EX branch.
 GASNet-1 ChangeLog 
 ------------------
 ----------------------------------------------------------------------
-PENDING: pending work @XXXXXX
+PENDING: pending work @c7e200a
 
 * InfiniBand Verbs (ibv-conduit)
   - Multi-rail support is disabled by default, due to bug 3447
