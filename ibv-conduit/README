@@ -237,6 +237,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     the available HCAs and the status of their ports.
     The default is no filter.
 
+  + GASNET_IBV_PKEY
+    If set, this specifies the 15-bit InfiniBand Partition Key to use.
+    Valid values are in the range 2 to 0x7fff.
+    For compatibility, the membership bit (0x8000) is ignored.
+    The default is to use the Partition Key installed at table index 0.
+
   + GASNET_QP_TIMEOUT
     This sets the timeout value used to configure InfiniBand QueuePairs.
     The IB specification uses (4.096us * 2^qp_timeout) as the length of
@@ -1081,7 +1087,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
-+ Bug 3817
++ Bug 3838
   When using Mellanox On-Demand Paging (ODP), it has been observed that certain
   patterns of many small RMA operations (as seen in GASNet's testvis) may lead
   to communications "locking up" such that RMA operations issued do not complete
@@ -1090,7 +1096,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   RMA operations, then you should retry with ODP disabled (see On-Demand Paging
   (ODP) Support section).
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3817
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3838
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 

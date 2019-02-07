@@ -40,7 +40,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   int i;
   static size_t smallest_scratch_seg;
 
-  team->sequence = 42;
+  team->sequence = 0xfffffff8;  // Intentionally near to wrap-around
 
   smallest_scratch_seg = scratch_segments[0].size;
   for (i = 0; i < num_members; ++i) {
@@ -63,8 +63,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->scratch_segs = scratch_segments;
   team->smallest_scratch_seg = smallest_scratch_seg;
   team->autotune_info = gasnete_coll_autotune_init(team, smallest_scratch_seg GASNETI_THREAD_PASS);
-  team->consensus_issued_id = 0;
-  team->consensus_id = 0;
+  team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
   team->scratch_free_list = NULL;
   
@@ -117,9 +116,6 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   team->team_id = team_id;
   team->total_ranks = total_ranks;
   team->myrank = myrank;
-#ifdef GASNETI_USE_FCA
-  team->use_fca = 0;
-#endif
 
   /* Build rel2act map (unless already constructed) */
   if (team->rel2act_map == NULL) {
@@ -436,9 +432,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   
   gasneti_free(rel2act_map);
   gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
-#ifdef GASNETI_USE_FCA
-  gasnet_team_fca_enable(newteam);
-#endif
   return newteam;
 }
 

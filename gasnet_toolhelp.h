@@ -59,10 +59,12 @@ extern void gasneti_filesystem_sync(void);
   #define GASNETI_CURRENT_FUNCTION ""
 #endif
 
+GASNETI_COLD
 extern char *gasneti_build_loc_str(const char *_funcname, const char *_filename, int _linenum);
 // NOTE: this returns a malloced buffer!
 #define gasneti_current_loc gasneti_build_loc_str(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__)
 
+GASNETI_COLD
 GASNETI_FORMAT_PRINTF(_gasneti_assert_fail,4,5,
 extern void _gasneti_assert_fail(const char *_funcname, const char *_filename, int _linenum,
                                  const char *_fmt, ...) GASNETI_NORETURN);
@@ -85,8 +87,8 @@ GASNETI_NORETURNP(_gasneti_assert_fail)
  *   same, but with a string reason to explain the failure (defaults to preprocessed expression)
  */
 #if GASNET_NDEBUG
-  #define gasneti_assert(expr)        ((void)0)
-  #define gasneti_assert_reason(expr) ((void)0)
+  #define gasneti_assert(expr)               ((void)0)
+  #define gasneti_assert_reason(expr,reason) ((void)0)
 #else
   #define gasneti_assert(expr)               gasneti_assert_always(expr)
   #define gasneti_assert_reason(expr,reason) gasneti_assert_reason_always(expr,reason)
@@ -277,22 +279,28 @@ extern uint64_t gasneti_getPhysMemSz(int _failureIsFatal);
 
 extern const char *gasneti_procid_str; // process identifier for error messages
 
+GASNETI_COLD
 GASNETI_FORMAT_PRINTF(gasneti_console_message,2,3, // output a formatted message with a prefix type
 extern void gasneti_console_message(const char *_prefix, const char *_msg, ...));
+GASNETI_COLD
 GASNETI_FORMAT_PRINTF(gasneti_console_messageVA,2,0,
 extern void gasneti_console_messageVA(const char *_prefix, const char *_msg, va_list _argptr));
 
+GASNETI_COLD
 GASNETI_FORMAT_PRINTF(gasneti_fatalerror,1,2,
 extern void gasneti_fatalerror(const char *_msg, ...) GASNETI_NORETURN);
 GASNETI_NORETURNP(gasneti_fatalerror)
 
+GASNETI_COLD
 extern void gasneti_error_abort(void) GASNETI_NORETURN; // perform pre-abort actions then abort
 GASNETI_NORETURNP(gasneti_error_abort)
 
+GASNETI_COLD
 extern void gasneti_killmyprocess(int _exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasneti_killmyprocess)
 
 extern void gasneti_freezeForDebuggerErr(void); /* freeze iff user enabled error freezing */
+GASNETI_COLD
 extern void gasneti_freezeForDebuggerNow(volatile int *_flag, const char *_flagsymname);
 extern volatile int gasnet_frozen; /* export to simplify debugger restart */ 
 extern void gasneti_qualify_path(char *_path_out, const char *_path_in);
@@ -303,12 +311,17 @@ extern void gasneti_ondemand_init(void);
 
 extern int gasneti_check_node_list(const char *_listvar);
 
+GASNETI_COLD
 extern void gasneti_flush_streams(void); /* flush all open streams */
+GASNETI_COLD
 extern void gasneti_close_streams(void); /* close standard streams (for shutdown) */
 
 extern int gasneti_cpu_count(void);
 
-extern void gasneti_set_affinity(int _rank);
+extern int gasneti_set_affinity(int _rank);
+#if HAVE_PLPA || PLATFORM_OS_SOLARIS
+  #define GASNETT_SET_AFFINITY_SUPPORT 1
+#endif
 
 const char *gasneti_gethostname(void); /* returns the current host name - dies with an error on failure */
 
@@ -322,6 +335,9 @@ const char *gasnett_signame_fromval(int _sigval);
 // register a function to be called at libc exit time
 // passing NULL disables the exit handler
 extern void gasneti_registerExitHandler(void (*_exitfn)(int));
+
+GASNETI_COLD
+extern int gasneti_raise(int sig); // portability wrapper around POSIX raise(3)
 
 extern int gasneti_blocksig(int _sig);
 extern int gasneti_unblocksig(int _sig);
@@ -1106,7 +1122,7 @@ int gasnett_maximize_rlimit(int _res, const char *_lim_desc);
    Clients who want the buggy OS version can -DGASNETT_USE_CTYPE_WRAPPERS=0
  */
 #ifndef GASNETT_USE_CTYPE_WRAPPERS
-   #if GASNETI_NEED_CTYPE_WRAPPERS
+   #if GASNETI_NEED_CTYPE_WRAPPERS && !__cplusplus // bug 3834
       #define GASNETT_USE_CTYPE_WRAPPERS 1
    #else
       #define GASNETT_USE_CTYPE_WRAPPERS 0

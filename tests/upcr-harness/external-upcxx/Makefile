@@ -265,10 +265,20 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_CODEMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_CODEMODE=par ;; esac; \
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean guppie-$*
 	mv $</guppie-$* $@
+
+# UPC interop
+upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
+	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
+	             UPCXX=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND/bin/upcxx \
+	             clean $*
+	mv $</$* $@
 
 force:
 

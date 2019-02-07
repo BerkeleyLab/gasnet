@@ -1294,7 +1294,6 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i;
-  uintptr_t maxsz;
   const gex_Rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
@@ -1331,6 +1330,8 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   }
 #endif
 
+  uintptr_t auxsegsz = gasneti_auxseg_preinit();
+
 #if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
   { // Apply limits appropriate to filesystem-backed allocation
     const int flags = O_RDWR | O_CREAT | O_EXCL;
@@ -1348,7 +1349,14 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       // TODO: for now we ignore any errors here
       if (0 == fstatvfs(fd, &buf)) {
         uint64_t free_space = buf.f_bsize * buf.f_bavail;
-        if (free_space) sharedLimit = MIN(sharedLimit, free_space);
+        if (free_space) {
+          uint64_t auxspace = gasneti_pshm_nodes * auxsegsz;
+          if (free_space < auxspace) {
+            sharedLimit = 0; // leads to graceful insufficient space message
+          } else {
+            sharedLimit = MIN(sharedLimit, free_space - auxspace);
+          }
+        }
       }
       (void) close(fd);
     #if GASNETI_PSHM_POSIX
@@ -1361,8 +1369,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif
 
   /* Apply intial limits, even if not sharing nodes */
-  uintptr_t auxsegsz = gasneti_auxseg_preinit();
-  maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
+  uintptr_t maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
   maxsz = gasneti_mmap_alignup(maxsz);
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
@@ -1444,7 +1451,12 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        * NOTE: must use pshm's view of supernode, which may be less than nodemap's.
        */
       if (se.size) gasneti_do_munmap(se.addr, se.size);
-      gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
+      gasneti_unlink_segments(); /* Includes supernode-scoped barrier to complete munmap()s */
+      if (gasneti_myhost.grp_count != gasneti_mysupernode.grp_count) {
+        // num_hosts != num_supernodes (multiple supernodes on at least one node)
+        // Lacking a node-scoped barrier, we require a full barrier to complete munmap()s
+        (*barrierfn)();
+      }
       se.size = 0;
 
       if (gasneti_pshm_mynode == 0 && maxsz) {
@@ -1732,7 +1744,9 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
   #ifdef GASNETI_MMAP_OR_PSHM
   {
     if (segsize == 0) { /* no segment */
-      if (segment_p->addr) gasneti_do_munmap(segment_p->addr, segment_p->size);
+      if (segment_p->addr && segment_p->size) {
+        gasneti_do_munmap(segment_p->addr, segment_p->size);
+      }
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
     #if GASNET_ALIGNED_SEGMENTS

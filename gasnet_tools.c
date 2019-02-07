@@ -47,6 +47,10 @@
 #include <sys/resource.h>
 #endif
 
+#if PLATFORM_OS_CYGWIN
+#include <cygwin/version.h>
+#endif
+
 #if HAVE_PR_SET_PTRACER
   #include <sys/prctl.h>
   #ifndef PR_SET_PTRACER
@@ -597,26 +601,41 @@ extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_li
   const size_t msglen = strlen(msg);
 
   int isshort = 0;
-  if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+  int isveryshort = 0;
+  #ifndef GASNETI_CONSOLEMSG_VERYSHORT_LEN
+  #define GASNETI_CONSOLEMSG_VERYSHORT_LEN 256
+  #endif
+  char veryshort_msg[GASNETI_CONSOLEMSG_VERYSHORT_LEN];
+  if (msglen <= maxmsg) { // short enough to send to fprintf(stderr) in a single operation
     strncat(expandedmsg, msg, maxmsg);
     if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
     isshort = 1;
+
+    va_list args;
+    va_copy(args, argptr);
+      int result = vsnprintf(veryshort_msg, sizeof(veryshort_msg), expandedmsg, args);
+      if (result < sizeof(veryshort_msg)) isveryshort = 1; // short enough to send as a formatted buffer
+    va_end(args);
   }
 
   FILE * streams[] = { stderr, GASNETI_MAYBE_TRACEFILE };
   for (int s = 0; s < sizeof(streams)/sizeof(streams[0]); s++) {
     FILE *stream = streams[s];
     if (stream) {
-      va_list args;
-      va_copy(args, argptr);
-        if (isshort) {
-          vfprintf(stream, expandedmsg, args);
-        } else { /* long format msg */
-          fputs(expandedmsg, stream);
-          vfprintf(stream, msg, args);
-          if (msg[msglen-1] != '\n') fprintf(stream, "\n");
-        }
-      va_end(args);
+      if (isveryshort) {
+        fputs(veryshort_msg, stream);
+      } else {
+        va_list args;
+        va_copy(args, argptr);
+          if (isshort) {
+            vfprintf(stream, expandedmsg, args);
+          } else { /* long format msg */
+            fputs(expandedmsg, stream);
+            vfprintf(stream, msg, args);
+            if (msg[msglen-1] != '\n') fprintf(stream, "\n");
+          }
+        va_end(args);
+      }
       fflush(stream);
     }
   }
@@ -641,7 +660,21 @@ extern void gasneti_error_abort(void) {
   signal(SIGALRM, _exit); alarm(5); 
   gasneti_flush_streams();
 
-  abort();
+  #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && GASNETT_THREAD_SAFE
+    // Bug 3856 - Cygwin signal-handling discrepancies with multiple threads
+    // Following should be equivalent to abort(), but Cygwin 2.x abort is non-compliant
+    // and this generates more reliable behavior:
+    if (gasneti_raise(SIGABRT) == 0) (void)0; // success
+    else
+  #endif /* intentional fall-thru */
+    abort();
+
+  const char err[] = "ERROR: abort() returned!\n";
+  (void)write(2 /*stderr*/, err, sizeof(err));
+  (void)fsync(2);
+
+  // ensure this function never returns, even if abort does
+  _exit(1);
 }
 
 extern void gasneti_fatalerror(const char *msg, ...) {
@@ -933,6 +966,19 @@ gasnett_siginfo_t *gasnett_siginfo_fromstr(const char *str) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
+extern int gasneti_raise(int sig) {
+  #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && \
+      GASNETT_THREAD_SAFE && HAVE_PTHREAD_KILL 
+    // Bug 3856 - Cygwin signal-handling discrepancies with multiple threads
+    // Following should be equivalent to raise(), but Cygwin 2.x raise is non-compliant
+    // and this generates more reliable behavior.
+    // This workaround was previously used for a bug in OpenBSD-5.2 kernel, fixed in OpenBSD-current in Nov 2012
+    if (pthread_kill(pthread_self(), sig) == 0) return 0; // success
+  #endif /* intentional fall-thru */
+
+  return raise(sig);
+}
+/* ------------------------------------------------------------------------------------ */
 /* Functions to (un)block a single signal:
  *      int gasneti_unblocksig(int sig);
  *      int gasneti_blocksig(int sig);
@@ -989,11 +1035,10 @@ static void _freezeForDebugger(int depth) {
   }
 }
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname) {
-  fprintf(stderr,"Process frozen for debugger: host=%s  pid=%i\n"
-                 "To unfreeze, attach a debugger and set '%s' to 0, or send a "
+  gasneti_console_message("Process frozen for debugger","host=%s  pid=%i\n"
+                 "    To unfreeze, attach a debugger and set '%s' to 0, or send a "
                  GASNETI_UNFREEZE_SIGNAL_STR "\n", 
                  gasnett_gethostname(), (int)getpid(), flagsymname); 
-  fflush(stderr);
   _gasneti_freeze_flag = flag;
   *_gasneti_freeze_flag = 1;
   gasneti_local_wmb();
@@ -1012,10 +1057,10 @@ static void gasneti_ondemandHandler(int sig) {
   if (siginfo) snprintf(sigstr, sizeof(sigstr), "%s(%i)", siginfo->name, sig);
   else  snprintf(sigstr, sizeof(sigstr), "(%i)", sig);
   if (sig == gasneti_freezesignal) {
-    fprintf(stderr,"Caught GASNET_FREEZE_SIGNAL: signal %s\n", sigstr);
+    gasneti_console_message("Caught GASNET_FREEZE_SIGNAL","signal %s\n", sigstr);
     gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
   } else if (sig == gasneti_backtracesignal) {
-    fprintf(stderr,"Caught GASNET_BACKTRACE_SIGNAL: signal %s\n", sigstr);
+    gasneti_console_message("Caught GASNET_BACKTRACE_SIGNAL","signal %s\n", sigstr);
     gasneti_print_backtrace(STDERR_FILENO);
   } else gasneti_fatalerror("unrecognized signal in gasneti_ondemandHandler: %i", sig);
 }
@@ -1026,13 +1071,13 @@ extern void gasneti_ondemand_init(void) {
     const char *str = gasneti_getenv_withdefault("GASNET_FREEZE_SIGNAL",NULL);
     if (str) {
       gasnett_siginfo_t const *info = gasnett_siginfo_fromstr(str);
-      if (!info) fprintf(stderr, "WARNING: ignoring unrecognized GASNET_FREEZE_SIGNAL: %s\n", str);
+      if (!info) gasneti_console_message("WARNING","ignoring unrecognized GASNET_FREEZE_SIGNAL: %s\n", str);
       else gasneti_freezesignal = info->signum;
     }
     str = gasneti_getenv_withdefault("GASNET_BACKTRACE_SIGNAL",NULL);
     if (str) {
       gasnett_siginfo_t const *info = gasnett_siginfo_fromstr(str);
-      if (!info) fprintf(stderr, "WARNING: ignoring unrecognized GASNET_BACKTRACE_SIGNAL: %s\n", str);
+      if (!info) gasneti_console_message("WARNING","ignoring unrecognized GASNET_BACKTRACE_SIGNAL: %s\n", str);
       else gasneti_backtracesignal = info->signum;
     }
     gasneti_local_wmb();
@@ -1667,8 +1712,7 @@ extern int gasneti_print_backtrace(int fd) {
           }
         }
         if (i == gasneti_backtrace_mechanism_count) {
-          fprintf(stderr, "WARNING: GASNET_BACKTRACE_TYPE=%s unrecognized or unsupported - ignoring..\n", btsel);
-          fflush(stderr);
+          gasneti_console_message("WARNING","GASNET_BACKTRACE_TYPE=%s unrecognized or unsupported - ignoring..\n", btsel);
         } else if (retval == 0) {
 	  /* Send to requested destination (and tracefile if any) */
 	  GASNETT_TRACE_PRINTF_FORCE("========== BEGIN BACKTRACE ==========");
@@ -1751,7 +1795,7 @@ void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler) {
               GASNETT_TRACE_PRINTF("gasnett leaving signal %s unregistered", s->name);
               s->enable_gasnet_handler = 0;
           } else {
-              fprintf(stderr, "WARNING: unknown signal %s in GASNET_NO_CATCH_SIGNAL\n", w);  
+              gasneti_console_message("WARNING","unknown signal %s in GASNET_NO_CATCH_SIGNAL\n", w);  
           }
       }
   }
@@ -2106,10 +2150,10 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
     char tmpstr[255];
     char *displaystr = tmpstr;
     int width = MAX(10,55 - strlen(key) - strlen(displayval));
-    int len = snprintf(tmpstr, sizeof(tmpstr), "ENV parameter: %s = %s%*s", key, displayval, width, dflt);
+    int len = snprintf(tmpstr, sizeof(tmpstr), "ENV parameter: %s = %s%*s\n", key, displayval, width, dflt);
     if (len >= sizeof(tmpstr)) { /* Too long for the static buffer */
       displaystr = malloc(len + 1);
-      snprintf(displaystr, len+1, "ENV parameter: %s = %s%*s", key, displayval, width, dflt);
+      snprintf(displaystr, len+1, "ENV parameter: %s = %s%*s\n", key, displayval, width, dflt);
     }
     gasneti_mutex_lock(&envmutex);
       for (p = displaylist; p; p = p->next) { /* check for previous report */
@@ -2120,7 +2164,7 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
         p->key = strdup(key);
         if (verbose > 0 && !notyet) { /* display now */
           p->displaystr = NULL;
-          fprintf(stderr, "%s\n", displaystr);
+          fputs(displaystr, stderr);
           fflush(stderr);
         } else { /* cache for later */
           p->displaystr = strdup(displaystr);
@@ -2132,7 +2176,7 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
       }
       if (notyet && verbose > 0) { /* dump cached values */ 
         for (p = displaylist; p; p = p->next) {
-          fprintf(stderr, "%s\n", p->displaystr);
+          fputs(displaystr, stderr);
           fflush(stderr);
           free((void *)p->displaystr);
           p->displaystr = NULL;
@@ -2624,22 +2668,25 @@ extern int gasneti_platform_isWSL(void) {
     else return 0;
 }
 #endif
-void gasneti_set_affinity_default(int rank) {
+//
+// NOTE: when adding implementations here, update the #define of
+// GASNETT_SET_AFFINITY_SUPPORT in gasnet_toolhelp.h to match.
+//
+int gasneti_set_affinity_default(int rank) {
   #if HAVE_PLPA
   {
-    static int no_op = 0;
+    static int fails = 0;
     gasneti_plpa_cpu_set_t mask;
     int cpus = gasneti_set_affinity_cpus();
 
-    if (no_op == 1) {
-      /* NO-OP as determined by an earlier call */
-      return;
+    if (cpus == 1) {
+      /* NO-OP (success) on single-processor platform */
+      return 0;
     }
 
-    if (cpus == 1) {
-      /* NO-OP on single-processor platform */
-      no_op = 1;
-      return;
+    if (fails == 1) {
+      /* NO-OP (failure) as determined by an earlier call */
+      return 1;
     }
 
     // Dynamically handle binaries built on native Ubuntu and ported to Microsoft's WSL kernel
@@ -2647,23 +2694,23 @@ void gasneti_set_affinity_default(int rank) {
   #if PLATFORM_OS_LINUX || PLATFORM_OS_WSL
     if (gasneti_platform_isWSL()) {
         /* NO-OP on WSL */
-        no_op = 1;
-        return;
+        fails = 1;
+        return 1;
     }
   #endif
     
     /* Try a GET first to check for support */
     if_pf (ENOSYS == gasneti_plpa_sched_getaffinity(0, sizeof(mask), &mask)) {
-      /* becomes a NO-OP */
-      no_op = 1;
-      return;
+      /* becomes a NO-OP on next call*/
+      fails = 1;
+      return 1;
     }
     
     {
       int local_rank = rank % cpus;
       PLPA_CPU_ZERO(&mask);
       PLPA_CPU_SET(local_rank, &mask);
-      gasneti_assert_zeroret(gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask));
+      return gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask);
     }
   }
   #elif PLATFORM_OS_SOLARIS
@@ -2712,22 +2759,19 @@ void gasneti_set_affinity_default(int rank) {
      */
     {
       int local_rank = rank % num_cpus;
-      gasneti_assert_zeroret(processor_bind(P_LWPID, P_MYID, avail_cpus[local_rank], NULL));
+      return processor_bind(P_LWPID, P_MYID, avail_cpus[local_rank], NULL);
     }
   }
+  #elif defined(GASNETT_SET_AFFINITY_SUPPORT)
+    #error "GASNETT_SET_AFFINITY_SUPPORT defined, but no implementation is reachable."
   #else
     /* No implementation -> NO-OP */
-    return;
+    return 1;
   #endif
 }
-#ifndef GASNETC_SET_AFFINITY
-  #define GASNETC_SET_AFFINITY(rank) gasneti_set_affinity_default(rank)
-#else
-  /* Will use conduit-specific GASNETC_SET_AFFINITY() */
-#endif
-void gasneti_set_affinity(int rank) {
+int gasneti_set_affinity(int rank) {
   GASNETT_TRACE_PRINTF("gasnett_set_affinity(%d)", rank);
-  GASNETC_SET_AFFINITY(rank);
+  return gasneti_set_affinity_default(rank);
 }
 /* ------------------------------------------------------------------------------------ */
 /* hostname query */
@@ -3363,12 +3407,18 @@ retry_calibration:;
   // Compute the best lower- and upper-bounds from the collected samples
   // Worst case each difference is too high or low by its respective granulatity
   double lo = 0;
-  double hi = 1E12;
+  double hi = 1E30;
   for (int i = 0; i < count; ++i) {
     for (int j = 0; j < count; ++j) {
-      const uint64_t delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]);
-      double new_lo = (lo1[i] - lo0[j] - ticks_res) / (double)(delta + ref_res);
-      double new_hi = (hi1[i] - hi0[j] + ticks_res) / (double)(delta - ref_res);
+      // bug 3866: following expressions are carefully written to encourage isolated "backward steps" in the
+      // tick samples to end up as double values that will be discarded by the MIN/MAX operation,
+      // instead of overflowing into values that corrupt the entire calculation.
+      // Backward steps in the ref timer are not tolerated here, but will trigger a repeat of sample collection.
+      const double wc_delta  = (double)(int64_t)(gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]));
+      const double lo_delta  = (double)(int64_t)(lo1[i] - lo0[j]); // bias overflow to negative
+      const double hi_delta  = (double)(uint64_t)(hi1[i] - hi0[j]); // bias overflow to large positive
+      double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+      double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
       lo = MAX(lo, new_lo);
       hi = MIN(hi, new_hi);
     }
@@ -3381,13 +3431,40 @@ retry_calibration:;
   // with a process migration across cores with sufficiently de-synchronized time bases.
   if (lo > hi || 
       max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
-    fprintf(stderr, "WARNING: GASNet timer calibration detected non-linear timer behavior: "
+    gasneti_console_message("WARNING","GASNet timer calibration on %s detected non-linear timer behavior: "
                     "max_err_tick=%"PRIu64" max_err_wcns=%"PRIu64" ticks_res=%"PRIu64" ref_res=%"PRIu64" lo=%"PRIu64" hi=%"PRIu64". See docs for GASNET_TSC_RATE."
                     "%s\n",
+                    gasneti_gethostname(),
                     max_err_tick, max_err_wcns, 
                     ticks_res, ref_res,
                     (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
+
+    char sample_msg[GASNETI_TICKS_WC_ITERS*400];
+    char *p = sample_msg;
+    for (int n0 = 0; n0 < count; ++n0) {
+      if (p < &sample_msg[sizeof(sample_msg)]) {
+        int n1 = count-1-n0;
+        uint64_t wc0_n0 = gasneti_clock_to_ns(wc0[n0]);
+        uint64_t wc1_n1 = gasneti_clock_to_ns(wc1[n1]);
+        const double wc_delta  = (double)(int64_t)(wc1_n1 - wc0_n0);
+        const double lo_delta  = (double)(int64_t)(lo1[n1] - lo0[n0]);
+        const double hi_delta  = (double)(uint64_t)(hi1[n1] - hi0[n0]);
+        double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+        double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
+        p += snprintf(p, sizeof(sample_msg) - (p - sample_msg),
+             " wc1[%i]=%-10"PRIu64" wc0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " lo1[%i]=%-10"PRIu64" lo0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " hi1[%i]=%-10"PRIu64" hi0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " lo=%8.6f hi=%8.6f\n",
+             n1, wc1_n1,  n0, wc0_n0,  wc_delta,
+             n1, lo1[n1], n0, lo0[n0], lo_delta,
+             n1, hi1[n1], n0, hi0[n0], hi_delta,
+             new_lo, new_hi);
+      }
+    }
+    gasneti_console_message("TICKS: Debugging information:","\n%s",sample_msg);
+
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
     if (lo > hi) { // retry did not help
@@ -3660,9 +3737,9 @@ extern double gasneti_calibrate_tsc(void) {
                       (int)ref_res, i, (unsigned long)sum);
       #endif
       if_pf (ref_res > max_res) {
-        gasneti_fatalerror("Reference timer resolution of %lu ns is not acceptable for calibration of the TSC.\n"
+        gasneti_fatalerror("Reference timer resolution of %lu ns on %s is not acceptable for calibration of the TSC.\n"
                            "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-                           (unsigned long)ref_res);
+                           (unsigned long)ref_res, gasneti_gethostname());
       }
     }
 
@@ -3675,17 +3752,17 @@ extern double gasneti_calibrate_tsc(void) {
       // Check that we converged within given tolerance
       if (check_hard && (err > hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (%g > %g).\n"
+            "TSC calibration did not converge with reasonable certainty on %s (%g > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            err, hard_tolerance);
+            gasneti_gethostname(), err, hard_tolerance);
       }
       if (check_soft && (err > soft_tolerance)) {
-        fprintf(stderr, "WARNING: "
-            "TSC calibration did not converge with reasonable certainty (%g > %g).  "
+        gasneti_console_message("WARNING",
+            "TSC calibration did not converge with reasonable certainty on %s (%g > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            err, soft_tolerance);
+            gasneti_gethostname(), err, soft_tolerance);
       }
     } else {
       gasneti_assert(tsc_source == tsc_source_user);
@@ -3708,17 +3785,17 @@ extern double gasneti_calibrate_tsc(void) {
       if (i == max_tries) {
         if (check_hard && ((best < (1. - hard_tolerance)) || (best > (1. + hard_tolerance)))) {
             gasneti_fatalerror(
-                "Reference timer and calibrated TSC differ too much (ratio %g).\n"
+                "Reference timer and calibrated TSC differ too much on %s (ratio %g).\n"
                 "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
                 "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-                best);
+                gasneti_gethostname(), best);
         }
         if (check_soft && ((best < (1. - soft_tolerance)) || (best > (1. + soft_tolerance)))) {
-            fprintf(stderr, "WARNING: "
-                "Reference timer and calibrated TSC differ too much (ratio %g).  "
+            gasneti_console_message("WARNING",
+                "Reference timer and calibrated TSC differ too much on %s (ratio %g).  "
                 "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
                 "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-                best);
+                gasneti_gethostname(), best);
         }
       }
       #if GASNET_DEBUG_VERBOSE

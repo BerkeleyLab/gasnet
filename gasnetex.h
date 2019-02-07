@@ -770,6 +770,7 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
              "THREADMODEL=" _STRINGIFY(GASNETI_THREAD_MODEL) ","          \
              "SEGMENT=" _STRINGIFY(GASNETI_SEGMENT_CONFIG) ","            \
              "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) ","                    \
+             "CACHE_LINE_BYTES=" _STRINGIFY(GASNETI_CACHE_LINE_BYTES) "," \
              _STRINGIFY(GASNETI_ALIGN_CONFIG) ","                         \
              _STRINGIFY(GASNETI_PSHM_CONFIG) ","                          \
              _STRINGIFY(GASNETI_DEBUG_CONFIG) ","                         \
@@ -781,7 +782,8 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
              _STRINGIFY(GASNETI_MEMBAR_CONFIG) ","                        \
              _STRINGIFY(GASNETI_ATOMIC_CONFIG) ","                        \
              _STRINGIFY(GASNETI_ATOMIC32_CONFIG) ","                      \
-             _STRINGIFY(GASNETI_ATOMIC64_CONFIG)                          \
+             _STRINGIFY(GASNETI_ATOMIC64_CONFIG) ","                      \
+             _STRINGIFY(GASNETI_TIOPT_CONFIG)                             \
              GASNETC_BUG1389_CONFIG_INFO                                  \
              GASNETC_EXTRA_CONFIG_INFO                                    \
              GASNETE_EXTRA_CONFIG_INFO                                    
@@ -813,6 +815,7 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME));
 
@@ -844,6 +847,7 @@ static int *gasneti_linkconfig_idiotcheck(void) {
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME))
         ;

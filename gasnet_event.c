@@ -227,6 +227,11 @@ gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_
   gasnete_iop_check(op);
   return (gasneti_iop_t *)op;
 }
+int gasneti_op_is_eop(void *_op) {
+  gasnete_op_t * op = _op;
+  return OPTYPE(op) == OPTYPE_EXPLICIT;
+}
+
 void gasneti_eop_markdone(gasneti_eop_t *eop) {
   gasnete_eop_t *op = (gasnete_eop_t *)eop;
   gasnete_eop_check(op);

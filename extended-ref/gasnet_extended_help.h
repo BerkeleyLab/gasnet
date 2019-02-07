@@ -339,12 +339,19 @@ typedef union {
       gasnete_loopbackput_memsync();                                            \
       return 0;                                                                 \
     }} while(0)
+  #define GASNETI_CHECKPSHM_MEMSET(tm,rank,dest,val,nbytes) do {                \
+    if (gasneti_pshm_in_supernode(tm,rank)) {                                   \
+      memset(gasneti_pshm_addr2local(tm,rank,dest), val, nbytes);               \
+      gasnete_loopbackput_memsync();                                            \
+      return 0;                                                                 \
+    }} while(0)
 #else
   #define GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes)      ((void)0)
   #define GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes)      ((void)0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(tm,rank,dest,src,nbytes) ((void)0)
   #define GASNETI_CHECKPSHM_GETVAL(tm,rank,src,nbytes)        ((void)0)
   #define GASNETI_CHECKPSHM_PUTVAL(tm,rank,dest,value,nbytes) ((void)0)
+  #define GASNETI_CHECKPSHM_MEMSET(tm,rank,dest,val,nbytes)   ((void)0)
 #endif
 
 #if GASNET_DEBUG

@@ -358,7 +358,6 @@ sub gasnet_encode($) {
     } elsif ($is_jsrun) {
 	$spawner_desc = "jsrun - IBM Job Step Manager";
 	%envfmt = ( 'pre' => '-E', 'inter' => '-E');
-	$ppn_opt = '-r';
 	$encode_args = 1;
     } else {
 	$spawner_desc = "unknown program (using generic MPI spawner)";
@@ -701,21 +700,30 @@ if (exists($ENV{'LSB_MCPU_HOSTS'}) && !$is_jsrun) {
   $dashN_ok = 1;
 }
 
-# With jsrun we (attempt to) default to job size if -N was not given.
-# The "attempt" is a heutistic to exclude the login node which will
-# appear in LSM_MCPU_HOSTS, based on its CPU count of 1.  In the case
-# that *all* hosts are listed as single CPUs this code will not result
-# in any change to $numnode.
-if ($is_jsrun && !defined($numnode)) {
-  my @tmp = split(" ", $ENV{'LSB_MCPU_HOSTS'});
-  my %tmp;
-  while (@tmp) {
-    my $h = shift @tmp; # Host
-    my $n = shift @tmp; # Numcpus
-    $tmp{$h} += $n;
+if ($is_jsrun) {
+  # With jsrun we (attempt to) default to job size if -N was not given.
+  # The "attempt" is a heutistic to exclude the login node which will
+  # appear in LSM_MCPU_HOSTS, based on its CPU count of 1.  In the case
+  # that *all* hosts are listed as single CPUs this code will not result
+  # in any change to $numnode.
+  if (!defined($numnode)) {
+    my @tmp = split(" ", $ENV{'LSB_MCPU_HOSTS'});
+    my %tmp;
+    while (@tmp) {
+      my $h = shift @tmp; # Host
+      my $n = shift @tmp; # Numcpus
+      $tmp{$h} += $n;
+    }
+    my $count = grep { $tmp{$_} > 1 } keys %tmp;  # counts hosts w/ >1 CPU
+    if ($count) { $numnode = $count; }
   }
-  my $count = grep { $tmp{$_} > 1 } keys %tmp;  # counts hosts w/ >1 CPU
-  if ($count) { $numnode = $count; }
+  # The mess required to get our desired layout (uses both nodes and ppn):
+  my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+  @numprocargs = ($numproc, '-n', $numnode, '-d', "plane:$ppn");
+  # And the binding:
+  $numcpu = 'ALL_CPUS' unless (defined($numcpu) && $numcpu);
+  push @numprocargs, ('-c', $numcpu, '-b', 'rs');
+  $dashN_ok = 1;
 }
 
 # LAM-specific preprocessing of $numproc in the presence of $numnode
@@ -994,6 +1002,7 @@ if (!$numnode) {
       print("gasnetrun: running: ", join(' ', @quotedcmd), "\n");
     }
 
+    my $exitcode = 0;
     if ($dryrun) {
 	# Do nothing
     } elsif ($is_bgl_cqsub || $is_bgq_cqsub) { # cqsub as mpirun needs some help
@@ -1056,19 +1065,36 @@ if (!$numnode) {
             warn "gasnetrun: Missing $jobid.output\n";
         }
     } elsif (@tmpfiles || defined($tmpdir)) {
-	system(@spawncmd);
+        my $rc = system(@spawncmd);
+        my $signo = $rc & 127;
+        if ($rc == -1) {
+           warn "gasnetrun: system(@spawncmd) failed: $!\n";
+           $exitcode = 1;
+        } elsif ($signo) {
+           warn "gasnetrun: system(@spawncmd) died with signal $signo\n";
+           $exitcode = 1;
+        } else {
+           $exitcode = $rc >> 8;
+        }
     } else {
 	exec(@spawncmd);
 	die "gasnetrun: exec(@spawncmd) failed: $!\n";
     }
     if (!$keep) {
       foreach (@tmpfiles) {
-        print("gasnetrun: unlinking ", join(' ', @tmpfiles), "\n") if ($verbose);
-        unlink "$_" or die "gasnetrun: failed to unlink \'$_\'";
+        print("gasnetrun: unlinking \'$_\'\n") if ($verbose);
+        if (! unlink $_) {
+          warn "gasnetrun: failed to unlink \'$_\'";
+          $exitcode = $exitcode or 1;
+        }
       }
       if (defined($tmpdir)) {
-        rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
+        print("gasnetrun: removing \'$tmpdir\'\n") if ($verbose);
+        if (! rmdir $tmpdir) {
+          warn "gasnetrun: failed to rmdir \'$tmpdir\'";
+          $exitcode = $exitcode or 1;
+        }
       }
     }
-    exit(0);
+    exit $exitcode;
 __END__

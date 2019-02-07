@@ -250,10 +250,10 @@ typedef union {
 /* Use alloca()?  (e.g. to work-around bug 2079) */
 #ifdef GASNETI_USE_ALLOCA
   /* Keep defn */
-#elif !PLATFORM_COMPILER_PGI
+#elif HAVE_ALLOCA && !PLATFORM_COMPILER_PGI
   #define GASNETI_USE_ALLOCA 1
 #endif
-#if GASNETI_USE_ALLOCA
+#if GASNETI_USE_ALLOCA && HAVE_ALLOC_H
   #include <alloca.h>
 #endif
 
@@ -617,6 +617,7 @@ struct gasnetc_cep_t_ {
 typedef struct {
   int                   hca_index;      /* Slot in gasnetc_hca[] */
   uint8_t               port_num;       /* Port number */
+  uint16_t              pkey_index;
   struct                ibv_port_attr    port;           /* Port info */
   int                   rd_atom;
   uint16_t             *remote_lids;

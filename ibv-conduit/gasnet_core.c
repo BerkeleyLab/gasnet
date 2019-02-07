@@ -20,6 +20,10 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+// ntohs() should be in one of these:
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 #if GASNETC_IBV_SRQ
@@ -1031,8 +1035,9 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 }
 
 GASNETI_NORETURN
-static void gasneti_segreg_failed(const char *which, int why) {
-  const char *hint = "";
+static void gasneti_segreg_failed(size_t size, const char *which, int why) {
+  const char *hint1 = "";
+  const char *hint2 = "";
 #if !GASNETI_PSHM_POSIX
   // N/A
 #elif PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL
@@ -1047,11 +1052,17 @@ static void gasneti_segreg_failed(const char *which, int why) {
 #endif
 #ifdef GASNETC_PSHM_FS
   if (why == EFAULT) {
-    hint = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar)";
+    hint1 = "\n        This could be caused by insufficient space in " GASNETC_PSHM_FS " (or similar).";
   }
 #endif
-  gasneti_fatalerror("Unexpected error %s (errno=%d) when registering the%s segment%s",
-                     strerror(why), why, which, hint);
+  if (! *which) { // empty string == NOT " aux"
+    hint2 = "\n        Reducing the value of environment variable GASNET_MAX_SEGSIZE may help.";
+  }
+  char sizestr[16];
+  gasneti_fatalerror("Unexpected error %s (errno=%d) when registering a %s%s segment%s%s",
+                     strerror(why), why,
+                     gasnett_format_number(size, sizestr, sizeof(sizestr), 1),
+                     which, hint1, hint2);
 }
 
 #if GASNET_TRACE
@@ -1483,6 +1494,17 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, enable, num_hcas);
   }
 
+  int64_t pkey = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
+  uint64_t pkey_mask = ~(uint64_t)0x8000;  // to strip membership bit
+  if (pkey == -1) {
+    // Nothing to do
+  } else {
+    pkey &= pkey_mask;
+    if ((pkey > 0x7fff) || (pkey < 2)) {
+      gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
+    }
+  }
+
   /* Loop over list of HCAs */
   for (curr_hca = 0;
        (hca_count < GASNETC_IB_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
@@ -1539,6 +1561,30 @@ static void gasnetc_probe_ports(int max_ports) {
         ++found;
         this_port->port_num = curr_port;
         this_port->hca_index = hca_count;
+        if (pkey < 0) {
+          GASNETI_TRACE_PRINTF(C,("Using default pkey_index=0 for HCA '%s', port %d",
+                                  hca_name, curr_port));
+          this_port->pkey_index = 0;
+        } else {
+          int i;
+          for (i = 0; i < hca_cap.max_pkeys; ++i) {
+            uint16_t pkey_val;
+            if (ibv_query_pkey(hca_handle, curr_port, i, &pkey_val)) {
+              gasneti_fatalerror("Failed to query pkeys for HCA '%s', port %d", hca_name, curr_port);
+            }
+            pkey_val = ntohs(pkey_val) & pkey_mask;
+            if (pkey_val == pkey) {
+              GASNETI_TRACE_PRINTF(C,("Using pkey_index %d for HCA '%s', port %d",
+                                      i, hca_name, curr_port));
+              this_port->pkey_index = i;
+              break;
+            }
+          }
+          if (i == hca_cap.max_pkeys) {
+            gasneti_fatalerror("Failed to locate index of requested pkey 0x%04x for HCA '%s', port %d",
+                               (unsigned int)pkey, hca_name, curr_port);
+          }
+        }
         if (gasnetc_qp_rd_atom) { /* Zero means use HCA/port limit */
           int limit = MIN(hca_cap.max_qp_init_rd_atom, hca_cap.max_qp_rd_atom);
           if (gasnetc_qp_rd_atom > limit) {
@@ -1804,18 +1850,26 @@ static void gasneti_odp_init(void) {
   }
 }
 
+static void gasnetc_odp_dereg(gasnetc_hca_t *hca) {
+  struct ibv_mr *handle;
+#if PLATFORM_ARCH_32
+  handle = (struct ibv_mr *) gasneti_atomic32_swap((gasneti_atomic32_t *) &hca->implicit_odp.handle, 0, 0);
+#else
+  handle = (struct ibv_mr *) gasneti_atomic64_swap((gasneti_atomic64_t *) &hca->implicit_odp.handle, 0, 0);
+#endif
+  if (handle) {
+    ibv_dereg_mr(handle);
+  }
+}
+
 // Testing shows that exiting without releasing the implicit ODP registration
 // leads to an (eventually fatal!) irreversible system memory leak.
 // So, we *must* do this for both normal and abnormal exits.
 static void gasnetc_odp_shutdown(void) {
   if (gasnetc_use_odp) {
-    gasnetc_use_odp = 0;
     gasnetc_hca_t *hca;
     GASNETC_FOR_ALL_HCA(hca) {
-      if (hca->implicit_odp.handle) {
-        ibv_dereg_mr(hca->implicit_odp.handle);
-        hca->implicit_odp.handle = NULL;
-      }
+      gasnetc_odp_dereg(hca);
     }
   }
 }
@@ -2292,7 +2346,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
                                                  IBV_ACCESS_REMOTE_WRITE |
                                                  IBV_ACCESS_REMOTE_READ),
                          &hca->aux_reg)) {
-      gasneti_segreg_failed(" aux", errno);
+      gasneti_segreg_failed(auxsize, " aux", errno);
     }
     // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
     hca->aux_rkeys = gasneti_malloc(gasneti_nodes*sizeof(uint32_t));
@@ -2581,7 +2635,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
           if (0 != gasnetc_pin(hca, (void *)addr, len,
 			      (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ),
 			      &memreg)) {
-             gasneti_segreg_failed("", errno);
+             gasneti_segreg_failed(len, "", errno);
           }
 	  my_rkeys[j] = memreg.handle->rkey;
 	  hca->seg_lkeys[j] = memreg.handle->lkey;
@@ -2840,11 +2894,8 @@ gasnetc_shutdown(void) {
     }
   #endif
   #if GASNETC_IBV_ODP
-    if (hca->implicit_odp.handle) {
-      gasneti_assert(gasnetc_use_odp);
-      rc = ibv_dereg_mr(hca->implicit_odp.handle);
-      hca->implicit_odp.handle = NULL;
-      GASNETC_IBV_CHECK(rc, "from ibv_dereg_mr(implicit_odp)");
+    if (gasnetc_use_odp) {
+      gasnetc_odp_dereg(hca);
     }
   #endif
 

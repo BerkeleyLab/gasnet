@@ -548,10 +548,6 @@ extern void gasnete_coll_init_subsystem(void)
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 
-#ifdef GASNETI_USE_FCA
-    gasnet_team_fca_enable(GASNET_TEAM_ALL);
-#endif
-
     // TODO-EX:  Move other per-OPs default tree types out of autotune infrastructure?
 
     const char *default_tree_type = gasneti_getenv_withdefault("GASNET_COLL_ROOTED_GEOM",
@@ -567,15 +563,16 @@ extern void gasnete_coll_init_subsystem(void)
 
 #ifndef GASNETE_COLL_CONSENSUS_OVERRIDE
 /* team->consensus_issued_id counts barrier sequence numbers as they are allocated
- * to collective operations. */
+ * to collective operations.  They are always even (see below).
+ */
 
 
 /* team->consensus_id holds the current barrier state and sequence.
- * The upper 31 bits of team->issued_id holds the lower 31 bits of
- * the barrier sequence number of the current barrier.  This imposes a
- * limit of around 1 billion simultaneous outstanding collective ops before
- * counter overflow could introduce ambiguity.  Otherwise, careful use of
- * unsigned arithmetic eliminates problems due to wrap.
+ * The upper 31 bits are the sequence, and the least significant bit
+ * is the notify-vs-wait phase of the current barrier.  This imposes a
+ * limit of around 1 billion simultaneous outstanding barriers before
+ * counter overflow could introduce ambiguity.  Otherwise, careful use
+ * of unsigned arithmetic eliminates problems due to wrap.
  * The least significant bit of team->consensus_id is 0 if the next
  * operation is to be a notify, or a 1 if the next is a try.
  * Any caller may issue a try (when the phase indicates a try) and must
@@ -589,10 +586,14 @@ extern void gasnete_coll_init_subsystem(void)
 
 
 extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team) {
-  return team->consensus_issued_id++;
+  gasnete_coll_consensus_t result = team->consensus_issued_id;
+  team->consensus_issued_id = result + 2;
+  GASNETE_COLL_SEQ32_SAFE(result, team->consensus_id);
+  return result;
 }
 
 void gasnete_coll_consensus_free(gasnete_coll_team_t team, gasnete_coll_consensus_t consensus) {
+  // Nothing to do
 }
 
 GASNETI_INLINE(gasnete_coll_consensus_do_try)
@@ -633,29 +634,35 @@ void gasnete_coll_consensus_do_notify(gasnete_coll_team_t team) {
 
 
 extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id) {
-  uint32_t tmp = id << 1;	/* low bit is used for barrier phase (notify vs wait) */
+#if GASNET_DEBUG
+  // This function is neither thread-safe nor recursion-safe
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_assert_always_int(gasneti_mutex_trylock(&lock) ,==, GASNET_OK);
+#endif
+
+  gasneti_assert(! (id & 1)); // always even
   /* We can only notify when our own turn comes up.
    * Thus, the most progress we could make in one call
    * would be to sucessfully 'try' for our predecessor,
    * 'notify' our our barrier, and then 'try' our own.
    */
-  switch (tmp - team->consensus_id) {
+  switch (id - team->consensus_id) {
   case 1:
 	  /* Try for our predecessor, hoping we can then notify */
 	  if (!gasnete_coll_consensus_do_try(team)) {
-	    gasneti_assert((tmp - team->consensus_id) == 1);
+	    gasneti_assert_uint((id - team->consensus_id) ,==, 1);
 	    /* Sucessor is not yet done */
 	    break;
 	  }
-	  gasneti_assert(tmp == team->consensus_id);
+	  gasneti_assert_uint(id ,==, team->consensus_id);
 	  /* ready to advance, so fall through... */ GASNETI_FALLTHROUGH
   case 0:
 	  /* Our own turn has come - notify and try */
 	  gasnete_coll_consensus_do_notify(team);
-	  gasneti_assert((team->consensus_id - tmp) == 1);
+	  gasneti_assert_uint((team->consensus_id - id) ,==,1);
 	  gasnete_coll_consensus_do_try(team);
-	  gasneti_assert(((team->consensus_id - tmp) == 1) ||
-                   ((team->consensus_id - tmp) == 2));
+	  gasneti_assert(((team->consensus_id - id) == 1) ||
+                         ((team->consensus_id - id) == 2));
 	  break;
 
   default:
@@ -665,22 +672,46 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
 	  }
   }
 
-  /* Note that we need to be careful of wrapping, thus the (int32_t)(a-b) construct
-   * must be used in place of simply (a-b).
-   */
-  return ((int32_t)(team->consensus_id - tmp) > 1) ? GASNET_OK
-    : GASNET_ERR_NOT_READY;
+  // Use of macro takes care with respect to wrap-around
+  int done = GASNETE_COLL_SEQ32_GE(team->consensus_id, id + 2);
+
+#if GASNET_DEBUG
+  gasneti_mutex_unlock(&lock);
+#endif
+
+  return done ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
-/* Allocate a new barrier and wait for all barriers to finish before this id*/
+
+// Helper for gasnete_coll_consensus_barrier()
+// Bug 3854 identified an undesired recursion when calling
+// gasnete_coll_consensus_try() from gasnete_coll_consensus_barrier() since the
+// "try" operation could lead to an AMPoll which runs the collectives progress
+// function (and thus a nested gasnete_coll_consensus_try).
+// So, here we masquerade as an instance of the progress function to prevent
+// that recursion.
+GASNETI_INLINE(gasnete_coll_consensus_try_as_poller)
+int gasnete_coll_consensus_try_as_poller(gasnete_coll_threaddata_t *td, gasnete_coll_team_t team, gasnete_coll_consensus_t id)
+{
+  gasneti_assert(! td->in_poll);
+  td->in_poll = 1;
+  int rc = gasnete_coll_consensus_try(team, id);
+  td->in_poll = 0;
+  return rc;
+}
+
+// gasnete_coll_consensus_barrier():
+// Allocate a new barrier and wait for all earlier barriers to finish.
+// This omits the overheads of allocating a collective op, but the cost is
+// that we must interlock with the collectives progress function.
+// NOTE: therefore illegal to call from a collective poll fn
 extern int gasnete_coll_consensus_barrier(gasnete_coll_team_t team GASNETI_THREAD_FARG) {
-  gasnete_coll_consensus_t mybarr;
-  
-  mybarr = gasnete_coll_consensus_create(team);
-  
-  while(gasnete_coll_consensus_try(team, mybarr)==GASNET_ERR_NOT_READY) {
-    /*Try to make progress on other collectives*/
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  gasnete_coll_consensus_t mybarr = gasnete_coll_consensus_create(team);
+
+  while (gasnete_coll_consensus_try_as_poller(td, team, mybarr) == GASNET_ERR_NOT_READY) {
     gasneti_AMPoll();
   }
+
   return GASNET_OK;
 }
 #endif
@@ -702,7 +733,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
   /* Search table, which is sorted by sequence */
   prev_p = &(team->p2p_table[slot_nr]);
   p2p = team->p2p_table[slot_nr];
-  while (p2p && (p2p->sequence < sequence)) {
+  while (p2p && GASNETE_COLL_SEQ32_LT(p2p->sequence, sequence)) {
     prev_p = &p2p->p2p_next;
     p2p = p2p->p2p_next;
   }
@@ -1328,6 +1359,20 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
     uint32_t tmp = team->sequence;
     team->sequence += (1 + sequence);
     sequence = tmp;
+#if GASNET_DEBUG
+    // Check largest allocated sequence number lies is within safe range of oldest "live"
+    // Depends on order of the active list (oldest first)
+    uint32_t last = team->sequence - 1;
+    gasneti_mutex_lock(&gasnete_coll_active_lock);
+      gasnete_coll_op_t *op = gasnete_coll_active_first();
+      while (op && op->team != team) {
+        op = gasnete_coll_active_next(op);
+      }
+    gasneti_mutex_unlock(&gasnete_coll_active_lock);
+    if (op) {
+      GASNETE_COLL_SEQ32_SAFE(last, op->sequence);
+    }
+#endif
   }
 
     /* Conditionally allocate data for point-to-point syncs */
@@ -1422,13 +1467,6 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
                           size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
 
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_BCAST)){
-    int rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
-    if_pt(rc >= 0) return GEX_EVENT_INVALID;
-  }
-#endif 
-
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST_NB,team,dst,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   handle = gasnete_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags,0 GASNETI_THREAD_PASS);
@@ -1459,13 +1497,6 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcast)
                                  void *dst,
                                  gasnet_image_t srcimage, void *src,
                                  size_t nbytes, int flags GASNETI_THREAD_FARG) {
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_BCAST)){
-    int rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
-    if_pt(rc >= 0) return;
-  }
-#endif     
-
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST,team,dst,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   gasnete_coll_broadcast(team,dst,srcimage,src,nbytes,flags GASNETI_THREAD_PASS);
@@ -1611,13 +1642,6 @@ _gasnet_coll_gather_all_nb(gasnet_team_handle_t team,
                            size_t nbytes, int flags GASNETI_THREAD_FARG) {
   gex_Event_t handle;
 
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_ALLGATHER)){
-    int rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
-    if_pt(rc >= 0) return GEX_EVENT_INVALID;
-  }
-#endif
-
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL_NB,team,dst,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   handle = gasnete_coll_gather_all_nb(team,dst,src,nbytes,flags,0 GASNETI_THREAD_PASS);
@@ -1644,13 +1668,6 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all)
      void _gasnet_coll_gather_all(gasnet_team_handle_t team,
                                   void *dst, void *src,
                                   size_t nbytes, int flags GASNETI_THREAD_FARG) {
-#ifdef GASNETI_USE_FCA
-  if (gasnet_team_fca_is_active(team,_FCA_ALLGATHER)){
-    int rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
-    if_pt(rc >= 0) return;
-  }
-#endif
-
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL,team,dst,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   gasnete_coll_gather_all(team,dst,src,nbytes,flags GASNETI_THREAD_PASS);
