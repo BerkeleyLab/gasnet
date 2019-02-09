@@ -264,7 +264,7 @@ Note some entries below do not apply to the EX branch.
 GASNet-1 ChangeLog 
 ------------------
 ----------------------------------------------------------------------
-PENDING: pending work @c7e200a
+PENDING: pending work @67fa752
 
 * InfiniBand Verbs (ibv-conduit)
   - Multi-rail support is disabled by default, due to bug 3447
@@ -322,6 +322,7 @@ PENDING: pending work @c7e200a
   - bug3856: Improved crash behavior on Cygwin with multi-threading
   - bug3858: Fix assertion failure in pmi-spawner
   - bug3866: Fix potential x86 timer calibration issue
+  - bug3873: gasnetrun w/mpi-spawner losing exit code in some configs
 
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0
