@@ -676,15 +676,6 @@ void gasneti_free_tm(gasneti_TM_t tm)
 #define GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig)
 #endif
 
-static void do_raise(int sig) {
-#if defined(PTHREAD_MUTEX_INITIALIZER) && !GASNET_SEQ && HAVE_PTHREAD_KILL && 0 
-  /* XXX: This works-around a bug in OpenBSD-5.2 kernel, fixed in OpenBSD-current in Nov 2012 */
-  /* Might fail if unimplemented OR since pthread_self() isn't required to be signal safe */
-  if (0 == pthread_kill(pthread_self(),sig)) return;
-#endif
-  raise(sig);
-}
-
 void gasneti_defaultSignalHandler(int sig) {
   gasneti_sighandlerfn_t oldsigpipe = NULL;
   const char *signame =  gasnett_signame_fromval(sig);
@@ -721,7 +712,7 @@ void gasneti_defaultSignalHandler(int sig) {
       GASNETC_FATALSIGNAL_CLEANUP_CALLBACK(sig); /* conduit hook to kill the job */
 
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
-      do_raise(sig);
+      gasneti_raise(sig);
       break;
     }
     default: 
@@ -737,7 +728,7 @@ void gasneti_defaultSignalHandler(int sig) {
       gasneti_console_message("Caught a signal", "%s(%i)", signame, sig);
       (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
-      do_raise(SIGQUIT);
+      gasneti_raise(SIGQUIT);
   }
 }
 
@@ -1117,10 +1108,25 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   mn = GASNET_EXTENDED_NAME_STR;
   m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
   *m = '\0';
+  int haveOmniPath = 0; // bug 3609: this oddball needs special handling
+  #if PLATFORM_OS_LINUX
+    const char *filename = "/sys/class/infiniband/hfi1_0/board_id";
+    FILE *fp = fopen(filename,"r");
+    if (fp) {
+      char buffer[128];
+      size_t r = fread(&buffer, 1, sizeof(buffer), fp);
+      if (r) { // eg: "Intel Omni-Path HFI Adapter 100 Series, 1 Port, PCIe x16"
+        buffer[r-1] = 0;
+        if (strstr(buffer, "Omni-Path")) haveOmniPath = 1;
+      }
+      fclose(fp);
+    }
+  #endif
+  
   if ( /* is a portable network conduit */
          (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
-      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext))
+      || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !haveOmniPath)
       || (!strcmp("portals4",mycore) && !strcmp("portals4",myext))
       ) {
     const char *p = GASNETI_CONDUITS;
@@ -1142,7 +1148,8 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"smp")) continue;
         if (!strcmp(name,"mpi")) continue;
         if (!strcmp(name,"udp")) continue;
-        if (!strcmp(name,"ofi")) continue;
+        if (!strcmp(name,"ofi") && !haveOmniPath) continue;
+        if (!strcmp(name,"ibv") && haveOmniPath) continue; // never recommend ibv over OPA
         if (!strcmp(name,"portals4")) continue;
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
@@ -1165,7 +1172,8 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
           { "/dev/hw/cpunum",      S_IFDIR, "SGI Altix", 0 },
           { "/dev/xpmem",          S_IFCHR, "SGI Altix", 0 },
         #endif
-        { "/dev/infiniband/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
+        { "/dev/infiniband/uverbs0",     S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
+        { "/dev/infiniband/ofs/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* Solaris */
         #if !GASNET_SEGMENT_EVERYTHING
           { "/dev/kgni0",            S_IFCHR, "Cray Gemini", 6 },
           { "/proc/kgnilnd",         S_IFDIR, "Cray Gemini", 6 },
@@ -1179,6 +1187,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!stat(known_devs[i].filename,&stat_buf) && 
             (!known_devs[i].filemode || (known_devs[i].filemode & stat_buf.st_mode))) {
             int hwid = known_devs[i].hwid;
+            if (hwid == 2 && haveOmniPath) continue; // never recommend ibv over OPA
             if (strlen(natives)) strcat(natives,", ");
             strcat(natives,known_devs[i].desc);
             while (i < lim && hwid == known_devs[i].hwid) i++; /* don't report a network twice */
@@ -1213,7 +1222,7 @@ static void gasneti_check_architecture(void) { // check for bad build configurat
   #if PLATFORM_OS_CNL && PLATFORM_ARCH_X86_64 // bug 3743, verify correct processor tuning
   { FILE *fp = fopen("/proc/cpuinfo","r");
     char model[255];
-    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
     while (!feof(fp) && fgets(model, sizeof(model), fp)) {
       if (strstr(model,"model name")) break;
     }

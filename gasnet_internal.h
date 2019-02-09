@@ -408,7 +408,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 /* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
-void gasneti_defaultSignalHandler(int sig);
+GASNETI_COLD
+extern void gasneti_defaultSignalHandler(int sig);
 
 /* gasneti_max_segsize() is the user-selected limit for the max mmap size, as gleaned from several sources */
 uintptr_t gasneti_max_segsize();

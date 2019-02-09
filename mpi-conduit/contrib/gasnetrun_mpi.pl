@@ -1002,6 +1002,7 @@ if (!$numnode) {
       print("gasnetrun: running: ", join(' ', @quotedcmd), "\n");
     }
 
+    my $exitcode = 0;
     if ($dryrun) {
 	# Do nothing
     } elsif ($is_bgl_cqsub || $is_bgq_cqsub) { # cqsub as mpirun needs some help
@@ -1064,19 +1065,36 @@ if (!$numnode) {
             warn "gasnetrun: Missing $jobid.output\n";
         }
     } elsif (@tmpfiles || defined($tmpdir)) {
-	system(@spawncmd);
+        my $rc = system(@spawncmd);
+        my $signo = $rc & 127;
+        if ($rc == -1) {
+           warn "gasnetrun: system(@spawncmd) failed: $!\n";
+           $exitcode = 1;
+        } elsif ($signo) {
+           warn "gasnetrun: system(@spawncmd) died with signal $signo\n";
+           $exitcode = 1;
+        } else {
+           $exitcode = $rc >> 8;
+        }
     } else {
 	exec(@spawncmd);
 	die "gasnetrun: exec(@spawncmd) failed: $!\n";
     }
     if (!$keep) {
       foreach (@tmpfiles) {
-        print("gasnetrun: unlinking ", join(' ', @tmpfiles), "\n") if ($verbose);
-        unlink "$_" or die "gasnetrun: failed to unlink \'$_\'";
+        print("gasnetrun: unlinking \'$_\'\n") if ($verbose);
+        if (! unlink $_) {
+          warn "gasnetrun: failed to unlink \'$_\'";
+          $exitcode = $exitcode or 1;
+        }
       }
       if (defined($tmpdir)) {
-        rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
+        print("gasnetrun: removing \'$tmpdir\'\n") if ($verbose);
+        if (! rmdir $tmpdir) {
+          warn "gasnetrun: failed to rmdir \'$tmpdir\'";
+          $exitcode = $exitcode or 1;
+        }
       }
     }
-    exit(0);
+    exit $exitcode;
 __END__

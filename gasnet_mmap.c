@@ -1294,7 +1294,6 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i;
-  uintptr_t maxsz;
   const gex_Rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
@@ -1331,6 +1330,8 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   }
 #endif
 
+  uintptr_t auxsegsz = gasneti_auxseg_preinit();
+
 #if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
   { // Apply limits appropriate to filesystem-backed allocation
     const int flags = O_RDWR | O_CREAT | O_EXCL;
@@ -1348,7 +1349,14 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       // TODO: for now we ignore any errors here
       if (0 == fstatvfs(fd, &buf)) {
         uint64_t free_space = buf.f_bsize * buf.f_bavail;
-        if (free_space) sharedLimit = MIN(sharedLimit, free_space);
+        if (free_space) {
+          uint64_t auxspace = gasneti_pshm_nodes * auxsegsz;
+          if (free_space < auxspace) {
+            sharedLimit = 0; // leads to graceful insufficient space message
+          } else {
+            sharedLimit = MIN(sharedLimit, free_space - auxspace);
+          }
+        }
       }
       (void) close(fd);
     #if GASNETI_PSHM_POSIX
@@ -1361,8 +1369,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif
 
   /* Apply intial limits, even if not sharing nodes */
-  uintptr_t auxsegsz = gasneti_auxseg_preinit();
-  maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
+  uintptr_t maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
   maxsz = gasneti_mmap_alignup(maxsz);
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);

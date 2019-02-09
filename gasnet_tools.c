@@ -47,6 +47,10 @@
 #include <sys/resource.h>
 #endif
 
+#if PLATFORM_OS_CYGWIN
+#include <cygwin/version.h>
+#endif
+
 #if HAVE_PR_SET_PTRACER
   #include <sys/prctl.h>
   #ifndef PR_SET_PTRACER
@@ -656,7 +660,21 @@ extern void gasneti_error_abort(void) {
   signal(SIGALRM, _exit); alarm(5); 
   gasneti_flush_streams();
 
-  abort();
+  #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && GASNETT_THREAD_SAFE
+    // Bug 3856 - Cygwin signal-handling discrepancies with multiple threads
+    // Following should be equivalent to abort(), but Cygwin 2.x abort is non-compliant
+    // and this generates more reliable behavior:
+    if (gasneti_raise(SIGABRT) == 0) (void)0; // success
+    else
+  #endif /* intentional fall-thru */
+    abort();
+
+  const char err[] = "ERROR: abort() returned!\n";
+  (void)write(2 /*stderr*/, err, sizeof(err));
+  (void)fsync(2);
+
+  // ensure this function never returns, even if abort does
+  _exit(1);
 }
 
 extern void gasneti_fatalerror(const char *msg, ...) {
@@ -946,6 +964,19 @@ gasnett_siginfo_t *gasnett_siginfo_fromstr(const char *str) {
     }
     return NULL;
   }
+}
+/* ------------------------------------------------------------------------------------ */
+extern int gasneti_raise(int sig) {
+  #if PLATFORM_OS_CYGWIN && CYGWIN_VERSION_DLL_MAJOR < 3000 && \
+      GASNETT_THREAD_SAFE && HAVE_PTHREAD_KILL 
+    // Bug 3856 - Cygwin signal-handling discrepancies with multiple threads
+    // Following should be equivalent to raise(), but Cygwin 2.x raise is non-compliant
+    // and this generates more reliable behavior.
+    // This workaround was previously used for a bug in OpenBSD-5.2 kernel, fixed in OpenBSD-current in Nov 2012
+    if (pthread_kill(pthread_self(), sig) == 0) return 0; // success
+  #endif /* intentional fall-thru */
+
+  return raise(sig);
 }
 /* ------------------------------------------------------------------------------------ */
 /* Functions to (un)block a single signal:
@@ -3376,12 +3407,18 @@ retry_calibration:;
   // Compute the best lower- and upper-bounds from the collected samples
   // Worst case each difference is too high or low by its respective granulatity
   double lo = 0;
-  double hi = 1E12;
+  double hi = 1E30;
   for (int i = 0; i < count; ++i) {
     for (int j = 0; j < count; ++j) {
-      const uint64_t delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]);
-      double new_lo = (lo1[i] - lo0[j] - ticks_res) / (double)(delta + ref_res);
-      double new_hi = (hi1[i] - hi0[j] + ticks_res) / (double)(delta - ref_res);
+      // bug 3866: following expressions are carefully written to encourage isolated "backward steps" in the
+      // tick samples to end up as double values that will be discarded by the MIN/MAX operation,
+      // instead of overflowing into values that corrupt the entire calculation.
+      // Backward steps in the ref timer are not tolerated here, but will trigger a repeat of sample collection.
+      const double wc_delta  = (double)(int64_t)(gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]));
+      const double lo_delta  = (double)(int64_t)(lo1[i] - lo0[j]); // bias overflow to negative
+      const double hi_delta  = (double)(uint64_t)(hi1[i] - hi0[j]); // bias overflow to large positive
+      double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+      double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
       lo = MAX(lo, new_lo);
       hi = MIN(hi, new_hi);
     }
@@ -3394,13 +3431,40 @@ retry_calibration:;
   // with a process migration across cores with sufficiently de-synchronized time bases.
   if (lo > hi || 
       max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
-    gasneti_console_message("WARNING","GASNet timer calibration detected non-linear timer behavior: "
+    gasneti_console_message("WARNING","GASNet timer calibration on %s detected non-linear timer behavior: "
                     "max_err_tick=%"PRIu64" max_err_wcns=%"PRIu64" ticks_res=%"PRIu64" ref_res=%"PRIu64" lo=%"PRIu64" hi=%"PRIu64". See docs for GASNET_TSC_RATE."
                     "%s\n",
+                    gasneti_gethostname(),
                     max_err_tick, max_err_wcns, 
                     ticks_res, ref_res,
                     (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
+
+    char sample_msg[GASNETI_TICKS_WC_ITERS*400];
+    char *p = sample_msg;
+    for (int n0 = 0; n0 < count; ++n0) {
+      if (p < &sample_msg[sizeof(sample_msg)]) {
+        int n1 = count-1-n0;
+        uint64_t wc0_n0 = gasneti_clock_to_ns(wc0[n0]);
+        uint64_t wc1_n1 = gasneti_clock_to_ns(wc1[n1]);
+        const double wc_delta  = (double)(int64_t)(wc1_n1 - wc0_n0);
+        const double lo_delta  = (double)(int64_t)(lo1[n1] - lo0[n0]);
+        const double hi_delta  = (double)(uint64_t)(hi1[n1] - hi0[n0]);
+        double new_lo = (lo_delta - ticks_res) / (wc_delta + ref_res);
+        double new_hi = (hi_delta + ticks_res) / (wc_delta - ref_res);
+        p += snprintf(p, sizeof(sample_msg) - (p - sample_msg),
+             " wc1[%i]=%-10"PRIu64" wc0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " lo1[%i]=%-10"PRIu64" lo0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " hi1[%i]=%-10"PRIu64" hi0[%i]=%-10"PRIu64" delta=%-10.0f"
+             " lo=%8.6f hi=%8.6f\n",
+             n1, wc1_n1,  n0, wc0_n0,  wc_delta,
+             n1, lo1[n1], n0, lo0[n0], lo_delta,
+             n1, hi1[n1], n0, hi0[n0], hi_delta,
+             new_lo, new_hi);
+      }
+    }
+    gasneti_console_message("TICKS: Debugging information:","\n%s",sample_msg);
+
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
     if (lo > hi) { // retry did not help
@@ -3673,9 +3737,9 @@ extern double gasneti_calibrate_tsc(void) {
                       (int)ref_res, i, (unsigned long)sum);
       #endif
       if_pf (ref_res > max_res) {
-        gasneti_fatalerror("Reference timer resolution of %lu ns is not acceptable for calibration of the TSC.\n"
+        gasneti_fatalerror("Reference timer resolution of %lu ns on %s is not acceptable for calibration of the TSC.\n"
                            "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-                           (unsigned long)ref_res);
+                           (unsigned long)ref_res, gasneti_gethostname());
       }
     }
 
@@ -3688,17 +3752,17 @@ extern double gasneti_calibrate_tsc(void) {
       // Check that we converged within given tolerance
       if (check_hard && (err > hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (%g > %g).\n"
+            "TSC calibration did not converge with reasonable certainty on %s (%g > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            err, hard_tolerance);
+            gasneti_gethostname(), err, hard_tolerance);
       }
       if (check_soft && (err > soft_tolerance)) {
         gasneti_console_message("WARNING",
-            "TSC calibration did not converge with reasonable certainty (%g > %g).  "
+            "TSC calibration did not converge with reasonable certainty on %s (%g > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            err, soft_tolerance);
+            gasneti_gethostname(), err, soft_tolerance);
       }
     } else {
       gasneti_assert(tsc_source == tsc_source_user);
@@ -3721,17 +3785,17 @@ extern double gasneti_calibrate_tsc(void) {
       if (i == max_tries) {
         if (check_hard && ((best < (1. - hard_tolerance)) || (best > (1. + hard_tolerance)))) {
             gasneti_fatalerror(
-                "Reference timer and calibrated TSC differ too much (ratio %g).\n"
+                "Reference timer and calibrated TSC differ too much on %s (ratio %g).\n"
                 "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
                 "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-                best);
+                gasneti_gethostname(), best);
         }
         if (check_soft && ((best < (1. - soft_tolerance)) || (best > (1. + soft_tolerance)))) {
             gasneti_console_message("WARNING",
-                "Reference timer and calibrated TSC differ too much (ratio %g).  "
+                "Reference timer and calibrated TSC differ too much on %s (ratio %g).  "
                 "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
                 "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-                best);
+                gasneti_gethostname(), best);
         }
       }
       #if GASNET_DEBUG_VERBOSE

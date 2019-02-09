@@ -27,6 +27,9 @@ PENDING:
 * InfiniBand Verbs (ibv-conduit)
   - Legacy support for Mellanox FCA has been removed
 
+* Notable bugs fixed in this release:
+  - bug3854: Fix assertion failure in gex_TM_Split
+
 ----------------------------------------------------------------------
 12-17-2018: GASNet-EX 2018.12.0 Beta release
 
@@ -261,7 +264,7 @@ Note some entries below do not apply to the EX branch.
 GASNet-1 ChangeLog 
 ------------------
 ----------------------------------------------------------------------
-PENDING: pending work @XXXXXX
+PENDING: pending work @67fa752
 
 * InfiniBand Verbs (ibv-conduit)
   - Multi-rail support is disabled by default, due to bug 3447
@@ -295,6 +298,9 @@ PENDING: pending work @XXXXXX
 * SSH-based job-launch (ssh-spawner)
   - Improve error checking and reporting
 
+* MPI-based job-launch (mpi-spawner)
+  - update logic for IBM's jsrun
+
 * Platform support/portability
   - Improvements to internal logic for handling thread data on platforms
     lacking native register-level support for thread data.
@@ -311,7 +317,12 @@ PENDING: pending work @XXXXXX
   - bug3742: Atomic CAS failures on PPCle+{pgi,clang}
   - bug3693: Reduce segment registration failures due to insufficient /dev/shm
   - bug3829: Co-located segment probe failures
+  - bug3805: Fix issues with 64-bit SPARC assembly
   - bug3834: GASNet ctype wrappers break for C++ clients
+  - bug3856: Improved crash behavior on Cygwin with multi-threading
+  - bug3858: Fix assertion failure in pmi-spawner
+  - bug3866: Fix potential x86 timer calibration issue
+  - bug3873: gasnetrun w/mpi-spawner losing exit code in some configs
 
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0

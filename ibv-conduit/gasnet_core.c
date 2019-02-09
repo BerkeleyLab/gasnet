@@ -2358,7 +2358,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
   gasnetc_pin_info.regions -= 1;
 
   /* determine Max{Local,GLobal}SegmentSize */
-  mmap_limit -= auxsize;
   gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange_ib, flags);
 
 #if GASNET_BLCR
