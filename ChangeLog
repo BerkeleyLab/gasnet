@@ -59,6 +59,7 @@ PENDING:
   - bug3856: Improved crash behavior on Cygwin with multi-threading
   - bug3858: Fix assertion failure in pmi-spawner
   - bug3866: Fix potential x86 timer calibration issue
+  - bug3873: gasnetrun w/mpi-spawner losing exit code in some configs
 
 ----------------------------------------------------------------------
 07-20-2018: Release 1.32.0
