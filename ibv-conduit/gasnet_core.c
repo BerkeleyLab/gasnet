@@ -2304,7 +2304,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   #endif
 
   #ifdef GASNETI_MMAP_OR_PSHM
-    mmap_limit = gasneti_mmapLimit(
+    mmap_limit = gasneti_segmentLimit(
                                   local_limit, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);

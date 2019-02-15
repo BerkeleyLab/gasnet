@@ -563,7 +563,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
    * pinnable memory under CNL without dire consequences.
    * For this platform, we will simply try a large fraction of the physical
    * memory.  If that is too big, then the job will be killed at startup.
-   * The gasneti_mmapLimit() ensures limit is per compute node, not per process.
+   * The gasneti_segmentLimit() ensures limit is per compute node, not per process.
    */
   uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
@@ -583,7 +583,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   }
   pm_limit -= overheads;
 
-  limit = gasneti_mmapLimit((uintptr_t)-1, pm_limit,
+  limit = gasneti_segmentLimit((uintptr_t)-1, pm_limit,
                             &gasnetc_bootstrapExchange_gni,
                             &gasnetc_bootstrapBarrier_gni);
 
@@ -652,7 +652,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
      * conduit-specific uses.
      * The return value is a pointer to the space requested by the 2nd argument.
      * It is advisable that the conduit ensure pages in this space are touched,
-     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_mmapLimit()
+     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
     gasnetc_exitcodes = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast,

@@ -274,7 +274,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     uintptr_t mmap_limit;
     #if HAVE_MMAP
-      mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+      mmap_limit = gasneti_segmentLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange,
                                   &gasnetc_bootstrapBarrier);
     #else

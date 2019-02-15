@@ -162,7 +162,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      * conduit-specific uses.
      * The return value is a pointer to the space requested by the 2nd argument.
      * It is advisable that the conduit ensure pages in this space are touched,
-     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_mmapLimit()
+     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
     (void) gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);
@@ -177,7 +177,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   }
 
   /* allocate and attach an aux segment */
-  uintptr_t mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+  uintptr_t mmap_limit = gasneti_segmentLimit((uintptr_t)-1, (uint64_t)-1,
                                           &gasnetc_bootstrapExchange,
                                           &gasnetc_bootstrapBarrier);
   gasneti_auxsegAttach(mmap_limit, &gasnetc_bootstrapExchange);

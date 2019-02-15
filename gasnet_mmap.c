@@ -1290,7 +1290,7 @@ uintptr_t gasneti_max_segsize() {
     node (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
  */
-uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
+uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i;
@@ -1527,7 +1527,7 @@ static uintptr_t gasneti_maxbase;
    localSegmentLimit provides an optional conduit-specific limit on max segment sz
     (for example, to limit size based on physical memory availability)
     pass (uintptr_t)-1 for unlimited
-    Use of gasneti_mmapLimit() can help determine the right value to pass here
+    Use of gasneti_segmentLimit() can help determine the right value to pass here
    keeps internal state for attach
  */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
@@ -1571,7 +1571,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
   #ifdef GASNETI_MMAP_OR_PSHM
     // NOTE: If the conduit did not derive localSegmentLimit from a call to
-    // gasneti_mmapLimit(), then this call might lead to unexpected failures
+    // gasneti_segmentLimit(), then this call might lead to unexpected failures
     // (such as bug 651) due to it's lack of coordination among processes.
     gasneti_presegment = gasneti_mmap_segment_search(localSegmentLimit);
 
