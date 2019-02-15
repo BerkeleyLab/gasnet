@@ -2304,8 +2304,19 @@ static int gasnetc_init( gex_Client_t            *client_p,
   #endif
 
   #ifdef GASNETI_MMAP_OR_PSHM
+    // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
+    // while properly reserving space for aux segments.
+    uint64_t sharedLimit = gasneti_sharedLimit();
+    uint64_t hostAuxSegs = gasneti_myhost.node_count * gasneti_auxseg_preinit();
+    if (sharedLimit <= hostAuxSegs) {
+      gasneti_fatalerror("per-host segment limit %"PRIu64" is too small to accommodate %i aux segments, "
+                         "total size %"PRIu64". You may need to adjust OS shared memory limits.",
+                         sharedLimit, gasneti_myhost.node_count, hostAuxSegs);
+    }
+    sharedLimit -= hostAuxSegs;
+
     mmap_limit = gasneti_segmentLimit(
-                                  local_limit, (uint64_t)-1,
+                                  local_limit, sharedLimit,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
   #else
@@ -2333,7 +2344,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   /* allocate and attach an aux segment */
 
-  gasneti_auxsegAttach(MIN(mmap_limit,gasnetc_pin_maxsz), &gasnetc_bootstrapExchange_ib);
+  gasneti_auxsegAttach(gasnetc_pin_maxsz, &gasnetc_bootstrapExchange_ib);
 
   void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
   uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;

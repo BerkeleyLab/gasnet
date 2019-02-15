@@ -575,6 +575,9 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   pm_limit = MIN(pm_limit, 24UL << 30 /* 24 GB */);
 #endif
 
+  // possibly bound pm_limit
+  pm_limit = MIN(gasneti_sharedLimit(), pm_limit);
+
   /* overheads are allocated and pinned in every proc */
   overheads *= gasneti_nodemap_local_count;
 
@@ -693,7 +696,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace + gasneti_auxseg_preinit());
 
   /* allocate and attach an aux segment */
-  gasneti_auxsegAttach(max_pin, &gasnetc_bootstrapExchange_gni);
+  gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange_gni);
 
   /* register auxseg and setup subsystems using it */
   gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);

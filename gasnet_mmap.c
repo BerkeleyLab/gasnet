@@ -1274,20 +1274,99 @@ uintptr_t gasneti_max_segsize() {
   #define gasneti_bug3480_fence(_e) ((void)0)
 #endif
 
+// gasneti_sharedLimit()
+//
+// Returns the per-host shared memory limit ("the limit") imposed by the active
+// PSHM implementation and current resource utilization.  If PSHM is not
+// enabled, or if there are no limits specific to the implementation, returns
+// gasneti_getPhysMemSz() or (uint64_t)-1 if that call should fail.
+//
+// Limits by PSHM implementation:
+//   FILE:  free space reported by fstatvfs() if available
+//   POSIX: free space reported by fstatvfs() if available
+//   SYSV:  UNIMPLEMENTED (but probably not needed)
+//          We are not yet checking for the "shmall" or "shmmaxpgs" limits,
+//          from which we'd need to subtract the current segments as one
+//          might see with `ipcs`.  HOWEVER, unlike the filesystem limits
+//          for FILE and POSIX, we believe that the segmentLimit() probe
+//          will observe the actual free resources, and NOT overcommit.
+//   XPMEM: NONE - just windows into other proc's address space
+//   GHEAP: NONE - just a removal of protection beteen address spaces
+//
+uint64_t gasneti_sharedLimit(void) {
+  uint64_t sharedLimit;
+  
+  // Start with appropriate system-dependent memory limits
+  {
+  #if defined(GASNETI_HAVE_BGQ_INLINES)
+    const uint64_t hostmem = gasneti_getPhysMemSz(1); /* sysconf() reports phys mem for full node */
+    const uint64_t safemem = (hostmem * 4) / 5; /* 80% as a safety margin (but just a guess) */
+    
+    // Memory is statically partitioned among the configured ppn (even if running fewer)
+    const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
+    const uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
+    const uint64_t procmem = safemem / ppn;
+    
+    // Per host-limit is (80% of) memory per process times local processes
+    // This yields the right localLimit when gasneti_segmentLimit() later
+    // divides the sharedLimit by gasneti_myhost.node_count
+    sharedLimit = procmem * gasneti_myhost.node_count;
+  #else
+    const uint64_t hostmem = gasneti_getPhysMemSz(0);
+    sharedLimit = hostmem ? hostmem : (uint64_t)-1;
+  #endif
+  }
+
+
+#if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
+  {
+    // Apply limits appropriate to filesystem-backed allocation
+    const int flags = O_RDWR | O_CREAT | O_EXCL;
+    const mode_t mode = S_IRUSR | S_IWUSR;
+    const char *filename = gasneti_pshmname[gasneti_pshm_mynode];
+    struct statvfs buf;
+
+  #if GASNETI_PSHM_POSIX
+    int fd = shm_open(filename, flags, mode);
+  #else
+    int fd = open(filename, flags, mode);
+  #endif
+
+    if (fd >= 0) {
+      // TODO: for now we ignore any errors here
+      if (0 == fstatvfs(fd, &buf)) {
+        uint64_t free_space = buf.f_bsize * buf.f_bavail;
+        if (free_space) {
+          sharedLimit = MIN(sharedLimit, free_space);
+        }
+      }
+      (void) close(fd);
+    #if GASNETI_PSHM_POSIX
+      (void) shm_unlink(filename);
+    #else
+      (void) unlink(filename);
+    #endif
+    }
+  }
+#endif
+
+  return sharedLimit;
+}
+
 #ifdef GASNETI_MMAP_OR_PSHM
 /* perform a coordinated mmap probe to determine the max memory
     that can be mmap()ed while considering multiple GASNet nodes
     per shared memory node
    localLimit is an optional conduit-specific upper limit per GASNet node
-   sharedLimit is an optional upper limit per shared memory node
+   sharedLimit is an optional upper limit per host
    requires an exchangefn callback function that can be used to exchange data
    and a barrierfn callback to perform a barrier
    returns a value suitable for use as localSegmentLimit in a call
     to gasneti_segmentInit()
    
    for exchangefn and barrierfn: the implementations are only required to
-    perform their functions with respect the peers on a shared-memory
-    node (though exchangefn does require a "full" third argument).
+    perform their functions with respect the peers on a host
+    (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
  */
 uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
@@ -1307,68 +1386,8 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
   gasneti_assert(barrierfn); /* No longer optional */
   gasneti_assert(gasneti_nodemap);
 
-  /* Apply system-dependent defaults, if any */
-#if defined(GASNETI_HAVE_BGQ_INLINES)
-  if ((localLimit == (uintptr_t)-1) || (sharedLimit == (uint64_t)-1)) {
-    const uint64_t nodemem = gasneti_getPhysMemSz(1); /* sysconf() reports phys mem for full node */
-    const uint64_t safemem = (nodemem * 4) / 5; /* 80% as a safety margin (but just a guess) */
-    if (sharedLimit == (uint64_t)-1) {
-      sharedLimit = safemem;
-    }
-    if (localLimit == (uintptr_t)-1) {
-      /* Use node's configured ppn value, even if running fewer actual procs */
-      const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
-      const uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
-      localLimit = safemem / ppn;
-    }
-  }
-#else
-  if (sharedLimit == (uint64_t)-1) {
-    /* Start at something reasonable if we expect to avoid swapping */
-    const uint64_t nodemem = gasneti_getPhysMemSz(0);
-    if (nodemem) sharedLimit = nodemem; /* no change if getPhysMemSz failed */
-  }
-#endif
-
-  uintptr_t auxsegsz = gasneti_auxseg_preinit();
-
-#if (GASNETI_PSHM_FILE || GASNETI_PSHM_POSIX) && HAVE_FSTATVFS
-  { // Apply limits appropriate to filesystem-backed allocation
-    const int flags = O_RDWR | O_CREAT | O_EXCL;
-    const mode_t mode = S_IRUSR | S_IWUSR;
-    const char *filename = gasneti_pshmname[gasneti_pshm_mynode];
-    struct statvfs buf;
-
-  #if GASNETI_PSHM_POSIX
-    int fd = shm_open(filename, flags, mode);
-  #else
-    int fd = open(filename, flags, mode);
-  #endif
-
-    if (fd >= 0) {
-      // TODO: for now we ignore any errors here
-      if (0 == fstatvfs(fd, &buf)) {
-        uint64_t free_space = buf.f_bsize * buf.f_bavail;
-        if (free_space) {
-          uint64_t auxspace = gasneti_pshm_nodes * auxsegsz;
-          if (free_space < auxspace) {
-            sharedLimit = 0; // leads to graceful insufficient space message
-          } else {
-            sharedLimit = MIN(sharedLimit, free_space - auxspace);
-          }
-        }
-      }
-      (void) close(fd);
-    #if GASNETI_PSHM_POSIX
-      (void) shm_unlink(filename);
-    #else
-      (void) unlink(filename);
-    #endif
-    }
-  }
-#endif
-
   /* Apply intial limits, even if not sharing nodes */
+  uintptr_t auxsegsz = gasneti_auxseg_preinit();
   uintptr_t maxsz = MAX(GASNETI_MMAP_LIMIT, auxsegsz);
   maxsz = gasneti_mmap_alignup(maxsz);
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;

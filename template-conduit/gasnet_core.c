@@ -100,7 +100,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   /* (###) it may be appropriate to use the following to allocate and map an aux segment
            gasneti_auxsegAttach(maxsize, &gasneti_spawner->Exchange);
-     (###) result of gasneti_segmentLimit() may provide a good maxsize argument here:
    */
 
   { 
@@ -120,6 +119,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
          per shared-memory compute node (this is recommended for all
          systems with virtual memory unless there can be only one
          process per compute node).
+
+         in turn, gasneti_sharedLimit() may provide a good sharedLimit
+         argument to gasneti_segmentLimit(), after reducing by space allocated
+         to other shared overheads, such as the aux segment
       */
   }
 
