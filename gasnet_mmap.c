@@ -1381,13 +1381,9 @@ uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */
     if ((sharedLimit != (uint64_t)-1) && (local_count > 1)) {
-#if SIZEOF_VOID_P != 8
-       /* Skip MIN() on overflow */
-       if ((sharedLimit / local_count) < (uint64_t)(uintptr_t)(-1))
-#endif
-       { uintptr_t tmp = sharedLimit / local_count;
-         maxsz = MIN(maxsz, tmp);
-       }
+      uint64_t tmp = sharedLimit / local_count;
+      tmp = MIN(tmp,(uintptr_t)-1); // avoid overflowing 32-bit maxsz on ILP32
+      maxsz = MIN(maxsz,tmp);
     }
 
     /* Allow each node in a given host to probe SEQUENTIALLY, and then collect the results */
