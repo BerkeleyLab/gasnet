@@ -436,8 +436,9 @@ uintptr_t gasneti_max_segsize();
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
 
+uint64_t gasneti_sharedLimit(void);
 #ifdef GASNETI_MMAP_OR_PSHM
-uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
+uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */

@@ -90,7 +90,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      * conduit-specific uses.
      * The return value is a pointer to the space requested by the 2nd argument.
      * It is advisable that the conduit ensure pages in this space are touched,
-     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_mmapLimit()
+     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
     ### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
@@ -100,7 +100,6 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   /* (###) it may be appropriate to use the following to allocate and map an aux segment
            gasneti_auxsegAttach(maxsize, &gasneti_spawner->Exchange);
-     (###) result of gasneti_mmapLimit() may provide a good maxsize argument here:
    */
 
   { 
@@ -114,12 +113,16 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
          if your conduit can use memory anywhere in the address space
 
-         it may also be appropriate to first call gasneti_mmapLimit() to
+         it may also be appropriate to first call gasneti_segmentLimit() to
          get a good value for the first argument to gasneti_segmentInit(), to
          account for limitations imposed by having multiple GASNet nodes
          per shared-memory compute node (this is recommended for all
          systems with virtual memory unless there can be only one
          process per compute node).
+
+         in turn, gasneti_sharedLimit() may provide a good sharedLimit
+         argument to gasneti_segmentLimit(), after reducing by space allocated
+         to other shared overheads, such as the aux segment
       */
   }
 
