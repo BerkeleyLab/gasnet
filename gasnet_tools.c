@@ -661,11 +661,24 @@ extern void gasneti_console_messageVA(const char *prefix, const char *msg, va_li
   #ifndef GASNETI_CONSOLEMSG_PREFIX_LEN
   #define GASNETI_CONSOLEMSG_PREFIX_LEN 128
   #endif
-  char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+16];
+  #ifndef GASNETI_CONSOLEMSG_IDSTR_LEN
+  #define GASNETI_CONSOLEMSG_IDSTR_LEN MIN(MAXHOSTNAMELEN,128)
+  #endif
+  char expandedmsg[GASNETI_CONSOLEMSG_PREFIX_LEN+GASNETI_CONSOLEMSG_IDSTR_LEN+20];
   if (gasneti_procid_str) {
     snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s): ", prefix, gasneti_procid_str);
   } else {
-    snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s: ", prefix);
+    // we are either in tools-only mode or early in conduit startup before procid's are established
+    // try to provide some useful information to identify the failing process.
+    int pid = (int)getpid();
+    // Do NOT use gasneti_gethostname here, too many dependencies and chance of recursion
+    char hostname[MAXHOSTNAMELEN];
+    if (!gethostname(hostname, MAXHOSTNAMELEN) && 
+        hostname[0] && strlen(hostname) < GASNETI_CONSOLEMSG_IDSTR_LEN) {
+      snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (%s:%i): ", prefix, hostname, pid);
+    } else { // no idstr easily accessible
+      snprintf(expandedmsg, sizeof(expandedmsg)-4, "*** %s (:%i): ", prefix, pid);
+    }
   }
   const size_t maxmsg = sizeof(expandedmsg)-4 - strlen(expandedmsg);
   const size_t msglen = strlen(msg);
