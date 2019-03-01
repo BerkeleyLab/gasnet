@@ -463,6 +463,76 @@ extern const char *gasnett_performance_warning_str(void) {
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* hostname query */
+/* get MAXHOSTNAMELEN */ 
+#if PLATFORM_OS_SOLARIS 
+#include <netdb.h>
+#elif defined(GASNETI_HAVE_BGQ_INLINES)
+ #ifdef GASNETI_DEFINE__INLINE__
+   #define __INLINE__ GASNETI_DEFINE__INLINE__
+ #endif
+ #include <hwi/include/common/uci.h>
+ #include <firmware/include/personality.h>
+ #ifdef GASNETI_DEFINE__INLINE__
+   #undef __INLINE__
+ #endif
+ #undef MAXHOSTNAMELEN
+ #define MAXHOSTNAMELEN 19
+#else
+#include <sys/param.h>
+#endif 
+#ifndef MAXHOSTNAMELEN
+  #ifdef HOST_NAME_MAX
+    #define MAXHOSTNAMELEN HOST_NAME_MAX
+  #else
+    #define MAXHOSTNAMELEN 1024 /* give up */
+  #endif
+#endif
+const char *gasneti_gethostname(void) {
+  static gasneti_mutex_t hnmutex = GASNETI_MUTEX_INITIALIZER;
+  static int firsttime = 1;
+  static char hostname[MAXHOSTNAMELEN];
+  gasneti_mutex_lock(&hnmutex);
+    if (firsttime) {
+    #if GASNETI_HAVE_BGQ_INLINES
+      uint64_t cc_uci;
+      unsigned int proc;
+      { /* Need entire Personality struct to extract the UCI  */
+        Personality_t pers;
+        int rc = CNK_SPI_SYSCALL_2(GET_PERSONALITY, (uintptr_t)&pers, (uint64_t)sizeof(pers));
+        if (rc)
+          gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
+        cc_uci = pers.Kernel_Config.UCI;
+      }
+      gasneti_assert(BG_UCI_GET_COMPONENT(cc_uci) == BG_UCI_Component_ComputeCardOnNodeBoard);
+      { /* Extract process rank from SPRG7 */
+        const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
+        uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
+        uint8_t cpu = (sprg7 & 0x3f); /* Byte 7 is logical processor id: 0 ... 63 */
+        /* Shift the "process-local" bits out of the processor id */
+        while (ppn & 0x3f) { ppn <<= 1; cpu >>= 1; }
+        proc = cpu;
+      }
+      /* Rrc-Mm-Nnn-Jjj-Ppp.  All but "-Ppp" is standard BG/Q component naming. */
+      snprintf(hostname, MAXHOSTNAMELEN, "R%1x%1x-M%1u-N%02u-J%02u-P%02u",
+                         (unsigned int)BG_UCI_GET_ROW(cc_uci),
+                         (unsigned int)BG_UCI_GET_COLUMN(cc_uci),
+                         (unsigned int)BG_UCI_GET_MIDPLANE(cc_uci),
+                         (unsigned int)BG_UCI_GET_NODE_BOARD(cc_uci),
+                         (unsigned int)BG_UCI_GET_COMPUTE_CARD(cc_uci),
+                         (unsigned int)proc
+              );
+    #else
+      if (gethostname(hostname, MAXHOSTNAMELEN))
+        gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
+    #endif
+      hostname[MAXHOSTNAMELEN - 1] = '\0';
+      firsttime = 0;
+    }
+  gasneti_mutex_unlock(&hnmutex);
+  return hostname;
+}
+/* ------------------------------------------------------------------------------------ */
 /* sleep/delay support */
 
 /* Sleep for at least ns_delay nanoseconds
@@ -2772,76 +2842,6 @@ int gasneti_set_affinity_default(int rank) {
 int gasneti_set_affinity(int rank) {
   GASNETT_TRACE_PRINTF("gasnett_set_affinity(%d)", rank);
   return gasneti_set_affinity_default(rank);
-}
-/* ------------------------------------------------------------------------------------ */
-/* hostname query */
-/* get MAXHOSTNAMELEN */ 
-#if PLATFORM_OS_SOLARIS 
-#include <netdb.h>
-#elif defined(GASNETI_HAVE_BGQ_INLINES)
- #ifdef GASNETI_DEFINE__INLINE__
-   #define __INLINE__ GASNETI_DEFINE__INLINE__
- #endif
- #include <hwi/include/common/uci.h>
- #include <firmware/include/personality.h>
- #ifdef GASNETI_DEFINE__INLINE__
-   #undef __INLINE__
- #endif
- #undef MAXHOSTNAMELEN
- #define MAXHOSTNAMELEN 19
-#else
-#include <sys/param.h>
-#endif 
-#ifndef MAXHOSTNAMELEN
-  #ifdef HOST_NAME_MAX
-    #define MAXHOSTNAMELEN HOST_NAME_MAX
-  #else
-    #define MAXHOSTNAMELEN 1024 /* give up */
-  #endif
-#endif
-const char *gasneti_gethostname(void) {
-  static gasneti_mutex_t hnmutex = GASNETI_MUTEX_INITIALIZER;
-  static int firsttime = 1;
-  static char hostname[MAXHOSTNAMELEN];
-  gasneti_mutex_lock(&hnmutex);
-    if (firsttime) {
-    #if GASNETI_HAVE_BGQ_INLINES
-      uint64_t cc_uci;
-      unsigned int proc;
-      { /* Need entire Personality struct to extract the UCI  */
-        Personality_t pers;
-        int rc = CNK_SPI_SYSCALL_2(GET_PERSONALITY, (uintptr_t)&pers, (uint64_t)sizeof(pers));
-        if (rc)
-          gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
-        cc_uci = pers.Kernel_Config.UCI;
-      }
-      gasneti_assert(BG_UCI_GET_COMPONENT(cc_uci) == BG_UCI_Component_ComputeCardOnNodeBoard);
-      { /* Extract process rank from SPRG7 */
-        const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
-        uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
-        uint8_t cpu = (sprg7 & 0x3f); /* Byte 7 is logical processor id: 0 ... 63 */
-        /* Shift the "process-local" bits out of the processor id */
-        while (ppn & 0x3f) { ppn <<= 1; cpu >>= 1; }
-        proc = cpu;
-      }
-      /* Rrc-Mm-Nnn-Jjj-Ppp.  All but "-Ppp" is standard BG/Q component naming. */
-      snprintf(hostname, MAXHOSTNAMELEN, "R%1x%1x-M%1u-N%02u-J%02u-P%02u",
-                         (unsigned int)BG_UCI_GET_ROW(cc_uci),
-                         (unsigned int)BG_UCI_GET_COLUMN(cc_uci),
-                         (unsigned int)BG_UCI_GET_MIDPLANE(cc_uci),
-                         (unsigned int)BG_UCI_GET_NODE_BOARD(cc_uci),
-                         (unsigned int)BG_UCI_GET_COMPUTE_CARD(cc_uci),
-                         (unsigned int)proc
-              );
-    #else
-      if (gethostname(hostname, MAXHOSTNAMELEN))
-        gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
-    #endif
-      hostname[MAXHOSTNAMELEN - 1] = '\0';
-      firsttime = 0;
-    }
-  gasneti_mutex_unlock(&hnmutex);
-  return hostname;
 }
 /* ------------------------------------------------------------------------------------ */
 /* Count zero bytes in a region w/ or w/o a memcpy() */
