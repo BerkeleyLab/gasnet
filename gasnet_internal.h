@@ -496,7 +496,7 @@ uintptr_t gasneti_auxseg_preinit(void);
 void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
+void gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)

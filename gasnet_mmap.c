@@ -2253,12 +2253,12 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
 }
 
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
+void gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
 {
   uintptr_t auxsize = gasneti_auxseg_preinit();
   if (auxsize > maxsize) {
     /* TODO: implement request downsizing down to minsz */
-    gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available limit (%"PRIuPTR" bytes)",
+    gasneti_fatalerror("GASNet internal auxseg size (%"PRIuPTR" bytes) exceeds available limit (%"PRIu64" bytes)",
                        auxsize, maxsize);
   }
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
