@@ -1225,6 +1225,17 @@ case "$enable_[]patsubst([$1], -, _)" in
 esac
 ])
 
+AC_DEFUN([GASNET_IF_DISABLED_NOHELP],[
+case "$enable_[]patsubst([$1], -, _)" in
+  '' | yes) :
+      $3
+  ;;
+  *)  :
+      $2
+  ;;
+esac
+])
+
 AC_DEFUN([GASNET_IF_ENABLED],[
 GASNET_FUN_BEGIN([$0($1,...)])
   ifdef([GASNET_SUPPRESSHELP], [], [
@@ -1239,14 +1250,7 @@ GASNET_FUN_BEGIN([$0($1,...)])
   ifdef([GASNET_SUPPRESSHELP], [], [
     AC_ARG_ENABLE($1,GASNET_OPTION_HELP(disable-$1,[$2]))
   ])
-  case "$enable_[]patsubst([$1], -, _)" in
-    '' | yes) :
-         $4
-    ;;
-    *)   :
-         $3
-    ;;
-  esac
+  GASNET_IF_DISABLED_NOHELP([$1],[$3],[$4])
 GASNET_FUN_END([$0($1,...)])
 ])
 
