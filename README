@@ -178,14 +178,6 @@ or similarly, if you want libgasnet to contain debugging symbols:
     --enable-debug-malloc - use GASNet debugging malloc (see usage info below)
     --enable-segment-{fast,large,everything} - select a GASNet segment 
       configuration (see the GASNet spec for more info)
-    --{enable,disable}-smp-safe - Build GASNet for an SMP or uni-processor.
-      These options are not normally necessary, since by default configure
-      will probe the machine to determine if it is an SMP.  However:
-      1) If you configure on a uni-processor and intend to use the resulting
-         libraries on an SMP, then you MUST specify --enable-smp-safe to
-         ensure correctness.
-      2) If you configure on an SMP for execution ONLY on uniprocessors, then
-         you MAY specify --disable-smp-safe for a performance improvement.
     --enable-pshm - Build GASNet with inter-Process SHared Memory (PSHM) support.
       This feature uses shared memory communication among the processes (aka
       GASNet nodes) within a single compute node (where the other alternatives

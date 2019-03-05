@@ -2262,64 +2262,11 @@ fi
 
 #---------------------------------------------------------------------------------------------------------------
 # Check for overrides of compile-time checks for SMPs
-GASNET_IF_ENABLED_WITH_AUTO(smp-safe, Enable build of SMP-safe libraries (default is to probe at configure time),
-  [ uni_build=no ],
-  [ uni_build=yes],
-  [ AC_CHECK_HEADERS(/boot/kernel.h)
-    AC_MSG_CHECKING(whether to force a uni-processor build)
-    uni_build=no;
-    if test "$cross_compiling" = "yes" ; then
-      uni_build='no (default for cross-compilation)'
-    elif test "`uname -a | grep -i SMP`" = ""; then
-      case "$target_os" in
-      linux*)  
-        AC_TRY_COMPILE([
-          /* Note that we try to error on the side of an SMP */
-          #include <linux/config.h>
-          #if defined(CONFIG_SMP)
-            #error Make the AC_TRY_COMPILE fail (SMP)
-          #endif
-          #ifdef HAVE__BOOT_KERNEL_H
-            #include </boot/kernel.h>
-            #if defined(__BOOT_KERNEL_SMP) && (__BOOT_KERNEL_SMP == 1)
-              #error Make the AC_TRY_COMPILE fail (SMP)
-            #endif
-          #endif
-          ], [], [ uni_build=yes ])
-        ;;
-      freebsd* | openbsd* | netbsd*)  
-        if test "`/sbin/sysctl -n hw.ncpu 2>/dev/null`" = 1; then
-          uni_build=yes
-        fi
-        ;;
-      darwin*)
-        if test "`/usr/sbin/sysctl -n hw.ncpu 2>/dev/null`" = 1; then
-          uni_build=yes
-        fi
-        ;;
-      *)  
-        AC_TRY_RUN([
-	    #include <unistd.h>
-	    #if defined(_SC_NPROCESSORS_ONLN)
-	    /* OK */
-	    #elif defined(_SC_NPROC_ONLN)
-	    # define _SC_NPROCESSORS_ONLN _SC_NPROC_ONLN
-	    #elif defined(_SC_CRAY_MAXPES)
-	    # define _SC_NPROCESSORS_ONLN _SC_CRAY_MAXPES
-            #else
-	    /* Maybe _SC_NPROCESSORS_ONLN is an enum? */
-            #endif
-            int main(void) { return !(sysconf(_SC_NPROCESSORS_ONLN) == 1); }
-          ], [ uni_build=yes ])
-        ;;
-      esac
-    fi
-    AC_MSG_RESULT($uni_build)
-  ] 
- )
-if test "$uni_build" = yes; then
-  AC_DEFINE(GASNETI_UNI_BUILD)
-fi
+# Enable build of SMP-safe libraries (default is off)
+GASNET_IF_DISABLED_NOHELP(smp-safe, [ 
+  GASNET_MSG_WARN([configure --disable-smp-safe is deprecated and may be unsafe. You should only use this option if you really know what you are doing.])
+  AC_DEFINE(GASNETI_UNI_BUILD) 
+])
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 GASNET_IF_ENABLED(loopback-memsync, Force memory barriers for GASNet local (loopback) puts and gets,
