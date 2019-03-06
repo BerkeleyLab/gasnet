@@ -669,12 +669,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   + GASNET_AM_CREDITS_TOTAL
     This gives the integer number of AM Requests which can be in-flight
     simultaneously from each node, with "in-flight" defined as in
-    GASNET_AM_CREDITS_PP.  This is the number of receive buffers which
-    will be allocated for posting to an endpoint for the AM Reply which
-    follows each AM Request.
+    GASNET_AM_CREDITS_PP.
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_AM_CREDITS_PP and the HCA's reported capabilities.
-    The default value is MIN(256, nodes*GASNET_AM_CREDITS_PP).
+    The default value is MIN(256, (nodes-1)*GASNET_AM_CREDITS_PP).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
