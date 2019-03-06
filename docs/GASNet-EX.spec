@@ -638,6 +638,15 @@ int gex_Segment_QueryBound(
 // Use of --enable-aligned-segments at configure time and definition of
 // GASNET_ALIGNED_SEGMENTS at compile time are relevant only to the legacy
 // gasnet_attach() interface.
+//
+// NOTE: In the current release, when the legacy GASNET_SEGMENT_EVERYTHING 
+// configuration is in effect, the following additional rules apply:
+//  - In this mode, the primordial endpoint is implicitly bound to the entire
+//    virtual address space by gex_Client_Init(), and this call has no semantic
+//    effect (aside from a barrier synchronization).
+//  - If the optional call is made, the size argument is ignored, and the resulting
+//    gex_Segment_t in `*segment_p` shall be GEX_SEGMENT_INVALID.
+
 extern int gex_Segment_Attach(
                 gex_Segment_t          *segment_p,
                 gex_TM_t               tm,
