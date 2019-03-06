@@ -821,9 +821,6 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
         gasneti_assert(acks > 0);
         gasnetc_atomic_add(&cep->amrdma_send->head, acks, 0);
       }
-      if (credits) {
-        gasnetc_sema_up_n(&cep->am_loc, credits);
-      }
 
       GASNETI_TRACE_PRINTF(C,("RCV_AM_CREDITS credits=%d acks=%d\n", credits, acks));
 
@@ -1335,8 +1332,8 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
     /* Now process the packet */
     gasnetc_processPacket(cep, rbuf, flags GASNETI_THREAD_PASS);
 
-    /* Return the rcv buffer to the free list */
-    gasnetc_lifo_push(cep->rbuf_freelist, rbuf);
+    // Repost the rcv buffer
+    gasnetc_rcv_post(cep, rbuf);
   } else {
     /* Post a replacement buffer before processing the request.
      * This ensures that the credit sent with the reply will
@@ -1515,14 +1512,11 @@ int gasnetc_rcv_amrdma(gasnetc_EP_t ep, gasnetc_cep_t *cep GASNETI_THREAD_FARG) 
 
   /* Account for any recv buffer that was reserved for the reply, but not used.
    * Must precede credit processing in gasnetc_processPacket (bug 2359) */
-  if (GASNETC_MSG_ISREPLY(flags)) {
 #if GASNETC_IBV_SRQ
-    if (gasnetc_use_srq) {
-      gasnetc_sema_up(&cep->hca->am_sema);
-    } else
-#endif
-    gasnetc_sema_up(&cep->am_loc);
+  if (GASNETC_MSG_ISREPLY(flags) && gasnetc_use_srq) {
+    gasnetc_sema_up(&cep->hca->am_sema);
   }
+#endif
 
   /* Process the packet, includes running handler and processing credits/acks */
   rbuf.cep = cep;
@@ -2220,8 +2214,8 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
         }
       }
   
-      /* Post or account for the rbuf needed for the Reply */
 #if GASNETC_IBV_SRQ
+      /* Account for the rbuf needed for the Reply */
       if (gasnetc_use_srq) {
         gasnetc_sema_t * const sema = &(cep->hca->am_sema);
         if_pf (!gasnetc_sema_trydown(sema)) {
@@ -2245,42 +2239,8 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
           }
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
         }
-      } else
-#endif
-      if (gasnetc_sema_trydown(&cep->am_loc)) {
-        /* We'll use one that was left over due to ACK coalescing or reply via rdma */
-      } else {
-        gasnetc_rbuf_t *rbuf = gasnetc_lifo_pop(cep->rbuf_freelist);
-        if_pf (rbuf == NULL) {
-          GASNETC_TRACE_WAIT_BEGIN();
-          if (immediate) {
-          #if GASNETC_IMMEDIATE_AMPOLLS
-            // A full Poll, but only once and only the selected HCA
-            gasnetc_poll_rcv_hca(ep, cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
-	    if (!gasnetc_sema_trydown(&cep->am_loc) &&
-	        !(rbuf = gasnetc_lifo_pop(cep->rbuf_freelist))) {
-              // TODO-EX: stats/trace for this as distinct from ..._STALL
-              goto out_no_rbuf;
-            }
-          #else
-            goto out_no_rbuf;
-          #endif
-          } else {
-            do {
-	      GASNETI_WAITHOOK();
-              gasnetc_poll_rcv_all(ep, 1 GASNETI_THREAD_PASS);
-	      if (gasnetc_sema_trydown(&cep->am_loc)) {
-	        break;
-	      }
-	      rbuf = gasnetc_lifo_pop(cep->rbuf_freelist);
-            } while (rbuf == NULL);
-            GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
-          }
-        }
-        if (rbuf) {
-	  gasnetc_rcv_post(cep, rbuf);
-	}
       }
+#endif
     }
   
     // Try to obtain a slot for AM-over-RDM *unless* IMMEDIATE
@@ -2419,16 +2379,14 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
 
   out_no_buffer:
 
-    if (!token) { // Account for the posted-but-not-consumed reply buffer
-    #if GASNETC_IBV_SRQ
-      if (gasnetc_use_srq) {
-        gasnetc_sema_up(&cep->hca->am_sema);
-      } else
-    #endif
-      gasnetc_sema_up(&cep->am_loc);
+#if GASNETC_IBV_SRQ
+    if (!token && gasnetc_use_srq) {
+      // Account for the posted-but-not-consumed reply buffer
+      gasnetc_sema_up(&cep->hca->am_sema);
     }
 
   out_no_rbuf:
+#endif
 
     if (!token) { // Restore the allocated credit, if any
       gasnetc_sema_up(&cep->am_rem);
@@ -3697,8 +3655,8 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
           }
         }
       } else
-      for (int j = 0; j < gasnetc_am_oust_pp; ++j) {
-        /* Prepost one rcv buffer for each possible incomming request */
+      for (int j = 0; j < 2 * gasnetc_am_oust_pp; ++j) {
+        // Prepost one rcv buffer for each possible incomming Request or Reply
         gasnetc_rcv_post(cep, gasnetc_lifo_pop(cep->rbuf_freelist));
       }
 
@@ -3706,10 +3664,8 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
       /* sq_sema now set when QP is created */
       if (gasnetc_use_srq && (i < gasnetc_num_qps)) {
         gasnetc_sema_init(&cep->am_rem, 0, 0);
-        gasnetc_sema_init(&cep->am_loc, 0, 0);
       } else {
         gasnetc_sema_init(&cep->am_rem, gasnetc_am_oust_pp, gasnetc_am_oust_pp);
-        gasnetc_sema_init(&cep->am_loc, 0, gasnetc_am_oust_pp);
       }
       gasnetc_atomic_set(&cep->am_flow.credit, 0, 0);
       gasnetc_atomic_set(&cep->am_flow.ack, 0, 0);
@@ -3726,7 +3682,6 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
       gasnetc_sema_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
     #endif
       gasnetc_sema_init(&cep->am_rem, 0, 0);
-      gasnetc_sema_init(&cep->am_loc, 0, 0);
       gasnetc_atomic_set(&cep->am_flow.credit, 0, 0);
       gasnetc_atomic_set(&cep->am_flow.ack, 0, 0);
       gasnetc_atomic_set(&cep->amrdma_eligable, 0, 0);
@@ -3779,7 +3734,6 @@ void gasnetc_sys_flush_reph(gex_Token_t token, gex_AM_Arg_t credits) {
   gasnetc_am_credits_slack = 0;
 
   if (--credits) { /* Since this is a Reply, one credit has already been posted */
-    gasnetc_sema_up_n(&cep->am_loc, credits);
     gasnetc_sema_up_n(&cep->am_rem, credits);
   }
 }

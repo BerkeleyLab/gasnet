@@ -562,7 +562,6 @@ struct gasnetc_cep_t_ {
   /* Read/write fields */
   int                   used;           /* boolean - true if cep has sent traffic */
   gasnetc_sema_t	am_rem;		/* control in-flight AM Requests (remote rcv queue slots)*/
-  gasnetc_sema_t	am_loc;		/* control unmatched rcv buffers (local rcv queue slots) */
   gasnetc_sema_t	*snd_cq_sema_p;	/* control in-flight ops (send completion queue slots) */
   gasnetc_sema_t	*sq_sema_p;	/* Pointer to a sq_sema */
   /* XXX: The atomics in the next 2 structs really should get padded to full cache lines */
