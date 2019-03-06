@@ -3314,12 +3314,6 @@ extern int gasnetc_sndrcv_limits(void) {
 
   gasnetc_am_rbufs_per_qp = gasnetc_am_rqst_per_qp + gasnetc_am_repl_per_qp;
 #if GASNETC_IBV_SRQ
-  /* TODO: the parameter GASNET_RBUF_LIMIT is *not* being applied as documented
-   * in the README, and the reporting below confuses matters even more by
-   * mixing the definitions.  So, we should fix one or the other so that they
-   * actually match.  Fixing the code is probably preferable, since the
-   * alternative definition (used by the current code) is hard to explain/use.
-   */
   if (gasnetc_use_srq) {
     unsigned int srq_wr_per_qp = (gasnetc_rbuf_limit - rcv_spares) / gasnetc_num_qps;
     int orig = gasnetc_rbuf_limit;
@@ -3355,19 +3349,22 @@ extern int gasnetc_sndrcv_limits(void) {
     /* As per README:
        GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
      */
-    tmp = MIN(gasnetc_am_rqst_per_qp, srq_wr_per_qp) + gasnetc_am_repl_per_qp;
+    gasneti_assert(gasnetc_am_rqst_per_qp == gasnetc_am_repl_per_qp);
+    gasneti_assert(gasnetc_am_rbufs_per_qp == gasnetc_am_rqst_per_qp + gasnetc_am_repl_per_qp);
+    tmp = MIN(gasnetc_am_rqst_per_qp, srq_wr_per_qp/2);  // Half of non-spares
     gasneti_assert(gasnetc_rbuf_limit != 0);
     GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
-                             tmp * gasnetc_num_qps + rcv_spares,
+                             2 * tmp * gasnetc_num_qps + rcv_spares,
                              gasnetc_rbuf_limit,
                              gasnetc_am_rbufs_per_qp * gasnetc_num_qps + rcv_spares));
-    if ((gasnetc_use_srq < 0) && (tmp == gasnetc_am_rbufs_per_qp)) {
+    if ((gasnetc_use_srq < 0) && (tmp == gasnetc_am_rqst_per_qp)) {
       GASNETI_TRACE_PRINTF(I, ("SRQ disabled because GASNET_USE_SRQ = -1 and no buffer savings would result"));
       gasnetc_use_srq = 0;
     } else {
       GASNETI_TRACE_PRINTF(I, ("SRQ enabled"));
-      gasnetc_am_rqst_per_qp = tmp - gasnetc_am_repl_per_qp;
-      gasnetc_am_rbufs_per_qp = tmp;
+      gasnetc_am_rqst_per_qp = tmp;
+      gasnetc_am_repl_per_qp = tmp;
+      gasnetc_am_rbufs_per_qp = 2 * tmp;
       gasnetc_use_srq = 1;
       gasnetc_am_credits_slack = 0;
       /* Need to ensure some BBUFs avail even if max number of AM Requests are all blocked */
@@ -3378,6 +3375,7 @@ extern int gasnetc_sndrcv_limits(void) {
     GASNETI_TRACE_PRINTF(I, ("SRQ disabled"));
     gasnetc_use_srq = 0;
   }
+  gasneti_assert(gasnetc_am_rbufs_per_qp == gasnetc_am_rqst_per_qp + gasnetc_am_repl_per_qp);
   /* gasnetc_use_srq is just 0 or 1 from here on */
 #else
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_num_qps + rcv_spares));
