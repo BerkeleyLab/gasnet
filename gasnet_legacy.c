@@ -124,7 +124,7 @@ extern gex_Event_t gasneti_legacy_memset_nb(gex_Rank_t node, void *dest, int val
   GASNETI_TRACE_MEMSET(node,dest,val,nbytes); 
   gasneti_assert_reason(gasneti_legacy_handlers_registered, "gasnet_memset* requires gasnet_attach() or GEX_FLAG_USES_GASNET1");
   if_pf (!nbytes) return 0;
-  gasneti_assert(dest);
+  gasneti_boundscheck(gasneti_thunk_tm,node,dest,nbytes);
   GASNETI_CHECKPSHM_MEMSET(gasneti_thunk_tm,node,dest,val,nbytes);
   gasneti_eop_t *eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
 
@@ -138,7 +138,7 @@ extern int gasneti_legacy_memset_nbi(gex_Rank_t node, void *dest, int val, size_
   GASNETI_TRACE_MEMSET(node,dest,val,nbytes); 
   gasneti_assert_reason(gasneti_legacy_handlers_registered, "gasnet_memset* requires gasnet_attach() or GEX_FLAG_USES_GASNET1");
   if_pf (!nbytes) return 0;
-  gasneti_assert(dest);
+  gasneti_boundscheck(gasneti_thunk_tm,node,dest,nbytes);
   GASNETI_CHECKPSHM_MEMSET(gasneti_thunk_tm,node,dest,val,nbytes);
   gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_PASS);
 
