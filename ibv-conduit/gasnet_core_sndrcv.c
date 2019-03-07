@@ -250,7 +250,7 @@ static gasnetc_sema_t			*gasnetc_cq_semas = NULL;
 /* Shared between gasnetc_sndrcv_{limits,init}() */
 static int gasnetc_op_oust_per_qp;
 static int gasnetc_am_rqst_per_qp;
-static int gasnetc_rcv_spare;
+static int gasnetc_rbuf_spares;
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped completion callbacks
@@ -3168,8 +3168,21 @@ size_t gasnetc_fh_get_helper(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
 extern int gasnetc_sndrcv_limits(void) {
   gasnetc_hca_t		*hca;
   int 			h;
-  gasnetc_rcv_spare = (gasnetc_use_rcv_thread ? 1 : 0) + 8; // WIP - replace 8 w/ env var
-  const int 		rcv_spares = gasnetc_num_hcas * gasnetc_rcv_spare;
+
+  { // How many threads do we expect may execute handlers concurrently?
+    int rcv_thread = (gasnetc_use_rcv_thread ? 1 : 0); // AM recv thread
+#if GASNET_PAR
+    // Guess based on (cpus / procs), rounded up.
+    int cpus = gasneti_cpu_count();
+    int procs = gasneti_myhost.node_count;
+    int client_threads = (cpus + procs - 1) / procs;
+#else
+    // At most 1 client thread *in GASNet*
+    int client_threads = 1;
+#endif
+    int threads = rcv_thread + client_threads;
+    gasnetc_rbuf_spares = MAX(1,gasneti_getenv_int_withdefault("GASNET_RBUF_SPARES", threads, 0));
+  }
 
   gasnetc_remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
 
@@ -3214,7 +3227,7 @@ extern int gasnetc_sndrcv_limits(void) {
 
   /* AM recv buffer allocation.
    * There are 3 roles a rcv buffer might fill (counts per HCA):
-   * (1) (gasnetc_num_hcas * gasnetc_rcv_spare) used in recv path to post before processing
+   * (1) (gasnetc_num_hcas * gasnetc_rbuf_spares) used in recv path to post before processing
    * (2) (gasnetc_am_oust_pp * hca->max_qps) used to catch Requests
    * (3) (gasnetc_am_oust_pp * hca->max_qps) used to catch Replies
    * However distribution over QPs and SRQ may each reduce the second two.
@@ -3228,7 +3241,7 @@ extern int gasnetc_sndrcv_limits(void) {
 
   // Compute gasnetc_am_oust_pp (and report GASNET_AM_CREDITS_PP)
   GASNETC_FOR_ALL_HCA(hca) {
-    int tmp = hca->hca_cap.max_cqe - gasnetc_rcv_spare;
+    int tmp = hca->hca_cap.max_cqe - gasnetc_rbuf_spares;
     tmp /= 2 * hca->qps; // Remainder to be split between Request and Reply, spread over the qps
     gasnetc_am_rqst_per_qp = MIN(gasnetc_am_rqst_per_qp, tmp);
   }
@@ -3268,6 +3281,7 @@ extern int gasnetc_sndrcv_limits(void) {
   }
   /* SRQ may raise this.  So, report is deferred. */
 
+  const int rcv_spares = gasnetc_num_hcas * gasnetc_rbuf_spares;
 #if GASNETC_IBV_SRQ
   if (gasnetc_use_srq) {
     unsigned int srq_wr_per_qp = (gasnetc_rbuf_limit - rcv_spares) / gasnetc_num_qps;
@@ -3441,7 +3455,7 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
 
   /* create one RCV CQ per HCA */
   GASNETC_FOR_ALL_HCA(hca) {
-    const int rcv_count = 2 * gasnetc_am_rqst_per_qp * hca->qps + gasnetc_rcv_spare;
+    const int rcv_count = 2 * gasnetc_am_rqst_per_qp * hca->qps + gasnetc_rbuf_spares;
     const int cqe_count = rcv_count + (!hca->hca_index ? ud_rcvs : 0);
     gasnetc_progress_thread_t *rcv_thread = NULL;
   #if GASNETC_USE_RCV_THREAD

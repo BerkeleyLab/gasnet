@@ -623,7 +623,17 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   result.  The default settings should be sufficient for most conditions.
   You may need to lower some values if you have insufficient memory.
 
-  These parameters must be equal across all nodes, and the behavior
+  + GASNET_RBUF_SPARES
+    This gives the number of AM receive buffers used to hold header and
+    payload of executing AM Request, and thus bounds the number of threads
+    which may concurrently execute AM handlers "in place".  Any threads
+    beyond this limit must copy the header and payload before executing
+    the handler.
+    The default value reflects a heuristic estimate of the number of
+    threads which might concurrently poll for AM arrivals.
+    Reducing this parameter may reduce Active Message throughput.
+
+  The following parameters must be equal across all nodes, and the behavior
   otherwise is undefined.
 
   + GASNET_NETWORKDEPTH_PP
