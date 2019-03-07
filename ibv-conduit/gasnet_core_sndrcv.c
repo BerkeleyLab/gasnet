@@ -3235,6 +3235,7 @@ extern int gasnetc_sndrcv_limits(void) {
    * Note that we use (gasneti_nodes - 1) rather than gasnetc_remote_nodes.  This is because
    * gasnetc_remote_nodes may vary among processes, possibly leading to making different
    * gasnet_use_srq decisions across nodes.
+   * TODO: As a result, some rbufs may be allocated for PSHM peers when SRQ is inactive.
    */
   gasnetc_am_oust_pp /= gasnetc_num_qps;
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
@@ -3317,6 +3318,7 @@ extern int gasnetc_sndrcv_limits(void) {
 
     /* As per README:
        GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
+       TODO: The "rbuf_spares" may be unused when SRQ is active?
      */
     tmp = MIN(gasnetc_am_rqst_per_qp, srq_wr_per_qp/2);  // Half of non-spares
     gasneti_assert(gasnetc_rbuf_limit != 0);
