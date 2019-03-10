@@ -162,7 +162,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      * conduit-specific uses.
      * The return value is a pointer to the space requested by the 2nd argument.
      * It is advisable that the conduit ensure pages in this space are touched,
-     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_mmapLimit()
+     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
     (void) gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);
@@ -176,11 +176,27 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     }
   }
 
-  /* allocate and attach an aux segment */
-  uintptr_t mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+#if HAVE_MMAP
+  // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
+  // while properly reserving space for aux segments.
+  uint64_t sharedLimit = gasneti_sharedLimit();
+  uint64_t hostAuxSegs = gasneti_myhost.node_count * gasneti_auxseg_preinit();
+  if (sharedLimit <= hostAuxSegs) {
+    gasneti_fatalerror("per-host segment limit %"PRIu64" is too small to accommodate %i aux segments, "
+                       "total size %"PRIu64". You may need to adjust OS shared memory limits.",
+                       sharedLimit, gasneti_myhost.node_count, hostAuxSegs);
+  }
+  sharedLimit -= hostAuxSegs;
+#else
+  #error "pami-conduit requires mmap() support" // Bug 3542
+#endif
+
+  uintptr_t mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
                                           &gasnetc_bootstrapExchange,
                                           &gasnetc_bootstrapBarrier);
-  gasneti_auxsegAttach(mmap_limit, &gasnetc_bootstrapExchange);
+
+  /* allocate and attach an aux segment */
+  gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange);
 
   void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
   uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;
@@ -450,6 +466,12 @@ extern int gasnetc_Segment_Attach(
   static int once = 1;
   if (once) once = 0;
   else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
+
+  #if GASNET_SEGMENT_EVERYTHING
+    *segment_p = GEX_SEGMENT_INVALID;
+    gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
+    return GASNET_OK; 
+  #endif
 
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*

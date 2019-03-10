@@ -563,7 +563,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
    * pinnable memory under CNL without dire consequences.
    * For this platform, we will simply try a large fraction of the physical
    * memory.  If that is too big, then the job will be killed at startup.
-   * The gasneti_mmapLimit() ensures limit is per compute node, not per process.
+   * The gasneti_segmentLimit() ensures limit is per compute node, not per process.
    */
   uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
                            "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
@@ -575,6 +575,9 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   pm_limit = MIN(pm_limit, 24UL << 30 /* 24 GB */);
 #endif
 
+  // possibly bound pm_limit
+  pm_limit = MIN(gasneti_sharedLimit(), pm_limit);
+
   /* overheads are allocated and pinned in every proc */
   overheads *= gasneti_nodemap_local_count;
 
@@ -583,7 +586,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
   }
   pm_limit -= overheads;
 
-  limit = gasneti_mmapLimit((uintptr_t)-1, pm_limit,
+  limit = gasneti_segmentLimit((uintptr_t)-1, pm_limit,
                             &gasnetc_bootstrapExchange_gni,
                             &gasnetc_bootstrapBarrier_gni);
 
@@ -652,7 +655,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
      * conduit-specific uses.
      * The return value is a pointer to the space requested by the 2nd argument.
      * It is advisable that the conduit ensure pages in this space are touched,
-     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_mmapLimit()
+     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
     gasnetc_exitcodes = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast,
@@ -693,7 +696,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace + gasneti_auxseg_preinit());
 
   /* allocate and attach an aux segment */
-  gasneti_auxsegAttach(max_pin, &gasnetc_bootstrapExchange_gni);
+  gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange_gni);
 
   /* register auxseg and setup subsystems using it */
   gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);
@@ -934,6 +937,12 @@ extern int gasnetc_Segment_Attach(
   static int once = 1;
   if (once) once = 0;
   else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
+
+  #if GASNET_SEGMENT_EVERYTHING
+    *segment_p = GEX_SEGMENT_INVALID;
+    gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
+    return GASNET_OK; 
+  #endif
 
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*

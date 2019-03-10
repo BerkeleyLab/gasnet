@@ -274,7 +274,18 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     uintptr_t mmap_limit;
     #if HAVE_MMAP
-      mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+      // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
+      // while properly reserving space for aux segments.
+      uint64_t sharedLimit = gasneti_sharedLimit();
+      uint64_t hostAuxSegs = gasneti_myhost.node_count * gasneti_auxseg_preinit();
+      if (sharedLimit <= hostAuxSegs) {
+        gasneti_fatalerror("per-host segment limit %"PRIu64" is too small to accommodate %i aux segments, "
+                           "total size %"PRIu64". You may need to adjust OS shared memory limits.",
+                           sharedLimit, gasneti_myhost.node_count, hostAuxSegs);
+      }
+      sharedLimit -= hostAuxSegs;
+
+      mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
                                   &gasnetc_bootstrapExchange,
                                   &gasnetc_bootstrapBarrier);
     #else
@@ -284,7 +295,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     /* allocate and attach an aux segment */
 
-    gasneti_auxsegAttach(mmap_limit, &gasnetc_bootstrapExchange);
+    gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange);
 
     /* determine Max{Local,GLobal}SegmentSize */
     gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);
@@ -555,6 +566,12 @@ extern int gasnetc_Segment_Attach(
   static int once = 1;
   if (once) once = 0;
   else gasneti_fatalerror("gex_Segment_Attach: current implementation can be called at most once");
+
+  #if GASNET_SEGMENT_EVERYTHING
+    *segment_p = GEX_SEGMENT_INVALID;
+    gex_Event_Wait(gex_Coll_BarrierNB(tm, 0));
+    return GASNET_OK; 
+  #endif
 
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*

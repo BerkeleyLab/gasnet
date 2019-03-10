@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
   }
 
   if (argc > arg) { param_N = atol(argv[arg]); ++arg; }
-  if (!param_N) param_N = 20000;
+  if (!param_N) param_N = 10000;
 
   if (argc > arg) { param_SZ = atoi(argv[arg]); ++arg; }
   if (!param_SZ) { param_SZ = 1024*1204; }

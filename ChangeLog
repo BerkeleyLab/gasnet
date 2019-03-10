@@ -408,6 +408,7 @@ PENDING: pending work @67fa752
   - Add a git hash "watermark" to libraries
   - Warning enable flags are removed from GASNET_C(XX)FLAGS and friends. 
     The flags remain available in GASNET_DEVWARN_C(XX)FLAGS for opt-in.
+  - configure --disable-smp-safe is now deprecated. The default is enable-smp-safe.
 
 * Removal of unmaintained platform support
   - This release no longer supports the following platforms:
