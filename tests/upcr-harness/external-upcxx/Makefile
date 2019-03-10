@@ -280,6 +280,13 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	             clean $*
 	mv $</$* $@
 
+# misc make-based examples
+cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; $(MAKE) -C $(<D) UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean cuda_vecadd
+	mv $(<D)/cuda_vecadd $@
+
 force:
 
 .PHONY: force nobs_test inst_test
