@@ -56,7 +56,7 @@
  *  Sayantan Sur <sayantan.sur@intel.com>: ofi-conduit
  * 
  * For more information about GASNet, visit our home page at:
- *  http://gasnet.lbl.gov/
+ *  https://gasnet.lbl.gov/
  * Or send email to:
  *  <gasnet-devel@lbl.gov>
  *

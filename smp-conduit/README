@@ -50,7 +50,7 @@ Known problems:
   share/doc/gasnet/README-{aries,gemini} (installed).
 
 * See the GASNet Bugzilla server for details on other known bugs:
-  http://gasnet-bugs.lbl.gov/
+  https://gasnet-bugs.lbl.gov/
 
 Future work:
 ------------

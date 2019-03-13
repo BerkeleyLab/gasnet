@@ -28,7 +28,7 @@ welcomed at: gasnet-devel@lbl.gov
 =======================================================================
 
 README file for GASNet
-http://gasnet.lbl.gov
+https://gasnet.lbl.gov
 
 This is a user manual for GASNet. Anyone planning on using GASNet (either
 directly or indirectly) should consult this file for usage instructions.
@@ -42,7 +42,7 @@ Other documentation:
  * For documentation on the communication-independent GASNet-tools library,
    see README-tools.
  * Additional information, including the GASNet specification and our bug
-   tracking database, is available from http://gasnet.lbl.gov
+   tracking database, is available from https://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
    the developer documents, available in the GASNet git repository, which 
    can be browsed online: http://bitbucket.org/berkeleylab/gasnet/src/develop
@@ -81,7 +81,7 @@ Space Networking".
 The GASNet API is defined in the specification, which is included with this 
 archive in docs/, and the definitive version is located on the GASNet webpage:
 
-  http://gasnet.lbl.gov/
+  https://gasnet.lbl.gov/
 
 This README accompanies the GASNet source distribution, which includes
 implementations of the GASNet API for various popular HPC and general-purpose
@@ -1380,11 +1380,11 @@ Contact Info and Support
 
 For the latest GASNet downloads, publications, and specifications, please visit:
 
-  http://gasnet.lbl.gov
+  https://gasnet.lbl.gov
 
 For bug reports and feature requests, please submit a ticket in the GASNet Bugzilla:
 
-  http://gasnet-bugs.lbl.gov
+  https://gasnet-bugs.lbl.gov
 
 You may find an instant solution to your problem by searching the bug database!
 
@@ -1402,5 +1402,5 @@ GASNet has several mailing lists for support:
     http://bitbucket.org/berkeleylab/gasnet/src/master/README
 
   For more information, please email: gasnet-users@lbl.gov
-  or visit the GASNet home page at:   http://gasnet.lbl.gov
+  or visit the GASNet home page at:   https://gasnet.lbl.gov
 --------------------------------------------------------------------------

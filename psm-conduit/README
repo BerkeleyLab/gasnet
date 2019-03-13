@@ -202,7 +202,7 @@ Known problems:
   by setting GASNET_SUPERNODE_MAXSIZE.  Under those conditions, you will
   receive an error message which directs you here.
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3333
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3333
   If, after reviewing that bug report, you wish to run psm-conduit over the
   PSM2 shared-memory device, please set GASNET_PSM_ENABLE_SHM=1 in your
   environment to disable the error message.  We strongly recommend you set
@@ -217,7 +217,7 @@ Known problems:
   under those conditions you will receive an error message which directs
   you here.
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3419
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3419
   Note this problem seems especially likely to arise when running on a KNL
   architecture with a heterogeneous configuration of KNL memory/cluster modes
   across the nodes comprising a job. We recommend that all nodes comprising
@@ -236,7 +236,7 @@ Known problems:
   program error or insufficient request descriptors (PSM2_MQ_SENDREQS_MAX=1048576)`
 
 * See the GASNet Bugzilla server for details on other known bugs:
-  http://gasnet-bugs.lbl.gov/
+  https://gasnet-bugs.lbl.gov/
 
 
 Future work:

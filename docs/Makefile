@@ -6,9 +6,9 @@
 #
 # The current version of the GASNet-1 specification is located at:
 #
-#  PDF:   http://gasnet.lbl.gov/dist/docs/gasnet.pdf
-#  HTML:  http://gasnet.lbl.gov/dist/docs/gasnet.html
-#  Text:  http://gasnet.lbl.gov/dist/docs/gasnet.txt
+#  PDF:   https://gasnet.lbl.gov/dist/docs/gasnet.pdf
+#  HTML:  https://gasnet.lbl.gov/dist/docs/gasnet.html
+#  Text:  https://gasnet.lbl.gov/dist/docs/gasnet.txt
 
 OUTPUTS = gasnet.pdf gasnet.txt gasnet.html
 

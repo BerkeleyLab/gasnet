@@ -767,7 +767,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
       barrier_count++;
       if (barrier_count < local_pthread_count) {
 	/* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
-         * compiler for x86_64.  See http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858
+         * compiler for x86_64.  See https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858
          * which includes a link to Sun's own database entry for this issue.
          */
         do {

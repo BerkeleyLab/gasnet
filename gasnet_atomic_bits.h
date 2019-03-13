@@ -175,7 +175,7 @@
          There are no surviving examples, however the SPARC7 and
          PA-RISC code (removed after GASNet-1.22.0) were good examples.
 
-   SEE ALSO: http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
+   SEE ALSO: https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
  */
 
 /* ------------------------------------------------------------------------------------ */
