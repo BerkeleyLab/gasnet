@@ -77,7 +77,7 @@ open-source software.
 *** Contributions ***
 
 For more information about GASNet-EX, visit our home page at:
-  http://gasnet.lbl.gov/
+  https://gasnet.lbl.gov/
 or send email to:
   <gasnet-devel@lbl.gov>
 

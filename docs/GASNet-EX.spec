@@ -6,7 +6,7 @@
 // This is "beta documentation" for a work-in-progress.
 //
 // This document assumes a reasonable degree of familiarity with the current
-// (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+// (aka GASNet-1) specification: https://gasnet.lbl.gov/dist/docs/gasnet.pdf
 //
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
@@ -2382,7 +2382,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // APIs in this section are provided by gasnet_vis.h
 
 // This API is an updated and expanded version of the VIS prototype offered
-// in GASNet-1, which is documented here: http://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
+// in GASNet-1, which is documented here: https://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
 
 // The following semantics apply to all VIS functions:
 

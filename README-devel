@@ -1,5 +1,5 @@
 README-devel file for GASNet
-http://gasnet.lbl.gov
+https://gasnet.lbl.gov
 
 This is a design document for GASNet. Anyone planning on modifying or adding 
 to the GASNet code base should read this file.
@@ -12,7 +12,7 @@ Other documentation:
  * For documentation on the communication-independent GASNet-tools library,
    see README-tools.
  * Additional information, including the GASNet specification and our bug
-   tracking database, is available from http://gasnet.lbl.gov
+   tracking database, is available from https://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
    the following developer documents, available in the GASNet git repository, which
    can be browsed online: http://bitbucket.org/berkeleylab/gasnet/src/develop
@@ -32,7 +32,7 @@ See the GASNet specification for information about the GASNet API. A copy is
 included with this archive in docs/, and the definitive version is located on
 the GASNet webpage here:
 
-  http://gasnet.lbl.gov/
+  https://gasnet.lbl.gov/
 
 The GASNet API is a two-level interface consisting of the lower-level "core API"
 and the upper-level "extended API". All of the functions in the extended API can
@@ -374,7 +374,7 @@ Required porting steps:
   not support atomic operations. Implement atomic compare-and-swap, if supported
   by the system.
   For an outline of the yet-to-be-written "Atomic OPS HOWTO" see
-  http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
+  https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
 
 * For a new CPU, implement appropriate memory barriers in gasnet_membar.h:
   gasneti_local_wmb and gasneti_local_rmb (one or both may be no-ops, depending
@@ -444,5 +444,5 @@ will be kept current in each release.
     http://bitbucket.org/berkeleylab/gasnet/src/develop/README-devel
 
   For more information, please email: gasnet-devel@lbl.gov
-  or visit the GASNet home page at:   http://gasnet.lbl.gov
+  or visit the GASNet home page at:   https://gasnet.lbl.gov
 --------------------------------------------------------------------------
