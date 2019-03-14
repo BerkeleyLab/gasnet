@@ -48,6 +48,7 @@ GASNet-EX ChangeLog
   - bug3829: Co-located segment probe failures
   - bug3805: Fix issues with 64-bit SPARC assembly
   - bug3834: GASNet ctype wrappers break for C++ clients
+  - bug3853: ibv-conduit AM hang under heavy load
   - bug3854: Fix assertion failure in gex_TM_Split
   - bug3856: Improved crash behavior on Cygwin with multi-threading
   - bug3858: Fix assertion failure in pmi-spawner
