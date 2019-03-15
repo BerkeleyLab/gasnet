@@ -6,7 +6,7 @@
 // This is "beta documentation" for a work-in-progress.
 //
 // This document assumes a reasonable degree of familiarity with the current
-// (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+// (aka GASNet-1) specification: https://gasnet.lbl.gov/dist/docs/gasnet.pdf
 //
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
@@ -31,9 +31,9 @@
 //
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
-#define GASNET_RELEASE_VERSION_MAJOR 2018
-#define GASNET_RELEASE_VERSION_MINOR 12
-#define GASNET_RELEASE_VERSION_PATCH 3
+#define GASNET_RELEASE_VERSION_MAJOR 2019
+#define GASNET_RELEASE_VERSION_MINOR 3
+#define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
@@ -53,7 +53,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 12
+#define GASNETT_SPEC_VERSION_MINOR 13
 
 //
 // Relationship to GASNet-1 APIs:
@@ -221,11 +221,11 @@ gex_Rank_t gex_System_QueryJobSize(void);
 // of the entire operation), and zero or more leaf events 
 // (representing completion of intermediate steps).
 // Root events must eventually be synchronized by passing them
-// to an Wait or successful Test function, which recycles all the
-// events associated with the operation in question.
+// to a Wait or successful Test function, which recycles all the
+// events (root and leaf) associated with the operation in question.
 // Leaf events may optionally be synchronized before that point.
 // This type is interoperable with gasnet_handle_t
-// - Sync operation: test/wait w/ one/all/some flavors
+// - Sync operation: test/wait with one/all/some flavors
 //   + Success consumes the event
 typedef ... gex_Event_t;
 
@@ -571,7 +571,7 @@ gex_Client_t gex_Segment_QueryClient(gex_Segment_t seg);
 // There are no segment flags defined in the current release.
 gex_Flags_t  gex_Segment_QueryFlags(gex_Segment_t seg);
 
-// Query address and length of a segent
+// Query address and length of a segment
 void *       gex_Segment_QueryAddr(gex_Segment_t seg);
 uintptr_t    gex_Segment_QuerySize(gex_Segment_t seg);
 
@@ -850,7 +850,7 @@ typedef struct {
 // then still unallocated (where 255 is the highest possible).
 // Updating of gex_index fields that were passed as 0 upon input is the only
 // modification this function will perform upon the contents of 'table'
-// (whose elements are otherwise treated as const-qualified by this call).
+// (whose elements are otherwise treated as if const-qualified by this call).
 // Upon return from this function, the relevant information from 'table'
 // has been copied into storage internal to the endpoint implementation,
 // and the client is permitted to overwrite or free the contents of 'table'.
@@ -1106,7 +1106,7 @@ extern gex_TI_t gex_Token_Info(
 //   gex_NBI_{Test,Wait}() call may check local completion when passed
 //   GEX_EC_AM.  Use of a pointer to a variable of type 'gex_Event_t'
 //   allows the call to return without delay, and requires the client to later
-//   check local completion using gex_Event_{Test,Wait}*().
+//   check local completion of this root event using gex_Event_{Test,Wait}*().
 //
 //   The 'lc_opt' argument to Medium and Long Reply calls behave as for the
 //   Requests with the exception that GEX_EVENT_GROUP is *not* permitted.
@@ -1124,12 +1124,12 @@ extern gex_TI_t gex_Token_Info(
 //
 //   The 'flags' argument to Long Request/Reply calls may include
 //   GEX_FLAG_PEER_SEG_* flags to assert segment disposition properties of the
-//   address range described by [dest_addr..dest_addr+nbytes-1)]. Any such
+//   address range described by [dest_addr..(dest_addr+nbytes-1)]. Any such
 //   assertions must remain true until the AM handler begins execution at the target.
 //
 // Other arguments behave as in the analogous GASNet-1 functions.
 // Misc semantic strengthening:
-// * dest_addr for Long is guaranteed to be delivered to the handler as provided
+// * dest_addr for Long is guaranteed to be passed to the handler as provided
 //   by the initiator, even for the degenerate case when nbytes==0
 
 // Long
@@ -1345,7 +1345,7 @@ size_t gex_AM_SrcDescSize(gex_AM_SrcDesc_t sd);
 //     non-NULL, these flags assert segment disposition properties for the
 //     range [dest_addr..(dest_addr+most_payload-1)] that must be true upon
 //     entry to Prepare and remain true until entry to the AM handler at
-//     the target. If `dest_addr` NULL at Prepare and non-NULL at Commit,
+//     the target. If `dest_addr` is NULL at Prepare and non-NULL at Commit,
 //     these flags assert segment disposition properties for the Commit-time
 //     range [dest_addr..(dest_addr+nbytes-1)] that must be true upon
 //     entry to Commit and remain true until entry to the AM handler at
@@ -2282,7 +2282,7 @@ void* gex_AD_QueryCData(gex_AD_t ad);
 //   See the "Operation codes (opcodes) for atomics and reductions" section
 //   for definitions of each operation.
 //
-// + The 'opcode' must be a single GEX_OP* value_, not a bitwise OR of two or
+// + The 'opcode' must be a single GEX_OP_* value, not a bitwise OR of two or
 //   more GEX_OP_* values.
 //
 // + The 'opcode' must be a member of the set of opcodes passed to
@@ -2382,7 +2382,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // APIs in this section are provided by gasnet_vis.h
 
 // This API is an updated and expanded version of the VIS prototype offered
-// in GASNet-1, which is documented here: http://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
+// in GASNet-1, which is documented here: https://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
 
 // The following semantics apply to all VIS functions:
 
@@ -2616,7 +2616,7 @@ void gex_VIS_SetPeerCompletionHandler(gex_AM_Index_t handler,
 
 // By default, local completion of all client-owned input buffers ('src'
 // arguments) passed to the collective initiation functions can occur as late
-// as operation completion, and thus must remain valid until that time.
+// as operation completion, and thus these buffers must remain valid until that time.
 //
 // A future revision may expose intermediate completion events [UNIMPLEMENTED]
 
@@ -2801,7 +2801,7 @@ gex_Event_t gex_Coll_BroadcastNB(
 //   denote the C data type and '(+)' to denote the operator:
 //     T* x = (T*)arg1;
 //     T* y = (T*)arg2_and_out;
-//     For all i in [0..count) y[i] = x[i] (+) y[i];
+//     For all i in [0..count) do y[i] = x[i] (+) y[i];
 // + Shall not assume 'count' is equal to the 'dt_cnt' passed at operation
 //   initiation, since the implementation is free to process the 'dt_cnt'
 //   elements passed in at initiation in smaller groups, or to group more

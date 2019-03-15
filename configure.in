@@ -9,9 +9,9 @@ dnl -*- m4 -*-
 define([cv_prefix],[gasnet_cv_])
 
 dnl Public release version packaging identifier:
-define([GASNET_RELEASE_VERSION_MAJOR_D],[2018])
-define([GASNET_RELEASE_VERSION_MINOR_D],[12])
-define([GASNET_RELEASE_VERSION_PATCH_D],[3])
+define([GASNET_RELEASE_VERSION_MAJOR_D],[2019])
+define([GASNET_RELEASE_VERSION_MINOR_D],[3])
+define([GASNET_RELEASE_VERSION_PATCH_D],[0])
 dnl GASNet-EX spec version:
 define([GASNETEX_SPEC_VERSION_MAJOR_D],[0])
 define([GASNETEX_SPEC_VERSION_MINOR_D],[7])
@@ -20,7 +20,7 @@ define([GASNET_SPEC_VERSION_MAJOR_D],[1])
 define([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 define([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-define([GASNETT_SPEC_VERSION_MINOR_D],[12])
+define([GASNETT_SPEC_VERSION_MINOR_D],[13])
 
 define([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -35,8 +35,8 @@ dnl AC_REVISION("no-version-control-info (tools only)")
 dnl define([AC_PACKAGE_NAME],[GASNet_Tools])
 dnl GASNET_TOOLSONLY_TRUE_END
 
-define([AC_PACKAGE_BUGREPORT],[http://gasnet-bugs.lbl.gov])
-define([AC_PACKAGE_URL],[http://gasnet.lbl.gov])
+define([AC_PACKAGE_BUGREPORT],[https://gasnet-bugs.lbl.gov])
+define([AC_PACKAGE_URL],[https://gasnet.lbl.gov])
 define([AC_PACKAGE_VERSION],[GASNET_RELEASE_VERSION_D])
 
 ifdef([GASNET_TRIM_ACHELP], dnl must precede AC_INIT
@@ -2602,7 +2602,7 @@ AC_DEFUN([CONDUIT_END],[
       if test "CONDUIT_IMPLEMENTED" != "yes"; then
         pushdef([EX_UNIMPL_MESSAGE],[It appears your system has the required support for CONDUIT_NAME[]-conduit, 
 	  however CONDUIT_NAME[]-conduit is not yet fully implemented in this GASNet-EX distribution, 
-	  If you want to use this conduit, please download the GASNet v1.x distribution from http://gasnet.lbl.gov.
+	  If you want to use this conduit, please download the GASNet v1.x distribution from https://gasnet.lbl.gov.
 	  Otherwise, you can disable this message with --disable-[]CONDUIT_NAME ])
         if test "$force_[]CONDUIT_NAME" = yes ; then 
 	  GASNET_MSG_ERROR([EX_UNIMPL_MESSAGE])
@@ -4201,7 +4201,7 @@ CONDUIT_OUTPUT(aries)
 
 if test -z "$CONDUITS" ; then
   pushdef([COMMONMSG],[If you intend to use GASNet without network support, you must use the
-GASNet_Tools distribution instead (see http://gasnet.lbl.gov).
+GASNet_Tools distribution instead (see https://gasnet.lbl.gov).
 See the GASNet documentation for additional details.])
   if test "$enabled_auto_detect" = yes; then
     GASNET_MSG_ERROR([No network conduits were auto-detected.
@@ -5274,7 +5274,7 @@ EOF
 else
 cat >>$CONDUIT_LIST <<EOF
  GASNet is configured in tools-only mode, with all network communication services disabled.
- For the full GASNet distribution, visit http://gasnet.lbl.gov
+ For the full GASNet distribution, visit https://gasnet.lbl.gov
 
  Misc Settings
  -------------
