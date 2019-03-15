@@ -6,7 +6,7 @@
 // This is "beta documentation" for a work-in-progress.
 //
 // This document assumes a reasonable degree of familiarity with the current
-// (aka GASNet-1) specification: http://gasnet.lbl.gov/dist/docs/gasnet.pdf
+// (aka GASNet-1) specification: https://gasnet.lbl.gov/dist/docs/gasnet.pdf
 //
 // Except where otherwise noted, all definitions in this document
 // are provided by gasnetex.h.
@@ -31,9 +31,9 @@
 //
 // This takes the form YEAR.MONTH.PATCH in GASNet-EX releases,
 // providing a clear distinction from GASNet-1 with MAJOR==1.
-#define GASNET_RELEASE_VERSION_MAJOR 2018
-#define GASNET_RELEASE_VERSION_MINOR 12
-#define GASNET_RELEASE_VERSION_PATCH 3
+#define GASNET_RELEASE_VERSION_MAJOR 2019
+#define GASNET_RELEASE_VERSION_MINOR 3
+#define GASNET_RELEASE_VERSION_PATCH 0
 
 // Major and Minor versions of the GASNet-EX specification.
 //
@@ -53,7 +53,7 @@
 //
 // This is the spec version for the GASNet Tools
 #define GASNETT_SPEC_VERSION_MAJOR 1
-#define GASNETT_SPEC_VERSION_MINOR 12
+#define GASNETT_SPEC_VERSION_MINOR 13
 
 //
 // Relationship to GASNet-1 APIs:
@@ -2382,7 +2382,7 @@ int gex_AD_OpNBI_[DATATYPE](
 // APIs in this section are provided by gasnet_vis.h
 
 // This API is an updated and expanded version of the VIS prototype offered
-// in GASNet-1, which is documented here: http://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
+// in GASNet-1, which is documented here: https://gasnet.lbl.gov/pubs/upc_memcpy_gasnet-2.0.pdf
 
 // The following semantics apply to all VIS functions:
 

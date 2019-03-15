@@ -18,7 +18,7 @@
  * contribute any improvements (especially addition of new platforms) back to the 
  * canonical version, for the benefit of the community. 
  * Contributions and bug reports should be directed to:
- *   http://gasnet-bugs.lbl.gov or gasnet-staff@lbl.gov
+ *   https://gasnet-bugs.lbl.gov or gasnet-staff@lbl.gov
  */
 /* ------------------------------------------------------------------------------------ */
 /* Header versioning: DO NOT CHANGE ANYTHING IN THIS SECTION 

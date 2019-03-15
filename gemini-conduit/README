@@ -403,11 +403,11 @@ Known problems:
   work-around, then you may pass the option --disable-bug3480-workaround to
   the cross-configure script.
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3480
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3480
   It is currently unknown if this problem is specific to Cray systems.
 
 * See the GASNet Bugzilla server for details on other known bugs:
-  http://gasnet-bugs.lbl.gov/
+  https://gasnet-bugs.lbl.gov/
 
 Future work:
 ------------

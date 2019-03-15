@@ -1,5 +1,5 @@
 README-release file for GASNet
-http://gasnet.lbl.gov
+https://gasnet.lbl.gov
 
 The purpose of this document is to record the steps required for a public
 release of GASNet.  This is NOT required reading for most developers.
@@ -260,8 +260,8 @@ GASNet Release Procedure
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    http://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
+    https://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
 
   For more information, please email: gasnet-devel@lbl.gov
-  or visit the GASNet home page at:   http://gasnet.lbl.gov
+  or visit the GASNet home page at:   https://gasnet.lbl.gov
 --------------------------------------------------------------------------
