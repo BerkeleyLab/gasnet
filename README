@@ -45,7 +45,7 @@ Other documentation:
    tracking database, is available from https://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
    the developer documents, available in the GASNet git repository, which 
-   can be browsed online: http://bitbucket.org/berkeleylab/gasnet/src/develop
+   can be browsed online: https://bitbucket.org/berkeleylab/gasnet/src/develop
    + README-devel: GASNet design information and coding standards
    + README-git: Rules developers are expected to follow when committing
    + template-conduit: A fill-in-the-blanks conduit code skeleton
@@ -104,7 +104,7 @@ The minimum system requirements are:
  * A POSIX-like environment, e.g. Linux or another version of Unix.
    For Mac systems, the free 'XCode command-line tools' from the Apple Store.
    For Windows systems one needs either of two options:
-   + The free 'Cygwin' toolkit (http://www.cygwin.com/)
+   + The free 'Cygwin' toolkit (https://www.cygwin.com/)
    + Windows 10 Subsystem for Linux, a.k.a. WSL
      (https://docs.microsoft.com/en-us/windows/wsl/)
  * Make (we recommend GNU make version 3.79 or newer).
@@ -1399,7 +1399,7 @@ GASNet has several mailing lists for support:
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    http://bitbucket.org/berkeleylab/gasnet/src/master/README
+    https://bitbucket.org/berkeleylab/gasnet/src/master/README
 
   For more information, please email: gasnet-users@lbl.gov
   or visit the GASNet home page at:   https://gasnet.lbl.gov
