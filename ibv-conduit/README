@@ -623,7 +623,17 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   result.  The default settings should be sufficient for most conditions.
   You may need to lower some values if you have insufficient memory.
 
-  These parameters must be equal across all nodes, and the behavior
+  + GASNET_RBUF_SPARES
+    This gives the number of AM receive buffers used to hold header and
+    payload of executing AM Request, and thus bounds the number of threads
+    which may concurrently execute AM handlers "in place".  Any threads
+    beyond this limit must copy the header and payload before executing
+    the handler.
+    The default value reflects a heuristic estimate of the number of
+    threads which might concurrently poll for AM arrivals.
+    Reducing this parameter may reduce Active Message throughput.
+
+  The following parameters must be equal across all nodes, and the behavior
   otherwise is undefined.
 
   + GASNET_NETWORKDEPTH_PP
@@ -669,12 +679,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   + GASNET_AM_CREDITS_TOTAL
     This gives the integer number of AM Requests which can be in-flight
     simultaneously from each node, with "in-flight" defined as in
-    GASNET_AM_CREDITS_PP.  This is the number of receive buffers which
-    will be allocated for posting to an endpoint for the AM Reply which
-    follows each AM Request.
+    GASNET_AM_CREDITS_PP.
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_AM_CREDITS_PP and the HCA's reported capabilities.
-    The default value is MIN(256, nodes*GASNET_AM_CREDITS_PP).
+    The default value is MIN(256, (nodes-1)*GASNET_AM_CREDITS_PP).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
@@ -1034,7 +1042,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   or destination of GASNet communication calls if such memory is later
   returned to the OS via munmap().
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=495
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=495
   That bug report describes the problem in more detail, and lists the best
   known recommended work-around(s).
 
@@ -1044,7 +1052,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   implementation is currently enabled for the only compiler (PathScale)
   known to manifest the problem.
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3428
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3428
   That bug report describes the problem in more detail, and lists the best
   known recommended work-around(s).
 
@@ -1052,7 +1060,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   In this release the implementation of ibv-conduit on multi-HCA InfiniBand
   networks may yield incorrect results for certain communication patterns.
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3447
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3447
   That bug report describes the conditions under which the problem may
   manifest, and the recommended work-arounds.
 
@@ -1068,7 +1076,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   described under "System Settings for POSIX Shared Memory" in GASNet's
   top-level README.
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3693
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3693
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
@@ -1083,7 +1091,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   then it may be advisable to disable ODP (see On-Demand Paging (ODP) Support
   section).
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3816
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3816
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
@@ -1096,12 +1104,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   RMA operations, then you should retry with ODP disabled (see On-Demand Paging
   (ODP) Support section).
   The most up-to-date information on this bug is maintained at:
-    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3838
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3838
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
 + See the GASNet Bugzilla server for details on other known bugs:
-  http://gasnet-bugs.lbl.gov/
+  https://gasnet-bugs.lbl.gov/
 
 @ Section: Core API @
 
@@ -1455,4 +1463,4 @@ The average case for non-collective exits is somewhere between those two.
 [1]	Bell, Bonachea. "A New DMA Registration Strategy for Pinning-Based
 	High Performance Networks", Workshop on Communication Architecture
 	for Clusters (CAC'03), 2003.
-	Also at  http://gasnet.lbl.gov/
+	Also at  https://gasnet.lbl.gov/

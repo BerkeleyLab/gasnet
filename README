@@ -44,7 +44,7 @@ EX-Specific Implementation Notes:
 =======================================================================
 
 README file for GASNet
-http://gasnet.lbl.gov
+https://gasnet.lbl.gov
 
 This is a user manual for GASNet. Anyone planning on using GASNet (either
 directly or indirectly) should consult this file for usage instructions.
@@ -58,10 +58,10 @@ Other documentation:
  * For documentation on the communication-independent GASNet-tools library,
    see README-tools.
  * Additional information, including the GASNet specification and our bug
-   tracking database, is available from http://gasnet.lbl.gov
+   tracking database, is available from https://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
    the developer documents, available in the GASNet git repository, which 
-   can be browsed online: http://bitbucket.org/berkeleylab/gasnet/src/develop
+   can be browsed online: https://bitbucket.org/berkeleylab/gasnet/src/develop
    + README-devel: GASNet design information and coding standards
    + README-git: Rules developers are expected to follow when committing
    + template-conduit: A fill-in-the-blanks conduit code skeleton
@@ -97,7 +97,7 @@ Space Networking".
 The GASNet API is defined in the specification, which is included with this 
 archive in docs/, and the definitive version is located on the GASNet webpage:
 
-  http://gasnet.lbl.gov/
+  https://gasnet.lbl.gov/
 
 This README accompanies the GASNet source distribution, which includes
 implementations of the GASNet API for various popular HPC and general-purpose
@@ -120,7 +120,7 @@ The minimum system requirements are:
  * A POSIX-like environment, e.g. Linux or another version of Unix.
    For Mac systems, the free 'XCode command-line tools' from the Apple Store.
    For Windows systems one needs either of two options:
-   + The free 'Cygwin' toolkit (http://www.cygwin.com/)
+   + The free 'Cygwin' toolkit (https://www.cygwin.com/)
    + Windows 10 Subsystem for Linux, a.k.a. WSL
      (https://docs.microsoft.com/en-us/windows/wsl/)
  * Make (we recommend GNU make version 3.79 or newer).
@@ -178,14 +178,6 @@ or similarly, if you want libgasnet to contain debugging symbols:
     --enable-debug-malloc - use GASNet debugging malloc (see usage info below)
     --enable-segment-{fast,large,everything} - select a GASNet segment 
       configuration (see the GASNet spec for more info)
-    --{enable,disable}-smp-safe - Build GASNet for an SMP or uni-processor.
-      These options are not normally necessary, since by default configure
-      will probe the machine to determine if it is an SMP.  However:
-      1) If you configure on a uni-processor and intend to use the resulting
-         libraries on an SMP, then you MUST specify --enable-smp-safe to
-         ensure correctness.
-      2) If you configure on an SMP for execution ONLY on uniprocessors, then
-         you MAY specify --disable-smp-safe for a performance improvement.
     --enable-pshm - Build GASNet with inter-Process SHared Memory (PSHM) support.
       This feature uses shared memory communication among the processes (aka
       GASNet nodes) within a single compute node (where the other alternatives
@@ -1434,11 +1426,11 @@ Contact Info and Support
 
 For the latest GASNet downloads, publications, and specifications, please visit:
 
-  http://gasnet.lbl.gov
+  https://gasnet.lbl.gov
 
 For bug reports and feature requests, please submit a ticket in the GASNet Bugzilla:
 
-  http://gasnet-bugs.lbl.gov
+  https://gasnet-bugs.lbl.gov
 
 You may find an instant solution to your problem by searching the bug database!
 
@@ -1453,8 +1445,8 @@ GASNet has several mailing lists for support:
 
 --------------------------------------------------------------------------
   The canonical version of this document is located here:
-    http://bitbucket.org/berkeleylab/gasnet/src/master/README
+    https://bitbucket.org/berkeleylab/gasnet/src/master/README
 
   For more information, please email: gasnet-users@lbl.gov
-  or visit the GASNet home page at:   http://gasnet.lbl.gov
+  or visit the GASNet home page at:   https://gasnet.lbl.gov
 --------------------------------------------------------------------------

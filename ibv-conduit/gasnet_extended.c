@@ -142,7 +142,10 @@ gex_Event_t gasnete_put_nb(
   } else if (lc_opt == GEX_EVENT_DEFER) {
     GASNETC_RDMA_PUT(NULL, NULL);
   } else {
+  // Intel C prior to 2019.0.117 (builddate 20180804) issues a buggy warning here
+  #if !(PLATFORM_COMPILER_INTEL && PLATFORM_COMPILER_VERSION_LT(19,0,20180800))
     gasneti_assume(gasneti_leaf_is_pointer(lc_opt));
+  #endif
     GASNETE_EOP_LC_START(op);
     gasnetc_atomic_val_t start_cnt = op->initiated_alc;
     GASNETC_RDMA_PUT(&op->initiated_alc, gasnetc_cb_eop_alc);

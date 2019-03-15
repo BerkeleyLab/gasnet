@@ -436,8 +436,9 @@ uintptr_t gasneti_max_segsize();
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
 
+uint64_t gasneti_sharedLimit(void);
 #ifdef GASNETI_MMAP_OR_PSHM
-uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
+uintptr_t gasneti_segmentLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */
@@ -495,7 +496,7 @@ uintptr_t gasneti_auxseg_preinit(void);
 void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
+void gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)

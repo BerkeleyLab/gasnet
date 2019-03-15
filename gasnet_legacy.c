@@ -46,6 +46,17 @@ extern void gasneti_legacy_alloc_tm_hook(gasneti_TM_t _tm) {
     gasneti_import_client(client)->_flags |= GEX_FLAG_USES_GASNET1;
     gasneti_thunk_endpoint = gex_TM_QueryEP(tm);
     gasneti_import_ep(gasneti_thunk_endpoint)->_flags |= GEX_FLAG_USES_GASNET1;
+
+    if (!gasneti_legacy_handlers_registered) {
+      int len = 0;
+      int numreg = 0;
+      while (gasneti_legacy_handlers[len].gex_fnptr) len++; /* calc len */
+      if (gasneti_amregister(gasneti_import_ep(gasneti_thunk_endpoint)->_amtbl, gasneti_legacy_handlers, len, 
+                              GASNETI_LEGACY_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+         gasneti_fatalerror("Error registering g2ex legacy AM handlers");
+      gasneti_assert(numreg == len);
+      gasneti_legacy_handlers_registered = 1;
+    }
   }
 }
 
@@ -71,17 +82,6 @@ extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep) {
      gasneti_assert(ep->_flags & GEX_FLAG_USES_GASNET1);
      ep->_segment->_flags |= GEX_FLAG_USES_GASNET1;
      gasneti_thunk_segment = gasneti_export_segment(ep->_segment);
-
-     if (!gasneti_legacy_handlers_registered) {
-       int len = 0;
-       int numreg = 0;
-       while (gasneti_legacy_handlers[len].gex_fnptr) len++; /* calc len */
-       if (gasneti_amregister(ep->_amtbl, gasneti_legacy_handlers, len, 
-                              GASNETI_LEGACY_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-         gasneti_fatalerror("Error registering g2ex legacy AM handlers");
-       gasneti_assert(numreg == len);
-       gasneti_legacy_handlers_registered = 1;
-     }
   }
 }
 
@@ -124,7 +124,7 @@ extern gex_Event_t gasneti_legacy_memset_nb(gex_Rank_t node, void *dest, int val
   GASNETI_TRACE_MEMSET(node,dest,val,nbytes); 
   gasneti_assert_reason(gasneti_legacy_handlers_registered, "gasnet_memset* requires gasnet_attach() or GEX_FLAG_USES_GASNET1");
   if_pf (!nbytes) return 0;
-  gasneti_assert(dest);
+  gasneti_boundscheck(gasneti_thunk_tm,node,dest,nbytes);
   GASNETI_CHECKPSHM_MEMSET(gasneti_thunk_tm,node,dest,val,nbytes);
   gasneti_eop_t *eop = gasneti_eop_create(GASNETI_THREAD_PASS_ALONE);
 
@@ -138,7 +138,7 @@ extern int gasneti_legacy_memset_nbi(gex_Rank_t node, void *dest, int val, size_
   GASNETI_TRACE_MEMSET(node,dest,val,nbytes); 
   gasneti_assert_reason(gasneti_legacy_handlers_registered, "gasnet_memset* requires gasnet_attach() or GEX_FLAG_USES_GASNET1");
   if_pf (!nbytes) return 0;
-  gasneti_assert(dest);
+  gasneti_boundscheck(gasneti_thunk_tm,node,dest,nbytes);
   GASNETI_CHECKPSHM_MEMSET(gasneti_thunk_tm,node,dest,val,nbytes);
   gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_PASS);
 
