@@ -190,7 +190,7 @@ GASNet-EX ChangeLog
 
 * Notable bugs fixed in this release:
   - Bug3749: assertion failure in PSHM's NP-AM
-  - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
+  - See fixes listed in the GASNet-1 1.32.0 ChangeLog below
 
 
 ----------------------------------------------------------------------
@@ -254,7 +254,7 @@ GASNet-EX ChangeLog
     + New AM Interfaces, Immediate Operations, Local Completion and Remote Atomics.
 
 * Notable bugs fixed in this release:
-  - See fixes listed in the pending GASNet-1 1.30.2 ChangeLog below
+  - See fixes listed in the GASNet-1 1.32.0 ChangeLog below
 
 ----------------------------------------------------------------------
 09-28-2017: GASNet-EX 2017.9.0 Release
