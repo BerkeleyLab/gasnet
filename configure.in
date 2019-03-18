@@ -2977,7 +2977,7 @@ fi
 #---------------------------------------------------------------------------------------------------------------
 # UDP/AMUDP Configuration
 CONDUIT_BEGIN(udp,yes,[Portable UDP/IP conduit (udp)])
-if test $enabled_udp = yes; then
+if test "$enabled_udp" = yes; then
  if test "$have_cxx" = yes; then
   # detect libraries necessary for udp-* backends
   GASNET_PUSHVAR(LIBS,"")
@@ -3291,7 +3291,7 @@ AM_CONDITIONAL(USE_MPI, test "$have_mpi" = yes)
 # SMP configuration
 
 CONDUIT_BEGIN(smp,yes,[Portable SMP-loopback conduit (smp)])
-if test $enabled_smp = yes; then
+if test "$enabled_smp" = yes; then
   if test x"$with_pshm" != xno; then
     dnl TODO: factor socket related probes
     AC_CHECK_HEADERS(sys/socket.h)
@@ -3387,7 +3387,7 @@ AM_CONDITIONAL(USE_SMP_CONDUIT, test "$enabled_smp" = yes)
 
 CONDUIT_BEGIN(mxm,no,[Mellanox InfiniBand MXM conduit (mxm)])
 have_mxm=no
-if test "$enabled_mxm" = no; then
+if test "$enabled_mxm" != yes; then
     :
 elif test "$have_fork" = no; then
     GASNET_MSG_WARN([mxm-conduit requires fork() ($fork_reason) for startup - disabling mxm])
@@ -3443,7 +3443,7 @@ AM_CONDITIONAL(USE_MXM_CONDUIT, test "$enabled_mxm$have_mxm" = yesyes)
 
 CONDUIT_BEGIN(psm,warn,[Intel OmniPath PSM2 conduit (psm)])
 have_psm=no
-if test "$enabled_psm" = no; then
+if test "$enabled_psm" != yes; then
     :
 elif test "$have_pthread" = no; then
     GASNET_MSG_WARN([psm-conduit requires libpthread ($pthread_reason) - disabling psm])
@@ -3920,7 +3920,7 @@ AM_CONDITIONAL(USE_ARIES_CONDUIT, test "$enabled_aries$have_aries" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 # PAMI configuration
 CONDUIT_BEGIN(pami,yes,[IBM BlueGene/Q / Power775 PAMI conduit (pami)])
-if test $enabled_pami = yes; then
+if test "$enabled_pami" = yes; then
   have_pami=yes
 
   if false ; then # just for help strings
@@ -5121,7 +5121,7 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 # Optional "third-party" libraries
 
 ##                        FCA SUPPORT
-dnl FCA support is GASNet-1 only, pending collectives reimplementation in GASNet-EX
+  dnl FCA support is GASNet-1 only, pending collectives reimplementation in GASNet-EX
 ifdef([GASNET_BRANCH_1],[
   GASNET_IF_ENABLED_WITH_AUTO(fca,
     [Enable/disable FCA for acceleration of collectives (auto-detected)],
