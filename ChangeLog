@@ -18,6 +18,12 @@ GASNet-EX ChangeLog
   distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING: GASNet-EX Work-In-Progress
+
+* Notable bugs fixed in this release:
+  - bug3880: XLC 16.1.x ICE compiling ibv-conduit for Power9
+
+----------------------------------------------------------------------
 03-15-2019: GASNet-EX 2019.3.0 Release
 
 * Legacy backward-compatibility layer:
