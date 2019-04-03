@@ -783,6 +783,16 @@ extern int gex_EP_Create(
 // An integer constant, guaranteed to be 128 or less.
 #define GEX_AM_INDEX_BASE ???
 
+// Implementation-induced concurrency of AM handlers
+// This value (always defined) has a non-zero value iff the implementation
+// may run AM handlers on a thread not owned by the client 
+// (and in particular, concurrently with the client when no client
+// thread is inside a synchronous call to GASNet). 
+// Note this is orthogonal to SEQ/PAR/PARSYNC mode - in particular, in PAR
+// mode multiple client threads concurrently entering GASNet may result
+// in AM handler concurrency, independent of this value.
+#define GASNET_HIDDEN_AM_CONCURRENCY_LEVEL ???
+
 // Client-facing type for describing one AM handler
 // This type is an alternative to (*not* interchangeable with) gasnet_handlerentry_t
 //
