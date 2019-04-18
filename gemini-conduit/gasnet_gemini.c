@@ -892,7 +892,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   /* create and bind endpoints */
   DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
   for (i = 0; i < gasneti_nodes; i += 1) {
-  #if !GASNETC_BUILD_GNIRATOMIC
+  #if !GASNETC_LOCAL_GNI_EP
     if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) continue; /* no connection to self or PSHM-reachable peers */
   #endif
    status = GNI_EpCreate(DOMAIN_SPECIFIC_VAL(nic_handle), DOMAIN_SPECIFIC_VAL(bound_cq_handle), 
@@ -1269,7 +1269,7 @@ am_memory_report:
       peer_data[i].nic_addr = all_am_exchg[i].nic_addr;
     #endif
 
-    #if !GASNETC_BUILD_GNIRATOMIC
+    #if !GASNETC_LOCAL_GNI_EP
       if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) /* no connection to self or PSHM-reachable peers */
     #endif
       {
@@ -1383,7 +1383,7 @@ void gasnetc_shutdown(void)
     left = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
     for (tries=0; tries<10; ++tries) {
       for (i = 0; i < gasneti_nodes; i += 1) {
-      #if !GASNETC_BUILD_GNIRATOMIC
+      #if !GASNETC_LOCAL_GNI_EP
           if_pf (GASNETI_NBRHD_JOBRANK_IS_LOCAL(i)) continue; /* no connection to self or PSHM-reachable peers */
       #endif
           if_pt (peer_data[i].ep_handle != NULL) {
@@ -2797,7 +2797,7 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
 
-#if !GASNETC_BUILD_GNIRATOMIC
+#if !GASNETC_LOCAL_GNI_EP
   gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 #endif
 
@@ -2860,7 +2860,7 @@ size_t gasnetc_rdma_get(gex_Rank_t node,
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
 
-#if !GASNETC_BUILD_GNIRATOMIC
+#if !GASNETC_LOCAL_GNI_EP
   gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 #endif
 

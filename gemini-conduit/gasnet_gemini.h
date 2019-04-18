@@ -99,6 +99,11 @@ extern gasnetc_gni_lock_t gasnetc_gni_lock;
 
 extern gasnetc_gni_lock_t gasnetc_am_buffer_lock;
 
+// Certain features require GNI-level EP for self and PSHM_peers
+#if GASNETC_BUILD_GNIRATOMIC || GASNETC_BUILD_GNICE
+  #define GASNETC_LOCAL_GNI_EP 1
+#endif
+
 typedef uint64_t gasnetc_notify_t;
 
 /* NOTE: notify_type is "pre shifted" by 24 bits */
