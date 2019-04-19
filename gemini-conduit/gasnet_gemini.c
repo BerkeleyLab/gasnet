@@ -3290,39 +3290,31 @@ void gasnete_init_ce(void) {
   gasnetc_bootstrapBarrier_gni();
 
 #if GASNET_DEBUG
-  { // Validation: 2-field SUM reduction over uint64_t
+  { // Validation
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
 
-    gni_ce_result_t *result = &gpd->u.ce_result;
-
-    gni_post_descriptor_t * const pd = &gpd->pd;
-    pd->type = GNI_POST_CE;
-    pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-    pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
-    pd->local_addr = (uint64_t) result;
-    pd->local_mem_hndl = my_aux_handle;
-    pd->ce_cmd = GNI_FMA_CE_IADD;
-    pd->ce_mode = GNI_CEMODE_TWO_OP;
-    pd->ce_red_id = 5551212;
-    pd->first_operand = 1;
-    pd->second_operand = gasneti_mynode;
-
+    // Completion via flag
     volatile int done = 0;
-    gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
+    gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
     gpd->gpd_completion = (uintptr_t) &done;
 
-    GASNETC_LOCK_GNI();
-      status = GNI_PostFma(my_ce_ep_handle, pd);
-    GASNETC_UNLOCK_GNI();
-    if_pf (status) {
-      gasnetc_GNIT_Abort("GNI_PostFma(CE_IADD) failed with %s", gasnetc_gni_rc_string(status));
-    }
+    // Using storage "inline" in the gpd (which requires "keep gpd")
+    gni_ce_result_t *result = &gpd->u.ce_result;
+    gpd->gpd_flags |= GC_POST_KEEP_GPD;
+
+    // The operation: 2-field SUM reduction over uint64_t
+    gpd->gpd_ce_cmd  = GNI_FMA_CE_IADD;
+    gpd->gpd_ce_mode = GNI_CEMODE_TWO_OP;
+    gpd->gpd_ce_op1  = 1;
+    gpd->gpd_ce_op2  = gasneti_mynode;
+
+    gasnetc_post_ce(result, gpd);
 
     gasneti_polluntil(done && ((status = GNI_CeCheckResult(result, 1)) != GNI_RC_NOT_DONE));
     gasneti_assert(! status);
 
     gasneti_assert_uint(result->result1 ,==, gasneti_nodes);
-    gasneti_assert_uint(result->result2 ,==, (gasneti_nodes * (gasneti_nodes - 1)) / 2);
+    gasneti_assert_uint(result->result2 ,==, ((uint64_t)gasneti_nodes * (gasneti_nodes - 1)) / 2);
 
     gasnetc_free_post_descriptor(gpd);
   }
@@ -3330,6 +3322,31 @@ void gasnete_init_ce(void) {
 
   GASNETI_TRACE_PRINTF(I,("Aries CE: available"));
   gasnete_ce_available = 1;
+}
+
+/*------ Post Fma for Aries CE */
+void gasnetc_post_ce(gni_ce_result_t *result, gasnetc_post_descriptor_t *gpd)
+{
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  gni_post_descriptor_t * const pd = &gpd->pd;
+
+  // `result` must by 32-byte aligend and (currently) must reside in aux segment
+  gasnetc_assert_aligned(result, 32);
+  gasneti_assert(gasneti_in_auxsegment(NULL/*tm*/,gasneti_mynode,result,sizeof(*result)));
+
+  pd->type = GNI_POST_CE;
+  pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
+  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->local_addr = (uint64_t) result;
+  pd->local_mem_hndl = my_aux_handle;
+
+  // CE reduction ID currently unused
+  gasneti_assert(! pd->ce_red_id);
+
+  gni_return_t status = myPostFma(my_ce_ep_handle, gpd, 0);
+  if_pf (status != GNI_RC_SUCCESS) {
+    gasnetc_GNIT_Abort("GNI_POST_CE failed with %s", gasnetc_gni_rc_string(status));
+  }
 }
 #endif
 

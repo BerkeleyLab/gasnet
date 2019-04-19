@@ -347,6 +347,10 @@ struct gasnetc_post_descriptor {
   #define gpd_amo_cmd    pd.amo_cmd
   #define gpd_amo_op1    pd.first_operand
   #define gpd_amo_op2    pd.second_operand
+  #define gpd_ce_cmd     pd.ce_cmd
+  #define gpd_ce_mode    pd.ce_mode
+  #define gpd_ce_op1     pd.first_operand
+  #define gpd_ce_op2     pd.second_operand
   uint32_t gpd_flags;
 #if GASNETC_USE_MULTI_DOMAIN
   int domain_idx;
@@ -381,6 +385,7 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 #if GASNETC_BUILD_GNICE
 void gasnete_init_ce(void);
+void gasnetc_post_ce(gni_ce_result_t *result, gasnetc_post_descriptor_t *gpd);
 extern int gasnete_ce_available;
 #endif
 
