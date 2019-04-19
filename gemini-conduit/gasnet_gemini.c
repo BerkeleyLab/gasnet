@@ -124,6 +124,13 @@ size_t gasnetc_max_get_unaligned;
 static gni_mem_handle_t my_mem_handle;
 static gni_mem_handle_t my_aux_handle;
 
+#if GASNETC_BUILD_GNICE
+// TODO: multi-CE and multi-EP ??
+static gni_ep_handle_t my_ce_ep_handle;
+static gni_ce_handle_t ce_handle;
+int gasnete_ce_available = 0;
+#endif
+
 #if GASNETC_USE_MULTI_DOMAIN
 static unsigned int gasnetc_domain_count;
 static unsigned int gasnetc_domain_count_max;
@@ -1437,6 +1444,15 @@ void gasnetc_shutdown(void)
           gasnetc_GNIT_Log("MemDeregister(auxseg) failed with %s", gasnetc_gni_rc_string(status));
         }
       }
+
+    #if GASNETC_BUILD_GNICE
+      if (gasnete_ce_available && ce_handle) {
+        status = GNI_CeDestroy(ce_handle);
+        if_pf (status != GNI_RC_SUCCESS) {
+          gasnetc_GNIT_Log("CeDestroy() failed with %s", gasnetc_gni_rc_string(status));
+        }
+      }
+    #endif
 #if GASNETC_USE_MULTI_DOMAIN
     }
 #endif
@@ -3121,6 +3137,201 @@ void gasnetc_post_amo(
 }
 #endif
 
+#if GASNETC_BUILD_GNICE
+static gex_Rank_t host_to_jobrank(const gex_Rank_t host) {
+  gasneti_assert_always(gasneti_nodeinfo);
+  if (host == GEX_RANK_INVALID) return GEX_RANK_INVALID;
+  for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+    if (host == gasneti_nodeinfo[i].host) return i;
+  }
+  gasneti_fatalerror("Invalid host number %d", (int)host);
+}
+
+// TODO: generalize to other than TEAM_ALL??
+static uint32_t *gather_ce_ids(uint32_t my_ce_id) {
+  uint32_t *result = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
+  gasnetc_bootstrapExchange_gni(&my_ce_id, sizeof(my_ce_id), result);
+
+  // Scan result for failure (-1 value) from any host-leader
+  // TODO: there must be a better way to iterate over the leaders
+  gex_Rank_t num_hosts = gasneti_myhost.grp_count;
+  for (gex_Rank_t host = 0; host < num_hosts; ++host) {
+    gex_Rank_t jobrank = host_to_jobrank(host);
+    gasneti_assert(jobrank != GEX_RANK_INVALID);
+    if ((uint32_t)-1 == result[jobrank]) {
+      gasneti_free(result);
+      return NULL;
+    }
+  }
+
+  return result;
+}
+
+static gni_ep_handle_t myEpSetCeAttr(
+                gex_Rank_t jobrank, uint32_t ce_id,
+                uint32_t child_id, gni_ce_child_t child_type)
+{
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
+
+  gni_ep_handle_t ep_handle = peer_data[jobrank].ep_handle;
+  gni_return_t status = GNI_EpSetCeAttr(ep_handle, ce_id, child_id, child_type);
+  if_pf (status) {
+    gasnetc_GNIT_Abort("EpSetCeAttr() failed with %s", gasnetc_gni_rc_string(status));
+  }
+  return ep_handle;
+}
+
+// Collectively initialize the Aries Collective Engine
+// TODO: generalize to other than TEAM_ALL??
+void gasnete_init_ce(void) {
+  if (gasnete_ce_available) return;
+
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  gni_return_t status;
+
+  // TODO: generalize to take radix from envvar and/or maximize subject to PPN
+  const unsigned int radix = 2;
+
+  // Check that PPN does not exceed limits
+  // TODO: eliminate this restriction via use of hierarchical barrier
+  {
+    gex_Rank_t num_hosts = gasneti_myhost.grp_count;
+    gex_Rank_t max_ppn = 0;
+    gex_Rank_t *ppn = gasneti_calloc(num_hosts, sizeof(gex_Rank_t));
+    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+      gex_Rank_t host = gasneti_nodeinfo[i].host;
+      gasneti_assert_uint(host ,<, num_hosts);
+      ppn[host] += 1;
+      max_ppn = MAX(max_ppn, ppn[host]);
+    }
+    gasneti_free(ppn);
+
+    if (GNI_CE_MAX_CHILDREN < (radix + max_ppn)) {
+      // Too large PPN on at least one node
+      GASNETI_TRACE_PRINTF(I,("Aries CE disabled: largest PPN(%d) + radix(%u) exceeds GNI_CE_MAX_CHILDREN(%d)",
+                              (int)max_ppn, radix, GNI_CE_MAX_CHILDREN));
+      return; // This failure is collective (single-valued computation)
+    }
+  }
+
+  const gex_Rank_t node_rank = gasneti_myhost.node_rank;
+  const gex_Rank_t node_ppn  = gasneti_myhost.node_count;
+
+  const gex_Rank_t tree_rank  = gasneti_myhost.grp_rank;
+  const gex_Rank_t tree_size  = gasneti_myhost.grp_count;
+  const gex_Rank_t tree_lo_ch = MIN(tree_size, tree_rank * radix + 1);
+  const gex_Rank_t tree_hi_ch = MIN(tree_size, tree_lo_ch + radix);
+  const gex_Rank_t children   = tree_hi_ch - tree_lo_ch;
+
+  // One leader per host tries to allocate a single VCE instance
+  uint32_t my_ce_id = (uint32_t)-1;
+  if (!node_rank) {
+    status = GNI_CeCreate(DOMAIN_SPECIFIC_VAL(nic_handle), &ce_handle);
+    if_pf (status) {
+      GASNETI_TRACE_PRINTF(I,("Aries CE disabled: CeCreate failed with %s",
+                              gasnetc_gni_rc_string(status)));
+    } else {
+      status = GNI_CeGetId(ce_handle, &my_ce_id);
+      gasneti_assert_always (status == GNI_RC_SUCCESS);
+      GASNETI_TRACE_PRINTF(I,("Aries CE: allocated VCE with id %d", my_ce_id));
+    }
+  }
+
+  // All ranks collect ce_ids, checking for any failure to allocate
+  uint32_t *all_ce_id = gather_ce_ids(my_ce_id);
+  if (!all_ce_id) {
+    if (!node_rank && ce_handle) (void) GNI_CeDestroy(ce_handle);
+    return; // This failure is collective
+  }
+
+  // The per-host leader configures the VCE instance
+  if (!node_rank) {
+    // EPs needed to configure the VCE
+    gni_ep_handle_t child_eps[GNI_CE_MAX_CHILDREN]; // lazy over-allocation
+    gni_ep_handle_t parent_ep = NULL;
+    // Configure EP connecting parent VCE
+    if (tree_rank) {
+      unsigned int cidx = (tree_rank - 1) % radix;
+      gex_Rank_t parent = host_to_jobrank((tree_rank - 1) / radix);
+      parent_ep = myEpSetCeAttr(parent, all_ce_id[parent], cidx, GNI_CE_CHILD_VCE);
+    }
+    int n = 0;
+    // Configure EPs connecting child VCEs
+    for (unsigned int i = 0; i < children; ++i, ++n) {
+      gex_Rank_t child = host_to_jobrank(tree_lo_ch + i);
+      child_eps[n] = myEpSetCeAttr(child, all_ce_id[child], n, GNI_CE_CHILD_VCE);
+    }
+    // Configure EPs connecting leaves (rank processes, including self)
+    for (unsigned int i = 0; i < node_ppn; ++i, ++n) {
+      gex_Rank_t leaf = gasneti_myhost.nodes[i];
+      child_eps[n] = myEpSetCeAttr(leaf, /*unused*/0, n, GNI_CE_CHILD_PE);
+    }
+    gasneti_assert(n == children + node_ppn);
+    // Configure the VCE
+    status = GNI_CeConfigure(ce_handle, child_eps, n,
+                             parent_ep, DOMAIN_SPECIFIC_VAL(bound_cq_handle),
+                             GNI_CE_MODE_CQE_ONERR | GNI_CE_MODE_ROUND_ZERO);
+    if_pf (status) {
+      // TODO: should we fall-back for this failure?
+      gasnetc_GNIT_Abort("CeConfigure() failed with %s", gasnetc_gni_rc_string(status));
+    }
+  }
+
+  // Configure the leaf->VCE connection
+  {
+    unsigned int cidx = node_rank + children;
+    gex_Rank_t vce_jobrank = host_to_jobrank(tree_rank);
+    my_ce_ep_handle = myEpSetCeAttr(vce_jobrank, all_ce_id[vce_jobrank], cidx, GNI_CE_CHILD_PE);
+  }
+
+  gasneti_free(all_ce_id);
+
+  gasnetc_bootstrapBarrier_gni();
+
+#if GASNET_DEBUG
+  { // Validation: 2-field SUM reduction over uint64_t
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
+
+    gni_ce_result_t *result = &gpd->u.ce_result;
+
+    gni_post_descriptor_t * const pd = &gpd->pd;
+    pd->type = GNI_POST_CE;
+    pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
+    pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+    pd->local_addr = (uint64_t) result;
+    pd->local_mem_hndl = my_aux_handle;
+    pd->ce_cmd = GNI_FMA_CE_IADD;
+    pd->ce_mode = GNI_CEMODE_TWO_OP;
+    pd->ce_red_id = 5551212;
+    pd->first_operand = 1;
+    pd->second_operand = gasneti_mynode;
+
+    volatile int done = 0;
+    gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
+    gpd->gpd_completion = (uintptr_t) &done;
+
+    GASNETC_LOCK_GNI();
+      status = GNI_PostFma(my_ce_ep_handle, pd);
+    GASNETC_UNLOCK_GNI();
+    if_pf (status) {
+      gasnetc_GNIT_Abort("GNI_PostFma(CE_IADD) failed with %s", gasnetc_gni_rc_string(status));
+    }
+
+    gasneti_polluntil(done && ((status = GNI_CeCheckResult(result, 1)) != GNI_RC_NOT_DONE));
+    gasneti_assert(! status);
+
+    gasneti_assert_uint(result->result1 ,==, gasneti_nodes);
+    gasneti_assert_uint(result->result2 ,==, (gasneti_nodes * (gasneti_nodes - 1)) / 2);
+
+    gasnetc_free_post_descriptor(gpd);
+  }
+#endif
+
+  GASNETI_TRACE_PRINTF(I,("Aries CE: available"));
+  gasnete_ce_available = 1;
+}
+#endif
 
 /* Needs no lock because it is called only from the init code */
 static

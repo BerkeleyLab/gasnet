@@ -329,6 +329,9 @@ struct gasnetc_post_descriptor {
   #if GASNETC_GNI_UDREG
     udreg_entry_t *udreg_entry;
   #endif
+  #if GASNETC_BUILD_GNICE
+    gni_ce_result_t ce_result; // Must be 32-byte aligned
+  #endif
   } u;
   gni_post_descriptor_t pd;
   #define gpd_completion pd.post_id
@@ -376,6 +379,10 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo);
 uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
 
+#if GASNETC_BUILD_GNICE
+void gasnete_init_ce(void);
+extern int gasnete_ce_available;
+#endif
 
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
 void gasnetc_poll(GASNETI_THREAD_FARG_ALONE);
