@@ -3214,8 +3214,18 @@ void gasnete_init_ce(void) {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gni_return_t status;
 
-  // TODO: generalize to take radix from envvar and/or maximize subject to PPN
-  const unsigned int radix = 2;
+  int enable = gasneti_getenv_yesno_withdefault("GASNET_USE_CE", 1);
+  if (!enable) {
+    GASNETI_TRACE_PRINTF(I,("Aries CE disabled: user request"));
+    return;
+  }
+
+  unsigned int radix = gasneti_getenv_int_withdefault("GASNET_GNI_CE_RADIX",
+                                                      GASNETC_GNI_CE_RADIX_DEFAULT, 0);
+  if_pf (radix < 1 || radix >= GNI_CE_MAX_CHILDREN) {
+    gasneti_fatalerror("GASNET_GNI_CE_RADIX must be between 1 and %d, inclusive.",
+                       (int)(GNI_CE_MAX_CHILDREN-1));
+  }
 
   // Check that auxseg memory is available and suitably aligned
   gasneti_assert_always(NULL != gasnete_ce_results);
@@ -3316,7 +3326,7 @@ void gasnete_init_ce(void) {
   gasneti_free(all_ce_id);
 
   gasnete_ce_available = 1;
-  GASNETI_TRACE_PRINTF(I,("Aries CE: available"));
+  GASNETI_TRACE_PRINTF(I,("Aries CE: available, inter-host radix = %d", radix));
 
   gasnetc_bootstrapBarrier_gni();
 

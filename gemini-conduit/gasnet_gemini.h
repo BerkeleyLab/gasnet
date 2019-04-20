@@ -245,6 +245,8 @@ typedef union gasnetc_packet_u {
 #else
 #define GASNETC_GNI_MEMREG_DEFAULT 3072
 #endif
+/* Radix of inter-host CE tree */
+#define GASNETC_GNI_CE_RADIX_DEFAULT 2
 
 /* largest get that can be handled by gasnetc_rdma_get_unaligned() */
 extern size_t gasnetc_max_get_unaligned;

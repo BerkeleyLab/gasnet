@@ -335,6 +335,22 @@ GASNET_USE_UDREG
   The default is enabled.
   This variable is not required to be single-valued.
 
+GASNET_USE_CE
+  AVAILABLE ONLY ON ARIES NETWORK.
+  This gives a boolean: "0" to disable or "1" to enable the use of the Aries
+  Collective Engine (CE) for acceleration of certain collective operations
+  (barrier in particular).
+  The default is enabled.
+
+GASNET_GNI_CE_RADIX
+  AVAILABLE ONLY ON ARIES NETWORK.
+  This gives an integer in the range 1 to 31 for the radix of the N-ary tree
+  tree used for inter-host communication by the Aries Collective Engine (CE).
+  Increased values of this parameter come at the expense of intra-host
+  communication.  If the sum of this value and the number of processes per
+  host exceeds 32, then use of the Aries CE will be disabled.
+  The default is 2.
+
 GASNET_DOMAIN_COUNT
 GASNET_GNI_PTHREADS_PER_DOMAIN
 GASNET_AM_DOMAIN_POLL_MASK
