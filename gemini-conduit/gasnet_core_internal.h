@@ -118,9 +118,17 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest);
 extern gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 extern gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 
+#if GASNETC_BUILD_GNICE
+  extern gasneti_auxseg_request_t gasnetc_ce_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+  #define GASNETC_CE_AUXSEG_ALLOC gasnetc_ce_auxseg_alloc,
+#else
+  #define GASNETC_CE_AUXSEG_ALLOC /*empty*/
+#endif
+
 #define GASNETC_AUXSEG_FNS() \
     gasnetc_bounce_auxseg_alloc, \
-    gasnetc_pd_auxseg_alloc,
+    gasnetc_pd_auxseg_alloc, \
+    GASNETC_CE_AUXSEG_ALLOC
 
 /* ------------------------------------------------------------------------------------ */
 #endif

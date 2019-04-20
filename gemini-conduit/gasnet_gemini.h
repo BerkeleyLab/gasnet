@@ -329,9 +329,6 @@ struct gasnetc_post_descriptor {
   #if GASNETC_GNI_UDREG
     udreg_entry_t *udreg_entry;
   #endif
-  #if GASNETC_BUILD_GNICE
-    gni_ce_result_t ce_result; // Must be 32-byte aligned
-  #endif
   } u;
   gni_post_descriptor_t pd;
   #define gpd_completion pd.post_id
@@ -385,8 +382,26 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 #if GASNETC_BUILD_GNICE
 void gasnete_init_ce(void);
-void gasnetc_post_ce(gni_ce_result_t *result, gasnetc_post_descriptor_t *gpd);
 extern int gasnete_ce_available;
+
+// Type for Aries CE results (in registered memory)
+typedef struct gasnete_ce_result {
+  volatile int done;
+  char pad1[GASNETC_CACHELINE_SIZE - sizeof(int)];
+  gni_ce_result_t output;
+  char pad2[GASNETC_CACHELINE_SIZE - sizeof(gni_ce_result_t)];
+} gasnete_ce_result_t;
+
+// Post a CE operation, returning a result buffer
+gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd);
+
+// Test a CE operation
+GASNETI_INLINE(gasnete_test_ce)
+gni_return_t gasnete_test_ce(gasnete_ce_result_t *result)
+{
+  return result->done ? GNI_CeCheckResult(&result->output,0)
+                      : GNI_RC_NOT_DONE;
+}
 #endif
 
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);

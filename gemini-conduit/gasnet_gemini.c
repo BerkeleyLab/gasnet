@@ -3138,6 +3138,30 @@ void gasnetc_post_amo(
 #endif
 
 #if GASNETC_BUILD_GNICE
+// AuxSeg setup for CE result buffer space
+#define GASNETC_CE_RESULT_COUNT 1
+static gasnete_ce_result_t *gasnete_ce_results;
+GASNETI_IDENT(gasneti_ce_auxseg_IdentString,
+              "$GASNetAuxSeg_ce: 2 * " _STRINGIFY(GASNETC_CE_RESULT_COUNT)
+                                 " * " _STRINGIFY(GASNETC_CACHELINE_SIZE) " $");
+gasneti_auxseg_request_t gasnetc_ce_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
+  gasneti_auxseg_request_t retval;
+
+  // TODO: replace w/ env var if/when we have logic to pipeline multiple
+  int count = GASNETC_CE_RESULT_COUNT;
+
+  retval.minsz =
+  retval.optimalsz = count * sizeof(gasnete_ce_result_t);
+  gasneti_assert_always(retval.optimalsz == count * 2 * GASNETC_CACHELINE_SIZE);
+
+  if (auxseg_info != NULL) { /* auxseg granted */
+    gasneti_assert_always(auxseg_info[gasneti_mynode].size >= count * sizeof(gasnete_ce_result_t));
+    gasnete_ce_results = auxseg_info[gasneti_mynode].addr;
+  }
+
+  return retval;
+}
+
 static gex_Rank_t host_to_jobrank(const gex_Rank_t host) {
   gasneti_assert_always(gasneti_nodeinfo);
   if (host == GEX_RANK_INVALID) return GEX_RANK_INVALID;
@@ -3192,6 +3216,10 @@ void gasnete_init_ce(void) {
 
   // TODO: generalize to take radix from envvar and/or maximize subject to PPN
   const unsigned int radix = 2;
+
+  // Check that auxseg memory is available and suitably aligned
+  gasneti_assert_always(NULL != gasnete_ce_results);
+  gasneti_assert_always(! ((uintptr_t)gasnete_ce_results % 32));
 
   // Check that PPN does not exceed limits
   // TODO: eliminate this restriction via use of hierarchical barrier
@@ -3287,57 +3315,50 @@ void gasnete_init_ce(void) {
 
   gasneti_free(all_ce_id);
 
+  gasnete_ce_available = 1;
+  GASNETI_TRACE_PRINTF(I,("Aries CE: available"));
+
   gasnetc_bootstrapBarrier_gni();
 
 #if GASNET_DEBUG
-  { // Validation
+  for (int i = 0; i < 4; ++i) {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
-
-    // Completion via flag
-    volatile int done = 0;
-    gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
-    gpd->gpd_completion = (uintptr_t) &done;
-
-    // Using storage "inline" in the gpd (which requires "keep gpd")
-    gni_ce_result_t *result = &gpd->u.ce_result;
-    gpd->gpd_flags |= GC_POST_KEEP_GPD;
 
     // The operation: 2-field SUM reduction over uint64_t
     gpd->gpd_ce_cmd  = GNI_FMA_CE_IADD;
     gpd->gpd_ce_mode = GNI_CEMODE_TWO_OP;
-    gpd->gpd_ce_op1  = 1;
+    gpd->gpd_ce_op1  = i;
     gpd->gpd_ce_op2  = gasneti_mynode;
 
-    gasnetc_post_ce(result, gpd);
+    gasnete_ce_result_t *result = gasnetc_post_ce(gpd);
 
-    gasneti_polluntil(done && ((status = GNI_CeCheckResult(result, 1)) != GNI_RC_NOT_DONE));
+    gasneti_polluntil((status = gasnete_test_ce(result)) != GNI_RC_NOT_DONE);
     gasneti_assert(! status);
 
-    gasneti_assert_uint(result->result1 ,==, gasneti_nodes);
-    gasneti_assert_uint(result->result2 ,==, ((uint64_t)gasneti_nodes * (gasneti_nodes - 1)) / 2);
-
-    gasnetc_free_post_descriptor(gpd);
+    gasneti_assert_uint(result->output.result1 ,==, i * gasneti_nodes);
+    gasneti_assert_uint(result->output.result2 ,==, ((uint64_t)gasneti_nodes * (gasneti_nodes - 1)) / 2);
   }
 #endif
-
-  GASNETI_TRACE_PRINTF(I,("Aries CE: available"));
-  gasnete_ce_available = 1;
 }
 
 /*------ Post Fma for Aries CE */
-void gasnetc_post_ce(gni_ce_result_t *result, gasnetc_post_descriptor_t *gpd)
+gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  gasneti_assert(gasnete_ce_available);
+
+  // TODO: multiple such buffers?
+  gasnete_ce_result_t *result = &gasnete_ce_results[0];
+
+  // Completion via flag
+  result->done = 0;
+  gpd->gpd_completion = (uintptr_t) &result->done;
+  gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
+
   gni_post_descriptor_t * const pd = &gpd->pd;
-
-  // `result` must by 32-byte aligend and (currently) must reside in aux segment
-  gasnetc_assert_aligned(result, 32);
-  gasneti_assert(gasneti_in_auxsegment(NULL/*tm*/,gasneti_mynode,result,sizeof(*result)));
-
   pd->type = GNI_POST_CE;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
-  pd->local_addr = (uint64_t) result;
+  pd->local_addr = (uint64_t) &result->output;
   pd->local_mem_hndl = my_aux_handle;
 
   // CE reduction ID currently unused
@@ -3347,8 +3368,10 @@ void gasnetc_post_ce(gni_ce_result_t *result, gasnetc_post_descriptor_t *gpd)
   if_pf (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_POST_CE failed with %s", gasnetc_gni_rc_string(status));
   }
+
+  return result;
 }
-#endif
+#endif // GASNETC_BUILD_GNICE
 
 /* Needs no lock because it is called only from the init code */
 static
