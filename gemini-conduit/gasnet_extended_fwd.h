@@ -100,13 +100,9 @@
 #define GASNETE_VIS_PUT_MAXCHUNK_DEFAULT 1330  // 3 strided chunks at 3d
 #define GASNETE_VIS_GET_MAXCHUNK_DEFAULT 2028  // 2 strided chunks at 3d
 
-// Build Aries CE support by default on Aries hardware
-#if defined(GASNETC_BUILD_GNICE) && !GASNETC_BUILD_GNICE
-  #undef GASNETC_BUILD_GNICE
-#elif defined GASNET_CONDUIT_ARIES
-  #undef GASNETC_BUILD_GNICE
-  #define GASNETC_BUILD_GNICE 1
+// Aries CE support definitions:
+#ifdef GASNET_CONDUIT_ARIES
+#define GASNETE_COLL_NEEDS_CORE 1
 #endif
 
 #endif
-

@@ -3371,6 +3371,25 @@ gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd)
 
   return result;
 }
+
+// Simple offloaded consensus barrier
+// This uses the Aries CE reduce-to-all for its barrier side-effect
+static gasnete_ce_result_t *cebarrier_result;
+void gasnete_cebarrier_notify(void)
+{
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
+  gpd->gpd_ce_cmd  = GNI_FMA_CE_AND;
+  gpd->gpd_ce_mode = 0;
+  cebarrier_result = gasnetc_post_ce(gpd);
+}
+int gasnete_cebarrier_try(void)
+{
+  int status = gasnete_test_ce(cebarrier_result);
+  if_pt (status == GNI_RC_SUCCESS) return GASNET_OK;
+  gasneti_assert(status == GNI_RC_NOT_DONE);
+  return GASNET_ERR_NOT_READY;
+}
 #endif // GASNETC_BUILD_GNICE
 
 /* Needs no lock because it is called only from the init code */
