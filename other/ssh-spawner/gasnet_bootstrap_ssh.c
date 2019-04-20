@@ -2907,7 +2907,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     do_writev(parent, iov, 3);
     if (dest != src) memcpy(dest, src, len);
   } else {
-    const size_t bcast_len;
+    size_t bcast_len;
     wait_cmd(cmd1);
     iov[0].iov_base = (void *)&bcast_len;
     iov[0].iov_len  = sizeof(bcast_len);
