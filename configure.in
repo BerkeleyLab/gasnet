@@ -3844,7 +3844,7 @@ if test "$enabled_ofi" = yes; then
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     # List of supported providers in order of preference.
-    supported_providers="psm2 gni sockets"
+    supported_providers="psm2 gni sockets tcp;ofi_rxm verbs;ofi_rxm"
     
     GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
         ofi_provider="$withval", )
@@ -3854,7 +3854,7 @@ if test "$enabled_ofi" = yes; then
         if command -v fi_info > /dev/null 2>&1; then # Only do this if fi_info is in the $PATH
             for word in $supported_providers 
             do
-                if fi_info --provider=$word > /dev/null 2>&1; then
+                if fi_info --provider="$word" > /dev/null 2>&1; then
                     detected_ofi_provider="$word"
                     break
                 fi
@@ -3869,6 +3869,12 @@ if test "$enabled_ofi" = yes; then
             ofi_use_thread_domain=1
         ;;
         gni)
+            ofi_define_mr_scalable=0
+        ;;
+        verbs\;ofi_rxm)
+            ofi_define_mr_scalable=0
+        ;;
+        tcp\;ofi_rxm)  # Reports MR_SCALABLE support, but see bug 3867
             ofi_define_mr_scalable=0
         ;;
         sockets)
