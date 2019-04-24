@@ -451,6 +451,7 @@
 #undef GASNETC_OFI_NUM_COMPLETIONS
 #undef GASNETC_OFI_HAS_MR_SCALABLE
 #undef GASNETC_OFI_USE_THREAD_DOMAIN
+#undef GASNETC_OFI_PROVIDER_LIST
 
 /* GASNet ibv-conduit features and bug work-arounds */
 #undef HAVE_IBV_SRQ
