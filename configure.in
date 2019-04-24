@@ -4047,6 +4047,7 @@ if test "$enabled_ofi" = yes; then
 
     ofi_provider=""
     ofi_define_mr_scalable="no"
+    ofi_known_provider="yes"
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     # List of supported providers in order of preference.
@@ -4087,13 +4088,20 @@ if test "$enabled_ofi" = yes; then
             ofi_define_mr_scalable=1
         ;;
         default|"")
+            ofi_known_provider="no"
         ;;
         *)
         GASNET_MSG_WARN([
 WARNING: Invalid or unsupported OFI provider specified via the --with-ofi-provider flag. 
 Defaulting to runtime provider feature detection for ofi-conduit.])
+            ofi_known_provider="no"
         ;;
     esac
+    if test "$ofi_known_provider" = "yes"; then
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$ofi_provider"])
+    else
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$supported_providers"])
+    fi
 
     GASNET_IF_ENABLED_WITH_AUTO(ofi-thread-domain, [Indicates if the conduit should use the FI_THREAD_DOMAIN threading model(advanced users only)],
                  [ofi_use_thread_domain="1"], [ofi_use_thread_domain="0"], [])
