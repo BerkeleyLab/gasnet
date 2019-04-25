@@ -1005,7 +1005,7 @@ uintptr_t gasnetc_init_messaging(void)
   reply_count = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH_TOTAL",
                                                GASNETC_NETWORKDEPTH_TOTAL_DEFAULT, 0);
   reply_count = MAX(1, reply_count); /* Min is 1 */
-  reply_count = MIN(65536, reply_count); /* Max is determined by 16-bit 'initiator_slot' */
+  reply_count = MIN(GASNETC_AM_INITIATOR_SLOTS, reply_count); /* Max determined by count of 'initiator_slot' */
 
   /* Select Eager or Rendezvous protocol for AM Requests */
   int am_rvous_val = gasneti_getenv_int_withdefault("GASNET_GNI_AM_RVOUS_CUTOVER",
