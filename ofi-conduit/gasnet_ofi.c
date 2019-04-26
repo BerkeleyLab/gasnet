@@ -21,6 +21,9 @@
 #include <sys/uio.h> /* For struct iovec */
 #endif
 
+GASNETI_IDENT(gasnetc_IdentString_Providers,
+              "$GASNetSupportedOFIProviders: " GASNETC_OFI_PROVIDER_LIST " $");
+
 typedef struct gasnetc_ofi_recv_metadata {
     struct iovec iov;
     struct fi_msg am_buff_msg;
@@ -451,8 +454,35 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 			  "No OFI providers found that could support the OFI conduit");
   }
 
-  /* FIXME: walk list of providers and implement some
-   * selection logic */
+  // Find the first entry for the most-preferred provider offered, if any.
+  const char *supported_providers = GASNETC_OFI_PROVIDER_LIST;
+  const char *q = supported_providers;
+  while (*q) {
+      while (*q == ' ') ++q;
+      const char *r = strchr(q, ' ');
+      int len = r ? r - q : strlen(q);
+      char prov_name[64];
+      strncpy(prov_name, q, len);
+      prov_name[len] = '\0';
+      for (struct fi_info *p = info; p; p = p->next) {
+          if (!strcmp(p->fabric_attr->prov_name, prov_name)) {
+              info = p;
+              goto done;
+          }
+      }
+      q += len;
+  }
+done:
+  // Balk if provider was explicitly chosen at configure time and is not available now
+  if (!strchr(supported_providers,' ') && strcmp(supported_providers, info->fabric_attr->prov_name)) {
+      char *envvar = gasneti_getenv("FI_PROVIDER");
+      gasneti_fatalerror(
+          "OFI provider '%s' selected at configure time is not available at run time%s%s%s.",
+          supported_providers,
+          envvar ? " and/or has been overridden by FI_PROVIDER='" : "",
+          envvar ? envvar : "",
+          envvar ? "' in the environment" : "");
+  }
 
   if (!strcmp(info->fabric_attr->prov_name, "psm2")){
       high_perf_prov = 1;
@@ -559,7 +589,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_cq_open for am reply cq failed: %d\n", ret);
 
   /* Bind CQs to endpoints */
-  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT);
+  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT | FI_RECV);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for tx_cq to rdma_epfd failed: %d\n", ret);
 
   ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_tx_cqfd->fid, FI_TRANSMIT);
