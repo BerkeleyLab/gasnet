@@ -207,6 +207,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     uintptr_t mmap_limit;
     #if HAVE_MMAP
+    {
       // Bound per-host (sharedLimit) argument to gasneti_segmentLimit()
       // while properly reserving space for aux segments.
       uint64_t sharedLimit = gasneti_sharedLimit();
@@ -221,6 +222,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
       mmap_limit = gasneti_segmentLimit((uintptr_t)-1, sharedLimit,
                                   &gasnetc_bootstrapExchange,
                                   &gasnetc_bootstrapBarrier);
+    }
     #else
       // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
       mmap_limit = (intptr_t)-1;
