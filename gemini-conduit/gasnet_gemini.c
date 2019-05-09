@@ -3162,6 +3162,9 @@ gasneti_auxseg_request_t gasnetc_ce_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   return retval;
 }
 
+static void ce_gate_init(void); // Fwd decl for use in gasnete_init_ce
+
+// Return job rank of first process on a given host
 static gex_Rank_t host_to_jobrank(const gex_Rank_t host) {
   gasneti_assert_always(gasneti_nodeinfo);
   if (host == GEX_RANK_INVALID) return GEX_RANK_INVALID;
@@ -3169,6 +3172,15 @@ static gex_Rank_t host_to_jobrank(const gex_Rank_t host) {
     if (host == gasneti_nodeinfo[i].host) return i;
   }
   gasneti_fatalerror("Invalid host number %d", (int)host);
+}
+
+// Return 1 if jobrank is first process in a given neighborhood, otherwise 0
+static int jobrank_leads_nbrhd(const gex_Rank_t jobrank) {
+  gasneti_assert_always(gasneti_pshm_firsts);
+  for (gex_Rank_t i = 0; i < gasneti_mysupernode.grp_count; ++i) {
+    if (jobrank == gasneti_pshm_firsts[i]) return 1;
+  }
+  return 0;
 }
 
 // TODO: generalize to other than TEAM_ALL??
@@ -3183,6 +3195,9 @@ static uint32_t *gather_ce_ids(uint32_t my_ce_id) {
     gex_Rank_t jobrank = host_to_jobrank(host);
     gasneti_assert(jobrank != GEX_RANK_INVALID);
     if ((uint32_t)-1 == result[jobrank]) {
+      if (my_ce_id != (uint32_t)-1) {
+        GASNETI_TRACE_PRINTF(I,("Aries CE disabled: one or more remote hosts failed to init."));
+      }
       gasneti_free(result);
       return NULL;
     }
@@ -3231,31 +3246,44 @@ void gasnete_init_ce(void) {
   gasneti_assert_always(NULL != gasnete_ce_results);
   gasneti_assert_always(! ((uintptr_t)gasnete_ce_results % 32));
 
-  // Check that PPN does not exceed limits
-  // TODO: eliminate this restriction via use of hierarchical barrier
-  {
-    gex_Rank_t num_hosts = gasneti_myhost.grp_count;
-    gex_Rank_t max_ppn = 0;
-    gex_Rank_t *ppn = gasneti_calloc(num_hosts, sizeof(gex_Rank_t));
-    for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
-      gex_Rank_t host = gasneti_nodeinfo[i].host;
-      gasneti_assert_uint(host ,<, num_hosts);
-      ppn[host] += 1;
-      max_ppn = MAX(max_ppn, ppn[host]);
+  // Check that local process or neighborhood count does not exceed limits
+  // This is a purely local computation, but if any host cannot fit within
+  // the limits imposed by (GNI_CE_MAX_CHILDREN + radix), then communication
+  // will disable CE use.
+  int avail_local_degree = GNI_CE_MAX_CHILDREN - radix;
+  int use_pshm = 0;
+  if (avail_local_degree >= gasneti_myhost.node_count) {
+    use_pshm = 0; // Default/desired case: every process talks to VCE directly
+    GASNETI_TRACE_PRINTF(I,("Aries CE: using processes"));
+  } else {
+#if GASNET_PSHM
+    int nph = 0; // neighborhoods per (this) host
+    for (unsigned int i = 0; i < gasneti_myhost.node_count; ++i) {
+      nph += jobrank_leads_nbrhd(gasneti_myhost.nodes[i]);
     }
-    gasneti_free(ppn);
-
-    if (GNI_CE_MAX_CHILDREN < (radix + max_ppn)) {
-      // Too large PPN on at least one node
-      GASNETI_TRACE_PRINTF(I,("Aries CE disabled: largest PPN(%d) + radix(%u) exceeds GNI_CE_MAX_CHILDREN(%d)",
-                              (int)max_ppn, radix, GNI_CE_MAX_CHILDREN));
-      return; // This failure is collective (single-valued computation)
+    if (avail_local_degree >= nph) {
+      // Too many processes per (this) host, but *can* fit using VCE leaf per nbrhd
+      // So enable use of shared-memory within each neighborhood
+      GASNETI_TRACE_PRINTF(I,("Aries CE: using neighborhoods"));
+      use_pshm = 1;
+    } else {
+      // TODO: eliminate this restriction using a hierarchical barrier which uses the network within a host.
+      GASNETI_TRACE_PRINTF(I,("Aries CE disabled: shared-memory neighborhoods per host(%d) + radix(%u) exceeds GNI_CE_MAX_CHILDREN(%d)",
+                              (int)nph, radix, GNI_CE_MAX_CHILDREN));
+      (void) gather_ce_ids((uint32_t)-1); // induce collective decision to disable CE
+      return;
     }
+#else
+    // Too many processes per (this) host
+    // TODO: eliminate this restriction using a hierarchical barrier which uses the network within a host.
+    GASNETI_TRACE_PRINTF(I,("Aries CE disabled: processes per host(%d) + radix(%u) exceeds GNI_CE_MAX_CHILDREN(%d)",
+                            (int)gasneti_myhost.node_count, radix, GNI_CE_MAX_CHILDREN));
+    (void) gather_ce_ids((uint32_t)-1); // induce collective decision to disable CE
+    return;
+#endif
   }
 
   const gex_Rank_t node_rank = gasneti_myhost.node_rank;
-  const gex_Rank_t node_ppn  = gasneti_myhost.node_count;
-
   const gex_Rank_t tree_rank  = gasneti_myhost.grp_rank;
   const gex_Rank_t tree_size  = gasneti_myhost.grp_count;
   const gex_Rank_t tree_lo_ch = MIN(tree_size, tree_rank * radix + 1);
@@ -3265,6 +3293,7 @@ void gasnete_init_ce(void) {
   // One leader per host tries to allocate a single VCE instance
   uint32_t my_ce_id = (uint32_t)-1;
   if (!node_rank) {
+    gasneti_assert(jobrank_leads_nbrhd(gasneti_mynode)); // sanity check
     status = GNI_CeCreate(DOMAIN_SPECIFIC_VAL(nic_handle), &ce_handle);
     if_pf (status) {
       GASNETI_TRACE_PRINTF(I,("Aries CE disabled: CeCreate failed with %s",
@@ -3301,12 +3330,17 @@ void gasnete_init_ce(void) {
       child_eps[n] = myEpSetCeAttr(child, all_ce_id[child], n, GNI_CE_CHILD_VCE);
     }
     // Configure EPs connecting leaves (rank processes, including self)
-    for (unsigned int i = 0; i < node_ppn; ++i, ++n) {
+    for (unsigned int i = 0; i < gasneti_myhost.node_count; ++i) {
       gex_Rank_t leaf = gasneti_myhost.nodes[i];
+    #if GASNET_PSHM
+      // Conditionally filter to connect only the nbrhd leaders
+      if (use_pshm && !jobrank_leads_nbrhd(leaf)) continue;
+    #endif
       child_eps[n] = myEpSetCeAttr(leaf, /*unused*/0, n, GNI_CE_CHILD_PE);
+      n += 1;
     }
-    gasneti_assert(n == children + node_ppn);
     // Configure the VCE
+    gasneti_assert(n <= GNI_CE_MAX_CHILDREN);
     status = GNI_CeConfigure(ce_handle, child_eps, n,
                              parent_ep, DOMAIN_SPECIFIC_VAL(bound_cq_handle),
                              GNI_CE_MODE_CQE_ONERR | GNI_CE_MODE_ROUND_ZERO);
@@ -3316,21 +3350,36 @@ void gasnete_init_ce(void) {
     }
   }
 
-  // Configure the leaf->VCE connection
-  {
-    unsigned int cidx = node_rank + children;
+  // Configure the leaf->VCE connection, if any
+  if (!use_pshm || !gasneti_pshm_mynode) {
+    unsigned int cidx = children; // will hold my index in parent's ep list
+  #if GASNET_PSHM
+    if (use_pshm) {
+      // Count nbrhd leaders, on same host, which proceed me
+      for (unsigned int i = 0; i < gasneti_myhost.node_count; ++i) {
+        gex_Rank_t jobrank = gasneti_myhost.nodes[i];
+        if (jobrank == gasneti_mynode) break;
+        cidx += jobrank_leads_nbrhd(jobrank);
+      }
+    } else
+  #endif
+    cidx += node_rank;
     gex_Rank_t vce_jobrank = host_to_jobrank(tree_rank);
     my_ce_ep_handle = myEpSetCeAttr(vce_jobrank, all_ce_id[vce_jobrank], cidx, GNI_CE_CHILD_PE);
   }
 
   gasneti_free(all_ce_id);
 
+#if GASNET_PSHM
+  if (use_pshm) ce_gate_init();
+#endif
+
   gasnete_ce_available = 1;
   GASNETI_TRACE_PRINTF(I,("Aries CE: available, inter-host radix = %d", radix));
 
   gasnetc_bootstrapBarrier_gni();
 
-#if GASNET_DEBUG
+#if GASNET_DEBUG && !GASNET_PSHM // TODO: remove or update for PSHM?
   for (int i = 0; i < 4; ++i) {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
 
@@ -3382,10 +3431,71 @@ gasnete_ce_result_t *gasnetc_post_ce(gasnetc_post_descriptor_t *gpd)
   return result;
 }
 
+#if GASNET_PSHM
+// Shared-memory "gate" to be used in gasnete_cebarrier_{notify,try}
+// if/when {PPN + radix) is greater than GNI_CE_MAX_CHILDREN.
+
+// This is like a split-phase barrier except that it allows for a (statically
+// chosen) distinguished "parent" rank to perform work between the last arrival
+// and the signalling of the children (releasing them from the "gate").
+
+// TBD: if this is every used to synchronize consumption of a reduction
+// accumulator, then the memory fence properties should be examined carefully
+// (and documented in comments).
+
+gasnete_ce_gate_t *gasnete_ce_gate = NULL; // The only shared-memory data
+// Rank-local:
+static gasneti_atomic_val_t ce_gate_size; // will be 0 when unused
+static int ce_gate_my_phase;
+static volatile int *ce_gate_my_phase_p;
+static volatile int *ce_gate_done_phase_p;
+
+static void ce_gate_init(void) {
+  gasneti_assert(gasnete_ce_gate);
+
+  if (1 == gasneti_pshm_nodes) {
+    // Singleton - no need for synchronization
+    ce_gate_size = 0;
+    return;
+  }
+
+  ce_gate_my_phase = 0;
+  ce_gate_size     = gasneti_pshm_nodes;
+  if (!gasneti_pshm_mynode) {
+    gasnete_ce_gate->done_phase = 0;
+    for (int i = 0; i < ce_gate_size; ++i) {
+      gasnete_ce_gate->rank[i].phase = 0;
+    }
+  }
+
+  // Pull some address arithmetic out of critical path
+  ce_gate_my_phase_p = &gasnete_ce_gate->rank[gasneti_pshm_mynode].phase;
+  ce_gate_done_phase_p = &gasnete_ce_gate->done_phase;
+}
+
+// Notify and Try and Release to be called by "parent"
+#define ce_gate_parent_notify() ((ce_gate_my_phase ^= 1), ce_gate_parent_try())
+GASNETI_INLINE(ce_gate_parent_try)
+int ce_gate_parent_try(void)
+{
+  // 'rank[0]' is self and thus unused
+  for (int i = 1; i < ce_gate_size; ++i) {
+    if (ce_gate_my_phase != gasnete_ce_gate->rank[i].phase) return 0;
+  }
+  return 1;
+}
+#define ce_gate_release()       (*ce_gate_done_phase_p = ce_gate_my_phase)
+
+// Notify and Try to be called by "child"
+#define ce_gate_child_notify()  (void)(*ce_gate_my_phase_p = (ce_gate_my_phase ^= 1))
+#define ce_gate_child_try()     (*ce_gate_done_phase_p == ce_gate_my_phase)
+#endif // GASNET_PSHM
+
 // Simple offloaded consensus barrier
 // This uses the Aries CE reduce-to-all for its barrier side-effect
 static gasnete_ce_result_t *cebarrier_result;
-void gasnete_cebarrier_notify(void)
+GASNETI_INLINE(gasnete_cebarrier_notify_inner)
+void gasnete_cebarrier_notify_inner(void)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
@@ -3393,10 +3503,50 @@ void gasnete_cebarrier_notify(void)
   gpd->gpd_ce_mode = 0;
   cebarrier_result = gasnetc_post_ce(gpd);
 }
+void gasnete_cebarrier_notify(void)
+{
+#if GASNET_PSHM
+  if (ce_gate_size) {
+    if (gasneti_pshm_mynode) {
+      ce_gate_child_notify();
+      return;
+    } else {
+      if (! ce_gate_parent_notify()) {
+        // we are parent, but not last arrival
+        cebarrier_result = NULL; // read by _try
+        return;
+      }
+      // otherwise we are parent and last arrival - fall through
+    }
+  }
+#endif
+  gasnete_cebarrier_notify_inner();
+}
 int gasnete_cebarrier_try(void)
 {
+#if GASNET_PSHM
+  if (ce_gate_size) {
+    if (gasneti_pshm_mynode) {
+      // child simply waits for Release by parent
+      return ce_gate_child_try() ? GASNET_OK : GASNET_ERR_NOT_READY;
+    } else if (!cebarrier_result) {
+      // have not yet called passed the "gate" and initiated comms
+      if (ce_gate_parent_try()) {
+        gasnete_cebarrier_notify_inner();
+        // no point falling through since test cannot succeed w/o a poll
+      }
+      return GASNET_ERR_NOT_READY;
+    }
+    // otherwise fall through
+  }
+#endif
   int status = gasnete_test_ce(cebarrier_result);
-  if_pt (status == GNI_RC_SUCCESS) return GASNET_OK;
+  if_pt (status == GNI_RC_SUCCESS) {
+  #if GASNET_PSHM
+    if (ce_gate_size) ce_gate_release();
+  #endif
+    return GASNET_OK;
+  }
   gasneti_assert(status == GNI_RC_NOT_DONE);
   return GASNET_ERR_NOT_READY;
 }

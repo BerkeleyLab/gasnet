@@ -404,6 +404,18 @@ gni_return_t gasnete_test_ce(gasnete_ce_result_t *result)
   return result->done ? GNI_CeCheckResult(&result->output,0)
                       : GNI_RC_NOT_DONE;
 }
+  #if GASNET_PSHM
+  typedef struct {
+    volatile int done_phase;
+    char pad[GASNETC_CACHELINE_SIZE - sizeof(int)];
+    struct {
+      volatile int phase;
+      char pad[GASNETC_CACHELINE_SIZE - sizeof(int)];
+    } rank[1]; // Used as flexible array member
+  } gasnete_ce_gate_t;
+  #define GASNETC_SIZEOF_CE_GATE_T(n) gasneti_offsetof(gasnete_ce_gate_t, rank[(n)])
+  extern gasnete_ce_gate_t *gasnete_ce_gate;
+  #endif
 #endif
 
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
