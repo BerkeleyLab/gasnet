@@ -26,6 +26,10 @@ PENDING: GASNet-EX Work-In-Progress
 * GASNet-EX Spec v0.8:
   - Add GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
 
+* Cray uGNI (gemini- and aries-conduits)
+  - The Aries Collective Engine, if available, is now used to accelerate
+    gex_Coll_BarrierNB().
+
 ----------------------------------------------------------------------
 03-15-2019: GASNet-EX 2019.3.0 Release
 
