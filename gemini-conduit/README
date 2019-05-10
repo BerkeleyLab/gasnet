@@ -342,13 +342,25 @@ GASNET_USE_CE
   (barrier in particular).
   The default is enabled.
 
+GASNET_USE_CE_PSHM
+  AVAILABLE ONLY ON ARIES NETWORK.
+  This gives a boolean: "0" to disable or "1" to enable the use of the Aries
+  CE when the count of processes per host exceeds what the CE can support
+  directly.  This uses a hybrid CE + shared-memory implementation when the
+  per-host process count is too large, but the per-host shared-memory
+  neighborhood count is not.
+  This setting is ignored if PSHM was disabled at configure time.
+  The default is enabled.
+
 GASNET_GNI_CE_RADIX
   AVAILABLE ONLY ON ARIES NETWORK.
   This gives an integer in the range 1 to 31 for the radix of the N-ary tree
   tree used for inter-host communication by the Aries Collective Engine (CE).
   Increased values of this parameter come at the expense of intra-host
-  communication.  If the sum of this value and the number of processes per
-  host exceeds 32, then use of the Aries CE will be disabled.
+  communication.  If the sum of this value and the number of "leaves" per
+  host exceeds 32, then use of the Aries CE will be disabled.  Here "leaves"
+  means processes if GASNET_USE_CE_PSHM=0 at runtime (or PSHM was disabled at
+  configure time).  Otherwise it denotes shared-memory neighborhoods.
   The default is 2.
 
 GASNET_DOMAIN_COUNT

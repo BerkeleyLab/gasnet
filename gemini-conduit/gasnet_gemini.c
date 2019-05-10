@@ -3251,12 +3251,23 @@ void gasnete_init_ce(void) {
   // the limits imposed by (GNI_CE_MAX_CHILDREN + radix), then communication
   // will disable CE use.
   int avail_local_degree = GNI_CE_MAX_CHILDREN - radix;
+#if GASNET_PSHM
+  int allow_psm = gasneti_getenv_yesno_withdefault("GASNET_USE_CE_PSHM", 1);
+#endif
   int use_pshm = 0;
   if (avail_local_degree >= gasneti_myhost.node_count) {
     use_pshm = 0; // Default/desired case: every process talks to VCE directly
     GASNETI_TRACE_PRINTF(I,("Aries CE: using processes"));
   } else {
 #if GASNET_PSHM
+    if (!allow_psm) {
+      GASNETI_TRACE_PRINTF(I,("Aries CE disabled: processes per host(%d) + radix(%u) "
+                              "exceeds GNI_CE_MAX_CHILDREN(%d) and shared-memory hybrid is disabled",
+                            (int)gasneti_myhost.node_count, radix, GNI_CE_MAX_CHILDREN));
+      (void) gather_ce_ids((uint32_t)-1); // induce collective decision to disable CE
+      return;
+    }
+
     int nph = 0; // neighborhoods per (this) host
     for (unsigned int i = 0; i < gasneti_myhost.node_count; ++i) {
       nph += jobrank_leads_nbrhd(gasneti_myhost.nodes[i]);
