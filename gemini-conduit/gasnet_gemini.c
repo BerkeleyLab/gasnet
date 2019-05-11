@@ -3141,9 +3141,6 @@ void gasnetc_post_amo(
 // AuxSeg setup for CE result buffer space
 #define GASNETC_CE_RESULT_COUNT 1
 static gasnete_ce_result_t *gasnete_ce_results;
-GASNETI_IDENT(gasneti_ce_auxseg_IdentString,
-              "$GASNetAuxSeg_ce: 2 * " _STRINGIFY(GASNETC_CE_RESULT_COUNT)
-                                 " * " _STRINGIFY(GASNETC_CACHELINE_SIZE) " $");
 gasneti_auxseg_request_t gasnetc_ce_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
 
@@ -3839,16 +3836,6 @@ extern void gasnetc_sys_fini(void) {
 }
 
 /* AuxSeg setup for registered bounce buffer space*/
-#if GASNETC_USE_MULTI_DOMAIN
-  GASNETI_IDENT(gasneti_bounce_auxseg_IdentString,
-                "$GASNetAuxSeg_bounce: "
-                "(GASNET_DOMAIN_COUNT:" _STRINGIFY(GASNETC_DOMAIN_COUNT_DEFAULT) ") *" 
-                "(GASNET_GNI_BOUNCE_SIZE:" _STRINGIFY(GASNETC_GNI_BOUNCE_SIZE_DEFAULT)") $");
-#else
-  GASNETI_IDENT(gasneti_bounce_auxseg_IdentString,
-                "$GASNetAuxSeg_bounce: "
-                "GASNET_GNI_BOUNCE_SIZE:" _STRINGIFY(GASNETC_GNI_BOUNCE_SIZE_DEFAULT)" $");
-#endif
 gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
 
@@ -3865,19 +3852,6 @@ gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_in
 }
 
 /* AuxSeg setup for registered post descriptors*/
-/* This ident string is used by upcrun (and potentially by other tools) to estimate
- * the auxseg requirements, and gets rounded up.
- */
-#if GASNETC_USE_MULTI_DOMAIN
-  GASNETI_IDENT(gasneti_pd_auxseg_IdentString,
-              "$GASNetAuxSeg_pd: " _STRINGIFY(GASNETC_SIZEOF_GDP) "*"
-              "(GASNET_DOMAIN_COUNT:" _STRINGIFY(GASNETC_DOMAIN_COUNT_DEFAULT) ") *" 
-              "(GASNET_GNI_NUM_PD:" _STRINGIFY(GASNETC_GNI_NUM_PD_DEFAULT) ") $");
-#else
-  GASNETI_IDENT(gasneti_pd_auxseg_IdentString,
-              "$GASNetAuxSeg_pd: " _STRINGIFY(GASNETC_SIZEOF_GDP) "*"
-              "(GASNET_GNI_NUM_PD:" _STRINGIFY(GASNETC_GNI_NUM_PD_DEFAULT) ") $");
-#endif
 gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
   

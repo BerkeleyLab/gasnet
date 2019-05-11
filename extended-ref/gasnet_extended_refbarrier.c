@@ -2321,9 +2321,6 @@ void gasnete_barrier_init(void) {
 /* Should modify to allocate for other barriers as required */
 
 /* worst case assumption is lg(2^32 peers) * (2 phases) */
-/* spawner hint of our auxseg requirements: */
-GASNETI_IDENT(gasnete_barr_auxseg_IdentString,
-              "$GASNetAuxSeg_barr: 64*" _STRINGIFY(GASNETE_RDMABARRIER_INBOX_SZ) " $");
 
 gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   const char *barrier = gasneti_getenv_withdefault("GASNET_BARRIER",GASNETE_BARRIER_DEFAULT);

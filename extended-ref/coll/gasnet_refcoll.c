@@ -497,9 +497,6 @@ static gasnet_seginfo_t *gasnete_coll_auxseg_save = NULL;
 
 
 
-/* spawner hint of our auxseg requirements */
-GASNETI_IDENT(gasnete_coll_auxseg_IdentString, "$GASNetAuxSeg_coll: GASNET_COLL_SCRATCH_SIZE:" _STRINGIFY(GASNETE_COLL_SCRATCH_SIZE_DEFAULT) " $");
-
 /* AuxSeg setup for distributed scratch space*/
 gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;

@@ -2137,9 +2137,7 @@ static gasneti_auxseg_request_t gasneti_auxseg_total_alignedsz = { 0, 0 };
 static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
 
 #if GASNET_DEBUG
-  /* spawner hint of our auxseg requirements */
   #define GASNETI_AUXSEG_DUMMY_SZ    463
-  GASNETI_IDENT(gasneti_dummy_auxseg_IdentString, "$GASNetAuxSeg_dummy: "_STRINGIFY(GASNETI_AUXSEG_DUMMY_SZ)" $");
 
   gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info) {
     gasneti_auxseg_request_t retval;
