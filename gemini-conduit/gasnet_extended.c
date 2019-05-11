@@ -88,6 +88,11 @@ extern void gasnete_init(void) {
   #endif
   }
 
+#if GASNETC_BUILD_GNICE
+  /* Initialize Aries Collectives Engine */
+  gasnete_init_ce();
+#endif
+
   /* Initialize barrier resources */
   gasnete_barrier_init();
 
