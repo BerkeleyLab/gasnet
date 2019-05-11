@@ -3560,6 +3560,9 @@ int gasnete_cebarrier_try(void)
 }
 #endif // GASNETC_BUILD_GNICE
 
+// Padded size, used to retain cache alignment
+#define GASNETC_SIZEOF_GDP GASNETI_ALIGNUP(sizeof(gasnetc_post_descriptor_t), GASNETC_CACHELINE_SIZE)
+
 /* Needs no lock because it is called only from the init code */
 static
 void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE) 
@@ -3857,7 +3860,6 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   
   retval.minsz =
   retval.optimalsz = gasnetc_domain_count_max * num_pd * GASNETC_SIZEOF_GDP;
-  gasneti_assert_always(GASNETC_SIZEOF_GDP >= sizeof(gasnetc_post_descriptor_t));
 
   if (auxseg_info != NULL) { /* auxseg granted */
     /* The only one we care about is our own node */

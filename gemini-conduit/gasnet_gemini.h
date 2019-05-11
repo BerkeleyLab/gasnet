@@ -317,8 +317,6 @@ typedef struct am_rvous_t_ {
   volatile int          ready;
 } am_rvous_t;
 
-/* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
- * you must update the value of GASNETC_SIZEOF_GDP below */
 struct gasnetc_post_descriptor {
   union { /* must be first for alignment */
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
@@ -355,9 +353,6 @@ struct gasnetc_post_descriptor {
   int domain_idx;
 #endif
 };
-
-/* This should be ALIGNUP(sizeof(gasnetc_post_descriptor_t), 64) */
-#define GASNETC_SIZEOF_GDP 320
 
 gasnetc_post_descriptor_t *
 gasnetc_alloc_post_descriptor(gex_Flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
