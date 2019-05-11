@@ -15,7 +15,7 @@ Many features remain to be specified, implemented, and/or tuned.
 
 Users interested in learning what's new in GASNet-EX are recommended to peruse 
 the ChangeLog file in this directory for a summary of recent developments.
-The docs/GASNet-EX.spec file provides more detailed information about
+The docs/GASNet-EX.txt file provides more detailed information about
 the evolving EX specification.
 
 GASNet-EX notably includes a backwards-compatibility layer to assist in
