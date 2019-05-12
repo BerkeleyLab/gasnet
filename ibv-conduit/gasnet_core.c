@@ -172,6 +172,13 @@ static char *gasnetc_ibv_ports;
 
 static int gasnetc_did_firehose_init = 0;
 
+static const enum ibv_access_flags
+    gasneti_seg_access_flags =
+        (enum ibv_access_flags) (IBV_ACCESS_LOCAL_WRITE  |
+                                 IBV_ACCESS_REMOTE_WRITE |
+                                 IBV_ACCESS_REMOTE_READ  |
+                                 IBV_ACCESS_REMOTE_ATOMIC);
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Bootstrap collectives
@@ -2352,11 +2359,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* The auxseg will be statically pinned even if the segment is not */
   
   GASNETC_FOR_ALL_HCA(hca) {
-    if (0 != gasnetc_pin(hca, auxbase, auxsize,
-                         (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE |
-                                                 IBV_ACCESS_REMOTE_WRITE |
-                                                 IBV_ACCESS_REMOTE_READ),
-                         &hca->aux_reg)) {
+    if (0 != gasnetc_pin(hca, auxbase, auxsize, gasneti_seg_access_flags, &hca->aux_reg)) {
       gasneti_segreg_failed(auxsize, " aux", errno);
     }
     // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
@@ -2643,9 +2646,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
         for (j = 0, addr = gasnetc_seg_start, remain = segsize; remain != 0; ++j) {
 	  size_t len = (gasnetc_max_regs == 1) ? remain : MIN(remain, gasnetc_pin_maxsz);
-          if (0 != gasnetc_pin(hca, (void *)addr, len,
-			      (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ),
-			      &memreg)) {
+          if (0 != gasnetc_pin(hca, (void *)addr, len, gasneti_seg_access_flags, &memreg)) {
              gasneti_segreg_failed(len, "", errno);
           }
 	  my_rkeys[j] = memreg.handle->rkey;
@@ -3072,13 +3073,11 @@ void gasnetc_post_checkpoint(int is_restart) {
   /* REregister the segment and exchange the new rkeys */
 #if GASNETC_PIN_SEGMENT
   if (gasnetc_hca[0].seg_regs) {
-    const enum ibv_access_flags flags = (enum ibv_access_flags)
-                  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ);
     uint32_t *my_rkeys = gasneti_calloc(gasnetc_max_regs, sizeof(uint32_t));
     GASNETC_FOR_ALL_HCA(hca) {
       for (i=0; i<gasnetc_seg_regs; ++i) {
         gasnetc_memreg_t *reg = &hca->seg_regs[i];
-        if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, flags, reg)) {
+        if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
           gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
                              strerror(errno), errno);
         }

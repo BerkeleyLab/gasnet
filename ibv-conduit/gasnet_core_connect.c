@@ -632,21 +632,22 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
     int qpi;
     int rc;
 
+    const enum ibv_access_flags qp_access_flags =
+         (enum ibv_access_flags)(IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC);
+
   #if GASNETC_IBV_XRC
     gasnetc_xrc_snd_qp_t *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
   #endif
 
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
     qp_attr.qp_state        = IBV_QPS_INIT;
-    qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+    qp_attr.qp_access_flags = qp_access_flags;
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
       const gasnetc_port_info_t *port = conn_info->port[qpi];
 
     #if GASNETC_IBV_SRQ
-      qp_attr.qp_access_flags = GASNETC_QPI_IS_REQ(qpi)
-                                    ? IBV_ACCESS_REMOTE_WRITE
-                                    : IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+      qp_attr.qp_access_flags = qp_access_flags ^ (GASNETC_QPI_IS_REQ(qpi) ? IBV_ACCESS_REMOTE_READ : 0);
     #endif
       qp_attr.port_num = port->port_num;
       qp_attr.pkey_index = port->pkey_index;
@@ -699,7 +700,7 @@ gasnetc_qp_init2rtr(gasnetc_conn_info_t *conn_info)
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
       const gasnetc_port_info_t *port = conn_info->port[qpi];
 
-      qp_attr.max_dest_rd_atomic = GASNETC_QPI_IS_REQ(qpi) ? 0 : port->rd_atom;
+      qp_attr.max_dest_rd_atomic = port->rd_atom;
       qp_attr.path_mtu           = gasnetc_max_mtu
                                        ? MIN(gasnetc_max_mtu, port->port.active_mtu)
                                        : port->port.active_mtu;
@@ -762,7 +763,7 @@ gasnetc_qp_rtr2rts(gasnetc_conn_info_t *conn_info)
         const gasnetc_port_info_t *port = conn_info->port[qpi];
 
         qp_attr.sq_psn           = GASNETC_PSN(gasneti_mynode, qpi);
-        qp_attr.max_rd_atomic    = GASNETC_QPI_IS_REQ(qpi) ? 0 : port->rd_atom;
+        qp_attr.max_rd_atomic    = port->rd_atom;
         rc = ibv_modify_qp(cep->qp_handle, &qp_attr, qp_mask);
         GASNETC_IBV_CHECK(rc, "from ibv_modify_qp(RTS)");
       #if GASNETC_IBV_XRC
