@@ -132,7 +132,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && doputs) {
-			print_stat(myproc, &stput, "put_bulk throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stput, "PutBlocking throughput", PRINT_THROUGHPUT);
 		}	
 	
 		init_stat(&stget, payload);
@@ -150,7 +150,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "get_bulk throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "GetBlocking throughput", PRINT_THROUGHPUT);
 		}	
 
 	}
@@ -182,7 +182,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && doputs) {
-			print_stat(myproc, &stput, "put_nbi throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stput, "PutNBI+DEFER throughput", PRINT_THROUGHPUT);
 		}	
 	
 		init_stat(&stget, payload);
@@ -201,7 +201,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "get_nbi throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "GetNBI+DEFER throughput", PRINT_THROUGHPUT);
 		}	
 
 	}
@@ -236,7 +236,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
        
 		if (iamsender && doputs) {
-			print_stat(myproc, &stput, "put_nb_bulk throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stput, "PutNB+DEFER throughput", PRINT_THROUGHPUT);
 		}	
 	
 		init_stat(&stget, payload);
@@ -255,7 +255,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "get_nb throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "GetNB+DEFER throughput", PRINT_THROUGHPUT);
 		}	
 
 	}
