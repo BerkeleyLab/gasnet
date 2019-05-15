@@ -741,20 +741,22 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   ibv-conduit.  These parameters must be equal across all nodes, and
   the behavior otherwise is undefined.
 
-  As an optimization, ibv-conduit can send Active Message (AM) traffic
+  As an option, ibv-conduit can send Active Message (AM) traffic
   using RDMA PUT operations to buffers reserved for this purpose.  This
   leads to a reduction in the end-to-end latency of such AM traffic, but
   at the cost of increased memory usage and in the cost of a polling for
   AMs (as done explicitly in gasnet_AMPoll(), and implicitly in many
-  GASNet calls).
+  GASNet calls).  On current generation systems, the added costs will
+  most often dominate and thus this feature is OFF by default (via a
+  default GASNET_AMRDMA_LIMIT of zero).
 
   + GASNET_AMRDMA_LIMIT
     This environment variable controls the maximum size of an AM that may
     be sent via the AMRDMA path.  The software overhead on both the sender
     and receiver grow with the message size.  So, as the message size grows
     the use of AMRDMA eventually costs more than the snd/rcv alternative.
-    A value of zero will disable AMRDMA.
-    The current default is 4K minus some overheads.
+    The maximum value is 4080 (4K minus some overheads).
+    The current default is zero, which disables AMRDMA.
 
   + GASNET_AMRDMA_DEPTH
     This environment variable controls the number of buffers (currently 4K

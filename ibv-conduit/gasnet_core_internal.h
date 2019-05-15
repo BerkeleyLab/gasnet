@@ -427,7 +427,7 @@ typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 #define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 32
 #define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
 #define GASNETC_DEFAULT_AMRDMA_DEPTH	16
-#define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
+#define GASNETC_DEFAULT_AMRDMA_LIMIT	0       // OFF by default
 #define GASNETC_DEFAULT_AMRDMA_CYCLE	1024	/* 2^i, Number of AM rcvs before hot-peer heuristic */
 
 #if GASNETI_CONDUIT_THREADS
