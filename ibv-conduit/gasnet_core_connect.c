@@ -457,7 +457,7 @@ gasnetc_check_inline_limit(int port_num, int send_wr, int send_sge)
   #else
     qp_init_attr.qp_type             = IBV_QPT_RC;
   #endif
-    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
+    qp_init_attr.sq_sig_all          = !GASNETC_USE_SEND_SIGNALLED;
     qp_init_attr.srq                 = NULL; /* Should not influence inline data */
     qp_init_attr.send_cq             = hca->snd_cq;
     qp_init_attr.recv_cq             = hca->rcv_cq;
@@ -537,7 +537,7 @@ gasnetc_qp_create(gasnetc_conn_info_t *conn_info)
   #else
     qp_init_attr.qp_type             = IBV_QPT_RC;
   #endif
-    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
+    qp_init_attr.sq_sig_all          = !GASNETC_USE_SEND_SIGNALLED;
     qp_init_attr.srq                 = NULL;
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {

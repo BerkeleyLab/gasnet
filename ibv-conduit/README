@@ -603,6 +603,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     missing support.
     This setting defaults to 1 if ODP support was enabled at configure time.
 
+  + GASNET_USE_FENCED_PUTS
+    This boolean setting controls the use of atomic operations to provide for
+    correct remote completion detection in the presence of multiple HCAs.
+    See "Bug 3447" in the Known Problems section for information on when one
+    may wish to enable this setting.
+    If enabled when using only a single HCA a warning will be issued.
+    This setting defaults to 0 (disabled).
+
    + GASNET_PIN_MAXSZ
     This controls the maximum size of a pinned memory region.  The value must
     be a power-of-two, and no less than the page size.  If the value is larger
@@ -1060,6 +1068,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 + Bug 3447
   In this release the implementation of ibv-conduit on multi-HCA InfiniBand
   networks may yield incorrect results for certain communication patterns.
+  However, the environment variable GASNET_USE_FENCED_PUTS (described above)
+  can correct for this problem at the expense of higher latency and reduced
+  bandwidth for Put-based communications due to additional communication.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3447
   That bug report describes the conditions under which the problem may

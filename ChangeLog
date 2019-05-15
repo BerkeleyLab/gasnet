@@ -35,6 +35,11 @@ PENDING: GASNet-EX Work-In-Progress
   - This conduit is now DEPRECATED and will be removed in a future release.
   - The aries-conduit remains supported and under active development.
 
+* InfiniBand Verbs (ibv-conduit)
+  - NEW: Improved support for correct operation on multi-rail InfiniBand systems
+  - New envvar GASNET_USE_FENCED_PUTS controls the strictness of ordering
+    guarantees for put RMA completion on multi-rail hardware, addressing bug 3447.
+
 ----------------------------------------------------------------------
 03-15-2019: GASNet-EX 2019.3.0 Release
 
