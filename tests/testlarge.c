@@ -201,7 +201,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "GetNBI+DEFER throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "GetNBI throughput", PRINT_THROUGHPUT);
 		}	
 
 	}
@@ -255,7 +255,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "GetNB+DEFER throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "GetNB throughput", PRINT_THROUGHPUT);
 		}	
 
 	}

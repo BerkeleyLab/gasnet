@@ -119,7 +119,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "put_bulk throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "PutBlocking throughput", PRINT_THROUGHPUT);
 	}	
     }
 
@@ -140,7 +140,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "get_bulk throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "GetBlocking throughput", PRINT_THROUGHPUT);
 	}	
     }
 }
@@ -174,7 +174,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "put_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "PutNBI+DEFER throughput", PRINT_THROUGHPUT);
 	}	
     }
 
@@ -196,7 +196,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "get_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "GetNBI throughput", PRINT_THROUGHPUT);
 	}	
     }
 }
@@ -232,7 +232,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "put_nb_bulk throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "PutNB+DEFER throughput", PRINT_THROUGHPUT);
 	}	
     }
 	
@@ -254,7 +254,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "get_nb throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "GetNB throughput", PRINT_THROUGHPUT);
 	}	
     }
 	
