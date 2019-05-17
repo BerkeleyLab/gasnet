@@ -3171,6 +3171,7 @@ static gex_Rank_t host_to_jobrank(const gex_Rank_t host) {
   gasneti_fatalerror("Invalid host number %d", (int)host);
 }
 
+#if GASNET_PSHM
 // Return 1 if jobrank is first process in a given neighborhood, otherwise 0
 static int jobrank_leads_nbrhd(const gex_Rank_t jobrank) {
   gasneti_assert_always(gasneti_pshm_firsts);
@@ -3179,6 +3180,7 @@ static int jobrank_leads_nbrhd(const gex_Rank_t jobrank) {
   }
   return 0;
 }
+#endif
 
 // TODO: generalize to other than TEAM_ALL??
 static uint32_t *gather_ce_ids(uint32_t my_ce_id) {
@@ -3250,10 +3252,10 @@ void gasnete_init_ce(void) {
   int avail_local_degree = GNI_CE_MAX_CHILDREN - radix;
 #if GASNET_PSHM
   int allow_psm = gasneti_getenv_yesno_withdefault("GASNET_USE_CE_PSHM", 1);
-#endif
   int use_pshm = 0;
+#endif
   if (avail_local_degree >= gasneti_myhost.node_count) {
-    use_pshm = 0; // Default/desired case: every process talks to VCE directly
+    // Default/desired case: every process talks to VCE directly
     GASNETI_TRACE_PRINTF(I,("Aries CE: using processes"));
   } else {
 #if GASNET_PSHM
@@ -3301,7 +3303,9 @@ void gasnete_init_ce(void) {
   // One leader per host tries to allocate a single VCE instance
   uint32_t my_ce_id = (uint32_t)-1;
   if (!node_rank) {
+  #if GASNET_PSHM
     gasneti_assert(jobrank_leads_nbrhd(gasneti_mynode)); // sanity check
+  #endif
     status = GNI_CeCreate(DOMAIN_SPECIFIC_VAL(nic_handle), &ce_handle);
     if_pf (status) {
       GASNETI_TRACE_PRINTF(I,("Aries CE disabled: CeCreate failed with %s",
@@ -3359,7 +3363,10 @@ void gasnete_init_ce(void) {
   }
 
   // Configure the leaf->VCE connection, if any
-  if (!use_pshm || !gasneti_pshm_mynode) {
+#if GASNET_PSHM
+  if (!use_pshm || !gasneti_pshm_mynode)
+#endif
+  {
     unsigned int cidx = children; // will hold my index in parent's ep list
   #if GASNET_PSHM
     if (use_pshm) {
