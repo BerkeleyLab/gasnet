@@ -113,8 +113,8 @@ GASNet Release Procedure
    Cray XE/XK: gemini (and mpi if time/allocation allows)
    Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
-   Linux-InfiniBand: mpi, ibv (and portals4 & mxm, if possible)
-   Linux-OmniPath: psm, ofi (plus mpi and ibv if time/allocation allows)
+   Linux-InfiniBand: mpi, ibv
+   Linux-OmniPath: ofi (plus mpi and ibv if time/allocation allows)
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads, smp+sysv
   SEGMENT_EVERYTHING should be tested on all conduits supporting it.

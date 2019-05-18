@@ -418,15 +418,12 @@ mpi-conduit: MPI (Message Passing Interface)
  Intended as a reference implementation for systems lacking native conduit support.
  Rigorously tested and supported on most current platforms (see below).
 
-ofi-conduit: Open Fabrics Interfaces
+ofi-conduit: Open Fabrics Interfaces (*TEMPORARILY DISABLED*)
  GASNet over the Open Fabrics Interface framework (libfabric).
- Rigorously tested and supported over the portable/reference OFI sockets Provider.
- Believed to also work over the Intel Omni-Path psm2 Provider.
+ This conduit is currently being re-implemented for GASNet-EX.
+ Until that rewrite is complete, users are advised to use other conduits compatible
+ with their hardware, or to use the legacy GASNet-1 release (if EX-specific features are not required).
 
-portals4-conduit: Portals4   *BETA*
- GASNet over the Portals4 network API developed at Sandia National Lab.
- The core GASNet developers have been unable to test this conduit recently.
-  
 Native, high-performance conduits:
 ---------------------------------
 
@@ -444,16 +441,6 @@ ibv-conduit: InfiniBand Verbs
  Rigorously tested and supported over InfiniBand hardware on all supported systems (see below).
  Believed to also work on other hardware offering a standard-compliant Verbs layer.
 
-mxm-conduit: Mellanox InfiniBand Messaging Accelerator (MXM)
- GASNet over the MXM API for recent Mellanox InfiniBand adapters.
- The core GASNet developers have limited access to this hardware, but have completed 
- minimal validation on x86_64/Linux.
-
-psm-conduit: Intel Omni-Path PSM2
- GASNet over the PSM2 API for Intel Omni-Path adapters.
- The core GASNet developers have limited access to this hardware, but have completed 
- minimal validation on x86_64/Linux. 
- 
 Single-node Development Options
 ===============================
 
@@ -502,8 +489,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/x86/IntelC/32:           smp, mpi, udp
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp
     * Linux/x86_64-Ethernet/{gcc,clang,PGI,SunC}/{32,64}: smp, mpi, udp, ofi
-    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,IntelC,SunC}/64: smp, mpi, udp, ibv, mxm
-    * Linux/x86_64-OmniPath/gcc/64: smp, mpi, udp, ofi, psm
+    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,IntelC,SunC}/64: smp, mpi, udp, ibv
+    * Linux/x86_64-OmniPath/gcc/64: smp, mpi, udp, ofi
     * Linux/x86_64/x86-Open64/64:   smp, udp, #
 
     * Linux/PowerPC-Ethernet/{gcc,xlc,clang}/{32,64}: smp, mpi, udp

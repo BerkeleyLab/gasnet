@@ -36,7 +36,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   currently support it.
 
   While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
-  recommend use of psm-conduit on such systems.
+  recommend use of ofi-conduit on such systems.
 
   Nearly all InfiniBand cards (known as Host Channel Adapters, or HCAs)
   have support for Open Fabrics Verbs, available from www.openfabrics.org
@@ -46,9 +46,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   In addition to the Open Fabrics Verbs, vendor-specific APIs also exist
   and some have GASNet conduits:
-   + mxm-conduit for the MXM API from Mellanox
    + ofi-conduit for the PSM (version 1) API on Intel TrueScale HCAs
-   + ofi- or psm-conduit for the PSM2 API on Intel Omni-Path HCAs
+   + ofi-conduit for the PSM2 API on Intel Omni-Path HCAs
 
   The performance of ibv-conduit relative to others on the same hardware
   will depend on your applications' communications patterns, the number of
