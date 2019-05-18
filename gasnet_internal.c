@@ -1128,7 +1128,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
          (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
       || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !haveOmniPath)
-      || (!strcmp("portals4",mycore) && !strcmp("portals4",myext))
       ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
@@ -1151,7 +1150,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"udp")) continue;
         if (!strcmp(name,"ofi") && !haveOmniPath) continue;
         if (!strcmp(name,"ibv") && haveOmniPath) continue; // never recommend ibv over OPA
-        if (!strcmp(name,"portals4")) continue;
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
       }

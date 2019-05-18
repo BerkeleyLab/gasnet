@@ -24,12 +24,9 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	smp-conduit  		\
 	udp-conduit  		\
 	ibv-conduit 		\
-	mxm-conduit		\
-	psm-conduit		\
-	portals4-conduit        \
 	gemini-conduit          \
 	aries-conduit           \
-	pami-conduit			\
+	pami-conduit		\
 	ofi-conduit
 CONDUITMODE_headers = 		\
 	gasnetex.h           	\
