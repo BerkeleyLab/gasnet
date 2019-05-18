@@ -39,6 +39,7 @@ PENDING: GASNet-EX Work-In-Progress
   - NEW: Improved support for correct operation on multi-rail InfiniBand systems
   - New envvar GASNET_USE_FENCED_PUTS controls the strictness of ordering
     guarantees for put RMA completion on multi-rail hardware, addressing bug 3447.
+  - Compilation of AM-over-RDMA support is now disabled by default
 
 ----------------------------------------------------------------------
 05-27-2019: GASNet-EX 2019.3.2 Release (bug fix release)
