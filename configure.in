@@ -2463,14 +2463,8 @@ GASNET_IF_DISABLED(auto-conduit-detect, [Enable/disable automatic detection of s
 		   [enabled_auto_detect=yes;_conduit_auto_reason=auto])
 dnl GASNET_TOOLSONLY_FALSE_END
 
-dnl GASNet branch control -- allows us to keep a unified configure script
-dnl define([GASNET_BRANCH_1],[1])
-    define([GASNET_BRANCH_EX],[1])
-
-ifdef([GASNET_BRANCH_1],[gasnet_branch=1],[gasnet_branch=EX])
-
-dnl CONDUIT_BEGIN(lowername, ex_allow, desc)
-dnl ex_impl should be a literal [yes|no|warn] to allow this conduit for EX branch, or probe and warn when support looks available
+dnl CONDUIT_BEGIN(lowername, conduit_allow, desc)
+dnl conduit_allow should be a literal [yes|no|warn] to allow use of this conduit, or probe and warn when support looks available
 dnl sets enabled_<lowername> to yes or no for whether conduit should be enabled
 AC_DEFUN([CONDUIT_BEGIN],[
  pushdef([CONDUIT_NAME],[$1])
@@ -2478,7 +2472,7 @@ AC_DEFUN([CONDUIT_BEGIN],[
  pushdef([CONDUIT_DESC],[$3])
  # bug 1946: prevent confusing cross-conduit error messages
  GASNET_ERR_CLEANUP
-ifdef([GASNET_BRANCH_1],[pushdef([CONDUIT_IMPLEMENTED],yes)],[pushdef([CONDUIT_IMPLEMENTED],$2)])
+pushdef([CONDUIT_IMPLEMENTED],$2)
 ifelse(CONDUIT_IMPLEMENTED,[yes],[
  GASNET_HELP_OUTPUT([
 CONDUIT_NAME[]-conduit options: (CONDUIT_DESC)])
@@ -3520,7 +3514,6 @@ if test "$enabled_ibv" = yes; then
       fi
     fi
 
-    if test $gasnet_branch = EX; then
       GASNET_IF_ENABLED_WITH_AUTO([ibv-odp],
           [Enable/disable On Demand Paging (ODP) support in ibv-conduit (default is to probe)],
           [enabled_ibv_odp="yes"; force_ibv_odp="yes"],
@@ -3555,7 +3548,6 @@ if test "$enabled_ibv" = yes; then
           AC_DEFINE(GASNETC_IBV_ODP)
         fi
       fi
-    fi
   fi
 fi
 AC_SUBST(IBV_CFLAGS)
@@ -4925,13 +4917,7 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 
 ##                        FCA SUPPORT
   dnl FCA support is GASNet-1 only, pending collectives reimplementation in GASNet-EX
-ifdef([GASNET_BRANCH_1],[
-  GASNET_IF_ENABLED_WITH_AUTO(fca,
-    [Enable/disable FCA for acceleration of collectives (auto-detected)],
-    [enable_fca=yes], [enable_fca=no], [enable_fca=probe])
-],[
   enable_fca=no
-])
 
 have_fca=no
 if test "$enable_fca" != "no"; then
@@ -5066,9 +5052,6 @@ cat >>$CONDUIT_LIST <<EOF
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
   PSHM support:           $with_pshm
-ifdef([GASNET_BRANCH_1],[dnl
-  FCA support:            $have_fca
-])dnl
   BLCR support:           $have_blcr
   Atomics support:        $atomics_config
 EOF
