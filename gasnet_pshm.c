@@ -136,11 +136,6 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   
   /* Prepare the shared info struct (including bootstrap barrier) */
   gasneti_pshm_info = (struct gasneti_pshm_info *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
-  if (gasneti_pshm_mynode == 0) {
-    gasneti_pshm_prefault(gasneti_pshm_info, info_sz);
-    gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier_cnt, gasneti_pshm_nodes, 0);
-    gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier_gen, 0, 0);
-  }
 
   /* "early" barrier which protects initialization of the real barrier counter. */
   gasneti_local_wmb();
@@ -151,6 +146,12 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
     for (i = 1; i < gasneti_pshm_nodes; ++i) {
       gasneti_waituntil(gasneti_pshm_info->early_barrier[i].val != 0);
     }
+    // We prefault at init time to avoid risk of SIG{BUS,SEGV} later (part of bug 3693).
+    // We do so here to avoid colliding with `early_barrier` (the cause of bug 3943).
+    gasneti_pshm_prefault(gasneti_pshm_info, info_sz);
+    gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier_cnt, gasneti_pshm_nodes, 0);
+    gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier_gen, 0, 0);
+    gasneti_local_wmb();
     gasneti_pshm_info->early_barrier[0].val = 1;
   }
 
