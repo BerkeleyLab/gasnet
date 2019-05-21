@@ -22,6 +22,7 @@ PENDING: GASNet-EX Work-In-Progress
 
 * Notable bugs fixed in this release:
   - bug3880: XLC 16.1.x ICE compiling ibv-conduit for Power9
+  - bug3943: infrequent startup hang with PSHM and over 62 PPN
 
 * GASNet-EX Spec v0.8:
   - Add GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
