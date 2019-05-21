@@ -36,6 +36,8 @@ int gasnetc_ud_rcvs = 0;
 int gasnetc_ud_snds = 0;
 #endif
 
+#define GASNETC_XRC_HELP_MSG " - please try running with GASNET_USE_XRC=0 in your environment (or configure using '--disable-ibv-xrc' to entirely disable XRC support)"
+
 /* ------------------------------------------------------------------------------------ */
 
 /* Common types */
@@ -208,7 +210,7 @@ gasnetc_xrc_create_qp(gasnetc_cep_t *cep, gex_Rank_t node, int qpi) {
     init_attr.comp_mask = IBV_QP_INIT_ATTR_XRCD;
     init_attr.xrcd = xrc_domain;
     xrc_recv_qp = ibv_create_qp_ex(hca->handle, &init_attr);
-    GASNETC_IBV_CHECK_PTR(xrc_recv_qp, "from ibv_create_qp_ex(xrc_rcv)");
+    GASNETC_IBV_CHECK_PTR(xrc_recv_qp, "from ibv_create_qp_ex(xrc_rcv)" GASNETC_XRC_HELP_MSG);
     gasneti_atomic32_set(rcv_qpn_p, xrc_recv_qp->qp_num, GASNETI_ATOMIC_REL);
   } else {
     struct ibv_qp_open_attr attr;
@@ -220,7 +222,7 @@ gasnetc_xrc_create_qp(gasnetc_cep_t *cep, gex_Rank_t node, int qpi) {
     attr.qp_type = IBV_QPT_XRC_RECV;
     attr.xrcd = xrc_domain;
     xrc_recv_qp = ibv_open_qp(hca->handle, &attr);
-    GASNETC_IBV_CHECK_PTR(xrc_recv_qp, "from ibv_open_qp()");
+    GASNETC_IBV_CHECK_PTR(xrc_recv_qp, "from ibv_open_qp()" GASNETC_XRC_HELP_MSG);
   }
   cep->rcv_qp = xrc_recv_qp;
 #elif GASNETC_IBV_XRC_MLNX
@@ -228,13 +230,13 @@ gasnetc_xrc_create_qp(gasnetc_cep_t *cep, gex_Rank_t node, int qpi) {
     struct ibv_qp_init_attr init_attr;
     init_attr.xrc_domain = xrc_domain;
     ret = ibv_create_xrc_rcv_qp(&init_attr, &rcv_qpn);
-    GASNETC_IBV_CHECK(ret, "from ibv_create_xrc_rcv_qp()");
+    GASNETC_IBV_CHECK(ret, "from ibv_create_xrc_rcv_qp()" GASNETC_XRC_HELP_MSG);
     gasneti_atomic32_set(rcv_qpn_p, rcv_qpn, GASNETI_ATOMIC_REL);
   } else {
     gasneti_waituntil(1 != (rcv_qpn = gasneti_atomic32_read(rcv_qpn_p, 0))); /* includes rmb() */
     if_pf (rcv_qpn == 0) goto retry; /* Should not happen */
     ret = ibv_reg_xrc_rcv_qp(xrc_domain, rcv_qpn);
-    GASNETC_IBV_CHECK(ret, "from ibv_reg_xrc_rcv_qp()");
+    GASNETC_IBV_CHECK(ret, "from ibv_reg_xrc_rcv_qp()" GASNETC_XRC_HELP_MSG);
   }
 #endif
 
@@ -349,7 +351,7 @@ gasnetc_xrc_init(void **shared_mem_p) {
       gasneti_fatalerror("Unable to create an XRC domain.  "
                          "Please see \"Lack of XRC support\" under Known Problems in GASNet's README-ibv.");
     }
-    GASNETC_IBV_CHECK_PTR(hca->xrc_domain, "from ibv_open_xrc_domain()");
+    GASNETC_IBV_CHECK_PTR(hca->xrc_domain, "from ibv_open_xrc_domain()" GASNETC_XRC_HELP_MSG);
     (void) close(fd);
   }
 
@@ -652,7 +654,7 @@ gasnetc_qp_reset2init(gasnetc_conn_info_t *conn_info)
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
         rc = gasnetc_xrc_modify_qp(cep, &qp_attr, qp_mask);
-        GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(INIT)");
+        GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(INIT)" GASNETC_XRC_HELP_MSG);
       }
     #endif
 
@@ -709,7 +711,7 @@ gasnetc_qp_init2rtr(gasnetc_conn_info_t *conn_info)
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
         rc = gasnetc_xrc_modify_qp(cep, &qp_attr, qp_mask);
-        GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(RTR)");
+        GASNETC_IBV_CHECK(rc, "from gasnetc_xrc_modify_qp(RTR)" GASNETC_XRC_HELP_MSG);
 
         /* The normal QP will connect, below, to the peer's XRC rcv QP */
         qp_attr.dest_qp_num = conn_info->remote_xrc_qpn[qpi];
@@ -1102,7 +1104,7 @@ conn_get_srq_num(struct ibv_srq *srq)
   uint32_t result = 0;
 #if GASNETC_IBV_XRC_OFED
   int rc = ibv_get_srq_num(srq, &result);
-  GASNETC_IBV_CHECK(rc, "from ibv_get_srq_num()");
+  GASNETC_IBV_CHECK(rc, "from ibv_get_srq_num()" GASNETC_XRC_HELP_MSG);
 #elif GASNETC_IBV_XRC_MLNX
   result = srq->xrc_srq_num;
 #endif
