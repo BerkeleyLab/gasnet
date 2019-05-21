@@ -1,12 +1,12 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: bitbucket.org:berkeleylab/gasnet.git/template-conduit/Makefile.am $
-# Description: Makefile for GASNet <conduitname> conduit
+# Description: Makefile for GASNet ucx conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
 
-CONDUIT_NAME=<conduitname>
+CONDUIT_NAME=ucx
 
 #
 ## SSH bootstrap support (built unless fork() is unavailable)
@@ -28,8 +28,8 @@ mpi_deps = $(mpi_srcdir)/*.[ch]
 # We must compile this one object with MPI_CC.
 mpi_special_objs = $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o
 $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o: force
-        @MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) \
-                $(MANUAL_MPICFLAGS) -o $@ -c $(mpi_srcdir)/gasnet_bootstrap_mpi.c
+	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) \
+		$(MANUAL_MPICFLAGS) -o $@ -c $(mpi_srcdir)/gasnet_bootstrap_mpi.c
 endif
 
 ##
@@ -64,7 +64,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = $(ssh_defines) $(mpi_defines) $(pmi_cppflags)
+CONDUIT_EXTRALIBCFLAGS = @UCX_CFLAGS@ $(ssh_defines) $(mpi_defines) $(pmi_cppflags)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
@@ -97,31 +97,31 @@ CONDUIT_TESTS =
 # -------- Do not modify anything below this line --------
 
 if BUILD_SEQ_LIBS
-libgasnet_<conduitname>_seq_a_SOURCES =
-libraries_seq = libgasnet-<conduitname>-seq.a
+libgasnet_ucx_seq_a_SOURCES =
+libraries_seq = libgasnet-ucx-seq.a
 endif
 if BUILD_PAR_LIBS
-libgasnet_<conduitname>_par_a_SOURCES =
-libraries_par = libgasnet-<conduitname>-par.a
+libgasnet_ucx_par_a_SOURCES =
+libraries_par = libgasnet-ucx-par.a
 endif
 if BUILD_PARSYNC_LIBS
-libgasnet_<conduitname>_parsync_a_SOURCES =
-libraries_parsync = libgasnet-<conduitname>-parsync.a
+libgasnet_ucx_parsync_a_SOURCES =
+libraries_parsync = libgasnet-ucx-parsync.a
 endif
 libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 
-libgasnet-<conduitname>-seq.a: $(libgasnet_dependencies)
+libgasnet-ucx-seq.a: $(libgasnet_dependencies)
 	@$(MAKE) do-libgasnet-seq
 
-libgasnet-<conduitname>-par.a: $(libgasnet_dependencies)
+libgasnet-ucx-par.a: $(libgasnet_dependencies)
 	@$(MAKE) do-libgasnet-par
 
-libgasnet-<conduitname>-parsync.a: $(libgasnet_dependencies)
+libgasnet-ucx-parsync.a: $(libgasnet_dependencies)
 	@$(MAKE) do-libgasnet-parsync
 
-if USE_<CONDUITNAME>_CONDUIT  
+if USE_UCX_CONDUIT  
 lib_LIBRARIES = $(libraries) 
 all-local: $(lib_LIBRARIES) $(pkgconfig_files)
 clean-local: do-clean-local

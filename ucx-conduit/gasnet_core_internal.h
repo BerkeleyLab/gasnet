@@ -1,5 +1,5 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/template-conduit/gasnet_core_internal.h $
- * Description: GASNet <conduitname> conduit header for internal definitions in Core API
+ * Description: GASNet ucx conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
@@ -8,6 +8,8 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+
+#include <ucp/api/ucp.h>
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1

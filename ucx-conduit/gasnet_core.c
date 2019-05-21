@@ -1,6 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/template-conduit/gasnet_core.c $
- * Description: GASNet <conduitname> conduit Implementation
+ * Description: GASNet ucx conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -35,6 +36,11 @@ static void gasnetc_check_config(void) {
 }
 
 static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
+  ucp_config_t *config;
+  ucs_status_t status;
+  ucp_params_t ucp_params;
+  ucp_context_h ucp_context;
+
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -81,7 +87,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
-  gasneti_nodemapInit(gasneti_spawner->Exchange, ###);
+  //gasneti_nodemapInit(gasneti_spawner->Exchange, ###);
 
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
@@ -93,7 +99,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
-    ### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
+    //### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
   #endif
 
   /* allocate and attach an aux segment */
@@ -104,10 +110,10 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
   { 
       /* (###) Add code here to determine optimistic maximum segment size */
-      gasneti_MaxLocalSegmentSize = ###;
+      //gasneti_MaxLocalSegmentSize = ###;
 
       /* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes */
-      gasneti_MaxGlobalSegmentSize = ###;
+      //gasneti_MaxGlobalSegmentSize = ###;
 
       /* it may be appropriate to use gasneti_segmentInit() here to set 
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
@@ -125,6 +131,31 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
          to other shared overheads, such as the aux segment
       */
   }
+
+  /*
+   * Initialize UCX
+   */
+  status = ucp_config_read("GASNET", NULL, &config);
+  if (status != UCS_OK) {
+    GASNETI_RETURN_ERRFR(RESOURCE, "Fail to read UCX config: %s",
+                         ucs_status_string(status));
+  }
+  ucp_params.features = UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP;
+  ucp_params.request_size    = 0;//sizeof(pmixp_ucx_req_t);
+  ucp_params.request_init    = NULL;
+  ucp_params.request_cleanup = NULL;
+  ucp_params.field_mask      = UCP_PARAM_FIELD_FEATURES |
+      UCP_PARAM_FIELD_REQUEST_SIZE |
+      UCP_PARAM_FIELD_REQUEST_INIT |
+      UCP_PARAM_FIELD_REQUEST_CLEANUP;
+  status = ucp_init(&ucp_params, config, &ucp_context);
+
+  unsigned major_version, minor_version, release_number;
+  ucp_get_version(&major_version, &minor_version, &release_number);
+
+  GASNETI_TRACE_PRINTF(I, ("UCX version %d.%d.%d\n",
+                           major_version, minor_version, release_number));
+  return GASNET_ERR_NOT_INIT;
 
   gasneti_init_done = 1;  
 
@@ -184,8 +215,8 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
      you can use gasneti_segmentAttach() here if you used gasneti_segmentInit() above
   */
 
-  void *segbase = ###;
-  segsize = ###
+  void *segbase = 0;//###;
+  segsize = 0;//###
 
   gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
   gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
@@ -264,6 +295,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 
   return GASNET_OK;
 }
+
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
 extern int gasnetc_Client_Init(
@@ -450,7 +482,7 @@ extern gex_TI_t gasnetc_Token_Info(
   gex_TI_t result = 0;
 
   /* (###) add code here to write the source into info->gex_srcrank */
-  info->gex_srcrank = ###;
+  info->gex_srcrank = 0;//###;
   result |= GEX_TI_SRCRANK;
 
   /* (###) add code here to write the receiving EP into info->gex_ep */
@@ -458,16 +490,16 @@ extern gex_TI_t gasnetc_Token_Info(
   result |= GEX_TI_EP;
 
   /* (###) add code here to write the address of the handle entry into info->gex_entry (optional) */
-  info->gex_entry = ###;
-  result |= GEX_TI_ENTRY;
+  //info->gex_entry = 0;//###;
+  //result |= GEX_TI_ENTRY;
 
   /* (###) add code here to set boolean "is a request" field info->gex_is_req (optional) */
-  info->gex_is_req = real_token->u.generic.is_req;
-  result |= GEX_TI_IS_REQ;
+  //info->gex_is_req = real_token->u.generic.is_req;
+  //result |= GEX_TI_IS_REQ;
 
   /* (###) add code here to set boolean "is a long" field info->gex_is_long (optional) */
-  info->gex_is_long = real_token->is_long;
-  result |= GEX_TI_IS_LONG;
+  //info->gex_is_long = real_token->is_long;
+  //result |= GEX_TI_IS_LONG;
 
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
@@ -511,7 +543,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0;//###;
   }
   return retval;
 }
@@ -568,7 +600,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0;//###;
   }
   return retval;
 }
@@ -790,7 +822,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0;//###;
   }
   return retval;
 }
@@ -843,7 +875,7 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
        If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
      */
 
-    retval = ###;
+    retval = 0;//###;
   }
   return retval;
 }
@@ -890,7 +922,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
        If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
      */
 
-    retval = ###;
+    retval = 0;//###;
   }
   return retval;
 }
@@ -995,7 +1027,7 @@ extern int gasnetc_AMReplyMediumM(
                                         flags, numargs, argptr);
   } else {
     // (###) post threadinfo extracted from token, or call GASNET_BEGIN_FUNCTION() instead:
-    GASNET_POST_THREADINFO(###);
+    //GASNET_POST_THREADINFO(###);
 
     struct gasneti_AM_SrcDesc the_sd;
     retval = gasnetc_prepare_rep_medium(&the_sd,1,token,source_addr,0,nbytes,
@@ -1027,7 +1059,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
                                          NULL, lc_opt, flags, nargs);
     } else {
         // (###) post threadinfo extracted from token, or call GASNET_BEGIN_FUNCTION() instead:
-        GASNET_POST_THREADINFO(###);
+        //GASNET_POST_THREADINFO(###);
         sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
         GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
 
@@ -1094,7 +1126,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
        If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
      */
 
-    retval = ###;
+    retval = 0;//###;
   }
   return retval;
 }

@@ -3444,6 +3444,52 @@ CONDUIT_END([test "$enabled_smp" = yes])
 AM_CONDITIONAL(USE_SMP_CONDUIT, test "$enabled_smp" = yes)
 
 #--------------------------------------------------------------------------------------------------------
+# UCX configuration
+#
+
+CONDUIT_BEGIN(ucx,no,[Unified Communication X conduit (ucx)])
+if test "$enabled_ucx" = no; then
+    :
+elif test "$have_fork" = no; then
+    GASNET_MSG_WARN([ucx-conduit requires fork() ($fork_reason) for startup - disabling ucx])
+elif test "$have_pthread" = no; then
+    GASNET_MSG_WARN([ucx-conduit requires libpthread ($pthread_reason) - disabling ucx])
+else
+    #
+    # Either UCX was required explicitly, or we just need to probe for its existence
+    #
+
+    have_ucx=yes  # assume success
+
+    CONDUIT_HOME([UCX library], [ucx_info], [/opt/mellanox/ucx], [include/ucp/api/ucp.h])
+    CONDUIT_CFLAGS
+    GASNET_ENV_DEFAULT(UCX_LIBS, -lucp -lucs -luct -lucm)
+    CONDUIT_LDFLAGS(ucx)
+    GASNET_SPLIT_LINKER_OPTS(UCX_LDFLAGS,UCX_LIBS)
+
+    # Try to compile and link a basic UCX program
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $UCX_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $UCX_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $UCX_LIBS")
+      GASNET_TRY_CACHE_LINK(for working UCX configuration, ucx_works, [
+            #include <ucp/api/ucp.h>
+        ], [{
+               unsigned major_version, minor_version, release_number;
+               ucp_get_version(&major_version, &minor_version, &release_number);
+            }], [ : ], [ have_ucx=no; GASNET_ERR_SAVE() ] )
+    GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(LIBS)
+
+    CONDUIT_SPAWNER
+fi
+AC_SUBST(UCX_CFLAGS)
+AC_SUBST(UCX_LDFLAGS)
+AC_SUBST(UCX_LIBS)
+CONDUIT_END([test "$enabled_ucx$have_ucx" = yesyes])
+AM_CONDITIONAL(USE_UCX_CONDUIT, test "$enabled_ucx$have_ucx" = yesyes)
+
+#--------------------------------------------------------------------------------------------------------
 # IBV configuration
 
 CONDUIT_BEGIN(ibv,yes,[InfiniBand IB Verbs conduit (ibv)])
@@ -4056,6 +4102,7 @@ EOF
 # Order native conduits from LOW to HIGH precedence, clients use order to select defaults
 
 CONDUIT_OUTPUT(pami)    dnl Ensure pami-over-ib is lower than ibv
+CONDUIT_OUTPUT(ucx)
 CONDUIT_OUTPUT(ibv)
 CONDUIT_OUTPUT(aries)
 
@@ -5158,6 +5205,9 @@ ibv-conduit/Makefile
 ibv-conduit/conduit.mak
 ibv-conduit/contrib/Makefile
 ibv-conduit/contrib/gasnetrun_ibv
+
+ucx-conduit/Makefile
+ucx-conduit/conduit.mak
 
 aries-conduit/Makefile
 aries-conduit/conduit.mak
