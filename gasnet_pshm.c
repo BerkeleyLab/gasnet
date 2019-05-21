@@ -101,22 +101,34 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   vnetsz = gasneti_pshmnet_memory_needed(gasneti_pshm_nodes); 
   mmapsz = (2*vnetsz);
   size_t info_sz;
-  { /* gasneti_pshm_info contains multiple variable-length arrays in the same space */
-    /* space for gasneti_pshm_firsts: */
-    info_sz = gasneti_nodemap_global_count * sizeof(gex_Rank_t);
-    /* optional space for gasneti_pshm_rankmap: */
+  { // gasneti_pshm_info contains different data (of variable length) at different times
+
+    // 1. Space for the bootstrap barrier (long-lived)
+    // The later allocations assume alignment
+    size_t sz1 = offsetof(struct gasneti_pshm_info, early_barrier);
+    gasneti_assert_uint(sz1 ,==, GASNETI_ALIGNUP(sz1, GASNETI_CACHE_LINE_BYTES));
+    gasneti_assert_uint(sz1 ,==, GASNETI_ALIGNUP(sz1, sizeof(gasneti_pshm_rank_t)));
+
+    // 2a. Space for the early barrier (short-lived)
+    size_t sz2a = gasneti_pshm_nodes * sizeof(gasneti_pshm_info->early_barrier[0]);
+
+    // 2b. Space for long-lived data, recycling space from the early barrier
+    // gasneti_pshm_firsts:
+    size_t sz2b = (gasneti_nodemap_global_count * sizeof(gex_Rank_t));
+    // optional gasneti_pshm_rankmap[], properly aligned for its type
     if (discontig) {
-      info_sz = GASNETI_ALIGNUP(info_sz, sizeof(gasneti_pshm_rank_t));
-      info_sz += gasneti_nodes * sizeof(gasneti_pshm_rank_t);
+      sz2b = GASNETI_ALIGNUP(sz2b, sizeof(gasneti_pshm_rank_t));
+      sz2b += gasneti_nodes * sizeof(gasneti_pshm_rank_t);
     }
-    /* space for the PSHM intra-node barrier */
-    info_sz = GASNETI_ALIGNUP(info_sz, GASNETI_CACHE_LINE_BYTES);
-    info_sz += sizeof(gasneti_pshm_barrier_t) +
+    // PSHM intra-node barrier (cache aligned)
+    sz2b = GASNETI_ALIGNUP(sz2b, GASNETI_CACHE_LINE_BYTES);
+    sz2b += sizeof(gasneti_pshm_barrier_t) +
 	       (gasneti_pshm_nodes - 1) * sizeof(gasneti_pshm_barrier->node);
-    /* space for early barrier, sharing space with the items above: */
-    info_sz = MAX(info_sz, gasneti_pshm_nodes * sizeof(gasneti_pshm_info->early_barrier[0]));
-    info_sz += offsetof(struct gasneti_pshm_info, early_barrier);
-    /* final space requested: */
+
+    // final info_sz required:
+    info_sz = sz1 + MAX(sz2a, sz2b);
+
+    // total to request:
     mmapsz += round_up_to_pshmpage(info_sz);
   }
   mmapsz += round_up_to_pshmpage(aux_sz);
