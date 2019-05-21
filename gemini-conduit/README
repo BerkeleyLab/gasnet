@@ -1,6 +1,19 @@
 GASNet gemini-conduit and aries-conduit documentation
 Larry Stewart <stewart@serissa.com> 
 
+
+=====================================================================
+=====================================================================
+
+The gemini-conduit is now DEPRECATED.
+No further development of gemini-conduit is anticipated.
+It will be removed in a future release.
+
+The aries-conduit remains supported and under active development.
+
+=====================================================================
+=====================================================================
+
 User Information:
 -----------------
 
@@ -21,6 +34,7 @@ The gemini-conduit runs on systems with Cray's "Gemini" interconnect,
 including their XE and XK series machines.  There is no known minimum version
 required of any hardware or software component, but it is likely that
 sufficiently old releases of the system software are not supported correctly.
+Support for Cray's Gemini interconnect is currently deprecated.
 
 The aries-conduit runs on systems with Cray's "Aries" interconnect, including
 their XC series machines.  To the best of our knowledge, there are no known

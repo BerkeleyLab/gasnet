@@ -3702,6 +3702,9 @@ CONDUIT_BEGIN(gemini,yes,[Cray XE/XK Gemini conduit (gemini)])
 CONDUIT_DISALLOW_SEGMENT(everything)
 if test "$enabled_gemini" = yes; then
   GASNET_CHECK_GNI(Gemini)
+  if test "$have_gemini" = yes; then
+    GASNET_MSG_WARN([gemini-conduit has been deprecated.  Please see the gemini-conduit README for more information.])
+  fi
 fi
 CONDUIT_END([test "$enabled_gemini$have_gemini" = yesyes])
 AM_CONDITIONAL(USE_GEMINI_CONDUIT, test "$enabled_gemini$have_gemini" = yesyes)
