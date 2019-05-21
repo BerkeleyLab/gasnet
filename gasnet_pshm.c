@@ -719,13 +719,14 @@ static void do_pshmnet_barrier(int do_poll)
   gasneti_assert_always(target < GASNETI_PSHM_BSB_LIMIT); /* Die if we were ever to reach the limit */
 
   if (do_poll) {
-    gasneti_pollwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) < target);
+    gasneti_pollwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) == generation);
   } else {
-    gasneti_waitwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) < target);
+    gasneti_waitwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) == generation);
   }
+  gasneti_assert_uint(curr ,==, target);
   if_pf (curr >= GASNETI_PSHM_BSB_LIMIT) {
     if (gasnetc_pshm_abort_callback) gasnetc_pshm_abort_callback();
-    gasnet_exit(1);
+    gasneti_fatalerror("PSHM bootstrap barrier exceeded GASNETI_PSHM_BSB_LIMIT");
   }
 
   generation = target;
