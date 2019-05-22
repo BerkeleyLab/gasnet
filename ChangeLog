@@ -18,6 +18,12 @@ GASNet-EX ChangeLog
   distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+05-27-2019: GASNet-EX 2019.3.2 Release (bug fix release)
+
+* Notable bugs fixed in this release:
+  - bug3943: infrequent startup hang with PSHM and over 62 PPN
+
+----------------------------------------------------------------------
 03-15-2019: GASNet-EX 2019.3.0 Release
 
 * Legacy backward-compatibility layer:
