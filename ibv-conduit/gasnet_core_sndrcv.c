@@ -1920,8 +1920,9 @@ static void gasnetc_snd_post_fail(int rc, int is_inline) {
     GASNETC_IBV_CHECK(rc, is_inline ? "while posting an inline send work request"
                                     : "while posting a send work request");
   }
-  gasneti_unreachable();
+  gasneti_fatalerror("unreachable");
 }
+GASNETI_NORETURNP(gasnetc_snd_post_fail)
 
 static void
 gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG)
