@@ -65,6 +65,9 @@ int					gasnetc_use_rcv_thread = GASNETC_USE_RCV_THREAD;
 #if GASNETC_IBV_ODP
   int					gasnetc_use_odp = 1;
 #endif
+#if (GASNETC_IB_MAX_HCAS > 1)
+  int                                   gasnetc_use_fenced_puts = 0;
+#endif
 int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
@@ -118,21 +121,31 @@ typedef struct gasnetc_rbuf_s {
 #define rbuf_flags		u.am.flags
 #define rbuf_threadinfo         u.am.threadinfo
 
+#define GASNETC_OP_NEEDS_FENCE 0x1000 // Flag bit
 typedef enum {
 	GASNETC_OP_FREE,
 	GASNETC_OP_AM,
+	GASNETC_OP_ATOMIC,
 	GASNETC_OP_GET_ZEROCP,
 #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	GASNETC_OP_GET_BOUNCE,
 #endif
-	GASNETC_OP_PUT_INLINE,
-	GASNETC_OP_PUT_ZEROCP,
-	GASNETC_OP_PUT_BOUNCE,
+#if GASNETC_IB_MAX_HCAS > 1
+	GASNETC_OP_FENCE,
+#endif
 #if !GASNETC_PIN_SEGMENT
 	GASNETC_OP_PUT_INMOVE,
 #endif
+        // Following all have GASNETC_OP_NEEDS_FENCE bit set
+	GASNETC_OP_PUT_INLINE = GASNETC_OP_NEEDS_FENCE,
+	GASNETC_OP_PUT_ZEROCP,
+	GASNETC_OP_PUT_BOUNCE,
 	GASNETC_OP_INVALID
 } gasnetc_sreq_opcode_t;
+
+#if GASNETC_IB_MAX_HCAS > 1
+static int gasnetc_op_needs_fence_mask;
+#endif
 
 /* Description of a send request.
  *
@@ -170,6 +183,11 @@ typedef struct gasnetc_sreq_t_ {
     struct { /* AM buffer */
       gasnetc_buffer_t		*buff;
     } am;
+#if GASNETC_IB_MAX_HCAS > 1
+    struct { // Atomic used to fence a multi-rail Put
+      struct gasnetc_sreq_t_    *sreq;
+    } fence;
+#endif
   } u;
   #define fh_count	u.fh.count
   #define fh_ptr	u.fh.ptr
@@ -177,6 +195,7 @@ typedef struct gasnetc_sreq_t_ {
   #define bb_addr	u.bb.addr
   #define bb_len	u.bb.len
   #define am_buff	u.am.buff
+  #define fence_sreq    u.fence.sreq
 #else
   /* Firehose, and AMs are mutually exclusive. */
   union {
@@ -198,6 +217,11 @@ typedef struct gasnetc_sreq_t_ {
     struct { /* AM buffer */
       gasnetc_buffer_t		*buff;
     } am;
+#if GASNETC_IB_MAX_HCAS > 1
+    struct { // Atomic used to fence a multi-rail Put
+      struct gasnetc_sreq_t_    *sreq;
+    } fence;
+#endif
   } u;
   #define fh_count	u.fh.count
   #define fh_ptr	u.fh.ptr
@@ -211,6 +235,7 @@ typedef struct gasnetc_sreq_t_ {
   #define fh_lc 	u.fh.lc
   #define fh_lc_cb 	u.fh.lc_cb
   #define am_buff	u.am.buff
+  #define fence_sreq    u.fence.sreq
 #endif
 } gasnetc_sreq_t;
 
@@ -317,6 +342,38 @@ extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt) {
   gasnetc_atomic_increment(&counter->completed, GASNETI_ATOMIC_REL);
 }
 
+
+#if GASNETC_IB_MAX_HCAS > 1
+/* ------------------------------------------------------------------------------------ *
+ * AuxSeg space for dummy Atomic ops used to fence multi-rail Puts
+ * TODO: this use of auxseg is yet another an O(ranks) table we must seek to eliminate
+ * ------------------------------------------------------------------------------------ */
+static gasnet_seginfo_t *gasnetc_fence_auxseg = NULL;
+gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
+  gasneti_auxseg_request_t retval;
+
+  if (!gasnetc_use_fenced_puts) {
+    // No allocation if fenced puts are not enabled
+    retval.minsz = retval.optimalsz = 0;
+  } else {
+    // One cache line each for use as initiator and target
+    // TODO: distinct cache lines for each HCA (via `cep` argument to macros, below)
+    retval.minsz = retval.optimalsz = 2 * GASNETI_CACHE_LINE_BYTES;
+  }
+
+  if (gasnetc_use_fenced_puts && auxseg_info) { /* auxseg granted */
+    gasneti_assert(!gasnetc_fence_auxseg);
+    gasnetc_fence_auxseg = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    memcpy(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+  }
+
+  return retval;
+}
+#define GASNETC_FENCE_ADDR_(jobrank,n) \
+            ((uintptr_t)gasnetc_fence_auxseg[(jobrank)].addr + (n << GASNETI_CACHE_LINE_SHIFT))
+#define GASNETC_FENCE_REM_ADDR(cep) GASNETC_FENCE_ADDR_(gasnetc_epid2node(cep->epid), 0)
+#define GASNETC_FENCE_LOC_ADDR(cep) GASNETC_FENCE_ADDR_(gasneti_mynode, 1)
+#endif
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions and macros                                                    *
@@ -1028,9 +1085,9 @@ static int gasnetc_snd_reap(int limit) {
         } else
       #endif
         if_pt (sreq) {
-	  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
-	  gasnetc_sema_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
 	  gasnetc_sema_up(sreq->cep->snd_cq_sema_p);
+        again:
+	  gasnetc_sema_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
 
 	  switch (sreq->opcode) {
           #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
@@ -1098,8 +1155,29 @@ static int gasnetc_snd_reap(int limit) {
 	    GASNETC_COLLECT_BBUF_IF(sreq->am_buff);
 	    break;
 
+	  case GASNETC_OP_ATOMIC:
+	    gasneti_assert((comp.opcode == IBV_WC_FETCH_ADD) ||
+			   (comp.opcode == IBV_WC_COMP_SWAP));
+	    if (sreq->comp.cb != NULL) {
+              sreq->comp.cb(sreq->comp.data);
+	    }
+	    break;
+
+          #if GASNETC_IB_MAX_HCAS > 1
+          case GASNETC_OP_FENCE:        // Atomic after PUT, with descriptor chaining
+	    gasneti_assert(comp.opcode == IBV_WC_FETCH_ADD);
+            sreq->opcode = GASNETC_OP_FREE;
+            sreq = sreq->fence_sreq;
+            #if GASNET_DEBUG
+              gasneti_assert(sreq);
+              gasneti_assert(sreq->opcode & GASNETC_OP_NEEDS_FENCE);
+              comp.opcode = IBV_WC_RDMA_WRITE;
+            #endif
+            goto again;
+          #endif
+
 	  default:
-	    gasneti_fatalerror("Reaped send with invalid/unknown opcode %d", (int)sreq->opcode);
+            gasneti_unreachable_error(("Reaped send with invalid/unknown opcode %d", (int)sreq->opcode));
 	  }
 
 	  /* Mark sreq free */
@@ -1542,7 +1620,8 @@ int gasnetc_rcv_amrdma(gasnetc_EP_t ep, gasnetc_cep_t *cep GASNETI_THREAD_FARG) 
 
     gasneti_assert(bits != 0);
 
-  #if GASNETI_HAVE_CC_BUILTIN_CTZ
+  #if GASNETI_HAVE_CC_BUILTIN_CTZ && \
+      !(PLATFORM_COMPILER_XLC && _ARCH_PWR9) /* bug 3880 */
     if_pt (~bits) {
       count = __builtin_ctz(~bits);
       bits >>= count;
@@ -1831,10 +1910,44 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
 #endif /* DEBUG || TRACE */
 
 
+GASNETI_COLD GASNETI_NORETURN
+static void gasnetc_snd_post_fail(int rc, int is_inline) {
+  if (GASNETC_IS_EXITING()) {
+    /* disconnected by another thread */
+    gasnetc_exit(0);
+  } else {
+    /* unexpected error */
+    GASNETC_IBV_CHECK(rc, is_inline ? "while posting an inline send work request"
+                                    : "while posting a send work request");
+  }
+  gasneti_fatalerror("unreachable");
+}
+GASNETI_NORETURNP(gasnetc_snd_post_fail)
+
+static void
+gasnetc_snd_post_inner(gasnetc_cep_t * const cep, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG)
+{
+  // Loop until space is available for 1 new entry on the CQ.
+  // If we hold the last one then threads sending to ANY node will stall.
+  // So this is the last resource to acquire
+  if_pf (!gasnetc_sema_trydown(cep->snd_cq_sema_p)) {
+    GASNETC_TRACE_WAIT_BEGIN();
+    do {
+      GASNETI_WAITHOOK();
+      gasnetc_poll_snd();
+    } while (!gasnetc_sema_trydown(cep->snd_cq_sema_p));
+    GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
+  }
+
+  // Post the operation
+  struct ibv_send_wr *bad_wr;
+  int rc = ibv_post_send(cep->qp_handle, sr_desc, &bad_wr);
+  if_pf (rc) gasnetc_snd_post_fail(rc, is_inline);
+}
+
 GASNETI_INLINE(gasnetc_snd_post_common)
 void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int is_inline GASNETI_THREAD_FARG) {
   gasnetc_cep_t * const cep = sreq->cep;
-  int vstat;
 
   /* Must be bound to a qp by now */
   gasneti_assert(cep != NULL );
@@ -1846,19 +1959,19 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   /* A valid callback will never take NULL as its data */
   gasneti_assert(sreq->comp.cb == NULL || sreq->comp.data != NULL);
 
-  /* Loop until space is available for 1 new entry on the CQ.
-   * If we hold the last one then threads sending to ANY node will stall. */
-  if_pf (!gasnetc_sema_trydown(cep->snd_cq_sema_p)) {
-    GASNETC_TRACE_WAIT_BEGIN();
-    do {
-      GASNETI_WAITHOOK();
-      gasnetc_poll_snd();
-    } while (!gasnetc_sema_trydown(cep->snd_cq_sema_p));
-    GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
-  }
-
-  /* setup some invariant fields */
-  sr_desc[0].wr_id = (uintptr_t)sreq;
+  // setup some remaining fields
+  const enum ibv_send_flags inline_flag = is_inline ? IBV_SEND_INLINE
+                                                    : (enum ibv_send_flags)0;
+  const enum ibv_send_flags signal_flag = GASNETC_USE_SEND_SIGNALLED ? IBV_SEND_SIGNALED
+                                                                     : (enum ibv_send_flags)0;
+  sr_desc->send_flags = inline_flag | signal_flag;
+  sr_desc->wr_id = (uintptr_t)sreq;
+#if GASNETC_IBV_XRC_OFED
+  sr_desc->qp_type.xrc.remote_srqn = cep->xrc_remote_srq_num; /* Even if unused */
+#elif GASNETC_IBV_XRC_MLNX
+  sr_desc->xrc_remote_srq_num = cep->xrc_remote_srq_num; /* Even if unused */
+#endif
+  sr_desc->next = NULL;
 
   /* Trace and debug */
   if (is_inline) {
@@ -1869,30 +1982,74 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
     gasnetc_snd_validate(sreq, sr_desc, 1, "POST_SR");
   }
 
-  /* Post it */
-  {
-    struct ibv_send_wr *bad_wr;
-    sr_desc->next = NULL;
-    sr_desc->send_flags = is_inline ? IBV_SEND_INLINE : (enum ibv_send_flags)0;
-  #if GASNETC_IBV_XRC_OFED
-    sr_desc->qp_type.xrc.remote_srqn = cep->xrc_remote_srq_num; /* Even if unused */
-  #elif GASNETC_IBV_XRC_MLNX
-    sr_desc->xrc_remote_srq_num = cep->xrc_remote_srq_num; /* Even if unused */
-  #endif
-    vstat = ibv_post_send(cep->qp_handle, sr_desc, &bad_wr);
-  }
+#if GASNETC_IB_MAX_HCAS > 1
+  // When GASNET_USE_FENCED_PUTS is enabled, we must post both the Put and an
+  // Atomic such that the conduit-level remote completion callback for the Put
+  // will not execute until the ibv-level CQE for the Atomic.
+  GASNETC_DECL_SR_DESC(amo_sr_desc, 1);
+  if (sreq->opcode & gasnetc_op_needs_fence_mask) {
+    gasnetc_sreq_t *amo_sreq = gasnetc_get_sreq(GASNETC_OP_FENCE GASNETI_THREAD_PASS);
+    amo_sreq->cep = cep;
+    amo_sreq->fence_sreq = sreq;
 
-  if_pt (vstat == 0) {
-    /* SUCCESS, the request is posted */
-    return;
-  } else if (GASNETC_IS_EXITING()) {
-    /* disconnected by another thread */
-    gasnetc_exit(0);
-  } else {
-    /* unexpected error */
-    GASNETC_IBV_CHECK(vstat, is_inline ? "while posting an inline send work request"
-    					: "while posting a send work request");
+    // Setup fetch-and-add using dummy auxseg locations reserved for this purpose
+    amo_sr_desc->wr_id = (uintptr_t)amo_sreq;
+    amo_sr_desc->opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
+    amo_sr_desc->wr.atomic.compare_add = 0;
+    amo_sr_desc->wr.atomic.remote_addr = GASNETC_FENCE_REM_ADDR(cep);
+    amo_sr_desc->wr.atomic.rkey = cep->hca->aux_rkeys[gasnetc_epid2node(cep->epid)];
+    amo_sr_desc->num_sge = 1;
+    amo_sr_desc->sg_list[0].length = sizeof(uint64_t);
+    amo_sr_desc->sg_list[0].addr = GASNETC_FENCE_LOC_ADDR(cep);
+    amo_sr_desc->sg_list[0].lkey = cep->hca->aux_reg.handle->lkey;
+  #if GASNETC_IBV_XRC_OFED
+    amo_sr_desc->qp_type.xrc.remote_srqn = sr_desc->qp_type.xrc.remote_srqn;
+  #elif GASNETC_IBV_XRC_MLNX
+    amo_sr_desc->xrc_remote_srq_num = sr_desc->xrc_remote_srq_num;
+  #endif
+
+    // Assume we can obtain resources to make a single ibv_post_send() call,
+    // generating a single CQE for the Atomic (suppressing the one for the Put)
+    amo_sr_desc->send_flags = IBV_SEND_SIGNALED;
+    amo_sr_desc->next = NULL;
+    sr_desc->send_flags = inline_flag; // Strips IBV_SEND_SIGNALED
+    sr_desc->next = amo_sr_desc;
+
+    // Try at most twice (w/ a CQ poll between) to obtain a second CQ slot
+    // Spinning indefinitely while holding one slot could deadlock if
+    // multiple threads in a PAR build are all doing the same.
+    // Even in a SEQ or PARSYNC build, there is an advantage to posting the
+    // Put without unnecessary delay.
+    if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)) &&
+           (gasnetc_snd_reap(1), !gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)))) {
+      // Since we failed to get a second SQ slot we split the two post operations
+      GASNETC_STAT_EVENT(POST_SR_SPLIT);
+      // Move the remote completion callback from the Put to the Atomic
+      amo_sreq->opcode = GASNETC_OP_ATOMIC;
+      amo_sreq->comp.cb   = sreq->comp.cb;
+      amo_sreq->comp.data = sreq->comp.data;
+      sreq->comp.cb = NULL;
+      // Post only the Put, releasing a SQ slot for eventual reclamation
+      sr_desc->next = NULL;
+      sr_desc->send_flags = inline_flag | IBV_SEND_SIGNALED;
+      gasnetc_snd_post_inner(cep, sr_desc, is_inline GASNETI_THREAD_PASS);
+      // Ensure the post call on the normal code path will post the Atomic
+      sr_desc = amo_sr_desc;
+      is_inline = 0;
+      // Now we spin to obtain a SQ slot for just the Atomic operation
+      if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
+        GASNETC_TRACE_WAIT_BEGIN();
+        do {
+          if (!gasnetc_snd_reap(1)) GASNETI_WAITHOOK();
+        } while (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)));
+        GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ2);
+      }
+    }
   }
+#endif
+
+  /* Post it */
+  gasnetc_snd_post_inner(cep, sr_desc, is_inline GASNETI_THREAD_PASS);
 }
 #define gasnetc_snd_post(x,y)		gasnetc_snd_post_common(x,y,0 GASNETI_THREAD_PASS)
 #define gasnetc_snd_post_inline(x,y)	gasnetc_snd_post_common(x,y,1 GASNETI_THREAD_PASS)
@@ -3634,6 +3791,11 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
     ++buf;
   }
  }
+
+#if GASNETC_IB_MAX_HCAS > 1
+  // Speed critical path checks
+  gasnetc_op_needs_fence_mask = gasnetc_use_fenced_puts ?  GASNETC_OP_NEEDS_FENCE : 0;
+#endif
 
   /* Init thread-local data */
   gasnetc_per_thread_setup();

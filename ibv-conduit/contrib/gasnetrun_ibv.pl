@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #   $Source: bitbucket.org:berkeleylab/gasnet.git/ibv-conduit/contrib/gasnetrun_ibv.pl $
-# Description: GASNet spawner script for (at least) ibv and mxm conduit
+# Description: GASNet spawner script for ibv-conduit and several other conduits
 # Terms of use are as specified in license.txt
 
 require 5.004;

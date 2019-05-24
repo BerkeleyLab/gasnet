@@ -118,7 +118,7 @@ void roundtrip_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "PutBlocking latency", PRINT_LATENCY);
 	}	
 
 	/* initialize statistics */
@@ -137,7 +137,7 @@ void roundtrip_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "GetBlocking latency", PRINT_LATENCY);
 	}	
 }
 
@@ -167,7 +167,7 @@ void oneway_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "PutBlocking throughput", PRINT_THROUGHPUT);
 	}	
 
 	/* initialize statistics */
@@ -186,7 +186,7 @@ void oneway_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "GetBlocking throughput", PRINT_THROUGHPUT);
 	}	
 }
 
@@ -218,7 +218,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put_nbi latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "PutNBI+NOW latency", PRINT_LATENCY);
 	}	
 
 
@@ -239,7 +239,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nbi latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "GetNBI latency", PRINT_LATENCY);
 	}	
 
 }
@@ -271,7 +271,7 @@ void oneway_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "PutNBI+NOW throughput", PRINT_THROUGHPUT);
 	}	
 
 	/* initialize statistics */
@@ -291,7 +291,7 @@ void oneway_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "GetNBI throughput", PRINT_THROUGHPUT);
 	}	
 }
 
@@ -324,7 +324,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put_nb latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "PutNB+NOW latency", PRINT_LATENCY);
 	}	
 
 	/* initialize statistics */
@@ -344,7 +344,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nb latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "GetNB latency", PRINT_LATENCY);
 	}	
 
 }
@@ -384,7 +384,7 @@ void oneway_nb_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put_nb throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "PutNB+NOW throughput", PRINT_THROUGHPUT);
 	}	
 	
 	/* initialize statistics */
@@ -408,7 +408,7 @@ void oneway_nb_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nb throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "GetNB throughput", PRINT_THROUGHPUT);
 	}	
 	
 	test_free(events);

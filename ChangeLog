@@ -18,6 +18,29 @@ GASNet-EX ChangeLog
   distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+PENDING: GASNet-EX Work-In-Progress
+
+* Notable bugs fixed in this release:
+  - bug3880: XLC 16.1.x ICE compiling ibv-conduit for Power9
+  - bug3943: infrequent startup hang with PSHM and over 62 PPN
+
+* GASNet-EX Spec v0.8:
+  - Add GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+
+* Cray uGNI aries-conduit
+  - The Aries Collective Engine, if available, is now used to accelerate
+    gex_Coll_BarrierNB().
+
+* Cray uGNI gemini-conduit
+  - This conduit is now DEPRECATED and will be removed in a future release.
+  - The aries-conduit remains supported and under active development.
+
+* InfiniBand Verbs (ibv-conduit)
+  - NEW: Improved support for correct operation on multi-rail InfiniBand systems
+  - New envvar GASNET_USE_FENCED_PUTS controls the strictness of ordering
+    guarantees for put RMA completion on multi-rail hardware, addressing bug 3447.
+
+----------------------------------------------------------------------
 03-15-2019: GASNet-EX 2019.3.0 Release
 
 * Legacy backward-compatibility layer:
@@ -160,7 +183,7 @@ GASNet-EX ChangeLog
   - Rename gex_NbrhdInfo_t to gex_RankInfo_t
   - New GEX_FLAG_USES_GASNET1 flag enables gex_Client_Init() for legacy GASNet-1 calls
   - Minor clarifications throughout
-  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+  - Consult docs/GASNet-EX.txt for the detailed status of the evolving specification
      
 * Major new features implemented in this release:
   - Teams:
@@ -173,9 +196,9 @@ GASNet-EX ChangeLog
    Additional collective operations will be added in future releases
   - Non-contiguous RMA: Vector, Indexed, Strided (VIS)
     + VIS Puts now support notifying (potentially remote) peers of completion.
-      For details, see docs/GASNet-EX.spec for gex_VIS_SetPeerCompletionHandler
+      For details, see docs/GASNet-EX.txt for gex_VIS_SetPeerCompletionHandler
     + VIS Puts now offer local completion support.
-      For details, see docs/GASNet-EX.spec for GEX_FLAG_ENABLE_LEAF_LC
+      For details, see docs/GASNet-EX.txt for GEX_FLAG_ENABLE_LEAF_LC
   - gasnet_fwd.h now provides a dependency-free useful subset of the API
     declarations, suitable for inclusion into application-level code.
 
@@ -243,13 +266,13 @@ GASNet-EX ChangeLog
   - Specified gex_System_QueryNeighborhoodInfo() [EXPERIMENTAL]
   - Significant alteration to Segment Disposition flags [UNIMPLEMENTED]
   - Minor clarifications throughout
-  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+  - Consult docs/GASNet-EX.txt for the detailed status of the evolving specification
 
 * Major new features implemented in this release:
   - Remote Atomic operations: untuned, network-independent implementation 
-    + See docs/GASNet-EX.spec for details
+    + See docs/GASNet-EX.txt for details
   - Vector, Indexed, Strided extensions: untuned, network-independent implementation 
-    + See docs/GASNet-EX.spec for details 
+    + See docs/GASNet-EX.txt for details 
   - Cray Aries implementation specializations for the following features:
     + New AM Interfaces, Immediate Operations, Local Completion and Remote Atomics.
 
@@ -263,7 +286,7 @@ GASNet-EX ChangeLog
   - Specified gex_System_QueryJob{Rank,Size}() [EXPERIMENTAL]
   - Specified gex_Segment_QueryBound() [EXPERIMENTAL]
   - Significant changes to Negotiated-Payload AM semantics
-  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+  - Consult docs/GASNet-EX.txt for the detailed status of the evolving specification
 
 * Major new features implemented in this release:
   - gex_Event_t is no longer thread-specific: one can safely pass a gex_Event_t
@@ -300,7 +323,7 @@ GASNet-EX ChangeLog
   - Job initialization interface rewritten to use EX objects
 
 * GASNet-EX Spec v0.1:
-  - Consult docs/GASNet-EX.spec for the detailed status of the evolving specification
+  - Consult docs/GASNet-EX.txt for the detailed status of the evolving specification
   - gasnetex.h is the new public header
   - Major new EX object types have been defined, including:
     + Client - an instance of the client interface to the GASNet library

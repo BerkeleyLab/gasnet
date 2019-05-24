@@ -123,6 +123,8 @@
 	CNT(C, POST_INLINE_SR, cnt)               \
 	TIME(C, POST_SR_STALL_CQ, stalled time)   \
 	TIME(C, POST_SR_STALL_SQ, stalled time)   \
+	TIME(C, POST_SR_STALL_SQ2, stalled time)  \
+	CNT(C, POST_SR_SPLIT, cnt)                \
 	VAL(C, POST_SR_LIST, requests)            \
 	VAL(C, SND_REAP, reaped)                  \
 	VAL(C, RCV_REAP, reaped)                  \

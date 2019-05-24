@@ -123,6 +123,7 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIOPT_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(HIDDEN_AM_CONCUR_,GASNET_HIDDEN_AM_CONCURRENCY_LEVEL)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CACHE_LINE_BYTES_,GASNETI_CACHE_LINE_BYTES)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
@@ -1127,7 +1128,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
          (!strcmp("mpi",mycore) && !strcmp("reference",myext))
       || (!strcmp("udp",mycore) && !strcmp("reference",myext))
       || (!strcmp("ofi",mycore) && !strcmp("ofi",myext) && !haveOmniPath)
-      || (!strcmp("portals4",mycore) && !strcmp("portals4",myext))
       ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
@@ -1150,7 +1150,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         if (!strcmp(name,"udp")) continue;
         if (!strcmp(name,"ofi") && !haveOmniPath) continue;
         if (!strcmp(name,"ibv") && haveOmniPath) continue; // never recommend ibv over OPA
-        if (!strcmp(name,"portals4")) continue;
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,name);
       }

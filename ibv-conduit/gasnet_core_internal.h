@@ -379,10 +379,26 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
 #if (GASNETC_IB_MAX_HCAS > 1)
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
+
+  // Need a couple cache lines for dummy AMO accesses
+  extern gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+  #define GASNETC_AUXSEG_FNS() gasnetc_fence_auxseg_alloc,
+
+  // Use AMO after Put to fence for strict memory model adherence
+  extern int gasnetc_use_fenced_puts;
+  #define GASNETC_USE_FENCED_PUTS gasnetc_use_fenced_puts
 #else
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < 1; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
+
+  #define GASNETC_USE_FENCED_PUTS 0
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+
+// Either 0 or 1 to control use of IBV_SEND_SIGNALED
+// Currently only for fencing on multi-rail
+#define GASNETC_USE_SEND_SIGNALLED GASNETC_USE_FENCED_PUTS
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -427,7 +443,7 @@ typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 #define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 32
 #define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
 #define GASNETC_DEFAULT_AMRDMA_DEPTH	16
-#define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
+#define GASNETC_DEFAULT_AMRDMA_LIMIT	0       // OFF by default
 #define GASNETC_DEFAULT_AMRDMA_CYCLE	1024	/* 2^i, Number of AM rcvs before hot-peer heuristic */
 
 #if GASNETI_CONDUIT_THREADS
