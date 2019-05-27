@@ -16,6 +16,7 @@ SUBDIRS =            \
 # CONDUITMODE_DIST_SUBDIRS = 
 # CONDUITMODE_headers = 
 # CONDUITMODE_EXTRA_DIST = .gasnet_toolsonly_mode 
+# CONDUITMODE_INSTALL_DOCS =  
 # GASNET_TOOLSONLY_TRUE_END
 # GASNET_TOOLSONLY_FALSE_BEGIN
   # Directories we manually recurse into:
@@ -55,6 +56,8 @@ CONDUITMODE_EXTRA_DIST =    	\
 	gasnet_pshm.c		\
 	gasnet_syncops.h   	\
 	gasnet_trace.c
+CONDUITMODE_INSTALL_DOCS =    \
+	docs/GASNet-EX.txt
 # GASNET_TOOLSONLY_FALSE_END
 
 # bug3285: Order matters here: other should follow conduits to maintain dependencies for distclean
@@ -98,10 +101,10 @@ include_HEADERS = $(headers)
 
 # deliberately omitted git-only docs: README-devel README-git README-release gasnet.*
 INSTALL_DOCS =			\
+	$(CONDUITMODE_INSTALL_DOCS) \
 	README			\
 	README-tools		\
-	license.txt		\
-	docs/GASNet-EX.spec
+	license.txt		
 
 force:
 
@@ -275,9 +278,7 @@ install-data-local:
 	  $(INSTALL_DATA) $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
 	fi
 	for file in $(INSTALL_DOCS) ; do \
-	  if test -f $(top_srcdir)/$$file ; then \
 	    $(INSTALL_DATA) $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
-	  fi ; \
 	done
 	$(mkinstalldirs) $(DESTDIR)$(libdir)/pkgconfig
 	@list='$(fragments)'; for p in $$list; do \
