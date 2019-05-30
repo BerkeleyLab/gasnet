@@ -2464,7 +2464,11 @@ GASNET_IF_DISABLED(auto-conduit-detect, [Enable/disable automatic detection of s
 dnl GASNET_TOOLSONLY_FALSE_END
 
 dnl CONDUIT_BEGIN(lowername, conduit_allow, desc)
-dnl conduit_allow should be a literal [yes|no|warn] to allow use of this conduit, or probe and warn when support looks available
+dnl conduit_allow should be a literal [yes|exp|g1|no] to control use of this conduit:
+dnl   yes = normal EX conduit 
+dnl   exp = experimental EX conduit (don't auto-detect, warns and requires --enable-conduit or --enable-conduit=probe)
+dnl   g1  = force-disabled: warns directing users to GASNet-1 version of conduit
+dnl   no  = completely disabled and hidden
 dnl sets enabled_<lowername> to yes or no for whether conduit should be enabled
 AC_DEFUN([CONDUIT_BEGIN],[
  pushdef([CONDUIT_NAME],[$1])
@@ -2473,17 +2477,34 @@ AC_DEFUN([CONDUIT_BEGIN],[
  # bug 1946: prevent confusing cross-conduit error messages
  GASNET_ERR_CLEANUP
 pushdef([CONDUIT_IMPLEMENTED],$2)
+pushdef([CONDUIT_HELP_TAG],[])
 ifelse(CONDUIT_IMPLEMENTED,[yes],[
+  _conduit_list_[]CONDUIT_NAME=yes
+  pushdef([CONDUIT_IMPLEMENTED_HELP],yes)
+],CONDUIT_IMPLEMENTED,[exp],[
+  _conduit_list_[]CONDUIT_NAME=yes
+  pushdef([CONDUIT_IMPLEMENTED_HELP],yes)
+  popdef([CONDUIT_HELP_TAG])
+  pushdef([CONDUIT_HELP_TAG],[**EXPERIMENTAL**])
+],CONDUIT_IMPLEMENTED,[g1],[
+  _conduit_list_[]CONDUIT_NAME=no
+  pushdef([CONDUIT_IMPLEMENTED_HELP],no)
+],CONDUIT_IMPLEMENTED,[no],[
+  _conduit_list_[]CONDUIT_NAME=no
+  pushdef([CONDUIT_IMPLEMENTED_HELP],no)
+],[m4_fatal([Internal error on CONDUIT_BEGIN($1,conduit_allow=$2)])])
+
+ifelse(CONDUIT_IMPLEMENTED_HELP,[yes],[
  GASNET_HELP_OUTPUT([
-CONDUIT_NAME[]-conduit options: (CONDUIT_DESC)])
-  _conduit_implemented_[]CONDUIT_NAME=yes
+CONDUIT_NAME[]-conduit options: (CONDUIT_DESC) CONDUIT_HELP_TAG])
 ],[ dnl unimplemented conduit help disabled
  pushdef([GASNET_SUPPRESSHELP],[set]) 
-  _conduit_implemented_[]CONDUIT_NAME=no
 ])
+popdef([CONDUIT_HELP_TAG])
+
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 ifelse(CONDUIT_IMPLEMENTED,[no],[ enabled_[]$1=no ],[
- GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC (auto-detected),
+ GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC ifelse(CONDUIT_IMPLEMENTED,[yes],[(auto-detected)],[]),
   [enabled_[]$1=yes;force_[]$1=yes;  _conduit_reason_[]$1=enabled],
   [enabled_[]$1=no;                  _conduit_reason_[]$1=disabled],
   [ if test "$enable_$1" = "probe" ; then # --enable-conduit=probe overrides --disable-auto-conduit-detect
@@ -2588,16 +2609,18 @@ AC_DEFUN([CONDUIT_PHYSMEM],[
   fi
 ])
 dnl CONDUIT_END(test_conduit_enabled)
-dnl note this may also change enabled_<conduit> for ex_allow=warn
+dnl note this may also change enabled_<conduit> for (conduit_allow != yes)
 AC_DEFUN([CONDUIT_END],[
   _conduit_enabled_[]CONDUIT_NAME=no
   if test "$gasnet_toolsonly_mode" = "no" ; then
     if $1; then
-      if test "CONDUIT_IMPLEMENTED" != "yes"; then
+     case "CONDUIT_IMPLEMENTED" in
+      no) ;;
+      g1)
         pushdef([EX_UNIMPL_MESSAGE],[It appears your system has the required support for CONDUIT_NAME[]-conduit, 
-	  however CONDUIT_NAME[]-conduit is not yet fully implemented in this GASNet-EX distribution, 
-	  If you want to use this conduit, please download the GASNet v1.x distribution from https://gasnet.lbl.gov.
-	  Otherwise, you can disable this message with --disable-[]CONDUIT_NAME ])
+however CONDUIT_NAME[]-conduit is not yet fully implemented in this GASNet-EX distribution, 
+If you want to use this conduit, please download the GASNet v1.x distribution from https://gasnet.lbl.gov.
+Otherwise, you can disable this message with --disable-[]CONDUIT_NAME ])
         if test "$force_[]CONDUIT_NAME" = yes ; then 
 	  GASNET_MSG_ERROR([EX_UNIMPL_MESSAGE])
 	else # warn and disable
@@ -2605,9 +2628,25 @@ AC_DEFUN([CONDUIT_END],[
 	  GASNET_MSG_WARN([EX_UNIMPL_MESSAGE])
 	fi
         popdef([EX_UNIMPL_MESSAGE])
-      else
+      ;;
+      exp)
+        pushdef([EXP_MESSAGE],[CONDUIT_NAME[]-conduit is still experimental, and may have performance and correctness bugs.])
+        if test "$force_[]CONDUIT_NAME" = yes || test "$enable_[]CONDUIT_NAME" = "probe" ; then 
+	  GASNET_MSG_WARN([EXP_MESSAGE])
+          _conduit_enabled_[]CONDUIT_NAME=yes
+	else # warn and disable
+          enabled_[]CONDUIT_NAME=no 
+	  GASNET_MSG_WARN([It appears your system has the required support for CONDUIT_NAME[]-conduit. 
+However, EXP_MESSAGE
+You can enable experimental support with --enable-[]CONDUIT_NAME.
+Otherwise, you can disable this message with --disable-[]CONDUIT_NAME ])
+	fi
+        popdef([EXP_MESSAGE])
+      ;;
+      yes)
         _conduit_enabled_[]CONDUIT_NAME=yes
-      fi
+      ;;
+     esac
     else
       if test "$force_[]CONDUIT_NAME" = yes ; then
        GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME but I don't know how to build CONDUIT_NAME programs for your system])
@@ -2623,10 +2662,11 @@ AC_DEFUN([CONDUIT_END],[
     fi
     _conduit_desc_[]CONDUIT_NAME="  CONDUIT_DESC m4_substr([                                                  ],len(CONDUIT_DESC))$_conduit_flagstr"
   fi 
-  ifelse(CONDUIT_IMPLEMENTED,[yes],[],[
+  ifelse(CONDUIT_IMPLEMENTED_HELP,[no],[
     popdef([GASNET_SUPPRESSHELP])
   ])
   popdef([CONDUIT_IMPLEMENTED])
+  popdef([CONDUIT_IMPLEMENTED_HELP])
   popdef([CONDUIT_NAME])
   popdef([CONDUIT_UPPERNAME])
   popdef([CONDUIT_DESC])
@@ -2636,7 +2676,7 @@ AC_DEFUN([CONDUIT_OUTPUT],[
   if test "$_conduit_enabled_[]$1" = "yes" ; then
     CONDUITS="$CONDUITS $1"
   fi
-  if test "$_conduit_implemented_[]$1" = "yes" ; then
+  if test "$_conduit_list_[]$1" = "yes" ; then
     echo "$_conduit_desc_[]$1" >> $CONDUIT_LIST
   fi
 ])
@@ -3822,7 +3862,7 @@ AM_CONDITIONAL(USE_PAMI_CONDUIT, test "$enabled_pami$have_pami" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 # Libfabric Conduit
 
-CONDUIT_BEGIN(ofi,warn,[Portable OpenFabrics Interfaces conduit (ofi)])
+CONDUIT_BEGIN(ofi,g1,[Portable OpenFabrics Interfaces conduit (ofi)])
 if test "$enabled_ofi" = yes; then
   have_ofi=yes
 
