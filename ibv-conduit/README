@@ -89,6 +89,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   connection requests.  If needed, this can be disabled at configure
   time using '--disable-ibv-conn-thread'.
 
+  As an alternative to use of "SEND" at the ibv-level, it is possible to
+  perform AM communication using "WRITE" operations.  This is described in more
+  detail in the "AMRDMA configuration" section.  This option is available only
+  if GASNet has been configured using '--enable-ibv-amrdma'.
+
   The default spawner to be used by the gasnetrun_ibv utility can be
   selected by configuring '--with-ibv-spawner=VALUE', where VALUE is one
   of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
@@ -744,6 +749,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
    
   AMRDMA configuration:
   --------------------
+  This feature is only available if GASNet has been configured
+  using --enable-ibv-amrdma
+
   The following environment variables control the AM-over-RDMA path in
   ibv-conduit.  These parameters must be equal across all nodes, and
   the behavior otherwise is undefined.

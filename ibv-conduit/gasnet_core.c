@@ -1156,6 +1156,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
+#if GASNETC_IBV_AMRDMA
   GASNETC_ENVINT(gasnetc_amrdma_max_peers, GASNET_AMRDMA_MAX_PEERS, GASNETC_DEFAULT_AMRDMA_MAX_PEERS, 0, 0);
   GASNETC_ENVINT(gasnetc_amrdma_limit, GASNET_AMRDMA_LIMIT, GASNETC_DEFAULT_AMRDMA_LIMIT, 0, 1);
   if_pf (gasnetc_amrdma_limit > GASNETC_AMRDMA_LIMIT_MAX) {
@@ -1191,6 +1192,7 @@ static int gasnetc_load_settings(void) {
   if (!gasnetc_amrdma_limit || !gasnetc_amrdma_cycle) {
     gasnetc_amrdma_max_peers = 0;
   }
+#endif // GASNETC_IBV_AMRDMA
 
   #if GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, 0, 0, 1);
@@ -1315,10 +1317,12 @@ static int gasnetc_load_settings(void) {
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
 #endif
+#if GASNETC_IBV_AMRDMA
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %"PRIu64"", (uint64_t)gasnetc_amrdma_cycle));
+#endif
 #if GASNETC_USE_RCV_THREAD
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
@@ -4098,6 +4102,7 @@ extern void gasnetc_exit(int exitcode) {
 
 /* ------------------------------------------------------------------------------------ */
 
+#if GASNETC_IBV_AMRDMA
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
 void gasnetc_amrdma_grant_reqh_inner(gex_Token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
@@ -4112,6 +4117,7 @@ void gasnetc_amrdma_grant_reqh_inner(gex_Token_t token, int qpi, uint32_t rkey, 
 SHORT_HANDLER(gasnetc_amrdma_grant_reqh,3,4,
               (token, a0, a1, UNPACK(a2)    ),
               (token, a0, a1, UNPACK2(a2, a3)));
+#endif // GASNETC_IBV_AMRDMA
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -4216,7 +4222,9 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   #endif
 
   /* ptr-width dependent handlers */
-  gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,REQUEST,SHORT,0),
+  #if GASNETC_IBV_AMRDMA
+    gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,REQUEST,SHORT,0),
+  #endif
 
   GASNETI_HANDLER_EOT
 };
