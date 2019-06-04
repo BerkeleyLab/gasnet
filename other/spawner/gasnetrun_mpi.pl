@@ -144,8 +144,6 @@ sub gasnet_encode($) {
 	%envfmt = ( 'pre' => '-x',
 		    'inter' => '-x'
 		  );
-        # Seen to crash 1.4.2, but OK for a long time
-        $ppn_opt = '-npernode' if ($mpirun_help =~ m/\(Open MPI\) (1\.([5-9]|10)|[2-9])/);
     } elsif ($is_mpich2) {
 	$spawner_desc = "MPICH2/mpiexec";
 	# pass env as "-envlist A,B,C"
@@ -379,8 +377,8 @@ sub usage
     print "usage: gasnetrun -n <n> [options] [--] prog [program args]\n";
     print "    options:\n";
     print "      -n <n>                number of processes to run\n";
-    print "      -N <n>                number of nodes to run on (not suppored on all mpiruns)\n";
-    print "      -c <n>                number of cpus per process (not suppored on all mpiruns)\n";
+    print "      -N <n>                number of nodes to run on (not supported on all mpiruns)\n";
+    print "      -c <n>                number of cpus per process (not supported on all mpiruns)\n";
     print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
@@ -448,6 +446,8 @@ sub expand {
 	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
 	    $numcpu = $ARGV[0];
 	    usage ("$_ option given with invalid argument '$ARGV[0]'\n") unless $numcpu >= 0;
+	} elsif ($_ =~ /^(-c)([0-9]+)$/) {
+	    $numcpu = $2;
 	} elsif ($_ eq '-v') {
 	    $verbose = 1;
 	} elsif ($_ eq '-t') {
@@ -732,6 +732,30 @@ if ($is_lam && $numnode) {
   expand \@tmp;
   @numprocargs = ($numproc, 'n' . join(',', @tmp));
   $dashN_ok = 1;
+}
+
+# OpenMPI
+if ($is_ompi) {
+  push @numprocargs, $numproc;
+  # -npernode Seen to crash 1.4.2, but OK for a long time
+  if ($numnode && ($mpirun_help =~ m/\(Open MPI\) (1\.([5-9]|10)|[2-9])/)) {
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    push @numprocargs, ('-npernode', $ppn);
+    $dashN_ok = 1;
+  }
+  # CPU binding
+  if (defined($numcpu)) {
+    if ($numcpu == 0) {
+      push @numprocargs, qw/--bind-to none/;
+    } elsif ($mpirun_help =~ m/\(Open MPI\) [4-9]/) {
+      # This is supported for OpenMPI 4+, because this interface changed
+      # and doesn't play well with -npernode in OpenMPI 2 and earlier
+      push @numprocargs, ('-map-by', "node:PE=$numcpu");
+    } else {
+      warn "WARNING: Don't know how to control cpu binding with your mpirun\n";
+      warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+  }
 }
     
 if ($is_aprun || $is_yod) {
