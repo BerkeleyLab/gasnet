@@ -402,10 +402,21 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
 #endif
 
-#if GASNETC_IBV_MAX_HCAS_CONFIGURE // Includes multi-rail support w/ 1 HCA
-  // Need a couple cache lines for dummy AMO accesses
-  extern gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-  #define GASNETC_AUXSEG_FNS() gasnetc_fence_auxseg_alloc,
+/* ------------------------------------------------------------------------------------ */
+// AuxSeg space for Remote Atomics and Fenced Puts
+
+extern gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+#define GASNETC_AUXSEG_FNS() gasnetc_fence_auxseg_alloc,
+
+extern uint64_t *gasnetc_ratomic_sink; // TODO: one per HCA
+#define GASNETC_RATOMIC_SINK(cep) gasnetc_ratomic_sink
+
+#if (GASNETC_IB_MAX_HCAS > 1)
+  extern gasnet_seginfo_t *gasnetc_fence_auxseg;
+  #define GASNETC_FENCE_ADDR_(jobrank,n) \
+            ((uintptr_t)gasnetc_fence_auxseg[(jobrank)].addr + (n << GASNETI_CACHE_LINE_SHIFT))
+  #define GASNETC_FENCE_REM_ADDR(cep) GASNETC_FENCE_ADDR_(gasnetc_epid2node(cep->epid), 1)
+  #define GASNETC_FENCE_LOC_ADDR(cep) GASNETC_FENCE_ADDR_(gasneti_mynode, 0)
 
   // Use AMO after Put to fence for strict memory model adherence
   extern int gasnetc_use_fenced_puts;
@@ -746,6 +757,7 @@ typedef enum {
 	GASNETC_OP_FREE,
 	GASNETC_OP_AM,
 	GASNETC_OP_ATOMIC,
+	GASNETC_OP_ATOMIC_BOUNCE,
 	GASNETC_OP_GET_ZEROCP,
 #if GASNETC_PIN_SEGMENT && GASNETC_FH_OPTIONAL
 	GASNETC_OP_GET_BOUNCE,
@@ -913,6 +925,12 @@ typedef struct gasnetc_sreq_t_ {
   #define fence_sreq    u.fence.sreq
 #endif
 } gasnetc_sreq_t;
+
+// Common
+#if GASNETC_BUILD_IBVRATOMIC
+  #define amo_bbuf   bb_buff
+  #define amo_result bb_addr
+#endif
 
 /* Temporary buffer space used for constructing AMs on the stack */
 typedef union {         
