@@ -111,6 +111,8 @@ sub fullpath($)
 	    push @mpi_args, $ARGV[0];
 	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
 	    usage ("$_ option with invalid argument '$ARGV[0]'\n") unless ($ARGV[0] =~ m/^[0-9]+$/);
+	} elsif ($_ =~ /^(-c)([0-9]+)$/) {
+            # nothing to do
 	} elsif ($_ =~ /^(-N)([0-9]+)$/) {
 	    $numnode = 0+$2;
 	    usage ("$1 option with invalid argument '$2'\n") unless $numnode >= 1;

@@ -446,6 +446,8 @@ sub expand {
 	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
 	    $numcpu = $ARGV[0];
 	    usage ("$_ option given with invalid argument '$ARGV[0]'\n") unless $numcpu >= 0;
+	} elsif ($_ =~ /^(-c)([0-9]+)$/) {
+	    $numcpu = $2;
 	} elsif ($_ eq '-v') {
 	    $verbose = 1;
 	} elsif ($_ eq '-t') {
