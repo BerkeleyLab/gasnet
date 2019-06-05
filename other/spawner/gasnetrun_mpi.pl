@@ -734,27 +734,51 @@ if ($is_lam && $numnode) {
   $dashN_ok = 1;
 }
 
-# OpenMPI
+# Open MPI
 if ($is_ompi) {
   push @numprocargs, $numproc;
-  # -npernode Seen to crash 1.4.2, but OK for a long time
-  if ($numnode && ($mpirun_help =~ m/\(Open MPI\) (1\.([5-9]|10)|[2-9])/)) {
+  my $ompi_ver = 0;
+  if ($mpirun_help =~ m/\(Open MPI\) ([1-9][0-9]*)\.([0-9]+)/) {
+    print "gasnetrun: identified Open MPI verson $1.$2\n" if ($verbose);
+    $ompi_ver = ($1 * 100) + $2;
+  }
+  # The `-map-by` option is present (and tested) in 1.8.x and newer
+  # It is known to be absent in 1.6.5
+  my $have_mapby = ($ompi_ver >= 108);
+  my $mapbyarg = undef;
+  # Use of `-npernode` was seen to crash 1.4.2, but OK for a long time
+  # With Open MPI 1.[567] it is the only option available
+  my $use_npernode = ($ompi_ver >= 105) && ($ompi_ver <= 107);
+  # PPN layout
+  if ($numnode) {
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
-    push @numprocargs, ('-npernode', $ppn);
-    $dashN_ok = 1;
+    if ($use_npernode) {
+      push @numprocargs, ('-npernode', $ppn);
+      $dashN_ok = 1;
+    } elsif ($have_mapby) {
+      $mapbyarg = "ppr:$ppn:node";
+      $dashN_ok = 1;
+    }
   }
   # CPU binding
   if (defined($numcpu)) {
     if ($numcpu == 0) {
-      push @numprocargs, qw/--bind-to none/;
-    } elsif ($mpirun_help =~ m/\(Open MPI\) [4-9]/) {
-      # This is supported for OpenMPI 4+, because this interface changed
-      # and doesn't play well with -npernode in OpenMPI 2 and earlier
-      push @numprocargs, ('-map-by', "node:PE=$numcpu");
+      # At 1.8 `--bind-to-none` was replaced by `--bind-to none`
+      push @numprocargs, ($ompi_ver < 108 ? '--bind-to-none' : qw/--bind-to none/);
+    } elsif ($have_mapby) {
+      if (defined $mapbyarg) {
+        # must merge w/ ppn directive, using version-dependent separator
+        $mapbyarg .= ($ompi_ver <= 300 ? ':' : ',') . "PE=$numcpu";
+      } else {
+        $mapbyarg = "node:PE=$numcpu";
+      }
     } else {
       warn "WARNING: Don't know how to control cpu binding with your mpirun\n";
       warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
     }
+  }
+  if (defined $mapbyarg) {
+    push @numprocargs, ('-map-by', $mapbyarg);
   }
 }
     
