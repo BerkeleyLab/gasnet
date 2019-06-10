@@ -25,6 +25,7 @@ GASNet-EX ChangeLog
   - New envvar GASNET_USE_FENCED_PUTS controls the strictness of ordering
     guarantees for put RMA completion on multi-rail hardware, addressing bug 3447.
   - Compilation of AM-over-RDMA support is now disabled by default
+  - Improve error messages for some cases.
 
 * Cray uGNI aries-conduit
   - The Aries Collective Engine, if available, is now used to accelerate
@@ -36,6 +37,7 @@ GASNet-EX ChangeLog
 
 * GASNet-EX Spec v0.8:
   - Add GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+  - The EX spec file has been renamed to docs/GASNet-EX.txt
 
 * Notable bugs fixed in this release:
   - bug3880: XLC 16.1.x ICE compiling ibv-conduit for Power9
