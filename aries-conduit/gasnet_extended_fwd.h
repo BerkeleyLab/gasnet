@@ -1,5 +1,5 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gemini-conduit/gasnet_extended_fwd.h $
- * Description: GASNet Extended API Header for Gemin Conduit (forward decls)
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_extended_fwd.h $
+ * Description: GASNet Extended API Header for aries Conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */

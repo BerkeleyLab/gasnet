@@ -43,7 +43,7 @@
 // a multi-threaded build, the conduit's processing of the CQ includes a full
 // mutex lock/unlock.
 
-#include <gasnet_gemini.h>
+#include <gasnet_aries.h>
 #include <gasnet_ratomic_internal.h>
 
 // Value intended to trigger GNI_RC_ILLEGAL_OP if used as amo_cmd

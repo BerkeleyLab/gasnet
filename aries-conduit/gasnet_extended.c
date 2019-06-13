@@ -1,5 +1,5 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gemini-conduit/gasnet_extended.c $
- * Description: GASNet Extended API over Gemini Implementation
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_extended.c $
+ * Description: GASNet Extended API over Aries Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
@@ -7,7 +7,7 @@
 #include <gasnet_coll_internal.h> // for refbarrier.c
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_gemini.h>
+#include <gasnet_aries.h>
 
 /* ------------------------------------------------------------------------------------ */
 /*

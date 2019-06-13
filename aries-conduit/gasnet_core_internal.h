@@ -1,5 +1,5 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gemini-conduit/gasnet_core_internal.h $
- * Description: GASNet <conduitname> conduit header for internal definitions in Core API
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_core_internal.h $
+ * Description: GASNet aries conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */

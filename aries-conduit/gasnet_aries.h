@@ -1,5 +1,5 @@
-#ifndef GASNET_GEMINI_H
-#define GASNET_GEMINI_H
+#ifndef GASNET_ARIES_H
+#define GASNET_ARIES_H
 
 #include <stdint.h>
 #include <stdio.h>
@@ -533,5 +533,5 @@ void gasnete_consume_eop(gasnete_eop_t *eop GASNETI_THREAD_FARG) {
 #define GASNETE_IOP_CNTRS(_iop,_putget) \
         GASNETE_IOP_CNTRS_##_putget(_iop)
 
-#endif /* GASNET_GEMINI_H */
+#endif /* GASNET_ARIES_H */
 

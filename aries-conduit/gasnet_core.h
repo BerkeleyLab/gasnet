@@ -1,5 +1,5 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gemini-conduit/gasnet_core.h $
- * Description: GASNet header for gemini conduit core
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_core.h $
+ * Description: GASNet header for aries conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */

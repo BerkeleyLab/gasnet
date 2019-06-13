@@ -1,7 +1,7 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gemini-conduit/gasnet_core.c $
- * Description: GASNet gemini conduit Implementation
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_core.c $
+ * Description: GASNet aries conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Gemini conduit by Larry Stewart <stewart@serissa.com>
+ * Aries (formerly Gemini) conduit by Larry Stewart <stewart@serissa.com>
  * Terms of use are as specified in license.txt
  */
 
@@ -9,7 +9,7 @@
 #include <gasnet_core_internal.h>
 #include <gasnet_am.h>
 
-#include <gasnet_gemini.h>
+#include <gasnet_aries.h>
 /* #include <alps/libalpslli.h> */
 
 #include <errno.h>
