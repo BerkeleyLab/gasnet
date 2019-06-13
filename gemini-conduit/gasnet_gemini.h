@@ -204,15 +204,8 @@ typedef union gasnetc_packet_u {
 
 /* max data one can pack into a message with a long header: */
 /* TODO: runtime control of cut-off via an env var */
-#if GASNET_CONDUIT_GEMINI
-/* On Gemini it doesn't pay to pack more than 128 bytes or so */
-#define GASNETC_MAX_PACKED_LONG(nargs) \
-        (128 - GASNETC_HEADLEN(long, (nargs)))
-#else
-/* On Aries is pays to pack as much as possible */
 #define GASNETC_MAX_PACKED_LONG(nargs) \
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
-#endif
 
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
 /* we want this many post descriptors */
@@ -229,22 +222,13 @@ typedef union gasnetc_packet_u {
 #endif
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX 32768
 /* a particular get or put <= this size goes via fma */
-#ifdef GASNET_CONDUIT_ARIES
 #define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 1023
 #define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 1023
-#else
-#define GASNETC_GNI_GET_FMA_RDMA_CUTOVER_DEFAULT 4096
-#define GASNETC_GNI_PUT_FMA_RDMA_CUTOVER_DEFAULT 4096
-#endif
 #define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX (4096*4)
 /* space for immediate bounce buffer in the post descriptor */
 #define GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE 128
 /* how many concurrent dynamic memory registrations to allow */
-#if GASNET_CONDUIT_GEMINI
-#define GASNETC_GNI_MEMREG_DEFAULT 16 /* TODO: tune/probe? */
-#else
 #define GASNETC_GNI_MEMREG_DEFAULT 3072
-#endif
 /* Radix of inter-host CE tree */
 #define GASNETC_GNI_CE_RADIX_DEFAULT 2
 

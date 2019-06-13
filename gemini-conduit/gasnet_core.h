@@ -117,11 +117,7 @@ typedef struct {
 #define GASNETC_MAX_ARGS   16
 #define gex_AM_MaxArgs() ((unsigned int)GASNETC_MAX_ARGS)
 
-#ifdef GASNET_CONDUIT_ARIES
-  #define GASNETC_LUB_LONG 0x800000
-#else
-  #define GASNETC_LUB_LONG 0x100000
-#endif
+#define GASNETC_LUB_LONG          0x800000
 #define GASNETC_LUB_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM)
 
 #define GASNETC_MAX_MEDIUM(nargs) (GASNETC_LUB_MEDIUM+8*((GASNETC_MAX_ARGS-(nargs))/2))

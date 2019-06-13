@@ -41,7 +41,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @GNI_CFLAGS@ -I$(gemini_srcdir) -DGASNET_CONDUIT_ARIES -DHAVE_PMI_SPAWNER
+CONDUIT_EXTRALIBCFLAGS = @GNI_CFLAGS@ -I$(gemini_srcdir) -DHAVE_PMI_SPAWNER
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(gemini_install_hdrs)

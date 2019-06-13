@@ -115,10 +115,10 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest);
 /* ------------------------------------------------------------------------------------ */
 // Aries CE support
 
-// Build Aries CE support by default on Aries hardware
+// Build Aries CE support by default
 #if defined(GASNETC_BUILD_GNICE) && !GASNETC_BUILD_GNICE
   #undef GASNETC_BUILD_GNICE
-#elif defined GASNET_CONDUIT_ARIES
+#else
   #undef GASNETC_BUILD_GNICE
   #define GASNETC_BUILD_GNICE 1
 #endif

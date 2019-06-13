@@ -13,16 +13,11 @@
 
 #define GASNET_CORE_VERSION      2.1
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
-#if defined GASNET_CONDUIT_GEMINI
-  #define GASNET_CORE_NAME       GEMINI
-#elif defined GASNET_CONDUIT_ARIES
-  #define GASNET_CORE_NAME       ARIES
-#else
-  #error "Exactly one of GASNET_CONDUIT_GEMINI or GASNET_CONDUIT_ARIES must be defined"
-#endif
+#define GASNET_CORE_NAME         ARIES
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
+#define GASNET_CONDUIT_ARIES     1
 
 /* Aries supports only 24 bits of inst_id and we leverage that */
 #define GASNET_MAXNODES 0x1000000
