@@ -3603,8 +3603,9 @@ CONDUIT_END([test "$enabled_ibv$have_ibv" = yesyes])
 AM_CONDITIONAL(USE_IBV_CONDUIT, test "$enabled_ibv$have_ibv" = yesyes)
 
 #--------------------------------------------------------------------------------------------------------
-# Gemini and Aries Conduits
+# Aries Conduit
 
+# TODO: remove this (legacy) indirection for aries-conduit configuration
 gni_network=""
 AC_DEFUN([GASNET_CHECK_GNI],[
 pushdef([lowername],translit($1,'A-Z','a-z'))
@@ -3742,17 +3743,6 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
 fi
 popdef([lowername])
 ])
-
-CONDUIT_BEGIN(gemini,yes,[Cray XE/XK Gemini conduit (gemini)])
-CONDUIT_DISALLOW_SEGMENT(everything)
-if test "$enabled_gemini" = yes; then
-  GASNET_CHECK_GNI(Gemini)
-  if test "$have_gemini" = yes; then
-    GASNET_MSG_WARN([gemini-conduit has been deprecated.  Please see the gemini-conduit README for more information.])
-  fi
-fi
-CONDUIT_END([test "$enabled_gemini$have_gemini" = yesyes])
-AM_CONDITIONAL(USE_GEMINI_CONDUIT, test "$enabled_gemini$have_gemini" = yesyes)
 
 CONDUIT_BEGIN(aries,yes,[Cray XC Aries conduit (aries)])
 CONDUIT_DISALLOW_SEGMENT(everything)
@@ -4037,7 +4027,6 @@ EOF
 
 CONDUIT_OUTPUT(pami)    dnl Ensure pami-over-ib is lower than ibv
 CONDUIT_OUTPUT(ibv)
-CONDUIT_OUTPUT(gemini)
 CONDUIT_OUTPUT(aries)
 
 #--------------------------------------------------------------------------------------------------------
@@ -5039,7 +5028,6 @@ dnl GASNET_TOOLSONLY_FALSE_END
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
 GASNET_FIX_EXEC(pami-conduit/contrib/gasnetrun_pami)
-GASNET_FIX_EXEC(gemini-conduit/contrib/gasnetrun_gemini)
 GASNET_FIX_EXEC(aries-conduit/contrib/gasnetrun_aries)
 GASNET_FIX_EXEC(ofi-conduit/contrib/gasnetrun_ofi)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
@@ -5140,11 +5128,6 @@ ibv-conduit/Makefile
 ibv-conduit/conduit.mak
 ibv-conduit/contrib/Makefile
 ibv-conduit/contrib/gasnetrun_ibv
-
-gemini-conduit/Makefile
-gemini-conduit/conduit.mak
-gemini-conduit/contrib/Makefile
-gemini-conduit/contrib/gasnetrun_gemini
 
 aries-conduit/Makefile
 aries-conduit/conduit.mak
