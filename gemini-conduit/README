@@ -1,40 +1,17 @@
-GASNet gemini-conduit and aries-conduit documentation
+GASNet aries-conduit documentation
 Larry Stewart <stewart@serissa.com> 
 
-
-=====================================================================
-=====================================================================
-
-The gemini-conduit is now DEPRECATED.
-No further development of gemini-conduit is anticipated.
-It will be removed in a future release.
-
-The aries-conduit remains supported and under active development.
-
-=====================================================================
-=====================================================================
 
 User Information:
 -----------------
 
-This documentation covers both gemini-conduit (for the Cray XE and XK
-series) and aries-conduit (for the Cray XC).  The terms "Gemini" and
-"gemini-conduit" are used throughout this document when both gemini
-and aries are meant.
-
+This documentation covers aries-conduit for Cray XC series systems.
 Because these Cray systems have non-trivial differences between the login
 nodes and the compute nodes, one must use a cross-configure script to build
-either of these conduits.  See other/contrib/cross-configure-cray-gemini-*
-for Gemini and other/contrib/cross-configure-cray-aries-* for Aries.
+either of these conduits.  See other/contrib/cross-configure-cray-aries-* .
 
 Where this conduit runs:
 -----------------------
-
-The gemini-conduit runs on systems with Cray's "Gemini" interconnect,
-including their XE and XK series machines.  There is no known minimum version
-required of any hardware or software component, but it is likely that
-sufficiently old releases of the system software are not supported correctly.
-Support for Cray's Gemini interconnect is currently deprecated.
 
 The aries-conduit runs on systems with Cray's "Aries" interconnect, including
 their XC series machines.  To the best of our knowledge, there are no known
@@ -43,10 +20,7 @@ compatibility issues with any release of the XC series system software.
 Optional configure-time settings:
 ------------------------------
 
-NOTE: In the descriptions which follow, the token [CONDUIT] should be replaced
-by "aries" or "gemini" (without the quotes), as appropriate.
-
---with-[CONDUIT]-max-medium=[value]
+--with-aries-max-medium=[value]
    By default gasnet_AMMaxMedium() is 4032: a 4096 byte buffer minus
    64 bytes reserved for up to 16 handler arguments.  This configure
    option allows control over the value of gasnet_AMMaxMedium().
@@ -55,10 +29,10 @@ by "aries" or "gemini" (without the quotes), as appropriate.
    power-of-two, to preserve efficient memory use.
    The default value is 4032.
 
---enable-[CONDUIT]-multi-domain
+--enable-aries-multi-domain
    This configure option enables EXPERIMENTAL support for improved
    performance of RDMA operations in a PAR (multi-threaded) build of
-   Gemini or Aries conduit by allocating multiple GNI Communication
+   Aries conduit by allocating multiple GNI Communication
    Domains and distributing the clients threads over these domains.
    Since operations on a given domain must be serialized (we use a
    pthread mutex), use of multiple domains can significantly reduce
@@ -120,11 +94,11 @@ Configuring job launch:
 ----------------------
 
 Both ALPS (aprun) and native SLURM (srun) are supported for job-launch by the
-provided gasnetrun_gemini and gasnetrun_aries scripts.  The value of the
-environment variable PMIRUN_CMD can be used to choose between these two.  The
-value when configure is run establishes a default, which a value set at
-job-launch time can override.  The corresponding cross-configure scripts
-establish the following default (recommended) values:
+provided gasnetrun_aries script.  The value of the environment variable
+PMIRUN_CMD can be used to choose between these two.  The value when configure
+is run establishes a default, which a value set at job-launch time can
+override.  The corresponding cross-configure scripts establish the following
+default (recommended) values:
  + For ALPS:             PMIRUN_CMD="aprun -n %N %C"
  + For native SLURM:     PMIRUN_CMD="srun -K0 -W60 %V -mblock -n %N %C"
 
@@ -138,7 +112,7 @@ same as for MPIRUN_CMD, documented in mpi-conduit's README).
 NOTE:
 This release uses two distinct options when configuring Cray systems:
     --with-mpirun-cmd=VALUE    used to configure gasnetrun_mpi
-    --with-pmirun-cmd=VALUE    used to configure gasnetrun_{gemini,aries}
+    --with-pmirun-cmd=VALUE    used to configure gasnetrun_aries
 However, to support legacy configuration scripts, if one passes only the
 option '--with-mpirun-cmd=...' then it will set a default value for *both*
 the MPIRUN_CMD and PMIRUN_CMD environment variables.
@@ -153,10 +127,10 @@ All variable below must (unless otherwise noted) be single-valued
 
 GASNET_BARRIER - barrier algorithm selection
   In addition to the algorithms in the top-level README, there is an
-  implementation specific to Gemini and Aries:
+  implementation specific to Aries:
     GNIDISSEM - like RDMADISSEM, but implemented using lower-level
                 GNI operations for lower latency.
-  Currently GNIDISSEM is the default on both Gemini and Aries.
+  Currently GNIDISSEM is the default.
 
 GASNET_GNI_AM_RVOUS_CUTOVER - enable/disable rendezvous based AMs
   At small scale, Active Messages are implemented using an "Eager" protocol
@@ -234,8 +208,7 @@ GASNET_GNI_PUT_FMA_RDMA_CUTOVER
   sensitive to these values and to the degree of communication concurrency.
   You may want to adjust these parameters if you believe RMA operations in this
   range determine the performance of your application.
-  On Gemini networks both values default to 4096
-  On Aries networks both values default to 1023
+  Both values default to 1023
   The maximum supported value is 16384
   These variables are not required to be single-valued.
 
@@ -281,7 +254,7 @@ GASNET_GNI_MEMREG
   This controls the maximum number of concurrent temporary memory
   registrations, used for RDMA transfers to and from addresses outside of
   the GASNet segment.
-  The default value is 16 on Gemini, and is 3072 on Aries.
+  The default value is 3072.
   This variable is not required to be single-valued.
 
   If this vale is too large (possibly due to competition with MPI or
@@ -342,7 +315,7 @@ GASNET_PHYSMEM_MAX
   This variable is not required to be single-valued.
 
 GASNET_USE_UDREG
-  AVAILABLE UNLESS CONFIGURED WITH --disable-[CONDUIT]-udreg.
+  AVAILABLE UNLESS CONFIGURED WITH --disable-aries-udreg.
   This gives a boolean: "0" to disable or "1" to enable the use of the
   UDREG library for caching of local memory registrations, and is
   intended primarily for debugging purposes.
@@ -380,7 +353,7 @@ GASNET_GNI_CE_RADIX
 GASNET_DOMAIN_COUNT
 GASNET_GNI_PTHREADS_PER_DOMAIN
 GASNET_AM_DOMAIN_POLL_MASK
-  AVAILABLE ONLY IF CONFIGURED WITH --enable-[CONDUIT]-multi-domain.
+  AVAILABLE ONLY IF CONFIGURED WITH --enable-aries-multi-domain.
   These three variables are not required to be single-valued.
   For their use, please see the multi-domain documentation under the
   "Optional configure-time settings" section, above.
@@ -398,8 +371,6 @@ PMI_GNI_DEV_ID     - Device ID (Selects which NIC is in use)
 
 Remote Atomics:
 ---------------
-
-There is no support for offload of atomics to the Gemini NIC.
 
 The following table indicates the pairs of atomic operation and data type that
 are eligible for offloaded to the Aries NIC.  The offloaded atomics will be
@@ -469,8 +440,10 @@ requirements for large jobs.
 Design Overview:
 ----------------
 
-The gemini conduit provides the gasnet core and extended APIs on Cray systems
-based on the gemini interconnect.  Initial work done on the XE6.
+The aries conduit provides the gasnet core and extended APIs on Cray systems
+based on the aries interconnect.  Initial work was done for the gemini
+interconnect on the XE6, and the notes which follow are based on that initial
+implementation (and thus are at least partly out-of-date).
 
 References:
 
