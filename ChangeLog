@@ -18,14 +18,14 @@ GASNet-EX ChangeLog
   distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING: GASNet-EX Work-In-Progress
+06-14-2019: GASNet-EX 2019.6.0 Release
 
-* Notable bugs fixed in this release:
-  - bug3880: XLC 16.1.x ICE compiling ibv-conduit for Power9
-  - bug3943: infrequent startup hang with PSHM and over 62 PPN
-
-* GASNet-EX Spec v0.8:
-  - Add GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+* InfiniBand Verbs (ibv-conduit)
+  - NEW: Improved support for correct operation on multi-rail InfiniBand systems
+  - New envvar GASNET_USE_FENCED_PUTS controls the strictness of ordering
+    guarantees for put RMA completion on multi-rail hardware, addressing bug 3447.
+  - Compilation of AM-over-RDMA support is now disabled by default
+  - Improve error messages for some cases.
 
 * Cray uGNI aries-conduit
   - The Aries Collective Engine, if available, is now used to accelerate
@@ -35,10 +35,20 @@ PENDING: GASNet-EX Work-In-Progress
   - This conduit is now DEPRECATED and will be removed in a future release.
   - The aries-conduit remains supported and under active development.
 
-* InfiniBand Verbs (ibv-conduit)
-  - NEW: Improved support for correct operation on multi-rail InfiniBand systems
-  - New envvar GASNET_USE_FENCED_PUTS controls the strictness of ordering
-    guarantees for put RMA completion on multi-rail hardware, addressing bug 3447.
+* GASNet-EX Spec v0.8:
+  - Add GASNET_HIDDEN_AM_CONCURRENCY_LEVEL
+  - The EX spec file has been renamed to docs/GASNet-EX.txt
+
+* Notable bugs fixed in this release:
+  - bug3880: XLC 16.1.x ICE compiling ibv-conduit for Power9
+  - bug3943: infrequent startup hang with PSHM and over 62 PPN
+  - bug3946: Improve gasnetrun support for CPU binding esp with Open MPI
+
+----------------------------------------------------------------------
+05-27-2019: GASNet-EX 2019.3.2 Release (bug fix release)
+
+* Notable bugs fixed in this release:
+  - bug3943: infrequent startup hang with PSHM and over 62 PPN
 
 ----------------------------------------------------------------------
 03-15-2019: GASNet-EX 2019.3.0 Release

@@ -40,6 +40,7 @@ sub usage
     print "    options:\n";
     print "      -n <n>                 number of processes to run\n";
     print "      -N <N>                 number of nodes to run on (not always supported)\n";
+    print "      -c <n>                 number of cpus per process (not always supported)\n";
     print "      -E <VAR1[,VAR2...]>    list of environment vars to propagate\n";
     print "      -v                     be verbose about what is happening\n";
     print "      -t                     test only, don't execute anything (implies -v)\n";
@@ -105,6 +106,13 @@ sub fullpath($)
 	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
 	    $numnode = 0+$ARGV[0];
 	    usage ("$_ option with invalid argument '$ARGV[0]'\n") unless $numnode >= 1;
+	} elsif ($_ eq '-c') {
+	    shift;
+	    push @mpi_args, $ARGV[0];
+	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
+	    usage ("$_ option with invalid argument '$ARGV[0]'\n") unless ($ARGV[0] =~ m/^[0-9]+$/);
+	} elsif ($_ =~ /^(-c)([0-9]+)$/) {
+            # nothing to do
 	} elsif ($_ =~ /^(-N)([0-9]+)$/) {
 	    $numnode = 0+$2;
 	    usage ("$1 option with invalid argument '$2'\n") unless $numnode >= 1;

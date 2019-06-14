@@ -15,7 +15,7 @@
   #error "VAPI-conduit is no longer supported"
 #endif
 
-#define GASNET_CORE_VERSION      2.2
+#define GASNET_CORE_VERSION      2.3
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         IBV
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -163,9 +163,11 @@
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
+#if GASNETC_IBV_AMRDMA
 extern void gasnetc_amrdma_balance(void);
 #define GASNETC_PROGRESSFNS_LIST(FN) \
   FN(gasnetc_pf_amrdma, COUNTED, gasnetc_amrdma_balance)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table access for PSHM (temporary global impl until PSHM can pass actual ep) */

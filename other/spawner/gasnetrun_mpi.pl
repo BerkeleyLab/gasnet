@@ -144,8 +144,6 @@ sub gasnet_encode($) {
 	%envfmt = ( 'pre' => '-x',
 		    'inter' => '-x'
 		  );
-        # Seen to crash 1.4.2, but OK for a long time
-        $ppn_opt = '-npernode' if ($mpirun_help =~ m/\(Open MPI\) (1\.([5-9]|10)|[2-9])/);
     } elsif ($is_mpich2) {
 	$spawner_desc = "MPICH2/mpiexec";
 	# pass env as "-envlist A,B,C"
@@ -379,8 +377,8 @@ sub usage
     print "usage: gasnetrun -n <n> [options] [--] prog [program args]\n";
     print "    options:\n";
     print "      -n <n>                number of processes to run\n";
-    print "      -N <n>                number of nodes to run on (not suppored on all mpiruns)\n";
-    print "      -c <n>                number of cpus per process (not suppored on all mpiruns)\n";
+    print "      -N <n>                number of nodes to run on (not supported on all mpiruns)\n";
+    print "      -c <n>                number of cpus per process (not supported on all mpiruns)\n";
     print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
@@ -448,6 +446,8 @@ sub expand {
 	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
 	    $numcpu = $ARGV[0];
 	    usage ("$_ option given with invalid argument '$ARGV[0]'\n") unless $numcpu >= 0;
+	} elsif ($_ =~ /^(-c)([0-9]+)$/) {
+	    $numcpu = $2;
 	} elsif ($_ eq '-v') {
 	    $verbose = 1;
 	} elsif ($_ eq '-t') {
@@ -732,6 +732,54 @@ if ($is_lam && $numnode) {
   expand \@tmp;
   @numprocargs = ($numproc, 'n' . join(',', @tmp));
   $dashN_ok = 1;
+}
+
+# Open MPI
+if ($is_ompi) {
+  push @numprocargs, $numproc;
+  my $ompi_ver = 0;
+  if ($mpirun_help =~ m/\(Open MPI\) ([1-9][0-9]*)\.([0-9]+)/) {
+    print "gasnetrun: identified Open MPI verson $1.$2\n" if ($verbose);
+    $ompi_ver = ($1 * 100) + $2;
+  }
+  # The `-map-by` option is present (and tested) in 1.8.x and newer
+  # It is known to be absent in 1.6.5
+  my $have_mapby = ($ompi_ver >= 108);
+  my $mapbyarg = undef;
+  # Use of `-npernode` was seen to crash 1.4.2, but OK for a long time
+  # With Open MPI 1.[567] it is the only option available
+  my $use_npernode = ($ompi_ver >= 105) && ($ompi_ver <= 107);
+  # PPN layout
+  if ($numnode) {
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    if ($use_npernode) {
+      push @numprocargs, ('-npernode', $ppn);
+      $dashN_ok = 1;
+    } elsif ($have_mapby) {
+      $mapbyarg = "ppr:$ppn:node";
+      $dashN_ok = 1;
+    }
+  }
+  # CPU binding
+  if (defined($numcpu)) {
+    if ($numcpu == 0) {
+      # At 1.8 `--bind-to-none` was replaced by `--bind-to none`
+      push @numprocargs, ($ompi_ver < 108 ? '--bind-to-none' : qw/--bind-to none/);
+    } elsif ($have_mapby) {
+      if (defined $mapbyarg) {
+        # must merge w/ ppn directive, using version-dependent separator
+        $mapbyarg .= ($ompi_ver <= 300 ? ':' : ',') . "PE=$numcpu";
+      } else {
+        $mapbyarg = "node:PE=$numcpu";
+      }
+    } else {
+      warn "WARNING: Don't know how to control cpu binding with your mpirun\n";
+      warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+  }
+  if (defined $mapbyarg) {
+    push @numprocargs, ('-map-by', $mapbyarg);
+  }
 }
     
 if ($is_aprun || $is_yod) {
