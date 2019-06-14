@@ -100,6 +100,7 @@ testprograms_seq =      \
         testfaddperf    \
         testimm         \
         testsplit       \
+        testacc         \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
