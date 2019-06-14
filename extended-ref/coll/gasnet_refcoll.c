@@ -497,9 +497,6 @@ static gasnet_seginfo_t *gasnete_coll_auxseg_save = NULL;
 
 
 
-/* spawner hint of our auxseg requirements */
-GASNETI_IDENT(gasnete_coll_auxseg_IdentString, "$GASNetAuxSeg_coll: GASNET_COLL_SCRATCH_SIZE:" _STRINGIFY(GASNETE_COLL_SCRATCH_SIZE_DEFAULT) " $");
-
 /* AuxSeg setup for distributed scratch space*/
 gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
@@ -585,6 +582,43 @@ extern void gasnete_coll_init_subsystem(void)
  */
 
 
+// Means for partial replacement by conduits:
+#if defined(GASNETE_COLL_CONSENSUS_TRY) && \
+    defined(GASNETE_COLL_CONSENSUS_NOTIFY)
+  // Use conduit-provided versions
+  #ifdef GASNETE_COLL_CONSENSUS_DEFNS
+    // Expand any conduit-provided deferred definitions
+    // This hook is provided because the 'team' argument to the macros
+    // GASNETE_COLL_CONSENSUS_{NOTIFY,TRY}() has a private type.
+    GASNETE_COLL_CONSENSUS_DEFNS
+  #endif
+#elif defined(GASNETE_COLL_CONSENSUS_TRY) || \
+      defined(GASNETE_COLL_CONSENSUS_NOTIFY)
+  #error Conduit must define both or neither of GASNETE_COLL_CONSENSUS_{NOTIFY,TRY}
+#else
+  // Use defaults, below
+  #define GASNETE_COLL_CONSENSUS_NOTIFY(team) \
+          GASNETE_COLL_CONSENSUS_DEFAULT_NOTIFY(team)
+  #define GASNETE_COLL_CONSENSUS_TRY(team) \
+          GASNETE_COLL_CONSENSUS_DEFAULT_TRY(team)
+#endif
+
+// Default versions (also available for use by conduit-provided ones)
+#if GASNET_DEBUG
+  // Use full name-matching facility for error checking
+  #define GASNETE_COLL_CONSENSUS_DEFAULT_NOTIFY(team) \
+          gasnet_coll_barrier_notify(team, team->consensus_id, 0)
+  #define GASNETE_COLL_CONSENSUS_DEFAULT_TRY(team) \
+          gasnet_coll_barrier_try(team, team->consensus_id, 0)
+#else
+  // Use "unnamed" barrier for performance
+  #define GASNETE_COLL_CONSENSUS_DEFAULT_NOTIFY(team) \
+          gasnet_coll_barrier_notify(team, 0, GASNET_BARRIERFLAG_UNNAMED)
+  #define GASNETE_COLL_CONSENSUS_DEFAULT_TRY(team) \
+          gasnet_coll_barrier_try(team, 0, GASNET_BARRIERFLAG_UNNAMED)
+#endif
+
+
 extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team) {
   gasnete_coll_consensus_t result = team->consensus_issued_id;
   team->consensus_issued_id = result + 2;
@@ -598,38 +632,26 @@ void gasnete_coll_consensus_free(gasnete_coll_team_t team, gasnete_coll_consensu
 
 GASNETI_INLINE(gasnete_coll_consensus_do_try)
 int gasnete_coll_consensus_do_try(gasnete_coll_team_t team) {
-#if GASNET_DEBUG
-  int rc = gasnet_coll_barrier_try(team, team->consensus_id, 0);
+  int rc = GASNETE_COLL_CONSENSUS_TRY(team);
   if_pt (rc == GASNET_OK) {
     /* A barrier is complete, advance */
     ++team->consensus_id;
     return 1;
-  } else if (rc == GASNET_ERR_BARRIER_MISMATCH) {
+  }
+#if GASNET_DEBUG
+  else if (rc == GASNET_ERR_BARRIER_MISMATCH) {
     gasneti_fatalerror("Named barrier mismatch detected in collectives");
   } else {
     gasneti_assert(rc == GASNET_ERR_NOT_READY);
   }
-    return 0;
-#else
-    int rc = gasnet_coll_barrier_try(team, 0, GASNET_BARRIERFLAG_UNNAMED);
-    if_pt (rc == GASNET_OK) {
-      /* A barrier is complete, advance */
-      ++team->consensus_id;
-      return 1;
-    }
-    return 0;
 #endif
+  return 0;
 }
 
 GASNETI_INLINE(gasnete_coll_consensus_do_notify)
 void gasnete_coll_consensus_do_notify(gasnete_coll_team_t team) {
   ++team->consensus_id;
-#if GASNET_DEBUG
-  gasnet_coll_barrier_notify(team, team->consensus_id, 0);
-#else
-  gasnet_coll_barrier_notify(team, 0, GASNET_BARRIERFLAG_UNNAMED);
-#endif
-   
+  GASNETE_COLL_CONSENSUS_NOTIFY(team);
 }
 
 

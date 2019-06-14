@@ -23,6 +23,10 @@ test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 /* Define to get one big function that pushes the gcc inliner heursitics */
 #undef TESTGASNET_NO_SPLIT
 
+#if !defined(GASNET_HIDDEN_AM_CONCURRENCY_LEVEL)
+#error Missing GASNET_HIDDEN_AM_CONCURRENCY_LEVEL definition
+#endif
+
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);

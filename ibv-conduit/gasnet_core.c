@@ -172,6 +172,13 @@ static char *gasnetc_ibv_ports;
 
 static int gasnetc_did_firehose_init = 0;
 
+static const enum ibv_access_flags
+    gasneti_seg_access_flags =
+        (enum ibv_access_flags) (IBV_ACCESS_LOCAL_WRITE  |
+                                 IBV_ACCESS_REMOTE_WRITE |
+                                 IBV_ACCESS_REMOTE_READ  |
+                                 IBV_ACCESS_REMOTE_ATOMIC);
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Bootstrap collectives
@@ -1149,6 +1156,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
+#if GASNETC_IBV_AMRDMA
   GASNETC_ENVINT(gasnetc_amrdma_max_peers, GASNET_AMRDMA_MAX_PEERS, GASNETC_DEFAULT_AMRDMA_MAX_PEERS, 0, 0);
   GASNETC_ENVINT(gasnetc_amrdma_limit, GASNET_AMRDMA_LIMIT, GASNETC_DEFAULT_AMRDMA_LIMIT, 0, 1);
   if_pf (gasnetc_amrdma_limit > GASNETC_AMRDMA_LIMIT_MAX) {
@@ -1184,6 +1192,7 @@ static int gasnetc_load_settings(void) {
   if (!gasnetc_amrdma_limit || !gasnetc_amrdma_cycle) {
     gasnetc_amrdma_max_peers = 0;
   }
+#endif // GASNETC_IBV_AMRDMA
 
   #if GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, 0, 0, 1);
@@ -1308,10 +1317,12 @@ static int gasnetc_load_settings(void) {
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
 #endif
+#if GASNETC_IBV_AMRDMA
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %"PRIu64"", (uint64_t)gasnetc_amrdma_cycle));
+#endif
 #if GASNETC_USE_RCV_THREAD
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
@@ -1956,6 +1967,29 @@ static int gasnetc_init( gex_Client_t            *client_p,
     }
   }
 
+#if GASNETC_IB_MAX_HCAS > 1
+  gasnetc_use_fenced_puts = gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0);
+  if (gasnetc_use_fenced_puts && (gasnetc_num_hcas == 1)) {
+    if (!gasneti_mynode) {
+      fprintf(stderr,
+              "WARNING: GASNET_USE_FENCED_PUTS requested, but ignored because only a single\n"
+              "         HCA was detected and/or enabled.  To suppress this message, you may\n"
+              "         either unset this environment variable or set it to '0'.\n"
+              "         Alternatively, you may configure using '--disable-ibv-multirail'\n"
+              "         if all nodes have only a single InfiniBand HCA.\n");
+    }
+    gasnetc_use_fenced_puts = 0;
+  }
+#else
+  if (!gasneti_mynode && gasneti_getenv_yesno_withdefault("GASNET_USE_FENCED_PUTS", 0)) {
+    fprintf(stderr,
+            "WARNING: GASNET_USE_FENCED_PUTS requested, but ignored because GASNet was\n"
+            "         configured without multi-rail support.  To suppress this message,\n"
+            "         you may either unset this environment variable or set it to '0'.\n"
+            "         Alternatively, you may configure using '--enable-ibv-multirail'.\n");
+  }
+#endif
+
   /* report hca/port properties */
   gasnetc_hca_report();
 
@@ -2352,11 +2386,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   /* The auxseg will be statically pinned even if the segment is not */
   
   GASNETC_FOR_ALL_HCA(hca) {
-    if (0 != gasnetc_pin(hca, auxbase, auxsize,
-                         (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE |
-                                                 IBV_ACCESS_REMOTE_WRITE |
-                                                 IBV_ACCESS_REMOTE_READ),
-                         &hca->aux_reg)) {
+    if (0 != gasnetc_pin(hca, auxbase, auxsize, gasneti_seg_access_flags, &hca->aux_reg)) {
       gasneti_segreg_failed(auxsize, " aux", errno);
     }
     // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
@@ -2643,9 +2673,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
         for (j = 0, addr = gasnetc_seg_start, remain = segsize; remain != 0; ++j) {
 	  size_t len = (gasnetc_max_regs == 1) ? remain : MIN(remain, gasnetc_pin_maxsz);
-          if (0 != gasnetc_pin(hca, (void *)addr, len,
-			      (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ),
-			      &memreg)) {
+          if (0 != gasnetc_pin(hca, (void *)addr, len, gasneti_seg_access_flags, &memreg)) {
              gasneti_segreg_failed(len, "", errno);
           }
 	  my_rkeys[j] = memreg.handle->rkey;
@@ -3072,13 +3100,11 @@ void gasnetc_post_checkpoint(int is_restart) {
   /* REregister the segment and exchange the new rkeys */
 #if GASNETC_PIN_SEGMENT
   if (gasnetc_hca[0].seg_regs) {
-    const enum ibv_access_flags flags = (enum ibv_access_flags)
-                  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ);
     uint32_t *my_rkeys = gasneti_calloc(gasnetc_max_regs, sizeof(uint32_t));
     GASNETC_FOR_ALL_HCA(hca) {
       for (i=0; i<gasnetc_seg_regs; ++i) {
         gasnetc_memreg_t *reg = &hca->seg_regs[i];
-        if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, flags, reg)) {
+        if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
           gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
                              strerror(errno), errno);
         }
@@ -4076,6 +4102,7 @@ extern void gasnetc_exit(int exitcode) {
 
 /* ------------------------------------------------------------------------------------ */
 
+#if GASNETC_IBV_AMRDMA
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
 void gasnetc_amrdma_grant_reqh_inner(gex_Token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
@@ -4090,6 +4117,7 @@ void gasnetc_amrdma_grant_reqh_inner(gex_Token_t token, int qpi, uint32_t rkey, 
 SHORT_HANDLER(gasnetc_amrdma_grant_reqh,3,4,
               (token, a0, a1, UNPACK(a2)    ),
               (token, a0, a1, UNPACK2(a2, a3)));
+#endif // GASNETC_IBV_AMRDMA
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -4194,7 +4222,9 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   #endif
 
   /* ptr-width dependent handlers */
-  gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,REQUEST,SHORT,0),
+  #if GASNETC_IBV_AMRDMA
+    gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,REQUEST,SHORT,0),
+  #endif
 
   GASNETI_HANDLER_EOT
 };

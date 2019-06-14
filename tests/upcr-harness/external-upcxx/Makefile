@@ -270,6 +270,13 @@ guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
 	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean guppie-$*
 	mv $</guppie-$* $@
 
+# upcxx-examples jac3d
+jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean jac3d
+	mv $</jac3d $@
+
 # UPC interop
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \

@@ -379,10 +379,26 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
 #if (GASNETC_IB_MAX_HCAS > 1)
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
+
+  // Need a couple cache lines for dummy AMO accesses
+  extern gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+  #define GASNETC_AUXSEG_FNS() gasnetc_fence_auxseg_alloc,
+
+  // Use AMO after Put to fence for strict memory model adherence
+  extern int gasnetc_use_fenced_puts;
+  #define GASNETC_USE_FENCED_PUTS gasnetc_use_fenced_puts
 #else
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < 1; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
+
+  #define GASNETC_USE_FENCED_PUTS 0
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+
+// Either 0 or 1 to control use of IBV_SEND_SIGNALED
+// Currently only for fencing on multi-rail
+#define GASNETC_USE_SEND_SIGNALLED GASNETC_USE_FENCED_PUTS
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -393,6 +409,7 @@ typedef struct {
   size_t		len;
 } gasnetc_memreg_t;
 
+#if GASNETC_IBV_AMRDMA
 typedef struct {
 	/* Length excludes immediate data but zeros includes it */
 	int16_t		length;	
@@ -427,8 +444,9 @@ typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 #define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 32
 #define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
 #define GASNETC_DEFAULT_AMRDMA_DEPTH	16
-#define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
+#define GASNETC_DEFAULT_AMRDMA_LIMIT	0       // OFF by default
 #define GASNETC_DEFAULT_AMRDMA_CYCLE	1024	/* 2^i, Number of AM rcvs before hot-peer heuristic */
+#endif // GASNETC_IBV_AMRDMA
 
 #if GASNETI_CONDUIT_THREADS
   typedef struct {
@@ -457,11 +475,13 @@ typedef uint32_t gasnetc_epid_t;
 struct gasnetc_cep_t_;
 typedef struct gasnetc_cep_t_ gasnetc_cep_t;
 
+#if GASNETC_IBV_AMRDMA
 /* Struct for assignment of AMRDMA peers */
 typedef struct gasnetc_amrdma_balance_tbl_t_ {
   gasnetc_atomic_val_t	count;
   gasnetc_cep_t		*cep;
 } gasnetc_amrdma_balance_tbl_t;
+#endif // GASNETC_IBV_AMRDMA
 
 /* Structure for an HCA */
 typedef struct {
@@ -502,8 +522,6 @@ typedef struct {
   int			max_qps; /* maximum total over all peers */
   int			num_qps; /* current total over all peers */
 
-  gasnetc_cep_t		**cep; /* array of ptrs to all ceps */
-
   void			*rbufs;
   gasnetc_lifo_head_t	rbuf_freelist;
 
@@ -516,7 +534,9 @@ typedef struct {
  #endif
 #endif
 
+#if GASNETC_IBV_AMRDMA
   /* AM-over-RMDA */
+  gasnetc_cep_t		**cep; /* array of ptrs to all ceps */
   gasnetc_memreg_t	amrdma_reg;
   gasnetc_lifo_head_t	amrdma_freelist;
   struct {
@@ -532,8 +552,10 @@ typedef struct {
     gasnetc_atomic_val_t	floor;
     gasnetc_amrdma_balance_tbl_t *table;
   }	  amrdma_balance;
+#endif // GASNETC_IBV_AMRDMA
 } gasnetc_hca_t;
 
+#if GASNETC_IBV_AMRDMA
 /* Structure for AM-over-RDMA sender state */
 typedef struct {
   gasnetc_atomic_t	head, tail;
@@ -556,6 +578,7 @@ typedef struct {
   }			busy[GASNETC_AMRDMA_DEPTH_MAX]; /* A weak spinlock array */
 #endif
 } gasnetc_amrdma_recv_t;
+#endif // GASNETC_IBV_AMRDMA
 
 /* Structure for a cep (connection end-point) */
 struct gasnetc_cep_t_ {
@@ -567,12 +590,16 @@ struct gasnetc_cep_t_ {
   /* XXX: The atomics in the next 2 structs really should get padded to full cache lines */
   struct {	/* AM flow control coallescing */
   	gasnetc_atomic_t    credit;
+  #if GASNETC_IBV_AMRDMA
 	gasnetc_atomic_t    ack;
+  #endif
   } am_flow;
+#if GASNETC_IBV_AMRDMA
   /* AM-over-RDMA local state */
   gasnetc_atomic_t	amrdma_eligable;	/* Number of AMs small enough for AMRDMA */
   gasnetc_amrdma_send_t *amrdma_send;
   gasnetc_amrdma_recv_t *amrdma_recv;
+#endif // GASNETC_IBV_AMRDMA
 
 #if GASNETI_THREADS
   char			_pad1[GASNETI_CACHE_LINE_BYTES];
@@ -677,8 +704,10 @@ extern void gasnetc_sndrcv_init_inline(void);
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_start_thread(void);
 extern void gasnetc_sndrcv_stop_thread(int block);
-extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *addr);
-extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca);
+#if GASNETC_IBV_AMRDMA
+  extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *addr);
+  extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca);
+#endif // GASNETC_IBV_AMRDMA
 extern void gasnetc_sndrcv_poll(int handler_context);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
@@ -770,11 +799,13 @@ extern size_t		gasnetc_bounce_limit;
 extern enum ibv_mtu    gasnetc_max_mtu;
 extern int              gasnetc_qp_timeout;
 extern int              gasnetc_qp_retry_count;
-extern int		gasnetc_amrdma_max_peers;
-extern size_t		gasnetc_amrdma_limit;
-extern int		gasnetc_amrdma_depth;
-extern int		gasnetc_amrdma_slot_mask;
-extern gasnetc_atomic_val_t gasnetc_amrdma_cycle;
+#if GASNETC_IBV_AMRDMA
+  extern int            gasnetc_amrdma_max_peers;
+  extern size_t         gasnetc_amrdma_limit;
+  extern int            gasnetc_amrdma_depth;
+  extern int            gasnetc_amrdma_slot_mask;
+  extern gasnetc_atomic_val_t gasnetc_amrdma_cycle;
+#endif // GASNETC_IBV_AMRDMA
 
 #if GASNETC_IBV_SRQ
   extern int			gasnetc_rbuf_limit;

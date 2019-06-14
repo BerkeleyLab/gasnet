@@ -658,9 +658,17 @@ static int gasnetc_init( gex_Client_t            *client_p,
      * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
      * or similar memory probes.
      */
-    gasnetc_exitcodes = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast,
-                                          gasneti_nodemap_local_count * sizeof(gasnetc_exitcode_t));
+    size_t request = gasneti_nodemap_local_count * sizeof(gasnetc_exitcode_t);
+    #if GASNETC_BUILD_GNICE
+      // Append to 'request' (aligned up to cache line)
+      size_t orig_request = GASNETI_ALIGNUP(request, GASNETC_CACHELINE_SIZE);
+      request = orig_request + GASNETC_SIZEOF_CE_GATE_T(gasneti_nodemap_local_count);
+    #endif
+    gasnetc_exitcodes = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, request);
     gasnetc_exitcodes[gasneti_nodemap_local_rank].present = 0;
+    #if GASNETC_BUILD_GNICE
+      gasnete_ce_gate = (gasnete_ce_gate_t*)((uintptr_t)gasnetc_exitcodes + orig_request);
+    #endif
   #endif
 
   //  Create first Client, EP and TM *here*, for use in subsequent bootstrap collectives

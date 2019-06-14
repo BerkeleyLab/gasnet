@@ -280,10 +280,6 @@
 /* hugetlbfs support enabled */
 #undef GASNETI_USE_HUGETLBFS
 
-/* Have Mellanox FCA support?  Where? */
-#undef GASNETI_FCA_ENABLED
-#undef GASNETI_FCA_HOME
-
 /* BLCR support, path and features */
 #undef GASNETI_BLCR_ENABLED
 
@@ -470,13 +466,10 @@
 #undef GASNETC_IBV_ODP_DISABLED
 #undef GASNETC_IBV_RCV_THREAD
 #undef GASNETC_IBV_CONN_THREAD
+#undef GASNETC_IBV_AMRDMA
 #undef GASNETC_IBV_MAX_HCAS
 #undef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
 #undef GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE
-
-/* GASNet mxm-conduit settings */
-#undef GASNETC_MXM_PHYSMEM_MAX_CONFIGURE
-#undef GASNETC_MXM_PHYSMEM_PROBE_CONFIGURE
 
 /* GASNet pami-conduit settings */
 #undef GASNETI_SIZEOF_PAMI_TASK_T

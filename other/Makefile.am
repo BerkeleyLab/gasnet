@@ -16,14 +16,14 @@ CONDUITMODE_SUBDIRS = \
 	amudp	   \
 	blcr       \
 	contrib    \
-	firehose   \
-	fca	   
+	firehose   
 
 CONDUITMODE_EXTRADIST = \
 	amx         \
 	ssh-spawner \
 	mpi-spawner \
 	pmi-spawner \
+	spawner     \
 	myxml	\
 	detect-pshm.c \
 	pkgconfig-conduit.pc \

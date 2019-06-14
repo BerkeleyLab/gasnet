@@ -36,7 +36,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   currently support it.
 
   While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
-  recommend use of psm-conduit on such systems.
+  recommend use of ofi-conduit on such systems.
 
   Nearly all InfiniBand cards (known as Host Channel Adapters, or HCAs)
   have support for Open Fabrics Verbs, available from www.openfabrics.org
@@ -46,9 +46,8 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   In addition to the Open Fabrics Verbs, vendor-specific APIs also exist
   and some have GASNet conduits:
-   + mxm-conduit for the MXM API from Mellanox
    + ofi-conduit for the PSM (version 1) API on Intel TrueScale HCAs
-   + ofi- or psm-conduit for the PSM2 API on Intel Omni-Path HCAs
+   + ofi-conduit for the PSM2 API on Intel Omni-Path HCAs
 
   The performance of ibv-conduit relative to others on the same hardware
   will depend on your applications' communications patterns, the number of
@@ -89,6 +88,11 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   below) there is an extra thread spawned to block for the arrival of
   connection requests.  If needed, this can be disabled at configure
   time using '--disable-ibv-conn-thread'.
+
+  As an alternative to use of "SEND" at the ibv-level, it is possible to
+  perform AM communication using "WRITE" operations.  This is described in more
+  detail in the "AMRDMA configuration" section.  This option is available only
+  if GASNet has been configured using '--enable-ibv-amrdma'.
 
   The default spawner to be used by the gasnetrun_ibv utility can be
   selected by configuring '--with-ibv-spawner=VALUE', where VALUE is one
@@ -604,6 +608,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     missing support.
     This setting defaults to 1 if ODP support was enabled at configure time.
 
+  + GASNET_USE_FENCED_PUTS
+    This boolean setting controls the use of atomic operations to provide for
+    correct remote completion detection in the presence of multiple HCAs.
+    See "Bug 3447" in the Known Problems section for information on when one
+    may wish to enable this setting.
+    If enabled when using only a single HCA a warning will be issued.
+    This setting defaults to 0 (disabled).
+
    + GASNET_PIN_MAXSZ
     This controls the maximum size of a pinned memory region.  The value must
     be a power-of-two, and no less than the page size.  If the value is larger
@@ -737,24 +749,29 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
    
   AMRDMA configuration:
   --------------------
+  This feature is only available if GASNet has been configured
+  using --enable-ibv-amrdma
+
   The following environment variables control the AM-over-RDMA path in
   ibv-conduit.  These parameters must be equal across all nodes, and
   the behavior otherwise is undefined.
 
-  As an optimization, ibv-conduit can send Active Message (AM) traffic
+  As an option, ibv-conduit can send Active Message (AM) traffic
   using RDMA PUT operations to buffers reserved for this purpose.  This
   leads to a reduction in the end-to-end latency of such AM traffic, but
   at the cost of increased memory usage and in the cost of a polling for
   AMs (as done explicitly in gasnet_AMPoll(), and implicitly in many
-  GASNet calls).
+  GASNet calls).  On current generation systems, the added costs will
+  most often dominate and thus this feature is OFF by default (via a
+  default GASNET_AMRDMA_LIMIT of zero).
 
   + GASNET_AMRDMA_LIMIT
     This environment variable controls the maximum size of an AM that may
     be sent via the AMRDMA path.  The software overhead on both the sender
     and receiver grow with the message size.  So, as the message size grows
     the use of AMRDMA eventually costs more than the snd/rcv alternative.
-    A value of zero will disable AMRDMA.
-    The current default is 4K minus some overheads.
+    The maximum value is 4080 (4K minus some overheads).
+    The current default is zero, which disables AMRDMA.
 
   + GASNET_AMRDMA_DEPTH
     This environment variable controls the number of buffers (currently 4K
@@ -1059,6 +1076,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 + Bug 3447
   In this release the implementation of ibv-conduit on multi-HCA InfiniBand
   networks may yield incorrect results for certain communication patterns.
+  However, the environment variable GASNET_USE_FENCED_PUTS (described above)
+  can correct for this problem at the expense of higher latency and reduced
+  bandwidth for Put-based communications due to additional communication.
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3447
   That bug report describes the conditions under which the problem may

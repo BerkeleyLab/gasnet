@@ -88,7 +88,7 @@ ability to make TCP connections to the machine that executes the initial spawn
 command (used for bootstrapping) and such that the worker nodes can send UDP 
 packets to each other (used to implement GASNet communication).
 
-See the ssh-agent tutorial here:  http://upc.lbl.gov/docs/user/sshagent.shtml
+See the ssh-agent tutorial here:  https://upc.lbl.gov/docs/user/sshagent.shtml
 or the documentation for your ssh client/daemon for more information on setting
 up secure, password-less authentication for ssh. rsh-based spawning is also
 supported, although not generally recommended due to the inherent security
