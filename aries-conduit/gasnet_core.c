@@ -1,7 +1,7 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gemini-conduit/gasnet_core.c $
- * Description: GASNet gemini conduit Implementation
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_core.c $
+ * Description: GASNet aries conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Gemini conduit by Larry Stewart <stewart@serissa.com>
+ * Aries (formerly Gemini) conduit by Larry Stewart <stewart@serissa.com>
  * Terms of use are as specified in license.txt
  */
 
@@ -9,7 +9,7 @@
 #include <gasnet_core_internal.h>
 #include <gasnet_am.h>
 
-#include <gasnet_gemini.h>
+#include <gasnet_aries.h>
 /* #include <alps/libalpslli.h> */
 
 #include <errno.h>
@@ -60,12 +60,7 @@ static void gasnetc_check_config(void) {
   gasneti_assert((int)GC_CMD_AM_LONG_PACKED == ((int)GC_CMD_AM_LONG + 1));
 
   { gni_nic_device_t device_type;
-#ifdef GASNET_CONDUIT_GEMINI
-    const gni_nic_device_t expected = GNI_DEVICE_GEMINI;
-#endif
-#ifdef GASNET_CONDUIT_ARIES
     const gni_nic_device_t expected = GNI_DEVICE_ARIES;
-#endif
     gni_return_t status = GNI_GetDeviceType(&device_type);
     if ((status != GNI_RC_SUCCESS) ||
         (device_type != expected)) {
@@ -570,11 +565,6 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t overheads)
                            GASNETC_PHYSMEM_MIN, 0, gasneti_getPhysMemSz(1), 0, 0);
   // TODO: the handling for the overheads below needs to be re-thought
  
-#if GASNET_CONDUIT_GEMINI
-  /* Even on large memory nodes on Hopper, this appears to be the NIC's limit: */
-  pm_limit = MIN(pm_limit, 24UL << 30 /* 24 GB */);
-#endif
-
   // possibly bound pm_limit
   pm_limit = MIN(gasneti_sharedLimit(), pm_limit);
 

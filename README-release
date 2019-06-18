@@ -110,7 +110,6 @@ GASNet Release Procedure
   with both debug+stats+trace and ndebug configs, and all supported backend
   C compilers:
    IBM BG/Q: pami (and mpi if time/allocation allows)
-   Cray XE/XK: gemini (and mpi if time/allocation allows)
    Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv

@@ -1,7 +1,7 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_am.h>
-#include <gasnet_gemini.h>
+#include <gasnet_aries.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #ifdef GASNETI_USE_HUGETLBFS
@@ -21,13 +21,6 @@
 // TODO: Should this be an env var?
 #ifndef GASNETC_RESOURCE_RETRIES
 #define GASNETC_RESOURCE_RETRIES 65536
-#endif
-
-#ifdef GASNET_CONDUIT_GEMINI
-  /* Use remote event + PI_FLUSH to get "proper" ordering w/ relaxed and default PI ordering */
-  #define FIX_HT_ORDERING 1
-#else
-  #define FIX_HT_ORDERING 0
 #endif
 
 #if GASNET_DEBUG
@@ -110,9 +103,6 @@ static int have_segment = 0;
 
 static gni_cq_handle_t am_cq_handle;
 static int gasnetc_poll_burst = 10;
-#if FIX_HT_ORDERING
-static uint16_t gasnetc_fma_put_cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-#endif
 static size_t gasnetc_get_fma_rdma_cutover;
 static size_t gasnetc_put_fma_rdma_cutover;
 static size_t gasnetc_get_bounce_register_cutover;
@@ -736,17 +726,6 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
       gasnetc_memreg_flags = 0;
       break;
   }
-
-#if FIX_HT_ORDERING
-  if (gasnetc_mem_consistency != GASNETC_STRICT_MEM_CONSISTENCY) {
-    gasnetc_memreg_flags |= GNI_MEM_PI_FLUSH; 
-    gasnetc_fma_put_cq_mode |= GNI_CQMODE_REMOTE_EVENT;
-
-    /* With 2 entries (DUAL_EVENTS requires even value) this Cq is INTENDED to always overflow */
-    status = GNI_CqCreate(nic_handle, 2, 0, GNI_CQ_NOBLOCK, NULL, NULL, &destination_cq_handle);
-    gasneti_assert_always (status == GNI_RC_SUCCESS);
-  }
-#endif
 
   {
     int count = 0;
@@ -2667,9 +2646,6 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
   if (nbytes <= gasnetc_put_fma_rdma_cutover) {
     /* Small enough for FMA - no local memory registration is required */
     pd->type = GNI_POST_FMA_PUT;
-#if FIX_HT_ORDERING
-    pd->cq_mode = gasnetc_fma_put_cq_mode;
-#endif
     status = myPostFma(peer->ep_handle, gpd, 0);
   } else { /* Using RDMA, which requires local memory registration */
     if_pf (!gasneti_in_fullsegment(NULL/*tm*/, gasneti_mynode, source_addr, nbytes)) {
@@ -2739,9 +2715,6 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
 
   /* If small enough for FMA then no local memory registration is required */
   if (nbytes <= gasnetc_put_fma_rdma_cutover) {
-  #if GASNET_CONDUIT_GEMINI
-    /* On Gemini (only) return from PostFma implies local completion. */
-  #else
     /* Favor immediate buffer or bounce-buffers upto the FMA limit. */
     // TODO-EX: when indication of LC is requested we are currently favoring a
     // FMA+copy over the alternative in which LC is not signalled until RC.
@@ -2759,11 +2732,7 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
        buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
     }
     pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
-  #endif
     pd->type = GNI_POST_FMA_PUT;
-  #if FIX_HT_ORDERING
-    pd->cq_mode = gasnetc_fma_put_cq_mode;
-  #endif
     status = myPostFma(peer->ep_handle, gpd, last_eop_chunk);
   } else {
     /* Using RDMA, which requires local memory registration */
@@ -2830,9 +2799,6 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
 
   /* now initiate always using FMA */
   pd->type = GNI_POST_FMA_PUT;
-#if FIX_HT_ORDERING
-  pd->cq_mode = gasnetc_fma_put_cq_mode;
-#endif
   status = myPostFma(peer->ep_handle, gpd, 0);
 
   if_pf (status != GNI_RC_SUCCESS) {
