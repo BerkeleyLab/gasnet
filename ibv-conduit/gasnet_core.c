@@ -4238,7 +4238,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     const gasnetc_epid_t dest_qpi = gasnetc_epid2qpi(dest);
   #else
     const gex_Rank_t node = dest;
-    gasneti_assert(gasnetc_epid2qpi(dest) == 0);
+    gasneti_assume(gasnetc_epid2qpi(dest) == 0);
   #endif
     gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node));
 
@@ -4301,7 +4301,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       epid = gasnetc_epid(node, qpi + qp_offset);
       cep += qpi;
     }
-    gasneti_assert(epid == cep->epid);
+    gasneti_assume(epid == cep->epid);
   
     /* Reserve space for extra arguments if we *might* carry flow control
      * data.  We need to know numargs before we allocate a large enough
@@ -4526,7 +4526,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       buf->longmsg.nBytes  = nbytes;
       if (packedlong) {
         /* Pack like a Medium */
-        gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG);
+        gasneti_assume(nbytes <= GASNETC_MAX_PACKEDLONG);
         buf->longmsg.nBytes |= 0x80000000; /* IDs the packedlong case */
         if (!len1) memcpy(GASNETC_MSG_LONG_DATA(buf, numargs), src_addr, nbytes);
       }
@@ -4544,12 +4544,12 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       /* "Grab" info w/ atomic load-and-clear operations: */
     #if GASNETC_IBV_AMRDMA
       const uint32_t acks = gasnetc_atomic_swap(&cep->am_flow.ack, 0, 0);
-      gasneti_assert(acks <= 255);
+      gasneti_assume(acks <= 255);
     #else
       const uint32_t acks = 0;
     #endif
       const uint32_t credits = gasnetc_atomic_swap(&cep->am_flow.credit, 0, 0);
-      gasneti_assert(credits <= 255);
+      gasneti_assume(credits <= 255);
 
       args[0] = credits | (acks << 8) | (numargs << 16);
       i = 1;
