@@ -4294,9 +4294,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
         }
       }
 #else
-      { size_t rough_len = MIN(GASNETC_BUFSZ, 4*numargs + nbytes);
-        qpi = gasnetc_epid_select_qpi(cep, dest, IBV_WR_SEND_WITH_IMM, rough_len);
-      }
+      qpi = gasnetc_epid_select_qpi(cep, dest);
 #endif
       epid = gasnetc_epid(node, qpi + qp_offset);
       cep += qpi;
@@ -4605,7 +4603,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       }
       #endif
   
-      (void)gasnetc_bind_cep_inner(epid, sreq, IBV_WR_SEND_WITH_IMM, msg_len, is_reply);
+      (void)gasnetc_bind_cep_am(epid, sreq, is_reply);
 
     #if GASNETC_IBV_AMRDMA
       if (rdma_slot >= 0) {

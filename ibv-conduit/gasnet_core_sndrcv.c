@@ -996,8 +996,8 @@ static int gasnetc_snd_reap(int limit) {
 }
 
 /* Take *unbound* epid, return a qp number */
-gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
-				       enum ibv_wr_opcode op, size_t len) {
+gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid)
+{
   gasnetc_epid_t qpi = gasnetc_epid2qpi(epid);
 
   if_pt (qpi == 0) {
@@ -1005,7 +1005,6 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     /* Select by largest space avail */
     uint32_t space, best_space;
     int i;
-    gasneti_assert(op != IBV_WR_SEND_WITH_IMM); /* AMs never wildcard */
     qpi = 0;
     best_space = gasnetc_sema_read(GASNETC_CEP_SQ_SEMA(ceps+0));
     for (i = 1; i < gasnetc_num_qps; ++i) {
@@ -1032,23 +1031,27 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
   return qpi;
 }
 
-/* Take (sreq,op,len) and bind the sreq to a specific (not wildcard) qp */
-gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
-				      enum ibv_wr_opcode op, size_t len, int is_reply) {
+/* Take and sreq and bind it to a specific (not wildcard) qp */
+#if GASNETC_DYNAMIC_CONNECT
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply)
+#else
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq)
+#endif
+{
   gasnetc_cep_t *ceps = gasnetc_get_cep(gasnetc_epid2node(epid));
   gasnetc_cep_t *cep;
   int qpi;
 
   /* Loop until space is available on the selected SQ for 1 new entry.
    * If we hold the last one then threads sending to the same node will stall. */
-  qpi = gasnetc_epid_select_qpi(ceps, epid, op, len);
+  qpi = gasnetc_epid_select_qpi(ceps, epid);
   cep = &ceps[qpi];
   if_pf (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
     GASNETC_TRACE_WAIT_BEGIN();
 
   #if GASNETC_DYNAMIC_CONNECT
     /* Close the one dynamic connection race condition. */
-    if ((GASNETC_CEP_SQ_SEMA(cep) == &gasnetc_zero_sema) && is_reply) {
+    if (GASNETT_PREDICT_FALSE(GASNETC_CEP_SQ_SEMA(cep) == &gasnetc_zero_sema) && is_reply) {
       /* We are in the "gap" between RTR and RTS and waiting for the ACK.
        * However, since we are trying to send an AM Reply we KNOW that
        * the ACK was sent since we only Reply in response to a Request.
@@ -1064,7 +1067,7 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
         GASNETI_WAITHOOK();
       }
       /* Redo load balancing choice */
-      qpi = gasnetc_epid_select_qpi(ceps, epid, op, len);
+      qpi = gasnetc_epid_select_qpi(ceps, epid);
       cep = &ceps[qpi];
     } while (!gasnetc_sema_trydown(GASNETC_CEP_SQ_SEMA(cep)));
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
@@ -1076,8 +1079,6 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
 
   return cep;
 }
-
-#define gasnetc_bind_cep(e,s,o,l) gasnetc_bind_cep_inner((e),(s),(o),(l),0)
 
 GASNETI_INLINE (gasnetc_ack)
 void gasnetc_ack(gasnetc_rbuf_t *rbuf) {
@@ -1951,7 +1952,7 @@ void gasnetc_bounce_common(gasnetc_epid_t epid, int rkey_index, struct ibv_send_
   sr_desc->sg_list[0].addr = (uintptr_t)sreq->bb_buff;
   sr_desc->sg_list[0].length = len;
 
-  cep = gasnetc_bind_cep(epid, sreq, op, len);
+  cep = gasnetc_bind_cep(epid, sreq);
   sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rkey_index);
   sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
 
@@ -2000,7 +2001,7 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
     sr_desc->num_sge = seg;
     gasneti_assert(remain < len);
     len -= remain;
-    cep = gasnetc_bind_cep(epid, sreq, op, len);
+    cep = gasnetc_bind_cep(epid, sreq);
     for (seg = 0; seg < sr_desc->num_sge; ++seg) {
       /* Xlate index to actual lkey */
       sr_desc->sg_list[seg].lkey = GASNETC_SEG_LKEY(cep, base+seg);
@@ -2008,7 +2009,7 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
 #if GASNETC_IBV_ODP
   } else if (gasnetc_use_odp) {
     // TODO-EX: older implicit ODP emulation had 128MB limit.  May need to chunk here.
-    cep = gasnetc_bind_cep(epid, sreq, op, len);
+    cep = gasnetc_bind_cep(epid, sreq);
     sr_desc->sg_list[0].lkey = cep->hca->implicit_odp.lkey;
     gasneti_assert_uint(sr_desc->sg_list[0].addr ,==, loc_addr);
     sr_desc->sg_list[0].length = len;
@@ -2038,7 +2039,7 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
     sr_desc->num_sge = sreq->fh_count;
     gasneti_assert(remain < len);
     len -= remain;
-    cep = gasnetc_bind_cep(epid, sreq, op, len);
+    cep = gasnetc_bind_cep(epid, sreq);
     for (seg = 0; seg < sr_desc->num_sge; ++seg) {
       /* Xlate to actual lkeys */
       sr_desc->sg_list[seg].lkey = GASNETC_FH_LKEY(cep, sreq->fh_ptr[seg]);
@@ -2078,7 +2079,7 @@ void gasnetc_do_put_inline(const gasnetc_epid_t epid, int rkey_index,
   sr_desc->num_sge     = 1;
   sr_desc->sg_list[0].length = nbytes;
 
-  cep = gasnetc_bind_cep(epid, sreq, IBV_WR_RDMA_WRITE, nbytes);
+  cep = gasnetc_bind_cep(epid, sreq);
   sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rkey_index);
 
   gasnetc_snd_post_inline(sreq, sr_desc);
@@ -2245,7 +2246,7 @@ void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq GASNETI_THREAD_FARG) {
   lc_cb = sreq->fh_lc_cb;
   lc = sreq->fh_lc;
 
-  cep = gasnetc_bind_cep(sreq->epid, sreq, IBV_WR_RDMA_WRITE, len);
+  cep = gasnetc_bind_cep(sreq->epid, sreq);
   sr_desc->wr.rdma.rkey = GASNETC_FH_RKEY(cep, fh_rem);
 
   gasnetc_snd_post_inline(sreq, sr_desc);
@@ -2280,7 +2281,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
     sr_desc->sg_list[0].addr = (uintptr_t)sreq->fh_bbuf;
     sr_desc->sg_list[0].length  = GASNETC_BUFSZ;
 
-    cep = gasnetc_bind_cep(epid, sreq, IBV_WR_RDMA_WRITE, GASNETC_BUFSZ);
+    cep = gasnetc_bind_cep(epid, sreq);
     sr_desc->wr.rdma.rkey = GASNETC_FH_RKEY(cep, fh_rem);
     sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
 
@@ -2307,7 +2308,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
   sr_desc->sg_list[0].addr = (uintptr_t)orig_sreq->fh_bbuf;
   sr_desc->sg_list[0].length  = nbytes;
 
-  cep = gasnetc_bind_cep(epid, orig_sreq, IBV_WR_RDMA_WRITE, nbytes);
+  cep = gasnetc_bind_cep(epid, orig_sreq);
   sr_desc->wr.rdma.rkey = GASNETC_FH_RKEY(cep, fh_rem);
   sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
 
@@ -2336,7 +2337,7 @@ void gasnetc_fh_post(gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_
   loc_addr = sreq->fh_loc_addr;
   sg_entry = sr_desc->sg_list;
 
-  cep = gasnetc_bind_cep(sreq->epid, sreq, op, sreq->fh_len);
+  cep = gasnetc_bind_cep(sreq->epid, sreq);
   sr_desc->wr.rdma.rkey = GASNETC_FH_RKEY(cep, sreq->fh_ptr[0]);
 
   for (i = 1; i < sreq->fh_count; ++i) {
