@@ -2432,6 +2432,35 @@ else
   atomics_config="$GASNETI_ATOMIC_IMPL_STR,${GASNETI_ATOMIC32_IMPL_STR}32,${GASNETI_ATOMIC64_IMPL_STR}64"
 fi
 
+dnl Logic to check for certain atomics implementation(s)
+dnl
+dnl CHECK_ATOMICS(match-list, action-on-match, action-on-no-match)
+dnl Note: action-on-no-match runs with $check_atomics_msg set
+AC_DEFUN([CHECK_ATOMICS],[
+  check_atomics_match=''
+  for check_atomics_val in [$1]; do
+    if test $GASNETI_ATOMIC_IMPL_STR = $check_atomics_val; then
+      check_atomics_match=1
+      break
+    fi
+  done
+  if test -n "$check_atomics_match"; then
+    :
+    $2
+  else
+    if test -n "$enabled_generic_atomicops" ; then
+      check_atomics_msg='user passed --enable-force-generic-atomicops'
+    elif test -n "$enabled_os_atomicops"; then
+      check_atomics_msg='user passed --enable-force-os-atomicops'
+    else
+      check_atomics_msg="this platform has defaulted to '$GASNETI_ATOMIC_IMPL_STR' atomicops"
+    fi
+    $3
+    unset check_atomics_msg
+  fi
+  unset check_atomics_match
+])
+
 #---------------------------------------------------------------------------------------------------------------
 # PSHM uses atomics in shared memory for IPC.
 # So we assume that Generic and O/S atomics are insufficient.
@@ -2442,11 +2471,10 @@ if test "$with_pshm" != no; then
     yes) pshm_how='enabled explicitly by --enable-pshm';;
       *) pshm_how='auto-enabled';;
   esac
-  if test -n "$enabled_generic_atomicops" ; then
-    GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
-  elif test -n "$enabled_os_atomicops"; then
-    GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
-  fi
+  # For all platforms of interest, compiler is equivalent to native
+  CHECK_ATOMICS([native compiler],[],[
+      GASNET_MSG_ERROR([PSHM support ($pshm_how) requires native atomicops, but $check_atomics_msg])
+    ])
 fi
 dnl GASNET_TOOLSONLY_FALSE_END
 
@@ -3451,6 +3479,16 @@ if test "$enabled_ibv" = yes; then
     struct ibv_device device;
     const char *s = ibv_get_device_name(&device);
   }], [ : ], [ have_ibv=no; GASNET_ERR_SAVE() ] )
+
+  # For all platforms of interest, compiler is equivalent to native
+  AC_MSG_CHECKING(for appropriate atomics support required by ibv-conduit)
+  CHECK_ATOMICS([native compiler],[
+      AC_MSG_RESULT(yes)
+    ],[
+      AC_MSG_RESULT(no)
+      GASNET_MSG_WARN([ibv-conduit requires native atomicops, but $check_atomics_msg])
+      have_ibv=no
+    ])
 
   if test "$have_ibv" = yes; then
     GASNET_TRY_CACHE_LINK(for ibv_device.transport_type, ibv_transport_type, [
