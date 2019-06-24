@@ -39,15 +39,11 @@ int main(int argc, char **argv) {
   /* Two shared vars, 'lock' and 'data', are on first and last process.
      Both sit at base of their segment (unless that would overlap). */
 
-  gex_Rank_t *lock_addr;
   gex_Rank_t lock_rank = 0;
-  GASNET_Safe (gex_Segment_QueryBound(myteam, 0,          (void**)&lock_addr, NULL, NULL));
+  gex_Rank_t *lock_addr = (gex_Rank_t *) TEST_SEG(lock_rank);
 
   gex_Rank_t data_rank = nranks - 1;
-  data_t *data_addr;
-  GASNET_Safe (gex_Segment_QueryBound(myteam, nranks - 1, (void**)&data_addr, NULL, NULL));
-  if (lock_rank == data_rank) data_addr++;
-
+  data_t *data_addr = (data_t *) TEST_SEG(data_rank) + (lock_rank == data_rank);
 
   /* initialize both vars locally: */
   if (lock_rank == myrank) *lock_addr = 0;
