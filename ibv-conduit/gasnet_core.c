@@ -4101,6 +4101,7 @@ extern void gasnetc_exit(int exitcode) {
 }
 
 /* ------------------------------------------------------------------------------------ */
+// Support for optional AM-over-RMDA (AMRDMA)
 
 #if GASNETC_IBV_AMRDMA
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
@@ -4117,6 +4118,68 @@ void gasnetc_amrdma_grant_reqh_inner(gex_Token_t token, int qpi, uint32_t rkey, 
 SHORT_HANDLER(gasnetc_amrdma_grant_reqh,3,4,
               (token, a0, a1, UNPACK(a2)    ),
               (token, a0, a1, UNPACK2(a2, a3)));
+
+/* Try to claim the next slot */
+GASNETI_INLINE(gasnetc_get_amrdma_slot)
+int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
+  gasnetc_amrdma_send_t *send_state = cep->amrdma_send;
+  uint32_t send_tail;
+
+  gasneti_assert(GASNETC_ALLOW_0BYTE_MSG || (msg_len != 0));
+  if (!send_state || (msg_len > gasnetc_amrdma_limit)) {
+    return -1;
+  }
+
+#if GASNETC_ANY_PAR
+  while (1) {
+    send_tail = gasnetc_atomic_read(&send_state->tail, 0);
+    if (send_tail == gasnetc_atomic_read(&send_state->head, 0)) { return -1; }
+    if (gasnetc_atomic_compare_and_swap(&send_state->tail, send_tail, send_tail + 1, 0)) { break; }
+    GASNETI_WAITHOOK();
+  }
+#else
+  send_tail = gasnetc_atomic_read(&send_state->tail, 0);
+  if (send_tail == gasnetc_atomic_read(&send_state->head, 0)) { return -1; }
+  gasnetc_atomic_increment(&send_state->tail, 0);
+#endif
+
+  return (send_tail & gasnetc_amrdma_slot_mask);
+}
+
+GASNETI_INLINE(gasnetc_encode_amrdma)
+size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, struct ibv_send_wr *sr_desc, int send_slot) {
+  size_t len0 = sr_desc->sg_list[0].length;
+  size_t len1 = sr_desc->sg_list[1].length;
+
+  gasneti_assert(send_slot >= 0);
+  gasneti_assert(send_slot < gasnetc_amrdma_depth);
+
+  /* Build header */
+  { 
+    void * const data = (void *)(uintptr_t)sr_desc->sg_list[0].addr;
+    gasnetc_amrdma_hdr_t * const hdr = (gasnetc_amrdma_hdr_t *)data - 1;
+    const uint32_t flags = sr_desc->imm_data;
+    const int zeros = gasneti_count0s_uint32_t(flags) +
+                      gasneti_count0s(data, len0) +
+                      (len1 ? gasneti_count0s((void *)(uintptr_t)sr_desc->sg_list[1].addr, len1) : 0);
+
+    hdr->length = hdr->length_again = len0 + len1;
+    hdr->zeros  = hdr->zeros_again  = zeros;
+    hdr->immediate_data = flags;
+  }
+
+  { /* Fix up the descriptor */
+    sr_desc->sg_list[0].addr -= sizeof(gasnetc_amrdma_hdr_t);
+    sr_desc->sg_list[0].length = (len0 += sizeof(gasnetc_amrdma_hdr_t));
+    sr_desc->opcode = IBV_WR_RDMA_WRITE;
+    sr_desc->wr.rdma.remote_addr = cep->amrdma_send->addr + (send_slot << GASNETC_AMRDMA_SZ_LG2);
+    sr_desc->wr.rdma.rkey = cep->amrdma_send->rkey;
+
+    gasneti_assert((len0 + len1) <= GASNETC_AMRDMA_SZ);
+    gasneti_assert((len0 + len1) <= GASNETC_BUFSZ);
+    return (size_t)(len0 + len1);
+  }
+}
 #endif // GASNETC_IBV_AMRDMA
 
 /* ------------------------------------------------------------------------------------ */

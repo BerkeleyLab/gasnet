@@ -1041,7 +1041,7 @@ extern size_t		gasnetc_bounce_limit;
 #endif
 extern size_t           gasnetc_am_inline_limit_sndrcv;
 #if GASNETC_IBV_AMRDMA
-  extern static size_t  gasnetc_am_inline_limit_rdma;
+  extern size_t  gasnetc_am_inline_limit_rdma;
 #endif
 #if GASNETC_FH_OPTIONAL
   #define GASNETC_USE_FIREHOSE	GASNETT_PREDICT_TRUE(gasnetc_use_firehose)
