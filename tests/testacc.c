@@ -36,6 +36,8 @@ int main(int argc, char **argv) {
   test_init("testacc",0,"(iters)");
   MSG0("Running testacc with %d iterations", iters);
 
+  TEST_SET_WAITMODE(1);
+
   /* Two shared vars, 'lock' and 'data', are on first and last process.
      Both sit at base of their segment (unless that would overlap). */
 
@@ -59,6 +61,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < iters; ++i, want_val += incr) {
       /* Acquire the lock: */
       while (myrank != gex_RMA_GetBlockingVal(myteam, lock_rank, lock_addr, sizeof(gex_Rank_t), 0)) {
+        test_yield_if_polite();
         gasnet_AMPoll();
       }
       gasnett_local_rmb();
