@@ -1,0 +1,64 @@
+GASNet ucx-conduit documentation
+Boris Karasev <boriska@mellanox.com>
+
+User Information:
+-----------------
+
+Ucx-conduit implements GASNet over the Unified Communication X (UCX) framework.
+See http://www.openucx.org/ for general information on UCX.
+
+The implementation of ucx-conduit is in progress now and not functional yet.
+
+Where this conduit runs:
+-----------------------
+
+This conduit is based on UCX HPC communication library.
+UCX is the Unified Communication X (UCX) communication library
+(http://www.openucx.org/).  This is an open-source project
+developed in collaboration between industry, laboratories, and
+academia to create an open-source production grade communication
+framework for data centric and high-performance applications.  The
+UCX library can be downloaded from repositories (e.g.,
+Fedora/RedHat yum repositories). The UCX library is also part of
+Mellanox OFED and Mellanox HPC-X binary distributions.
+
+UCX currently supports:
+- OpenFabrics Verbs (including InfiniBand and RoCE)
+- Cray's uGNI
+- TCP
+- Shared memory
+- NVIDIA CUDA drivers
+
+It is recommended to use UCX conduit with Mellanox InfiniBand devices.
+
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
+Job spawning:
+-------------
+
+### Explain how to spawn jobs for your conduit, and any special concerns.
+
+Recognized environment variables:
+---------------------------------
+
+* All the standard GASNet environment variables (see top-level README)
+
+Known problems:
+---------------
+
+* See the GASNet Bugzilla server for details on known bugs:
+  https://gasnet-bugs.lbl.gov/
+
+Future work:
+------------
+
+==============================================================================
+
+Design Overview:
+----------------
+
+### Provide overview of the design for your conduit
+
