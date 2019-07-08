@@ -132,7 +132,6 @@ static int gasnetc_threads_per_domain;
 typedef struct {
   int8_t pads[GASNETC_CACHELINE_SIZE];
   gni_cdm_handle_t cdm_handle;
-  gni_cq_handle_t destination_cq_handle;
   gni_nic_handle_t nic_handle;
   gni_cq_handle_t bound_cq_handle;
   gasneti_lifo_head_t post_descriptor_pool;
@@ -200,7 +199,6 @@ gasnetc_gni_lock_t *gasnetc_gni_lock()
 #define gasnetc_domain_count_max 1
 
 static gni_cdm_handle_t cdm_handle;
-static gni_cq_handle_t destination_cq_handle;
 
 /* read-only: */
 static gni_nic_handle_t nic_handle;
@@ -610,7 +608,6 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
-  gni_cq_handle_t  destination_cq_handle = NULL;
 #endif
   size_t bb_size = gasnetc_bounce_buffers.size / gasnetc_domain_count_max;
   int max_memreg = gasneti_getenv_int_withdefault("GASNET_GNI_MEMREG", GASNETC_GNI_MEMREG_DEFAULT, 0);
@@ -731,7 +728,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     int count = 0;
     for (;;) {
       status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
-			       (uint64_t) seginfo.size, destination_cq_handle,
+			       (uint64_t) seginfo.size, NULL,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
 			       &my_aux_handle);
       if (status == GNI_RC_SUCCESS) break;
@@ -762,8 +759,6 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
   have_auxseg = 1;
 
 #if GASNETC_USE_MULTI_DOMAIN
-  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
-
  #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
   for (int i = 1; i < gasnetc_domain_count; i++) {
     gasnetc_create_parallel_domain(gasnetc_get_domain_first_thread_idx(i));
@@ -782,14 +777,13 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo)
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
-  gni_cq_handle_t  destination_cq_handle = NULL;
 #endif
 
   {
     int count = 0;
     for (;;) {
       status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
-			       (uint64_t) seginfo.size, destination_cq_handle,
+			       (uint64_t) seginfo.size, NULL,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
 			       &my_mem_handle);
       if (status == GNI_RC_SUCCESS) break;
@@ -895,15 +889,6 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 #endif
    gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
-#if FIX_HT_ORDERING
-  if (gasnetc_mem_consistency != GASNETC_STRICT_MEM_CONSISTENCY) {
-    /* With 2 completion entries this queue is INTENDED to always overflow */
-    status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), 2, 0, GNI_CQ_NOBLOCK, NULL, NULL, &DOMAIN_SPECIFIC_VAL(destination_cq_handle));
-    gasneti_assert_always (status == GNI_RC_SUCCESS);
-  }
-#else
-  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = NULL;
-#endif
 
   /* TODO: this replication is unnecessary, but cache-friendly: */
   for (i = 0; i < gasneti_nodes; ++i) {
@@ -1356,7 +1341,6 @@ void gasnetc_shutdown(void)
   for (didx = 0; didx < gasnetc_domain_count; didx++) {
     GASNETC_DIDX_POST(didx);
     DOMAIN_SPECIFIC_VAR(gni_cdm_handle_t, cdm_handle);
-    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, destination_cq_handle);
     DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle);
     DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
     DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
@@ -1435,13 +1419,6 @@ void gasnetc_shutdown(void)
 #if GASNETC_USE_MULTI_DOMAIN
     }
 #endif
-
-    if (destination_cq_handle) {
-      status = GNI_CqDestroy(destination_cq_handle);
-      if_pf (status != GNI_RC_SUCCESS) {
-        gasnetc_GNIT_Log("CqDestroy(dest_cq) failed with %s", gasnetc_gni_rc_string(status));
-      }
-    }
 
     status = GNI_CqDestroy(bound_cq_handle);
     if_pf (status != GNI_RC_SUCCESS) {
