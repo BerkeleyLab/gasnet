@@ -192,7 +192,8 @@ int gasnete_ratomic_inner(
     gpd->gpd_amo_len = length;
     gpd->gpd_amo_cmd = cmd;
     switch (op_cnt) {
-      case 2: gpd->gpd_amo_op2 = operand2; // fall through...
+      case 2: gpd->gpd_amo_op2 = operand2;
+              GASNETI_FALLTHROUGH
       case 1: gpd->gpd_amo_op1 = operand1;
               break;
       default: gasneti_unreachable();

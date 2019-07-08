@@ -2045,7 +2045,7 @@ void gasnetc_recv_am_unlocked(peer_struct_t * const peer, gasnetc_packet_t * con
           gasneti_assert(packet->galp.data_length <= GASNETC_MAX_PACKED_LONG(numargs));
           memcpy(packet->galp.data, data, packet->galp.data_length);
       }
-      /* fall through... */
+      GASNETI_FALLTHROUGH
   case GC_CMD_AM_LONG:
       gasneti_amtbl_check(handler_entry, numargs, gasneti_Long, is_req);
       GASNETI_RUN_HANDLER_LONG(is_req, handlerindex, handler,
