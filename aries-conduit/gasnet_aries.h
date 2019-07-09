@@ -425,6 +425,12 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
+int gasnetc_rdma_put_long(gex_Rank_t jobrank,
+                          void *dest_addr, void *source_addr,
+                          size_t nbytes, gex_Flags_t flags,
+                          volatile int *done_p
+                          GASNETC_DIDX_FARG) GASNETI_WARN_UNUSED_RESULT;
+
 size_t gasnetc_rdma_get(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;

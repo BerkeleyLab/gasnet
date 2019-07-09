@@ -3061,6 +3061,161 @@ first:
   gasneti_mutex_lock(&ampoll_lock);
 }
 
+/*------ Post Put of Long Payload */
+
+// gasnetc_rdma_put_long()
+// Returns 1 for "immediate" failure, 0 otherwise.
+//
+// For the uncommon case that the source is out-of-segment, larger than a
+// single bounce-buffer, and cannot be dynamically registered, all but the
+// last bounce-buffer is completed globally before the final piece.
+//
+// TODO-EX: Async LC
+int gasnetc_rdma_put_long(gex_Rank_t jobrank,
+                          void *dest_addr, void *source_addr,
+                          size_t nbytes, gex_Flags_t flags,
+                          volatile int *done_p
+                          GASNETC_DIDX_FARG)
+{
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
+  peer_struct_t * const peer = &peer_data[jobrank];
+  gni_return_t status;
+
+  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
+
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+  if_pf (!gpd) return 1;
+
+  gpd->gpd_completion = (uintptr_t) done_p;
+  gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
+
+  gni_post_descriptor_t * pd = &gpd->pd;
+  /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
+  pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+  pd->remote_addr = (uint64_t) dest_addr;
+  pd->remote_mem_hndl = gasnetc_remote_mh(peer, dest_addr);
+  pd->length = nbytes;
+
+  /* confirm that the destination is in-segment on the far end */
+  gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, jobrank, dest_addr, nbytes);
+
+  /* Start with defaults suitable for FMA or in-segment RDMA */
+  pd->local_addr = (uint64_t) source_addr;
+  pd->local_mem_hndl = gasnetc_local_mh(source_addr);
+
+  if (nbytes <= gasnetc_put_fma_rdma_cutover) {
+    /* Small enough for FMA - no local memory registration is required */
+    pd->type = GNI_POST_FMA_PUT;
+  } else { /* Using RDMA, which requires local memory registration */
+    if_pf (!gasneti_in_fullsegment(NULL/*tm*/, gasneti_mynode, source_addr, nbytes)) {
+      /* Use a bounce buffer or mem-reg according to size.
+       * Use of gpd->u.immedate would only be reachable if
+       *     (put_fma_rdma_cutover < IMMEDIATE_BOUNCE_SIZE),
+       * which is not the default (nor recommended).
+       */
+      if (nbytes <= gasnetc_put_bounce_register_cutover) {
+        // Single bounce-buffer case
+        void * buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
+        GASNETI_MEMCPY(buffer, source_addr, pd->length);
+        pd->local_addr = (uint64_t) buffer;
+        pd->local_mem_hndl = my_aux_handle;
+        gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNBOUNCE;
+      } else if (! gasnetc_register_gpd(gpd, GNI_MEM_READ_ONLY)) {
+        // Multiple bounce-buffer case (due to dynamic registration failure).
+        // Caller needs exactly one xfer on which to block for completion,
+        // so we implement "puts-sync-put".
+        gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
+        int initiated = 0;
+
+        const gni_mem_handle_t remote_mem_hndl = pd->remote_mem_hndl;
+        const size_t chunk = gasnetc_put_bounce_register_cutover;
+        void * buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
+
+        do {
+          gasneti_assert(nbytes > chunk);
+
+          // Inject a chunk (never the last one) tied to local counter of global completion events
+          GASNETI_MEMCPY(buffer, source_addr, chunk);
+          pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
+          pd->type = GNI_POST_RDMA_PUT;
+          pd->length = chunk;
+          pd->local_addr = (uint64_t) buffer;
+          pd->local_mem_hndl = my_aux_handle;
+          gpd->gpd_completion = (uintptr_t) &completed;
+          gpd->gpd_flags = GC_POST_COMPLETION_CNTR | GC_POST_UNBOUNCE;
+          status = myPostRdma(peer->ep_handle, gpd, 0);
+          if_pf (status) goto error;
+
+          initiated += 1;
+          nbytes -= chunk;
+          source_addr = (void*)(chunk + (uintptr_t)source_addr);
+          dest_addr   = (void*)(chunk + (uintptr_t)dest_addr);
+
+          // Prepare for next chunk (might be last one)
+          gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
+          pd = &gpd->pd;
+          /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
+          pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
+          pd->remote_addr = (uint64_t) dest_addr;
+          pd->remote_mem_hndl = remote_mem_hndl;
+          buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
+        } while (nbytes > chunk);
+
+        // Prep final chunk (overlapped w/ prior xfers)
+        GASNETI_MEMCPY(buffer, source_addr, nbytes);
+        pd->length = nbytes;
+        pd->local_addr = (uint64_t) buffer;
+        pd->local_mem_hndl = my_aux_handle;
+        gpd->gpd_completion = (uintptr_t) done_p;
+        gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNBOUNCE;
+
+        // Stall
+        while (initiated != gasneti_weakatomic_read(&completed, 0)) {
+          GASNETI_WAITHOOK();
+          gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        }
+
+        // Fall through to inject final chunk
+      } else {
+        gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNREGISTER;
+      }
+    }
+    pd->type = GNI_POST_RDMA_PUT;
+  }
+
+  pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT; // WIP - will become REMOTE_EVENT
+
+  int trial = 0;
+  gni_ep_handle_t ep = peer->ep_handle;
+  do {
+    GASNETC_LOCK_GNI();
+    // WIP: gasneti_assert_zeroret( GNI_EpSetEventData(ep, 0, ###) );
+    status = (pd->type == GNI_POST_RDMA_PUT) ? GNI_PostRdma(ep, pd)
+                                             : GNI_PostFma(ep, pd);
+    // WIP: gasneti_assert_zeroret( GNI_EpSetEventData(ep, 0, gasneti_mynode) );
+    GASNETC_UNLOCK_GNI();
+    if_pt (status == GNI_RC_SUCCESS) {
+      if (pd->type == GNI_POST_RDMA_PUT) {
+        GASNETC_STAT_EVENT_VAL(POST_RDMA_RETRY, trial);
+      } else {
+        GASNETC_STAT_EVENT_VAL(POST_FMA_RETRY, trial);
+      }
+      return 0; // Normal exit path
+    }
+    if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
+    GASNETI_WAITHOOK();
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+  } while (++trial < GASNETC_RESOURCE_RETRIES);
+
+error:
+  gasneti_assert (status != GNI_RC_SUCCESS);
+  print_post_desc("Payload Put", pd);
+  gasnetc_GNIT_Abort("Payload Put failed with %s", gasnetc_gni_rc_string(status));
+
+  return 0; // not reached
+}
+
+
 
 #if GASNETC_BUILD_GNIRATOMIC
 /*------ Post Fma for NIC atomic */
