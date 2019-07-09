@@ -1470,40 +1470,6 @@ int gasnetc_put_long_payload( gex_Rank_t jobrank,
   return initiated;
 }
 
-GASNETI_INLINE(gasnetc_put_longasync_payload)
-int gasnetc_put_longasync_payload( gex_Rank_t jobrank,
-                                   void *dst_addr,
-                                   void *src_addr,
-                                   size_t nbytes,
-                                   gasnetc_post_descriptor_t *header_gpd
-                                   GASNETC_DIDX_FARG)
-{
-  int retval = GASNET_OK;
-  size_t chunk = nbytes;
-  gasneti_weakatomic_t * const counter = &header_gpd->u.counter;
-  
-  gasneti_weakatomic_set(counter, 2, 0);
-
-  gasneti_suspend_spinpollers();
-  for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
-    gpd->gpd_completion = (uintptr_t) header_gpd;
-    gpd->gpd_flags = GC_POST_COMPLETION_SEND;
-    chunk = gasnetc_rdma_put_bulk(jobrank, dst_addr, src_addr, chunk, gpd);
-    if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
-
-    dst_addr = (char *)dst_addr + chunk;
-    src_addr = (char *)src_addr + chunk;
-    gasneti_weakatomic_increment(counter, 0);
-  }
-  if (gasneti_weakatomic_decrement_and_test(counter, 0)) {
-    retval = gasnetc_send_am(header_gpd);
-  }
-  gasneti_resume_spinpollers();
-  
-  return retval;
-}
-
 /*------------------- common code for requests ------------------ */
 
 GASNETI_INLINE(gasnetc_AMRequestShort)

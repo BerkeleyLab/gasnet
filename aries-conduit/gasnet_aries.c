@@ -2423,14 +2423,6 @@ again:
           gasneti_sync_writes();
           am_rvous_ready = 1;
           break;
-        case GC_POST_COMPLETION_SEND: {
-          gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
-          if (gasneti_weakatomic_decrement_and_test(&next->u.counter, 0)) {
-            int rc = gasnetc_send_am(next);
-            gasneti_assert_always (rc == GASNET_OK);
-          }
-          break;
-        }
       } 
 
       /* release resources */

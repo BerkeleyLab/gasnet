@@ -258,7 +258,6 @@ enum {
   _gc_post_completion_iget,
   _gc_post_completion_irmw,
   _gc_post_completion_amrv,
-  _gc_post_completion_send,
   /* local-completion variation(s) */
   _gc_post_lc_now,
   /* optionally suppress free of the gpd */
@@ -281,7 +280,6 @@ enum {
 #define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
 #define GC_POST_COMPLETION_IRMW GC_POST(completion_irmw)
 #define GC_POST_COMPLETION_AMRV GC_POST(completion_amrv)
-#define GC_POST_COMPLETION_SEND GC_POST(completion_send)
 #define GC_POST_LC_NOW          GC_POST(lc_now)
 #define GC_POST_KEEP_GPD        GC_POST(keep_gpd)
 
@@ -291,8 +289,7 @@ enum {
                                  GC_POST_COMPLETION_IPUT | \
                                  GC_POST_COMPLETION_IGET | \
                                  GC_POST_COMPLETION_IRMW | \
-                                 GC_POST_COMPLETION_AMRV | \
-                                 GC_POST_COMPLETION_SEND)
+                                 GC_POST_COMPLETION_AMRV)
 
 struct peer_struct_t_;
 typedef struct peer_struct_t_ peer_struct_t;
