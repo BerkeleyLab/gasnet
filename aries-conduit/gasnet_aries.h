@@ -114,14 +114,23 @@ enum gc_notify_type {
 };
 
 #define gc_build_notify(_type, _initiator, _target)\
-  ((uint64_t)(_type) |  ((uint64_t)(_initiator) << 8) |  ((uint64_t)(_target)))
+  ((uint64_t)(_type) |  ((uint64_t)(_initiator)) |  ((uint64_t)(_target) << 26))
 
 #define GASNETC_AM_INITIATOR_SLOTS 65536 // 16 bits
-#define GASNETC_AM_TARGET_SLOTS       64 //  6 bits (stored in 8-bit field)
+#define GASNETC_AM_TARGET_SLOTS       64 //  6 bits
 
-#define gc_notify_get_type(n) ((n) & 0xff000000)
-#define gc_notify_get_target_slot(n) ((uint8_t)((n) & (GASNETC_AM_TARGET_SLOTS-1)))
-#define gc_notify_get_initiator_slot(n) ((uint16_t)(((n) >> 8) & (GASNETC_AM_INITIATOR_SLOTS-1)))
+#define gc_notify_get_type(n) ((n) & 0x03000000)
+#define gc_notify_get_target_slot(n) ((uint8_t)(((n) >> 26) & (GASNETC_AM_TARGET_SLOTS-1)))
+#define gc_notify_get_initiator_slot(n) ((uint16_t)((n) & (GASNETC_AM_INITIATOR_SLOTS-1)))
+
+// Bits 24 - 25 of REM_INST_ID, aligned to notify for case of long payloads
+enum gc_instid_type {
+  gc_instid_header    = 0x00000000,
+  gc_instid_long_req  = gc_notify_request,
+  gc_instid_long_rep  = gc_notify_reply,
+  gc_instid_ctrl      = 0x03000000
+};
+#define GC_INSTID_MASK 0x03000000
 
 typedef struct gasnetc_post_descriptor gasnetc_post_descriptor_t;
 

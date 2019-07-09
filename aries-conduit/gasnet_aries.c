@@ -1575,7 +1575,7 @@ int send_ctrl(peer_struct_t * const peer, uint32_t value, gasneti_weakatomic_t *
   pd->remote_mem_hndl = peer->am_handle;
 
   pd->type = GNI_POST_CQWRITE;
-  pd->cqwrite_value = (uint64_t) value | GASNET_MAXNODES; // Distinct from any valid remote inst_id
+  pd->cqwrite_value = (uint64_t) value | gc_instid_ctrl;
 
   int trial = 0;
   gni_return_t status;
@@ -2272,20 +2272,28 @@ void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
     for (i = 0; i < count; ++i) {
     #ifdef GNI_CQ_GET_REM_INST_ID
       /* Mar 2013 (S-2446-5002) docs introduces this call for use on recv CQs ... */
-      uint32_t source = GNI_CQ_GET_REM_INST_ID(event_data[i]);
+      uint32_t inst_id = GNI_CQ_GET_REM_INST_ID(event_data[i]);
     #else
       /* ... while prior versions say this is used on both send and recv CQs */
-      uint32_t source = GNI_CQ_GET_INST_ID(event_data[i]);
+      uint32_t inst_id = GNI_CQ_GET_INST_ID(event_data[i]);
     #endif
-      if (source & 0xff000000) {
-        // Imposible source id marks a CqWrite of a control message
-        dispatch_ctrl(source);
-      } else {
-        gasneti_assert(source < gasneti_nodes);
-        peer_struct_t * const peer = &peer_data[source];
-        if (!poll_for_message(peer, 0 GASNETI_THREAD_PASS)) {
-          ampoll_ins(peer);
+      switch (inst_id & GC_INSTID_MASK) {
+        case gc_instid_ctrl:
+          // CQWRITE of a control message
+          dispatch_ctrl(inst_id);
+          break;
+
+        case gc_instid_header:
+        { // FMA_PUT_W_SYNCFLAG of an AM Header
+          gasneti_assert(inst_id < gasneti_nodes);
+          peer_struct_t * const peer = &peer_data[inst_id];
+          if (!poll_for_message(peer, 0 GASNETI_THREAD_PASS)) {
+            ampoll_ins(peer);
+          }
+          break;
         }
+
+        default: gasneti_unreachable();
       }
     }
   } else if ((NULL == ampoll_head) || (EBUSY == gasneti_mutex_trylock(&ampoll_lock))) {
