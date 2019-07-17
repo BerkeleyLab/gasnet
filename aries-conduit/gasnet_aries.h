@@ -122,6 +122,7 @@ enum gc_notify_type {
 #define gc_notify_get_type(n) ((n) & 0x03000000)
 #define gc_notify_get_target_slot(n) ((uint8_t)(((n) >> 26) & (GASNETC_AM_TARGET_SLOTS-1)))
 #define gc_notify_get_initiator_slot(n) ((uint16_t)((n) & (GASNETC_AM_INITIATOR_SLOTS-1)))
+#define gc_notify_get_nonce(n) ((n) & 0xff000000) // type and target slot
 
 // Bits 24 - 25 of REM_INST_ID, aligned to notify for case of long payloads
 enum gc_instid_type {
@@ -425,12 +426,12 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-int gasnetc_rdma_put_long(gex_Rank_t jobrank,
-                          void *dest_addr, void *source_addr,
-                          size_t nbytes, gex_Flags_t flags,
-                          volatile int *done_p,
-                          uint32_t nonce
-                          GASNETC_DIDX_FARG) GASNETI_WARN_UNUSED_RESULT;
+void gasnetc_rdma_put_long(gex_Rank_t jobrank,
+                 void *dest_addr, void *source_addr,
+                 size_t nbytes,
+                 volatile int *done_p,
+                 uint32_t nonce
+                 GASNETC_DIDX_FARG);
 
 size_t gasnetc_rdma_get(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,

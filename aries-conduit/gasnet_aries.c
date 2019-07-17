@@ -2055,11 +2055,19 @@ void gasnetc_recv_am_unlocked(peer_struct_t * const peer, gasnetc_packet_t * con
 
 GASNETI_INLINE(gasnetc_recv_am)
 void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet,
-                     gasnetc_notify_t notify GASNETI_THREAD_FARG)
+                     gasnetc_notify_t notify, reply_pool_t *reply
+                     GASNETI_THREAD_FARG)
 {
   gasneti_mutex_unlock(&ampoll_lock);
   gasnetc_recv_am_unlocked(peer, packet, notify GASNETI_THREAD_PASS);
   gasneti_mutex_lock(&ampoll_lock);
+  if (reply) {
+    GASNETC_LOCK_AM_BUFFER();
+    peer->remote_request_map ^= reply->u.credit.value;
+    reply->u.next = reply_freelist;
+    reply_freelist = reply;
+    GASNETC_UNLOCK_AM_BUFFER();
+  }
 }
 
 static peer_struct_t *ampoll_head = NULL;
@@ -2132,12 +2140,14 @@ void dispatch_ctrl(uint32_t value)
   }
 }
 
+// Process an incoming AM rendezvous
+static void am_rvous_get(peer_struct_t * const peer, gasnetc_notify_t notify GASNETI_THREAD_FARG);
+
 //
 // Matching of Long payload and header
 //
 // Data structures are protected by ampoll_lock, in the same critical
 // section protecting other polling related data.
-// In the RVous case, one extra lock cycle is required for Longs.
 //
 
 typedef struct long_match_t_ {
@@ -2202,9 +2212,10 @@ long_match_t **long_match_list_head(uint32_t longid)
   return long_match_tbl + slot;
 }
 
-#define make_longid(jobrank, n) (jobrank | ((uint32_t)(n) & 0xff000000))
+#define make_longid(jobrank, n) (jobrank | (uint32_t)gc_notify_get_nonce(n))
 
-// If header entry exists, removes the entry and runs the handler
+// If header entry exists, removes the entry and runs the handler (Eager)
+// or initiates the Get of the full header (RVous)
 // Otherwise creates a new entry
 static void long_match_payload(uint32_t longid GASNETI_THREAD_FARG)
 {
@@ -2214,11 +2225,21 @@ static void long_match_payload(uint32_t longid GASNETI_THREAD_FARG)
   while (curr) {
     if (curr->longid == longid) {
       gasneti_assert(curr->peer); // detect payload matched to payload
-      GASNETI_TRACE_PRINTF(D,("Long payload %d:%d.%d matched\n", // WIP - for development only
-                              longid & 0xffffff, longid >> 26, 1 & (longid >> 25)));
+      peer_struct_t * const peer = curr->peer;
+      gasnetc_packet_t * const packet = curr->packet;
+      gasnetc_notify_t const notify = curr->notify;
       *prev_p = curr->next;
-      // WIP - RUN it!
       long_match_free(curr);
+
+      reply_pool_t *reply = NULL;
+      if (gc_notify_get_type(notify) == gc_notify_reply) {
+        reply = reply_pool + gc_notify_get_initiator_slot(notify);
+      } else if (am_rvous_enabled) {
+        am_rvous_get(peer, notify GASNETI_THREAD_PASS);
+        return;
+      }
+
+      gasnetc_recv_am(peer, packet, notify, reply GASNETI_THREAD_PASS);
       return;
     }
     prev_p = &curr->next;
@@ -2247,8 +2268,6 @@ static int long_match_header(
   while (curr) {
     if (curr->longid == longid) {
       gasneti_assert(! curr->peer); // detect header matched to header
-      GASNETI_TRACE_PRINTF(D,("Long header %d:%d.%d matched\n", // WIP - for development only
-                              longid & 0xffffff, longid >> 26, 1 & (longid >> 25)));
       *prev_p = curr->next;
       long_match_free(curr);
       return 1;
@@ -2321,29 +2340,18 @@ void am_rvous_run(GASNETI_THREAD_FARG_ALONE)
     do {
       gasnetc_post_descriptor_t *gpd = gasneti_container_of(curr, gasnetc_post_descriptor_t, u.am_rvous);
       gasneti_assert(gpd->gpd_flags == (GC_POST_COMPLETION_AMRV | GC_POST_KEEP_GPD));
-      gasnetc_packet_t *packet = (gasnetc_packet_t *) gpd->pd.local_addr;
-      int do_run = 1;
-      if (gasnetc_am_command(curr->notify) == GC_CMD_AM_LONG) {
-        gasneti_mutex_lock(&ampoll_lock);
-        do_run = long_match_header(curr->peer, packet, curr->notify GASNETI_THREAD_PASS);
-        gasneti_mutex_unlock(&ampoll_lock);
-      }
-      // WIP - run or not based on 'do_run'
-      gasnetc_recv_am_unlocked(curr->peer, packet, curr->notify GASNETI_THREAD_PASS);
+      gasnetc_recv_am_unlocked(curr->peer, (void*) gpd->pd.local_addr, curr->notify GASNETI_THREAD_PASS);
       curr = curr->next;
       gasneti_lifo_push(&am_rvous_pool, gpd);
     } while (curr);
   }
 }
 
-// Process an incoming AM rendezvous
-static void am_rvous_get(peer_struct_t * const peer, gasnetc_notify_t notify GASNETI_THREAD_FARG);
-
 GASNETI_INLINE(poll_for_message)
 int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG)
 {
   volatile gasnetc_notify_t * const notify = peer->local_notify_base + peer->local_notify_read;
-  const gasnetc_notify_t n = *notify;
+  gasnetc_notify_t n = *notify;
 
   if (n) { 
     uint32_t target_slot = gc_notify_get_target_slot(n);
@@ -2357,7 +2365,12 @@ int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG
     gasneti_compiler_fence(); /* prevent compiler from prefetching over dependency on n!=0 */
     
     if (type == gc_notify_rvous) {
-      am_rvous_get(peer, n GASNETI_THREAD_PASS);
+      // Replace the notify by its "effective" value:
+      n ^= (gc_notify_request ^ gc_notify_rvous);
+      if ((gasnetc_am_command(n) != GC_CMD_AM_LONG) ||
+          long_match_header(peer, NULL, n GASNETI_THREAD_PASS)) {
+        am_rvous_get(peer, n GASNETI_THREAD_PASS);
+      }
     } else {
       reply_pool_t *reply;
       gasnetc_packet_t *packet;
@@ -2371,19 +2384,9 @@ int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG
         packet = reply->packet;
       }
 
-      if (gasnetc_am_command(n) == GC_CMD_AM_LONG) {
-        long_match_header(peer, packet, n GASNETI_THREAD_PASS);
-        // WIP - continue or return based on return value
-      }
-
-      gasnetc_recv_am(peer, packet, n GASNETI_THREAD_PASS);
-
-      if (reply) {
-        GASNETC_LOCK_AM_BUFFER();
-        peer->remote_request_map ^= reply->u.credit.value;
-        reply->u.next = reply_freelist;
-        reply_freelist = reply;
-        GASNETC_UNLOCK_AM_BUFFER();
+      if ((gasnetc_am_command(n) != GC_CMD_AM_LONG) ||
+          long_match_header(peer, packet, n GASNETI_THREAD_PASS)) {
+        gasnetc_recv_am(peer, packet, n, reply GASNETI_THREAD_PASS);
       }
     }
     return 1;
@@ -3139,8 +3142,7 @@ void am_rvous_get(peer_struct_t * const peer, gasnetc_notify_t notify GASNETI_TH
 {
   gasneti_mutex_unlock(&ampoll_lock);
 
-  // Replace  notify by its "effective" value:
-  notify ^= (gc_notify_request ^ gc_notify_rvous);
+  gasneti_assert(gc_notify_get_type(notify) != gc_notify_rvous);
 
   // TODO-EX: if/when we use CQWrite we'll need a different encoding, which will
   // carry the len (likely in units such as cacheline), instead of this code
@@ -3220,16 +3222,15 @@ first:
 /*------ Post Put of Long Payload */
 
 // gasnetc_rdma_put_long()
-// Returns 1 for "immediate" failure, 0 otherwise.
 //
 // For the uncommon case that the source is out-of-segment, larger than a
 // single bounce-buffer, and cannot be dynamically registered, all but the
 // last bounce-buffer is completed globally before the final piece.
 //
 // TODO-EX: Async LC
-int gasnetc_rdma_put_long(gex_Rank_t jobrank,
+void gasnetc_rdma_put_long(gex_Rank_t jobrank,
                           void *dest_addr, void *source_addr,
-                          size_t nbytes, gex_Flags_t flags,
+                          size_t nbytes,
                           volatile int *done_p,
                           uint32_t nonce
                           GASNETC_DIDX_FARG)
@@ -3240,8 +3241,7 @@ int gasnetc_rdma_put_long(gex_Rank_t jobrank,
 
   gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
-  if_pf (!gpd) return 1;
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
 
   gpd->gpd_completion = (uintptr_t) done_p;
   gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
@@ -3259,6 +3259,7 @@ int gasnetc_rdma_put_long(gex_Rank_t jobrank,
   /* Start with defaults suitable for FMA or in-segment RDMA */
   pd->local_addr = (uint64_t) source_addr;
   pd->local_mem_hndl = gasnetc_local_mh(source_addr);
+  pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_GLOBAL_EVENT;
 
   if (nbytes <= gasnetc_put_fma_rdma_cutover) {
     /* Small enough for FMA - no local memory registration is required */
@@ -3338,10 +3339,12 @@ int gasnetc_rdma_put_long(gex_Rank_t jobrank,
       }
     }
     pd->type = GNI_POST_RDMA_PUT;
+  #if 1 // WIP - until LC handling is properly implemented
+    pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_GLOBAL_EVENT;
+  #else
+    pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_LOCAL_EVENT;
+  #endif
   }
-
-  pd->cq_mode = GNI_CQMODE_REMOTE_EVENT;
-  pd->cq_mode |= GNI_CQMODE_GLOBAL_EVENT; // WIP - to be removed
 
   int trial = 0;
   gni_ep_handle_t ep = peer->ep_handle;
@@ -3360,7 +3363,7 @@ int gasnetc_rdma_put_long(gex_Rank_t jobrank,
       } else {
         GASNETC_STAT_EVENT_VAL(POST_FMA_RETRY, trial);
       }
-      return 0; // Normal exit path
+      return; // Normal exit path
     }
     if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
     GASNETI_WAITHOOK();
@@ -3371,8 +3374,6 @@ error:
   gasneti_assert (status != GNI_RC_SUCCESS);
   print_post_desc("Payload Put", pd);
   gasnetc_GNIT_Abort("Payload Put failed with %s", gasnetc_gni_rc_string(status));
-
-  return 0; // not reached
 }
 
 

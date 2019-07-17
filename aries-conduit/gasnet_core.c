@@ -1440,21 +1440,18 @@ void gasnetc_wait_long_payload( volatile int *done_p
 }
 
 GASNETI_INLINE(gasnetc_put_long_payload)
-int gasnetc_put_long_payload( gex_Rank_t jobrank,
+void gasnetc_put_long_payload(gex_Rank_t jobrank,
                               void *dst_addr,
                               void *src_addr,
                               size_t nbytes,
-                              gex_Flags_t flags,
                               volatile int *done_p,
                               uint32_t nonce
                               GASNETC_DIDX_FARG)
 {
   gasneti_suspend_spinpollers();
-  int imm = gasnetc_rdma_put_long(jobrank, dst_addr, src_addr,
-                                  nbytes, flags, done_p, nonce
-                                  GASNETC_DIDX_PASS);
+  gasnetc_rdma_put_long(jobrank, dst_addr, src_addr, nbytes,
+                        done_p, nonce GASNETC_DIDX_PASS);
   gasneti_resume_spinpollers();
-  return imm;
 }
 
 /*------------------- common code for requests ------------------ */
@@ -1501,33 +1498,32 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_post_descriptor_t *gpd;
-    gasnetc_packet_t *p;
 
-    // WIP - replace this (non-atomic) dummy nonce generation
-    static uint32_t req_sequence;  // Use only low 6-bits
-    const uint32_t nonce = is_packed ? 0 : gc_instid_long_req | ((req_sequence++) << 26);
+    // WIP - stall here to honor GASNET_LONG_DEPTH (and reply/ack needs release half)
 
-    if (!is_packed) { /* Launch RDMA put as early as possible */
-      int imm = gasnetc_put_long_payload(jobrank, dest_addr, source_addr,
-                                         nbytes, flags, &done_flag, nonce GASNETC_DIDX_PASS);
-      if_pf (imm) goto out_immediate;
-      flags &= ~GEX_FLAG_IMMEDIATE;
-    }
-    
-    /* Overlap gpd and/or credit stalls, if any, w/ the RDMA */
-    gpd = gasnetc_alloc_request_post_descriptor(jobrank, total_len, flags GASNETI_THREAD_PASS);
+    // allocate gpd, possibly stalling
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(jobrank, total_len, flags GASNETI_THREAD_PASS);
     if_pf (!gpd) goto out_immediate;
 
+    // build message
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
-
     if (is_packed) {
       GASNETI_MEMCPY_SAFE_EMPTY((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
-    } else {
-      /* Poll for the RDMA completion */
+    }
+
+    // inject header
+    const uint32_t nonce = gc_notify_get_nonce(gpd->gpd_am_header);
+    gasneti_assert_zeroret( gasnetc_general_am_send_request(gpd) );
+
+    if (!is_packed) { // inject payload
+      volatile int done_flag = 0;
+      gasnetc_put_long_payload(jobrank, dest_addr, source_addr,
+                               nbytes, &done_flag, nonce GASNETC_DIDX_PASS);
+      // stall for local completion
       gasnetc_wait_long_payload(&done_flag GASNETC_DIDX_PASS);
     }
-    retval = gasnetc_general_am_send_request(gpd);
+
+    retval = 0;
   }
 out_immediate:
   return retval;
@@ -1728,36 +1724,33 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
   } else {
     GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
     GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
-    volatile int done_flag = 0;
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_post_descriptor_t *gpd;
 
-    // WIP - replace this (non-atomic) dummy nonce generation
-    static uint32_t rep_sequence;  // Use only low 6-bits
-    const uint32_t nonce = is_packed ? 0 : gc_instid_long_rep | ((rep_sequence++) << 26);
-
-    if (!is_packed) { /* Launch RDMA put as early as possible */
-      int imm = gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr,
-                                         nbytes, flags, &done_flag, nonce GASNETC_DIDX_PASS);
-      if_pf (imm) goto out_immediate;
-      flags &= ~GEX_FLAG_IMMEDIATE;
-    }
-    
-    /* Overlap gpd stall, if any, w/ the RDMA */
-    gpd = gasnetc_alloc_reply_post_descriptor(token, total_len, flags);
+    // allocate gpd, possibly stalling
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len, flags);
     if_pf (!gpd) goto out_immediate;
 
+    // build message
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
-
     if (is_packed) {
       GASNETI_MEMCPY_SAFE_EMPTY((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
-    } else {    
-      /* Poll for the RDMA completion */
+    }
+
+    // inject header
+    const uint32_t nonce = gc_notify_get_nonce(gpd->gpd_am_header);
+    gasneti_assert_zeroret( gasnetc_general_am_send_reply(gpd, token) );
+
+    if (!is_packed) { // inject payload
+      volatile int done_flag = 0;
+      gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr,
+                               nbytes, &done_flag, nonce GASNETC_DIDX_PASS);
+      // stall for local completion
       gasnetc_wait_long_payload(&done_flag GASNETC_DIDX_PASS);
     }
-    retval = gasnetc_general_am_send_reply(gpd, token);
+
+    retval = 0;
   }
 out_immediate:
   return retval;
