@@ -2132,6 +2132,139 @@ void dispatch_ctrl(uint32_t value)
   }
 }
 
+//
+// Matching of Long payload and header
+//
+// Data structures are protected by ampoll_lock, in the same critical
+// section protecting other polling related data.
+// In the RVous case, one extra lock cycle is required for Longs.
+//
+
+typedef struct long_match_t_ {
+  struct long_match_t_ *next;
+  uint32_t longid; // The key
+  peer_struct_t * peer;
+  gasnetc_packet_t * packet;
+  gasnetc_notify_t notify;
+} long_match_t;
+
+// Chained-bucket hash table
+// Access serialized by ampoll_lock
+#ifndef LONG_MATCH_TBL_SZ
+#define LONG_MATCH_TBL_SZ 64
+#endif
+static long_match_t * long_match_tbl[LONG_MATCH_TBL_SZ];
+
+// Free list of buckets
+// Access serialized by ampoll_lock
+static long_match_t * long_match_pool = NULL;
+
+// TODO: cache-align when PAR?
+GASNETI_NEVER_INLINE(long_match_grow,
+static long_match_t *long_match_grow(void))
+{
+  const int n = 8; // entries allocated per call
+  long_match_t *p = gasneti_malloc(n * sizeof(long_match_t));
+  p[0].next = NULL;
+  for (int i = 1; i < n-1; ++i) {
+    p[i].next = &p[i + 1];
+  }
+  p[n-1].next = NULL;
+  long_match_pool = &p[1];
+  return p;
+}
+
+GASNETI_INLINE(long_match_alloc)
+long_match_t *long_match_alloc(void)
+{
+  long_match_t *result = long_match_pool;
+  if (result) {
+    long_match_pool = result->next;
+  } else {
+    result = long_match_grow();
+  }
+  return result;
+}
+
+GASNETI_INLINE(long_match_free)
+void long_match_free(long_match_t *p)
+{
+  p->next = long_match_pool;
+  long_match_pool = p;
+}
+
+GASNETI_INLINE(long_match_list_head)
+long_match_t **long_match_list_head(uint32_t longid)
+{
+  uint32_t jobrank = longid & (GASNET_MAXNODES - 1);
+  uint32_t nonce   = longid >> 24;
+  uint32_t slot    = (jobrank ^ nonce) % LONG_MATCH_TBL_SZ;
+  return long_match_tbl + slot;
+}
+
+#define make_longid(jobrank, n) (jobrank | ((uint32_t)(n) & 0xff000000))
+
+// If header entry exists, removes the entry and runs the handler
+// Otherwise creates a new entry
+static void long_match_payload(uint32_t longid GASNETI_THREAD_FARG)
+{
+  gasneti_mutex_assertlocked(&ampoll_lock);
+  long_match_t **prev_p = long_match_list_head(longid);
+  long_match_t *curr = *prev_p;
+  while (curr) {
+    if (curr->longid == longid) {
+      gasneti_assert(curr->peer); // detect payload matched to payload
+      GASNETI_TRACE_PRINTF(D,("Long payload %d:%d.%d matched\n", // WIP - for development only
+                              longid & 0xffffff, longid >> 26, 1 & (longid >> 25)));
+      *prev_p = curr->next;
+      // WIP - RUN it!
+      long_match_free(curr);
+      return;
+    }
+    prev_p = &curr->next;
+    curr = curr->next;
+  }
+  *prev_p = curr = long_match_alloc();
+  curr->next = NULL;
+  curr->longid = longid;
+#if GASNET_DEBUG
+  curr->peer = NULL;
+#endif
+}
+
+// If payload entry exists, removes the entry, and returns 1
+// Otherwise creates a new entry and returns 0
+static int long_match_header(
+                peer_struct_t * const peer,
+                gasnetc_packet_t * const packet,
+                gasnetc_notify_t notify
+                GASNETI_THREAD_FARG)
+{
+  gasneti_mutex_assertlocked(&ampoll_lock);
+  uint32_t longid = make_longid(peer->pe, notify);
+  long_match_t **prev_p = long_match_list_head(longid);
+  long_match_t *curr = *prev_p;
+  while (curr) {
+    if (curr->longid == longid) {
+      gasneti_assert(! curr->peer); // detect header matched to header
+      GASNETI_TRACE_PRINTF(D,("Long header %d:%d.%d matched\n", // WIP - for development only
+                              longid & 0xffffff, longid >> 26, 1 & (longid >> 25)));
+      *prev_p = curr->next;
+      long_match_free(curr);
+      return 1;
+    }
+    prev_p = &curr->next;
+    curr = curr->next;
+  }
+  *prev_p = curr = long_match_alloc();
+  curr->next   = NULL;
+  curr->longid = longid;
+  curr->peer   = peer;
+  curr->packet = packet;
+  curr->notify = notify;
+  return 0;
+}
+
 // Data for AM rendevous
 static gasneti_mutex_t am_rvous_lock = GASNETI_MUTEX_INITIALIZER;
 // Protected by am_rvous_lock:
@@ -2188,7 +2321,15 @@ void am_rvous_run(GASNETI_THREAD_FARG_ALONE)
     do {
       gasnetc_post_descriptor_t *gpd = gasneti_container_of(curr, gasnetc_post_descriptor_t, u.am_rvous);
       gasneti_assert(gpd->gpd_flags == (GC_POST_COMPLETION_AMRV | GC_POST_KEEP_GPD));
-      gasnetc_recv_am_unlocked(curr->peer, (void*) gpd->pd.local_addr, curr->notify GASNETI_THREAD_PASS);
+      gasnetc_packet_t *packet = (gasnetc_packet_t *) gpd->pd.local_addr;
+      int do_run = 1;
+      if (gasnetc_am_command(curr->notify) == GC_CMD_AM_LONG) {
+        gasneti_mutex_lock(&ampoll_lock);
+        do_run = long_match_header(curr->peer, packet, curr->notify GASNETI_THREAD_PASS);
+        gasneti_mutex_unlock(&ampoll_lock);
+      }
+      // WIP - run or not based on 'do_run'
+      gasnetc_recv_am_unlocked(curr->peer, packet, curr->notify GASNETI_THREAD_PASS);
       curr = curr->next;
       gasneti_lifo_push(&am_rvous_pool, gpd);
     } while (curr);
@@ -2215,22 +2356,35 @@ int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG
 
     gasneti_compiler_fence(); /* prevent compiler from prefetching over dependency on n!=0 */
     
-    if (type == gc_notify_request) {
-      gasnetc_packet_t *packet = (gasnetc_packet_t *) (peer->local_request_base + (target_slot << am_slot_bits));
-      gasnetc_recv_am(peer, packet, n GASNETI_THREAD_PASS);
-    } else if (type == gc_notify_rvous) {
+    if (type == gc_notify_rvous) {
       am_rvous_get(peer, n GASNETI_THREAD_PASS);
     } else {
-      gasneti_assert(type == gc_notify_reply);
-      reply_pool_t *reply = reply_pool + initiator_slot;
+      reply_pool_t *reply;
+      gasnetc_packet_t *packet;
 
-      gasnetc_recv_am(peer, reply->packet, n GASNETI_THREAD_PASS);
+      if (type == gc_notify_request) {
+        reply = NULL;
+        packet = (gasnetc_packet_t *) (peer->local_request_base + (target_slot << am_slot_bits));
+      } else {
+        gasneti_assert(type == gc_notify_reply);
+        reply = reply_pool + initiator_slot;
+        packet = reply->packet;
+      }
 
-      GASNETC_LOCK_AM_BUFFER();
-      peer->remote_request_map ^= reply->u.credit.value;
-      reply->u.next = reply_freelist;
-      reply_freelist = reply;
-      GASNETC_UNLOCK_AM_BUFFER();
+      if (gasnetc_am_command(n) == GC_CMD_AM_LONG) {
+        long_match_header(peer, packet, n GASNETI_THREAD_PASS);
+        // WIP - continue or return based on return value
+      }
+
+      gasnetc_recv_am(peer, packet, n GASNETI_THREAD_PASS);
+
+      if (reply) {
+        GASNETC_LOCK_AM_BUFFER();
+        peer->remote_request_map ^= reply->u.credit.value;
+        reply->u.next = reply_freelist;
+        reply_freelist = reply;
+        GASNETC_UNLOCK_AM_BUFFER();
+      }
     }
     return 1;
   }
@@ -2297,15 +2451,9 @@ void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
           break;
         }
 
-        case gc_instid_long_req:
-          GASNETI_TRACE_PRINTF(D,("Long Req payload #%d\n", inst_id >> 26)); // WIP - debugging only
-          break;
-
-        case gc_instid_long_rep:
-          GASNETI_TRACE_PRINTF(D,("Long Rep payload #%d\n", inst_id >> 26)); // WIP - debugging only
-          break;
-
-        default: gasneti_unreachable();
+        default:
+          // FMA_PUT or RDMA_PUT of Long payload
+          long_match_payload(inst_id GASNETI_THREAD_PASS);
       }
     }
   } else if ((NULL == ampoll_head) || (EBUSY == gasneti_mutex_trylock(&ampoll_lock))) {
