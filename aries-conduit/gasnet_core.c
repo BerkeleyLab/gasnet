@@ -1445,12 +1445,14 @@ int gasnetc_put_long_payload( gex_Rank_t jobrank,
                               void *src_addr,
                               size_t nbytes,
                               gex_Flags_t flags,
-                              volatile int *done_p
+                              volatile int *done_p,
+                              uint32_t nonce
                               GASNETC_DIDX_FARG)
 {
   gasneti_suspend_spinpollers();
   int imm = gasnetc_rdma_put_long(jobrank, dst_addr, src_addr,
-                                  nbytes, flags, done_p GASNETC_DIDX_PASS);
+                                  nbytes, flags, done_p, nonce
+                                  GASNETC_DIDX_PASS);
   gasneti_resume_spinpollers();
   return imm;
 }
@@ -1502,9 +1504,13 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     gasnetc_post_descriptor_t *gpd;
     gasnetc_packet_t *p;
 
+    // WIP - replace this (non-atomic) dummy nonce generation
+    static uint32_t req_sequence;  // Use only low 6-bits
+    const uint32_t nonce = is_packed ? 0 : gc_instid_long_req | ((req_sequence++) << 26);
+
     if (!is_packed) { /* Launch RDMA put as early as possible */
       int imm = gasnetc_put_long_payload(jobrank, dest_addr, source_addr,
-                                         nbytes, flags, &done_flag GASNETC_DIDX_PASS);
+                                         nbytes, flags, &done_flag, nonce GASNETC_DIDX_PASS);
       if_pf (imm) goto out_immediate;
       flags &= ~GEX_FLAG_IMMEDIATE;
     }
@@ -1728,9 +1734,13 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     gasnetc_post_descriptor_t *gpd;
 
+    // WIP - replace this (non-atomic) dummy nonce generation
+    static uint32_t rep_sequence;  // Use only low 6-bits
+    const uint32_t nonce = is_packed ? 0 : gc_instid_long_rep | ((rep_sequence++) << 26);
+
     if (!is_packed) { /* Launch RDMA put as early as possible */
       int imm = gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr,
-                                         nbytes, flags, &done_flag GASNETC_DIDX_PASS);
+                                         nbytes, flags, &done_flag, nonce GASNETC_DIDX_PASS);
       if_pf (imm) goto out_immediate;
       flags &= ~GEX_FLAG_IMMEDIATE;
     }

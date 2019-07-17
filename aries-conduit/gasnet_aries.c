@@ -2297,6 +2297,14 @@ void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
           break;
         }
 
+        case gc_instid_long_req:
+          GASNETI_TRACE_PRINTF(D,("Long Req payload #%d\n", inst_id >> 26)); // WIP - debugging only
+          break;
+
+        case gc_instid_long_rep:
+          GASNETI_TRACE_PRINTF(D,("Long Rep payload #%d\n", inst_id >> 26)); // WIP - debugging only
+          break;
+
         default: gasneti_unreachable();
       }
     }
@@ -3074,7 +3082,8 @@ first:
 int gasnetc_rdma_put_long(gex_Rank_t jobrank,
                           void *dest_addr, void *source_addr,
                           size_t nbytes, gex_Flags_t flags,
-                          volatile int *done_p
+                          volatile int *done_p,
+                          uint32_t nonce
                           GASNETC_DIDX_FARG)
 {
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
@@ -3183,16 +3192,19 @@ int gasnetc_rdma_put_long(gex_Rank_t jobrank,
     pd->type = GNI_POST_RDMA_PUT;
   }
 
-  pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT; // WIP - will become REMOTE_EVENT
+  pd->cq_mode = GNI_CQMODE_REMOTE_EVENT;
+  pd->cq_mode |= GNI_CQMODE_GLOBAL_EVENT; // WIP - to be removed
 
   int trial = 0;
   gni_ep_handle_t ep = peer->ep_handle;
+  const uint32_t instid = gasneti_mynode | nonce;
+
   do {
     GASNETC_LOCK_GNI();
-    // WIP: gasneti_assert_zeroret( GNI_EpSetEventData(ep, 0, ###) );
+    gasneti_assert_zeroret( GNI_EpSetEventData(ep, 0, instid) );
     status = (pd->type == GNI_POST_RDMA_PUT) ? GNI_PostRdma(ep, pd)
                                              : GNI_PostFma(ep, pd);
-    // WIP: gasneti_assert_zeroret( GNI_EpSetEventData(ep, 0, gasneti_mynode) );
+    gasneti_assert_zeroret( GNI_EpSetEventData(ep, 0, gasneti_mynode) );
     GASNETC_UNLOCK_GNI();
     if_pt (status == GNI_RC_SUCCESS) {
       if (pd->type == GNI_POST_RDMA_PUT) {
