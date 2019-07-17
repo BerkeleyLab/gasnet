@@ -2081,6 +2081,7 @@ void ampoll_del(peer_struct_t *peer)
 GASNETI_INLINE(ampoll_ins)
 void ampoll_ins(peer_struct_t *peer)
 {
+  GASNETI_TRACE_EVENT(D, AMPOLL_INS);
   if (0 == peer->event_count++) {
     if (NULL == ampoll_head) {
       ampoll_head = peer;
