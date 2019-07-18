@@ -728,7 +728,7 @@ void gasnetc_init_gni(gasnet_seginfo_t seginfo)
     int count = 0;
     for (;;) {
       status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
-			       (uint64_t) seginfo.size, NULL,
+			       (uint64_t) seginfo.size, am_cq_handle,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
 			       &my_aux_handle);
       if (status == GNI_RC_SUCCESS) break;
@@ -783,7 +783,7 @@ void gasnetc_init_segment(gasnet_seginfo_t seginfo)
     int count = 0;
     for (;;) {
       status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
-			       (uint64_t) seginfo.size, NULL,
+			       (uint64_t) seginfo.size, am_cq_handle,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
 			       &my_mem_handle);
       if (status == GNI_RC_SUCCESS) break;
@@ -1056,6 +1056,10 @@ uintptr_t gasnetc_init_messaging(void)
     am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
   }
 
+  // Maximum number of Long requests outstanding per peer
+  // WIP - until injection can enforce a limit, we allow every AM to be Long
+  int am_long_depth = am_maxcredit;
+
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
                                             GASNETC_GNI_NUM_PD_DEFAULT,0);
@@ -1087,8 +1091,9 @@ uintptr_t gasnetc_init_messaging(void)
    */
   int am_num_cqe =
       GASNETI_ALIGNUP(gasnetc_log2_remote +         // for shutdown ctrl messages
-                      reply_count +                 // for Replies
-                      remote_nodes * am_maxcredit,  // for Requests
+                      2 * reply_count +             // for Replies (2 = header + Long payload)
+                      remote_nodes * am_maxcredit + // for Request headers
+                      remote_nodes * am_long_depth, // for Request Long payloads
                       2);                           // need it to be even
   status = GNI_CqCreate(nic_handle,am_num_cqe,0,GNI_CQ_NOBLOCK,NULL,NULL,&am_cq_handle);
   if (status != GNI_RC_SUCCESS) {
