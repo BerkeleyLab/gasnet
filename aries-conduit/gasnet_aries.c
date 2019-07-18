@@ -2514,6 +2514,8 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
 
   for (int i = 0; i < gasnetc_poll_burst; i += 1) {
     gasnetc_post_descriptor_t *gpd;
+    uint32_t gpd_flags;
+
     GASNETC_LOCK_GNI();
 again:
       gpd = gasnetc_poll_bound_cq(bound_cq_handle);
@@ -2525,7 +2527,10 @@ again:
         gasneti_assert(gpd->pd.type == GNI_POST_RDMA_PUT);
         gasneti_assert(gpd->gpd_put_lc);
 
-        const uint32_t gpd_flags = gpd->gpd_flags;
+        gpd_flags = gpd->gpd_flags;
+        if (gpd_flags & GC_POST_COMPLETION_FLAG) {
+          *(volatile int *) gpd->gpd_put_lc = 1;
+        } else
         if (gpd_flags & GC_POST_COMPLETION_EOP) {
           GASNETC_EOP_ALC_FINISH((gasnete_eop_t *) gpd->gpd_put_lc);
         } else {
@@ -2537,18 +2542,23 @@ again:
           }
         }
 
-        // disambiguate the following global event
-        gasneti_assert(gpd->pd.cq_mode == (GNI_CQMODE_LOCAL_EVENT | GNI_CQMODE_GLOBAL_EVENT));
-        gpd->pd.cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-
-        goto again; // LC is so cheap that we don't count it against gasnetc_poll_burst
+        if (gpd->pd.cq_mode & GNI_CQMODE_GLOBAL_EVENT) {
+          // disambiguate the following global event
+          gpd->pd.cq_mode = GNI_CQMODE_GLOBAL_EVENT;
+          goto again; // LC is so cheap that we don't count it against gasnetc_poll_burst
+        } else {
+          // no global event requested (AM Long payload)
+          // leap ahead to release resources
+          GASNETC_UNLOCK_GNI();
+          goto release;
+        }
       }
     GASNETC_UNLOCK_GNI();
 
     if_pt (! gpd) { /* empty Cq is common case */
       break;
     } else {
-      const uint32_t gpd_flags = gpd->gpd_flags; /* see note w/ GC_POST_COMPLETION_FLAG */
+      gpd_flags = gpd->gpd_flags; /* see note w/ GC_POST_COMPLETION_FLAG */
 
       /* handle remaining work */
       if (gpd_flags & GC_POST_COPY_AMO4) {
@@ -2601,6 +2611,7 @@ again:
           break;
       } 
 
+release:
       /* release resources */
       if (gpd_flags & GC_POST_UNREGISTER) {
         gasnetc_deregister_gpd(gpd);
@@ -3243,9 +3254,6 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
 
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
 
-  gpd->gpd_completion = (uintptr_t) done_p;
-  gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
-
   gni_post_descriptor_t * pd = &gpd->pd;
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
@@ -3257,13 +3265,15 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
   gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, jobrank, dest_addr, nbytes);
 
   /* Start with defaults suitable for FMA or in-segment RDMA */
+  gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
   pd->local_addr = (uint64_t) source_addr;
   pd->local_mem_hndl = gasnetc_local_mh(source_addr);
-  pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_GLOBAL_EVENT;
 
   if (nbytes <= gasnetc_put_fma_rdma_cutover) {
     /* Small enough for FMA - no local memory registration is required */
+    gpd->gpd_completion = (uintptr_t) done_p;
     pd->type = GNI_POST_FMA_PUT;
+    pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_GLOBAL_EVENT;
   } else { /* Using RDMA, which requires local memory registration */
     if_pf (!gasneti_in_fullsegment(NULL/*tm*/, gasneti_mynode, source_addr, nbytes)) {
       /* Use a bounce buffer or mem-reg according to size.
@@ -3338,12 +3348,9 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
         gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNREGISTER;
       }
     }
+    gpd->gpd_put_lc = (uintptr_t) done_p;
     pd->type = GNI_POST_RDMA_PUT;
-  #if 1 // WIP - until LC handling is properly implemented
-    pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_GLOBAL_EVENT;
-  #else
     pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_LOCAL_EVENT;
-  #endif
   }
 
   int trial = 0;
