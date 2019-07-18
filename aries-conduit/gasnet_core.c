@@ -1501,10 +1501,10 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
 
-    // WIP - stall here to honor GASNET_LONG_DEPTH (and reply/ack needs release half)
-
-    // allocate gpd, possibly stalling
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(jobrank, total_len, flags GASNETI_THREAD_PASS);
+    // allocate gpd and long credit, possibly stalling
+    gasnetc_post_descriptor_t *gpd =
+            gasnetc_alloc_request_post_descriptor_long(jobrank, total_len, flags,
+                                                       is_packed GASNETI_THREAD_PASS);
     if_pf (!gpd) goto out_immediate;
 
     // build message

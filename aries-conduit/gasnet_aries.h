@@ -505,6 +505,13 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor_np(gex_Rank_t d
                                                                     size_t max_length,
                                                                     gex_Flags_t flags
                                                                     GASNETI_THREAD_FARG);
+gasnetc_post_descriptor_t *
+gasnetc_alloc_request_post_descriptor_long(
+                        gex_Rank_t jobrank,
+                        size_t length,
+                        gex_Flags_t flags,
+                        int is_packed
+                        GASNETI_THREAD_FARG);
 
 /* Some common GPD idioms */
 

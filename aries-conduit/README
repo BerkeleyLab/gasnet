@@ -179,6 +179,13 @@ GASNET_NETWORKDEPTH - depth of per-peer Rendezvous AM Request queue
   the same value (with a warning).
   The default value is 64, and the minimum is 1.
 
+GASNET_LONG_DEPTH - depth of per-peer Long tracking
+  This determines the maximum number of AM Long Requests payload transfers
+  that can be outstanding between a given pair of peers before flow-control.
+  This is in addition to any flow-control required due to the "NETWORKDEPTH"
+  variables, above.
+  The default value is no limit, the minimum is 1, and the maximum is 64.
+
 GASNET_GNI_AM_MEMORY_REPORT
   The value is a boolean: "0" to disable or "1" to enable the reporting of
   the memory allocated for AM buffers (controlled by the GASNET_NETWORKDEPTH*

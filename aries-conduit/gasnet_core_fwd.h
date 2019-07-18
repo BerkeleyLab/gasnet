@@ -106,6 +106,7 @@ extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthrea
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)       \
         TIME(C, GET_AM_REM_BUFFER_STALL, stalled time) \
         TIME(C, GET_AM_LOC_BUFFER_STALL, stalled time) \
+        TIME(C, GET_AM_LONG_CREDIT_STALL, stalled time) \
         TIME(C, ALLOC_PD_STALL, stalled time) \
         TIME(C, ALLOC_BB_STALL, stalled time) \
         TIME(C, ALLOC_AMRV_STALL, stalled time) \

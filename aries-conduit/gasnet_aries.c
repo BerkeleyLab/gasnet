@@ -59,6 +59,7 @@ struct peer_struct_t_ {
   uint32_t local_notify_read;   /* covered by the ampoll lock, bounded [0..notify_ring_size) */
   peer_struct_t *next;          /* covered by the ampoll lock */
   unsigned int event_count;     /* covered by the ampoll lock */
+  int long_credits;
 #if GASNETC_USE_MULTI_DOMAIN
   uint32_t nic_addr;
 #endif
@@ -74,8 +75,9 @@ typedef struct reply_pool {
   union {
     struct reply_pool *next;         /* Next when on reply_freelist */
     struct {                         /* Upon Reply this is slots or credits to release */
+      peer_struct_t *peer;
       uint64_t value;
-      uint64_t *pointer;
+      int isLong;
     } credit;
   } u;
 } reply_pool_t;
@@ -1062,8 +1064,9 @@ uintptr_t gasnetc_init_messaging(void)
   request_map = (request_bits == 64) ? ~(uint64_t)0 : (((uint64_t)1 << request_bits) - 1);
 
   // Maximum number of Long requests outstanding per peer
-  // WIP - until injection can enforce a limit, we allow every AM to be Long
-  int am_long_depth = am_maxcredit;
+  int am_long_depth = gasneti_getenv_int_withdefault("GASNET_LONG_DEPTH", am_maxcredit, 0);
+  am_long_depth = MAX(am_long_depth, 1);            // Min is 1
+  am_long_depth = MIN(am_long_depth, am_maxcredit); // Max is all AMs are Long
 
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
@@ -1287,6 +1290,7 @@ am_memory_report:
         peer->remote_request_lock = 0;
       #endif
         peer->remote_request_map = request_map;
+        peer->long_credits = am_long_depth;
         local_peer_base += peer_stride;
       }
     }
@@ -1804,9 +1808,13 @@ gasnetc_remote_slot(peer_struct_t * const peer, const uint64_t mask)
   return 64;
 }
 
+// Subject to specialization on:
+//   isFixed: min_length == max_length from fixed-payload AM injection call
+//   isLong:  A Long (not packed) request which must honor GASNET_LONG_DEPTH
 GASNETI_INLINE(request_post_descriptor_inner)
 gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
                                                          const int isFixed,
+                                                         const int isLong,
                                                          size_t min_length,
                                                          size_t max_length,
                                                          gex_Flags_t flags
@@ -1846,6 +1854,17 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
   }
   peer->remote_request_lock = 1;
 #endif
+
+  if (isLong) { // Honor LONG_DEPTH
+    gasneti_assert(isLong == 1); // must be 0 or 1 , since added later
+    BUSYWAIT(!peer->long_credits,
+           ESCAPE1(out_immediate_1_5),
+           ESCAPE2(out_immediate_1_5),
+           gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
+           GET_AM_LONG_CREDIT_STALL);
+    peer->long_credits -= 1;
+    gasneti_assert(peer->long_credits >= 0);
+  }
 
   uint64_t mask;
   size_t length;
@@ -1917,8 +1936,9 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
   pd->remote_addr = (uint64_t) peer->remote_request_base + (remote_slot << am_slot_bits);
   pd->sync_flag_value = gc_build_notify(gc_notify_request, r - reply_pool, remote_slot);
 
+  r->u.credit.peer = peer;
   r->u.credit.value = mask;
-  r->u.credit.pointer = &peer->remote_request_map;
+  r->u.credit.isLong = isLong;
   
   return gpd;
  } // End of scope: 'gpd'
@@ -1933,6 +1953,9 @@ out_immediate_3:
     peer->remote_request_map ^= mask;
     goto out_immediate_1; // peer->remote_request_lock=0 would be erroneous
 out_immediate_2:
+    // LONG_DEPTH credit, if any
+    peer->long_credits += isLong;
+out_immediate_1_5:
   #if GASNET_PAR
     // Release our lock on the per-peer remote buffer allocator
     peer->remote_request_lock = 0;
@@ -1950,7 +1973,18 @@ gasnetc_alloc_request_post_descriptor(
                         gex_Flags_t flags
                         GASNETI_THREAD_FARG)
 {
-  return request_post_descriptor_inner(dest, 1, length, length, flags GASNETI_THREAD_PASS);
+  return request_post_descriptor_inner(dest, 1, 0, length, length, flags GASNETI_THREAD_PASS);
+}
+
+gasnetc_post_descriptor_t *
+gasnetc_alloc_request_post_descriptor_long(
+                        gex_Rank_t dest,
+                        size_t length,
+                        gex_Flags_t flags,
+                        int is_packed
+                        GASNETI_THREAD_FARG)
+{
+  return request_post_descriptor_inner(dest, 1, !is_packed, length, length, flags GASNETI_THREAD_PASS);
 }
 
 #if GASNETC_NP_MEDXL // NP Medium beyond MaxMedium - disabled by default
@@ -1967,7 +2001,7 @@ gasnetc_alloc_request_post_descriptor_np(
 {
 #if GASNETC_NP_MEDXL
   gasnetc_post_descriptor_t *gpd =
-    request_post_descriptor_inner(dest, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
+    request_post_descriptor_inner(dest, 0, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
   if (gpd && (gpd->pd.length > GASNETC_MSG_MAXSIZE)) {
     // We have a "extra large" landing zone on the peer, but the gpd has a
     // source buffer of at most GASNETC_MSG_MAXSIZE.  We need an alternate.
@@ -1980,7 +2014,7 @@ gasnetc_alloc_request_post_descriptor_np(
 #else
   // TODO-EX: cannot negotiate larger than MaxMedium until/unless reply_pool is over-sized too
   max_length = MIN(max_length, GASNETC_MSG_MAXSIZE);
-  return request_post_descriptor_inner(dest, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
+  return request_post_descriptor_inner(dest, 0, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
 #endif
 }
 
@@ -2064,6 +2098,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
   if (reply) {
     GASNETC_LOCK_AM_BUFFER();
     peer->remote_request_map ^= reply->u.credit.value;
+    peer->long_credits += reply->u.credit.isLong;
     reply->u.next = reply_freelist;
     reply_freelist = reply;
     GASNETC_UNLOCK_AM_BUFFER();
@@ -2122,9 +2157,11 @@ void dispatch_ctrl(uint32_t value)
     case GC_CTRL_CREDIT: {
       GASNETI_TRACE_PRINTF(D, ("AM_CREDIT for slot %d\n", arg));
       reply_pool_t *reply = reply_pool + arg;
+      peer_struct_t *peer = reply->u.credit.peer;
 
       GASNETC_LOCK_AM_BUFFER();
-      (*reply->u.credit.pointer) ^= reply->u.credit.value;
+      peer->remote_request_map ^= reply->u.credit.value;
+      peer->long_credits += reply->u.credit.isLong;
       reply->u.next = reply_freelist;
       reply_freelist = reply;
       GASNETC_UNLOCK_AM_BUFFER();
