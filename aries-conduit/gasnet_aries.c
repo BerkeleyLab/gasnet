@@ -54,7 +54,7 @@ struct peer_struct_t_ {
 #if GASNET_PAR
   volatile int remote_request_lock;
 #endif
-  uint64_t remote_request_map;  /* allocation bitmap (eager) or credit counter (rvous) */
+  uint64_t remote_request_map;  /* allocation bitmap */
   uint32_t remote_notify_write; /* covered by the gni lock, unbounded */
   uint32_t local_notify_read;   /* covered by the ampoll lock, bounded [0..notify_ring_size) */
   peer_struct_t *next;          /* covered by the ampoll lock */
@@ -1013,6 +1013,7 @@ uintptr_t gasnetc_init_messaging(void)
   am_rvous_enabled = (am_rvous_val && (gasneti_nodes >= am_rvous_val));
 
   /* Determine space/credits for AM Requests */
+  int request_bits;
   if (am_rvous_enabled) {
     /* Rendezvous: GASNET_NETWORKDEPTH */
     GASNETI_TRACE_PRINTF(I, ("Using Rendezvous protocol for AM Requests"));
@@ -1030,7 +1031,8 @@ uintptr_t gasnetc_init_messaging(void)
     rvous_count = gasneti_getenv_int_withdefault("GASNET_GNI_AM_RVOUS_BUFFERS",
                                                  GASNETC_GNI_AM_RVOUS_BUFFERS_DEFAULT, 0);
     rvous_count = MAX(1, rvous_count); /* Min is 1 */
-    request_map = am_maxcredit; // credit counter not a bitmap 
+
+    request_bits = am_maxcredit;
 
     am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, GASNETC_CACHELINE_SIZE); // No-op??
   } else {
@@ -1048,13 +1050,16 @@ uintptr_t gasnetc_init_messaging(void)
     /* NOTE: 1<<64 is undefined and indeed icc yields 1.  So, we special case 64 credits */
     gasneti_assert(am_maxcredit >= 32);
     gasneti_assert(am_maxcredit <= 64);
-    request_map = (am_maxcredit == 64) ? ~(uint64_t)0 : (((uint64_t)1 << am_maxcredit) - 1);
+    request_bits = am_maxcredit;
 
     // Clip credits to NETWORKDEPTH_TOTAL for use in computing size of Cq and notify ring
     am_maxcredit = MIN(am_maxcredit, reply_count);
     /* reply destination is also request source.  So, must fit largest *outgoing* message */
     am_replysz = GASNETI_ALIGNUP(GASNETC_MSG_MAXSIZE, am_slotsz);
   }
+
+  // NOTE: 1<<64 is undefined and indeed icc yields 1.  So, we special case 64.
+  request_map = (request_bits == 64) ? ~(uint64_t)0 : (((uint64_t)1 << request_bits) - 1);
 
   // Maximum number of Long requests outstanding per peer
   // WIP - until injection can enforce a limit, we allow every AM to be Long
@@ -1847,16 +1852,15 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
  { // Start of scope: 'slots'
   unsigned int slots = MAX(1, ((min_length + am_slotsz - 1) >> am_slot_bits));
   if (am_rvous_enabled) {
-    // All we count is credits (not size)
+    // All we count is credits (not size), but we need a remote slot number
+    mask = 1;
 
-    BUSYWAIT((peer->remote_request_map == 0),
+    BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
            ESCAPE1(out_immediate_2),
            ESCAPE2(out_immediate_2),
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
 
-    mask = 1;
-    remote_slot = 0; // Preserves mask=1
     length = max_length;
   } else if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
     gasneti_assert(slots <= am_maxcredit/2);
@@ -1889,7 +1893,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
  } // End of scope: 'slots'
 
   mask <<= remote_slot;
-  peer->remote_request_map -= mask; // Claim slots or credit
+  peer->remote_request_map ^= mask; // Claim slot(s)
 
 #if GASNET_PAR
   peer->remote_request_lock = 0;
@@ -1926,7 +1930,7 @@ out_immediate_4:
     reply_freelist = r;
 out_immediate_3:
     // Restore bits corresponding to remote buffer allocation
-    peer->remote_request_map += mask;
+    peer->remote_request_map ^= mask;
     goto out_immediate_1; // peer->remote_request_lock=0 would be erroneous
 out_immediate_2:
   #if GASNET_PAR
@@ -2112,7 +2116,7 @@ void dispatch_ctrl(uint32_t value)
       reply_pool_t *reply = reply_pool + arg;
 
       GASNETC_LOCK_AM_BUFFER();
-      (*reply->u.credit.pointer) += reply->u.credit.value;
+      (*reply->u.credit.pointer) ^= reply->u.credit.value;
       reply->u.next = reply_freelist;
       reply_freelist = reply;
       GASNETC_UNLOCK_AM_BUFFER();
@@ -2223,7 +2227,7 @@ int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG
       gasnetc_recv_am(peer, reply->packet, n GASNETI_THREAD_PASS);
 
       GASNETC_LOCK_AM_BUFFER();
-      peer->remote_request_map += reply->u.credit.value;
+      peer->remote_request_map ^= reply->u.credit.value;
       reply->u.next = reply_freelist;
       reply_freelist = reply;
       GASNETC_UNLOCK_AM_BUFFER();
