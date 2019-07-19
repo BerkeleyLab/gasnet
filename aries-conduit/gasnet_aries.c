@@ -2533,8 +2533,8 @@ again:
         } else
         if (gpd_flags & GC_POST_COMPLETION_EOP) {
           GASNETC_EOP_ALC_FINISH((gasnete_eop_t *) gpd->gpd_put_lc);
-        } else {
-          gasneti_assert(gpd_flags & GC_POST_COMPLETION_IPUT);
+        } else
+        if (gpd_flags & GC_POST_COMPLETION_IPUT) {
           if (gpd_flags & GC_POST_LC_NOW) { // GEX_EVENT_NOW for IOP (non-atomic)
             * (volatile gasneti_weakatomic_val_t *) gpd->gpd_put_lc += 1;
           } else {
@@ -3237,12 +3237,11 @@ first:
 // For the uncommon case that the source is out-of-segment, larger than a
 // single bounce-buffer, and cannot be dynamically registered, all but the
 // last bounce-buffer is completed globally before the final piece.
-//
-// TODO-EX: Async LC
 void gasnetc_rdma_put_long(gex_Rank_t jobrank,
                           void *dest_addr, void *source_addr,
                           size_t nbytes,
-                          volatile int *done_p,
+                          uint32_t gpd_flags,
+                          void *completion,
                           uint32_t nonce
                           GASNETC_DIDX_FARG)
 {
@@ -3265,13 +3264,13 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
   gasneti_boundscheck(NULL /*TODO-EX: tm,rank */, jobrank, dest_addr, nbytes);
 
   /* Start with defaults suitable for FMA or in-segment RDMA */
-  gpd->gpd_flags = GC_POST_COMPLETION_FLAG;
+  gpd->gpd_flags = gpd_flags;
   pd->local_addr = (uint64_t) source_addr;
   pd->local_mem_hndl = gasnetc_local_mh(source_addr);
 
   if (nbytes <= gasnetc_put_fma_rdma_cutover) {
     /* Small enough for FMA - no local memory registration is required */
-    gpd->gpd_completion = (uintptr_t) done_p;
+    gpd->gpd_completion = (uintptr_t) completion;
     pd->type = GNI_POST_FMA_PUT;
     pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_GLOBAL_EVENT;
   } else { /* Using RDMA, which requires local memory registration */
@@ -3287,7 +3286,22 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
         GASNETI_MEMCPY(buffer, source_addr, pd->length);
         pd->local_addr = (uint64_t) buffer;
         pd->local_mem_hndl = my_aux_handle;
-        gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNBOUNCE;
+        gpd->gpd_flags = GC_POST_UNBOUNCE;
+        // signal synchronous local completion
+        switch (gpd_flags & GC_POST_COMPLETION_MASK) {
+          case GC_POST_COMPLETION_FLAG:
+            *(volatile int *) completion = 1;
+            break;
+          case GC_POST_COMPLETION_EOP:
+            GASNETC_EOP_ALC_FINISH((gasnete_eop_t *) completion);
+            break;
+          case GC_POST_COMPLETION_IPUT:
+            GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) completion, alc, 1, 0);
+            break;
+          default:
+            gasneti_unreachable_error(("Invalid completion flags 0x%x",
+                                      gpd_flags & GC_POST_COMPLETION_MASK));
+        }
       } else if (! gasnetc_register_gpd(gpd, GNI_MEM_READ_ONLY)) {
         // Multiple bounce-buffer case (due to dynamic registration failure).
         // Caller needs exactly one xfer on which to block for completion,
@@ -3334,8 +3348,8 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
         pd->length = nbytes;
         pd->local_addr = (uint64_t) buffer;
         pd->local_mem_hndl = my_aux_handle;
-        gpd->gpd_completion = (uintptr_t) done_p;
-        gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNBOUNCE;
+        gpd->gpd_completion = (uintptr_t) completion;
+        gpd->gpd_flags = gpd_flags | GC_POST_UNBOUNCE;
 
         // Stall
         while (initiated != gasneti_weakatomic_read(&completed, 0)) {
@@ -3345,10 +3359,10 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
 
         // Fall through to inject final chunk
       } else {
-        gpd->gpd_flags = GC_POST_COMPLETION_FLAG | GC_POST_UNREGISTER;
+        gpd->gpd_flags = gpd_flags | GC_POST_UNREGISTER;
       }
     }
-    gpd->gpd_put_lc = (uintptr_t) done_p;
+    gpd->gpd_put_lc = (uintptr_t) completion;
     pd->type = GNI_POST_RDMA_PUT;
     pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_LOCAL_EVENT;
   }

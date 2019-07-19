@@ -429,7 +429,8 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
 void gasnetc_rdma_put_long(gex_Rank_t jobrank,
                  void *dest_addr, void *source_addr,
                  size_t nbytes,
-                 volatile int *done_p,
+                 uint32_t gpd_flags,
+                 void *completion,
                  uint32_t nonce
                  GASNETC_DIDX_FARG);
 
