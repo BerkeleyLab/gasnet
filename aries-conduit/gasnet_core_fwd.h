@@ -116,6 +116,7 @@ extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthrea
         VAL(C, AM_SEND_RETRY, retries) \
         VAL(C, CTRL_SEND_RETRY, retries) \
         VAL(C, MEM_REG_RETRY, retries) \
+        VAL(C, AMPOLL_EVENTS, GNI events) \
         CNT(C, AMPOLL_INS, late notifies) \
         /* blank */
 

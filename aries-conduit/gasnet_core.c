@@ -16,10 +16,6 @@
 #include <unistd.h>
 #include <signal.h>
 
-#if !GASNET_PSHM
-#include <alloca.h>
-#endif
-
 #include <sys/mman.h>
 #ifdef GASNETI_USE_HUGETLBFS
 #include <hugetlbfs.h>

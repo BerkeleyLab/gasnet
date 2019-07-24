@@ -23,6 +23,26 @@
 #define GASNETC_RESOURCE_RETRIES 65536
 #endif
 
+// Use alloca()?  (e.g. to work-around bug 2079 or similar)
+#ifdef GASNETI_USE_ALLOCA
+  // Keep defn
+#elif HAVE_ALLOCA && !PLATFORM_COMPILER_PGI
+  #define GASNETI_USE_ALLOCA 1
+#endif
+#if GASNETI_USE_ALLOCA && HAVE_ALLOC_H
+  #include <alloca.h>
+#endif
+
+// Max number of times to poll the AM mailboxes per entry
+// TODO: distinct value for CQ events reaped vs service limit on "slow" list?
+static int gasnetc_ampoll_burst; // Units of events
+#define GASNETC_GNI_AMPOLL_BURST_DEFAULT 20
+#if GASNETI_USE_ALLOCA
+  static size_t gasnetc_ampoll_burst_sz; // Units of bytes
+#elif !defined(GASNETC_GNI_AMPOLL_BURST_MAX)
+  #define GASNETC_GNI_AMPOLL_BURST_MAX 100
+#endif
+
 #if GASNET_DEBUG
   #define GASNETC_CDM_MODE GNI_CDM_MODE_FORK_FULLCOPY | GNI_CDM_MODE_ERR_NO_KILL
 #else
@@ -1315,6 +1335,16 @@ am_memory_report:
   DOMAIN_SPECIFIC_VAL(initialized) = 1;
 #endif
 
+  gasnetc_ampoll_burst = MAX(1,gasneti_getenv_int_withdefault("GASNET_GNI_AMPOLL_BURST",
+                                                              GASNETC_GNI_AMPOLL_BURST_DEFAULT, 0));
+#if GASNETI_USE_ALLOCA
+  // precompute size of dynamic allocation
+  gasnetc_ampoll_burst_sz = gasnetc_ampoll_burst * sizeof(gni_cq_entry_t);
+#else
+  // bound size of static allocation
+  gasnetc_ampoll_burst = MIN(gasnetc_ampoll_burst, GASNETC_GNI_AMPOLL_BURST_MAX);
+#endif
+
   return am_mmap_bytes;
 }
 
@@ -2431,17 +2461,16 @@ int poll_for_message(peer_struct_t * const peer, int is_slow GASNETI_THREAD_FARG
   return 0;
 }
 
-/* Max number of times to poll the AM mailboxes per entry */
-/* TODO: control via env var */
-/* TODO: distinct value for CQ events reaped vs service limit on "slow" list? */
-#define AM_BURST 20
-
 static
 void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
-  gni_cq_entry_t event_data[AM_BURST];
+#if GASNETI_USE_ALLOCA
+  gni_cq_entry_t *event_data = alloca(gasnetc_ampoll_burst_sz);
+#else
+  gni_cq_entry_t event_data[GASNETC_GNI_AMPOLL_BURST_MAX];
+#endif
   int count = 0;
   int i;
 
@@ -2455,7 +2484,7 @@ void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
 #endif
   {
   GASNETC_LOCK_GNI();
-    for (count = 0; count < AM_BURST; ++count) {
+    for (count = 0; count < gasnetc_ampoll_burst; ++count) {
       gni_return_t status = GNI_CqGetEvent(am_cq_handle, &event_data[count]);
       if (status != GNI_RC_SUCCESS) break; /* TODO: check for fatal errors */
       gasneti_assert(!GNI_CQ_OVERRUN(event_data[count]));
@@ -2464,6 +2493,8 @@ void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
   }
 
   if (count) {
+    GASNETI_TRACE_EVENT_VAL(D,AMPOLL_EVENTS,count);
+
     /* Must take the lock to process new events */
     gasneti_mutex_lock(&ampoll_lock);
 
@@ -2502,7 +2533,7 @@ void gasnetc_poll_am_queue(GASNETI_THREAD_FARG_ALONE)
   }
 
   /* Poll "slow" sources, starting with the oldest */
-  for (i = 0; ampoll_head && (i < AM_BURST); ++i) {
+  for (i = 0; ampoll_head && (i < gasnetc_ampoll_burst); ++i) {
     peer_struct_t * const peer = ampoll_head;
     if (!poll_for_message(peer, 1 GASNETI_THREAD_PASS)) {
       if (peer == ampoll_tail) break; /* don't spin on singleton peer */
