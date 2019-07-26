@@ -68,12 +68,6 @@ royalty-free perpetual license to install, use, modify, prepare derivative
 works, incorporate into other computer software, distribute, and sublicense
 such enhancements or derivative works thereof, in binary and source code form.
 
-*** Export Classification ***
-
-This software was developed under the fundamental research exception (See 15 CFR
-734.8 and 22 CFR 120.11) and is not subject to export control if released as
-open-source software.
-
 *** Contributions ***
 
 For more information about GASNet-EX, visit our home page at:
