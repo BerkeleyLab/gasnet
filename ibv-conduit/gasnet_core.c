@@ -2831,11 +2831,14 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
   for (size_t i = 0; i < total_eps; ++i) {
     gex_Rank_t jobrank = p->loc.gex_rank;
     gex_EP_Index_t idx = p->loc.gex_ep_index;
+  #if !GASNETC_BUILD_IBVRATOMIC
     if (jobrank == gasneti_mynode) {
-      // Local:
-      // Fall through to advance p
-    } else if (! idx) {
-      // Remote + primordial:
+      // Loopback for RMA is only used for remote atomics
+      // So when they are not enabled, just fall through to advance p
+    } else
+  #endif
+    if (! idx) {
+      // Primordial:
       uint32_t *rkey = p->rkey;
       for (int j = 0; j < gasnetc_num_hcas; ++j) {
         gasnetc_hca_t *hca = gasnetc_hca + j;
@@ -2845,14 +2848,14 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       }
       gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, jobrank);
       if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
-    } else {
+    } else if (jobrank != gasneti_mynode) {
       // Remote + non-primordial:
       gasnetc_install_np_rkeys(jobrank, idx, p->rkey);
     }
     p = (struct exchg_data *)(elem_sz + (uintptr_t)p);
   }
   gasneti_free(global);
-#else
+#else // PIN_SEGMENT
   // Per-endpoint work:
   // TODO: multi-ep may require more work
   gex_Rank_t team_size = gex_TM_QuerySize(tm);
@@ -2867,7 +2870,7 @@ static int gasnetc_segment_exchange(gex_TM_t tm, gex_EP_t *eps, size_t num_eps)
       if (cep) gasnetc_sndrcv_attach_peer(jobrank, cep);
     }
   }
-#endif
+#endif // PIN_SEGMENT
 
   return GASNET_OK;
 }

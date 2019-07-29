@@ -1611,6 +1611,17 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
     #endif
       break;
 
+    case IBV_WR_ATOMIC_FETCH_AND_ADD:
+    case IBV_WR_ATOMIC_CMP_AND_SWP:
+      gasneti_assert_uint(sr_desc->num_sge ,==, 1);
+      gasneti_assert_uint(sr_desc->sg_list[0].length ,==, sizeof(uint64_t));
+      GASNETI_TRACE_PRINTF(D,("%s op=AMO rkey=0x%08x\n", type, (unsigned int)sr_desc->wr.atomic.rkey));
+      GASNETI_TRACE_PRINTF(D,("  0: lkey=0x%08x local=%p remote=%p\n",
+                              sr_desc->sg_list[0].lkey,
+                              (void *)sr_desc->sg_list[0].addr,
+                              (void *)r_addr));
+      break;
+
     default:
       gasneti_fatalerror("Invalid operation %d for %s\n", sr_desc->opcode, type);
     }
@@ -3764,7 +3775,7 @@ extern int gasnetc_rdma_get(
 
   return 0;
 }
-#else
+#else // !GASNETC_PIN_SEGMENT
 /*
  * ###########################################
  * RDMA ops when the segment is NOT pre-pinned
@@ -3927,4 +3938,3 @@ extern int gasnetc_rdma_get(
   return 0;
 }
 #endif
-

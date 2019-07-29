@@ -180,6 +180,13 @@ typedef union gasnete_ratomic_fn_tbl_u *gasnete_ratomic_fn_tbl_t;
 #define _gex_dt_U64_fmt_cast
 #define _gex_dt_FLT_fmt_cast
 #define _gex_dt_DBL_fmt_cast
+//
+#define _gex_dt_I32_string "I32"
+#define _gex_dt_U32_string "U32"
+#define _gex_dt_I64_string "I64"
+#define _gex_dt_U64_string "U64"
+#define _gex_dt_FLT_string "FLT"
+#define _gex_dt_DBL_string "DBL"
 
 
 // Unions for type-punning
