@@ -4175,6 +4175,9 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
                           gasnetc_counter_t *counter, va_list argptr
                           GASNETI_THREAD_FARG)
 {
+    // AMs to in-nbrhd peers must currently use PSHM
+    gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(cep->epid)));
+
     // Set header fields and locate arguments
     gex_AM_Arg_t *args;
     switch (category) {
