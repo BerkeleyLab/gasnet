@@ -996,9 +996,16 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr)
 {
   int retval;
-  gex_Rank_t jobrank = gasnetc_msgsource(token);
-  retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_SHORT, jobrank, handler,
-                                    flags, 0, numargs, argptr, NULL, 0, NULL);
+
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
+                                         0, 0, 0,
+                                         flags, numargs, argptr);
+  } else {
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_SHORT, jobrank, handler,
+                                      flags, 0, numargs, argptr, NULL, 0, NULL);
+  }
 
   return retval;
 }
@@ -1031,13 +1038,20 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr)
 {
   int retval;
-  gex_Rank_t jobrank = gasnetc_msgsource(token);
 
-  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
+                                         source_addr, nbytes, 0,
+                                         flags, numargs, argptr);
+  } else {
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_MEDIUM, jobrank, handler,
+                                      flags, 0, numargs, argptr, source_addr,
+                                      nbytes, NULL);
+  }
 
-  retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_MEDIUM, jobrank, handler,
-                                    flags, 0, numargs, argptr, source_addr,
-                                    nbytes, NULL);
   return retval;
 }
 
@@ -1226,12 +1240,19 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr)
 {
   int retval;
-  gex_Rank_t jobrank = gasnetc_msgsource(token);
 
-  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_LONG, jobrank, handler,
-                                    flags, 0, numargs, argptr, source_addr,
-                                    nbytes, dest_addr);
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    gasneti_leaf_finish(lc_opt); // synchronous LC
+    retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
+                                         source_addr, nbytes, dest_addr,
+                                         flags, numargs, argptr);
+  } else {
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_LONG, jobrank, handler,
+                                      flags, 0, numargs, argptr, source_addr,
+                                      nbytes, dest_addr);
+  }
 
   return retval;
 }
