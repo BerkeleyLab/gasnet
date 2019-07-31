@@ -63,7 +63,6 @@ int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
 int					gasnetc_num_qps;
-gex_Rank_t                           gasnetc_remote_nodes = 0;
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped types                                                                   *
@@ -385,8 +384,9 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   gasneti_assert(cep);
   gasneti_assert(rbuf);
 
-  /* check for attempted loopback traffic */
-  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(cep->epid)));
+  // In the absence of SRQ, check for attempted intra-nbrhd traffic
+  // With SRQ, however, initialization occurs via the first cep per HCA, which maybe in-nbrhd
+  gasneti_assert(gasnetc_use_srq || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(cep->epid)));
   
   rbuf->cep = cep;
   rbuf->rr_sg.lkey = GASNETC_RCV_LKEY(cep);
@@ -1216,7 +1216,6 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, int
 
   gasneti_assert(sreq);
   gasneti_assert(sreq->cep);
-  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(sreq->cep->epid)));
   gasneti_assert(sr_desc);
   gasneti_assert(sr_desc->num_sge >= 1);
   gasneti_assert(sr_desc->num_sge <= GASNETC_SND_SG);
@@ -1341,7 +1340,6 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
 
   /* Must be bound to a qp by now */
   gasneti_assert(cep != NULL );
-  gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(sreq->epid)));
 
   gasneti_assert(sreq->opcode != GASNETC_OP_FREE);
   gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
@@ -2317,8 +2315,6 @@ extern int gasnetc_sndrcv_limits(void) {
     gasnetc_rbuf_spares = MAX(1,gasneti_getenv_int_withdefault("GASNET_RBUF_SPARES", threads, 0));
   }
 
-  gasnetc_remote_nodes = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
-
   /* Count normal qps to be placed on each HCA */
   if (gasneti_nodes == 1) {
     GASNETC_FOR_ALL_HCA(hca) {
@@ -2333,7 +2329,7 @@ extern int gasnetc_sndrcv_limits(void) {
     for (i = 0; i < gasnetc_num_qps; ++i) {
       hca = &gasnetc_hca[gasnetc_port_tbl[i % gasnetc_num_ports].hca_index];
       hca->qps += 1;
-      hca->max_qps += gasnetc_remote_nodes;
+      hca->max_qps += gasneti_nodes;
     }
   }
 
@@ -2354,7 +2350,7 @@ extern int gasnetc_sndrcv_limits(void) {
     }
   }
   gasnetc_op_oust_pp /= gasnetc_num_qps;
-  gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, gasnetc_op_oust_pp*(gasneti_nodes-1));
+  gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, gasnetc_op_oust_pp*gasneti_nodes);
   gasnetc_op_oust_limit = gasnetc_num_qps * gasnetc_op_oust_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
 
@@ -2364,11 +2360,6 @@ extern int gasnetc_sndrcv_limits(void) {
    * (2) (gasnetc_am_oust_pp * hca->max_qps) used to catch Requests
    * (3) (gasnetc_am_oust_pp * hca->max_qps) used to catch Replies
    * However distribution over QPs and SRQ may each reduce the second two.
-   *
-   * Note that we use (gasneti_nodes - 1) rather than gasnetc_remote_nodes.  This is because
-   * gasnetc_remote_nodes may vary among processes, possibly leading to making different
-   * gasnet_use_srq decisions across nodes.
-   * TODO: As a result, some rbufs may be allocated for PSHM peers when SRQ is inactive.
    */
   gasnetc_am_oust_pp /= gasnetc_num_qps;
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
@@ -2404,14 +2395,6 @@ extern int gasnetc_sndrcv_limits(void) {
     gasnetc_bbuf_limit = gasnetc_op_oust_limit;
   } else {
     gasnetc_bbuf_limit = MIN(gasnetc_bbuf_limit, gasnetc_op_oust_limit);
-  }
-  if (gasnetc_remote_nodes == 0) {
-    #if GASNET_PSHM
-      /* PSHM will handle all of the loopback traffic */
-    #else
-      /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
-      gasnetc_bbuf_limit = gasnetc_num_qps * gasnetc_am_oust_pp;
-    #endif
   }
   /* SRQ may raise this.  So, report is deferred. */
 
@@ -2570,7 +2553,7 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
 #if GASNETC_DYNAMIC_CONNECT
   /* Default to handling 4 + 2*lg(remote_nodes) incomming UD requests and 4 outgoing */
   gasnetc_ud_rcvs = 1;
-  while ((1 << gasnetc_ud_rcvs) < (int)gasnetc_remote_nodes) {
+  while ((1 << gasnetc_ud_rcvs) < (int)gasneti_nodes) {
     ++gasnetc_ud_rcvs;
   }
   gasnetc_ud_rcvs = 4 + 2 * gasnetc_ud_rcvs;
@@ -2602,7 +2585,7 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
     gasneti_assert(act_size >= cqe_count);
     /* We don't set rcv_count = act_size here, as that could nearly double the memory allocated below */
 
-    if (gasnetc_remote_nodes) {
+    if (gasneti_nodes > 1) {
       /* Allocated pinned memory for receive buffers */
       size = GASNETI_PAGE_ALIGNUP(rcv_count * sizeof(gasnetc_buffer_t));
       buf = gasnetc_mmap(size);
@@ -2731,34 +2714,35 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
 }
 
 extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
-  if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node)) {
-    const int first = !cep->hca->num_qps;
-    for (int i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
-      gasnetc_hca_t *hca = cep->hca;
-      cep->epid = gasnetc_epid(node, i);
-      cep->rbuf_freelist = &hca->rbuf_freelist;
+  const int first = !cep->hca->num_qps;
+  for (int i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
+    gasnetc_hca_t *hca = cep->hca;
+    cep->epid = gasnetc_epid(node, i);
+    cep->snd_cq_sema_p = &gasnetc_cq_semas[GASNETC_HCA_IDX(cep)];
 
-    #if GASNETC_IB_MAX_HCAS > 1
-      /* "Cache" the local keys associated w/ this cep */
+  #if GASNETC_IB_MAX_HCAS > 1
+    /* "Cache" the local keys associated w/ this cep */
+    if (gasneti_nodes > 1) {
       cep->rcv_lkey = hca->rcv_reg.handle->lkey;
-      cep->snd_lkey = hca->snd_reg.handle->lkey;
-    #endif
+    }
+    cep->snd_lkey = hca->snd_reg.handle->lkey;
+  #endif
 
-      hca->num_qps++;
-      gasneti_assert(hca->num_qps <= hca->max_qps);
+    cep->rbuf_freelist = &hca->rbuf_freelist;
 
-      if (gasnetc_use_srq) {
-        // Prepost to SRQ for only one peer on each HCA
-        if (first) {
-          for (int j = 0; j < gasnetc_am_rqst_per_qp; ++j) {
-            gasnetc_rbuf_t *rbuf = gasnetc_lifo_pop(cep->rbuf_freelist);
-            gasnetc_rcv_post(cep, rbuf);
-          }
-        }
-      } else
-      for (int j = 0; j < 2 * gasnetc_am_oust_pp; ++j) {
-        // Prepost one rcv buffer for each possible incomming Request or Reply
+    // Prepost to SRQ for only one peer on each HCA
+    if (gasnetc_use_srq && first) {
+      for (int j = 0; j < gasnetc_am_rqst_per_qp; ++j) {
         gasnetc_rcv_post(cep, gasnetc_lifo_pop(cep->rbuf_freelist));
+      }
+    }
+
+    if (!GASNETI_NBRHD_JOBRANK_IS_LOCAL(node)) { // AM resources never used w/i NBRHD
+      if (!gasnetc_use_srq) {
+        for (int j = 0; j < 2 * gasnetc_am_oust_pp; ++j) {
+          // Prepost one rcv buffer for each possible incomming Request or Reply
+          gasnetc_rcv_post(cep, gasnetc_lifo_pop(cep->rbuf_freelist));
+        }
       }
 
       /* Setup semaphores/counters */
@@ -2768,21 +2752,15 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
       } else {
         gasnetc_sema_init(&cep->am_rem, gasnetc_am_oust_pp, gasnetc_am_oust_pp);
       }
-      cep->snd_cq_sema_p = &gasnetc_cq_semas[GASNETC_HCA_IDX(cep)];
-    }
-  } else {
-    /* Should never use these for loopback or same supernode */
-    /* XXX: is this now unreachable with new connect code? */
-    for (int i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
-      cep->epid = gasnetc_epid(node, i);
-    #if GASNETC_IBV_XRC
-      gasneti_assert(GASNETC_CEP_SQ_SEMA(cep) == NULL);
-    #else
-      gasnetc_sema_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
-    #endif
+    } else {
+      /* Should never use AM resources for loopback or same supernode */
+      /* XXX: is this now unreachable with new connect code? */
       gasnetc_sema_init(&cep->am_rem, 0, 0);
       gasnetc_atomic_set(&cep->am_flow.credit, 0, 0);
     }
+
+    hca->num_qps++;
+    gasneti_assert(hca->num_qps <= hca->max_qps);
   }
 }
 
@@ -2958,7 +2936,7 @@ extern int gasnetc_sndrcv_shutdown(void) {
 
   GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_IBV_SRQ
-    if (gasnetc_use_srq && gasnetc_remote_nodes) {
+    if (gasnetc_use_srq && (gasneti_nodes > 1)) {
       rc = ibv_destroy_srq(hca->rqst_srq);
       GASNETC_IBV_CHECK(rc, "from ibv_destroy_srq(request)");
       rc = ibv_destroy_srq(hca->repl_srq);
@@ -2988,7 +2966,7 @@ extern int gasnetc_sndrcv_shutdown(void) {
 
 #if GASNETC_USE_RCV_THREAD
 extern void gasnetc_sndrcv_start_thread(void) {
-  if (gasnetc_remote_nodes && gasnetc_use_rcv_thread) {
+  if (gasnetc_use_rcv_thread) {
     int rcv_max_rate = gasneti_getenv_int_withdefault("GASNET_RCV_THREAD_RATE", 0, 0);
     gasnetc_hca_t *hca;
 
@@ -3008,7 +2986,7 @@ extern void gasnetc_sndrcv_start_thread(void) {
 }
 
 extern void gasnetc_sndrcv_stop_thread(int block) {
-  if (gasnetc_remote_nodes && gasnetc_use_rcv_thread) {
+  if (gasnetc_use_rcv_thread) {
     gasnetc_hca_t *hca;
 
     GASNETC_FOR_ALL_HCA(hca) {
@@ -3096,6 +3074,9 @@ extern int gasnetc_rdma_put(
   //     All uses of rem_auxseg are a temporary hack
   //     This will be replaced by general multi-registration support later
   const int rem_auxseg = gasneti_in_auxsegment(jobrank, dst_ptr, nbytes);
+
+  // Primordial endpoints should always use PSHM for in-nbrhd RMA
+  gasneti_assert(ep->_index || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   gasneti_assert(nbytes != 0);
   
@@ -3237,6 +3218,9 @@ extern int gasnetc_rdma_get(
   //     All uses of rem_auxseg are a temporary hack
   //     This will be replaced by general multi-registration support later
   const int rem_auxseg = gasneti_in_auxsegment(jobrank, src_ptr, nbytes);
+
+  // Primordial endpoints should always use PSHM for in-nbrhd RMA
+  gasneti_assert(ep->_index || !GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank));
 
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
