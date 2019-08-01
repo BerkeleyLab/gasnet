@@ -283,6 +283,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
 	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
+	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             UPCXX=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND/bin/upcxx \
 	             clean $*
 	mv $</$* $@
