@@ -179,6 +179,24 @@ GASNET_NETWORKDEPTH - depth of per-peer Rendezvous AM Request queue
   the same value (with a warning).
   The default value is 64, and the minimum is 1.
 
+GASNET_LONG_DEPTH - depth of per-peer Long tracking
+  This determines the maximum number of AM Long Requests payload transfers
+  that can be outstanding between a given pair of peers before flow-control.
+  This is in addition to any flow-control required due to the "NETWORKDEPTH"
+  variables, above.
+  The default value is no limit, the minimum is 1, and the maximum is 64.
+
+GASNET_GNI_AMPOLL_BURST - max events processed per AMPoll
+  This determines the maximum number of GNI-level events processed per call to
+  gasnet_AMPoll(), both explicit and implicit.  If GASNet calls which poll for
+  AM arrival are infrequent, it may be desirable to increase this setting to
+  ensure any backlog of events can be cleared at each such call.
+  In a GASNET_PAR build, increased values of this setting may reduce the
+  opportunity for concurrent AM handler execution (since a thread may
+  serialize execution of handlers corresponding to this many consecutive
+  GNI-level events).
+  The default value is 20, the minimum is 1.
+
 GASNET_GNI_AM_MEMORY_REPORT
   The value is a boolean: "0" to disable or "1" to enable the reporting of
   the memory allocated for AM buffers (controlled by the GASNET_NETWORKDEPTH*

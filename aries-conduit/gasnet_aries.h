@@ -114,11 +114,24 @@ enum gc_notify_type {
 };
 
 #define gc_build_notify(_type, _initiator, _target)\
-  ((uint64_t)(_type) |  ((uint64_t)(_initiator) << 8) |  ((uint64_t)(_target)))
+  ((uint64_t)(_type) |  ((uint64_t)(_initiator)) |  ((uint64_t)(_target) << 26))
 
-#define gc_notify_get_type(n) ((n) & 0xff000000)
-#define gc_notify_get_target_slot(n) ((uint8_t)((n) & 255)) /* actual range 0..63 */
-#define gc_notify_get_initiator_slot(n) ((uint16_t)(((n) >> 8) & 65535))
+#define GASNETC_AM_INITIATOR_SLOTS 65536 // 16 bits
+#define GASNETC_AM_TARGET_SLOTS       64 //  6 bits
+
+#define gc_notify_get_type(n) ((n) & 0x03000000)
+#define gc_notify_get_target_slot(n) ((uint8_t)(((n) >> 26) & (GASNETC_AM_TARGET_SLOTS-1)))
+#define gc_notify_get_initiator_slot(n) ((uint16_t)((n) & (GASNETC_AM_INITIATOR_SLOTS-1)))
+#define gc_notify_get_nonce(n) ((n) & 0xff000000) // type and target slot
+
+// Bits 24 - 25 of REM_INST_ID, aligned to notify for case of long payloads
+enum gc_instid_type {
+  gc_instid_header    = 0x00000000,
+  gc_instid_long_req  = gc_notify_request,
+  gc_instid_long_rep  = gc_notify_reply,
+  gc_instid_ctrl      = 0x03000000
+};
+#define GC_INSTID_MASK 0x03000000
 
 typedef struct gasnetc_post_descriptor gasnetc_post_descriptor_t;
 
@@ -255,7 +268,6 @@ enum {
   _gc_post_completion_iget,
   _gc_post_completion_irmw,
   _gc_post_completion_amrv,
-  _gc_post_completion_send,
   /* local-completion variation(s) */
   _gc_post_lc_now,
   /* optionally suppress free of the gpd */
@@ -278,7 +290,6 @@ enum {
 #define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
 #define GC_POST_COMPLETION_IRMW GC_POST(completion_irmw)
 #define GC_POST_COMPLETION_AMRV GC_POST(completion_amrv)
-#define GC_POST_COMPLETION_SEND GC_POST(completion_send)
 #define GC_POST_LC_NOW          GC_POST(lc_now)
 #define GC_POST_KEEP_GPD        GC_POST(keep_gpd)
 
@@ -288,8 +299,7 @@ enum {
                                  GC_POST_COMPLETION_IPUT | \
                                  GC_POST_COMPLETION_IGET | \
                                  GC_POST_COMPLETION_IRMW | \
-                                 GC_POST_COMPLETION_AMRV | \
-                                 GC_POST_COMPLETION_SEND)
+                                 GC_POST_COMPLETION_AMRV)
 
 struct peer_struct_t_;
 typedef struct peer_struct_t_ peer_struct_t;
@@ -416,6 +426,14 @@ void gasnetc_rdma_put_buff(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
+void gasnetc_rdma_put_long(gex_Rank_t jobrank,
+                 void *dest_addr, void *source_addr,
+                 size_t nbytes,
+                 uint32_t gpd_flags,
+                 void *completion,
+                 uint32_t nonce
+                 GASNETC_DIDX_FARG);
+
 size_t gasnetc_rdma_get(gex_Rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
@@ -487,6 +505,13 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor_np(gex_Rank_t d
                                                                     size_t max_length,
                                                                     gex_Flags_t flags
                                                                     GASNETI_THREAD_FARG);
+gasnetc_post_descriptor_t *
+gasnetc_alloc_request_post_descriptor_long(
+                        gex_Rank_t jobrank,
+                        size_t length,
+                        gex_Flags_t flags,
+                        int is_packed
+                        GASNETI_THREAD_FARG);
 
 /* Some common GPD idioms */
 

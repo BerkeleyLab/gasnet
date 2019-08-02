@@ -24,6 +24,13 @@ PENDING: GASNet-EX Work-In-Progress
   - This conduit, deprecated since 2019.6.0, has been removed.
   - The aries-conduit remains supported and under active development.
 
+* Cray XC uGNI aries-conduit
+  - The performance of AMLong with payload of 4KB or larger has been
+    significantly improved.  The overhead of injection with synchronous
+    local completion is reduced.  The cases of asynchronous local
+    completion (both explicit and implicit event) are properly implemented
+    where previously they were strengthened to synchronous.
+
 * Notable bugs fixed in this release:
 
 ----------------------------------------------------------------------
