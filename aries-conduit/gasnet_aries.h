@@ -264,6 +264,8 @@ enum {
   _gc_post_completion_flag,
   _gc_post_completion_cntr,
   _gc_post_completion_eop,
+  _gc_post_completion_eam,
+  _gc_post_completion_iam,
   _gc_post_completion_iput,
   _gc_post_completion_iget,
   _gc_post_completion_irmw,
@@ -286,6 +288,8 @@ enum {
 #define GC_POST_COMPLETION_FLAG GC_POST(completion_flag)
 #define GC_POST_COMPLETION_CNTR GC_POST(completion_cntr)
 #define GC_POST_COMPLETION_EOP  GC_POST(completion_eop)
+#define GC_POST_COMPLETION_EAM  GC_POST(completion_eam)
+#define GC_POST_COMPLETION_IAM  GC_POST(completion_iam)
 #define GC_POST_COMPLETION_IPUT GC_POST(completion_iput)
 #define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
 #define GC_POST_COMPLETION_IRMW GC_POST(completion_irmw)
@@ -296,6 +300,8 @@ enum {
 #define GC_POST_COMPLETION_MASK (GC_POST_COMPLETION_FLAG | \
                                  GC_POST_COMPLETION_CNTR | \
                                  GC_POST_COMPLETION_EOP  | \
+                                 GC_POST_COMPLETION_EAM  | \
+                                 GC_POST_COMPLETION_IAM  | \
                                  GC_POST_COMPLETION_IPUT | \
                                  GC_POST_COMPLETION_IGET | \
                                  GC_POST_COMPLETION_IRMW | \

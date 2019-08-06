@@ -2599,10 +2599,10 @@ again:
         if (gpd_flags & GC_POST_COMPLETION_FLAG) {
           *(volatile int *) gpd->gpd_put_lc = 1;
         } else
-        if (gpd_flags & GC_POST_COMPLETION_EOP) {
+        if (gpd_flags & (GC_POST_COMPLETION_EOP | GC_POST_COMPLETION_EAM)) {
           GASNETC_EOP_ALC_FINISH((gasnete_eop_t *) gpd->gpd_put_lc);
         } else
-        if (gpd_flags & GC_POST_COMPLETION_IPUT) {
+        if (gpd_flags & (GC_POST_COMPLETION_IPUT | GC_POST_COMPLETION_IAM)) {
           if (gpd_flags & GC_POST_LC_NOW) { // GEX_EVENT_NOW for IOP (non-atomic)
             * (volatile gasneti_weakatomic_val_t *) gpd->gpd_put_lc += 1;
           } else {
@@ -2664,6 +2664,12 @@ again:
           break;
         case GC_POST_COMPLETION_EOP:
           GASNETC_EOP_CNT_FINISH((gasnete_eop_t *) gpd->gpd_completion);
+          break;
+        case GC_POST_COMPLETION_EAM:
+          GASNETC_EOP_ALC_FINISH((gasnete_eop_t *) gpd->gpd_completion);
+          break;
+        case GC_POST_COMPLETION_IAM:
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, alc, 1, 0);
           break;
         case GC_POST_COMPLETION_IPUT:
           GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, put, 1, 0);
@@ -3363,10 +3369,10 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
           case GC_POST_COMPLETION_FLAG:
             *(volatile int *) completion = 1;
             break;
-          case GC_POST_COMPLETION_EOP:
+          case GC_POST_COMPLETION_EAM:
             GASNETC_EOP_ALC_FINISH((gasnete_eop_t *) completion);
             break;
-          case GC_POST_COMPLETION_IPUT:
+          case GC_POST_COMPLETION_IAM:
             GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) completion, alc, 1, 0);
             break;
           default:

@@ -1523,12 +1523,12 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
         GASNETE_EOP_LC_START(eop);
         eop->initiated_alc += 1;
         *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
-        gpd_flags = GC_POST_COMPLETION_EOP;
+        gpd_flags = GC_POST_COMPLETION_EAM;
         completion = (void *) eop;
       } else if (lc_opt == GEX_EVENT_GROUP) {
         gasnete_iop_t *iop = mythread->current_iop;
         iop->initiated_alc_cnt += 1;
-        gpd_flags = GC_POST_COMPLETION_IPUT;
+        gpd_flags = GC_POST_COMPLETION_IAM;
         completion = (void *) iop;
       } else {
         gasneti_assert(lc_opt == GEX_EVENT_NOW);
@@ -1769,7 +1769,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
         GASNETE_EOP_LC_START(eop);
         eop->initiated_alc += 1;
         *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
-        gpd_flags = GC_POST_COMPLETION_EOP;
+        gpd_flags = GC_POST_COMPLETION_EAM;
         completion = (void *) eop;
       } else {
         gasneti_assert(lc_opt == GEX_EVENT_NOW);
