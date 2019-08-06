@@ -2649,6 +2649,8 @@ again:
 
       /* indicate completion */
       // TODO-EX: separate iop inside and outside accesregion?
+
+     { // Start of scope: 'comp'
       const uint32_t comp = (gpd_flags & GC_POST_COMPLETION_MASK);
       gasneti_assert(GASNETI_POWEROFTWO(comp)); // Zero or one bit is set
 
@@ -2678,6 +2680,7 @@ again:
           am_rvous_ready = 1;
           break;
       } 
+     } // End of scope: 'comp'
 
 release:
       /* release resources */
@@ -3435,6 +3438,7 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
     pd->cq_mode = GNI_CQMODE_REMOTE_EVENT | GNI_CQMODE_LOCAL_EVENT;
   }
 
+ { // Start of scope: 'trial', 'ep' and 'instid'
   int trial = 0;
   gni_ep_handle_t ep = peer->ep_handle;
   const uint32_t instid = gasneti_mynode | nonce;
@@ -3458,6 +3462,7 @@ void gasnetc_rdma_put_long(gex_Rank_t jobrank,
     GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   } while (++trial < GASNETC_RESOURCE_RETRIES);
+ } // End of scope: 'trial', 'ep' and 'instid'
 
 error:
   gasneti_assert (status != GNI_RC_SUCCESS);
