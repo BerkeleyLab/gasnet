@@ -277,6 +277,18 @@ jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
 	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean jac3d
 	mv $</jac3d $@
 
+# upcxx-examples extend-add
+extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; 
+	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} \
+	 $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND \
+                       SCALAPACK_LIBS="-L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib" \
+                       OPTIMIZATION="$(OPT) -Wno-unknown-pragmas" \
+                       clean extend-add_$*
+	mv $</bin/extend-add_$* $@
+
 # UPC interop
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
