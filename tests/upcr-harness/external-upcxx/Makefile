@@ -99,8 +99,8 @@ endif
 
 #UPCXX_URL      ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
 UPCXX_URL      ?= https://bitbucket.org/berkeleylab/upcxx/get/$(UPCXX_GIT_COMMIT)$(upcxx_dl_suffix)
-# XXX: Hard-coded download of fixed tarball for now
-UPCXX_EXTRAS_URL  ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-extras-$(UPCXX_EXTRAS_GIT_COMMIT).tar.gz
+#UPCXX_EXTRAS_URL  ?= https://upc-bugs.lbl.gov/nightly/unlisted/berkeleylab-upcxx-extras-$(UPCXX_EXTRAS_GIT_COMMIT).tar.gz
+UPCXX_EXTRAS_URL  ?= https://bitbucket.org/berkeleylab/upcxx-extras/get/$(UPCXX_EXTRAS_GIT_COMMIT)$(upcxx_dl_suffix)
 
 upcxx-download: force
 	rm -Rf $(DESTDIR) $(UPCXX_TMPDIR) && mkdir $(UPCXX_TMPDIR)
@@ -283,6 +283,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
 	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
+	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             UPCXX=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND/bin/upcxx \
 	             clean $*
 	mv $</$* $@

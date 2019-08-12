@@ -9,13 +9,29 @@ GASNet-EX ChangeLog
 
   GASNet-EX currently implements the following conduits:
   - InfiniBand Verbs (ibv-conduit)
-  - Cray uGNI (gemini- and aries-conduits)
+  - Cray uGNI (aries-conduits)
   - IBM PAMI (pami-conduit)
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
   Users wishing to use other conduits are recommended to download the GASNet v1.x
   distribution from https://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
+PENDING: GASNet-EX Work-In-Progress
+
+* Cray XE/XK uGNI gemini-conduit
+  - This conduit, deprecated since 2019.6.0, has been removed.
+  - The aries-conduit remains supported and under active development.
+
+* Cray XC uGNI aries-conduit
+  - The performance of AMLong with payload of 4KB or larger has been
+    significantly improved.  The overhead of injection with synchronous
+    local completion is reduced.  The cases of asynchronous local
+    completion (both explicit and implicit event) are properly implemented
+    where previously they were strengthened to synchronous.
+
+* Notable bugs fixed in this release:
 
 ----------------------------------------------------------------------
 06-14-2019: GASNet-EX 2019.6.0 Release
@@ -27,11 +43,11 @@ GASNet-EX ChangeLog
   - Compilation of AM-over-RDMA support is now disabled by default
   - Improve error messages for some cases.
 
-* Cray uGNI aries-conduit
+* Cray XC uGNI aries-conduit
   - The Aries Collective Engine, if available, is now used to accelerate
     gex_Coll_BarrierNB().
 
-* Cray uGNI gemini-conduit
+* Cray XE/XK uGNI gemini-conduit
   - This conduit is now DEPRECATED and will be removed in a future release.
   - The aries-conduit remains supported and under active development.
 
