@@ -34,6 +34,8 @@ GASNet-EX ChangeLog
     topology-aware assignment of HCAs to processes on a multi-rail system.
     See the description of the `GASNET_IBV_PORTS_*` family of environment
     variables in the conduit `README` for more details.
+  - NEW: Support for network offload of atomic operations.  See the
+    ibv-conduit README for more information, such as supported op/type pairs.
 
 * Unified Communication X framework (details in ucx-conduit README) [EXPERIMENTAL]
   - Reduced on-the-wire overheads of Active Messages

@@ -10,6 +10,75 @@
 
 #if GASNETC_BUILD_IBVRATOMIC // Else entire file is empty
 
+//
+// GASNet-EX Remote Atomics via offload to InfiniBand HCA
+//
+// Conforming HCAs support FADD and FCAS on U64 directly.
+// All the add/sub/inc/dec variants can be built for I64/U64 from FADD.
+// GET is implemented via (build-time choice) FADD(0) or FCAS(0,0),
+// either of which is a no-op.
+//
+// GET/CAS/FCAS for DBL are implemented via type-punning to U64.
+//
+// TODO-EX: In a multi-rail scenario, we are currently constrained to use a
+// single QP for all AD Ops (for correctness).  Ideally, we'd use all QPs on
+// one HCA.  However, in the multi-rail case we cannot (yet?) express "bind to
+// any QP on a fixed HCA".
+//
+// TODO-EX: The constraint above could be relaxed, allowing use of all QPs on
+// all HCAs, if they all report IBV_ATOMIC_GLOB.  The code for this has been
+// written but is disabled due to lack of any suitable test system.
+//
+// TODO-EX: In a multi-rail scenario, if the first HCA reports IBV_ATOMIC_NONE,
+// then we select AM-based atomics.  Ideally, we'd search for a more capable
+// HCA before giving up.
+//
+// TODO-EX: There is an *untested* assumption that result byteorder for the
+// HCAs in use in a given processes is single-valued.  However, this can only
+// come into play for the *disabled* IBV_ATOMIC_GLOB-uses-multiple-HCAs case.
+//
+// TODO-EX: Add logic to avoid bounce-copy for in-segment *result_p?
+// PRO: eliminates buffer alloc/free and 8-byte copy in critical paths.
+// CON: arithmetic and branches for in-segment check and lkey lookup
+// TBD: is this even a case that matters?
+//
+// TODO-EX: Currently the completion callbacks lack any distinction between
+// fetching and non-fetching ops.  Consequently, non-fetching ops currently
+// include an *unnecessary* REL fence (needed by fetching ops to ensure the
+// write to *result_p is ordered before eop/iop completion.)
+//
+// TODO-EX: Current generation Mellanox HCAs include masked FADD and CAS
+// as extensions to the standard atomics.  These should allow a straight-
+// forward implementation of the existing OPs on the 32-bit types.
+// Additionally, the following additional operations become possible:
+//    SWAP via masked FCAS:
+//         `compare_mask = 0`, `swap_mask = ~1`, `newval = operand1`
+//         This will unconditionally swap the entire word.
+//   (F)OR via masked (F)CAS:
+//         `compare_mask = 0`, `swap_mask = operand1`, `newval = ~0`
+//         This will unconditionally write the appropriate 1 bits.
+//  (F)AND via masked (F)CAS:
+//         `compare_mask = 0`, `swap_mask = ~operand1`, `newval = 0`
+//         This will unconditionally write the appropriate 0 bits.
+//  (F)XOR via masked (F)ADD:
+//         `add_mask = ~0` to divide the word into single-bit fields
+//         This will perform addition without carries (which is XOR).
+// With appropriate adjustment to the masks, these apply to 32-bit as well.
+// HOWEVER, it appears that NVIDIA/Mellanox no longer supports the experimental
+// API version needed to access the masked atomics.
+
+// Notes on implementation of GEX_FLAG_AD_{REL,ACQ}
+//
+// Because the IBV APIs are thread-safe, we believe that both injection and
+// CQ polling contain sufficient memory fences.
+//
+// RELEASE:
+// We believe that injection of IBV-level communication includes at least
+// one release fence.
+//
+// ACQUIRE:
+// We believe removing a CQ entry includes at least one acquire fence.
+
 #include <gasnet_core_internal.h>
 #include <gasnet_ratomic_internal.h>
 #include <gasnet_event_internal.h>
@@ -119,7 +188,6 @@ int gasnete_ratomic_inner(
     sreq->opcode = GASNETC_OP_ATOMIC;
     sr_desc->sg_list[0].addr = (uintptr_t)GASNETC_RATOMIC_SINK(cep);
   } else {
-    // TODO: zero-copy for in-segment result_p?
     gasneti_assert(result_p);
     gasneti_assert(bbuf);
     sreq->opcode = GASNETC_OP_ATOMIC_BOUNCE;
