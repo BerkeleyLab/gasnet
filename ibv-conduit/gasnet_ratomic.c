@@ -66,9 +66,7 @@ int gasnete_ratomic_inner(
   gasnetc_EP_t ep = (gasnetc_EP_t) i_tm->_ep;
   gex_Rank_t jobrank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   gasnetc_epid_t epid = gasnetc_epid(jobrank,0); // Always using only first CEP per jobrank
-
-  // TODO: handle aux-seg destinations (presumably of value for internal use)
-  const uintptr_t offset = (uintptr_t)tgt_addr - (uintptr_t)gasneti_seginfo[jobrank].addr;
+  const int rem_auxseg = gasneti_in_auxsegment(jobrank, tgt_addr, sizeof(uint64_t));
 
   gasnetc_sreq_t *sreq = gasnetc_get_sreq(GASNETC_OP_INVALID GASNETI_THREAD_PASS);
   gasnetc_cep_t *cep = gasnetc_bind_cep(ep, epid, sreq);
@@ -76,7 +74,8 @@ int gasnete_ratomic_inner(
   GASNETC_DECL_SR_DESC(sr_desc, 1);
 
   sr_desc->wr.atomic.remote_addr = (uintptr_t)tgt_addr;
-  sr_desc->wr.atomic.rkey = GASNETC_SEG_RKEY(cep);
+  sr_desc->wr.atomic.rkey = rem_auxseg ? cep->hca->aux_rkeys[jobrank]
+                                       : GASNETC_SEG_RKEY(cep);
   sr_desc->num_sge = 1;
   sr_desc->sg_list[0].length = sizeof(uint64_t);
 
