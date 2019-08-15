@@ -79,21 +79,6 @@ enum {
 #endif
 
 //
-// Misc. helpers
-//
-
-GASNETI_INLINE(gasnete_ratomic_jobrank)
-gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t i_tm, gex_Rank_t tgt_rank, gex_Flags_t flags)
-{
-  if (flags & GEX_FLAG_RANK_IS_JOBRANK) {
-    gasneti_assert(GEX_RANK_INVALID != gasneti_i_tm_jobrank_to_rank(i_tm, tgt_rank));
-    return tgt_rank;
-  } else {
-    return gasneti_i_tm_rank_to_jobrank(i_tm, tgt_rank);
-  }
-}
-
-//
 // low-level OP injection
 // Subject to specialization on 'opcode' and 'fetching' when inlined
 //

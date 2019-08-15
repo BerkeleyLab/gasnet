@@ -560,6 +560,16 @@ GASNETI_INLINE(gasnete_ratomic_self)
 gex_Rank_t gasnete_ratomic_self(gasneti_AD_t _ad, gex_Flags_t _flags) {
   return (_flags & GEX_FLAG_RANK_IS_JOBRANK) ? _ad->_rank0 : _ad->_rank;
 }
+GASNETI_INLINE(gasnete_ratomic_jobrank)
+gex_Rank_t gasnete_ratomic_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _tgt_rank, gex_Flags_t _flags)
+{
+  if (_flags & GEX_FLAG_RANK_IS_JOBRANK) {
+    gasneti_assert(GEX_RANK_INVALID != gasneti_i_tm_jobrank_to_rank(_i_tm, _tgt_rank));
+    return _tgt_rank;
+  } else {
+    return gasneti_i_tm_rank_to_jobrank(_i_tm, _tgt_rank);
+  }
+}
 
 //
 // Define of a full family of "dispatch" functions that together
