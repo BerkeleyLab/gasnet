@@ -32,7 +32,7 @@
 // Notes on implementation of GEX_FLAG_AD_{REL,ACQ}
 //
 // RELEASE:
-// We beleive that injection of a GNI-level operation must include at least one
+// We believe that injection of a GNI-level operation must include at least one
 // release fence.  Additionally we must obtain a "gpd" from a gasneti_lifo_t,
 // which in a multi-threaded build includes a full rel/acq on both x86-64 and
 // arm64.

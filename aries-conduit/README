@@ -403,7 +403,7 @@ flags, or in a single-process run).
     SET:   Y     Y     Y     Y     Y     Y
     GET:   Y     Y     Y     Y     Y     Y
    SWAP:   Y     Y     Y     Y     Y     Y
-  CSWAP:   Y     Y     Y     Y     Y     Y
+ (F)CAS:   Y     Y     Y     Y     Y     Y
  (F)ADD:   Y     Y     Y     Y     Y     N
  (F)SUB:   Y     Y     Y     Y     Y     N
  (F)INC:   Y     Y     Y     Y     Y     N
