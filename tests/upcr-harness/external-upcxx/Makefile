@@ -282,10 +282,12 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; 
-	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} \
+	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
+	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
+	 UPCXX_EXTENDADD_EXTRA=$${UPCXX_EXTENDADD_EXTRA:--Wno-unknown-pragmas} ; \
 	 $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND \
-                       SCALAPACK_LIBS="-L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib" \
-                       OPTIMIZATION="$(OPT) -Wno-unknown-pragmas" \
+                       SCALAPACK_LIBS="$$SCALAPACK_LIBS" \
+                       OPTIMIZATION="$(OPT) $$UPCXX_EXTENDADD_EXTRA" \
                        clean extend-add_$*
 	mv $</bin/extend-add_$* $@
 
