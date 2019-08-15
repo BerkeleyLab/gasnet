@@ -63,6 +63,13 @@ int gasnete_ratomic_inner(
                 gasnetc_atomic_val_t *initiated_cnt, gasnetc_cb_t completion_cb
                 GASNETI_THREAD_FARG)
 {
+  void *bbuf = NULL;
+  if (fetching) {
+    // TODO: should not be using pool of 4K bounce buffers for 8-byte results
+    bbuf = gasnetc_get_bbuf(!(flags & GEX_FLAG_IMMEDIATE) GASNETI_THREAD_PASS);
+    if (!bbuf) return 1;
+  }
+
   gasnetc_EP_t ep = (gasnetc_EP_t) i_tm->_ep;
   gex_Rank_t jobrank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   gasnetc_epid_t epid = gasnetc_epid(jobrank,0); // Always using only first CEP per jobrank
@@ -86,12 +93,11 @@ int gasnete_ratomic_inner(
     sr_desc->sg_list[0].lkey = cep->hca->aux_reg.handle->lkey;
   } else {
     // TODO: zero-copy for in-segment result_p?
-    // TODO: could support IMMEDIATE when allocating bounce buffer
-    // TODO: should not be using pool of 4K bounce buffers for 8-byte results
     gasneti_assert(result_p);
+    gasneti_assert(bbuf);
     sreq->opcode = GASNETC_OP_ATOMIC_BOUNCE;
     sreq->amo_result = result_p;
-    sreq->amo_bbuf = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
+    sreq->amo_bbuf = bbuf;
     sr_desc->sg_list[0].addr = (uintptr_t)sreq->amo_bbuf;
     sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
   }
@@ -124,7 +130,11 @@ gex_Event_t gasnete_ratomic_nb(
                      flags, opcode, operand1, operand2,
                      &eop->initiated_cnt, gasnetc_cb_eop_rmw
                      GASNETI_THREAD_PASS);
-  gasneti_assert(! imm); // TODO: IMMEDIATE will need to free eop
+  if (imm) {
+    SET_EVENT_DONE(eop, 0);
+    gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    return GEX_EVENT_NO_OP;
+  }
   return (gex_Event_t)eop;
 }
 
