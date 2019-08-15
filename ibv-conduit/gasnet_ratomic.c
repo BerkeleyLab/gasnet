@@ -308,7 +308,7 @@ int gasnete_ratomic_get_nbi(
   static int gasnete_ibvratomic##dtcode##_NBI_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) {        \
     return gasnete_ibvratomic##dtcode##_NBI_##fetching##add(addend,GASNETE_RATOMIC_PASS_##fetching##0);     \
   }
-// (F)CAS operations
+// (F)CAS operations on integer types
 #define _GASNETE_IBVRATOMIC_DEF_CAS(dtcode) \
         _GASNETE_IBVRATOMIC_DEF_CAS1(dtcode, CAS,N2,N) \
         _GASNETE_IBVRATOMIC_DEF_CAS1(dtcode,FCAS,F2,F)
@@ -318,6 +318,41 @@ int gasnete_ratomic_get_nbi(
   } \
   static int gasnete_ibvratomic##dtcode##_NBI_##opname(GASNETE_RATOMIC_ARGS_##args(dtcode##_type)) {        \
     return gasnete_ibvratomic##dtcode##_NBI_##fetching##cas(GASNETE_RATOMIC_PASS_##args);                   \
+  }
+// (F)CAS operations on floating-point types
+#define _GASNETE_IBVRATOMIC_DEF_FP_CAS(dtcode) \
+        _GASNETE_IBVRATOMIC_DEF_FP_CAS1(dtcode, dtcode##_bits)
+// This extra pass expands the "bits" token prior to additional concatenation
+#define _GASNETE_IBVRATOMIC_DEF_FP_CAS1(dtcode, bits) \
+        _GASNETE_IBVRATOMIC_DEF_FP_CAS2(dtcode, bits)
+#define _GASNETE_IBVRATOMIC_DEF_FP_CAS2(dtcode, bits) \
+  static gex_Event_t gasnete_ibvratomic##dtcode##_NB_CAS(GASNETE_RATOMIC_ARGS_N2(dtcode##_type)) {  \
+    GASNETI_RATOMIC_UNION(bits) _op1; _op1._gex_fp = _operand1;                                     \
+    GASNETI_RATOMIC_UNION(bits) _op2; _op2._gex_fp = _operand2;                                     \
+    return gasnete_ibvratomic_gex_dt_U##bits##_NB_Ncas(                                             \
+                    _real_ad, _tgt_rank, _tgt_addr,                                                 \
+                    _op1._gex_ui, _op2._gex_ui, _flags GASNETI_THREAD_PASS);                        \
+  } \
+  static int gasnete_ibvratomic##dtcode##_NBI_CAS(GASNETE_RATOMIC_ARGS_N2(dtcode##_type)) {         \
+    GASNETI_RATOMIC_UNION(bits) _op1; _op1._gex_fp = _operand1;                                     \
+    GASNETI_RATOMIC_UNION(bits) _op2; _op2._gex_fp = _operand2;                                     \
+    return gasnete_ibvratomic_gex_dt_U##bits##_NBI_Ncas(                                            \
+                    _real_ad, _tgt_rank, _tgt_addr,                                                 \
+                    _op1._gex_ui, _op2._gex_ui, _flags GASNETI_THREAD_PASS);                        \
+  } \
+  static gex_Event_t gasnete_ibvratomic##dtcode##_NB_FCAS(GASNETE_RATOMIC_ARGS_F2(dtcode##_type)) { \
+    GASNETI_RATOMIC_UNION(bits) _op1; _op1._gex_fp = _operand1;                                     \
+    GASNETI_RATOMIC_UNION(bits) _op2; _op2._gex_fp = _operand2;                                     \
+    return gasnete_ibvratomic_gex_dt_U##bits##_NB_Fcas(                                             \
+                    _real_ad, (uint##bits##_t *)_result_p, _tgt_rank, _tgt_addr,                    \
+                    _op1._gex_ui, _op2._gex_ui, _flags GASNETI_THREAD_PASS);                        \
+  } \
+  static int gasnete_ibvratomic##dtcode##_NBI_FCAS(GASNETE_RATOMIC_ARGS_F2(dtcode##_type)) {        \
+    GASNETI_RATOMIC_UNION(bits) _op1; _op1._gex_fp = _operand1;                                     \
+    GASNETI_RATOMIC_UNION(bits) _op2; _op2._gex_fp = _operand2;                                     \
+    return gasnete_ibvratomic_gex_dt_U##bits##_NBI_Fcas(                                            \
+                    _real_ad, (uint##bits##_t *)_result_p, _tgt_rank, _tgt_addr,                    \
+                    _op1._gex_ui, _op2._gex_ui, _flags GASNETI_THREAD_PASS);                        \
   }
 // Unreachable functions for non-offloadable ops
 #define _GASNETE_IBVRATOMIC_BAD2(dtcode,opstem,nargs) \
@@ -333,7 +368,7 @@ int gasnete_ratomic_get_nbi(
     return 0;                                                                                               \
   }
 
-#define GASNETE_IBVRATOMIC_DEFS(dtcode) \
+#define GASNETE_IBVRATOMIC_INT_DEFS(dtcode) \
   _GASNETE_IBVRATOMIC_DEF_GET(dtcode)       \
   \
   _GASNETE_IBVRATOMIC_DEF_ADD(dtcode,ADD,1,_operand1)  \
@@ -352,8 +387,28 @@ int gasnete_ratomic_get_nbi(
   _GASNETE_IBVRATOMIC_BAD1(dtcode,SET,N1)   \
   _GASNETE_IBVRATOMIC_BAD1(dtcode,SWAP,F1)
 //
-GASNETE_IBVRATOMIC_DEFS(_gex_dt_U64)
-GASNETE_IBVRATOMIC_DEFS(_gex_dt_I64)
+GASNETE_IBVRATOMIC_INT_DEFS(_gex_dt_U64)
+GASNETE_IBVRATOMIC_INT_DEFS(_gex_dt_I64)
+
+#define GASNETE_IBVRATOMIC_FP_DEFS(dtcode)  \
+  _GASNETE_IBVRATOMIC_DEF_GET(dtcode)       \
+  \
+  _GASNETE_IBVRATOMIC_DEF_FP_CAS(dtcode)    \
+  \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,ADD,1)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,SUB,1)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,INC,0)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,DEC,0)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,AND,1)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,OR,1)     \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,XOR,1)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,MULT,1)   \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,MIN,1)    \
+  _GASNETE_IBVRATOMIC_BAD2(dtcode,MAX,1)    \
+  _GASNETE_IBVRATOMIC_BAD1(dtcode,SET,N1)   \
+  _GASNETE_IBVRATOMIC_BAD1(dtcode,SWAP,F1)
+//
+GASNETE_IBVRATOMIC_FP_DEFS(_gex_dt_DBL)
 
 //
 // Build the dispatch tables
@@ -363,6 +418,7 @@ GASNETE_IBVRATOMIC_DEFS(_gex_dt_I64)
         GASNETE_RATOMIC_FN_TBL_INIT(gasnete_ibvratomic##dtcode,dtcode);
 GASNETE_IBVRATOMIC_TBL(_gex_dt_U64)
 GASNETE_IBVRATOMIC_TBL(_gex_dt_I64)
+GASNETE_IBVRATOMIC_TBL(_gex_dt_DBL)
 
 //
 // Masks of available capabilities
@@ -370,7 +426,7 @@ GASNETE_IBVRATOMIC_TBL(_gex_dt_I64)
 #define GASNETE_IBVRATOMIC_BASE_OPS ( GEX_OP_CAS | GEX_OP_FCAS | GEX_OP_GET ) // Note lack of SET
 #define GASNETE_IBVRATOMIC_FADD_OPS ( GEX_OP_ADD | GEX_OP_FADD | GEX_OP_SUB | GEX_OP_FSUB | \
                                       GEX_OP_INC | GEX_OP_FINC | GEX_OP_DEC | GEX_OP_FDEC )
-#define GASNETE_IBVRATOMIC_TYPES ( GEX_DT_I64 | GEX_DT_U64 )
+#define GASNETE_IBVRATOMIC_TYPES ( GEX_DT_I64 | GEX_DT_U64 | GEX_DT_DBL )
 
 //
 // Init-hook to install the dispatch tables (aka algorithm selection)
@@ -411,6 +467,9 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
                 case GEX_DT_I64:
                     if (GASNETE_RATOMIC_PSHMSAFE_gex_dt_I64) goto use_am;
                     break;
+                case GEX_DT_DBL:
+                    if (GASNETE_RATOMIC_PSHMSAFE_gex_dt_DBL) goto use_am;
+                    break;
                 default:
                     gasneti_unreachable_error(("unknown data type %d", dt));
             }
@@ -446,6 +505,9 @@ void gasnete_ibvratomic_init_hook(gasneti_AD_t real_ad)
             break;
         case GEX_DT_I64:
             real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t)&gasnete_ibvratomic_gex_dt_I64_fn_tbl;
+            break;
+        case GEX_DT_DBL:
+            real_ad->_fn_tbl = (gasnete_ratomic_fn_tbl_t)&gasnete_ibvratomic_gex_dt_DBL_fn_tbl;
             break;
         default:
             gasneti_unreachable_error(("unknown data type %d", dt));
