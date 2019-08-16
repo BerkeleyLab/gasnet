@@ -1451,6 +1451,36 @@ gasnetc_parse_ports(const char *p) {
   return 0;
 }
 
+static const char* port_state_name(enum ibv_port_state port_state)
+{
+  switch (port_state) {
+    case IBV_PORT_DOWN:  return "DOWN";
+    case IBV_PORT_INIT:  return "INITIALIZE";
+    case IBV_PORT_ARMED: return "ARMED";
+    default:             return "unknown";
+  }
+}
+
+static int16_t get_pkey(void)
+{
+  static int16_t pkey = -1;
+  static int first = 1;
+  if (first) {
+    first = 0;
+    int64_t tmp = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
+    if (tmp == -1) {
+      // Nothing to do
+    } else {
+      tmp &= ~(uint64_t)0x8000;  // strip membership bit (but not sign bit)
+      if ((tmp > 0x7fff) || (tmp < 2)) {
+        gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
+      }
+    }
+    pkey = (int16_t)tmp;
+  }
+  return pkey;
+}
+
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
 static void gasnetc_probe_ports(int max_ports) {
   struct ibv_device	**hca_list;
@@ -1505,16 +1535,7 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, enable, num_hcas);
   }
 
-  int64_t pkey = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
-  uint64_t pkey_mask = ~(uint64_t)0x8000;  // to strip membership bit
-  if (pkey == -1) {
-    // Nothing to do
-  } else {
-    pkey &= pkey_mask;
-    if ((pkey > 0x7fff) || (pkey < 2)) {
-      gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
-    }
-  }
+  int16_t pkey = get_pkey();
 
   /* Loop over list of HCAs */
   for (curr_hca = 0;
@@ -1583,7 +1604,7 @@ static void gasnetc_probe_ports(int max_ports) {
             if (ibv_query_pkey(hca_handle, curr_port, i, &pkey_val)) {
               gasneti_fatalerror("Failed to query pkeys for HCA '%s', port %d", hca_name, curr_port);
             }
-            pkey_val = ntohs(pkey_val) & pkey_mask;
+            pkey_val = ntohs(pkey_val) & 0x7fff;
             if (pkey_val == pkey) {
               GASNETI_TRACE_PRINTF(C,("Using pkey_index %d for HCA '%s', port %d",
                                       i, hca_name, curr_port));
@@ -1617,22 +1638,8 @@ static void gasnetc_probe_ports(int max_ports) {
       }
 #if GASNET_TRACE
       else {
-	const char *state;
-
-	switch (this_port->port.state) {
-	case IBV_PORT_DOWN:
-		state = "DOWN";
-		break;
-	case IBV_PORT_INIT:
-		state = "INITIALIZE";
-		break;
-	case IBV_PORT_ARMED:
-		state = "ARMED";
-		break;
-	default:
-		state = "unknown";
-        }
-        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - state = %s", hca_name, curr_port, state));
+        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - state = %s",
+                                hca_name, curr_port, port_state_name(this_port->port.state)));
       }
 #endif
     }
