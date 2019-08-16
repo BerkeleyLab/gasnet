@@ -188,23 +188,33 @@ extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt) {
 
 
 /* ------------------------------------------------------------------------------------ *
- * AuxSeg space for non-fetching Atomic ops (including to fence multi-rail Puts).
+ * AuxSeg space for IBV-level Atomic ops (including GEX Ratomics and fencing of multi-rail Puts).
  * ------------------------------------------------------------------------------------ */
 #if GASNETC_IB_MAX_HCAS > 1
   gasnet_seginfo_t *gasnetc_fence_auxseg = NULL;
 #endif
 uint64_t *gasnetc_ratomic_sink = NULL; // TODO: one per HCA
-gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
+gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
   gasneti_auxseg_request_t retval;
 
-  // TODO: distinct cache lines for each HCA (via `cep` argument to macros, above)
-  if (!GASNETC_USE_FENCED_PUTS) {
-    // Need only a single cache line when fenced puts are not enabled
-    retval.minsz = retval.optimalsz = GASNETI_CACHE_LINE_BYTES;
-  } else {
-    // One cache line each for use as initiator and target
-    retval.minsz = retval.optimalsz = 2 * GASNETI_CACHE_LINE_BYTES;
-  }
+  gasneti_assert_always_int(GASNETI_CACHE_LINE_BYTES ,>=, sizeof(uint64_t));
+
+  // TODO: distinct allocations for each HCA (via `cep` argument to macros)
+
+  // One cache line used as local dst (sink) for both non-fetching RAtomics,
+  // and for the AMO used in fenced puts, if enabled
+  int request = 1;
+
+  // A second cache line for use as remote AMO target in fenced puts, if enabled
+  request += GASNETC_USE_FENCED_PUTS ? 1 :0;
+
+#if GASNETC_BUILD_IBVRATOMIC
+  // Some number of cache lines for buffering fetching RAtomics
+  int buffer_start = request;
+  request += gasnetc_ratomicbuf_limit;
+#endif
+
+  retval.minsz = retval.optimalsz = request * GASNETI_CACHE_LINE_BYTES;
 
   if (auxseg_info) { /* auxseg granted */
     gasnetc_ratomic_sink = (uint64_t*)auxseg_info[gasneti_mynode].addr;
@@ -218,6 +228,17 @@ gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_inf
       GASNETI_MEMCPY(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
       gasneti_assert_uint((uintptr_t)GASNETC_RATOMIC_SINK(NULL) ,==, GASNETC_FENCE_LOC_ADDR(NULL));
     }
+  #endif
+  #if GASNETC_BUILD_IBVRATOMIC
+    // Freelist of buffers
+    uint8_t *buff = (uint8_t *)(buffer_start*GASNETI_CACHE_LINE_BYTES +
+                                (uintptr_t)auxseg_info[gasneti_mynode].addr);
+    for (int i = 0 ; i < gasnetc_ratomicbuf_limit; ++i) {
+      gasnetc_lifo_push(&gasnetc_ratomicbuf_freelist, buff);
+      buff += GASNETI_CACHE_LINE_BYTES;
+    }
+    gasneti_assert_ptr(buff ,<=, (uint8_t*)auxseg_info[gasneti_mynode].addr +
+                                           auxseg_info[gasneti_mynode].size);
   #endif
   }
 
@@ -1012,7 +1033,8 @@ void gasnetc_snd_reap_one(struct ibv_wc *comp_p, gasnetc_hca_t *hca GASNETC_COLL
         if (sreq->comp.cb != NULL) {
           sreq->comp.cb(sreq->comp.data);
         }
-        GASNETC_COLLECT_BBUF(collect, sreq->amo_bbuf);
+        // TODO: do we want/need GASNETC_COLLECT_RATOMICBUF() ?
+        gasnetc_lifo_push(&gasnetc_ratomicbuf_freelist, sreq->amo_bbuf);
         break;
       #endif
 
@@ -2840,6 +2862,13 @@ extern int gasnetc_sndrcv_limits(void) {
 #endif
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
   gasnetc_am_credits_slack_orig = gasnetc_am_credits_slack;
+
+#if GASNETC_BUILD_IBVRATOMIC
+  if (!gasnetc_ratomicbuf_limit || (gasnetc_ratomicbuf_limit > gasnetc_op_oust_limit)) {
+    gasnetc_ratomicbuf_limit = gasnetc_op_oust_limit;
+  }
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RATOMICBUF_COUNT = %d", gasnetc_ratomicbuf_limit));
+#endif
 
   gasnetc_alloc_qps = gasnetc_num_qps; /* Default w/o SRQ or XRC */
 #if GASNETC_IBV_SRQ

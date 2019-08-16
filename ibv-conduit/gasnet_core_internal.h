@@ -405,8 +405,8 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNET
 /* ------------------------------------------------------------------------------------ */
 // AuxSeg space for Remote Atomics and Fenced Puts
 
-extern gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-#define GASNETC_AUXSEG_FNS() gasnetc_fence_auxseg_alloc,
+extern gasneti_auxseg_request_t gasnetc_atomics_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+#define GASNETC_AUXSEG_FNS() gasnetc_atomics_auxseg_alloc,
 
 extern uint64_t *gasnetc_ratomic_sink; // TODO: one per HCA
 #define GASNETC_RATOMIC_SINK(cep) gasnetc_ratomic_sink
@@ -1097,6 +1097,9 @@ extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
+#if GASNETC_BUILD_IBVRATOMIC
+  extern int            gasnetc_ratomicbuf_limit;
+#endif
 extern int              gasnetc_conn_static;
 #if GASNETC_DYNAMIC_CONNECT
   extern int            gasnetc_conn_dynamic;
@@ -1171,6 +1174,9 @@ extern int                      gasnetc_num_ports;
 #if (GASNETC_IB_MAX_HCAS > 1)
   extern int gasnetc_snd_poll_multi_hcas;
   extern int gasnetc_rcv_poll_multi_hcas;
+#endif
+#if GASNETC_BUILD_IBVRATOMIC
+  extern gasnetc_lifo_head_t    gasnetc_ratomicbuf_freelist;
 #endif
 
 /* ------------------------------------------------------------------------------------ */

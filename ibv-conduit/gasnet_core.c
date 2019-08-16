@@ -932,6 +932,9 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_oust_limit, GASNET_AM_CREDITS_TOTAL, GASNETC_DEFAULT_AM_CREDITS_TOTAL, 0, 0);
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
+#if GASNETC_BUILD_IBVRATOMIC
+  GASNETC_ENVINT(gasnetc_ratomicbuf_limit, GASNET_RATOMICBUF_COUNT, 0, 0, 0);
+#endif
 #if GASNETC_IBV_SRQ
   gasnetc_rbuf_set = (NULL != gasneti_getenv("GASNET_RBUF_COUNT"));
   GASNETC_ENVINT(gasnetc_rbuf_limit, GASNET_RBUF_COUNT, GASNETC_DEFAULT_RBUF_COUNT, 0, 0);
@@ -1119,6 +1122,10 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
+#if GASNETC_BUILD_IBVRATOMIC
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RATOMICBUF_COUNT         = %d%s",
+                               gasnetc_ratomicbuf_limit, gasnetc_ratomicbuf_limit ? "": " (automatic)"));
+#endif
 #if GASNETC_IBV_SRQ
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_USE_SRQ                  = %d", gasnetc_use_srq));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RBUF_COUNT               = %d%s",

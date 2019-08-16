@@ -1047,6 +1047,18 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default is to use a fraction of the HCA pinning resources equal to
     the fraction of physical memory given by GASNET_PHYSMEM_MAX, subject to
     a system-dependent maximum value.
+
+  + GASNET_RATOMICBUF_COUNT
+    This gives the max number of pre-pinned buffers allocated on each
+    process for buffering of remote atomic operations, where each such
+    buffer is one cache line in length.  The actual number of buffers
+    allocated is the lesser of the values of GASNET_RATOMICBUF_COUNT and
+    GASNET_NETWORKDEPTH_TOTAL, since the total network depth bounds the
+    number of operations that can utilize these buffers.
+    If set to zero (the default), the value is set equal to
+    GASNET_NETWORKDEPTH_TOTAL.
+    Reducing this parameter limits the number of in-flight fetching remote
+    atomic operations, which each consume one buffer.
    
   Firehose configuration:
   ----------------------

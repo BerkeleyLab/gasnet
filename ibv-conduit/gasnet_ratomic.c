@@ -14,6 +14,37 @@
 #include <gasnet_event_internal.h>
 
 //
+// buffers for fetching ops
+//
+
+int gasnetc_ratomicbuf_limit;
+gasnetc_lifo_head_t gasnetc_ratomicbuf_freelist = GASNETI_LIFO_INITIALIZER;
+
+GASNETI_INLINE(gasnetc_get_ratomic_bbuf)
+void *gasnetc_get_ratomic_bbuf(int block GASNETI_THREAD_FARG)
+{
+  GASNETC_STAT_EVENT(GET_RATOMICBUF);
+
+  void *bbuf = gasnetc_lifo_pop(&gasnetc_ratomicbuf_freelist);
+  if_pt (bbuf) {
+    //done
+  } else if (block) {
+    GASNETC_TRACE_WAIT_BEGIN();
+    GASNETI_SPIN_DOUNTIL(bbuf, {
+        gasnetc_poll_snd();
+        bbuf = gasnetc_lifo_pop(&gasnetc_ratomicbuf_freelist);
+      });
+    GASNETC_TRACE_WAIT_END(GET_RATOMICBUF_STALL);
+  } else {
+    gasnetc_poll_snd();
+    bbuf = gasnetc_lifo_pop(&gasnetc_ratomicbuf_freelist);
+  }
+  gasneti_assert((bbuf != NULL) || !block);
+
+  return bbuf;
+}
+
+//
 // completion callbacks
 //
 
@@ -65,8 +96,7 @@ int gasnete_ratomic_inner(
 {
   void *bbuf = NULL;
   if (fetching) {
-    // TODO: should not be using pool of 4K bounce buffers for 8-byte results
-    bbuf = gasnetc_get_bbuf(!(flags & GEX_FLAG_IMMEDIATE) GASNETI_THREAD_PASS);
+    bbuf = gasnetc_get_ratomic_bbuf(!(flags & GEX_FLAG_IMMEDIATE) GASNETI_THREAD_PASS);
     if (!bbuf) return 1;
   }
 
@@ -90,7 +120,6 @@ int gasnete_ratomic_inner(
     gasneti_assert(! result_p);
     sreq->opcode = GASNETC_OP_ATOMIC;
     sr_desc->sg_list[0].addr = (uintptr_t)GASNETC_RATOMIC_SINK(cep);
-    sr_desc->sg_list[0].lkey = cep->hca->aux_reg.handle->lkey;
   } else {
     // TODO: zero-copy for in-segment result_p?
     gasneti_assert(result_p);
@@ -99,8 +128,8 @@ int gasnete_ratomic_inner(
     sreq->amo_result = result_p;
     sreq->amo_bbuf = bbuf;
     sr_desc->sg_list[0].addr = (uintptr_t)sreq->amo_bbuf;
-    sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
   }
+  sr_desc->sg_list[0].lkey = cep->hca->aux_reg.handle->lkey;
 
   sr_desc->opcode = opcode;
   sr_desc->wr.atomic.compare_add = operand1;
