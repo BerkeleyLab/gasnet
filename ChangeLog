@@ -31,6 +31,10 @@ PENDING: GASNet-EX Work-In-Progress
     completion (both explicit and implicit event) are properly implemented
     where previously they were strengthened to synchronous.
 
+* InfiniBand Verbs (ibv-conduit)
+  - New envvars GASNET_IBV_LIST_PORTS{,_NODES} to request a list of
+    available InfiniBand HCAs, ports, and their respective status.
+
 * Notable bugs fixed in this release:
 
 ----------------------------------------------------------------------
