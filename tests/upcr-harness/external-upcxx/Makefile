@@ -154,8 +154,22 @@ launcher:
 	   echo "ERROR: $$UPCXXRUN is missing" ; exit 1 ; \
 	 fi 
 
+# similar for MPI progs (best-effort when missing mpi-conduit)
+launcher-mpi:
+	-rm -f $@
+	@if test -x $(UPCXX_LAUNCHERS)/bin/gasnetrun_mpi ; then \
+	  set -x ; ln -s $(UPCXX_LAUNCHERS)/bin/gasnetrun_mpi $@ ; \
+	elif test -x $(UPCXX_LAUNCHERS)/mpi-conduit/contrib/gasnetrun_mpi ; then \
+	  set -x ; ln -s $(UPCXX_LAUNCHERS)/mpi-conduit/contrib/gasnetrun_mpi $@ ; \
+	else \
+	  echo '#!/bin/sh' > $@ ; \
+	  echo 'exec mpirun "$$@"' >> $@ ; \
+	  echo 'echo "ERROR: mpirun and gasnetrun_mpi not found." ; exit 1' >> $@ ; \
+	  chmod +x $@ ; \
+	fi
+
 _upcxx: force
-	rm -Rf upcxx-built launcher $(LOGFILE)
+	-rm -Rf upcxx-built launcher launcher-mpi $(LOGFILE)
 	echo ======== UPCXX download ======== | tee $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
@@ -173,7 +187,7 @@ _upcxx: force
 	else \
 	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
-	$(MAKE) launcher $(TO_LOG)
+	$(MAKE) launcher launcher-mpi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
 	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
 	@-( set -x; $(DO_ENV) ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
