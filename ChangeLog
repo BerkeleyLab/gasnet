@@ -36,6 +36,7 @@ PENDING: GASNet-EX Work-In-Progress
     available InfiniBand HCAs, ports, and their respective status.
 
 * Notable bugs fixed in this release:
+  - bug4002: ibv-conduit: XRC and ODP are mutually exclusive
 
 ----------------------------------------------------------------------
 06-14-2019: GASNet-EX 2019.6.0 Release
