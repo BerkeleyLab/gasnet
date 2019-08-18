@@ -1451,6 +1451,120 @@ gasnetc_parse_ports(const char *p) {
   return 0;
 }
 
+static const char* port_state_name(enum ibv_port_state port_state)
+{
+  switch (port_state) {
+    case IBV_PORT_DOWN:  return "DOWN";
+    case IBV_PORT_INIT:  return "INITIALIZE";
+    case IBV_PORT_ARMED: return "ARMED";
+    default:             return "unknown";
+  }
+}
+
+static int16_t get_pkey(void)
+{
+  static int16_t pkey = -1;
+  static int first = 1;
+  if (first) {
+    first = 0;
+    int64_t tmp = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
+    if (tmp == -1) {
+      // Nothing to do
+    } else {
+      tmp &= ~(uint64_t)0x8000;  // strip membership bit (but not sign bit)
+      if ((tmp > 0x7fff) || (tmp < 2)) {
+        gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
+      }
+    }
+    pkey = (int16_t)tmp;
+  }
+  return pkey;
+}
+
+// Print the ports
+static void gasnetc_list_ports(void) {
+  gasneti_console_message("INFO", "Detected the following devices:ports");
+
+  struct ibv_device **hca_list;
+  int num_hcas = 0;
+  hca_list = ibv_get_device_list(&num_hcas);
+
+  int good_count = 0;
+  for (int hca_num = 0; hca_num < num_hcas; ++hca_num) {
+    const char *hca_name = ibv_get_device_name(hca_list[hca_num]);
+
+#if HAVE_IBV_TRANSPORT_TYPE
+    if (hca_list[hca_num]->transport_type != IBV_TRANSPORT_IB) {
+      gasneti_console_message("INFO", "    %s BAD - identifies as NON InfiniBand device\n", hca_name);
+      continue;
+    }
+#endif
+    struct ibv_context *hca_handle = ibv_open_device(hca_list[hca_num]);
+    if (! hca_handle) {
+      gasneti_console_message("INFO", "    %s BAD - failed to open device\n", hca_name);
+      continue;
+    }
+
+    struct ibv_device_attr hca_attr;
+    if (ibv_query_device(hca_handle, &hca_attr)) {
+      gasneti_console_message("INFO", "    %s BAD - failed to query device capabilities\n", hca_name);
+      (void) ibv_close_device(hca_handle);
+      continue;
+    }
+
+    // Loop over ports on the HCA (numbering starts at 1)
+    for (int port_num = 1; port_num <= hca_attr.phys_port_cnt; ++port_num) {
+      struct ibv_port_attr port_attr;
+      if (ibv_query_port(hca_handle, port_num, &port_attr)) {
+        gasneti_console_message("INFO", "    %s:%d BAD - failed to query port capabilities\n", hca_name, port_num);
+        continue;
+      }
+      if (port_attr.state != IBV_PORT_ACTIVE) {
+        gasneti_console_message("INFO", "    %s:%d BAD - reports state=%s\n",
+                                hca_name, port_num, port_state_name(port_attr.state));
+        continue;
+      }
+      if (!port_attr.lid) {
+        gasneti_console_message("INFO", "    %s:%d BAD - reports LID=0\n", hca_name, port_num);
+        continue;
+      }
+
+      int16_t pkey = get_pkey();
+      if (pkey >= 0) {
+        int idx = -1;
+        for (int i = 0; i < hca_attr.max_pkeys; ++i) {
+          uint16_t pkey_val;
+          if (ibv_query_pkey(hca_handle, port_num, i, &pkey_val)) {
+            gasneti_console_message("INFO", "    %s:%d BAD - failed to query pkeys\n", hca_name, port_num);
+            idx = i;
+            break;
+          }
+          if (pkey == (ntohs(pkey_val) & 0x7fff)) {
+            idx = i;
+            break;
+          }
+        }
+        if (idx < 0) {
+          gasneti_console_message("INFO", "    %s:%d BAD - not associated with user-specified pkey 0x%x\n",
+                                  hca_name, port_num, (unsigned int)pkey);
+          continue;
+        }
+      }
+
+      gasneti_console_message("INFO", "    %s:%d GOOD\n", hca_name, port_num);
+      ++good_count;
+    }
+    (void) ibv_close_device(hca_handle);
+  }
+  if (good_count) {
+    gasneti_console_message("INFO", "Found %d potentially usable InfiniBand ports\n", good_count);
+  } else if (num_hcas) {
+    gasneti_console_message("INFO", "Found %d devices, but no usable InfiniBand ports\n", num_hcas);
+  } else {
+    gasneti_console_message("INFO", "No IBV-compatible devices found\n");
+  }
+}
+
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
 static void gasnetc_probe_ports(int max_ports) {
   struct ibv_device	**hca_list;
@@ -1460,6 +1574,11 @@ static void gasnetc_probe_ports(int max_ports) {
   int			port_count = 0;
   int			hca_count = 0;
   int			curr_hca;
+
+  if (gasneti_getenv_yesno_withdefault("GASNET_IBV_LIST_PORTS", 0) &&
+      gasneti_check_node_list("GASNET_IBV_LIST_PORTS_NODES")) {
+    gasnetc_list_ports();
+  }
 
   if (gasnetc_parse_ports(gasnetc_ibv_ports)) {
     GASNETI_TRACE_PRINTF(C,("Failed to parse GASNET_IBV_PORTS='%s'", gasnetc_ibv_ports));
@@ -1505,16 +1624,7 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, enable, num_hcas);
   }
 
-  int64_t pkey = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
-  uint64_t pkey_mask = ~(uint64_t)0x8000;  // to strip membership bit
-  if (pkey == -1) {
-    // Nothing to do
-  } else {
-    pkey &= pkey_mask;
-    if ((pkey > 0x7fff) || (pkey < 2)) {
-      gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
-    }
-  }
+  int16_t pkey = get_pkey();
 
   /* Loop over list of HCAs */
   for (curr_hca = 0;
@@ -1583,7 +1693,7 @@ static void gasnetc_probe_ports(int max_ports) {
             if (ibv_query_pkey(hca_handle, curr_port, i, &pkey_val)) {
               gasneti_fatalerror("Failed to query pkeys for HCA '%s', port %d", hca_name, curr_port);
             }
-            pkey_val = ntohs(pkey_val) & pkey_mask;
+            pkey_val = ntohs(pkey_val) & 0x7fff;
             if (pkey_val == pkey) {
               GASNETI_TRACE_PRINTF(C,("Using pkey_index %d for HCA '%s', port %d",
                                       i, hca_name, curr_port));
@@ -1617,22 +1727,8 @@ static void gasnetc_probe_ports(int max_ports) {
       }
 #if GASNET_TRACE
       else {
-	const char *state;
-
-	switch (this_port->port.state) {
-	case IBV_PORT_DOWN:
-		state = "DOWN";
-		break;
-	case IBV_PORT_INIT:
-		state = "INITIALIZE";
-		break;
-	case IBV_PORT_ARMED:
-		state = "ARMED";
-		break;
-	default:
-		state = "unknown";
-        }
-        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - state = %s", hca_name, curr_port, state));
+        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - state = %s",
+                                hca_name, curr_port, port_state_name(this_port->port.state)));
       }
 #endif
     }
