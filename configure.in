@@ -3843,16 +3843,19 @@ if test "$enabled_ibv" = yes; then
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_CFLAGS $GASNET_THREAD_DEFINES")
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $IBV_LDFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS $IBV_LIBS $GASNET_THREAD_LIBS")
+  pushdef([INCLUDE_VERBS_H],[
+      #if defined(__GNUC__) && !defined(inline)
+        /* ANSI-ify the verbs headers */
+        #define inline __inline__
+        #include <infiniband/verbs.h>
+        #undef inline
+      #else
+        #include <infiniband/verbs.h>
+      #endif
+    ])
 
   GASNET_TRY_CACHE_LINK(for working IB Verbs configuration, ibv_works, [
-    #if defined(__GNUC__) && !defined(inline)
-      /* ANSI-ify the verbs headers */
-      #define inline __inline__
-      #include <infiniband/verbs.h>
-      #undef inline
-    #else
-      #include <infiniband/verbs.h>
-    #endif
+    INCLUDE_VERBS_H
   ], [{
     struct ibv_device device;
     const char *s = ibv_get_device_name(&device);
@@ -3870,14 +3873,7 @@ if test "$enabled_ibv" = yes; then
 
   if test "$have_ibv" = yes; then
     GASNET_TRY_CACHE_LINK(for ibv_device.transport_type, ibv_transport_type, [
-      #if defined(__GNUC__) && !defined(inline)
-        /* ANSI-ify the verbs headers */
-        #define inline __inline__
-        #include <infiniband/verbs.h>
-        #undef inline
-      #else
-        #include <infiniband/verbs.h>
-      #endif
+      INCLUDE_VERBS_H
     ], [
       struct ibv_device device;
       device.transport_type = IBV_TRANSPORT_IB;
@@ -3886,6 +3882,7 @@ if test "$enabled_ibv" = yes; then
     AC_CHECK_FUNCS(ibv_wc_status_str)
   fi
 
+  popdef([INCLUDE_VERBS_H])
   GASNET_POPVAR(CFLAGS)
   GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
