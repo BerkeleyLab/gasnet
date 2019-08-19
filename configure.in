@@ -3880,6 +3880,12 @@ if test "$enabled_ibv" = yes; then
     ], [ AC_DEFINE(HAVE_IBV_TRANSPORT_TYPE) ] )
 
     AC_CHECK_FUNCS(ibv_wc_status_str)
+
+    GASNET_TRY_CACHE_LINK(for ibv_create_qp_ex, have_ibv_create_qp_ex, [
+      INCLUDE_VERBS_H
+    ], [
+      (void) ibv_create_qp_ex(NULL, NULL);
+    ], [ AC_DEFINE(HAVE_IBV_CREATE_QP_EX) ] )
   fi
 
   popdef([INCLUDE_VERBS_H])
