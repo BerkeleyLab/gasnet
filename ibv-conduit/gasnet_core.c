@@ -1837,6 +1837,8 @@ static void gasneti_odp_init(void) {
     missing_none = 0, // not missing anything == OK
     missing_general,
     missing_implicit,
+    missing_xrc_read,
+    missing_xrc_write,
     missing_rc_read,
     missing_rc_write
   };
@@ -1844,6 +1846,8 @@ static void gasneti_odp_init(void) {
       "",
       "general ODP",
       "Implicit ODP",
+      "XRC READ",
+      "XRC WRITE"
       "RC READ",
       "RC WRITE"
   };
@@ -1865,10 +1869,14 @@ static void gasneti_odp_init(void) {
       //  + This can be identified because this caps bit was not set
       //  + Implicit ODP emulation had 128MB limit
       //  + Implicit ODP was valid for local only (invalid rkey)
-    } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
-      missing = missing_rc_read;
-    } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
-      missing = missing_rc_write;
+    } else if (gasnetc_use_xrc) {
+      uint32_t odp_caps = gasnetc_use_xrc ? attr.odp_caps.per_transport_caps.xrc_odp_caps
+                                          : attr.odp_caps.per_transport_caps.rc_odp_caps;
+      if (! (odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
+        missing = gasnetc_use_xrc? missing_xrc_read : missing_rc_read;
+      } else if (! (odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
+        missing = gasnetc_use_xrc? missing_xrc_write : missing_rc_write;
+      }
     }
     if (missing != missing_none) {
       GASNETI_TRACE_PRINTF(C,("Disabled ODP - %s: %s support is missing.",
@@ -1912,26 +1920,40 @@ static void gasneti_odp_init(void) {
       struct gasneti_odp_support *p = all_odp_support;
       // First just count the number of procs w/o OPD
       int non_odp_procs = 0;
+      int with_xrc_procs = 0;
       for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
         int non_odp = 0;
+        int with_xrc = 0;
         GASNETC_FOR_ALL_HCA(hca) {
           non_odp |= (p->missing != missing_none);
+          with_xrc |= (p->missing == missing_xrc_read) || (p->missing == missing_xrc_write);
           p = (struct gasneti_odp_support *)((uintptr_t)p + stride);
         }
         non_odp_procs += non_odp;
+        with_xrc_procs += with_xrc;
       }
       if (non_odp_procs) {
+        int only_xrc_problem = (non_odp_procs == with_xrc_procs);
+        const char *why = only_xrc_problem ? "due to conflict with XRC"
+                                           : "which are missing support";
         const char *less_msg =
                 "         To suppress this message set environment variable\n"
                 "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp\n"
                 "         (see ibv-conduit's README for more information).\n";
-        const char *more_msg = (verbose > 1) ? "" :
+        const char *more_msg = "";
+        if (only_xrc_problem) {
+            more_msg =
+                "         Alternatively, one may set GASNET_USE_ODP or GASNET_USE_XRC\n"
+                "         to '0' to disable the corresponding feature.\n";
+        } else if (verbose) {
+            more_msg =
                 "         To see additional details set environment variable\n"
                 "         GASNET_ODP_VERBOSE=2 (or higher).\n";
+        }
         // report the summary information (verbose > 0)
         fprintf(stderr,
-                "WARNING: ODP disabled on %d of %d processes which are missing support.\n%s%s",
-                (int)non_odp_procs, (int)gasneti_nodes, less_msg, more_msg);
+                "WARNING: ODP disabled on %d of %d processes %s.\n%s%s",
+                (int)non_odp_procs, (int)gasneti_nodes, why, less_msg, more_msg);
         // report detailed information (verbose > 1)
         if (verbose > 1) {
           p = all_odp_support;
