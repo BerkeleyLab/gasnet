@@ -167,10 +167,11 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                              gex_Flags_t flags,
                              uint8_t is_request,
                              int numargs,
-                             va_list argptr GASNETI_THREAD_FARG,
+                             va_list argptr,
                              void *src_addr,
                              uint32_t nbytes,
-                             void *dst_addr);
+                             void *dst_addr
+                             GASNETI_THREAD_FARG);
 
 extern void gasnetc_req_list_init(void);
 extern void gasnetc_sreq_list_free(void);

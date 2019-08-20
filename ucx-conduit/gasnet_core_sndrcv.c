@@ -362,8 +362,8 @@ GASNETI_INLINE(gasnetc_am_req_format)
 void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
                            gasnetc_ucx_am_type_t am_type, gex_Rank_t rank,
                            gex_AM_Index_t handler, uint8_t is_req, int numargs,
-                           va_list argptr GASNETI_THREAD_FARG, uint32_t nbytes,
-                           void *dst_addr)
+                           va_list argptr, uint32_t nbytes,
+                           void *dst_addr GASNETI_THREAD_FARG)
 {
   int i;
   int args_size = sizeof(gex_AM_Arg_t) * numargs;
@@ -613,10 +613,11 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                              gex_Flags_t flags,
                              uint8_t is_request,
                              int numargs,
-                             va_list argptr GASNETI_THREAD_FARG,
+                             va_list argptr,
                              void *src_addr,
                              uint32_t nbytes,
-                             void *dst_addr)
+                             void *dst_addr
+                             GASNETI_THREAD_FARG)
 {
   gasnetc_am_req_t *am_req;
   gasnetc_buffer_t *buffer = NULL;
@@ -628,7 +629,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
 
   /* format common data */
   gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_request,
-                        numargs, argptr, nbytes, dst_addr);
+                        numargs, argptr, nbytes, dst_addr GASNETI_THREAD_PASS);
   if (!nbytes) {
     goto send;
   }
