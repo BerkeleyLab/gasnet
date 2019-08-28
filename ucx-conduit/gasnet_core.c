@@ -7,6 +7,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_ucx_req.h>
 #include <gasnet_am.h>
 
 #include <errno.h>
@@ -22,6 +23,13 @@ gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
+gasnet_ucx_module_t gasnet_ucx_module;
+
+size_t gasnetc_AMHeaderSize(void)
+{
+  return sizeof(gasnetc_sreq_hdr_t);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -35,11 +43,101 @@ static void gasnetc_check_config(void) {
    * and/or segment sizes */ 
 }
 
+GASNETI_INLINE(gasnetc_msgsource)
+gex_Rank_t gasnetc_msgsource(gex_Token_t token) {
+  gasneti_assert(! gasnetc_token_in_nbrhd(token));
+  gasneti_assert(token);
+  gasnetc_sreq_hdr_t *hdr = (gasnetc_sreq_hdr_t*)token;
+  gasneti_assert(hdr->src < gasneti_nodes);
+  return hdr->src;
+}
+
+static int gasnetc_connect_static(void)
+{
+  int i;
+  ucs_status_t status;
+  ucp_ep_params_t ep_params;
+
+
+  for (i = 0; i < gasneti_nodes; ++i) {
+    ep_params.field_mask = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS;
+    ep_params.address    = (ucp_address_t*)gasnet_ucx_module.remote_ep_tbl[i].ucx_addr;
+    status = ucp_ep_create(gasnet_ucx_module.ucp_worker, &ep_params,
+                           &gasnet_ucx_module.remote_ep_tbl[i].server_ep);
+    if (UCS_OK != status) {
+      return GASNET_ERR_NOT_INIT;
+    }
+  }
+  return GASNET_OK;
+}
+
+static void gasnetc_connect_shutdown(void)
+{
+  for (int i = 0; i < gasneti_nodes; ++i) {
+    ucp_ep_destroy(gasnet_ucx_module.remote_ep_tbl[i].server_ep);
+  }
+}
+
+void gasnetc_ucx_empty_complete_cb(void *req, ucs_status_t status)
+{
+}
+
+static int gasnetc_ucx_worker_flush(void)
+{
+  ucs_status_t status;
+  ucs_status_ptr_t request;
+
+  request = ucp_worker_flush_nb(gasnet_ucx_module.ucp_worker, 0,
+                                gasnetc_ucx_empty_complete_cb);
+  if_pt (NULL == request) {
+      return GASNET_OK;
+  } else if_pf(UCS_PTR_IS_ERR(request)) {
+    gasneti_fatalerror("UCX worker wait failed: %d, %s", UCS_PTR_STATUS(request),
+                       ucs_status_string(UCS_PTR_STATUS(request)));
+    return GASNET_ERR_RESOURCE;
+  }
+  do {
+    status = ucp_request_check_status(request);
+    ucp_worker_progress(gasnet_ucx_module.ucp_worker);
+  } while (status == UCS_INPROGRESS);
+
+  if (UCS_OK != status) {
+    gasneti_fatalerror("UCX worker wait failed: %d, %s",
+                       UCS_PTR_STATUS(request),
+                       ucs_status_string(UCS_PTR_STATUS(request)));
+    return GASNET_ERR_RESOURCE;
+  }
+  ucp_request_free(request);
+
+  return GASNET_OK;
+}
+
+static void gasnetc_fini(void)
+{
+  gasnetc_ucx_worker_flush();
+  gasneti_bootstrapFini();
+  gasneti_nodemapFini();
+  gasnetc_sreq_list_free();
+  gasnetc_am_req_pool_free();
+
+  /* cleanup UCX */
+  gasnetc_connect_shutdown();
+  ucp_worker_destroy(gasnet_ucx_module.ucp_worker);
+  gasnetc_rreq_list_free();
+  gasnetc_buffer_pool_free();
+  ucp_cleanup(gasnet_ucx_module.ucp_context);
+
+  gasneti_free(gasnet_ucx_module.remote_ep_tbl);
+  gasneti_mutex_destroy(&gasnet_ucx_module.ucp_worker_lock);
+}
+
 static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   ucp_config_t *config;
   ucs_status_t status;
   ucp_params_t ucp_params;
-  ucp_context_h ucp_context;
+  ucp_worker_params_t worker_params;
+  gasnet_ucx_ep_conn_info_t local_ep;
+  ucp_address_t *ucx_local_addr;
 
   /*  check system sanity */
   gasnetc_check_config();
@@ -68,6 +166,65 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  /*
+   * Initialize UCX
+   */
+  status = ucp_config_read("GASNET", NULL, &config);
+  if (status != UCS_OK) {
+    GASNETI_RETURN_ERRFR(RESOURCE, "Fail to read UCX config: %s",
+                         ucs_status_string(status));
+  }
+  ucp_params.features        = UCP_FEATURE_TAG;
+  ucp_params.request_size    = sizeof(gasnetc_ucx_request_t);
+  ucp_params.request_init    = gasnetc_req_init;
+  ucp_params.request_cleanup = NULL;
+  ucp_params.field_mask      = UCP_PARAM_FIELD_FEATURES |
+                               UCP_PARAM_FIELD_REQUEST_SIZE |
+                               UCP_PARAM_FIELD_REQUEST_INIT |
+                               UCP_PARAM_FIELD_REQUEST_CLEANUP;
+  status = ucp_init(&ucp_params, config, &gasnet_ucx_module.ucp_context);
+  ucp_config_release(config);
+  if (UCS_OK != status) {
+    return GASNET_ERR_NOT_INIT;
+  }
+
+  gasneti_mutex_init(&gasnet_ucx_module.ucp_worker_lock);
+
+  worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
+#ifdef GASNETC_UCX_THREADS
+  worker_params.thread_mode = UCS_THREAD_MODE_MULTI;
+#else
+  worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
+#endif
+
+  status = ucp_worker_create(gasnet_ucx_module.ucp_context, &worker_params,
+                             &gasnet_ucx_module.ucp_worker);
+  if (UCS_OK != status) {
+    return GASNET_ERR_NOT_INIT;
+  }
+
+  status = ucp_worker_get_address(gasnet_ucx_module.ucp_worker,
+                                  &ucx_local_addr, &local_ep.ucx_addr_len);
+
+  // TODO-next: support any size of EPs
+  gasneti_assert(local_ep.ucx_addr_len <= GASNETC_UCX_MAX_ADDR_LEN);
+
+  memcpy(local_ep.ucx_addr, ucx_local_addr, local_ep.ucx_addr_len);
+  ucp_worker_release_address(gasnet_ucx_module.ucp_worker, ucx_local_addr);
+
+  gasnetc_am_req_pool_alloc();
+  gasnetc_buffer_pool_alloc();
+  gasnetc_req_list_init();
+
+  gasnet_ucx_module.remote_ep_tbl =
+      gasneti_calloc(gasneti_nodes, sizeof(local_ep));
+
+  /* TODO-next: perform two-stage endpoint exchange:
+   * 1 exchange EP sizes, get max ep-size
+   * 2 use max ep size to exchange */
+  gasneti_bootstrapExchange(&local_ep, sizeof(local_ep),
+                            gasnet_ucx_module.remote_ep_tbl);
+
   /* (###) Add code here to determine which GASNet nodes may share memory.
      The collection of nodes sharing memory are known as a "supernode".
      The (first) data structure to describe this is gasneti_nodemap[]:
@@ -87,77 +244,38 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
-  //gasneti_nodemapInit(gasneti_spawner->Exchange, ###);
-
-  #if GASNET_PSHM
-    /* (###) If your conduit will support PSHM, you should initialize it here.
-     * The 1st argument is normally gasneti_spawner->SNodeBroadcast or equivalent
-     * The 2nd argument is the amount of shared memory space needed for any
-     * conduit-specific uses.
-     * The return value is a pointer to the space requested by the 2nd argument.
-     * It is advisable that the conduit ensure pages in this space are touched,
-     * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
-     * or similar memory probes.
-     */
-    //### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
-  #endif
+#if GASNET_PSHM
+  /* (###) If your conduit will support PSHM, you should initialize it here.
+   * The 1st argument is normally gasneti_spawner->SNodeBroadcast or equivalent
+   * The 2nd argument is the amount of shared memory space needed for any
+   * conduit-specific uses.
+   * The return value is a pointer to the space requested by the 2nd argument.
+   * It is advisable that the conduit ensure pages in this space are touched,
+   * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
+   * or similar memory probes.
+   */
+  //### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
+#endif
+  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
 
   /* allocate and attach an aux segment */
 
-  /* (###) it may be appropriate to use the following to allocate and map an aux segment
-           gasneti_auxsegAttach(maxsize, &gasneti_spawner->Exchange);
-   */
+  gasneti_auxsegAttach((uintptr_t)-1, gasneti_bootstrapExchange);
 
-  { 
-      /* (###) Add code here to determine optimistic maximum segment size */
-      //gasneti_MaxLocalSegmentSize = ###;
+  uintptr_t limit = gasneti_segmentLimit((uintptr_t)-1, (uint64_t)-1,
+                                         &gasneti_bootstrapExchange,
+                                         &gasneti_bootstrapBarrier);
 
-      /* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes */
-      //gasneti_MaxGlobalSegmentSize = ###;
-
-      /* it may be appropriate to use gasneti_segmentInit() here to set 
-         gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
-         if your conduit can use memory anywhere in the address space
-
-         it may also be appropriate to first call gasneti_segmentLimit() to
-         get a good value for the first argument to gasneti_segmentInit(), to
-         account for limitations imposed by having multiple GASNet nodes
-         per shared-memory compute node (this is recommended for all
-         systems with virtual memory unless there can be only one
-         process per compute node).
-
-         in turn, gasneti_sharedLimit() may provide a good sharedLimit
-         argument to gasneti_segmentLimit(), after reducing by space allocated
-         to other shared overheads, such as the aux segment
-      */
-  }
+  /* determine Max{Local,GLobal}SegmentSize */
+  gasneti_segmentInit(limit, &gasneti_bootstrapExchange, flags);
 
   /*
-   * Initialize UCX
+   * Establish connections with all nodes
    */
-  status = ucp_config_read("GASNET", NULL, &config);
-  if (status != UCS_OK) {
-    GASNETI_RETURN_ERRFR(RESOURCE, "Fail to read UCX config: %s",
-                         ucs_status_string(status));
+  if (GASNET_OK != (status = gasnetc_connect_static())) {
+      return status;
   }
-  ucp_params.features = UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP;
-  ucp_params.request_size    = 0;//sizeof(pmixp_ucx_req_t);
-  ucp_params.request_init    = NULL;
-  ucp_params.request_cleanup = NULL;
-  ucp_params.field_mask      = UCP_PARAM_FIELD_FEATURES |
-      UCP_PARAM_FIELD_REQUEST_SIZE |
-      UCP_PARAM_FIELD_REQUEST_INIT |
-      UCP_PARAM_FIELD_REQUEST_CLEANUP;
-  status = ucp_init(&ucp_params, config, &ucp_context);
-
-  unsigned major_version, minor_version, release_number;
-  ucp_get_version(&major_version, &minor_version, &release_number);
-
-  GASNETI_TRACE_PRINTF(I, ("UCX version %d.%d.%d\n",
-                           major_version, minor_version, release_number));
-  return GASNET_ERR_NOT_INIT;
-
-  gasneti_init_done = 1;  
+  gasneti_init_done = 1;
 
   return GASNET_OK;
 }
@@ -210,13 +328,10 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
-  /* (###) add code here to choose and register a segment 
-     (ensuring alignment across all nodes if this conduit sets GASNET_ALIGNED_SEGMENTS==1) 
-     you can use gasneti_segmentAttach() here if you used gasneti_segmentInit() above
-  */
+  gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
 
-  void *segbase = 0;//###;
-  segsize = 0;//###
+  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
+  segsize = gasneti_seginfo[gasneti_mynode].size;
 
   gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
   gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
@@ -374,6 +489,15 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
                              gex_Client_t       client,
                              gex_Flags_t        flags) {
   /* (###) add code here to create an endpoint belonging to the given client */
+#if 1 // TODO-EX: This is a stub, which assumes 1 implicit call from ClientCreate
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+    static int once = 0;
+    int prev = once;
+    once = 1;
+  gasneti_mutex_unlock(&lock);
+  if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
+#endif
 
   gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, 0);
   *ep_p = gasneti_export_ep(ep);
@@ -411,6 +535,9 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
 /* ------------------------------------------------------------------------------------ */
 
 extern void gasnetc_exit(int exitcode) {
+  /* waiting to completion all requests */
+  gasnetc_req_wait(GASNETC_LOCK_MODE_REGULAR);
+
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
@@ -425,17 +552,29 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_trace_finish();
   gasneti_sched_yield();
 
+  /* TODO-next: implement distributed graceful exit */
+
   /* (###) add code here to terminate the job across _all_ nodes 
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
            Should include a call to gasneti_spawner->Fini() on normal exit
            or gasneti_spawner->Abort() for an abortive exit
   */
+  gasnetc_fini();
 
   gasneti_killmyprocess(exitcode); /* last chance */
   gasneti_fatalerror("gasnetc_exit failed!");
 }
 
+// TODO-EX:
+// This conduit curently uses the extended-ref for all RMA.  That, in turn,
+// uses AMs in an NBI access region.  Unfortunately, that means one cannot run
+// progress functions that may communicate using NBI (or accurately then cannot
+// call gex_NB_Test()).  Otherwise, assertions regarding access regions result.
+//
+// This avoids the problem by omitting progress functions on entry to AMRequest.
+#define GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flag) \
+        do { if (GASNETC_IMMEDIATE_WOULD_POLL(flag)) gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE); } while (0)
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
@@ -465,6 +604,8 @@ extern gex_TI_t gasnetc_Token_Info(
                 gex_Token_Info_t    *info,
                 gex_TI_t            mask)
 {
+  const gasnetc_sreq_hdr_t *hdr = (gasnetc_sreq_hdr_t*)token;
+
   gasneti_assert(token);
   gasneti_assert(info);
 
@@ -482,7 +623,7 @@ extern gex_TI_t gasnetc_Token_Info(
   gex_TI_t result = 0;
 
   /* (###) add code here to write the source into info->gex_srcrank */
-  info->gex_srcrank = 0;//###;
+  info->gex_srcrank = hdr->src;
   result |= GEX_TI_SRCRANK;
 
   /* (###) add code here to write the receiving EP into info->gex_ep */
@@ -504,17 +645,14 @@ extern gex_TI_t gasnetc_Token_Info(
   return GASNETI_TOKEN_INFO_RETURN(result, info, mask);
 }
 
-extern int gasnetc_AMPoll(void) {
-  int retval;
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   GASNETI_CHECKATTACH();
-
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it make progress here. */
   gasneti_AMPSHMPoll(0);
 #endif
-
-  /* (###) add code here to run your AM progress engine */
-
+  /* protected progress of UCX */
+  gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
   return GASNET_OK;
 }
 
@@ -530,21 +668,17 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  /* (###) If your conduit is using the default support for AMs within
-   * a Neighborhood (including loopback) then this hook is necessary.
-   */
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
-    retval = gasnetc_nbrhd_RequestGeneric( gasneti_Short, jobrank, handler,
-                                           0, 0, 0,
-                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+    retval = gasnetc_nbrhd_RequestGeneric(gasneti_Short, jobrank, handler,
+                                          0, 0, 0, flags, numargs,
+                                          argptr GASNETI_THREAD_PASS);
   } else {
-    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
-             and send the active message 
-     */
-
-    retval = 0;//###;
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_SHORT, jobrank, handler,
+                                      flags, 1, numargs,
+                                      argptr, NULL, 0, NULL GASNETI_THREAD_PASS);
   }
+
   return retval;
 }
 
@@ -556,7 +690,7 @@ extern int gasnetc_AMRequestShortM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTSHORT(tm,rank,handler,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -586,22 +720,21 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  /* (###) If your conduit is using the default support for AMs within
-   * a Neighborhood (including loopback) then this hook is necessary.
-   */
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasnetc_nbrhd_RequestGeneric( gasneti_Medium, jobrank, handler,
-                                           source_addr, nbytes, 0,
-                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+                                           source_addr, nbytes, 0, flags,
+                                           numargs, argptr GASNETI_THREAD_PASS);
   } else {
-    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
-             and send the active message 
-     */
-
-    retval = 0;//###;
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_MEDIUM, jobrank, handler,
+                                      flags, 1, numargs,
+                                      argptr, source_addr,
+                                      nbytes, NULL GASNETI_THREAD_PASS);
   }
+
   return retval;
 }
 
@@ -624,7 +757,7 @@ extern int gasnetc_AMRequestMediumM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTMEDIUM(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -808,22 +941,23 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                             int numargs, va_list argptr GASNETI_THREAD_FARG)
 {
   int retval;
-  /* (###) If your conduit is using the default support for AMs within
-   * a Neighborhood (including loopback) then this hook is necessary.
-   */
+
+
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasnetc_nbrhd_RequestGeneric( gasneti_Long, jobrank, handler,
                                            source_addr, nbytes, dest_addr,
-                                           flags, numargs, argptr GASNETI_THREAD_PASS);
+                                           flags, numargs,
+                                           argptr GASNETI_THREAD_PASS);
   } else {
-    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
-             and send the active message 
-     */
-
-    retval = 0;//###;
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_LONG, jobrank, handler,
+                                      flags, 1, numargs,
+                                      argptr, source_addr,
+                                      nbytes, dest_addr GASNETI_THREAD_PASS);
   }
+
   return retval;
 }
 
@@ -847,7 +981,7 @@ extern int gasnetc_AMRequestLongM(
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   GASNETI_COMMON_AMREQUESTLONG(tm,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  GASNETC_IMMEDIATE_MAYBE_POLL(flags); /* (###) poll at least once, to assure forward progress */
+  GASNETC_IMMEDIATE_MAYBE_POLL_NOPF(flags); /* (###) poll at least once, to assure forward progress */
 
   va_list argptr;
   va_start(argptr, numargs); /*  pass in last argument */
@@ -862,21 +996,18 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr)
 {
   int retval;
-  /* (###) If your conduit is using the default support for AMs within
-   * a Neighborhood (including loopback) then this hook is necessary.
-   */
+
   if_pt (gasnetc_token_in_nbrhd(token)) {
     retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Short, token, handler,
                                          0, 0, 0,
                                          flags, numargs, argptr);
   } else {
-    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
-             and send the active message 
-       If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
-     */
-
-    retval = 0;//###;
+    GASNET_BEGIN_FUNCTION(); // TODO: could embed threadinfo in token
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_SHORT, jobrank, handler,
+                                      flags, 0, numargs, argptr, NULL, 0, NULL GASNETI_THREAD_PASS);
   }
+
   return retval;
 }
 
@@ -908,22 +1039,21 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr)
 {
   int retval;
-  /* (###) If your conduit is using the default support for AMs within
-   * a Neighborhood (including loopback) then this hook is necessary.
-   */
+
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Medium, token, handler,
                                          source_addr, nbytes, 0,
                                          flags, numargs, argptr);
   } else {
-    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
-             and send the active message 
-       If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
-     */
-
-    retval = 0;//###;
+    GASNET_BEGIN_FUNCTION(); // TODO: could embed threadinfo in token
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_MEDIUM, jobrank, handler,
+                                      flags, 0, numargs, argptr, source_addr,
+                                      nbytes, NULL GASNETI_THREAD_PASS);
   }
+
   return retval;
 }
 
@@ -1112,22 +1242,21 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                             int numargs, va_list argptr)
 {
   int retval;
-  /* (###) If your conduit is using the default support for AMs within
-   * a Neighborhood (including loopback) then this hook is necessary.
-   */
+
   if_pt (gasnetc_token_in_nbrhd(token)) {
     gasneti_leaf_finish(lc_opt); // synchronous LC
     retval = gasnetc_nbrhd_ReplyGeneric( gasneti_Long, token, handler,
                                          source_addr, nbytes, dest_addr,
                                          flags, numargs, argptr);
   } else {
-    /* (###) add code here to read the arguments using va_arg(argptr, gex_AM_Arg_t)
-             and send the active message 
-       If threadinfo is needed, see GASNET_POST_THREADINFO comment in gasnetc_AM_PrepareReplyMedium()
-     */
-
-    retval = 0;//###;
+    GASNET_BEGIN_FUNCTION(); // TODO: could embed threadinfo in token
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+    retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_LONG, jobrank, handler,
+                                      flags, 0, numargs, argptr, source_addr,
+                                      nbytes, dest_addr GASNETI_THREAD_PASS);
   }
+
   return retval;
 }
 
