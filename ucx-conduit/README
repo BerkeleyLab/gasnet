@@ -1,5 +1,6 @@
 GASNet ucx-conduit documentation
-Boris Karasev <boriska@mellanox.com>
+Boris I. Karasev <boriska@mellanox.com>
+Artem Y. Polyakov <artemp@mellanox.com>
 
 User Information:
 -----------------
@@ -7,7 +8,11 @@ User Information:
 Ucx-conduit implements GASNet over the Unified Communication X (UCX) framework.
 See http://www.openucx.org/ for general information on UCX.
 
-The implementation of ucx-conduit is in progress now and not functional yet.
+Currently, the ucx-conduit only includes the implementation of GASNet
+Active Messages and should not be used for performance measurements.
+
+Ucx-conduit is a work-in-progress and currently disabled by default.
+If you’re interested in trying it, please email gasnet-staff@lbl.gov for instructions.
 
 Where this conduit runs:
 -----------------------
@@ -45,15 +50,27 @@ Recognized environment variables:
 ---------------------------------
 
 * All the standard GASNet environment variables (see top-level README)
+* UCX environment parameters
+    - Most commonly used variables are described by the following link
+      https://github.com/openucx/ucx/wiki/UCX-environment-parameters
+    - See also the output of `ucx_info -f` for the full list of parameters
+      supported by a particular UCX version.
 
 Known problems:
 ---------------
 
 * See the GASNet Bugzilla server for details on known bugs:
   https://gasnet-bugs.lbl.gov/
+* This version is known to have high memory consumption under certain workloads
+  (i.e. high volume of Long AMs or one-sided puts)
 
 Future work:
 ------------
+
+The following features are planned of the next version of the UCX conduit:
+* Address the high memory consumption issue (See the "Known problems" section).
+* HW accelerated one-sided operations
+* HW accelerated atomics operations
 
 ==============================================================================
 
