@@ -278,6 +278,15 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   }
   gasneti_init_done = 1;
 
+  if (0 == gasneti_mynode) {
+    fflush(NULL);
+    fprintf(stderr,
+      " WARNING: ucx-conduit is experimental and should not be used for\n"
+      "          performance measurements.\n"
+      "          Please see `ucx-conduit/README` for more details.\n");
+    fflush(NULL);
+  }
+
   return GASNET_OK;
 }
 
