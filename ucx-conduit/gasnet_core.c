@@ -244,6 +244,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
+  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
+
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, you should initialize it here.
    * The 1st argument is normally gasneti_spawner->SNodeBroadcast or equivalent
@@ -254,9 +256,8 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
    * possibly using gasneti_pshm_prefault(), prior to use of gasneti_segmentLimit()
    * or similar memory probes.
    */
-  //### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
+  (void) gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, 0);
 #endif
-  gasneti_nodemapInit(gasneti_spawner->Exchange, NULL, 0, 0);
 
   /* allocate and attach an aux segment */
 

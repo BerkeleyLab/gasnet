@@ -21,7 +21,7 @@
 #define GASNET_CONDUIT_UCX 1
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
-#if GASNETI_PSHM_ENABLED && 0 // this conduit not yet supported PSHM
+#if GASNETI_PSHM_ENABLED
 #define GASNET_PSHM 1
 #endif
 
