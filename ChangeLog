@@ -39,6 +39,7 @@ PENDING: GASNet-EX Work-In-Progress
   - Add GASNETT_FALLTHROUGH
 
 * Notable bugs fixed in this release:
+  - bug3338: ibv_reg_mr failure (EFAULT/Bad address) on read-only data
   - bug4002: ibv-conduit: XRC and ODP are mutually exclusive
 
 ----------------------------------------------------------------------
