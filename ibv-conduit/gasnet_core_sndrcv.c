@@ -372,7 +372,7 @@ const firehose_request_t *gasnetc_fh_aligned_local_pin(uintptr_t start, size_t l
     firehose_release(&result, 1);
     return NULL;
   }
-  gasneti_assume(result);
+  gasneti_assume(result != NULL);
   return result;
 }
 
