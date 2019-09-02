@@ -2438,7 +2438,7 @@ size_t gasnetc_get_local_fh(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len
       sreq->fh_count = 2;
     } else {
       // Attempt to xfer un-pinnable memory such as due to bug 3338
-      GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_READONLY, nbytes);
+      GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_READONLY, len);
       len = 0;
       sreq->fh_count = 1; // remote only
     }
