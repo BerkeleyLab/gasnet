@@ -31,7 +31,16 @@ PENDING: GASNet-EX Work-In-Progress
     completion (both explicit and implicit event) are properly implemented
     where previously they were strengthened to synchronous.
 
+* InfiniBand Verbs (ibv-conduit)
+  - New envvars GASNET_IBV_LIST_PORTS{,_NODES} to request a list of
+    available InfiniBand HCAs, ports, and their respective status.
+
+* GASNet tools (spec v1.14)
+  - Add GASNETT_FALLTHROUGH
+
 * Notable bugs fixed in this release:
+  - bug3338: ibv_reg_mr failure (EFAULT/Bad address) on read-only data
+  - bug4002: ibv-conduit: XRC and ODP are mutually exclusive
 
 ----------------------------------------------------------------------
 06-14-2019: GASNet-EX 2019.6.0 Release

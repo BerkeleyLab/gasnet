@@ -119,35 +119,35 @@ typedef struct {
   ==========================
 */
 
-#define GASNETC_MAX_ARGS 16
-#define GASNETC_MAX_LONG_REQ ((size_t)INT_MAX)
-#define GASNETC_MAX_LONG_REP ((size_t)(GASNETC_MAX_LONG_REQ))
-#define GASNETC_MAX_MEDIUM_DFLT 65536
-#define GASNETC_MAX_MEDIUM GASNETC_MAX_MEDIUM_DFLT
+size_t gasnetc_AMHeaderSize(void);
+
+#define GASNETC_MAX_ARGS            16
+#define GASNETC_UCX_HDR_SIZE        gasnetc_AMHeaderSize()
+#define GASNETC_MAX_MED             4096
+#define GASNETC_MAX_LONG            INT_MAX
+
+#define GASNETC_MAX_MEDIUM_NBRHD    GASNETC_MAX_MED
+
+#define GASNETC_MAX_MED_(nargs)                                                \
+  (GASNETC_MAX_MED - GASNETI_ALIGNUP_NOASSERT(GASNETC_UCX_HDR_SIZE +           \
+                                              sizeof(gex_AM_Arg_t)*(nargs), 8))
+
+#define GASNETC_MAX_LONG_(nargs) \
+  (GASNETC_MAX_LONG - (GASNETC_UCX_HDR_SIZE +  sizeof(gex_AM_Arg_t)*(nargs) +  \
+                                               sizeof(void*)))
 
 #define gex_AM_MaxArgs()          ((unsigned int)GASNETC_MAX_ARGS)
+#define gex_AM_LUBRequestMedium() (GASNETC_MAX_MED_(GASNETC_MAX_ARGS))
+#define gex_AM_LUBReplyMedium()   (GASNETC_MAX_MED_(GASNETC_MAX_ARGS))
+#define gex_AM_LUBRequestLong()   (GASNETC_MAX_LONG_(GASNETC_MAX_ARGS))
+#define gex_AM_LUBReplyLong()     (GASNETC_MAX_LONG_(GASNETC_MAX_ARGS))
 
-  /* Define least-upper-bound (worst case) limits on payload sizes */
-  /* (###) Conduit must "negotiate" with the NBRHD logic for the max size of a
-   * Medium message.  This can either be done by lowering the conduit's value
-   * to the GASNETC_MAX_MEDIUM_NBRHD_DFLT (as with the MIN() expressions below),
-   * or the conduit may define GASNETC_MAX_MEDIUM_NBRHD in gasnet_core_fwd.h to
-   * raise or lower the MaxMedium value used by NBRHD.
-   * TODO-EX: Maxes should become independent with locality-aware Max queries.
-   */
-#define gex_AM_LUBRequestMedium() ((size_t)MIN(GASNETC_MAX_MEDIUM, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
-#define gex_AM_LUBReplyMedium()   ((size_t)MIN(GASNETC_MAX_MEDIUM, GASNETC_MAX_MEDIUM_NBRHD_DFLT))
-#define gex_AM_LUBRequestLong()   ((size_t)GASNETC_MAX_LONG_REQ)
-#define gex_AM_LUBReplyLong()     ((size_t)GASNETC_MAX_LONG_REP)
-
-  /* Provide tigher bounds based on parameters (*/
-/* Example for closed-form macros: */
-#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  ((size_t)GASNETC_MAX_MEDIUM)
-#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    ((size_t)GASNETC_MAX_MEDIUM)
-#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    ((size_t)GASNETC_MAX_LONG_REQ)
-#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      ((size_t)GASNETC_MAX_LONG_REP)
-#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM)
-#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     ((size_t)GASNETC_MAX_LONG_REP)
+#define gasnetc_AM_MaxRequestMedium(tm,rank,lc_opt,flags,nargs)  ((size_t)(GASNETC_MAX_MED_(nargs)))
+#define gasnetc_AM_MaxReplyMedium(tm,rank,lc_opt,flags,nargs)    ((size_t)(GASNETC_MAX_MED_(nargs)))
+#define gasnetc_AM_MaxRequestLong(tm,rank,lc_opt,flags,nargs)    ((size_t)(GASNETC_MAX_LONG_(nargs)))
+#define gasnetc_AM_MaxReplyLong(tm,rank,lc_opt,flags,nargs)      ((size_t)(GASNETC_MAX_LONG_(nargs)))
+#define gasnetc_Token_MaxReplyMedium(token,lc_opt,flags,nargs)   ((size_t)(GASNETC_MAX_MED_(nargs)))
+#define gasnetc_Token_MaxReplyLong(token,lc_opt,flags,nargs)     ((size_t)(GASNETC_MAX_LONG_(nargs)))
 
 /* Example for true functions: */
 #if 0

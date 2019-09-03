@@ -109,6 +109,7 @@
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
         VAL(C, RDMA_PUT_ZEROCP, bytes)            \
+        VAL(C, RDMA_PUT_READONLY, bytes)          \
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
         CNT(C, ALLOC_AM_SPARE, cnt)	          \

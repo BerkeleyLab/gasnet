@@ -154,8 +154,22 @@ launcher:
 	   echo "ERROR: $$UPCXXRUN is missing" ; exit 1 ; \
 	 fi 
 
+# similar for MPI progs (best-effort when missing mpi-conduit)
+launcher-mpi:
+	-rm -f $@
+	@if test -x $(UPCXX_LAUNCHERS)/bin/gasnetrun_mpi ; then \
+	  set -x ; ln -s $(UPCXX_LAUNCHERS)/bin/gasnetrun_mpi $@ ; \
+	elif test -x $(UPCXX_LAUNCHERS)/mpi-conduit/contrib/gasnetrun_mpi ; then \
+	  set -x ; ln -s $(UPCXX_LAUNCHERS)/mpi-conduit/contrib/gasnetrun_mpi $@ ; \
+	else \
+	  echo '#!/bin/sh' > $@ ; \
+	  echo 'exec mpirun "$$@"' >> $@ ; \
+	  echo 'echo "ERROR: mpirun and gasnetrun_mpi not found." ; exit 1' >> $@ ; \
+	  chmod +x $@ ; \
+	fi
+
 _upcxx: force
-	rm -Rf upcxx-built launcher $(LOGFILE)
+	-rm -Rf upcxx-built launcher launcher-mpi $(LOGFILE)
 	echo ======== UPCXX download ======== | tee $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
@@ -173,7 +187,7 @@ _upcxx: force
 	else \
 	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
-	$(MAKE) launcher $(TO_LOG)
+	$(MAKE) launcher launcher-mpi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
 	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
 	@-( set -x; $(DO_ENV) ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
@@ -276,6 +290,20 @@ jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean jac3d
 	mv $</jac3d $@
+
+# upcxx-examples extend-add
+extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add force
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; 
+	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
+	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
+	 UPCXX_EXTENDADD_EXTRA=$${UPCXX_EXTENDADD_EXTRA:--Wno-unknown-pragmas} ; \
+	 $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND \
+                       SCALAPACK_LIBS="$$SCALAPACK_LIBS" \
+                       OPTIMIZATION="$(OPT) $$UPCXX_EXTENDADD_EXTRA" \
+                       clean extend-add_$*
+	mv $</bin/extend-add_$* $@
 
 # UPC interop
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force

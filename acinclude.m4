@@ -410,6 +410,13 @@ dnl all the inttypes goop required for portable_inttypes.h
 dnl second arg is optional prefix for defs
 AC_DEFUN([GASNET_SETUP_INTTYPES], [ 
   GASNET_FUN_BEGIN([$0($1,$2)])
+
+  AC_CHECK_HEADERS(stddef.h,[
+    dnl Some platforms define types like ptrdiff_t only in stddef.h
+    dnl so make sure that AC_CHECK_SIZEOF uses it
+    echo "#include <stddef.h>" >> confdefs.h
+  ])
+
   GASNET_CHECK_SIZEOF(char, $1)
   GASNET_CHECK_SIZEOF(short, $1)
   GASNET_CHECK_SIZEOF(int, $1)

@@ -53,12 +53,15 @@ CONDUIT_FILELIST =           \
       gasnet_core.h          \
       gasnet_core_fwd.h      \
       gasnet_core_help.h     \
-      gasnet_core_internal.h 
+      gasnet_core_internal.h \
+      gasnet_core_sndrcv.c   \
+      gasnet_ucx_req.h
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
 CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
+      $(srcdir)/gasnet_core_sndrcv.c \
       $(top_srcdir)/extended-ref/gasnet_extended.c \
       $(ssh_sources) $(pmi_sources)
 

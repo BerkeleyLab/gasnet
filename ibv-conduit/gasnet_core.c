@@ -1451,6 +1451,120 @@ gasnetc_parse_ports(const char *p) {
   return 0;
 }
 
+static const char* port_state_name(enum ibv_port_state port_state)
+{
+  switch (port_state) {
+    case IBV_PORT_DOWN:  return "DOWN";
+    case IBV_PORT_INIT:  return "INITIALIZE";
+    case IBV_PORT_ARMED: return "ARMED";
+    default:             return "unknown";
+  }
+}
+
+static int16_t get_pkey(void)
+{
+  static int16_t pkey = -1;
+  static int first = 1;
+  if (first) {
+    first = 0;
+    int64_t tmp = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
+    if (tmp == -1) {
+      // Nothing to do
+    } else {
+      tmp &= ~(uint64_t)0x8000;  // strip membership bit (but not sign bit)
+      if ((tmp > 0x7fff) || (tmp < 2)) {
+        gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
+      }
+    }
+    pkey = (int16_t)tmp;
+  }
+  return pkey;
+}
+
+// Print the ports
+static void gasnetc_list_ports(void) {
+  gasneti_console_message("INFO", "Detected the following devices:ports");
+
+  struct ibv_device **hca_list;
+  int num_hcas = 0;
+  hca_list = ibv_get_device_list(&num_hcas);
+
+  int good_count = 0;
+  for (int hca_num = 0; hca_num < num_hcas; ++hca_num) {
+    const char *hca_name = ibv_get_device_name(hca_list[hca_num]);
+
+#if HAVE_IBV_TRANSPORT_TYPE
+    if (hca_list[hca_num]->transport_type != IBV_TRANSPORT_IB) {
+      gasneti_console_message("INFO", "    %s BAD - identifies as NON InfiniBand device\n", hca_name);
+      continue;
+    }
+#endif
+    struct ibv_context *hca_handle = ibv_open_device(hca_list[hca_num]);
+    if (! hca_handle) {
+      gasneti_console_message("INFO", "    %s BAD - failed to open device\n", hca_name);
+      continue;
+    }
+
+    struct ibv_device_attr hca_attr;
+    if (ibv_query_device(hca_handle, &hca_attr)) {
+      gasneti_console_message("INFO", "    %s BAD - failed to query device capabilities\n", hca_name);
+      (void) ibv_close_device(hca_handle);
+      continue;
+    }
+
+    // Loop over ports on the HCA (numbering starts at 1)
+    for (int port_num = 1; port_num <= hca_attr.phys_port_cnt; ++port_num) {
+      struct ibv_port_attr port_attr;
+      if (ibv_query_port(hca_handle, port_num, &port_attr)) {
+        gasneti_console_message("INFO", "    %s:%d BAD - failed to query port capabilities\n", hca_name, port_num);
+        continue;
+      }
+      if (port_attr.state != IBV_PORT_ACTIVE) {
+        gasneti_console_message("INFO", "    %s:%d BAD - reports state=%s\n",
+                                hca_name, port_num, port_state_name(port_attr.state));
+        continue;
+      }
+      if (!port_attr.lid) {
+        gasneti_console_message("INFO", "    %s:%d BAD - reports LID=0\n", hca_name, port_num);
+        continue;
+      }
+
+      int16_t pkey = get_pkey();
+      if (pkey >= 0) {
+        int idx = -1;
+        for (int i = 0; i < hca_attr.max_pkeys; ++i) {
+          uint16_t pkey_val;
+          if (ibv_query_pkey(hca_handle, port_num, i, &pkey_val)) {
+            gasneti_console_message("INFO", "    %s:%d BAD - failed to query pkeys\n", hca_name, port_num);
+            idx = i;
+            break;
+          }
+          if (pkey == (ntohs(pkey_val) & 0x7fff)) {
+            idx = i;
+            break;
+          }
+        }
+        if (idx < 0) {
+          gasneti_console_message("INFO", "    %s:%d BAD - not associated with user-specified pkey 0x%x\n",
+                                  hca_name, port_num, (unsigned int)pkey);
+          continue;
+        }
+      }
+
+      gasneti_console_message("INFO", "    %s:%d GOOD\n", hca_name, port_num);
+      ++good_count;
+    }
+    (void) ibv_close_device(hca_handle);
+  }
+  if (good_count) {
+    gasneti_console_message("INFO", "Found %d potentially usable InfiniBand ports\n", good_count);
+  } else if (num_hcas) {
+    gasneti_console_message("INFO", "Found %d devices, but no usable InfiniBand ports\n", num_hcas);
+  } else {
+    gasneti_console_message("INFO", "No IBV-compatible devices found\n");
+  }
+}
+
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
 static void gasnetc_probe_ports(int max_ports) {
   struct ibv_device	**hca_list;
@@ -1460,6 +1574,11 @@ static void gasnetc_probe_ports(int max_ports) {
   int			port_count = 0;
   int			hca_count = 0;
   int			curr_hca;
+
+  if (gasneti_getenv_yesno_withdefault("GASNET_IBV_LIST_PORTS", 0) &&
+      gasneti_check_node_list("GASNET_IBV_LIST_PORTS_NODES")) {
+    gasnetc_list_ports();
+  }
 
   if (gasnetc_parse_ports(gasnetc_ibv_ports)) {
     GASNETI_TRACE_PRINTF(C,("Failed to parse GASNET_IBV_PORTS='%s'", gasnetc_ibv_ports));
@@ -1505,16 +1624,7 @@ static void gasnetc_probe_ports(int max_ports) {
 		    "'gasnet/ibv-conduit/README'.\n", num_hcas, current, enable, num_hcas);
   }
 
-  int64_t pkey = gasnett_getenv_int_withdefault("GASNET_IBV_PKEY", -1, 0);
-  uint64_t pkey_mask = ~(uint64_t)0x8000;  // to strip membership bit
-  if (pkey == -1) {
-    // Nothing to do
-  } else {
-    pkey &= pkey_mask;
-    if ((pkey > 0x7fff) || (pkey < 2)) {
-      gasneti_fatalerror("Invalid GASNET_IBV_PKEY '%s'", gasnett_getenv("GASNET_IBV_PKEY"));
-    }
-  }
+  int16_t pkey = get_pkey();
 
   /* Loop over list of HCAs */
   for (curr_hca = 0;
@@ -1583,7 +1693,7 @@ static void gasnetc_probe_ports(int max_ports) {
             if (ibv_query_pkey(hca_handle, curr_port, i, &pkey_val)) {
               gasneti_fatalerror("Failed to query pkeys for HCA '%s', port %d", hca_name, curr_port);
             }
-            pkey_val = ntohs(pkey_val) & pkey_mask;
+            pkey_val = ntohs(pkey_val) & 0x7fff;
             if (pkey_val == pkey) {
               GASNETI_TRACE_PRINTF(C,("Using pkey_index %d for HCA '%s', port %d",
                                       i, hca_name, curr_port));
@@ -1617,22 +1727,8 @@ static void gasnetc_probe_ports(int max_ports) {
       }
 #if GASNET_TRACE
       else {
-	const char *state;
-
-	switch (this_port->port.state) {
-	case IBV_PORT_DOWN:
-		state = "DOWN";
-		break;
-	case IBV_PORT_INIT:
-		state = "INITIALIZE";
-		break;
-	case IBV_PORT_ARMED:
-		state = "ARMED";
-		break;
-	default:
-		state = "unknown";
-        }
-        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - state = %s", hca_name, curr_port, state));
+        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - state = %s",
+                                hca_name, curr_port, port_state_name(this_port->port.state)));
       }
 #endif
     }
@@ -1741,6 +1837,8 @@ static void gasneti_odp_init(void) {
     missing_none = 0, // not missing anything == OK
     missing_general,
     missing_implicit,
+    missing_xrc_read,
+    missing_xrc_write,
     missing_rc_read,
     missing_rc_write
   };
@@ -1748,6 +1846,8 @@ static void gasneti_odp_init(void) {
       "",
       "general ODP",
       "Implicit ODP",
+      "XRC READ",
+      "XRC WRITE"
       "RC READ",
       "RC WRITE"
   };
@@ -1769,10 +1869,14 @@ static void gasneti_odp_init(void) {
       //  + This can be identified because this caps bit was not set
       //  + Implicit ODP emulation had 128MB limit
       //  + Implicit ODP was valid for local only (invalid rkey)
-    } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
-      missing = missing_rc_read;
-    } else if (! (attr.odp_caps.per_transport_caps.rc_odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
-      missing = missing_rc_write;
+    } else if (gasnetc_use_xrc) {
+      uint32_t odp_caps = gasnetc_use_xrc ? attr.odp_caps.per_transport_caps.xrc_odp_caps
+                                          : attr.odp_caps.per_transport_caps.rc_odp_caps;
+      if (! (odp_caps & IBV_EXP_ODP_SUPPORT_READ)) {
+        missing = gasnetc_use_xrc? missing_xrc_read : missing_rc_read;
+      } else if (! (odp_caps & IBV_EXP_ODP_SUPPORT_WRITE)) {
+        missing = gasnetc_use_xrc? missing_xrc_write : missing_rc_write;
+      }
     }
     if (missing != missing_none) {
       GASNETI_TRACE_PRINTF(C,("Disabled ODP - %s: %s support is missing.",
@@ -1816,26 +1920,40 @@ static void gasneti_odp_init(void) {
       struct gasneti_odp_support *p = all_odp_support;
       // First just count the number of procs w/o OPD
       int non_odp_procs = 0;
+      int with_xrc_procs = 0;
       for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
         int non_odp = 0;
+        int with_xrc = 0;
         GASNETC_FOR_ALL_HCA(hca) {
           non_odp |= (p->missing != missing_none);
+          with_xrc |= (p->missing == missing_xrc_read) || (p->missing == missing_xrc_write);
           p = (struct gasneti_odp_support *)((uintptr_t)p + stride);
         }
         non_odp_procs += non_odp;
+        with_xrc_procs += with_xrc;
       }
       if (non_odp_procs) {
+        int only_xrc_problem = (non_odp_procs == with_xrc_procs);
+        const char *why = only_xrc_problem ? "due to conflict with XRC"
+                                           : "which are missing support";
         const char *less_msg =
                 "         To suppress this message set environment variable\n"
                 "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp\n"
                 "         (see ibv-conduit's README for more information).\n";
-        const char *more_msg = (verbose > 1) ? "" :
+        const char *more_msg = "";
+        if (only_xrc_problem) {
+            more_msg =
+                "         Alternatively, one may set GASNET_USE_ODP or GASNET_USE_XRC\n"
+                "         to '0' to disable the corresponding feature.\n";
+        } else if (verbose) {
+            more_msg =
                 "         To see additional details set environment variable\n"
                 "         GASNET_ODP_VERBOSE=2 (or higher).\n";
+        }
         // report the summary information (verbose > 0)
         fprintf(stderr,
-                "WARNING: ODP disabled on %d of %d processes which are missing support.\n%s%s",
-                (int)non_odp_procs, (int)gasneti_nodes, less_msg, more_msg);
+                "WARNING: ODP disabled on %d of %d processes %s.\n%s%s",
+                (int)non_odp_procs, (int)gasneti_nodes, why, less_msg, more_msg);
         // report detailed information (verbose > 1)
         if (verbose > 1) {
           p = all_odp_support;
@@ -2127,45 +2245,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasneti_free(all_configs);
   }
 
-#if GASNETC_IBV_ODP
-  gasnetc_use_odp = gasneti_getenv_int_withdefault("GASNET_USE_ODP", 1, 0);
-  if (gasnetc_use_odp) {
-    gasneti_odp_init();
-  }
-#elif !GASNETC_IBV_ODP_DISABLED
-  if (gasneti_getenv_int_withdefault("GASNET_ODP_VERBOSE", 1, 0)) {
-    uint8_t found_odp_hca = 0;
-    GASNETC_FOR_ALL_HCA(hca) {
-      // Assume hca_id starting with "mlx5" (or higher) has ODP support
-      if (!strncmp(hca->hca_id, "mlx", 3) && (atoi(hca->hca_id+3) >= 5)) {
-        found_odp_hca = 1;
-        break;
-      }
-    }
-    // TODO: Only one process reports, so gather to 0 would be sufficient and
-    //       a SUM reduction even would be even better.
-    uint8_t *all = gasneti_malloc(gasneti_nodes);
-    gasneti_bootstrapExchange(&found_odp_hca, 1, all);
-    if (!gasneti_mynode) {
-      gex_Rank_t count = 0;
-      for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
-        count += all[i];
-      }
-      if (count) {
-        fprintf(stderr,
-                "WARNING: %d of %d processes have HCAs believed to support ODP.  However, the\n"
-                "         corresponding software support was not found at configure time.\n"
-                "         Please see the README for GASNet's ibv-conduit for more info on ODP.\n"
-                "         To suppress this message set environment variable\n"
-                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp\n"
-                "         (see ibv-conduit's README for more information).\n",
-                (int)count, (int)gasneti_nodes);
-      }
-    }
-    gasneti_free(all);
-  }
-#endif // GASNETC_IBV_ODP
-
   /* Determine gasnetc_max_msg_sz and dependent variables */
   gasnetc_max_msg_sz = gasnetc_port_tbl[0].port.max_msg_sz;
   for (i = 1; i < gasnetc_num_ports; ++i) {
@@ -2207,6 +2286,45 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasnetc_use_xrc = 0;
   }
 #endif
+
+#if GASNETC_IBV_ODP
+  gasnetc_use_odp = gasneti_getenv_int_withdefault("GASNET_USE_ODP", 1, 0);
+  if (gasnetc_use_odp) {
+    gasneti_odp_init();
+  }
+#elif !GASNETC_IBV_ODP_DISABLED
+  if (gasneti_getenv_int_withdefault("GASNET_ODP_VERBOSE", 1, 0)) {
+    uint8_t found_odp_hca = 0;
+    GASNETC_FOR_ALL_HCA(hca) {
+      // Assume hca_id starting with "mlx5" (or higher) has ODP support
+      if (!strncmp(hca->hca_id, "mlx", 3) && (atoi(hca->hca_id+3) >= 5)) {
+        found_odp_hca = 1;
+        break;
+      }
+    }
+    // TODO: Only one process reports, so gather to 0 would be sufficient and
+    //       a SUM reduction even would be even better.
+    uint8_t *all = gasneti_malloc(gasneti_nodes);
+    gasneti_bootstrapExchange(&found_odp_hca, 1, all);
+    if (!gasneti_mynode) {
+      gex_Rank_t count = 0;
+      for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+        count += all[i];
+      }
+      if (count) {
+        fprintf(stderr,
+                "WARNING: %d of %d processes have HCAs believed to support ODP.  However, the\n"
+                "         corresponding software support was not found at configure time.\n"
+                "         Please see the README for GASNet's ibv-conduit for more info on ODP.\n"
+                "         To suppress this message set environment variable\n"
+                "         GASNET_ODP_VERBOSE=0 or reconfigure with --disable-ibv-odp\n"
+                "         (see ibv-conduit's README for more information).\n",
+                (int)count, (int)gasneti_nodes);
+      }
+    }
+    gasneti_free(all);
+  }
+#endif // GASNETC_IBV_ODP
 
   #if GASNET_PSHM
   {
