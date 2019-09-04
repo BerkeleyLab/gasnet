@@ -1326,6 +1326,12 @@ void gasnetc_format_long(gasnetc_post_descriptor_t *gpd,
   }
 }
 
+// max data one can pack into a message with a long header:
+// Since 0-byte RDMA is forbidden, !payload implies packed even for 0-byte cutover.
+size_t gasnetc_packedlong_cutover = 0;
+#define GASNETC_USE_PACKED_LONG(payload, nargs) \
+        (((payload) + GASNETC_HEADLEN(long, (nargs)) <= gasnetc_packedlong_cutover) || !payload)
+
 /*------------------- medium negotiated-payload ------------------ */
 // Common to Request and Reply
 
@@ -1493,7 +1499,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   } else {
     gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     GASNETC_DIDX_POST(mythread->domain_idx);
-    const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
+    const int is_packed = GASNETC_USE_PACKED_LONG(nbytes, numargs);
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
 
@@ -1741,7 +1747,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     GASNET_POST_THREADINFO(((gasnetc_token_t *)token)->threadinfo);
     gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
     GASNETC_DIDX_POST(mythread->domain_idx);
-    const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
+    const int is_packed = GASNETC_USE_PACKED_LONG(nbytes, numargs);
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
 

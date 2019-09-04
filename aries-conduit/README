@@ -186,6 +186,23 @@ GASNET_LONG_DEPTH - depth of per-peer Long tracking
   variables, above.
   The default value is no limit, the minimum is 1, and the maximum is 64.
 
+GASNET_GNI_PACKEDLONG_CUTOVER
+  This determines the maximum Long AM size using a "Packed Long" protocol.
+  To perform an Long AM with non-empty payload requires transfer of both the
+  payload and a header (containing arguments and 12 bytes of metadata).  For
+  large payloads, it's most efficient to implement the payload transfer using
+  zero-copy RDMA.  However, for sufficiently small payloads, it is more
+  efficient (in terms of both CPU and network costs) to pack the header and
+  payload together and copy the payload into place using the target-side CPU
+  before running the handler.  For Long AMs with the sum of payload and
+  header sizes up to and including this value, this Packed Long protocol is
+  used.
+  The default value is system dependent.
+  The maximum value is 4096, unless --with-aries-max-medium=N was passed to
+  configure (in which case the maximum is N+64).  Larger values will be
+  silently reduced to this limit.
+  A value of zero ensures the payload and header always travel separately.
+
 GASNET_GNI_AMPOLL_BURST - max events processed per AMPoll
   This determines the maximum number of GNI-level events processed per call to
   gasnet_AMPoll(), both explicit and implicit.  If GASNet calls which poll for
