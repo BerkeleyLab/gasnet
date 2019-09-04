@@ -1002,9 +1002,9 @@ uintptr_t gasnetc_init_messaging(void)
   #endif
 
   // Process GASNET_GNI_PACKEDLONG_CUTOVER
-  // Default is to max out the buffers
+  // Default is arch-dependent
   gasnetc_packedlong_cutover = gasneti_getenv_int_withdefault("GASNET_GNI_PACKEDLONG_CUTOVER",
-                                                              GASNETC_MSG_MAXSIZE, 0);
+                                                              GASNETC_GNI_PACKEDLONG_CUTOVER_DEFAULT, 0);
   gasnetc_packedlong_cutover = MIN(GASNETC_MSG_MAXSIZE, gasnetc_packedlong_cutover);
 
   GASNETC_INITLOCK_GNI();

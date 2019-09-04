@@ -217,6 +217,12 @@ typedef union gasnetc_packet_u {
 
 /* max data one can pack into a message with a long header: */
 extern size_t gasnetc_packedlong_cutover;
+#ifdef __CRAY_MIC_KNL
+  #define GASNETC_GNI_PACKEDLONG_CUTOVER_DEFAULT 2048
+#else
+  // TODO: ARM64?
+  #define GASNETC_GNI_PACKEDLONG_CUTOVER_DEFAULT 3072
+#endif
 
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
 /* we want this many post descriptors */
