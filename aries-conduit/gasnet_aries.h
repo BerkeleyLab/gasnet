@@ -216,9 +216,7 @@ typedef union gasnetc_packet_u {
                                  + GASNETC_LUB_MEDIUM), GASNETC_CACHELINE_SIZE)
 
 /* max data one can pack into a message with a long header: */
-/* TODO: runtime control of cut-off via an env var */
-#define GASNETC_MAX_PACKED_LONG(nargs) \
-        (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
+extern size_t gasnetc_packedlong_cutover;
 
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
 /* we want this many post descriptors */

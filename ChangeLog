@@ -30,6 +30,9 @@ PENDING: GASNet-EX Work-In-Progress
     local completion is reduced.  The cases of asynchronous local
     completion (both explicit and implicit event) are properly implemented
     where previously they were strengthened to synchronous.
+  - New environment variable GASNET_GNI_PACKEDLONG_CUTOVER allows control
+    over the range of AMLong size sent using the "Packed Long" protocol.
+    See details in the conduit README.
 
 * InfiniBand Verbs (ibv-conduit)
   - New envvars GASNET_IBV_LIST_PORTS{,_NODES} to request a list of
