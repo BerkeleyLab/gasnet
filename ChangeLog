@@ -379,8 +379,7 @@ PENDING: GASNet-EX Work-In-Progress
 
 ----------------------------------------------------------------------
 The remainder of this file contains the unmodified ChangeLog from the GASNet-1
-code base, from which the EX code was branched (and is periodically
-synchronized).
+code base, from which the EX code was branched.
 Note some entries below do not apply to the EX branch.
 ----------------------------------------------------------------------
 GASNet-1 ChangeLog 
