@@ -54,6 +54,12 @@ int main(int argc, char **argv) {
   gex_TM_t        myteam;
   gex_Segment_t   mysegment;
 
+#if GASNET_CONDUIT_IBV
+  // This is a hack to avoid triggering Bug 4008, which is believed
+  // to be caused by a bug in Mellanox's software stack.
+  setenv("GASNET_USE_ODP", "0", 0 /* NO overwrite if already set */);
+#endif
+
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testreadonly", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
