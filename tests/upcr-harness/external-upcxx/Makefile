@@ -259,7 +259,7 @@ wrap_test: upcxx-install-$(UPCXX_BACKEND)
 
 
 # Pattern rule builds tests, using logic dependent on their location
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator
+VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
 	case "$<" in \
