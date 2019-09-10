@@ -1001,6 +1001,12 @@ uintptr_t gasnetc_init_messaging(void)
   }
   #endif
 
+  // Process GASNET_GNI_PACKEDLONG_CUTOVER
+  // Default is arch-dependent
+  gasnetc_packedlong_cutover = gasneti_getenv_int_withdefault("GASNET_GNI_PACKEDLONG_CUTOVER",
+                                                              GASNETC_GNI_PACKEDLONG_CUTOVER_DEFAULT, 0);
+  gasnetc_packedlong_cutover = MIN(GASNETC_MSG_MAXSIZE, gasnetc_packedlong_cutover);
+
   GASNETC_INITLOCK_GNI();
   GASNETC_INITLOCK_AM_BUFFER();
 
@@ -2092,7 +2098,7 @@ void gasnetc_recv_am_unlocked(peer_struct_t * const peer, gasnetc_packet_t * con
       { /* payload follows args - copy it into place */
           const size_t head_len = GASNETC_HEADLEN(long, numargs);
           uint8_t * data = (uint8_t *)packet + head_len;
-          gasneti_assert(packet->galp.data_length <= GASNETC_MAX_PACKED_LONG(numargs));
+          gasneti_assert(head_len + packet->galp.data_length <= GASNETC_MSG_MAXSIZE);
           memcpy(packet->galp.data, data, packet->galp.data_length);
       }
       GASNETI_FALLTHROUGH

@@ -1153,6 +1153,16 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   That bug report describes more about the problem, and provides more detail
   regarding the recommended work-around(s).
 
++ Bugs 4008 and 4009
+  On some systems, RMA Puts and AM Longs with source buffers on read-only pages
+  (such as those that might be generated for const-qualified static variables)
+  are not handled correctly.
+  The most up-to-date information on this issue is maintained at:
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4008 (ODP)
+    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=4009 (Solaris)
+  Those bug reports provide more details, and will provide the most current
+  information regarding any recommended work-around(s).
+
 + See the GASNet Bugzilla server for details on other known bugs:
   https://gasnet-bugs.lbl.gov/
 

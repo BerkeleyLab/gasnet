@@ -54,6 +54,12 @@ int main(int argc, char **argv) {
   gex_TM_t        myteam;
   gex_Segment_t   mysegment;
 
+#if GASNET_CONDUIT_IBV
+  // This is a hack to avoid triggering Bug 4008, which is believed
+  // to be caused by a bug in Mellanox's software stack.
+  setenv("GASNET_USE_ODP", "0", 0 /* NO overwrite if already set */);
+#endif
+
   GASNET_Safe(gex_Client_Init(&myclient, &myep, &myteam, "testreadonly", &argc, &argv, 0));
   GASNET_Safe(gex_Segment_Attach(&mysegment, myteam, TEST_SEGSZ_REQUEST));
   GASNET_Safe(gex_EP_RegisterHandlers(myep, htable, sizeof(htable)/sizeof(gex_AM_Entry_t)));
@@ -78,6 +84,7 @@ int main(int argc, char **argv) {
   size_t max_sz = sizeof(rodata);
   int hidx = htable[0].gex_index;
 
+  size_t max_long = gex_AM_MaxRequestLong(myteam, peer, GEX_EVENT_NOW, 0, 0);
 
    // TODO: Is there value to testing any of the following:
    //   + Non-blocking Puts
@@ -93,14 +100,16 @@ int main(int argc, char **argv) {
       memset(loc, 0xaa, max_sz);
       gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
 
-      gex_AM_RequestLong0(myteam, peer, hidx, src, sz, dst, GEX_EVENT_NOW, 0);
-      GASNET_BLOCKUNTIL(flag);
-      if (memcmp(rodata, loc, sz)) {
-        MSG("ERROR: Bad data from %lld byte gex_AM_RequestLong0", (long long)sz);
+      if (sz <= max_long) {
+        gex_AM_RequestLong0(myteam, peer, hidx, src, sz, dst, GEX_EVENT_NOW, 0);
+        GASNET_BLOCKUNTIL(flag);
+        if (memcmp(rodata, loc, sz)) {
+          MSG("ERROR: Bad data from %lld byte gex_AM_RequestLong0", (long long)sz);
+        }
+        memset(loc, 0x55, max_sz);
+        flag = 0;
+        gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
       }
-      memset(loc, 0x55, max_sz);
-      flag = 0;
-      gex_Event_Wait(gex_Coll_BarrierNB(myteam,0));
     }
   }
 
