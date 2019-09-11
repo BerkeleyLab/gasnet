@@ -38,6 +38,10 @@ PENDING: GASNet-EX Work-In-Progress
   - New envvars GASNET_IBV_LIST_PORTS{,_NODES} to request a list of
     available InfiniBand HCAs, ports, and their respective status.
 
+* IBM PAMI (pami-conduit)
+  - This conduit is now DEPRECATED and will be removed in a future release
+    (see pami-conduit/README).
+
 * GASNet tools (spec v1.14)
   - Add GASNETT_FALLTHROUGH
 

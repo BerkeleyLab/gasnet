@@ -3929,6 +3929,9 @@ AC_SUBST(PAMI_LDFLAGS)
 AC_SUBST(PAMI_LIBS)
 CONDUIT_END([test "$enabled_pami$have_pami" = yesyes])
 AM_CONDITIONAL(USE_PAMI_CONDUIT, test "$enabled_pami$have_pami" = yesyes)
+if test "$enabled_pami$have_pami" = yesyes; then
+  GASNET_MSG_WARN([pami-conduit has been deprecated.  Please see the pami-conduit README for more information.])
+fi
 
 #--------------------------------------------------------------------------------------------------------
 # Libfabric Conduit
