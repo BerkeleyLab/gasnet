@@ -3830,110 +3830,6 @@ AM_CONDITIONAL(USE_ARIES_CONDUIT, test "$enabled_aries$have_aries" = yesyes)
 
 
 #--------------------------------------------------------------------------------------------------------
-# PAMI configuration
-CONDUIT_BEGIN(pami,yes,[IBM BlueGene/Q / Power775 PAMI conduit (pami)])
-if test "$enabled_pami" = yes; then
-  have_pami=yes
-
-  if false ; then # just for help strings
-    GASNET_ENV_DEFAULT(PAMI_HOME,, [Install prefix of PAMI drivers])
-  fi
-  pami_libs_guess="-lpami"
-  if test -n "$GASNETI_ARCH_BGQ"; then
-    GASNET_ENV_DEFAULT(PAMI_HOME, [/bgsys/drivers/ppcfloor])
-    if test -d "$PAMI_HOME/comm/include"; then
-      pami_cflags_guess="-I$PAMI_HOME/comm/include"
-      pami_ldflags_guess="-L$PAMI_HOME/comm/lib"
-      if test "$BUILDCONFIG" = "debug" ; then
-        pami_libs_guess="-lpami-gcc"
-      else
-        pami_libs_guess="-lpami-gcc.ndebug"
-      fi
-    elif test "$BUILDCONFIG" = "debug" ; then
-      pami_cflags_guess="-I$PAMI_HOME/comm/sys/include"
-      pami_ldflags_guess="-L$PAMI_HOME/comm/sys/lib"
-    else
-      pami_cflags_guess="-I$PAMI_HOME/comm/sys-fast/include"
-      pami_ldflags_guess="-L$PAMI_HOME/comm/sys-fast/lib"
-    fi
-    # pickup system libraries required by libpami
-    pami_ldflags_guess="$pami_ldflags_guess -L$PAMI_HOME/spi/lib"
-    pami_libs_guess="$pami_libs_guess -lSPI_cnk -lpthread -lrt -lstdc++"
-  elif test -n "$GASNETI_ARCH_IBMPE"; then
-    # XXX: Couldn't we just be using "mpcc" instead?
-    #      Doing so would link MPI and POE libs we don't
-    #      need, but is there any harm in that?
-    GASNET_ENV_DEFAULT(PAMI_HOME, [/opt/ibmhpc/pecurrent/ppe.pami])
-    pami_cflags_guess="-I$PAMI_HOME/include"
-    # XXX: There should be a better way to find these libs.
-    #      Could/should we literally "find"?
-    if test -d "$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"; then
-        pami_ldflags_guess="-L$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"
-    elif test -d "$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"; then
-        pami_ldflags_guess="-L$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"
-    elif test -d "$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"; then
-        pami_ldflags_guess="-L$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"
-    fi
-  else
-    # We'll just make a reasonable guess:
-    GASNET_ENV_DEFAULT(PAMI_HOME, [/usr])
-    case "$PAMI_HOME" in
-      /usr|/) pami_cflags_guess='' ; pami_ldflags_guess='' ;;
-      *) pami_cflags_guess="-I$PAMI_HOME/include"
-         if test -d "$PAMI_HOME/lib${GASNETI_PTR_BITS}"; then
-           pami_ldflags_guess="-L$PAMI_HOME/lib${GASNETI_PTR_BITS}"
-         else
-           pami_ldflags_guess="-L$PAMI_HOME/lib"
-         fi
-      ;;
-    esac
-  fi
-
-  GASNET_ENV_DEFAULT(PAMI_CFLAGS, $pami_cflags_guess) 
-  GASNET_ENV_DEFAULT(PAMI_LDFLAGS, $pami_ldflags_guess) 
-  GASNET_ENV_DEFAULT(PAMI_LIBS, $pami_libs_guess) 
-  GASNET_SPLIT_LINKER_OPTS(PAMI_LDFLAGS,PAMI_LIBS)
-
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PAMI_CFLAGS")
-  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PAMI_LDFLAGS")
-  GASNET_PUSHVAR(LIBS,"$LIBS $PAMI_LIBS")
-  # try to compile and link a simple PAMI program
-  GASNET_TRY_CACHE_LINK(for working PAMI configuration, pami_works, [
-     #include <pami.h>
-  ], [{ pami_result_t rc = PAMI_ERROR;
-        pami_client_t client;
-        rc = PAMI_Client_create("conftest", &client, NULL, 0);
-      }], [:], [ have_pami=no GASNET_ERR_SAVE() ] )
-  if test $have_pami = yes; then
-    # NOTE: When our minumum autoconf is raised to 2.50 or higher, then
-    #       the following can be better implemented by adding an optional
-    #       3rd argument to GASNET_CHECK_SIZEOF() specify INCLUDES.
-    if test "$cross_compiling" = "yes" ; then
-      GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof(pami_task_t) (binary probe)], SIZEOF_PAMI_TASK_T,
-                                    [#include <pami.h>], [(int)sizeof(pami_task_t)],
-                                     GASNETI_SIZEOF_PAMI_TASK_T)
-    else
-      GASNET_TRY_CACHE_RUN_EXPR([sizeof(pami_task_t)], SIZEOF_PAMI_TASK_T,
-                                [#include <pami.h>], [val = (int)sizeof(pami_task_t);],
-                                GASNETI_SIZEOF_PAMI_TASK_T)
-    fi
-    AC_DEFINE_UNQUOTED(GASNETI_SIZEOF_PAMI_TASK_T, [$GASNETI_SIZEOF_PAMI_TASK_T])
-  fi
-  GASNET_POPVAR(CFLAGS)
-  GASNET_POPVAR(LDFLAGS)
-  GASNET_POPVAR(LIBS)
-fi #END ENABLE PAMI
-
-AC_SUBST(PAMI_CFLAGS)
-AC_SUBST(PAMI_LDFLAGS)
-AC_SUBST(PAMI_LIBS)
-CONDUIT_END([test "$enabled_pami$have_pami" = yesyes])
-AM_CONDITIONAL(USE_PAMI_CONDUIT, test "$enabled_pami$have_pami" = yesyes)
-if test "$enabled_pami$have_pami" = yesyes; then
-  GASNET_MSG_WARN([pami-conduit has been deprecated.  Please see the pami-conduit README for more information.])
-fi
-
-#--------------------------------------------------------------------------------------------------------
 # Libfabric Conduit
 
 CONDUIT_BEGIN(ofi,g1,[Portable OpenFabrics Interfaces conduit (ofi)])
@@ -4104,7 +4000,6 @@ EOF
 
 # Order native conduits from LOW to HIGH precedence, clients use order to select defaults
 
-CONDUIT_OUTPUT(pami)    dnl Ensure pami-over-ib is lower than ibv
 CONDUIT_OUTPUT(ucx)
 CONDUIT_OUTPUT(ibv)
 CONDUIT_OUTPUT(aries)
@@ -5107,7 +5002,6 @@ dnl GASNET_TOOLSONLY_FALSE_END
 
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
-GASNET_FIX_EXEC(pami-conduit/contrib/gasnetrun_pami)
 GASNET_FIX_EXEC(aries-conduit/contrib/gasnetrun_aries)
 GASNET_FIX_EXEC(ofi-conduit/contrib/gasnetrun_ofi)
 GASNET_FIX_EXEC(ucx-conduit/contrib/gasnetrun_ucx)
@@ -5199,11 +5093,6 @@ udp-conduit/conduit.mak
 
 smp-conduit/Makefile
 smp-conduit/conduit.mak
-
-pami-conduit/Makefile
-pami-conduit/conduit.mak
-pami-conduit/contrib/Makefile
-pami-conduit/contrib/gasnetrun_pami
 
 ibv-conduit/Makefile
 ibv-conduit/conduit.mak

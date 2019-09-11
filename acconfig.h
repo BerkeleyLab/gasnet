@@ -471,9 +471,6 @@
 #undef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
 #undef GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE
 
-/* GASNet pami-conduit settings */
-#undef GASNETI_SIZEOF_PAMI_TASK_T
-
 /* GASNet bug1389 detection/work-around */
 #undef GASNETI_BUG1389_WORKAROUND
 
