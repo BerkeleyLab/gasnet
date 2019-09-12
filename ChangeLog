@@ -10,7 +10,7 @@ GASNet-EX ChangeLog
   GASNet-EX currently implements the following conduits:
   - InfiniBand Verbs (ibv-conduit)
   - Cray uGNI (aries-conduits)
-  - IBM PAMI (pami-conduit)
+  - IBM PAMI (pami-conduit) *DEPRECATED*
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
