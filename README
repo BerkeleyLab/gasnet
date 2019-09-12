@@ -430,6 +430,7 @@ Native, high-performance conduits:
 pami-conduit: IBM Parallel Active Messaging Interface (PAMI)
  The conduit of choice for GASNet on the IBM BlueGene/Q.
  Rigorously tested on BlueGene/Q, also supported on other select IBM systems.
+ THIS CONDUIT IS NOW DEPRECATED - see pami-conduit/README
 
 aries-conduit:  Cray XC Aries
  The conduit of choice for GASNet on the Aries networks in Cray XC systems.

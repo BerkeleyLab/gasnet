@@ -10,7 +10,7 @@ GASNet-EX ChangeLog
   GASNet-EX currently implements the following conduits:
   - InfiniBand Verbs (ibv-conduit)
   - Cray uGNI (aries-conduits)
-  - IBM PAMI (pami-conduit)
+  - IBM PAMI (pami-conduit) *DEPRECATED*
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
@@ -18,7 +18,7 @@ GASNet-EX ChangeLog
   distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
-PENDING: GASNet-EX Work-In-Progress
+09-14-2019: GASNet-EX 2019.9.0 Release
 
 * Cray XE/XK uGNI gemini-conduit
   - This conduit, deprecated since 2019.6.0, has been removed.
@@ -30,19 +30,30 @@ PENDING: GASNet-EX Work-In-Progress
     local completion is reduced.  The cases of asynchronous local
     completion (both explicit and implicit event) are properly implemented
     where previously they were strengthened to synchronous.
-  - New environment variable GASNET_GNI_PACKEDLONG_CUTOVER allows control
-    over the range of AMLong size sent using the "Packed Long" protocol.
-    See details in the conduit README.
+  - New environment variables GASNET_GNI_PACKEDLONG_CUTOVER,
+    GASNET_LONG_DEPTH and GASNET_GNI_AMPOLL_BURST provide finer-grained
+    control over the AM protocol. See details in the conduit README.
 
 * InfiniBand Verbs (ibv-conduit)
   - New envvars GASNET_IBV_LIST_PORTS{,_NODES} to request a list of
     available InfiniBand HCAs, ports, and their respective status.
+  - Internal streamlining of AM paths to reduce code bloat (bug1879)
+
+* IBM PAMI (pami-conduit)
+  - This conduit is now DEPRECATED and will be removed in a future release
+    (see pami-conduit/README).
 
 * GASNet tools (spec v1.14)
   - Add GASNETT_FALLTHROUGH
 
+* MPI-based job-launch (mpi-spawner)
+  - Improved logic for IBM's jsrun
+
 * Notable bugs fixed in this release:
   - bug3338: ibv_reg_mr failure (EFAULT/Bad address) on read-only data
+  - bug3957: GASNET_DISABLE_MUNMAP_DEFAULT=0 when using ODP
+  - bug3994: backtrace hangs for forthcoming macOS 10.15
+  - bug3995: configure fails sizeof(ptrdiff_t) on Catalina/gcc
   - bug4002: ibv-conduit: XRC and ODP are mutually exclusive
 
 ----------------------------------------------------------------------
