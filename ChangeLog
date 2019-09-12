@@ -44,6 +44,10 @@ PENDING: GASNet-EX Work-In-Progress
 
 * GASNet tools (spec v1.14)
   - Add GASNETT_FALLTHROUGH
+  - Corrected backtrace support for forthcoming macOS 10.15
+
+* MPI-based job-launch (mpi-spawner)
+  - Improved logic for IBM's jsrun
 
 * Notable bugs fixed in this release:
   - bug3338: ibv_reg_mr failure (EFAULT/Bad address) on read-only data
