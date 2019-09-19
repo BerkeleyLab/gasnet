@@ -83,10 +83,15 @@ the one above.
 
 *** Acknowledgements ***
 
-The authors/contributors of GASNet-EX include:
+The primary authors/maintainers of GASNet-EX:
 
  *  Dan Bonachea <dobonachea@lbl.gov>
  *  Paul H. Hargrove <PHHargrove@lbl.gov>
+
+Contributors to GASNet-EX include:
+
+ * Boris I. Karasev <boriska@mellanox.com>
+ * Artem Y. Polyakov <artemp@mellanox.com>
 
 The authors/contributors of GASNet-1 (upon which GASNet-EX is based) include:
 
