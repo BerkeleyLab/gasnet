@@ -5211,6 +5211,8 @@ ibv-conduit/contrib/gasnetrun_ibv
 
 ucx-conduit/Makefile
 ucx-conduit/conduit.mak
+ucx-conduit/contrib/Makefile
+ucx-conduit/contrib/gasnetrun_ucx
 
 aries-conduit/Makefile
 aries-conduit/conduit.mak
