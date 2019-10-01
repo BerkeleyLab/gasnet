@@ -659,7 +659,7 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   GASNETI_CHECKATTACH();
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it make progress here. */
-  gasneti_AMPSHMPoll(0);
+  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
   /* protected progress of UCX */
   gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
