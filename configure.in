@@ -5110,6 +5110,7 @@ GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
 GASNET_FIX_EXEC(pami-conduit/contrib/gasnetrun_pami)
 GASNET_FIX_EXEC(aries-conduit/contrib/gasnetrun_aries)
 GASNET_FIX_EXEC(ofi-conduit/contrib/gasnetrun_ofi)
+GASNET_FIX_EXEC(ucx-conduit/contrib/gasnetrun_ucx)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
 
 if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -5211,6 +5212,8 @@ ibv-conduit/contrib/gasnetrun_ibv
 
 ucx-conduit/Makefile
 ucx-conduit/conduit.mak
+ucx-conduit/contrib/Makefile
+ucx-conduit/contrib/gasnetrun_ucx
 
 aries-conduit/Makefile
 aries-conduit/conduit.mak
