@@ -1288,27 +1288,6 @@ case "$target_os" in
 	    GASNET_PLATFORM=wsl
 	    AC_DEFINE(GASNETI_ARCH_WSL)
 	fi
-        case "$target" in
-          powerpc64-bgq-linux*) # apparently lacks any identifying preprocessor macro
-	    GASNETI_ARCH_BGQ=1
-	    AC_DEFINE(GASNETI_ARCH_BGQ)
-	    GASNET_PLATFORM=bgq
-
-            # Locate system directories for BG/Q
-            # TODO: Something like bgpmaster to search on?
-	    # This is the ROOT of the BGQ system dirs, containing several include directories 
-	    # used by gasnet_asm.h eg #include "cnk/include/SPI_syscalls.h"
-            bgsys_guess=/bgsys/drivers/ppcfloor
-
-            GASNET_ENV_DEFAULT(BGQ_SYS_HOME, $bgsys_guess, ppcfloor system directory for BlueGene/Q)
-            if test -d "$BGQ_SYS_HOME/cnk/include"; then
-              tmp_flag="-isystem $BGQ_SYS_HOME"
-              GASNET_TRY_CFLAG([$tmp_flag], [:], [tmp_flag="-I$BGQ_SYS_HOME"])
-              SYS_HEADER_BLD="$SYS_HEADER_BLD $tmp_flag"
-              SYS_HEADER_INST="$SYS_HEADER_INST $tmp_flag"
-            fi
-	    ;;
-        esac
 	AC_MSG_CHECKING(for Linux flavor)
 	AC_MSG_RESULT($GASNET_PLATFORM)
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
@@ -1725,12 +1704,8 @@ if test "$enabled_pshm" != no; then
    [Enable/disable use of POSIX shm_open() for inter-process shared memory support (default is system dependent)],
    [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
    [ # Default is YES except:
-     # + on BG/Q due to multiple "oddities" in CNK's implementation
      # + on Solaris due to incompatibility w/ ibv and the "robustness" of SysV
      enabled_pshm_posix=yes
-     case "$target_vendor" in
-       bgq) enabled_pshm_posix=no ;;
-     esac
      case "$target_os" in
        solaris*) enabled_pshm_posix=no ;;
      esac
@@ -1843,17 +1818,6 @@ if test "$enabled_pshm" != no; then
   GASNET_POPVAR(CPPFLAGS)
  fi
 
- # Fourth check is for gloal heap
- enabled_pshm_gheap=no
- GASNET_IF_ENABLED(pshm-gheap,
-   [Enable use of global heap for inter-process shared memory support (default disabled)],
-   [enabled_pshm_gheap=yes])
- if test "$enabled_pshm_gheap$with_pshm" = yesno; then
-  # TODO: any sanity checks available to use here?
-  AC_DEFINE(GASNETI_PSHM_GHEAP)
-  with_pshm=gheap
- fi
-
  # Next check is for mmap()ed file support on hugetlbfs
  enabled_pshm_hugetlbfs=no
  GASNET_IF_ENABLED(pshm-hugetlbfs,
@@ -1912,9 +1876,7 @@ GASNETI_DISABLE_ALIGNED_SEGMENTS=0
 GASNET_IF_ENABLED([aligned-segments],
                    [Force alignment for GASNet-allocated segment base address. Incompatible with PSHM, heterogeneous clusters and OS address randomization],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
-		    if test -n "$GASNETI_ARCH_BGQ"; then
-                      : # Cross-compiled and NOT applicable
-		    elif test "$segconfig" = everything ; then
+		    if test "$segconfig" = everything ; then
 		      : # Alignment not applicable to segment-everything
 		    elif test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
@@ -3126,11 +3088,6 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     	  GASNET_ENV_DEFAULT(MPI_LIBS, )
 	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         fi
-        if test -n "$GASNETI_ARCH_BGQ"; then # this option only used for BG/Q, hide it to avoid confusion
-          pushdef([GASNET_SUPPRESSHELP],1)
-          GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
-          popdef([GASNET_SUPPRESSHELP])
-        fi
         ;;
     *) 
       # unknown OS - if user doesn't provide info, assume generic settings that often work
@@ -3324,7 +3281,6 @@ AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based
 # we don't currently GASNET_SPLIT_LINKER_OPTS on MPI_LIBS into MPI_LDFLAGS (which doesn't exist) because
 # a client can't portably replace the MPI_CC in GASNET_LD and still have a working MPI-enabled link
 AC_SUBST(MPIRUN_CMD) # prototype command used by gasnetrun to run MPI programs
-AC_SUBST(MPIRUN_CMD_BATCH) # prototype command used by gasnetrun to run MPI programs
 CONDUIT_END([test "$enabled_mpi$have_mpi" = yesyes])
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 if test "$enabled_mpi$have_mpi" = yesyes; then
@@ -4701,9 +4657,9 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 elif expr "$target_os" : 'cygwin' >/dev/null 2>&1; then
   : # Cygwin uses mmap() for PSHM even though it is not supported in general
 else
-  # PSHM over SysV and GHEAP don't require mmap(), but the rest do
+  # PSHM over SysV doesn't require mmap(), but the rest do
   case "$with_pshm" in
-  no|sysv|gheap) ;;
+  no|sysv) ;;
   *)
   GASNET_MSG_ERROR([PSHM was enabled, but required mmap functionality $mmap_reason])
   ;;

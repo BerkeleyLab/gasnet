@@ -161,29 +161,6 @@
   #endif
 #endif
 
-#if PLATFORM_OS_BGQ && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
-  /* The situation on BG/Q is either as bad as on BG/P, or perhaps worse.
-   * The use of 'extern inline' means we can't get what we need at all in
-   * a debug build.  At least on BG/P there was a lib we could have linked.
-   */
-  #ifndef __INLINE__
-    #if GASNET_DEBUG
-      #define GASNETI_DEFINE__INLINE__ static
-    #elif defined(__cplusplus)
-      #define GASNETI_DEFINE__INLINE__ inline
-    #else
-      #define GASNETI_DEFINE__INLINE__ GASNETI_COMPILER_FEATURE(INLINE_MODIFIER,static)
-    #endif
-    #define __INLINE__ GASNETI_DEFINE__INLINE__
-  #endif
-  #include "cnk/include/SPI_syscalls.h"
-  #include "hwi/include/bqc/A2_inlines.h"
-  #ifdef GASNETI_DEFINE__INLINE__
-    #undef __INLINE__
-  #endif
-  #define GASNETI_HAVE_BGQ_INLINES 1
-#endif
-
 #if PLATFORM_ARCH_ARM && PLATFORM_OS_LINUX
   /* For GASNETI_ARM_ASMCALL() */
   #include "gasnet_arch_arm.h"

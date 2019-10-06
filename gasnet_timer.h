@@ -151,7 +151,7 @@
     return (uint64_t)(_st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_ARCH_POWERPC && ( PLATFORM_OS_LINUX || PLATFORM_OS_BGQ)
+#elif PLATFORM_ARCH_POWERPC && PLATFORM_OS_LINUX
   /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
@@ -241,10 +241,6 @@
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t _st) {
     if_pf (gasneti_timer_firstTime) {
       uint32_t _freq;
-     #if PLATFORM_OS_BGQ
-      /* don't know how to query this, so hard-code it for now */
-      _freq = 1600000000;
-     #else 
       DIR *_dp = opendir("/proc/device-tree/cpus");
       struct dirent *_de = NULL;
       FILE *_fp = NULL;
@@ -286,7 +282,6 @@
         }
         fclose(_fp);
       }
-     #endif
       // ensure it looks reasonable (1MHz to 2Ghz)
       gasneti_assert_uint(_freq ,>,    1000000);
       gasneti_assert_uint(_freq ,<, 2000000000); 

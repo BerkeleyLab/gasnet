@@ -464,7 +464,7 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
         (PLATFORM_OS_DARWIN || PLATFORM_OS_SOLARIS || PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
       #define GASNETI_THREADINFO_OPT    0
     #elif PLATFORM_ARCH_POWERPC && \
-         (PLATFORM_OS_LINUX || PLATFORM_OS_BGQ)
+          PLATFORM_OS_LINUX
       #define GASNETI_THREADINFO_OPT    0
     #endif
   #endif

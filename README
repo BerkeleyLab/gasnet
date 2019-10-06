@@ -195,11 +195,11 @@ compilers, including which GASNet conduits are supported.
 
   For cross-compilation support, look for an appropriate cross configure
 script in other/contrib/ and link it into your top-level source directory and
-invoke it in place of configure.  Example for the IBM BlueGene/Q:
+invoke it in place of configure.  Example for the Cray XC with slurm:
      cd <path-to-gasnet-src>
-     ln -s other/contrib/cross-configure-bgq .
+     ln -s other/contrib/cross-configure-cray-aries-slurm .
      cd <your-build-dir>
-     <path-to-gasnet-src>/cross-configure-bgq (configure_options)
+     <path-to-gasnet-src>/cross-configure-cray-aries-slurm (configure_options)
 
   For cross-compilation support on platforms without scripts in other/contrib
 see the instructions in other/cross-configure-help.c.
@@ -522,8 +522,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * Linux/Cray-XD1/{gcc,PGI}/64: smp, mpi &
 
-    * CNK/IBM-BlueGeneQ-PowerPC/{gcc,xlc,clang}/64: smp, mpi &
- 
     * ucLinux/Microblaze/gcc/32: smp, udp, #%&
 
     * Linux/ARM/gcc/32:               smp, udp, #
@@ -1058,14 +1056,6 @@ For Cray XE, XK and XC systems, PSHM-over-XPMEM is enabled automatically
 by the corresponding cross-configure scripts.  However, one can also
 optionally enable PSHM-over-XPMEM on an SGI Altix as follows:
         XPMEM: --enable-pshm --disable-pshm-posix --enable-pshm-xpmem
-
-For BlueGene/Q, PSHM via the "common heap" is enabled automatically by
-the corresponding cross-configure scripts.  However, one can also use:
-        GHEAP: --enable-pshm --disable-pshm-posix --enable-pshm-gheap
-Note on BG/Q one must set BG_MAPCOMMONHEAP=1 in the compute node environment.
-This is handled automatically by the gasnetrun_mpi script,
-but must be handled manually when using runjob directly (or
-a wrapper like qsub from ANL's Cobalt suite).
 
 For Linux systems with libhugetlbfs and a hugetlbfs mount, there is also
 experimental support for mmap()ed files on hugetlbfs, which can be
