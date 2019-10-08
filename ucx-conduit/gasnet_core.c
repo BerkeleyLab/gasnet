@@ -116,7 +116,6 @@ static void gasnetc_fini(void)
 {
   gasnetc_ucx_worker_flush();
   gasneti_bootstrapFini();
-  gasneti_nodemapFini();
   gasnetc_sreq_list_free();
   gasnetc_am_req_pool_free();
 
