@@ -495,7 +495,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * Linux/PowerPC-Ethernet/{gcc,xlc,clang}/{32,64}: smp, mpi, udp
     * Linux/PowerPC-HFI/{xlc,gcc}/32: smp, mpi, udp, pami &
-    * Linux/PPC64le/gcc/{32,64}:     smp, udp, #
+    * Linux/PPC64le/{gcc,clang,pgi,xlc}/64:     smp, mpi, udp, ibv #
 
     * Linux/MIPS/gcc/{32,n32,64}:       smp, udp, #
     * Linux/MIPS64el/gcc/{32,n32,64}:   smp, udp, #
