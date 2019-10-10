@@ -1101,14 +1101,6 @@ Sun)
       ],[ AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM) ])
   ;;
 XLC)
-    GASNET_TRY_CACHE_LINK([$1 for XLC mc_func support], lowername[]_mc_func, [
-        static void _gasneti_do_sync(void);
-        #pragma mc_func _gasneti_do_sync { "7c2004ac" }
-        #pragma reg_killed_by _gasneti_do_sync
-        #define gasneti_local_sync() _gasneti_do_sync()
-      ],
-      [ gasneti_local_sync(); ],
-      [ AC_DEFINE(GASNETI_HAVE_[]uppername[]_XLC_ASM) ])
     GASNET_CHECK_GCC_ASM($1, $2)
   ;;
 GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)

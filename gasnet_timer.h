@@ -194,41 +194,6 @@
   #undef GASNETI_MFTB
   #undef GASNETI_MFTBL
   #undef GASNETI_MFTBU
- #elif GASNETI_HAVE_XLC_ASM
-   #if PLATFORM_ARCH_64
-      static uint64_t gasneti_ticks_now(void);
-      #pragma mc_func gasneti_ticks_now {  \
-        "7c6c42e6"      /* mftb r3         */ \
-        /* RETURN counter in r3 */            \
-      }
-      #pragma reg_killed_by gasneti_ticks_now 
-   #else
-      static uint32_t gasneti_mftb_low(void);
-      #pragma mc_func gasneti_mftb_low {  \
-        "7c6c42e6"      /* mftb r3     */ \
-        /* RETURN counter in r3 */        \
-      }
-      #pragma reg_killed_by gasneti_mftb_low 
-      
-      static uint32_t gasneti_mftb_high(void);
-      #pragma mc_func gasneti_mftb_high {  \
-        "7c6d42e6"      /* mftbu r3     */ \
-        /* RETURN counter in r3 */         \
-      }
-      #pragma reg_killed_by gasneti_mftb_high 
-      
-      GASNETI_INLINE(gasneti_ticks_now)
-      uint64_t gasneti_ticks_now(void) {
-        uint32_t _hi, _hi2, _lo;
-        /* Note we must read hi twice to protect against wrap of lo */
-        do {
-           _hi = gasneti_mftb_high();
-           _lo = gasneti_mftb_low();        
-           _hi2 = gasneti_mftb_high();
-        } while (_hi != _hi2);
-        return ((uint64_t)_hi << 32) | _lo;
-      } 
-   #endif
  #else
    #define GASNETI_USING_SLOW_TIMERS 1
  #endif

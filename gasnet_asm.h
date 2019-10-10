@@ -16,9 +16,6 @@
   #if GASNETI_COMPILER_HAS(GCC_ASM)
       #define GASNETI_HAVE_GCC_ASM 1
   #endif
-  #if GASNETI_COMPILER_HAS(XLC_ASM)
-      #define GASNETI_HAVE_XLC_ASM 1
-  #endif
   #if GASNETI_COMPILER_HAS(SIMPLE_ASM)
       #define GASNETI_HAVE_SIMPLE_ASM 1
   #endif

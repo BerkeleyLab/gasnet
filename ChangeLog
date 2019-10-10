@@ -24,6 +24,9 @@ PENDING: GASNet-EX Work-In-Progress
 
 * Platform support/portability
   - Support for IBM BlueGene/Q has been removed.
+  - Support for native atomics on IBM XL compilers for big-endian PPC has been
+    removed.  These platforms now default to compiler-provided atomics.
+    Little-endian PPC platforms remain unchanged.
 
 ----------------------------------------------------------------------
 09-14-2019: GASNet-EX 2019.9.0 Release

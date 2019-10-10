@@ -164,9 +164,6 @@
 
 /* Which inline asm style(s) are supported - these are defined only
    where we use configure to determine what a compiler supports */
-#undef GASNETI_HAVE_CC_XLC_ASM
-#undef GASNETI_HAVE_CXX_XLC_ASM
-#undef GASNETI_HAVE_MPI_CC_XLC_ASM
 #undef GASNETI_HAVE_CC_GCC_ASM
 #undef GASNETI_HAVE_CXX_GCC_ASM
 #undef GASNETI_HAVE_MPI_CC_GCC_ASM

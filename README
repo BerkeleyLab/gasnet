@@ -488,8 +488,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/x86_64-OmniPath/gcc/64: smp, mpi, udp, ofi
     * Linux/x86_64/x86-Open64/64:   smp, udp, #
 
-    * Linux/PowerPC-Ethernet/{gcc,xlc,clang}/{32,64}: smp, mpi, udp
-    * Linux/PowerPC-HFI/{xlc,gcc}/32: smp, mpi, udp &
+    * Linux/PowerPC-Ethernet/{gcc,clang}/{32,64}: smp, mpi, udp
+    * Linux/PowerPC-HFI/gcc/32: smp, mpi, udp &
     * Linux/PPC64le/{gcc,clang,pgi,xlc}/64:     smp, mpi, udp, ibv #
 
     * Linux/MIPS/gcc/{32,n32,64}:       smp, udp, #
@@ -508,7 +508,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MSWindows-Cygwin/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi (OpenMPI)
     * MSWindows10-Linux(WSL)/{gcc,clang}/64: smp, udp, mpi
 
-    * macOS/PowerPC/{gcc,xlc}/{32,64}: smp, udp, mpi &
+    * macOS/PowerPC/gcc/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi
     * macOS/{x86,x86_64}/PGI/{32,64}: smp, udp, #
