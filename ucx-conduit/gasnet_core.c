@@ -544,9 +544,6 @@ extern int gasnetc_EP_RegisterHandlers(gex_EP_t                ep,
 /* ------------------------------------------------------------------------------------ */
 
 extern void gasnetc_exit(int exitcode) {
-  /* waiting to completion all requests */
-  gasnetc_req_wait(GASNETC_LOCK_MODE_REGULAR);
-
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
@@ -556,6 +553,9 @@ extern void gasnetc_exit(int exitcode) {
   }
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+
+  /* waiting to completion all requests */
+  gasnetc_req_wait(GASNETC_LOCK_MODE_REGULAR);
 
   gasneti_flush_streams();
   gasneti_trace_finish();
