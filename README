@@ -475,7 +475,7 @@ communication (much better than udp).
 Supported Platforms
 ===================
 
-Platforms where GASNet and Berkeley UPC have been successfully tested:
+Platforms where GASNet and Berkeley UPC have been successfully tested include:
 
       OS/Architecture/compiler/ABI: network conduits
       ----------------------------------------------
@@ -508,7 +508,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MSWindows-Cygwin/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi (OpenMPI)
     * MSWindows10-Linux(WSL)/{gcc,clang}/64: smp, udp, mpi
 
-    * macOS/PowerPC/gcc/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/icc/{32,64}: smp, udp, mpi &
     * macOS/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi
     * macOS/{x86,x86_64}/PGI/{32,64}: smp, udp, #
@@ -524,11 +523,10 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * ucLinux/Microblaze/gcc/32: smp, udp, #%&
 
-    * Linux/ARM/gcc/32:               smp, udp, #
-    * Linux/AARCH64/{gcc,clang}/64:   smp, udp, #
+    * Linux/ARM/{gcc,clang}/32:       smp, udp, #
+    * Linux/AARCH64/{gcc,clang}/64:   smp, udp, mpi
 
-# = No working MPI implementation available, although we have every
-    reason to believe mpi conduit would work if one was available.
+# = We have not tested MPI but have no reasons to doubt that mpi-conduit would work.
 % = System lacks pthreads or they are broken
 & = System has not been tested in recent releases due to lack of access.
     Reports of success or failure on this system are strongly encouraged.
