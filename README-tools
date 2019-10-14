@@ -1102,6 +1102,13 @@ int gasnett_isLittleEndian();
   Return true iff this architecture stores multi-word integral types in memory with
   the least-significant-byte in the lowest-numbered byte address.
 
+const char *gasnett_performance_warning_str(void);
+
+  Returns a string containing a human-readable warning summarizing attributes of the
+  current configuration that may negatively affect performance (e.g. as a result
+  of settings determined at configure time). If there are no such warnings, the
+  resulting string is empty.
+
 -------------------
 Miscellaneous tools
 -------------------
