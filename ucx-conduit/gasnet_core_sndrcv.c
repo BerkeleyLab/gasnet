@@ -565,9 +565,9 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
 {
   gasnetc_ucx_request_t *request = NULL;
   ucp_ep_h server_ep =
-      gasnet_ucx_module.remote_ep_tbl[am_req->am_hdr.dst].server_ep;
+      gasnet_ucx_module.ep_tbl[am_req->am_hdr.dst].server_ep;
 
-  server_ep = gasnet_ucx_module.remote_ep_tbl[am_req->am_hdr.dst].server_ep;
+  server_ep = gasnet_ucx_module.ep_tbl[am_req->am_hdr.dst].server_ep;
 
   gasneti_assert(am_req->iov_count &&
                  (am_req->iov_count <= GASNETC_UCX_IOV_MAX)

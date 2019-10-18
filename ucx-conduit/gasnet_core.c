@@ -24,6 +24,7 @@ gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 gasnet_ucx_module_t gasnet_ucx_module;
+static char *gasnetc_ucx_addr_array = NULL;
 
 size_t gasnetc_AMHeaderSize(void)
 {
@@ -61,9 +62,9 @@ static int gasnetc_connect_static(void)
 
   for (i = 0; i < gasneti_nodes; ++i) {
     ep_params.field_mask = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS;
-    ep_params.address    = (ucp_address_t*)gasnet_ucx_module.remote_ep_tbl[i].ucx_addr;
+    ep_params.address    = (ucp_address_t*)gasnet_ucx_module.ep_tbl[i].ucx_addr;
     status = ucp_ep_create(gasnet_ucx_module.ucp_worker, &ep_params,
-                           &gasnet_ucx_module.remote_ep_tbl[i].server_ep);
+                           &gasnet_ucx_module.ep_tbl[i].server_ep);
     if (UCS_OK != status) {
       return GASNET_ERR_NOT_INIT;
     }
@@ -74,8 +75,10 @@ static int gasnetc_connect_static(void)
 static void gasnetc_connect_shutdown(void)
 {
   for (int i = 0; i < gasneti_nodes; ++i) {
-    ucp_ep_destroy(gasnet_ucx_module.remote_ep_tbl[i].server_ep);
+    gasnet_ucx_module.ep_tbl[i].ucx_addr = NULL;
+    ucp_ep_destroy(gasnet_ucx_module.ep_tbl[i].server_ep);
   }
+  gasneti_free(gasnetc_ucx_addr_array);
 }
 
 void gasnetc_ucx_empty_complete_cb(void *req, ucs_status_t status)
@@ -126,7 +129,7 @@ static void gasnetc_fini(void)
   gasnetc_buffer_pool_free();
   ucp_cleanup(gasnet_ucx_module.ucp_context);
 
-  gasneti_free(gasnet_ucx_module.remote_ep_tbl);
+  gasneti_free(gasnet_ucx_module.ep_tbl);
   gasneti_mutex_destroy(&gasnet_ucx_module.ucp_worker_lock);
 }
 
@@ -135,8 +138,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   ucs_status_t status;
   ucp_params_t ucp_params;
   ucp_worker_params_t worker_params;
-  gasnet_ucx_ep_conn_info_t local_ep;
+  gasnet_ep_info_t local_ep;
   ucp_address_t *ucx_local_addr;
+  gex_Rank_t i;
 
   /*  check system sanity */
   gasnetc_check_config();
@@ -199,30 +203,48 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   status = ucp_worker_create(gasnet_ucx_module.ucp_context, &worker_params,
                              &gasnet_ucx_module.ucp_worker);
   if (UCS_OK != status) {
-    return GASNET_ERR_NOT_INIT;
+    gasneti_fatalerror("Init failed: %s",
+                       ucs_status_string(UCS_PTR_STATUS(status)));
   }
 
   status = ucp_worker_get_address(gasnet_ucx_module.ucp_worker,
-                                  &ucx_local_addr, &local_ep.ucx_addr_len);
+                                  &local_ep.ucx_addr, &local_ep.ucx_addr_len);
+  if (UCS_OK != status) {
+    gasneti_fatalerror("Init failed: %s",
+                       ucs_status_string(UCS_PTR_STATUS(status)));
+  }
 
-  // TODO-next: support any size of EPs
-  gasneti_assert(local_ep.ucx_addr_len <= GASNETC_UCX_MAX_ADDR_LEN);
+  /* Two-stage endpoint exchange:
+   * 1 exchange EP sizes, get max ep-size
+   * 2 use max ep size to exchange */
+  gasnet_ucx_module.ep_tbl =
+      gasneti_calloc(gasneti_nodes, sizeof(local_ep));
 
-  memcpy(local_ep.ucx_addr, ucx_local_addr, local_ep.ucx_addr_len);
-  ucp_worker_release_address(gasnet_ucx_module.ucp_worker, ucx_local_addr);
+  size_t *ep_sizes = gasneti_calloc(gasneti_nodes, sizeof(*ep_sizes));
+  size_t max_ep_size = 0;
+  gasneti_bootstrapExchange(&local_ep.ucx_addr_len, sizeof(size_t), ep_sizes);
+  for (i = 0; i < gasneti_nodes; i++) {
+    gasnet_ucx_module.ep_tbl[i].ucx_addr_len = ep_sizes[i];
+    max_ep_size = MAX(max_ep_size, ep_sizes[i]);
+  }
+  ucx_local_addr = gasneti_calloc(1, max_ep_size);
+  memcpy(ucx_local_addr, local_ep.ucx_addr, local_ep.ucx_addr_len);
+  gasnetc_ucx_addr_array = gasneti_calloc(gasneti_nodes, max_ep_size);
+  gasneti_bootstrapExchange(ucx_local_addr, max_ep_size,
+                            gasnetc_ucx_addr_array);
+  for (i = 0; i < gasneti_nodes; i++) {
+    size_t offset = max_ep_size * i;
+    gasnet_ucx_module.ep_tbl[i].ucx_addr =
+        (ucp_address_t*)(gasnetc_ucx_addr_array + offset);
+  }
+
+  ucp_worker_release_address(gasnet_ucx_module.ucp_worker, local_ep.ucx_addr);
+  gasneti_free(ep_sizes);
+  gasneti_free(ucx_local_addr);
 
   gasnetc_am_req_pool_alloc();
   gasnetc_buffer_pool_alloc();
   gasnetc_req_list_init();
-
-  gasnet_ucx_module.remote_ep_tbl =
-      gasneti_calloc(gasneti_nodes, sizeof(local_ep));
-
-  /* TODO-next: perform two-stage endpoint exchange:
-   * 1 exchange EP sizes, get max ep-size
-   * 2 use max ep size to exchange */
-  gasneti_bootstrapExchange(&local_ep, sizeof(local_ep),
-                            gasnet_ucx_module.remote_ep_tbl);
 
   /* (###) Add code here to determine which GASNet nodes may share memory.
      The collection of nodes sharing memory are known as a "supernode".
@@ -336,6 +358,8 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
+
+  GASNETC_UCX_DEBUG_PRINT("segsize=%lu", segsize);
 
   gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
 

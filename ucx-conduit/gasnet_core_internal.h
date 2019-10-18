@@ -47,8 +47,6 @@ extern gasneti_spawnerfn_t const *gasneti_spawner;
 #define gasneti_bootstrapCleanup        (*(gasneti_spawner->Cleanup))
 #define gasneti_bootstrapFini           (*(gasneti_spawner->Fini))
 
-#define GASNETC_UCX_MAX_ADDR_LEN 1024
-
 #if GASNET_PAR
 #define GASNETC_UCX_THREADS
 #endif
@@ -132,17 +130,17 @@ typedef struct gasneti_list_s {
 
 #define GASNETC_LIST_CLASS gasneti_list_item_t super
 
-typedef struct _gasnet_ucx_ep_conn_info {
+typedef struct _gasnet_ep_info {
     ucp_ep_h server_ep;
-    char ucx_addr[GASNETC_UCX_MAX_ADDR_LEN];
+    ucp_address_t *ucx_addr;
     size_t ucx_addr_len;
-} gasnet_ucx_ep_conn_info_t;
+} gasnet_ep_info_t;
 
 typedef struct _gasnet_ucx_module {
     ucp_context_h               ucp_context;
     ucp_worker_h                ucp_worker;
     gasneti_mutex_t             ucp_worker_lock;
-    gasnet_ucx_ep_conn_info_t * remote_ep_tbl;
+    gasnet_ep_info_t          * ep_tbl;
     gasneti_list_t              send_pool;   /* buffer pool */
     gasneti_list_t              recv_pool;   /* recv buffer pool */
     gasneti_list_t              am_req_pool; /* AM requests pool */
