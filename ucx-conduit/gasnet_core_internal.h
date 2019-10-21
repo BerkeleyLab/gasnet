@@ -98,8 +98,24 @@ do {                                                     \
     gasneti_gethostname(), gasneti_mynode, __FUNCTION__, \
       __LINE__, ## __VA_ARGS__);                         \
 } while (0)
+
+#define GASNETC_UCX_DEBUG_DUMP(_desc, _addr, _len)       \
+do {                                                     \
+  size_t _i;                                             \
+  unsigned char *ptr = (unsigned char*)_addr;            \
+  GASNETC_UCX_DEBUG_PRINT(" %s (size=%lu)",              \
+                          _desc ? _desc : "", _len);     \
+  for (_i = 0; _i < _len; _i++) {                        \
+    if (_i && (_i % 16) == 0) {                          \
+      fprintf(stderr, "\n");                             \
+    }                                                    \
+    fprintf(stderr, " %02x", ptr[_i]);                   \
+  }                                                      \
+  fprintf(stderr, "\n");                                 \
+} while (0)
 #else
 #define GASNETC_UCX_DEBUG_PRINT(fmt, ...) ((void)0)
+#define GASNETC_UCX_DEBUG_DUMP(_desc, _addr, _len) ((void)0)
 #endif
 
 /* AM message type */
@@ -130,10 +146,21 @@ typedef struct gasneti_list_s {
 
 #define GASNETC_LIST_CLASS gasneti_list_item_t super
 
+typedef struct _gasnetc_mem_info {
+  GASNETC_LIST_CLASS;
+  void      * buffer;
+  size_t      bsize;
+  void      * addr;
+  size_t      length;
+  ucp_rkey_h  rkey;
+  ucp_mem_h   mem_h;
+} gasnetc_mem_info_t;
+
 typedef struct _gasnet_ep_info {
     ucp_ep_h server_ep;
     ucp_address_t *ucx_addr;
     size_t ucx_addr_len;
+    gasneti_list_t mem_tbl;
 } gasnet_ep_info_t;
 
 typedef struct _gasnet_ucx_module {
@@ -158,6 +185,38 @@ typedef struct {
 } gasnetc_token_t;
 
 extern gasnet_ucx_module_t gasnet_ucx_module;
+
+#define GASNETC_UCX_GET_EP(_rank) \
+  gasnet_ucx_module.ep_tbl[_rank].server_ep;
+
+#define gasneti_mem_pack(_dst, _src, _len, _pad, _off)    \
+do {                                                      \
+  gasneti_assert(_pad ? (_pad >= _len) : 1);              \
+  memcpy(((char*)(_dst)) + (_off), _src, _len);           \
+  (_off) += (_pad > 0 ? _pad : _len);                     \
+} while(0);
+
+#define gasneti_mem_unpack(_dst, _src, _len, _pad, _off)  \
+do {                                                      \
+  gasneti_assert(_pad ? (_pad >= _len) : 1);              \
+  memcpy(_dst, ((char*)(_src)) + (_off), _len);           \
+  (_off) += (_pad > 0 ? _pad : _len);                     \
+} while(0);
+
+#define gasneti_rkey_unpack(_ep, _buf, _rkey_ptr)         \
+do {                                                      \
+  ucs_status_t status;                                    \
+  status = ucp_ep_rkey_unpack(_ep, _buf,  _rkey_ptr);     \
+  if (status != UCS_OK) {                                 \
+    gasneti_fatalerror("rkey unpack failed: %s",          \
+      ucs_status_string(UCS_PTR_STATUS(status)));         \
+  }                                                       \
+} while(0);
+
+#define GASNETC_ADDR_IN_RANGE(seg_addr, seg_size, addr, len)      \
+            ( ( ((uintptr_t)seg_addr) <= ((uintptr_t)addr) ) &&   \
+              ( ((uintptr_t)seg_addr) + (uintptr_t)seg_size >=    \
+                    (((uintptr_t)addr) + (uintptr_t)len) ) )
 
 int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                              gex_Rank_t jobrank,
@@ -206,6 +265,17 @@ do {                                                          \
 #define GASNETI_DBG_LIST_ITEM_CHECK(item)       ((void)0)
 #define GASNETI_DBG_LIST_ITEM_SET_MAGIC(item)   ((void)0)
 #endif
+
+#define GASNETI_LIST_ITEM_ALLOC(item, type, reset_fn)           \
+do {                                                            \
+  void (*reset)(type *) = reset_fn;                             \
+  item = (type *) gasneti_malloc(sizeof(type));                 \
+  gasneti_assert(item && "Out of mem");                         \
+  if (NULL != reset) {                                          \
+    reset(item);                                                \
+  }                                                             \
+  GASNETI_DBG_LIST_ITEM_SET_MAGIC(item);                        \
+} while(0)
 
 #define GASNETI_LIST_RESET(item)                              \
 do {                                                          \

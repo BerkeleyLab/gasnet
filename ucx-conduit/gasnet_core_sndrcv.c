@@ -22,14 +22,6 @@ void gasnetc_buffer_reset(gasnetc_buffer_t *buffer);
   Req/Mem pool functions
   ======================
 */
-#define GASNETI_LIST_ITEM_ALLOC(item, type, reset_fn)           \
-do {                                                            \
-  item = (type *) gasneti_malloc(sizeof(type));                 \
-  gasneti_assert(item && "Out of mem");                         \
-  reset_fn(item);                                               \
-  GASNETI_DBG_LIST_ITEM_SET_MAGIC(item);                        \
-} while(0)
-
 void gasnetc_am_req_pool_alloc(void)
 {
   gasnetc_am_req_t *am_req;
@@ -228,6 +220,46 @@ void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
       gasnetc_req_add_iov(am_req, am_req->args, padding_size);
     }
   }
+}
+/* ------------------------------------------------------------------------------------ */
+
+/*
+  RMA functions
+  =============
+*/
+gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes, gex_Rank_t rank)
+{
+  // TODO-future: use UCS rcache
+  gasnetc_mem_info_t *mem_info;
+
+  GASNETI_LIST_FOREACH(mem_info, &gasnet_ucx_module.ep_tbl[rank].mem_tbl,
+                       gasnetc_mem_info_t) {
+    if (GASNETC_ADDR_IN_RANGE(mem_info->addr, mem_info->length, addr, nbytes)) {
+      return mem_info;
+    }
+  }
+
+  return NULL;
+}
+
+int gasnetc_ucx_rdma_put(gex_Rank_t jobrank, void *src_addr,
+                         uint32_t nbytes, void *dst_addr)
+{
+  ucs_status_t status;
+  ucp_ep_h ep = GASNETC_UCX_GET_EP(jobrank);
+  gasnetc_mem_info_t * minfo;
+
+  minfo = gasnetc_find_mem_info(dst_addr, nbytes, jobrank);
+  if (NULL == minfo) {
+    gasneti_fatalerror("rkey cannot found");
+  }
+  status = ucp_put(ep, src_addr, nbytes, (uint64_t)dst_addr, minfo->rkey);
+  if (status != UCS_OK) {
+    gasneti_fatalerror("UCX RDMA put failed: %s",
+                       ucs_status_string(UCS_PTR_STATUS(status)));
+  }
+
+  return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -480,11 +512,11 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
       break;
     }
     case GASNETC_UCX_AM_LONG:
-      // TODO-next: RDMA request support
       gasneti_assert(src_addr);
       gasneti_assert(dst_addr);
-      /* pack payload */
-      // TODO-next: use `ucp_put_nb` instead of this routine
+#if GASNETC_PIN_SEGMENT
+      gasnetc_ucx_rdma_put(jobrank, src_addr, nbytes, dst_addr);
+#else
       buffer = gasnetc_buffer_get(GASNETC_BUF_SEND_POOL);
       gasneti_assert(buffer);
       buffer->long_data_ptr = gasneti_malloc(nbytes);
@@ -492,6 +524,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
       buffer->bytes_used = nbytes;
       GASNETI_MEMCPY(buffer->long_data_ptr, src_addr, nbytes);
       gasnetc_req_add_iov(am_req, buffer->long_data_ptr, nbytes);
+#endif
       break;
   }
 
@@ -538,12 +571,14 @@ void gasnetc_ProcessRecv(void *buf, size_t size)
                                  token_ptr, args, numargs, data, nbytes);
       break;
     case GASNETC_UCX_AM_LONG: {
+#if !GASNETC_PIN_SEGMENT
       if (am_hdr->nbytes > 0) {
         gasneti_assert(am_hdr->dst_addr);
         data = (char*)((char*)buf  + sizeof(gasnetc_sreq_hdr_t) +
                        sizeof(gex_AM_Arg_t) * numargs);
         GASNETI_MEMCPY(am_hdr->dst_addr, data, nbytes);
       }
+#endif
       GASNETI_RUN_HANDLER_LONG(is_req, handler_id, handler_fn, token_ptr, args,
                                numargs, am_hdr->dst_addr, nbytes);
       break;

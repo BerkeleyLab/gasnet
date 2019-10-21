@@ -13,4 +13,10 @@
 
 #include <gasnet_help.h>
 
+#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+#define GASNETC_PIN_SEGMENT 1
+#else
+#define GASNETC_PIN_SEGMENT 0
+#endif
+
 #endif
