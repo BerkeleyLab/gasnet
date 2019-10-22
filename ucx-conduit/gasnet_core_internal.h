@@ -183,4 +183,176 @@ extern void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_ProcessRecv(void *buf, size_t size);
 extern void gasnetc_req_wait(GASNETC_LOCK_MODE_ARG_ALONE);
 
+/*
+  List functions
+  ==============
+*/
+#if GASNET_DEBUG
+#define GASNETI_LIST_MAGIC 0x54544545
+#define GASNETI_DBG_LIST_ITEM_CHECK(item)                     \
+do {                                                          \
+  gasneti_list_item_t *_item = (gasneti_list_item_t*)(item);  \
+  gasneti_assert(_item);                                      \
+  gasneti_assert(_item->magic == GASNETI_LIST_MAGIC);         \
+} while(0)
+
+#define GASNETI_DBG_LIST_ITEM_SET_MAGIC(item)                 \
+do {                                                          \
+  gasneti_list_item_t *_item = (gasneti_list_item_t*)(item);  \
+  gasneti_assert(_item);                                      \
+  _item->magic = GASNETI_LIST_MAGIC;                          \
+} while(0)
+#else
+#define GASNETI_DBG_LIST_ITEM_CHECK(item)       ((void)0)
+#define GASNETI_DBG_LIST_ITEM_SET_MAGIC(item)   ((void)0)
 #endif
+
+#define GASNETI_LIST_RESET(item)                              \
+do {                                                          \
+  gasneti_list_item_t *_item = (gasneti_list_item_t*)(item);  \
+  _item->next = NULL;                                         \
+  _item->prev = NULL;                                         \
+} while(0);
+
+GASNETI_INLINE(gasneti_list_init)
+void gasneti_list_init(gasneti_list_t *list)
+{
+  gasneti_assert(list);
+  list->head = gasneti_malloc(sizeof(gasneti_list_item_t));
+  gasneti_assert(list->head && "Out of memory");
+  list->tail = gasneti_malloc(sizeof(gasneti_list_item_t));
+  gasneti_assert(list->tail && "Out of memory");
+#if GASNET_DEBUG
+  list->head->magic = 0;
+  list->tail->magic = 0;
+#endif
+  list->head->next = list->tail;
+  list->head->prev = NULL;
+
+  list->tail->prev = list->head;
+  list->tail->next = NULL;
+
+  gasneti_assert(list->tail->prev);
+
+  list->count = 0;
+}
+
+GASNETI_INLINE(gasneti_list_fini)
+void gasneti_list_fini(gasneti_list_t *list)
+{
+  gasneti_assert(list);
+  gasneti_assert(!list->count);
+  gasneti_assert(list->head->next == list->tail);
+  gasneti_assert(list->head == list->tail->prev);
+
+  gasneti_free(list->head);
+  gasneti_free(list->tail);
+  /* protect the list */
+  list->head = NULL;
+  list->tail = NULL;
+}
+
+GASNETI_INLINE(gasneti_list_enq)
+void gasneti_list_enq(gasneti_list_t *list, void *ptr)
+{
+    gasneti_assert(list);
+    GASNETI_DBG_LIST_ITEM_CHECK(ptr);
+    gasneti_assert(list->tail->prev);
+    gasneti_assert(list->head->next);
+
+    gasneti_list_item_t *item = (gasneti_list_item_t*)ptr;
+
+    /* setup connection to the previous elem */
+    item->prev = list->tail->prev;
+    item->prev->next = item;
+
+    /* setup connection to the dummy tail elem */
+    item->next = list->tail;
+    list->tail->prev = item;
+
+    /* increase element count */
+    list->count++;
+}
+
+GASNETI_INLINE(gasneti_list_deq)
+gasneti_list_item_t *gasneti_list_deq(gasneti_list_t *list)
+{
+  gasneti_assert(list);
+  gasneti_assert(list->tail->prev);
+  gasneti_assert(list->head->next);
+
+  gasneti_list_item_t *item = list->head->next;
+
+  if (item == list->tail) {
+    return NULL;
+  }
+  list->head->next = item->next;
+  item->next->prev = list->head;
+
+  item->next = NULL;
+  item->prev = NULL;
+
+  list->count--;
+  return item;
+}
+
+GASNETI_INLINE(gasneti_list_begin)
+gasneti_list_item_t *gasneti_list_begin(gasneti_list_t *list)
+{
+  gasneti_assert(list);
+  gasneti_assert(list->head);
+  return list->head;
+}
+
+GASNETI_INLINE(gasneti_list_end)
+gasneti_list_item_t *gasneti_list_end(gasneti_list_t *list)
+{
+  gasneti_assert(list);
+  gasneti_assert(list->tail);
+  return list->tail;
+}
+
+GASNETI_INLINE(gasneti_list_next)
+gasneti_list_item_t *gasneti_list_next(void *ptr)
+{
+  gasneti_list_item_t *item = (gasneti_list_item_t*)ptr;
+  gasneti_assert(item);
+  GASNETI_DBG_LIST_ITEM_CHECK(item->next);
+  return item->next;
+}
+
+GASNETI_INLINE(gasneti_list_size)
+size_t gasneti_list_size(gasneti_list_t *list)
+{
+  gasneti_assert(list);
+  return list->count;
+}
+
+GASNETI_INLINE(gasneti_list_rem)
+void *gasneti_list_rem(gasneti_list_t *list, void *ptr)
+{
+  gasneti_list_item_t *item = (gasneti_list_item_t*)ptr;
+  gasneti_assert(list);
+  GASNETI_DBG_LIST_ITEM_CHECK(item);
+  if ((list->head == item) || (list->tail == item)) {
+    return NULL;
+  }
+
+  item->prev->next = item->next;
+  item->next->prev = item->prev;
+  /* protect the list */
+  item->next = item->prev = NULL;
+
+  list->count--;
+  return item;
+}
+
+#define GASNETI_LIST_POP(list, type)    \
+  (gasneti_list_size(list) ? (type*) gasneti_list_deq(list) : (type*) NULL)
+
+#define GASNETI_LIST_FOREACH(item, list, type)                  \
+  for (item =  (type *) (list)->head->next;                     \
+       item != (type *) (list)->tail;                           \
+       item =  (type *) ((gasneti_list_item_t *) (item))->next)
+
+#endif // _GASNET_CORE_INTERNAL_H
