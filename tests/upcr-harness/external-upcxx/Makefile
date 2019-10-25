@@ -262,20 +262,24 @@ wrap_test: upcxx-install-$(UPCXX_BACKEND)
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
-	case "$<" in \
-         *$(UPCXX_BLDDIR)/test/*) set -x ; \
-	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)' ;; \
-	 *) \
-	if test "$(strip $(UPCXX_TESTMODE))" = "meta" ; then set -x ; \
+	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
+	if test -z "$(strip $(UPCXX_TESTMODE_FORCE))" ; then \
+	  case "$<" in \
+            *$(UPCXX_BLDDIR)/test/*) UPCXX_TESTMODE="nobs" ;; \
+	  esac ; \
+	  if test -n "$(strip $(UPCXX_TEST_FLAGS))" ; then \
+	    UPCXX_TESTMODE="meta" ; \
+	  fi ; \
+        fi ; \
+	if test "$$UPCXX_TESTMODE" = "meta" ; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
-	elif test "$(strip $(UPCXX_TESTMODE))" = "wrap" ; then set -x ; \
+	elif test "$$UPCXX_TESTMODE" = "wrap" ; then set -x ; \
 	  $(MAKE) wrap_test TEST_PATH=$< TEST_EXE=$@ ; \
-	elif test "$(strip $(UPCXX_TESTMODE))" = "nobs" ; then set -x ; \
-	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) '-DUPCXX_BACKEND=$$UPCXX_BACKEND ; \
+	elif test "$$UPCXX_TESTMODE" = "nobs" ; then set -x ; \
+	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)' ; \
 	else \
-	  echo "Unrecognized UPCXX_TESTMODE=$(UPCXX_TESTMODE)" ; exit 100; \
-	fi ;; \
-	esac
+	  echo "Unrecognized UPCXX_TESTMODE=$$UPCXX_TESTMODE" ; exit 100; \
+	fi 
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
