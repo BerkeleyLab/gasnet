@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/template-conduit/gasnet_core.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core.c $
  * Description: GASNet ucx conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
@@ -23,7 +23,7 @@ gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
-gasnet_ucx_module_t gasnet_ucx_module;
+gasneti_ucx_module_t gasneti_ucx_module;
 static char *gasnetc_ucx_addr_array = NULL;
 
 uint64_t      gasnetc_pin_maxsz = ~(uint64_t)0;
@@ -64,9 +64,9 @@ static int gasnetc_connect_static(void)
 
   for (i = 0; i < gasneti_nodes; ++i) {
     ep_params.field_mask = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS;
-    ep_params.address    = (ucp_address_t*)gasnet_ucx_module.ep_tbl[i].ucx_addr;
-    status = ucp_ep_create(gasnet_ucx_module.ucp_worker, &ep_params,
-                           &gasnet_ucx_module.ep_tbl[i].server_ep);
+    ep_params.address    = (ucp_address_t*)gasneti_ucx_module.ep_tbl[i].ucx_addr;
+    status = ucp_ep_create(gasneti_ucx_module.ucp_worker, &ep_params,
+                           &gasneti_ucx_module.ep_tbl[i].server_ep);
     if (UCS_OK != status) {
       return GASNET_ERR_NOT_INIT;
     }
@@ -77,8 +77,8 @@ static int gasnetc_connect_static(void)
 static void gasnetc_connect_shutdown(void)
 {
   for (int i = 0; i < gasneti_nodes; ++i) {
-    gasnet_ucx_module.ep_tbl[i].ucx_addr = NULL;
-    ucp_ep_destroy(gasnet_ucx_module.ep_tbl[i].server_ep);
+    gasneti_ucx_module.ep_tbl[i].ucx_addr = NULL;
+    ucp_ep_destroy(gasneti_ucx_module.ep_tbl[i].server_ep);
   }
   gasneti_free(gasnetc_ucx_addr_array);
 }
@@ -92,7 +92,7 @@ static int gasnetc_ucx_worker_flush(void)
   ucs_status_t status;
   ucs_status_ptr_t request;
 
-  request = ucp_worker_flush_nb(gasnet_ucx_module.ucp_worker, 0,
+  request = ucp_worker_flush_nb(gasneti_ucx_module.ucp_worker, 0,
                                 gasnetc_ucx_empty_complete_cb);
   if_pt (NULL == request) {
       return GASNET_OK;
@@ -103,7 +103,7 @@ static int gasnetc_ucx_worker_flush(void)
   }
   do {
     status = ucp_request_check_status(request);
-    ucp_worker_progress(gasnet_ucx_module.ucp_worker);
+    ucp_worker_progress(gasneti_ucx_module.ucp_worker);
   } while (status == UCS_INPROGRESS);
 
   if (UCS_OK != status) {
@@ -129,7 +129,7 @@ static int gasnetc_mem_map(void* addr, size_t size, gasnetc_mem_info_t *reg)
   mem_params.length = size;
   mem_params.address = addr;
 
-  status = ucp_mem_map(gasnet_ucx_module.ucp_context, &mem_params, &reg->mem_h);
+  status = ucp_mem_map(gasneti_ucx_module.ucp_context, &mem_params, &reg->mem_h);
   if (status != UCS_OK) {
     gasneti_fatalerror("Attach segment failed: %s",
                        ucs_status_string(UCS_PTR_STATUS(status)));
@@ -181,7 +181,7 @@ static int gasnetc_pin_segment(void *seg_start, size_t segsize,
   size_t info_offset = 0;
   size_t rkey_max_size = 0;
   int rkey_count = 0;
-  gasnet_ep_info_t * my_ep_info = &gasnet_ucx_module.ep_tbl[gasneti_mynode];
+  gasnet_ep_info_t * my_ep_info = &gasneti_ucx_module.ep_tbl[gasneti_mynode];
   gex_Rank_t i;
   gasnetc_mem_info_t *mem_info;
   gasneti_list_t mem_info_list;
@@ -200,12 +200,12 @@ static int gasnetc_pin_segment(void *seg_start, size_t segsize,
       gasneti_fatalerror("Memory map failed: %s",
                          ucs_status_string(UCS_PTR_STATUS(status)));
     }
-    status = ucp_rkey_pack(gasnet_ucx_module.ucp_context,
+    status = ucp_rkey_pack(gasneti_ucx_module.ucp_context,
                            mem_info->mem_h,
                            &mem_info->buffer,
                            &mem_info->bsize);
     if (status != UCS_OK) {
-      ucp_mem_unmap(gasnet_ucx_module.ucp_context,
+      ucp_mem_unmap(gasneti_ucx_module.ucp_context,
                     mem_info->mem_h);
       gasneti_fatalerror("rkey pack failed: %s",
                          ucs_status_string(UCS_PTR_STATUS(status)));
@@ -273,7 +273,7 @@ static int gasnetc_pin_segment(void *seg_start, size_t segsize,
     }
     int key_count = 0;
     ucp_ep_h ep = GASNETC_UCX_GET_EP(i);
-    gasnet_ep_info_t * ep_info = &gasnet_ucx_module.ep_tbl[i];
+    gasnet_ep_info_t * ep_info = &gasneti_ucx_module.ep_tbl[i];
 
     GASNETI_LIST_ITEM_ALLOC(mem_info, gasnetc_mem_info_t, gasnetc_minfo_reset);
     gasneti_list_enq(&ep_info->mem_tbl, mem_info);
@@ -313,12 +313,12 @@ static void gasnetc_unpin_segment(void)
   for (i = 0; i < gasneti_nodes; i++) {
     ucs_status_t status;
     gasnetc_mem_info_t *mem_info;
-    gasneti_list_t *mem_tbl = &gasnet_ucx_module.ep_tbl[i].mem_tbl;
+    gasneti_list_t *mem_tbl = &gasneti_ucx_module.ep_tbl[i].mem_tbl;
 
     while(NULL !=
           (mem_info = GASNETI_LIST_POP(mem_tbl, gasnetc_mem_info_t))) {
       if (gasneti_mynode == i) {
-        status = ucp_mem_unmap(gasnet_ucx_module.ucp_context, mem_info->mem_h);
+        status = ucp_mem_unmap(gasneti_ucx_module.ucp_context, mem_info->mem_h);
         if (status != UCS_OK) {
           gasneti_fatalerror("Attach segment failed: %s",
                              ucs_status_string(UCS_PTR_STATUS(status)));
@@ -345,17 +345,17 @@ static void gasnetc_fini(void)
 
   /* cleanup UCX */
   gasnetc_connect_shutdown();
-  ucp_worker_destroy(gasnet_ucx_module.ucp_worker);
+  ucp_worker_destroy(gasneti_ucx_module.ucp_worker);
   gasnetc_rreq_list_free();
   gasnetc_buffer_pool_free();
 
 #if GASNETC_PIN_SEGMENT
   gasnetc_unpin_segment();
 #endif
-  ucp_cleanup(gasnet_ucx_module.ucp_context);
+  ucp_cleanup(gasneti_ucx_module.ucp_context);
 
-  gasneti_free(gasnet_ucx_module.ep_tbl);
-  gasneti_mutex_destroy(&gasnet_ucx_module.ucp_worker_lock);
+  gasneti_free(gasneti_ucx_module.ep_tbl);
+  gasneti_mutex_destroy(&gasneti_ucx_module.ucp_worker_lock);
 }
 
 static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
@@ -411,13 +411,13 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
                                UCP_PARAM_FIELD_REQUEST_SIZE |
                                UCP_PARAM_FIELD_REQUEST_INIT |
                                UCP_PARAM_FIELD_REQUEST_CLEANUP;
-  status = ucp_init(&ucp_params, config, &gasnet_ucx_module.ucp_context);
+  status = ucp_init(&ucp_params, config, &gasneti_ucx_module.ucp_context);
   ucp_config_release(config);
   if (UCS_OK != status) {
     return GASNET_ERR_NOT_INIT;
   }
 
-  gasneti_mutex_init(&gasnet_ucx_module.ucp_worker_lock);
+  gasneti_mutex_init(&gasneti_ucx_module.ucp_worker_lock);
 
   worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
 #ifdef GASNETC_UCX_THREADS
@@ -426,14 +426,14 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
 #endif
 
-  status = ucp_worker_create(gasnet_ucx_module.ucp_context, &worker_params,
-                             &gasnet_ucx_module.ucp_worker);
+  status = ucp_worker_create(gasneti_ucx_module.ucp_context, &worker_params,
+                             &gasneti_ucx_module.ucp_worker);
   if (UCS_OK != status) {
     gasneti_fatalerror("Init failed: %s",
                        ucs_status_string(UCS_PTR_STATUS(status)));
   }
 
-  status = ucp_worker_get_address(gasnet_ucx_module.ucp_worker,
+  status = ucp_worker_get_address(gasneti_ucx_module.ucp_worker,
                                   &local_ep.ucx_addr, &local_ep.ucx_addr_len);
   if (UCS_OK != status) {
     gasneti_fatalerror("Init failed: %s",
@@ -443,14 +443,14 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   /* Two-stage endpoint exchange:
    * 1 exchange EP sizes, get max ep-size
    * 2 use max ep size to exchange */
-  gasnet_ucx_module.ep_tbl =
+  gasneti_ucx_module.ep_tbl =
       gasneti_calloc(gasneti_nodes, sizeof(local_ep));
 
   size_t *ep_sizes = gasneti_calloc(gasneti_nodes, sizeof(*ep_sizes));
   size_t max_ep_size = 0;
   gasneti_bootstrapExchange(&local_ep.ucx_addr_len, sizeof(size_t), ep_sizes);
   for (i = 0; i < gasneti_nodes; i++) {
-    gasnet_ucx_module.ep_tbl[i].ucx_addr_len = ep_sizes[i];
+    gasneti_ucx_module.ep_tbl[i].ucx_addr_len = ep_sizes[i];
     max_ep_size = MAX(max_ep_size, ep_sizes[i]);
   }
   ucx_local_addr = gasneti_calloc(1, max_ep_size);
@@ -460,11 +460,11 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
                             gasnetc_ucx_addr_array);
   for (i = 0; i < gasneti_nodes; i++) {
     size_t offset = max_ep_size * i;
-    gasnet_ucx_module.ep_tbl[i].ucx_addr =
+    gasneti_ucx_module.ep_tbl[i].ucx_addr =
         (ucp_address_t*)(gasnetc_ucx_addr_array + offset);
   }
 
-  ucp_worker_release_address(gasnet_ucx_module.ucp_worker, local_ep.ucx_addr);
+  ucp_worker_release_address(gasneti_ucx_module.ucp_worker, local_ep.ucx_addr);
   gasneti_free(ep_sizes);
   gasneti_free(ucx_local_addr);
 
@@ -473,7 +473,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
   gasnetc_req_list_init();
 
   for (i = 0; i < gasneti_nodes; i++) {
-    gasneti_list_init(&gasnet_ucx_module.ep_tbl[i].mem_tbl);
+    gasneti_list_init(&gasneti_ucx_module.ep_tbl[i].mem_tbl);
   }
 
   /* (###) Add code here to determine which GASNet nodes may share memory.

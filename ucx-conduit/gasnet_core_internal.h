@@ -1,6 +1,7 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/template-conduit/gasnet_core_internal.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_core_internal.h $
  * Description: GASNet ucx conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -60,22 +61,22 @@ extern gasneti_spawnerfn_t const *gasneti_spawner;
 #define GASNETC_LOCK_ACQUIRE()                                  \
   do {                                                          \
     if (GASNETC_LOCK_REGULAR == GASNETC_LOCK_MODE_VALUE) {      \
-      gasneti_mutex_lock(&gasnet_ucx_module.ucp_worker_lock);   \
+      gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);   \
     }                                                           \
   } while(0)
 #define GASNETC_LOCK_RELEASE()                                  \
   do {                                                          \
     if (GASNETC_LOCK_REGULAR == GASNETC_LOCK_MODE_VALUE) {      \
-      gasneti_mutex_unlock(&gasnet_ucx_module.ucp_worker_lock); \
+      gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock); \
     }                                                           \
   } while(0)
 #define GASNETC_LOCK_ACQUIRE_REGULAR()                          \
   do {                                                          \
-    gasneti_mutex_lock(&gasnet_ucx_module.ucp_worker_lock);     \
+    gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);     \
   } while(0)
 #define GASNETC_LOCK_RELEASE_REGULAR()                          \
   do {                                                          \
-    gasneti_mutex_unlock(&gasnet_ucx_module.ucp_worker_lock);   \
+    gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock);   \
   } while(0)
 #else
 #define GASNETC_LOCK_MODE_ARG_ALONE
@@ -163,7 +164,7 @@ typedef struct _gasnet_ep_info {
     gasneti_list_t mem_tbl;
 } gasnet_ep_info_t;
 
-typedef struct _gasnet_ucx_module {
+typedef struct _gasneti_ucx_module {
     ucp_context_h               ucp_context;
     ucp_worker_h                ucp_worker;
     gasneti_mutex_t             ucp_worker_lock;
@@ -173,7 +174,7 @@ typedef struct _gasnet_ucx_module {
     gasneti_list_t              am_req_pool; /* AM requests pool */
     gasneti_list_t              recv_list;   /* list of completed but not handled requests */
     gasneti_list_t              send_list;   /* list of pending send requests */
-} gasnet_ucx_module_t;
+} gasneti_ucx_module_t;
 
 typedef struct {
   gex_Rank_t source;
@@ -184,10 +185,10 @@ typedef struct {
 #endif
 } gasnetc_token_t;
 
-extern gasnet_ucx_module_t gasnet_ucx_module;
+extern gasneti_ucx_module_t gasneti_ucx_module;
 
 #define GASNETC_UCX_GET_EP(_rank) \
-  gasnet_ucx_module.ep_tbl[_rank].server_ep;
+  gasneti_ucx_module.ep_tbl[_rank].server_ep;
 
 #define gasneti_mem_pack(_dst, _src, _len, _pad, _off)    \
 do {                                                      \

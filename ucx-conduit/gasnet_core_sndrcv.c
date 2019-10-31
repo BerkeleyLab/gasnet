@@ -26,10 +26,10 @@ void gasnetc_am_req_pool_alloc(void)
 {
   gasnetc_am_req_t *am_req;
 
-  gasneti_list_init(&gasnet_ucx_module.am_req_pool);
+  gasneti_list_init(&gasneti_ucx_module.am_req_pool);
   for (int i = 0; i < GASNETC_UCX_REQ_POOL_SIZE; i++) {
     GASNETI_LIST_ITEM_ALLOC(am_req, gasnetc_am_req_t, gasnetc_am_req_reset);
-    gasneti_list_enq(&gasnet_ucx_module.am_req_pool, am_req);
+    gasneti_list_enq(&gasneti_ucx_module.am_req_pool, am_req);
   }
 }
 
@@ -38,27 +38,27 @@ void gasnetc_am_req_pool_free(void)
   gasnetc_am_req_t *am_req;
 
   while(NULL != (am_req = GASNETI_LIST_POP(
-                   &gasnet_ucx_module.am_req_pool, gasnetc_am_req_t))){
+                   &gasneti_ucx_module.am_req_pool, gasnetc_am_req_t))){
     gasneti_free(am_req);
   }
-  gasneti_list_fini(&gasnet_ucx_module.am_req_pool);
+  gasneti_list_fini(&gasneti_ucx_module.am_req_pool);
 }
 
 void gasnetc_buffer_pool_alloc(void)
 {
   gasnetc_buffer_t *buffer;
 
-  gasneti_list_init(&gasnet_ucx_module.recv_pool);
+  gasneti_list_init(&gasneti_ucx_module.recv_pool);
   for (int i = 0; i < GASNETC_UCX_BUF_RECV_POOL_DFLT; i++) {
     GASNETI_LIST_ITEM_ALLOC(buffer, gasnetc_buffer_t, gasnetc_buffer_reset);
     buffer->type = GASNETC_BUF_RECV_POOL;
-    gasneti_list_enq(&gasnet_ucx_module.recv_pool, buffer);
+    gasneti_list_enq(&gasneti_ucx_module.recv_pool, buffer);
   }
-  gasneti_list_init(&gasnet_ucx_module.send_pool);
+  gasneti_list_init(&gasneti_ucx_module.send_pool);
   for (int i = 0; i < GASNETC_UCX_BUF_SEND_POOL_SIZE; i++) {
     GASNETI_LIST_ITEM_ALLOC(buffer, gasnetc_buffer_t, gasnetc_buffer_reset);
     buffer->type = GASNETC_BUF_SEND_POOL;
-    gasneti_list_enq(&gasnet_ucx_module.send_pool, buffer);
+    gasneti_list_enq(&gasneti_ucx_module.send_pool, buffer);
   }
 }
 
@@ -67,7 +67,7 @@ void gasnetc_buffer_pool_free(void)
   gasnetc_buffer_t *buffer;
 
   while(NULL != (buffer = GASNETI_LIST_POP(
-                   &gasnet_ucx_module.recv_pool, gasnetc_buffer_t))){
+                   &gasneti_ucx_module.recv_pool, gasnetc_buffer_t))){
     if (buffer->long_data_ptr) {
       gasneti_free(buffer->long_data_ptr);
     }
@@ -75,12 +75,12 @@ void gasnetc_buffer_pool_free(void)
     gasneti_free(buffer);
   }
   while(NULL != (buffer = GASNETI_LIST_POP(
-                   &gasnet_ucx_module.send_pool, gasnetc_buffer_t))){
+                   &gasneti_ucx_module.send_pool, gasnetc_buffer_t))){
     gasneti_assert(buffer->type == GASNETC_BUF_SEND_POOL);
     gasneti_free(buffer);
   }
-  gasneti_list_fini(&gasnet_ucx_module.recv_pool);
-  gasneti_list_fini(&gasnet_ucx_module.send_pool);
+  gasneti_list_fini(&gasneti_ucx_module.recv_pool);
+  gasneti_list_fini(&gasneti_ucx_module.send_pool);
 }
 
 GASNETI_INLINE(gasnetc_am_req_get)
@@ -91,7 +91,7 @@ gasnetc_am_req_t *gasnetc_am_req_get(void)
   do {
     gasnetc_ucx_progress();
 
-  } while (NULL == (am_req = GASNETI_LIST_POP(&gasnet_ucx_module.am_req_pool,
+  } while (NULL == (am_req = GASNETI_LIST_POP(&gasneti_ucx_module.am_req_pool,
                                               gasnetc_am_req_t)));
   return am_req;
 }
@@ -104,12 +104,12 @@ gasnetc_buffer_t *gasnetc_buffer_get(gasnetc_buf_pool_type_t type)
   if (GASNETC_BUF_RECV_POOL == type) {
     do {
       gasnetc_ucx_progress();
-    } while (NULL == (buffer = GASNETI_LIST_POP(&gasnet_ucx_module.recv_pool,
+    } while (NULL == (buffer = GASNETI_LIST_POP(&gasneti_ucx_module.recv_pool,
                                                 gasnetc_buffer_t)));
   } else {
     do {
       gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_INLINE);
-    } while (NULL == (buffer = GASNETI_LIST_POP(&gasnet_ucx_module.send_pool,
+    } while (NULL == (buffer = GASNETI_LIST_POP(&gasneti_ucx_module.send_pool,
                                                 gasnetc_buffer_t)));
   }
   gasneti_assert(buffer->type == type);
@@ -131,7 +131,7 @@ void gasnetc_am_req_release(gasnetc_am_req_t *am_req)
 {
   GASNETI_DBG_LIST_ITEM_CHECK(am_req);
   gasnetc_am_req_reset(am_req);
-  gasneti_list_enq(&gasnet_ucx_module.am_req_pool, am_req);
+  gasneti_list_enq(&gasneti_ucx_module.am_req_pool, am_req);
 }
 
 GASNETI_INLINE(gasnetc_buffer_reset)
@@ -156,9 +156,9 @@ void gasnetc_buffer_release(gasnetc_buffer_t *buffer)
   }
   gasnetc_buffer_reset(buffer);
   if (buffer->type == GASNETC_BUF_SEND_POOL) {
-    gasneti_list_enq(&gasnet_ucx_module.send_pool, buffer);
+    gasneti_list_enq(&gasneti_ucx_module.send_pool, buffer);
   } else {
-    gasneti_list_enq(&gasnet_ucx_module.recv_pool, buffer);
+    gasneti_list_enq(&gasneti_ucx_module.recv_pool, buffer);
   }
 }
 
@@ -232,7 +232,7 @@ gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes, gex_Rank_t ra
   // TODO-future: use UCS rcache
   gasnetc_mem_info_t *mem_info;
 
-  GASNETI_LIST_FOREACH(mem_info, &gasnet_ucx_module.ep_tbl[rank].mem_tbl,
+  GASNETI_LIST_FOREACH(mem_info, &gasneti_ucx_module.ep_tbl[rank].mem_tbl,
                        gasnetc_mem_info_t) {
     if (GASNETC_ADDR_IN_RANGE(mem_info->addr, mem_info->length, addr, nbytes)) {
       return mem_info;
@@ -299,8 +299,8 @@ void gasnetc_req_free(void *req)
 
 void gasnetc_req_list_init(void)
 {
-  gasneti_list_init(&gasnet_ucx_module.send_list);
-  gasneti_list_init(&gasnet_ucx_module.recv_list);
+  gasneti_list_init(&gasneti_ucx_module.send_list);
+  gasneti_list_init(&gasneti_ucx_module.recv_list);
 }
 
 void gasnetc_rreq_list_free(void)
@@ -308,10 +308,10 @@ void gasnetc_rreq_list_free(void)
   gasnetc_ucx_request_t *request;
 
   while(NULL != (request = GASNETI_LIST_POP(
-                   &gasnet_ucx_module.recv_list, gasnetc_ucx_request_t))){
+                   &gasneti_ucx_module.recv_list, gasnetc_ucx_request_t))){
     gasnetc_req_free(request);
   }
-  gasneti_list_fini(&gasnet_ucx_module.recv_list);
+  gasneti_list_fini(&gasneti_ucx_module.recv_list);
 }
 
 void gasnetc_sreq_list_free(void)
@@ -319,18 +319,18 @@ void gasnetc_sreq_list_free(void)
   gasnetc_ucx_request_t *request;
 
   while(NULL != (request = GASNETI_LIST_POP(
-                   &gasnet_ucx_module.send_list, gasnetc_ucx_request_t))){
+                   &gasneti_ucx_module.send_list, gasnetc_ucx_request_t))){
     if (GASNETC_UCX_ACTIVE == request->status) {
-      ucp_request_cancel(gasnet_ucx_module.ucp_worker, request);
+      ucp_request_cancel(gasneti_ucx_module.ucp_worker, request);
       while (GASNETC_UCX_ACTIVE == request->status) {
         gasnetc_ucx_progress();
         // TODO-next: interrupt if stuck here for a long time
       }
-      gasneti_list_rem(&gasnet_ucx_module.send_list, request);
+      gasneti_list_rem(&gasneti_ucx_module.send_list, request);
       gasnetc_req_free(request);
     }
   }
-  gasneti_list_fini(&gasnet_ucx_module.send_list);
+  gasneti_list_fini(&gasneti_ucx_module.send_list);
 }
 
 GASNETI_INLINE(gasneti_probe_recv_complete)
@@ -372,7 +372,7 @@ static void gasnetc_ucx_send_handler(void *request, ucs_status_t status)
     return;
   }
 exit:
-  gasneti_list_rem(&gasnet_ucx_module.send_list, req);
+  gasneti_list_rem(&gasneti_ucx_module.send_list, req);
   gasnetc_req_free(req);
 }
 
@@ -395,7 +395,7 @@ static void gasneti_ucx_recv_handler(void *request, ucs_status_t status,
   if (req->status != GASNETC_UCX_INIT) {
     /* enqueue the complete request to process it later */
     gasneti_assert(info->length == req->buffer->bytes_used);
-    gasneti_list_enq(&gasnet_ucx_module.recv_list, req);
+    gasneti_list_enq(&gasneti_ucx_module.recv_list, req);
   }
   req->status = GASNETC_UCX_COMPLETE;
 }
@@ -413,7 +413,7 @@ void gasnetc_wait_req(gasnetc_ucx_request_t *req, uint8_t is_request)
     }
   }
   GASNETC_LOCK_ACQUIRE_REGULAR();
-  gasneti_list_rem(&gasnet_ucx_module.send_list, req);
+  gasneti_list_rem(&gasneti_ucx_module.send_list, req);
   gasnetc_req_free(req);
   GASNETC_LOCK_RELEASE_REGULAR();
 }
@@ -425,9 +425,9 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
 {
   gasnetc_ucx_request_t *request = NULL;
   ucp_ep_h server_ep =
-      gasnet_ucx_module.ep_tbl[am_req->am_hdr.dst].server_ep;
+      gasneti_ucx_module.ep_tbl[am_req->am_hdr.dst].server_ep;
 
-  server_ep = gasnet_ucx_module.ep_tbl[am_req->am_hdr.dst].server_ep;
+  server_ep = gasneti_ucx_module.ep_tbl[am_req->am_hdr.dst].server_ep;
 
   gasneti_assert(am_req->iov_count &&
                  (am_req->iov_count <= GASNETC_UCX_IOV_MAX)
@@ -458,7 +458,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
   request->buffer = buffer;
   request->is_sync = block;
   request->status = GASNETC_UCX_ACTIVE;
-  gasneti_list_enq(&gasnet_ucx_module.send_list, request);
+  gasneti_list_enq(&gasneti_ucx_module.send_list, request);
 
   return request;
 }
@@ -591,7 +591,7 @@ int gasnetc_ucx_progress(void)
 {
   int status;
   for(int i = 0;
-      (status = ucp_worker_progress(gasnet_ucx_module.ucp_worker)) &&
+      (status = ucp_worker_progress(gasneti_ucx_module.ucp_worker)) &&
         i < GASNETC_UCX_PROGRESS_CNT;
       i++);
   return status;
@@ -612,11 +612,11 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
   /* Make sure there are enough entries in the buffer pool to receive
    * new messages if the buffer pool is exhausted do not check
    * (ucp_tag_probe_nb) for new messages just keep them in the ucx queue. */
-  probe_max = gasneti_list_size(&gasnet_ucx_module.recv_pool);
+  probe_max = gasneti_list_size(&gasneti_ucx_module.recv_pool);
   while((probe_cnt++) < MIN(probe_max, GASNETC_UCX_RCV_REAP_MAX)) {
     gasnetc_ucx_progress();
     /* check for new messages */
-    msg_tag = ucp_tag_probe_nb(gasnet_ucx_module.ucp_worker, 0, 0, 1, &info_tag);
+    msg_tag = ucp_tag_probe_nb(gasneti_ucx_module.ucp_worker, 0, 0, 1, &info_tag);
     if (NULL == msg_tag) {
       break;
     }
@@ -632,7 +632,7 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
       buf_ptr = buffer->data;
     }
     request = (gasnetc_ucx_request_t*)
-        ucp_tag_msg_recv_nb(gasnet_ucx_module.ucp_worker, buf_ptr,
+        ucp_tag_msg_recv_nb(gasneti_ucx_module.ucp_worker, buf_ptr,
                             info_tag.length, ucp_dt_make_contig(1), msg_tag,
                             gasneti_ucx_recv_handler);
     if (UCS_PTR_IS_ERR(request)) {
@@ -647,7 +647,7 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
       /* request was completed in place
        * and wasn't added to the receiving pool in the UCX recv handler,
        * so add it to local recv pool here */
-      gasneti_list_enq(&gasnet_ucx_module.recv_list, request);
+      gasneti_list_enq(&gasneti_ucx_module.recv_list, request);
       continue;
     }
     request->status = GASNETC_UCX_ACTIVE;
@@ -665,13 +665,13 @@ void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
   gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_INLINE);
   gasnetc_ucx_progress();
 
-  if (!gasneti_list_size(&gasnet_ucx_module.recv_list)) {
+  if (!gasneti_list_size(&gasneti_ucx_module.recv_list)) {
     goto exit;
   }
   gasneti_list_init(&local_recv_list);
   for (int i = 0; (i < GASNETC_UCX_MSG_HNDL_PER_POLL) &&
        (NULL != (request =
-                 gasneti_req_probe_complete(&gasnet_ucx_module.recv_list)));
+                 gasneti_req_probe_complete(&gasneti_ucx_module.recv_list)));
        i++) {
     gasneti_list_enq(&local_recv_list, request);
   }
@@ -701,7 +701,7 @@ void gasnetc_req_wait(GASNETC_LOCK_MODE_ARG_ALONE)
     GASNETI_WAITHOOK();
     GASNETC_LOCK_ACQUIRE();
     gasnetc_req_poll(GASNETC_LOCK_MODE_INLINE);
-    send_size = gasneti_list_size(&gasnet_ucx_module.send_list);
+    send_size = gasneti_list_size(&gasneti_ucx_module.send_list);
     GASNETC_LOCK_RELEASE();
   } while (send_size);
 
