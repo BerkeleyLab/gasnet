@@ -345,13 +345,12 @@ static void gasnetc_fini(void)
 
   /* cleanup UCX */
   gasnetc_connect_shutdown();
-  ucp_worker_destroy(gasneti_ucx_module.ucp_worker);
-  gasnetc_rreq_list_free();
-  gasnetc_buffer_pool_free();
-
 #if GASNETC_PIN_SEGMENT
   gasnetc_unpin_segment();
 #endif
+  ucp_worker_destroy(gasneti_ucx_module.ucp_worker);
+  gasnetc_rreq_list_free();
+  gasnetc_buffer_pool_free();
   ucp_cleanup(gasneti_ucx_module.ucp_context);
 
   gasneti_free(gasneti_ucx_module.ep_tbl);
