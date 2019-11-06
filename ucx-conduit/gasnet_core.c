@@ -816,7 +816,7 @@ extern void gasnetc_exit(int exitcode) {
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* waiting to completion all requests */
-  gasnetc_req_wait(GASNETC_LOCK_MODE_REGULAR);
+  gasnetc_send_list_wait(GASNETC_LOCK_MODE_REGULAR);
 
   gasneti_flush_streams();
   gasneti_trace_finish();
@@ -945,7 +945,7 @@ int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                           argptr GASNETI_THREAD_PASS);
   } else {
     retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_SHORT, jobrank, handler,
-                                      flags, 1, numargs,
+                                      NULL, flags, 1, numargs,
                                       argptr, NULL, 0, NULL GASNETI_THREAD_PASS);
   }
 
@@ -1000,7 +1000,7 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
   } else {
     gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
     retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_MEDIUM, jobrank, handler,
-                                      flags, 1, numargs,
+                                      NULL, flags, 1, numargs,
                                       argptr, source_addr,
                                       nbytes, NULL GASNETI_THREAD_PASS);
   }
@@ -1221,9 +1221,8 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                            flags, numargs,
                                            argptr GASNETI_THREAD_PASS);
   } else {
-    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
     retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_LONG, jobrank, handler,
-                                      flags, 1, numargs,
+                                      lc_opt, flags, 1, numargs,
                                       argptr, source_addr,
                                       nbytes, dest_addr GASNETI_THREAD_PASS);
   }
@@ -1275,7 +1274,8 @@ int gasnetc_AMReplyShort(   gex_Token_t token, gex_AM_Index_t handler,
     GASNET_BEGIN_FUNCTION(); // TODO: could embed threadinfo in token
     gex_Rank_t jobrank = gasnetc_msgsource(token);
     retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_SHORT, jobrank, handler,
-                                      flags, 0, numargs, argptr, NULL, 0, NULL GASNETI_THREAD_PASS);
+                                      NULL, flags, 0, numargs, argptr, NULL, 0,
+                                      NULL GASNETI_THREAD_PASS);
   }
 
   return retval;
@@ -1320,7 +1320,7 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
     gex_Rank_t jobrank = gasnetc_msgsource(token);
     gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
     retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_MEDIUM, jobrank, handler,
-                                      flags, 0, numargs, argptr, source_addr,
+                                      NULL, flags, 0, numargs, argptr, source_addr,
                                       nbytes, NULL GASNETI_THREAD_PASS);
   }
 
@@ -1521,10 +1521,10 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
   } else {
     GASNET_BEGIN_FUNCTION(); // TODO: could embed threadinfo in token
     gex_Rank_t jobrank = gasnetc_msgsource(token);
-    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
     retval = gasnetc_AM_ReqRepGeneric(GASNETC_UCX_AM_LONG, jobrank, handler,
-                                      flags, 0, numargs, argptr, source_addr,
-                                      nbytes, dest_addr GASNETI_THREAD_PASS);
+                                      lc_opt, flags, 0, numargs, argptr,
+                                      source_addr, nbytes, dest_addr
+                                      GASNETI_THREAD_PASS);
   }
 
   return retval;

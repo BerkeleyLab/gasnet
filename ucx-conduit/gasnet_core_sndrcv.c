@@ -8,6 +8,7 @@
 #include <gasnet_core_internal.h>
 #include <gasnet_am.h>
 #include <gasnet_ucx_req.h>
+#include <gasnet_event_internal.h>
 
 GASNETI_INLINE(gasneti_ucx_progress)
 int gasnetc_ucx_progress(void);
@@ -17,6 +18,141 @@ void gasnetc_am_req_reset(gasnetc_am_req_t *am_req);
 
 GASNETI_INLINE(gasnetc_buffer_reset)
 void gasnetc_buffer_reset(gasnetc_buffer_t *buffer);
+/* ------------------------------------------------------------------------------------ */
+/*
+  File-scoped completion callbacks
+  ================================
+*/
+extern int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type)
+{ // Advance and test the proper counter
+  gasnete_op_t *op = (gasnete_op_t*)eop;
+  gasnetc_atomic_val_t completed;
+  gasnetc_atomic_val_t initiated;
+
+  switch (type) {
+    case gasnetc_comptype_eop_alc:
+      completed = gasnetc_atomic_add(&eop->completed_alc, 1, GASNETI_ATOMIC_ACQ);
+      initiated = eop->initiated_alc;
+      break;
+    case gasnetc_comptype_eop_put:
+      completed = gasnetc_atomic_add(&eop->completed_cnt, 1, GASNETI_ATOMIC_ACQ);
+      initiated = eop->initiated_cnt;
+      break;
+    case gasnetc_comptype_eop_get:
+      completed = gasnetc_atomic_add(&eop->completed_cnt, 1, GASNETI_ATOMIC_ACQ | GASNETI_ATOMIC_REL);
+      initiated = eop->initiated_cnt;
+      break;
+    default:
+      gasneti_unreachable();
+  }
+
+  if (completed == (initiated & GASNETI_ATOMIC_MAX)) {
+    switch (type) {
+      case gasnetc_comptype_eop_alc:
+        GASNETE_EOP_LC_FINISH(op);
+        break;
+      case gasnetc_comptype_eop_put:
+      case gasnetc_comptype_eop_get:
+        GASNETE_EOP_MARKDONE(op);
+        break;
+      default:
+        gasneti_unreachable();
+    }
+    return 1;
+  }
+  return 0;
+}
+// EOP completion callbacks
+extern void gasnetc_cb_eop_alc(gasnetc_atomic_val_t *p) {
+  gasnete_eop_t *eop = gasneti_container_of(p, gasnete_eop_t, initiated_alc);
+  gasnete_eop_check(eop);
+  (void) gasnetc_complete_eop(eop, gasnetc_comptype_eop_alc);
+}
+extern void gasnetc_cb_eop_put(gasnetc_atomic_val_t *p) {
+  gasnete_eop_t *eop = gasneti_container_of(p, gasnete_eop_t, initiated_cnt);
+  gasnete_eop_check(eop);
+  (void) gasnetc_complete_eop(eop, gasnetc_comptype_eop_put);
+}
+extern void gasnetc_cb_eop_get(gasnetc_atomic_val_t *p) {
+  gasnete_eop_t *eop = gasneti_container_of(p, gasnete_eop_t, initiated_cnt);
+  gasnete_eop_check(eop);
+  (void) gasnetc_complete_eop(eop, gasnetc_comptype_eop_get);
+}
+
+// NAR (nbi-accessregion) completion callbacks
+extern void gasnetc_cb_nar_alc(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_alc_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, alc, 1, GASNETI_ATOMIC_NONE);
+}
+extern void gasnetc_cb_nar_put(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_put_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, put, 1, GASNETI_ATOMIC_NONE);
+}
+extern void gasnetc_cb_nar_get(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_get_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, get, 1, GASNETI_ATOMIC_REL);
+}
+extern void gasnetc_cb_nar_rmw(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_rmw_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, rmw, 1, GASNETI_ATOMIC_NONE);
+}
+
+// IOP (non accessregion) completion callbacks
+extern void gasnetc_cb_iop_alc(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_alc_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_INT(iop, alc, 1, GASNETI_ATOMIC_NONE);
+}
+extern void gasnetc_cb_iop_put(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_put_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_INT(iop, put, 1, GASNETI_ATOMIC_NONE);
+}
+extern void gasnetc_cb_iop_get(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_get_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_INT(iop, get, 1, GASNETI_ATOMIC_REL);
+}
+extern void gasnetc_cb_iop_rmw(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = gasneti_container_of(p, gasnete_iop_t, initiated_rmw_cnt);
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_INT(iop, rmw, 1, GASNETI_ATOMIC_NONE);
+}
+
+// gasnetc_counter_t completion callbacks
+extern void gasnetc_cb_counter(gasnetc_atomic_val_t *cnt) {
+  gasnetc_counter_t *counter = gasneti_container_of(cnt, gasnetc_counter_t, initiated);
+  gasnetc_atomic_increment(&counter->completed, 0);
+}
+extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt) {
+  gasnetc_counter_t *counter = gasneti_container_of(cnt, gasnetc_counter_t, initiated);
+  gasnetc_atomic_increment(&counter->completed, GASNETI_ATOMIC_REL);
+}
+
+extern void gasnetc_counter_wait(gasnetc_counter_t *counter,
+                                 int handler_context GASNETI_THREAD_FARG)
+{
+  const gasnetc_atomic_val_t initiated = (counter->initiated & GASNETI_ATOMIC_MAX);
+  gasnetc_atomic_t * const completed = &counter->completed;
+
+  if_pf (!gasnetc_counter_done(counter)) {
+    if (handler_context) {
+      do {
+        GASNETI_WAITHOOK();
+        gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
+      } while (initiated != gasnetc_atomic_read(completed, 0));
+    } else {
+      do {
+        GASNETI_WAITHOOK();
+        gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_REGULAR);
+      } while (initiated != gasnetc_atomic_read(completed, 0));
+    }
+  }
+}
 /* ------------------------------------------------------------------------------------ */
 /*
   Req/Mem pool functions
@@ -181,7 +317,8 @@ void gasnetc_req_add_iov(gasnetc_am_req_t *am_req, void *buffer, size_t nbytes)
 GASNETI_INLINE(gasnetc_am_req_format)
 void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
                            gasnetc_ucx_am_type_t am_type, gex_Rank_t rank,
-                           gex_AM_Index_t handler, uint8_t is_req, int numargs,
+                           gex_AM_Index_t handler, uint8_t is_packed,
+                           uint8_t is_req, int numargs,
                            va_list argptr, uint32_t nbytes,
                            void *dst_addr GASNETI_THREAD_FARG)
 {
@@ -192,6 +329,7 @@ void gasnetc_am_req_format(gasnetc_am_req_t *am_req,
   gasneti_assert(am_req);
   am_req->am_hdr.am_type  = am_type;
   am_req->am_hdr.handler  = handler;
+  am_req->am_hdr.is_packed = is_packed;
   am_req->am_hdr.is_req   = is_req;
   am_req->am_hdr.dst      = rank;
   am_req->am_hdr.src      = gasneti_mynode;
@@ -242,24 +380,66 @@ gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes, gex_Rank_t ra
   return NULL;
 }
 
-int gasnetc_ucx_rdma_put(gex_Rank_t jobrank, void *src_addr,
-                         uint32_t nbytes, void *dst_addr)
+static
+void gasnetc_ucx_rma_cb(void *request, ucs_status_t status)
 {
-  ucs_status_t status;
+  gasnetc_ucx_request_t *req = (gasnetc_ucx_request_t*) request;
+
+  if (status != UCS_OK) {
+    gasneti_fatalerror("UCX RDMA operation failed: %s",
+                       ucs_status_string(status));
+  }
+  if (req->completion.cbfunc) {
+    req->completion.cbfunc(req->completion.cbdata);
+  }
+  req->completion.cbfunc = NULL;
+  req->completion.cbdata = NULL;
+  ucp_request_free(request);
+  return;
+}
+
+GASNETI_INLINE(gasnetc_ucx_putget_inner)
+int gasnetc_ucx_putget_inner(gasnetc_rdma_op_t rop, gex_Rank_t jobrank,
+                             void *buffer, uint32_t nbytes, void *remote_addr,
+                             gasnetc_atomic_val_t *cnt,
+                             gasnetc_cbfunc_t cbfunc)
+{
+  gasnetc_ucx_request_t *req;
   ucp_ep_h ep = GASNETC_UCX_GET_EP(jobrank);
   gasnetc_mem_info_t * minfo;
 
-  minfo = gasnetc_find_mem_info(dst_addr, nbytes, jobrank);
+  minfo = gasnetc_find_mem_info(remote_addr, nbytes, jobrank);
   if (NULL == minfo) {
     gasneti_fatalerror("rkey cannot found");
   }
-  status = ucp_put(ep, src_addr, nbytes, (uint64_t)dst_addr, minfo->rkey);
-  if (status != UCS_OK) {
-    gasneti_fatalerror("UCX RDMA put failed: %s",
-                       ucs_status_string(UCS_PTR_STATUS(status)));
+  (*cnt)++;
+  req = gasnetc_putget_fn[rop](ep, buffer, nbytes, remote_addr,
+                               minfo->rkey, gasnetc_ucx_rma_cb);
+  if (NULL == req) {
+    /* completed inplace */
+    if (cbfunc) {
+      cbfunc(cnt);
+    }
+    //GASNETC_UCX_DEBUG_PRINT("complete inline %p", req);
+    return 1;
   }
+  if_pf (UCS_PTR_IS_ERR(req)) {
+    gasneti_fatalerror("UCX RDMA put failed: %s",
+                       ucs_status_string(UCS_PTR_STATUS(req)));
+  }
+  req->completion.cbdata = cnt;
+  req->completion.cbfunc = cbfunc;
 
-  return GASNET_OK;
+  return 0;
+}
+
+GASNETI_INLINE(gasnetc_ucx_am_put)
+int gasnetc_ucx_am_put(gex_Rank_t jobrank, void *src_addr,
+                       uint32_t nbytes, void *dest_addr,
+                       gasnetc_atomic_val_t *cnt, gasnetc_cbfunc_t cbfunc)
+{
+  return gasnetc_ucx_putget_inner(gasnetc_rdma_op_put, jobrank, src_addr,
+                                  nbytes, dest_addr, cnt, cbfunc);
 }
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -401,7 +581,7 @@ static void gasneti_ucx_recv_handler(void *request, ucs_status_t status,
 }
 
 GASNETI_INLINE(gasnetc_wait_req)
-void gasnetc_wait_req(gasnetc_ucx_request_t *req, uint8_t is_request)
+void gasnetc_req_wait(gasnetc_ucx_request_t *req, uint8_t is_request)
 {
   while (GASNETC_UCX_ACTIVE == req->status) {
     if (is_request) {
@@ -470,6 +650,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
 int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                              gex_Rank_t jobrank,
                              gex_AM_Index_t handler,
+                             gex_Event_t *lc_opt,
                              gex_Flags_t flags,
                              uint8_t is_request,
                              int numargs,
@@ -482,13 +663,21 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
   gasnetc_am_req_t *am_req;
   gasnetc_buffer_t *buffer = NULL;
   gasnetc_ucx_request_t *req;
+  const int is_packed =
+#if GASNETC_PIN_SEGMENT
+      0;
+#else
+      1;
+#endif
+  uint8_t is_sync = is_request;
+
 
   GASNETC_LOCK_ACQUIRE_REGULAR();
   am_req = gasnetc_am_req_get();
   gasneti_assert(am_req);
 
   /* format common data */
-  gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_request,
+  gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_packed, is_request,
                         numargs, argptr, nbytes, dst_addr GASNETI_THREAD_PASS);
   if (!nbytes) {
     goto send;
@@ -514,26 +703,59 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
     case GASNETC_UCX_AM_LONG:
       gasneti_assert(src_addr);
       gasneti_assert(dst_addr);
-#if GASNETC_PIN_SEGMENT
-      gasnetc_ucx_rdma_put(jobrank, src_addr, nbytes, dst_addr);
-#else
-      buffer = gasnetc_buffer_get(GASNETC_BUF_SEND_POOL);
-      gasneti_assert(buffer);
-      buffer->long_data_ptr = gasneti_malloc(nbytes);
-      gasneti_assert(buffer->long_data_ptr);
-      buffer->bytes_used = nbytes;
-      GASNETI_MEMCPY(buffer->long_data_ptr, src_addr, nbytes);
-      gasnetc_req_add_iov(am_req, buffer->long_data_ptr, nbytes);
-#endif
+      if_pf (is_packed) {
+        buffer = gasnetc_buffer_get(GASNETC_BUF_SEND_POOL);
+        gasneti_assert(buffer);
+        buffer->long_data_ptr = gasneti_malloc(nbytes);
+        gasneti_assert(buffer->long_data_ptr);
+        buffer->bytes_used = nbytes;
+        GASNETI_MEMCPY(buffer->long_data_ptr, src_addr, nbytes);
+        gasnetc_req_add_iov(am_req, buffer->long_data_ptr, nbytes);
+        gasneti_leaf_finish(lc_opt); // synchronous local completion
+      } else {
+        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+        gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
+        gasnetc_cbfunc_t cbfunc = NULL;
+        gasnetc_atomic_val_t *cnt;
+        int status;
+
+        if (gasneti_leaf_is_pointer(lc_opt)) {
+          gasnete_eop_t *eop = gasnete_eop_new(mythread);
+          GASNETE_EOP_LC_START(eop);
+          cnt = &eop->initiated_alc;
+          cbfunc = gasnetc_cb_eop_alc;
+          *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
+          is_sync = 0;
+        } else if (lc_opt == GEX_EVENT_GROUP) {
+          gasnete_iop_t *iop = mythread->current_iop;
+          cnt = &iop->initiated_alc_cnt;
+          cbfunc = gasnetc_cb_iop_alc;
+          is_sync = 0;
+        } else {
+          gasneti_assert(lc_opt == GEX_EVENT_NOW);
+          cnt = &counter.initiated;
+          cbfunc = gasnetc_cb_counter;
+          is_sync = 1;
+        }
+
+        status = gasnetc_ucx_am_put(jobrank, src_addr, nbytes, dst_addr,
+                                     cnt, cbfunc);
+        /* checking if put status is completed inline */
+        if (!status && is_sync) {
+          GASNETC_LOCK_RELEASE_REGULAR();
+          gasnetc_counter_wait(&counter, is_request GASNETI_THREAD_PASS);
+          GASNETC_LOCK_ACQUIRE_REGULAR();
+        }
+      }
       break;
   }
 
 send:
-  req = gasnetc_send_req(am_req, buffer, is_request);
+  req = gasnetc_send_req(am_req, buffer, is_sync);
   GASNETC_LOCK_RELEASE_REGULAR();
 
-  if (req && is_request) {
-    gasnetc_wait_req(req, is_request);
+  if (req && is_sync) {
+    gasnetc_req_wait(req, is_request);
   }
   return GASNET_OK;
 }
@@ -544,6 +766,7 @@ void gasnetc_ProcessRecv(void *buf, size_t size)
   gex_AM_Index_t handler_id = am_hdr->handler;
   int numargs = am_hdr->numargs;
   int is_req = am_hdr->is_req;
+  int is_packed = am_hdr->is_packed;
   gasnetc_ucx_am_type_t am_type = am_hdr->am_type;
   gex_AM_Arg_t *args = (gex_AM_Arg_t*)((char*)buf + sizeof(gasnetc_sreq_hdr_t));
   const gex_AM_Fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
@@ -571,14 +794,14 @@ void gasnetc_ProcessRecv(void *buf, size_t size)
                                  token_ptr, args, numargs, data, nbytes);
       break;
     case GASNETC_UCX_AM_LONG: {
-#if !GASNETC_PIN_SEGMENT
-      if (am_hdr->nbytes > 0) {
-        gasneti_assert(am_hdr->dst_addr);
-        data = (char*)((char*)buf  + sizeof(gasnetc_sreq_hdr_t) +
-                       sizeof(gex_AM_Arg_t) * numargs);
-        GASNETI_MEMCPY(am_hdr->dst_addr, data, nbytes);
+      if_pf (is_packed) {
+        if (am_hdr->nbytes > 0) {
+          gasneti_assert(am_hdr->dst_addr);
+          data = (char*)((char*)buf  + sizeof(gasnetc_sreq_hdr_t) +
+                         sizeof(gex_AM_Arg_t) * numargs);
+          GASNETI_MEMCPY(am_hdr->dst_addr, data, nbytes);
+        }
       }
-#endif
       GASNETI_RUN_HANDLER_LONG(is_req, handler_id, handler_fn, token_ptr, args,
                                numargs, am_hdr->dst_addr, nbytes);
       break;
@@ -694,7 +917,7 @@ exit:
   return;
 }
 
-void gasnetc_req_wait(GASNETC_LOCK_MODE_ARG_ALONE)
+void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE)
 {
   size_t send_size;
   do {

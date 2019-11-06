@@ -34,6 +34,80 @@ extern gex_AM_Entry_t *gasnetc_handler;
 // (###) Define if conduit performs local-completion detection:
 /* #define GASNETE_HAVE_LC */
 
+#define GASNETE_HAVE_LC
+
+/* Atomics wrappers
+ *
+ * Only for GASNETC_ANY_PAR do we need true atomics.
+ * In particular neither PARSYNC nor CONN_THREAD introduce concurrency,
+ * but use of "weak" atomics would pay the unnecessary costs for those.
+ */
+#if GASNET_PAR
+  #define GASNETC_PARSEQ _PAR
+  #define gasnetc_cons_atomic(_id) _CONCAT(gasneti_atomic_,_id)
+#else
+  #define GASNETC_PARSEQ _SEQ
+  #define gasnetc_cons_atomic(_id) _CONCAT(gasneti_nonatomic_,_id)
+#endif
+
+typedef gasnetc_cons_atomic(t)            gasnetc_atomic_t;
+typedef gasnetc_cons_atomic(val_t)        gasnetc_atomic_val_t;
+#define gasnetc_atomic_init               gasnetc_cons_atomic(init)
+#define gasnetc_atomic_read               gasnetc_cons_atomic(read)
+#define gasnetc_atomic_set                gasnetc_cons_atomic(set)
+#define gasnetc_atomic_increment          gasnetc_cons_atomic(increment)
+#define gasnetc_atomic_decrement_and_test gasnetc_cons_atomic(decrement_and_test)
+#define gasnetc_atomic_compare_and_swap   gasnetc_cons_atomic(compare_and_swap)
+#define gasnetc_atomic_swap               gasnetc_cons_atomic(swap)
+#define gasnetc_atomic_add                gasnetc_cons_atomic(add)
+#define gasnetc_atomic_subtract           gasnetc_cons_atomic(subtract)
+
+#define GASNETE_CONDUIT_EOP_FIELDS \
+  gasnetc_atomic_val_t initiated_cnt; \
+  gasnetc_atomic_t     completed_cnt; \
+  gasnetc_atomic_val_t initiated_alc; \
+  gasnetc_atomic_t     completed_alc;
+
+
+typedef struct {
+    gasnetc_atomic_t     completed;
+    gasnetc_atomic_val_t initiated;
+} gasnetc_counter_t;
+
+#define GASNETC_COUNTER_INITIALIZER   {gasnetc_atomic_init(0), 0}
+
+#define gasnetc_counter_done(P)       (((P)->initiated & GASNETI_ATOMIC_MAX) == \
+                                           gasnetc_atomic_read(&(P)->completed, 0))
+
+typedef enum {
+  gasnetc_comptype_eop_alc,
+  gasnetc_comptype_eop_get,
+  gasnetc_comptype_eop_put
+} gasnetc_comptype_t;
+
+/* Callback functions in gasnet_core_sndrcv.c */
+extern int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type);
+/* eop: */
+extern void gasnetc_cb_eop_alc(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_eop_put(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_eop_get(gasnetc_atomic_val_t *);
+/* iop within nbi-accessregion: */
+extern void gasnetc_cb_nar_alc(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_nar_put(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_nar_get(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_nar_rmw(gasnetc_atomic_val_t *);
+/* iop not in nbi-accessregion: */
+extern void gasnetc_cb_iop_alc(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_iop_put(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_iop_get(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_iop_rmw(gasnetc_atomic_val_t *);
+/* gasnetc_counter_t */
+extern void gasnetc_cb_counter(gasnetc_atomic_val_t *cnt);
+extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *cnt);
+
+extern void gasnetc_counter_wait(gasnetc_counter_t *counter,
+                                 int handler_context GASNETI_THREAD_FARG);
+
 /*
  * Bootstrap support
  */
@@ -164,6 +238,8 @@ typedef struct _gasnet_ep_info {
     gasneti_list_t mem_tbl;
 } gasnet_ep_info_t;
 
+typedef void (*gasnetc_cbfunc_t)(gasnetc_atomic_val_t *);
+
 typedef struct _gasneti_ucx_module {
     ucp_context_h               ucp_context;
     ucp_worker_h                ucp_worker;
@@ -184,6 +260,33 @@ typedef struct {
   gasnet_threadinfo_t threadinfo;
 #endif
 } gasnetc_token_t;
+
+typedef enum {
+  gasnetc_rdma_op_put,
+  gasnetc_rdma_op_get,
+} gasnetc_rdma_op_t;
+
+typedef ucs_status_ptr_t (*gasnetc_putget_fn_t)(ucp_ep_h ep, void *buffer,
+                                  uint32_t nbytes, void *remote_addr,
+                                  ucp_rkey_h rkey, ucp_send_callback_t cb);
+
+#define GASNETC_PUTGET_FNNAME(rop) gasnetc_##rop##_req
+
+#define GASNETC_PUTGET_FNDEF(rop)                                               \
+GASNETI_INLINE(GASNETC_PUTGET_FNNAME(rop))                                      \
+ucs_status_ptr_t GASNETC_PUTGET_FNNAME(rop)(ucp_ep_h ep, void *buffer,          \
+                            uint32_t nbytes, void *remote_addr, ucp_rkey_h rkey,\
+                            ucp_send_callback_t cb)                             \
+{                                                                               \
+  return ucp_##rop##_nb(ep, buffer, nbytes, (uint64_t)remote_addr, rkey, cb);   \
+}
+
+GASNETC_PUTGET_FNDEF(put)
+GASNETC_PUTGET_FNDEF(get)
+
+static
+gasnetc_putget_fn_t gasnetc_putget_fn[] = {  GASNETC_PUTGET_FNNAME(put),
+                                             GASNETC_PUTGET_FNNAME(get) };
 
 extern gasneti_ucx_module_t gasneti_ucx_module;
 
@@ -222,6 +325,7 @@ do {                                                      \
 int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
                              gex_Rank_t jobrank,
                              gex_AM_Index_t handler,
+                             gex_Event_t *lc_opt,
                              gex_Flags_t flags,
                              uint8_t is_request,
                              int numargs,
@@ -241,7 +345,7 @@ extern void gasnetc_buffer_pool_free(void);
 extern void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_ProcessRecv(void *buf, size_t size);
-extern void gasnetc_req_wait(GASNETC_LOCK_MODE_ARG_ALONE);
+extern void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE);
 
 /*
   List functions
