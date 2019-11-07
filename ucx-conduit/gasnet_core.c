@@ -26,8 +26,6 @@ gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 gasneti_ucx_module_t gasneti_ucx_module;
 static char *gasnetc_ucx_addr_array = NULL;
 
-uint64_t      gasnetc_pin_maxsz = ~(uint64_t)0;
-
 size_t gasnetc_AMHeaderSize(void)
 {
   return sizeof(gasnetc_sreq_hdr_t);
@@ -144,84 +142,51 @@ static void gasnetc_minfo_reset(gasnetc_mem_info_t *minfo)
   memset(minfo, 0, sizeof(gasnetc_mem_info_t));
 }
 
-static size_t gasnetc_max_reqs(size_t segsize,
-                               gasneti_bootstrapExchangefn_t exchangefn)
-{
-  uint64_t maxsize = 0, *maxsizes;
-  uint64_t tmp;
-  unsigned int  pin_maxsz_shift;
-  gex_Rank_t i;
-
-  /* Find the largest number of pinned regions required */
-  maxsizes = (uint64_t*)gasneti_calloc(gasneti_nodes, sizeof(*maxsizes));
-  (*exchangefn)(&segsize, sizeof(segsize), maxsizes);
-  for (i = 0; i < gasneti_nodes; i++) {
-    maxsize = MAX(maxsize, maxsizes[i]);
-  }
-  gasneti_free(maxsizes);
-  /* Set gasnetc_pin_maxsz_shift while rounding
-   * gasnetc_pin_maxsz down to a power of two */
-  tmp = gasnetc_pin_maxsz >> 1;
-  for (pin_maxsz_shift = 0; tmp != 0; ++pin_maxsz_shift) {
-      tmp >>= 1;
-  }
-  gasnetc_pin_maxsz = ((uint64_t)1) << pin_maxsz_shift;
-  return (maxsize + gasnetc_pin_maxsz - 1) >> pin_maxsz_shift;
-}
-
 static int gasnetc_pin_segment(void *seg_start, size_t segsize,
                                gasneti_bootstrapExchangefn_t exchangefn)
 {
   ucs_status_t status;
-  uintptr_t addr;
-  size_t remain;
   int j;
   void * mem_info_buf = NULL;
-  size_t mem_info_len, rkey_buf_len;
+  size_t mem_info_len;
   size_t info_offset = 0;
   size_t rkey_max_size = 0;
-  int rkey_count = 0;
   gasnet_ep_info_t * my_ep_info = &gasneti_ucx_module.ep_tbl[gasneti_mynode];
   gex_Rank_t i;
   gasnetc_mem_info_t *mem_info;
   gasneti_list_t mem_info_list;
-  unsigned int max_reqs = gasnetc_max_reqs(segsize, exchangefn);
+  size_t *rkey_sizes;
 
   gasneti_list_init(&mem_info_list);
+  GASNETI_LIST_ITEM_ALLOC(mem_info, gasnetc_mem_info_t, gasnetc_minfo_reset);
+  gasneti_list_enq(&mem_info_list, mem_info);
 
-  for (j = 0, addr = (uintptr_t)seg_start, remain = segsize; remain != 0; ++j) {
-    GASNETI_LIST_ITEM_ALLOC(mem_info, gasnetc_mem_info_t, gasnetc_minfo_reset);
-    gasneti_list_enq(&mem_info_list, mem_info);
-
-    size_t len = MIN(remain, gasnetc_pin_maxsz);
-
-    status = gasnetc_mem_map((void *)addr, len, mem_info);
-    if (status != UCS_OK) {
-      gasneti_fatalerror("Memory map failed: %s",
-                         ucs_status_string(UCS_PTR_STATUS(status)));
-    }
-    status = ucp_rkey_pack(gasneti_ucx_module.ucp_context,
-                           mem_info->mem_h,
-                           &mem_info->buffer,
-                           &mem_info->bsize);
-    if (status != UCS_OK) {
-      ucp_mem_unmap(gasneti_ucx_module.ucp_context,
-                    mem_info->mem_h);
-      gasneti_fatalerror("rkey pack failed: %s",
-                         ucs_status_string(UCS_PTR_STATUS(status)));
-    }
-    gasneti_rkey_unpack(my_ep_info->server_ep, mem_info->buffer,
-                        &mem_info->rkey);
-    rkey_max_size = MAX(rkey_max_size, mem_info->bsize);
-    mem_info->addr = (void *)addr;
-    mem_info->length = len;
-    addr += len;
-    remain -= len;
-    rkey_count++;
+  status = gasnetc_mem_map((void *)seg_start, segsize, mem_info);
+  if (status != UCS_OK) {
+    gasneti_fatalerror("Memory map failed: %s",
+                       ucs_status_string(UCS_PTR_STATUS(status)));
   }
+  status = ucp_rkey_pack(gasneti_ucx_module.ucp_context,
+                         mem_info->mem_h,
+                         &mem_info->buffer,
+                         &mem_info->bsize);
+  if (status != UCS_OK) {
+    ucp_mem_unmap(gasneti_ucx_module.ucp_context,
+                  mem_info->mem_h);
+    gasneti_fatalerror("rkey pack failed: %s",
+                       ucs_status_string(UCS_PTR_STATUS(status)));
+  }
+  gasneti_rkey_unpack(my_ep_info->server_ep, mem_info->buffer,
+                      &mem_info->rkey);
+  mem_info->addr = (void *)seg_start;
+  mem_info->length = segsize;
+
+  /* move added mem_info to local table */
+  gasneti_list_enq(&my_ep_info->mem_tbl, mem_info);
 
   /* identify max rkey size */
-  size_t *rkey_sizes = gasneti_calloc(gasneti_nodes, sizeof(size_t));
+  rkey_max_size = MAX(rkey_max_size, mem_info->bsize);
+  rkey_sizes = gasneti_calloc(gasneti_nodes, sizeof(size_t));
   (*exchangefn)(&rkey_max_size, sizeof(rkey_max_size), rkey_sizes);
   for (i = 0; i < gasneti_nodes; i++) {
     if (i == gasneti_mynode) {
@@ -232,30 +197,21 @@ static int gasnetc_pin_segment(void *seg_start, size_t segsize,
   gasneti_free(rkey_sizes);
 
   /* pack my mem map info */
-  rkey_buf_len =
+  mem_info_len =
       /* rkey size */ sizeof(uint64_t)
       +  /* rkey buf */ rkey_max_size
       + /* addr */ sizeof(uint64_t)
       + /* len */ sizeof(uint64_t);
-  mem_info_len = /* rkey count */ sizeof(int) + rkey_buf_len * max_reqs;
   mem_info_buf = gasneti_calloc(1, mem_info_len);
-  gasneti_mem_pack(mem_info_buf, &rkey_count, sizeof(int), 0, info_offset);
-  GASNETI_LIST_FOREACH(mem_info, &mem_info_list, gasnetc_mem_info_t) {
-    gasneti_mem_pack(mem_info_buf, &mem_info->bsize, sizeof(uint64_t),
-                     0, info_offset);
-    gasneti_mem_pack(mem_info_buf, mem_info->buffer,
-                     mem_info->bsize, rkey_max_size, info_offset);
-    gasneti_mem_pack(mem_info_buf, &mem_info->addr, sizeof(uint64_t),
-                     0, info_offset);
-    gasneti_mem_pack(mem_info_buf, &mem_info->length, sizeof(uint64_t),
-                     0, info_offset);
-  }
 
-  /* move added mem_infos to local table */
-  while(NULL !=
-        (mem_info = GASNETI_LIST_POP(&mem_info_list, gasnetc_mem_info_t))) {
-        gasneti_list_enq(&my_ep_info->mem_tbl, mem_info);
-  }
+  gasneti_mem_pack(mem_info_buf, &mem_info->bsize, sizeof(uint64_t),
+                   0, info_offset);
+  gasneti_mem_pack(mem_info_buf, mem_info->buffer,
+                   mem_info->bsize, rkey_max_size, info_offset);
+  gasneti_mem_pack(mem_info_buf, &mem_info->addr, sizeof(uint64_t),
+                   0, info_offset);
+  gasneti_mem_pack(mem_info_buf, &mem_info->length, sizeof(uint64_t),
+                   0, info_offset);
 
   char * recv_buf = gasneti_malloc(mem_info_len * gasneti_nodes);
 
@@ -271,32 +227,24 @@ static int gasnetc_pin_segment(void *seg_start, size_t segsize,
       info_offset += mem_info_len;
       continue;
     }
-    int key_count = 0;
     ucp_ep_h ep = GASNETC_UCX_GET_EP(i);
     gasnet_ep_info_t * ep_info = &gasneti_ucx_module.ep_tbl[i];
 
     GASNETI_LIST_ITEM_ALLOC(mem_info, gasnetc_mem_info_t, gasnetc_minfo_reset);
     gasneti_list_enq(&ep_info->mem_tbl, mem_info);
 
-    gasneti_mem_unpack(&key_count, recv_buf, sizeof(int), 0,
+    gasneti_mem_unpack(&mem_info->bsize, recv_buf,
+                       sizeof(uint64_t), 0, info_offset);
+    mem_info->buffer =
+        gasneti_calloc(1, mem_info->bsize);
+    gasneti_mem_unpack(mem_info->buffer, recv_buf,
+                       mem_info->bsize, rkey_max_size,
                        info_offset);
-    for (j = 0; j < key_count; j++) {
-      gasneti_mem_unpack(&mem_info->bsize, recv_buf,
-                         sizeof(uint64_t), 0, info_offset);
-      mem_info->buffer =
-          gasneti_calloc(1, mem_info->bsize);
-      gasneti_mem_unpack(mem_info->buffer, recv_buf,
-                         mem_info->bsize, rkey_max_size,
-                         info_offset);
-      gasneti_rkey_unpack(ep, mem_info->buffer, &mem_info->rkey);
-      gasneti_mem_unpack(&mem_info->addr, recv_buf,
-                         sizeof(uint64_t), 0, info_offset);
-      gasneti_mem_unpack(&mem_info->length, recv_buf,
-                         sizeof(uint64_t), 0, info_offset);
-    }
-    if (key_count < max_reqs) {
-      info_offset += rkey_buf_len * (max_reqs - key_count);
-    }
+    gasneti_rkey_unpack(ep, mem_info->buffer, &mem_info->rkey);
+    gasneti_mem_unpack(&mem_info->addr, recv_buf,
+                       sizeof(uint64_t), 0, info_offset);
+    gasneti_mem_unpack(&mem_info->length, recv_buf,
+                       sizeof(uint64_t), 0, info_offset);
   }
   gasneti_assert(info_offset == mem_info_len * gasneti_nodes);
 
