@@ -119,6 +119,7 @@ static uint32_t notify_ring_mask; /* ring size minus 1 */
 static unsigned int am_slotsz;
 static unsigned int am_slot_bits;
 static unsigned int am_maxcredit;
+static unsigned int request_bits;
 
 static int have_auxseg = 0;
 static int have_segment = 0;
@@ -1041,7 +1042,6 @@ uintptr_t gasnetc_init_messaging(void)
   am_rvous_enabled = (am_rvous_val && (gasneti_nodes >= am_rvous_val));
 
   /* Determine space/credits for AM Requests */
-  int request_bits;
   if (am_rvous_enabled) {
     /* Rendezvous: GASNET_NETWORKDEPTH */
     GASNETI_TRACE_PRINTF(I, ("Using Rendezvous protocol for AM Requests"));
@@ -1918,7 +1918,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
     length = max_length;
   } else if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
-    gasneti_assert(slots <= am_maxcredit/2);
+    gasneti_assert_uint(slots ,<=, request_bits/2);
     mask = (((uint64_t)1 << slots) - 1);
 
     BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
