@@ -28,6 +28,9 @@ PENDING: GASNet-EX Work-In-Progress
     removed.  These platforms now default to compiler-provided atomics.
     Little-endian PPC platforms remain unchanged.
 
+* Notable bugs fixed in this release:
+  - bug4022: rare resource leak in aries-conduit AM Long protocol
+
 ----------------------------------------------------------------------
 09-14-2019: GASNet-EX 2019.9.0 Release
 
