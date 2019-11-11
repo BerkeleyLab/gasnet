@@ -729,7 +729,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
         } else if (lc_opt == GEX_EVENT_GROUP) {
           gasnete_iop_t *iop = mythread->current_iop;
           cnt = &iop->initiated_alc_cnt;
-          cbfunc = gasnetc_cb_iop_alc;
+          cbfunc = iop->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
           is_sync = 0;
         } else {
           gasneti_assert(lc_opt == GEX_EVENT_NOW);
