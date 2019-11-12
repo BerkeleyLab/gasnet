@@ -19,6 +19,10 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 PENDING: GASNet-EX Work-In-Progress
 
+* InfiniBand Verbs (ibv-conduit)
+  - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
+    removed.
+
 * IBM PAMI (pami-conduit)
   - This conduit, deprecated since 2019.9.0, has been removed.
 

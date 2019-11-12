@@ -164,12 +164,6 @@
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
-#if GASNETC_IBV_AMRDMA
-extern void gasnetc_amrdma_balance(void);
-#define GASNETC_PROGRESSFNS_LIST(FN) \
-  FN(gasnetc_pf_amrdma, COUNTED, gasnetc_amrdma_balance)
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /* handler table access for PSHM (temporary global impl until PSHM can pass actual ep) */
 #define GASNETC_GET_HANDLER 1

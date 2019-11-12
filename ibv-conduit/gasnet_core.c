@@ -1156,43 +1156,6 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
-#if GASNETC_IBV_AMRDMA
-  GASNETC_ENVINT(gasnetc_amrdma_max_peers, GASNET_AMRDMA_MAX_PEERS, GASNETC_DEFAULT_AMRDMA_MAX_PEERS, 0, 0);
-  GASNETC_ENVINT(gasnetc_amrdma_limit, GASNET_AMRDMA_LIMIT, GASNETC_DEFAULT_AMRDMA_LIMIT, 0, 1);
-  if_pf (gasnetc_amrdma_limit > GASNETC_AMRDMA_LIMIT_MAX) {
-    fprintf(stderr,
-            "WARNING: GASNET_AMRDMA_LIMIT reduced from the requested value, %d, to the maximum supported value, %d.\n",
-            (int)gasnetc_amrdma_limit, (int)GASNETC_AMRDMA_LIMIT_MAX);
-    gasnetc_amrdma_limit = GASNETC_AMRDMA_LIMIT_MAX;
-  }
-  GASNETC_ENVINT(gasnetc_amrdma_depth, GASNET_AMRDMA_DEPTH, GASNETC_DEFAULT_AMRDMA_DEPTH, 0, 0);
-  if_pf (!GASNETI_POWEROFTWO(gasnetc_amrdma_depth)) {
-    gasneti_fatalerror("GASNET_AMRDMA_DEPTH (%d) is not a power of 2", gasnetc_amrdma_depth);
-  }
-  if_pf (gasnetc_amrdma_depth > GASNETC_AMRDMA_DEPTH_MAX) {
-    fprintf(stderr,
-            "WARNING: GASNET_AMRDMA_DEPTH reduced from the requested value, %d, to the maximum supported value, %d.\n",
-            (int)gasnetc_amrdma_depth, (int)GASNETC_AMRDMA_DEPTH_MAX);
-    gasnetc_amrdma_depth = GASNETC_AMRDMA_DEPTH_MAX;
-  }
-  gasnetc_amrdma_slot_mask = (gasnetc_amrdma_depth - 1);
-
-  GASNETC_ENVINT(gasnetc_amrdma_cycle, GASNET_AMRDMA_CYCLE, GASNETC_DEFAULT_AMRDMA_CYCLE, 0, 0);
-  if_pf (gasnetc_amrdma_cycle && !GASNETI_POWEROFTWO(gasnetc_amrdma_cycle)) {
-    gasneti_fatalerror("GASNET_AMRDMA_CYCLE (%d) is neither 0 nor a power of 2", gasnetc_amrdma_cycle);
-  }
-  if_pf (gasnetc_amrdma_cycle > (GASNETI_ATOMIC_MAX >> 2)) {
-    fprintf(stderr,
-            "WARNING: GASNET_AMRDMA_CYCLE reduced from the requested value, 0x%"PRIx64", to the maximum supported value, 0x%"PRIx64".\n",
-            (uint64_t)gasnetc_amrdma_cycle, (uint64_t)(GASNETI_ATOMIC_MAX >> 2));
-    gasnetc_amrdma_cycle = (GASNETI_ATOMIC_MAX >> 2);
-  }
-
-  // Bug 3441: zero values of GASNET_AMRDMA_{LIMIT,CYCLE} should prevent allocation of pinned memory
-  if (!gasnetc_amrdma_limit || !gasnetc_amrdma_cycle) {
-    gasnetc_amrdma_max_peers = 0;
-  }
-#endif // GASNETC_IBV_AMRDMA
 
   #if GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, 0, 0, 1);
@@ -1316,12 +1279,6 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
-#endif
-#if GASNETC_IBV_AMRDMA
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %"PRIu64"", (uint64_t)gasnetc_amrdma_cycle));
 #endif
 #if GASNETC_USE_RCV_THREAD
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
@@ -4219,88 +4176,6 @@ extern void gasnetc_exit(int exitcode) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-// Support for optional AM-over-RMDA (AMRDMA)
-
-#if GASNETC_IBV_AMRDMA
-GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
-void gasnetc_amrdma_grant_reqh_inner(gex_Token_t token, int qpi, uint32_t rkey, void *addr) {
-  gasnetc_cep_t *cep;
-  gex_Rank_t node = gasnetc_msgsource(token);
-
-  cep = GASNETC_NODE2CEP(node) + (qpi - 1);
-  gasneti_assert(cep->amrdma_send == NULL);
-  cep->amrdma_send = gasnetc_amrdma_send_alloc(rkey, addr);
-
-  GASNETI_TRACE_PRINTF(C,("AMRDMA_GRANT_RCV from node=%d qp=%d\n", (int)node, qpi-1));
-}
-SHORT_HANDLER(gasnetc_amrdma_grant_reqh,3,4,
-              (token, a0, a1, UNPACK(a2)    ),
-              (token, a0, a1, UNPACK2(a2, a3)));
-
-/* Try to claim the next slot */
-GASNETI_INLINE(gasnetc_get_amrdma_slot)
-int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
-  gasnetc_amrdma_send_t *send_state = cep->amrdma_send;
-  uint32_t send_tail;
-
-  gasneti_assert(GASNETC_ALLOW_0BYTE_MSG || (msg_len != 0));
-  if (!send_state || (msg_len > gasnetc_amrdma_limit)) {
-    return -1;
-  }
-
-#if GASNETC_ANY_PAR
-  while (1) {
-    send_tail = gasnetc_atomic_read(&send_state->tail, 0);
-    if (send_tail == gasnetc_atomic_read(&send_state->head, 0)) { return -1; }
-    if (gasnetc_atomic_compare_and_swap(&send_state->tail, send_tail, send_tail + 1, 0)) { break; }
-    GASNETI_WAITHOOK();
-  }
-#else
-  send_tail = gasnetc_atomic_read(&send_state->tail, 0);
-  if (send_tail == gasnetc_atomic_read(&send_state->head, 0)) { return -1; }
-  gasnetc_atomic_increment(&send_state->tail, 0);
-#endif
-
-  return (send_tail & gasnetc_amrdma_slot_mask);
-}
-
-GASNETI_INLINE(gasnetc_encode_amrdma)
-size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, struct ibv_send_wr *sr_desc, int send_slot) {
-  size_t len0 = sr_desc->sg_list[0].length;
-  size_t len1 = sr_desc->sg_list[1].length;
-
-  gasneti_assert(send_slot >= 0);
-  gasneti_assert(send_slot < gasnetc_amrdma_depth);
-
-  /* Build header */
-  { 
-    void * const data = (void *)(uintptr_t)sr_desc->sg_list[0].addr;
-    gasnetc_amrdma_hdr_t * const hdr = (gasnetc_amrdma_hdr_t *)data - 1;
-    const uint32_t flags = sr_desc->imm_data;
-    const int zeros = gasneti_count0s_uint32_t(flags) +
-                      gasneti_count0s(data, len0) +
-                      (len1 ? gasneti_count0s((void *)(uintptr_t)sr_desc->sg_list[1].addr, len1) : 0);
-
-    hdr->length = hdr->length_again = len0 + len1;
-    hdr->zeros  = hdr->zeros_again  = zeros;
-    hdr->immediate_data = flags;
-  }
-
-  { /* Fix up the descriptor */
-    sr_desc->sg_list[0].addr -= sizeof(gasnetc_amrdma_hdr_t);
-    sr_desc->sg_list[0].length = (len0 += sizeof(gasnetc_amrdma_hdr_t));
-    sr_desc->opcode = IBV_WR_RDMA_WRITE;
-    sr_desc->wr.rdma.remote_addr = cep->amrdma_send->addr + (send_slot << GASNETC_AMRDMA_SZ_LG2);
-    sr_desc->wr.rdma.rkey = cep->amrdma_send->rkey;
-
-    gasneti_assert((len0 + len1) <= GASNETC_AMRDMA_SZ);
-    gasneti_assert((len0 + len1) <= GASNETC_BUFSZ);
-    return (size_t)(len0 + len1);
-  }
-}
-#endif // GASNETC_IBV_AMRDMA
-
-/* ------------------------------------------------------------------------------------ */
 /*
   Misc. Active Message Functions
   ==============================
@@ -4396,9 +4271,6 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
 */
 
 size_t gasnetc_am_inline_limit_sndrcv = 0;
-#if GASNETC_IBV_AMRDMA
-size_t gasnetc_am_inline_limit_rdma = 0;
-#endif
 
 // Subject to specialization upon inlining (e.g. category and is_reply)
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
@@ -4488,12 +4360,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
      * allow a race where we allocate space for the args, but end up sending
      * pointless zero values in them.
      */
-#if GASNETC_IBV_AMRDMA
-    have_flow = (gasnetc_atomic_read(&cep->am_flow.credit, 0) ||
-		 gasnetc_atomic_read(&cep->am_flow.ack, 0));
-#else
     have_flow = gasnetc_atomic_read(&cep->am_flow.credit, 0);
-#endif
     if (have_flow) numargs += 1;
   
     /* Figure out length so we know if we can use inline or not.
@@ -4648,34 +4515,15 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       }
 #endif
     }
-  
-    // Try to obtain a slot for AM-over-RDM *unless* IMMEDIATE
-    // In the IMMEDIATE case we cannot (in general) deallocate the slot
-    size_t msg_len = len0 + len1;
-#if GASNETC_IBV_AMRDMA
-    int rdma_slot = immediate ? -1 : gasnetc_get_amrdma_slot(cep, msg_len);
-    if (rdma_slot < 0) {
-      GASNETC_STAT_EVENT(SND_AM_SNDRCV);
-    } else {
-      GASNETC_STAT_EVENT(SND_AM_RDMA);
-    }
-#else
-    const int rdma_slot = 0;
-#endif
 
     /* Now get a buffer and start building the message.
      * If we can be certain that the message will be small enough for an inline send/put,
      * then we'll use a buffer on the stack (saving us from accessing the shared pool of
      * bounce buffers, which might block).
      */
-#if GASNETC_IBV_AMRDMA
-    const size_t max_inline = (rdma_slot >= 0) ? gasnetc_am_inline_limit_rdma
-                                               : gasnetc_am_inline_limit_sndrcv;
-    const size_t buf_offset = (rdma_slot >= 0) ? sizeof(gasnetc_amrdma_hdr_t) : 0;
-#else
+    size_t msg_len = len0 + len1;
     const size_t max_inline = gasnetc_am_inline_limit_sndrcv;
     const size_t buf_offset = 0;
-#endif
     if (msg_len <= max_inline) {
       buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
     } else if (immediate) {
@@ -4718,26 +4566,16 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     /* Assemble an array of arguments. */
     i = 0;
     if (have_flow) {
-      /* acks and credits travel packed in a "prefixed" argument, remaining args are shifted */
+      /* credits travel packed in a "prefixed" argument, remaining args are shifted */
 
       /* "Grab" info w/ atomic load-and-clear operations: */
-    #if GASNETC_IBV_AMRDMA
-      const uint32_t acks = gasnetc_atomic_swap(&cep->am_flow.ack, 0, 0);
-      gasneti_assume(acks <= 255);
-    #else
-      const uint32_t acks = 0;
-    #endif
       const uint32_t credits = gasnetc_atomic_swap(&cep->am_flow.credit, 0, 0);
       gasneti_assume(credits <= 255);
 
-      args[0] = credits | (acks << 8) | (numargs << 16);
+      args[0] = credits | (numargs << 16);
       i = 1;
 
-    #if GASNETC_IBV_AMRDMA
-      GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d acks=%d\n", credits, acks));
-    #else
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d\n", credits));
-    #endif
     }
     for (/*EMPTY*/; i < numargs; ++i) {
       args[i] = va_arg(argptr, gex_AM_Arg_t);
@@ -4785,13 +4623,6 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       #endif
   
       (void)gasnetc_bind_cep_am(epid, sreq, is_reply);
-
-    #if GASNETC_IBV_AMRDMA
-      if (rdma_slot >= 0) {
-        msg_len = gasnetc_encode_amrdma(sreq->cep, sr_desc, rdma_slot);
-        gasneti_assert((msg_len <= gasnetc_inline_limit) || (buf_alloc != NULL));
-      }
-    #endif
 
       gasnetc_snd_post_common(sreq, sr_desc, (msg_len <= gasnetc_inline_limit) GASNETI_THREAD_PASS);
     }
@@ -5552,9 +5383,7 @@ static gex_AM_Entry_t const gasnetc_handlers[] = {
   #endif
 
   /* ptr-width dependent handlers */
-  #if GASNETC_IBV_AMRDMA
-    gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh,3,4,REQUEST,SHORT,0),
-  #endif
+  // NONE currently
 
   GASNETI_HANDLER_EOT
 };

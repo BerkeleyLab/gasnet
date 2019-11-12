@@ -89,11 +89,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   connection requests.  If needed, this can be disabled at configure
   time using '--disable-ibv-conn-thread'.
 
-  As an alternative to use of "SEND" at the ibv-level, it is possible to
-  perform AM communication using "WRITE" operations.  This is described in more
-  detail in the "AMRDMA configuration" section.  This option is available only
-  if GASNet has been configured using '--enable-ibv-amrdma'.
-
   The default spawner to be used by the gasnetrun_ibv utility can be
   selected by configuring '--with-ibv-spawner=VALUE', where VALUE is one
   of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
@@ -767,63 +762,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     may try increasing this value (or setting it to zero), at a cost in
     additional pinned memory.
    
-  AMRDMA configuration:
-  --------------------
-  This feature is only available if GASNet has been configured
-  using --enable-ibv-amrdma
-
-  The following environment variables control the AM-over-RDMA path in
-  ibv-conduit.  These parameters must be equal across all nodes, and
-  the behavior otherwise is undefined.
-
-  As an option, ibv-conduit can send Active Message (AM) traffic
-  using RDMA PUT operations to buffers reserved for this purpose.  This
-  leads to a reduction in the end-to-end latency of such AM traffic, but
-  at the cost of increased memory usage and in the cost of a polling for
-  AMs (as done explicitly in gasnet_AMPoll(), and implicitly in many
-  GASNet calls).  On current generation systems, the added costs will
-  most often dominate and thus this feature is OFF by default (via a
-  default GASNET_AMRDMA_LIMIT of zero).
-
-  + GASNET_AMRDMA_LIMIT
-    This environment variable controls the maximum size of an AM that may
-    be sent via the AMRDMA path.  The software overhead on both the sender
-    and receiver grow with the message size.  So, as the message size grows
-    the use of AMRDMA eventually costs more than the snd/rcv alternative.
-    The maximum value is 4080 (4K minus some overheads).
-    The current default is zero, which disables AMRDMA.
-
-  + GASNET_AMRDMA_DEPTH
-    This environment variable controls the number of buffers (currently 4K
-    each) that are allocated per peer for receiving AMRDMA traffic.  Larger
-    values may potentially allow for more AMs in-flight before flow control
-    throttles the sender, but at the cost of increased memory consumption.
-    The value must be a power of 2 and the maximum is 32.
-    The current default is 16.
-
-  + GASNET_AMRDMA_MAX_PEERS
-    This environment variable limits the number of peers from which AMs may
-    be received over RDMA.  Larger values may potentially allow for lower
-    cost AM traffic, but at the cost of increased memory consumption and
-    greater overhead each time that ibv-conduit polls for AM traffic.
-    A value of zero will disable AMRDMA.
-    The current default is 32.
-
-  + GASNET_AMRDMA_CYCLE
-    This environment variable, which must be zero or a power or two, sets
-    the period between (re)assignments of AMRDMA peers, as measured by
-    of the number of AMs received of size <= GASNET_AMRDMA_LIMIT.
-    The current algorithm for selecting AMRDMA peers is very simplistic
-    and will never revoke AMRDMA status once granted to a given peer.
-    An overly large value will result in a long period of time before any
-    peers may be assigned AMRDMA status, while an overly short value may
-    select peers based on initialization activities which don't reflect the
-    communication pattern of the remainder of the run.
-    A value of zero will disable AMRDMA.
-    A value of one will result in selecting the first GASNET_AMRDMA_MAX_PEERS
-    peers from which AMs are received.
-    The current default is 1024.
-
   Firehose configuration:
   ----------------------
   These parameters must be equal across all nodes, and the behavior
@@ -1080,16 +1018,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   returned to the OS via munmap().
   The most up-to-date information on this bug is maintained at:
     https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=495
-  That bug report describes the problem in more detail, and lists the best
-  known recommended work-around(s).
-
-+ Bug 3428
-  In this release the code used to checksum AMRDMA traffic is known to be
-  incorrect under aggressive compiler optimization.  However, an alternative
-  implementation is currently enabled for the only compiler (PathScale)
-  known to manifest the problem.
-  The most up-to-date information on this bug is maintained at:
-    https://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3428
   That bug report describes the problem in more detail, and lists the best
   known recommended work-around(s).
 
