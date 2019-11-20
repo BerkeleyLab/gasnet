@@ -1594,16 +1594,27 @@ extern void gasneti_nodemapParse(void) {
  *     This results in the trivial [0,1,2,...] nodemap.
  *     The 'sz' and 'stride' arguments are unused.
  *   Case 4: exchangefn != NULL  and  ids != NULL
- *     This case is not supported.
+ *     The conduit has provided an exchange function and a *local* ID:
+ *       'ids' is address of the local ID
+ *       'sz' is length of an ID in bytes
+ *     The 'stride' argument is unused.
  */
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride) {
   gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
 
   if (ids) {
-    /* Case 1: conduit-provided vector of IDs */
-    gasneti_assert(!exchangefn); /* Prohibit 'Case 4' */
+    /* Cases 1 or 4: conduit-provided vector of all IDs or a single local ID*/
+    void *tmp = NULL;
+    if (exchangefn) {
+      // Perform exchange for 'Case 4'
+      tmp = gasneti_malloc(gasneti_nodes * sz);
+      (*exchangefn)((void*)ids, sz, tmp);
+      ids = tmp;
+      stride = sz;
+    }
     gasneti_nodemap_helper(ids, sz, stride);
+    gasneti_free(tmp);
   } else if (exchangefn) {
     /* Case 2: conduit-provided exchange fn, platform-default IDs */
     gasneti_nodemap_dflt(exchangefn);
