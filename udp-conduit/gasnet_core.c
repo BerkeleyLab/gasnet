@@ -266,7 +266,17 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
         gasneti_mynode, gasneti_nodes); fflush(stderr);
     #endif
 
-    gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
+    void *mynodeid;
+    en_t my_name;
+    if (gasneti_getenv_yesno_withdefault("GASNET_USE_GETHOSTID", 0)) {
+      // Use gasneti_gethostid() to construct the nodemap
+      mynodeid = NULL;
+    } else {
+      // Use local IP address to construct the nodemap
+      GASNETI_AM_SAFE( AM_GetTranslationName(gasnetc_endpoint, gasneti_mynode, &my_name) );
+      mynodeid = &my_name.sin_addr;
+    }
+    gasneti_nodemapInit(&gasnetc_bootstrapExchange, mynodeid, sizeof(my_name.sin_addr), 0);
 
     #if GASNET_PSHM
       gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);
