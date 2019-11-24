@@ -327,6 +327,18 @@ cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
 	 set -x ; $(MAKE) -C $(<D) UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean cuda_vecadd
 	mv $(<D)/cuda_vecadd $@
 
+CMAKE ?= cmake
+
+cmake-%:
+	-rm -Rf cmake
+	cp -r $(UPCXX_BLDDIR)/utils/cmake .
+	cd cmake && \
+	env UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
+	    UPCXX_INSTALL=$(UPCXX_INSTDIR)-gasnet_$* \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=. -DCMAKE_CXX_COMPILER=$(CXX) .
+	$(MAKE) -C cmake all
+	mv cmake/upcxx_test $@
+
 force:
 
 .PHONY: force nobs_test inst_test
