@@ -4499,7 +4499,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
                           gex_AM_Index_t handler,
                           void *src_addr, size_t nbytes, void *dst_addr,
                           size_t head_len, size_t copy_len, size_t gath_len,
-                          const int have_flow, int numargs,
+                          int in_place, const int have_flow, int numargs,
                           gasnetc_atomic_val_t *local_cnt,
                           gasnetc_cb_t local_cb,
                           gasnetc_counter_t *counter, va_list argptr
@@ -4515,7 +4515,10 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
     case gasneti_Medium:
       buf->medmsg.nBytes = nbytes;
       args = buf->medmsg.args;
-      if (copy_len) {
+      if (in_place) {
+        gasneti_assert_ptr(src_addr ,==, GASNETC_MSG_MED_DATA(buf, numargs + have_flow));
+        gasneti_assert_uint(copy_len ,==, nbytes);
+      } else if (copy_len) {
         void *data = (void*)((uintptr_t)buf + head_len);
         gasneti_assert_ptr(data ,==, GASNETC_MSG_MED_DATA(buf, numargs + have_flow));
         gasneti_assert_uint(copy_len ,==, nbytes);
@@ -4541,7 +4544,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       args = buf->longmsg.args;
       break;
 
-    default: gasneti_unreachable_error(("Invalid category in gasnetc_ReqRepGeneric: 0x%x",(int)category));
+    default: gasneti_unreachable_error(("Invalid AM category: 0x%x",(int)category));
     }
    
     /* Assemble an array of arguments. */
@@ -4577,7 +4580,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       sr_desc->opcode     = IBV_WR_SEND_WITH_IMM;
       sr_desc->num_sge    = 1;
       sr_desc->sg_list[0].addr   = (uintptr_t)buf;
-      sr_desc->sg_list[0].length = head_len + copy_len;
+      sr_desc->sg_list[0].length = head_len + (in_place ? nbytes : copy_len);
       sr_desc->sg_list[0].lkey   = GASNETC_SND_LKEY(cep);
   
       sreq = gasnetc_get_sreq(GASNETC_OP_AM GASNETI_THREAD_PASS);
@@ -4683,7 +4686,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       }
       break;
   
-    default: gasneti_unreachable_error(("Invalid category in gasnetc_ReqRepGeneric: 0x%x",(int)category));
+    default: gasneti_unreachable_error(("Invalid AM category: 0x%x",(int)category));
     }
 
     // Get the flow-control credit needed for Requests before a buffer.
@@ -4712,7 +4715,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     // Build and send the message
     gasnetc_am_commit(buf, buf_alloc, category, is_reply, token, cep,
                       handler, src_addr, nbytes, dst_addr,
-                      head_len, copy_len, gath_len, have_flow, numargs,
+                      head_len, copy_len, gath_len, 0, have_flow, numargs,
                       local_cnt, local_cb, counter, argptr
                       GASNETI_THREAD_PASS);
 
@@ -5246,6 +5249,80 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
 
 /* ------------------------------------------------------------------------------------ */
 
+// ---- NPAM common ----
+
+GASNETI_INLINE(gasnetc_prepare_medium)
+int gasnetc_prepare_medium(
+                       gasneti_AM_SrcDesc_t    sd,
+                       gasnetc_cep_t          *cep,
+                       const void             *client_buf,
+                       size_t                  least_payload,
+                       size_t                  most_payload,
+                       gex_Event_t            *lc_opt,
+                       gex_Flags_t             flags,
+                       unsigned int            nargs
+                       GASNETI_THREAD_FARG)
+{
+  const size_t nbytes = MIN(most_payload, GASNETC_MAX_MEDIUM_(nargs));
+   
+  // See gasnetc_ReqRepGeneric() for details
+  const int have_flow = gasnetc_atomic_read(&(cep)->am_flow.credit, 0) ? 1 : 0;
+  const size_t head_len = GASNETC_MSG_MED_ARGSEND(nargs + have_flow);
+
+  // Obtain an appropriate buffer in which to build the message
+  // If an inline send is to be used, the buffer is in the sd itself
+  gasneti_static_assert(sizeof(gasnetc_am_tmp_buf_t) <= 128);
+  const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
+  gasnetc_buffer_t *buf, *buf_alloc = NULL;
+  if (gasnetc_am_get_buffer(head_len + nbytes, immediate, &sd->_inline_buf,
+                            &buf, &buf_alloc GASNETI_THREAD_PASS)) {
+    gasneti_assert(immediate);
+    return 1;
+  }
+
+  sd->_void_p = buf;
+  sd->_nargs = nargs;
+  sd->_size = nbytes;
+  sd->_buf_alloc = buf_alloc;
+  sd->_head_len = head_len;
+  sd->_have_flow = have_flow;
+  sd->_cep = cep;
+  if (client_buf) {
+    sd->_addr = (/*non-const*/void *)client_buf;
+    gasneti_leaf_finish(lc_opt);
+  } else {
+    sd->_gex_buf = sd->_addr = (void*)((uintptr_t)sd->_void_p + head_len);
+  }
+
+  return 0;
+}
+
+static
+void gasnetc_commit_medium(
+                       gasneti_AM_SrcDesc_t    sd,
+                       const int               is_reply,
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                       va_list                 argptr
+                       GASNETI_THREAD_FARG)
+{
+#if GASNETI_STATS_OR_TRACE
+  gasnetc_rbuf_t * token = is_reply ? (gasnetc_rbuf_t *) sd->_dest._reply._token : NULL;
+#else
+  gasnetc_rbuf_t * token = NULL; // unused
+#endif
+
+  // TODO-EX: implement gather-on-send for NPAM w/ in-segment client-provided buffer
+
+  gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
+                     gasneti_Medium, is_reply, token, sd->_cep,
+                     handler, sd->_addr, nbytes, NULL, sd->_head_len, nbytes, 0,
+                     (sd->_gex_buf != NULL), sd->_have_flow, sd->_nargs,
+                     NULL, NULL, NULL, argptr GASNETI_THREAD_PASS);
+}
+
+// ---- external FPAM requests ----
+
 extern int gasnetc_AMRequestShortM( 
                             gex_TM_t tm,/* local context */
                             gex_Rank_t rank,       /* with tm, defines remote context */
@@ -5269,6 +5346,7 @@ extern int gasnetc_AMRequestShortM(
   return retval;
 }
 
+#if !GASNETC_HAVE_NP_REQ_MEDIUM
 extern int gasnetc_AMRequestMediumV(
                             gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
@@ -5277,6 +5355,7 @@ extern int gasnetc_AMRequestMediumV(
 {
   return gasnetc_AMRequestMedium(tm,rank,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr GASNETI_THREAD_PASS);
 }
+#endif
 
 extern int gasnetc_AMRequestMediumM( 
                             gex_TM_t tm,/* local context */
@@ -5338,6 +5417,92 @@ extern int gasnetc_AMRequestLongM(
   return retval;
 }
 
+// ---- external NPAM requests ----
+
+#if GASNETC_HAVE_NP_REQ_MEDIUM
+
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
+                       gex_TM_t           tm,
+                       gex_Rank_t         rank,
+                       const void        *client_buf,
+                       size_t             least_payload,
+                       size_t             most_payload,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags
+                       GASNETI_THREAD_FARG,
+                       unsigned int       nargs)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_init_request_srcdesc(GASNETI_THREAD_PASS_ALONE);
+    GASNETI_COMMON_PREP_REQ(sd,tm,rank,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+
+    GASNETC_IMMEDIATE_MAYBE_POLL(flags); // Ensure at least one poll upon Request injection
+
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
+    gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+
+    if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+        sd = gasnetc_nbrhd_PrepareRequest(sd, gasneti_Medium, jobrank,
+                                          client_buf, least_payload, most_payload,
+                                          NULL, lc_opt, flags, nargs);
+    } else {
+        const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
+
+        gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: multi-EP support
+        gasnetc_cep_t *cep = gasnetc_am_select_cep(jobrank);
+        if (gasnetc_am_get_credit(ep, cep, immediate GASNETI_THREAD_PASS)) {
+            goto out_immediate;
+        } else if (gasnetc_prepare_medium(sd, cep, client_buf,
+                                          least_payload, most_payload,
+                                          lc_opt, flags, nargs
+                                          GASNETI_THREAD_PASS)) {
+            gasnetc_am_put_credit(cep);
+            goto out_immediate;
+        } else {
+            gasneti_init_sd_poison(sd);
+            sd->_is_nbrhd = 0;
+        }
+    }
+
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, sd);
+    return gasneti_export_srcdesc(sd);
+
+out_immediate:
+    gasneti_assert(flags & GEX_FLAG_IMMEDIATE);
+    gasneti_reset_srcdesc(sd);
+    GASNETI_TRACE_PREP_RETURN(REQUEST_MEDIUM, NULL);
+    return gasneti_export_srcdesc(NULL); // GEX_AM_SRCDESC_NO_OP
+}
+
+extern void gasnetc_AM_CommitRequestMediumM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes
+                       GASNETI_THREAD_FARG,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
+
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
+    } else {
+        gasnetc_commit_medium(sd,0,handler,nbytes,argptr GASNETI_THREAD_PASS);
+    }
+    va_end(argptr);
+
+    gasneti_reset_srcdesc(sd);
+}
+
+#endif // GASNETC_HAVE_NP_REQ_MEDIUM
+
+// ---- external FPAM replies ----
+
 extern int gasnetc_AMReplyShortM( 
                             gex_Token_t token,     /* token provided on handler entry */
                             gex_AM_Index_t handler, /* index into destination endpoint's handler table */
@@ -5354,6 +5519,7 @@ extern int gasnetc_AMReplyShortM(
   return retval;
 }
 
+#if !GASNETC_HAVE_NP_REP_MEDIUM
 extern int gasnetc_AMReplyMediumV(
                             gex_Token_t token, gex_AM_Index_t handler,
                             void *source_addr, size_t nbytes,
@@ -5362,6 +5528,7 @@ extern int gasnetc_AMReplyMediumV(
 {
   return gasnetc_AMReplyMedium(token,handler,source_addr,nbytes,lc_opt,flags,numargs,argptr);
 }
+#endif
 
 extern int gasnetc_AMReplyMediumM( 
                             gex_Token_t token,     /* token provided on handler entry */
@@ -5408,6 +5575,84 @@ extern int gasnetc_AMReplyLongM(
   va_end(argptr);
   return retval;
 }
+
+// ---- external NPAM replies ----
+
+#if GASNETC_HAVE_NP_REP_MEDIUM
+
+extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
+                       gex_Token_t        token,
+                       const void        *client_buf,
+                       size_t             least_payload,
+                       size_t             most_payload,
+                       gex_Event_t       *lc_opt,
+                       gex_Flags_t        flags,
+                       unsigned int       nargs)
+{
+    gasneti_AM_SrcDesc_t sd;
+    flags &= ~(GEX_FLAG_AM_PREPARE_LEAST_CLIENT | GEX_FLAG_AM_PREPARE_LEAST_ALLOC);
+
+    if (gasnetc_token_in_nbrhd(token)) {
+        sd = gasnetc_nbrhd_PrepareReply(gasneti_Medium, token,
+                                        client_buf, least_payload, most_payload,
+                                        NULL, lc_opt, flags, nargs);
+    } else {
+        gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+        gasneti_assert(rbuf);
+        gasneti_assert(rbuf->rbuf_handlerRunning);
+        gasneti_assert(GASNETC_MSG_ISREQUEST(rbuf->rbuf_flags));
+        gasneti_assert(rbuf->rbuf_needReply);
+        GASNET_POST_THREADINFO(rbuf->rbuf_threadinfo);
+
+        sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
+        GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
+        #if GASNETI_STATS_OR_TRACE
+          sd->_dest._reply._token = token;
+        #endif
+
+        if (gasnetc_prepare_medium(sd, rbuf->cep, client_buf,
+                                   least_payload, most_payload,
+                                   lc_opt, flags, nargs
+                                   GASNETI_THREAD_PASS)) {
+            gasneti_reset_srcdesc(sd);
+            sd = NULL; // GEX_AM_SRCDESC_NO_OP
+        } else {
+            gasneti_init_sd_poison(sd);
+            sd->_is_nbrhd = 0;
+            rbuf->rbuf_needReply = 0;
+        }
+    }
+
+    GASNETI_TRACE_PREP_RETURN(REPLY_MEDIUM, sd);
+    return gasneti_export_srcdesc(sd);
+}
+
+extern void gasnetc_AM_CommitReplyMediumM(
+                       gex_AM_Index_t          handler,
+                       size_t                  nbytes,
+                     #if GASNET_DEBUG
+                       unsigned int            nargs_arg,
+                     #endif
+                       gex_AM_SrcDesc_t        sd_arg, ...)
+{
+    gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
+
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
+
+    va_list argptr;
+    va_start(argptr, sd_arg);
+    if (sd->_is_nbrhd) {
+        gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
+    } else {
+        GASNET_POST_THREADINFO(sd->_thread);
+        gasnetc_commit_medium(sd,1,handler,nbytes,argptr GASNETI_THREAD_PASS);
+    }
+    va_end(argptr);
+
+    gasneti_reset_srcdesc(sd);
+}
+
+#endif // GASNETC_HAVE_NP_REP_MEDIUM
 
 /* ------------------------------------------------------------------------------------ */
 /*
