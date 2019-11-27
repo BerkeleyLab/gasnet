@@ -1437,7 +1437,8 @@ void gasnetc_put_long_payload(gex_Rank_t jobrank,
                               size_t nbytes,
                               uint32_t gpd_flags,
                               void *completion,
-                              uint32_t nonce
+                              uint32_t nonce,
+                              int is_req
                               GASNETC_DIDX_FARG)
 {
   gasneti_suspend_spinpollers();
@@ -1449,10 +1450,20 @@ void gasnetc_put_long_payload(gex_Rank_t jobrank,
     // stall for local completion (GEX_EVENT_NOW)
     volatile int *done_p = (volatile int *) completion;
     if (! *done_p) {
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-      while (! *done_p) {
-        GASNETI_WAITHOOK();
+      if (is_req) {
+        // May safely progress everything, including AMs and progress functions
+        gasneti_AMPoll();
+        while (! *done_p) {
+          GASNETI_WAITHOOK();
+          gasneti_AMPoll();
+        }
+      } else {
+        // Running in handler context and thus may safely only progress local queue
         gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        while (! *done_p) {
+          GASNETI_WAITHOOK();
+          gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        }
       }
     }
   }
@@ -1542,7 +1553,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
         completion = (void *) &done_flag;
       }
       gasnetc_put_long_payload(jobrank, dest_addr, source_addr, nbytes,
-                               gpd_flags, completion, nonce GASNETC_DIDX_PASS);
+                               gpd_flags, completion, nonce, 1 GASNETC_DIDX_PASS);
     }
 
     retval = 0;
@@ -1783,7 +1794,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
         completion = (void *) &done_flag;
       }
       gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr, nbytes,
-                               gpd_flags, completion, nonce GASNETC_DIDX_PASS);
+                               gpd_flags, completion, nonce, 0 GASNETC_DIDX_PASS);
     }
 
     retval = 0;
