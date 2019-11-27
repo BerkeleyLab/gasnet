@@ -332,11 +332,12 @@ CMAKE ?= cmake
 cmake-%:
 	-rm -Rf cmake
 	cp -r $(UPCXX_BLDDIR)/utils/cmake .
-	cd cmake && \
-	env UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
-	    UPCXX_INSTALL=$(UPCXX_INSTDIR)-gasnet_$* \
-	$(CMAKE) -DCMAKE_PREFIX_PATH=. -DCMAKE_CXX_COMPILER=$(CXX) .
-	$(MAKE) -C cmake all
+	cd cmake && ( set -x ; \
+	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
+	       UPCXX_INSTALL=$(UPCXX_INSTDIR)-gasnet_$* ; \
+	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=. . )
+	$(MAKE) -C cmake all VERBOSE=1
 	mv cmake/upcxx_test $@
 
 force:
