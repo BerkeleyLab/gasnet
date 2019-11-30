@@ -7,7 +7,8 @@ UPCXX_BACKEND    ?= gasnet_seq
 UPCXX_INSTDIR    ?= $(HARNESS_WORKDIR)/upcxx-inst
 UPCXX_TMPDIR     ?= $(HARNESS_WORKDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
-UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers, may be set by pushbuild/end-user
+UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers for lib and tests, may be set by pushbuild/end-user
+UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user. Ignored for UPCXX_TESTMODE=nobs.
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 export UPCXX_BACKEND
 
@@ -250,12 +251,12 @@ inst_test: upcxx-install-$(UPCXX_BACKEND)
 	PPFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta PPFLAGS` && \
 	LDFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LDFLAGS` && \
 	LIBFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX $$CXXFLAGS $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
+	$$META_CXX $$CXXFLAGS $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBFLAGS
 
 # Build a single test using the upcxx wrapper
 wrap_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
-	$(UPCXX_INSTDIR_FULL)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)
+	$(UPCXX_INSTDIR_FULL)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
 
 # Pattern rule builds tests, using logic dependent on their location
@@ -264,10 +265,8 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
 	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
 	if test -z "$(strip $(UPCXX_TESTMODE_FORCE))" ; then \
-	  case "$<" in \
-            *$(UPCXX_BLDDIR)/test/*) UPCXX_TESTMODE="nobs" ;; \
-	  esac ; \
-	  if test -n "$(strip $(UPCXX_TEST_FLAGS))" ; then \
+	  if test "$UPCXX_TESTMODE" = nobs && \
+	    ( test -n "$(strip $(UPCXX_TEST_FLAGS))" || test -n "$(strip $(UPCXX_EXTRA_TEST_FLAGS))" ) ; then \
 	    UPCXX_TESTMODE="meta" ; \
 	  fi ; \
         fi ; \
@@ -276,7 +275,7 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 	elif test "$$UPCXX_TESTMODE" = "wrap" ; then set -x ; \
 	  $(MAKE) wrap_test TEST_PATH=$< TEST_EXE=$@ ; \
 	elif test "$$UPCXX_TESTMODE" = "nobs" ; then set -x ; \
-	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)' ; \
+	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) $(UPCXX_TEST_FLAGS)' ; \
 	else \
 	  echo "Unrecognized UPCXX_TESTMODE=$$UPCXX_TESTMODE" ; exit 100; \
 	fi 
