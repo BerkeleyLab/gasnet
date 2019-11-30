@@ -328,6 +328,12 @@ cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
 	mv $(<D)/cuda_vecadd $@
 
 CMAKE ?= cmake
+CMAKE_ARGS ?=
+ifeq ($(shell uname -s),Darwin)
+  # Apple CMake is a special snowflake and ignores $CC/$CXX, so force them via cmd-line
+  # CMake cannot handle embedded arguments when passed this way, so strip them and hope for the best..
+  CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" $(CMAKE_ARGS)
+endif
 
 cmake-%:
 	-rm -Rf cmake
@@ -336,7 +342,8 @@ cmake-%:
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR)-gasnet_$* ; \
 	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
-	$(CMAKE) -DCMAKE_PREFIX_PATH=. . )
+	cmake --version ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=. $(CMAKE_ARGS) . )
 	$(MAKE) -C cmake all VERBOSE=1
 	mv cmake/upcxx_test $@
 
