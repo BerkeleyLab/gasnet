@@ -22,6 +22,8 @@ PENDING: GASNet-EX Work-In-Progress
 * InfiniBand Verbs (ibv-conduit)
   - Negotiated-Payload Active Messages are implemented natively for ibv-conduit,
     replacing use of a portable reference implementation.
+  - New environment variable GASNET_AM_GATHER_MIN controls use of gather-on-send
+    for AM Medium (and small Long) payloads.  See details in the conduit README.
   - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
     removed.
 

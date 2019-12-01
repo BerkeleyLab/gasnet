@@ -576,6 +576,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default value is 3KB (the current maximum value).
     A value of zero disables this optimization.
 
+  + GASNET_AM_GATHER_MIN
+    This parameter sets the minimum payload size at which a multi-segment
+    gather may be used to concatenate an AM header and payload.  Below this
+    minimum payload data is copied.
+    The default value is 1500.
+    A value of -1 disables multi-segment gather, using payload data copy
+    at all payload sizes.
+
   + GASNET_USE_SRQ
     This controls whether IBV Shared Receive Queue (SRQ) support is used,
     but is ignored if GASNet was configured with --disable-ibv-srq.

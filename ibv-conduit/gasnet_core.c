@@ -83,6 +83,9 @@ gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutd
   #define GASNETC_DEFAULT_PUTINMOVE_LIMIT	GASNETC_PUTINMOVE_LIMIT_MAX
 #endif
 
+size_t gasnetc_am_gather_min;
+#define GASNETC_DEFAULT_AM_GATHER_MIN           1500
+
 /* Exit coordination timeouts */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0	/* 6 minutes! */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MIN		2	/* 2 seconds */
@@ -1156,6 +1159,11 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
+  GASNETC_ENVINT(gasnetc_am_gather_min, GASNET_AM_GATHER_MIN, GASNETC_DEFAULT_AM_GATHER_MIN, -1, 1);
+  if (gasnetc_am_gather_min == -1) {
+    // -1 is the documented value to disable this optimization
+    gasnetc_am_gather_min = INT_MAX;
+  }
 
   #if GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, 0, 0, 1);
@@ -4451,7 +4459,8 @@ int gasnetc_am_use_gather(
                           gasnetc_cb_t local_cb)
 {
 #if GASNETC_PIN_SEGMENT
-  return ((local_cb != gasnetc_cb_counter) &&    // Caller did NOT require synchronous LC
+  return ((nbytes >= gasnetc_am_gather_min) &&   // Big enough to benefit
+          (local_cb != gasnetc_cb_counter) &&    // Caller did NOT require synchronous LC
           gasnetc_seg_one_reg((uintptr_t)src_addr, nbytes)); // *single* in-seg registration
 #else
   return 0;
