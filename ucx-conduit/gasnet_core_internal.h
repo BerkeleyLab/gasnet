@@ -375,7 +375,6 @@ do {                                                          \
 do {                                                            \
   void (*reset)(type *) = reset_fn;                             \
   item = (type *) gasneti_malloc(sizeof(type));                 \
-  gasneti_assert(item && "Out of mem");                         \
   if (NULL != reset) {                                          \
     reset(item);                                                \
   }                                                             \
@@ -394,9 +393,7 @@ void gasneti_list_init(gasneti_list_t *list)
 {
   gasneti_assert(list);
   list->head = gasneti_malloc(sizeof(gasneti_list_item_t));
-  gasneti_assert(list->head && "Out of memory");
   list->tail = gasneti_malloc(sizeof(gasneti_list_item_t));
-  gasneti_assert(list->tail && "Out of memory");
 #if GASNET_DEBUG
   list->head->magic = 0;
   list->tail->magic = 0;

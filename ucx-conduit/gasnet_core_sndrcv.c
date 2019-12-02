@@ -706,7 +706,6 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
         buffer = gasnetc_buffer_get(GASNETC_BUF_SEND_POOL);
         gasneti_assert(buffer);
         buffer->long_data_ptr = gasneti_malloc(nbytes);
-        gasneti_assert(buffer->long_data_ptr);
         buffer->bytes_used = nbytes;
         GASNETI_MEMCPY(buffer->long_data_ptr, src_addr, nbytes);
         gasnetc_req_add_iov(am_req, buffer->long_data_ptr, nbytes);
@@ -848,7 +847,6 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
     buffer->bytes_used = info_tag.length;
     if (info_tag.length > GASNETC_MAX_MED) {
       buffer->long_data_ptr = gasneti_malloc(info_tag.length);
-      gasneti_assert(buffer->long_data_ptr);
       buf_ptr = buffer->long_data_ptr;
     } else {
       buf_ptr = buffer->data;
