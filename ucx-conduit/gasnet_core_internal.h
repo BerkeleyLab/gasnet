@@ -164,33 +164,13 @@ extern gasneti_spawnerfn_t const *gasneti_spawner;
 #define GASNETC_LOCK_MODE_INLINE
 #endif
 
-//#define GASNETC_UCX_DEBUG_ENABLE
-
-#ifdef GASNETC_UCX_DEBUG_ENABLE
-#define GASNETC_UCX_DEBUG_PRINT(fmt, ...)                \
-do {                                                     \
-  fprintf(stderr, "[%s:%u] %s:%u: " fmt "\n",            \
-    gasneti_gethostname(), gasneti_mynode, __FUNCTION__, \
-      __LINE__, ## __VA_ARGS__);                         \
-} while (0)
-
-#define GASNETC_UCX_DEBUG_DUMP(_desc, _addr, _len)       \
-do {                                                     \
-  size_t _i;                                             \
-  unsigned char *ptr = (unsigned char*)_addr;            \
-  GASNETC_UCX_DEBUG_PRINT(" %s (size=%lu)",              \
-                          _desc ? _desc : "", _len);     \
-  for (_i = 0; _i < _len; _i++) {                        \
-    if (_i && (_i % 16) == 0) {                          \
-      fprintf(stderr, "\n");                             \
-    }                                                    \
-    fprintf(stderr, " %02x", ptr[_i]);                   \
-  }                                                      \
-  fprintf(stderr, "\n");                                 \
+#if GASNET_DEBUG_VERBOSE
+#define GASNETC_UCX_DEBUG_PRINT(fmt, ...)                       \
+do {                                                            \
+  gasneti_console_message("DEBUG", fmt "\n", ## __VA_ARGS__);   \
 } while (0)
 #else
 #define GASNETC_UCX_DEBUG_PRINT(fmt, ...) ((void)0)
-#define GASNETC_UCX_DEBUG_DUMP(_desc, _addr, _len) ((void)0)
 #endif
 
 /* AM message type */
