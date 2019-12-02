@@ -284,9 +284,9 @@ ucs_status_ptr_t GASNETC_PUTGET_FNNAME(rop)(ucp_ep_h ep, void *buffer,          
 GASNETC_PUTGET_FNDEF(put)
 GASNETC_PUTGET_FNDEF(get)
 
-static
-gasnetc_putget_fn_t gasnetc_putget_fn[] = {  GASNETC_PUTGET_FNNAME(put),
-                                             GASNETC_PUTGET_FNNAME(get) };
+#define gasnetc_putget_fn(isput, ep, buffer, nbytes, addr, rkey, cb)        \
+(isput) ? GASNETC_PUTGET_FNNAME(put)(ep, buffer, nbytes, addr, rkey, cb) :  \
+          GASNETC_PUTGET_FNNAME(get)(ep, buffer, nbytes, addr, rkey, cb)
 
 extern gasneti_ucx_module_t gasneti_ucx_module;
 

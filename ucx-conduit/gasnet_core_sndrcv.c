@@ -399,7 +399,7 @@ void gasnetc_ucx_rma_cb(void *request, ucs_status_t status)
 }
 
 GASNETI_INLINE(gasnetc_ucx_putget_inner)
-int gasnetc_ucx_putget_inner(gasnetc_rdma_op_t rop, gex_Rank_t jobrank,
+int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
                              void *buffer, uint32_t nbytes, void *remote_addr,
                              gasnetc_atomic_val_t *cnt,
                              gasnetc_cbfunc_t cbfunc)
@@ -413,14 +413,13 @@ int gasnetc_ucx_putget_inner(gasnetc_rdma_op_t rop, gex_Rank_t jobrank,
     gasneti_fatalerror("rkey cannot found");
   }
   (*cnt)++;
-  req = gasnetc_putget_fn[rop](ep, buffer, nbytes, remote_addr,
-                               minfo->rkey, gasnetc_ucx_rma_cb);
+  req = gasnetc_putget_fn(is_put, ep, buffer, nbytes, remote_addr,
+                          minfo->rkey, gasnetc_ucx_rma_cb);
   if (NULL == req) {
     /* completed inplace */
     if (cbfunc) {
       cbfunc(cnt);
     }
-    //GASNETC_UCX_DEBUG_PRINT("complete inline %p", req);
     return 1;
   }
   if_pf (UCS_PTR_IS_ERR(req)) {
@@ -438,8 +437,8 @@ int gasnetc_ucx_am_put(gex_Rank_t jobrank, void *src_addr,
                        uint32_t nbytes, void *dest_addr,
                        gasnetc_atomic_val_t *cnt, gasnetc_cbfunc_t cbfunc)
 {
-  return gasnetc_ucx_putget_inner(gasnetc_rdma_op_put, jobrank, src_addr,
-                                  nbytes, dest_addr, cnt, cbfunc);
+  return gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dest_addr,
+                                  cnt, cbfunc);
 }
 /* ------------------------------------------------------------------------------------ */
 /*
