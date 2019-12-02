@@ -296,14 +296,14 @@ extern gasneti_ucx_module_t gasneti_ucx_module;
 #define gasneti_mem_pack(_dst, _src, _len, _pad, _off)    \
 do {                                                      \
   gasneti_assert(_pad ? (_pad >= _len) : 1);              \
-  memcpy(((char*)(_dst)) + (_off), _src, _len);           \
+  GASNETI_MEMCPY(((char*)(_dst)) + (_off), _src, _len);   \
   (_off) += (_pad > 0 ? _pad : _len);                     \
 } while(0);
 
 #define gasneti_mem_unpack(_dst, _src, _len, _pad, _off)  \
 do {                                                      \
   gasneti_assert(_pad ? (_pad >= _len) : 1);              \
-  memcpy(_dst, ((char*)(_src)) + (_off), _len);           \
+  GASNETI_MEMCPY(_dst, ((char*)(_src)) + (_off), _len);   \
   (_off) += (_pad > 0 ? _pad : _len);                     \
 } while(0);
 

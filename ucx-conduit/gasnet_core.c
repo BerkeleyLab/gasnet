@@ -401,7 +401,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     max_ep_size = MAX(max_ep_size, ep_sizes[i]);
   }
   ucx_local_addr = gasneti_calloc(1, max_ep_size);
-  memcpy(ucx_local_addr, local_ep.ucx_addr, local_ep.ucx_addr_len);
+  GASNETI_MEMCPY(ucx_local_addr, local_ep.ucx_addr, local_ep.ucx_addr_len);
   gasnetc_ucx_addr_array = gasneti_calloc(gasneti_nodes, max_ep_size);
   gasneti_bootstrapExchange(ucx_local_addr, max_ep_size,
                             gasnetc_ucx_addr_array);
