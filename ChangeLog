@@ -24,6 +24,8 @@ PENDING: GASNet-EX Work-In-Progress
     replacing use of a portable reference implementation.
   - New environment variable GASNET_AM_GATHER_MIN controls use of gather-on-send
     for AM Medium (and small Long) payloads.  See details in the conduit README.
+  - The gather-on-send optimization for AM Medium (and small Long) payloads is
+    now applied to out-of-segment sources with using ODP.
   - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
     removed.
 

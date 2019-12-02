@@ -4452,7 +4452,6 @@ void gasnetc_am_put_credit(gasnetc_cep_t *cep)
 }
 
 // Decide if Medium (or Packed Long) payload should be sent using gather-on-send
-// TODO: could apply out-of-segment gather-on-send w/ local firehose and/or ODP
 GASNETI_INLINE(gasnetc_am_use_gather)
 int gasnetc_am_use_gather(
                           void *src_addr, int nbytes,
@@ -4461,7 +4460,8 @@ int gasnetc_am_use_gather(
 #if GASNETC_PIN_SEGMENT
   return ((nbytes >= gasnetc_am_gather_min) &&   // Big enough to benefit
           (local_cb != gasnetc_cb_counter) &&    // Caller did NOT require synchronous LC
-          gasnetc_seg_one_reg((uintptr_t)src_addr, nbytes)); // *single* in-seg registration
+          (gasnetc_use_odp ||                    // Registered via OPD ...
+           gasnetc_seg_one_reg((uintptr_t)src_addr, nbytes))); // ... or *single* in-seg reg
 #else
   return 0;
 #endif
@@ -4606,7 +4606,13 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
         sr_desc->num_sge = 2;
         sr_desc->sg_list[1].length = gath_len;
         sr_desc->sg_list[1].addr   = (uintptr_t)src_addr;
-        sr_desc->sg_list[1].lkey   = GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
+        #if GASNETC_IBV_ODP
+          sr_desc->sg_list[1].lkey = gasnetc_use_odp
+                                         ? cep->hca->implicit_odp.lkey
+                                         : GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
+        #else
+          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
+        #endif
         sreq->comp.cb = local_cb;
         sreq->comp.data = local_cnt;
         ++(*local_cnt);
