@@ -69,6 +69,7 @@ typedef struct {
     gasnetc_buffer_t         *buffer;
     uint8_t                   is_sync;
     int                       is_packed;
+    void                     *result_p;
     struct {
       gasnetc_cbfunc_t        cbfunc;
       gasneti_atomic_val_t   *cbdata;

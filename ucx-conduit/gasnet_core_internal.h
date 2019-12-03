@@ -324,7 +324,15 @@ extern void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_ProcessRecv(void *buf, size_t size);
 extern void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE);
-
+extern gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes,
+                                                  gex_Rank_t rank);
+extern int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
+                                    void *buffer, uint32_t nbytes,
+                                    void *remote_addr,
+                                    gasnetc_atomic_val_t *local_cnt,
+                                    gasnetc_cbfunc_t local_cb,
+                                    gasnetc_atomic_val_t *remote_cnt,
+                                    gasnetc_cbfunc_t remote_cb);
 /*
   List functions
   ==============

@@ -350,7 +350,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
                          ucs_status_string(status));
   }
   ucp_params.features        = UCP_FEATURE_TAG |
-                               UCP_FEATURE_RMA;
+                               UCP_FEATURE_RMA |
+                               UCP_FEATURE_AMO32 |
+                               UCP_FEATURE_AMO64;
   ucp_params.request_size    = sizeof(gasnetc_ucx_request_t);
   ucp_params.request_init    = gasnetc_req_init;
   ucp_params.request_cleanup = NULL;
