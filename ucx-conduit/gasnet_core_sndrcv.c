@@ -579,7 +579,7 @@ static void gasneti_ucx_recv_handler(void *request, ucs_status_t status,
   req->status = GASNETC_UCX_COMPLETE;
 }
 
-GASNETI_INLINE(gasnetc_wait_req)
+GASNETI_INLINE(gasnetc_req_wait)
 void gasnetc_req_wait(gasnetc_ucx_request_t *req, uint8_t is_request)
 {
   while (GASNETC_UCX_ACTIVE == req->status) {
