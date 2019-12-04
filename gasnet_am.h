@@ -690,7 +690,7 @@ int gasnetc_loopback_prepare_inner(
 {
   sd->_nargs = nargs;
   if (category == gasneti_Medium) {
-    sd->_gex_buf = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
+    sd->_void_p = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
   }
 
   if (isFixed) {
@@ -704,7 +704,7 @@ int gasnetc_loopback_prepare_inner(
       sd->_addr = (/*non-const*/void *)client_buf;
       gasneti_leaf_finish(lc_opt);
     } else if (category == gasneti_Medium) {
-      sd->_addr = sd->_gex_buf;
+      sd->_addr = sd->_gex_buf = sd->_void_p;
     } else if (size <= GASNETC_MAX_MEDIUM_NBRHD) {
       // Long can use medium buffer at less cost than calling malloc
       sd->_addr = sd->_gex_buf = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
@@ -735,7 +735,7 @@ void gasnetc_loopback_commit_inner(
         buf = NULL;
         break;
     case gasneti_Medium:
-        buf = sd->_gex_buf;
+        buf = sd->_void_p;
         if (isFixed || (buf != sd->_addr)) GASNETI_MEMCPY_SAFE_EMPTY(buf, sd->_addr, nbytes);
         break;
     case gasneti_Long:
