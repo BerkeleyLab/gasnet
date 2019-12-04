@@ -275,9 +275,9 @@ Recognized environment variables:
   This should be enabled (set to "1") if the list of servers (such as from
   SSH_SERVERS or CSPAWN_SERVERS) may contain multiple entries which resolve
   to distinct IP address for the same host.  Otherwise, the default use of
-  IP addresses would mistakenly identify such entries as ineligible for
-  shared-memory communication.
-  Default is "0" (IP addresses are used).
+  hostnames and IP addresses (which must both match) would mistakenly
+  identify such entries as ineligible for shared-memory communication.
+  Default is "0" (hostnames and IP addresses are used).
 
 Known problems:
 ---------------

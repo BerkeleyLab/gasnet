@@ -267,16 +267,20 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     #endif
 
     void *mynodeid;
-    en_t my_name;
+    uint64_t local_id;
     if (gasneti_getenv_yesno_withdefault("GASNET_USE_GETHOSTID", 0)) {
       // Use gasneti_gethostid() to construct the nodemap
       mynodeid = NULL;
     } else {
-      // Use local IP address to construct the nodemap
+      // Use (hash of) hostname and the local IP address to construct the nodemap
+      en_t my_name;
       GASNETI_AM_SAFE( AM_GetTranslationName(gasnetc_endpoint, gasneti_mynode, &my_name) );
-      mynodeid = &my_name.sin_addr;
+      uint64_t csum = gasneti_hosthash();
+      local_id = GASNETI_MAKEWORD(GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum),
+                                  *(uint32_t *)(&my_name.sin_addr));
+      mynodeid = &local_id;
     }
-    gasneti_nodemapInit(&gasnetc_bootstrapExchange, mynodeid, sizeof(my_name.sin_addr), 0);
+    gasneti_nodemapInit(&gasnetc_bootstrapExchange, mynodeid, sizeof(local_id), 0);
 
     #if GASNET_PSHM
       gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);
