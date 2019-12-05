@@ -218,8 +218,6 @@ typedef struct _gasnet_ep_info {
     gasneti_list_t mem_tbl;
 } gasnet_ep_info_t;
 
-typedef void (*gasnetc_cbfunc_t)(gasnetc_atomic_val_t *);
-
 typedef struct _gasneti_ucx_module {
     ucp_context_h               ucp_context;
     ucp_worker_h                ucp_worker;
