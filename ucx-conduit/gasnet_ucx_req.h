@@ -31,6 +31,7 @@ typedef struct {
   gex_AM_Index_t        handler;
   gasnetc_ucx_am_type_t am_type;
   uint8_t               is_req   : 1;
+  uint8_t               is_packed: 1;
   uint8_t               numargs  : 5;
   uint32_t              nbytes;
   /* for Long AM only */
@@ -59,12 +60,19 @@ typedef struct {
   uint32_t             iov_count;
 } gasnetc_am_req_t;
 
+typedef void (*gasnetc_cbfunc_t)(gasnetc_atomic_val_t *);
+
 typedef struct {
     GASNETC_LIST_CLASS;
     gasnetc_ucx_req_status_t  status;
     gasnetc_am_req_t         *am_req;
     gasnetc_buffer_t         *buffer;
     uint8_t                   is_sync;
+    int                       is_packed;
+    struct {
+      gasnetc_cbfunc_t        cbfunc;
+      gasneti_atomic_val_t   *cbdata;
+    } completion;
 } gasnetc_ucx_request_t;
 
 extern void gasnetc_req_init(void *request);
