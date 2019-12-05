@@ -5286,6 +5286,7 @@ int gasnetc_prepare_medium(
 
   // Obtain an appropriate buffer in which to build the message
   // If an inline send is to be used, the buffer is in the sd itself
+  // TODO: *might* "prove" use of gather-on-send to eliminate buffer allocation
   gasneti_static_assert(sizeof(gasnetc_am_tmp_buf_t) <= 128);
   const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
   gasnetc_buffer_t *buf, *buf_alloc = NULL;
@@ -5297,6 +5298,7 @@ int gasnetc_prepare_medium(
 
   sd->_void_p = buf;
   sd->_nargs = nargs;
+  sd->_lc_opt = lc_opt;
   sd->_size = nbytes;
   sd->_buf_alloc = buf_alloc;
   sd->_head_len = head_len;
@@ -5327,13 +5329,70 @@ void gasnetc_commit_medium(
   gasnetc_rbuf_t * token = NULL; // unused
 #endif
 
-  // TODO-EX: implement gather-on-send for NPAM w/ in-segment client-provided buffer
+  gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *local_cnt, start_cnt;
+  gasnetc_cb_t         local_cb;
+  gasnete_eop_t        *eop = NULL;
+
+  int is_Fixed = sd->_gex_buf == NULL;
+  gex_Event_t *lc_opt = sd->_lc_opt;
+  size_t copy_len = 0; // Length of payload to be copied (if any)
+  size_t gath_len = 0; // Length of payload to be sent using gather-on-send (if any)
+  if (is_Fixed) {
+    gasneti_assert(lc_opt);
+    if (gasneti_leaf_is_pointer(lc_opt)) {
+      eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+      *lc_opt = (gex_Event_t)eop;
+      GASNETE_EOP_LC_START(eop);
+      start_cnt = eop->initiated_alc;
+      local_cnt = &eop->initiated_alc;
+      local_cb = gasnetc_cb_eop_alc;
+    } else if (lc_opt == GEX_EVENT_NOW) {
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
+    } else if (lc_opt == GEX_EVENT_GROUP) {
+      gasneti_assert(! is_reply); // Request only
+      gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+      gasnete_iop_t *op = mythread->current_iop;
+      local_cnt = &op->initiated_alc_cnt;
+      local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to Prepare/Commit %sMedium",
+                         is_reply?"Reply":"Request");
+    }
+    if (gasnetc_am_use_gather(sd->_addr, nbytes, local_cb)) {
+      gath_len = nbytes;
+    } else {
+      copy_len = nbytes;
+    }
+  } else {
+    gasneti_assert(!lc_opt);
+    local_cb = NULL;
+    local_cnt = NULL;
+    copy_len = nbytes;
+  }
 
   gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
                      gasneti_Medium, is_reply, token, sd->_cep,
-                     handler, sd->_addr, nbytes, NULL, sd->_head_len, nbytes, 0,
-                     (sd->_gex_buf != NULL), sd->_have_flow, sd->_nargs,
-                     NULL, NULL, NULL, argptr GASNETI_THREAD_PASS);
+                     handler, sd->_addr, nbytes, NULL,
+                     sd->_head_len, copy_len, gath_len,
+                     !is_Fixed, sd->_have_flow, sd->_nargs,
+                     local_cnt, local_cb, NULL, argptr GASNETI_THREAD_PASS);
+
+  if (eop && (start_cnt == eop->initiated_alc)) {
+    // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+    GASNETE_EOP_LC_FINISH(eop);
+    *lc_opt = GEX_EVENT_INVALID;
+    gasnete_eop_free(eop GASNETI_THREAD_PASS);
+  } else if (lc_opt == GEX_EVENT_NOW) {
+#if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
+    /* block for local completion of payload transfer */
+    gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+#else
+    gasneti_assert(counter.initiated == 0);
+    gasneti_assert(gasnetc_atomic_read(&counter.completed,0) == 0);
+#endif
+  }
 }
 
 // ---- external FPAM requests ----
