@@ -30,6 +30,8 @@ PENDING: GASNet-EX Work-In-Progress
 
 * Notable bugs fixed in this release:
   - bug4022: rare resource leak in aries-conduit AM Long protocol
+  - bug4024: erroneous behavior from `testam -async-req -np-cb`
+  - bug4025: erroneous assertion failure from loopback NPAM
 
 ----------------------------------------------------------------------
 09-14-2019: GASNet-EX 2019.9.0 Release

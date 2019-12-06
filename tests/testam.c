@@ -26,7 +26,8 @@ void *request_addr = NULL;
 void *reply_addr = NULL;
 
 gex_Event_t *lc_opt = GEX_EVENT_NOW;
-gex_Event_t *np_lc_opt = GEX_EVENT_NOW;
+gex_Event_t *np_req_lc_opt = GEX_EVENT_NOW;
+gex_Event_t *np_rep_lc_opt = GEX_EVENT_NOW;
 
 void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt) {
   if (sender) {
@@ -94,7 +95,7 @@ void prep_payload(uint8_t *dst, size_t len) {
   if (use_np) {                                                                             \
     void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
     gex_AM_SrcDesc_t sd =                                                                   \
-            gex_AM_PrepareRequestMedium(tm,rank,cbuf,nbytes,nbytes,np_lc_opt,0,0);          \
+            gex_AM_PrepareRequestMedium(tm,rank,cbuf,nbytes,nbytes,np_req_lc_opt,0,0);      \
     assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
     prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
     gex_AM_CommitRequestMedium0(sd, hidx, nbytes);                                          \
@@ -108,7 +109,7 @@ void prep_payload(uint8_t *dst, size_t len) {
   if (use_np) {                                                                             \
     void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
     gex_AM_SrcDesc_t sd =                                                                   \
-            gex_AM_PrepareReplyMedium(token,cbuf,nbytes,nbytes,np_lc_opt,0,0);              \
+            gex_AM_PrepareReplyMedium(token,cbuf,nbytes,nbytes,np_rep_lc_opt,0,0);          \
     assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
     prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
     gex_AM_CommitReplyMedium0(sd, hidx, nbytes);                                            \
@@ -122,7 +123,7 @@ void prep_payload(uint8_t *dst, size_t len) {
   if (use_np) {                                                                             \
     void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
     gex_AM_SrcDesc_t sd =                                                                   \
-            gex_AM_PrepareRequestLong(tm,rank,cbuf,nbytes,nbytes,dst_addr,np_lc_opt,0,0);   \
+            gex_AM_PrepareRequestLong(tm,rank,cbuf,nbytes,nbytes,dst_addr,np_req_lc_opt,0,0);\
     assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
     prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
     gex_AM_CommitRequestLong0(sd, hidx, nbytes, dst_addr);                                  \
@@ -136,7 +137,7 @@ void prep_payload(uint8_t *dst, size_t len) {
   if (use_np) {                                                                             \
     void *cbuf = np_cbuf ? src_addr : NULL;                                                 \
     gex_AM_SrcDesc_t sd =                                                                   \
-             gex_AM_PrepareReplyLong(token,cbuf,nbytes,nbytes,dst_addr,np_lc_opt,0,0);      \
+             gex_AM_PrepareReplyLong(token,cbuf,nbytes,nbytes,dst_addr,np_rep_lc_opt,0,0);  \
     assert(gex_AM_SrcDescSize(sd) == nbytes);                                               \
     prep_payload(gex_AM_SrcDescAddr(sd), nbytes);                                           \
     gex_AM_CommitReplyLong0(sd, hidx, nbytes, dst_addr);                                    \
@@ -367,7 +368,8 @@ int main(int argc, char **argv) {
     zero_buffer = test_calloc(maxsz, 1);
   }
 
-  np_lc_opt = np_cbuf ? lc_opt : NULL;
+  np_req_lc_opt = np_cbuf ? lc_opt        : NULL;
+  np_rep_lc_opt = np_cbuf ? GEX_EVENT_NOW : NULL;
 
   if (crossmachinemode) {
     if ((numnode%2) && (mynode == numnode-1)) {
@@ -386,7 +388,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  gex_Event_t *tmp_lc_opt = use_np ? np_lc_opt : lc_opt;
+  gex_Event_t *tmp_lc_opt = use_np ? np_req_lc_opt : lc_opt;
   gex_Flags_t flags = use_np ? ( np_cbuf ? GEX_FLAG_AM_PREPARE_LEAST_CLIENT
                                          : GEX_FLAG_AM_PREPARE_LEAST_ALLOC) : 0;
   maxmedreq  = MIN(maxsz, gex_AM_MaxRequestMedium(myteam,peer,tmp_lc_opt,flags,0));
