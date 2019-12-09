@@ -267,7 +267,7 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
 	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
 	if test -z "$(strip $(UPCXX_TESTMODE_FORCE))" ; then \
-	  if test "$UPCXX_TESTMODE" = nobs && \
+	  if test "$$UPCXX_TESTMODE" = nobs && \
 	    ( test -n "$(strip $(UPCXX_TEST_FLAGS))" || test -n "$(strip $(UPCXX_EXTRA_TEST_FLAGS))" ) ; then \
 	    UPCXX_TESTMODE="meta" ; \
 	  fi ; \
