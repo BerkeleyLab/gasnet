@@ -233,7 +233,7 @@ upcxx-wrap: upcxx-built
 	   cp -f "$(UPCXX_BLDDIR)/utils/upcxx.sh" $$BINDIR && chmod +x $$BINDIR/upcxx.sh && \
 	   echo "#!/bin/bash" > $$BINDIR/upcxx && \
 	   echo "export UPCXX_META='$$BINDIR/upcxx-meta'" >> $$BINDIR/upcxx && \
-	   echo "exec $$BINDIR/upcxx.sh" '"$$@"' >> $$BINDIR/upcxx && \
+	   echo "source $$BINDIR/upcxx.sh" '"$$@"' >> $$BINDIR/upcxx && \
 	   chmod +x $$BINDIR/upcxx && \
 	   exit 0 ; \
 	 else \
@@ -248,12 +248,8 @@ nobs_test: upcxx-built
 # Build a single test from the installed UPCXX directory
 inst_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
-	META_CXX=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXX` && \
-	CXXFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXXFLAGS` && \
-	PPFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta PPFLAGS` && \
-	LDFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LDFLAGS` && \
-	LIBFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX $$CXXFLAGS $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBFLAGS
+	source $(UPCXX_INSTDIR_FULL)/bin/upcxx-meta SET ; \
+	$$CXX $$CXXFLAGS $$CPPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBS
 
 # Build a single test using the upcxx wrapper
 wrap_test: upcxx-install-$(UPCXX_BACKEND)
