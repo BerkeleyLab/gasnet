@@ -35,14 +35,14 @@ else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the nobs gasnet builddir
   # Don't pollute nobs configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
-  # use meta to prevent a spurious second configure
-  UPCXX_TESTMODE = meta
+  # forbid TESTMODE=nobs to prevent a spurious second configure
+  UPCXX_TESTMODE = wrap
 else # default to using builddir
   NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
 UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
-UPCXX_TESTMODE  ?= meta
+UPCXX_TESTMODE  ?= wrap
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
