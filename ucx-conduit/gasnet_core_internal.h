@@ -68,6 +68,7 @@ typedef gasnetc_cons_atomic(val_t)        gasnetc_atomic_val_t;
   gasnetc_atomic_val_t initiated_alc; \
   gasnetc_atomic_t     completed_alc;
 
+typedef void (*gasnetc_cbfunc_t)(gasnetc_atomic_val_t *);
 
 typedef struct {
     gasnetc_atomic_t     completed;

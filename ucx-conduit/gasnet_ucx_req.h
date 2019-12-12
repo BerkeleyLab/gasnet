@@ -60,8 +60,6 @@ typedef struct {
   uint32_t             iov_count;
 } gasnetc_am_req_t;
 
-typedef void (*gasnetc_cbfunc_t)(gasnetc_atomic_val_t *);
-
 typedef struct {
     GASNETC_LIST_CLASS;
     gasnetc_ucx_req_status_t  status;
