@@ -1,4 +1,4 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_extended.c $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_extended.c $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2019, Mellanox Technologies LTD. All rights reserved.

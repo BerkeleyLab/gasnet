@@ -1,5 +1,5 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/aries-conduit/gasnet_extended_fwd.h $
- * Description: GASNet Extended API Header for aries Conduit (forward decls)
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_extended_fwd.h $
+ * Description: GASNet Extended API Header for ucx Conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
