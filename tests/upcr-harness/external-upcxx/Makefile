@@ -25,11 +25,13 @@ export UPCXX_BACKEND
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
   NOBS_GASNET:=$(UPCXX_GASNET)
-else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
+else 
+ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
   NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet
   UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
   UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
-else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
+else 
+ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
   UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
   # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the nobs gasnet builddir
@@ -39,6 +41,8 @@ else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   UPCXX_TESTMODE = wrap
 else # default to using builddir
   NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
+endif
+endif
 endif
 UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
