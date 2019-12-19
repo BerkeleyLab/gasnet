@@ -248,7 +248,7 @@ gex_Event_t gasnete_ratomic_post_nb(const int length,
                                     gasneti_TM_t i_tm, gex_Rank_t tgt_rank,
                                     void *tgt_addr, ucp_atomic_fetch_op_t op,
                                     uint64_t operand,
-                                    gex_Flags_t flags)
+                                    gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   gasnete_eop_t * const eop = gasnete_eop_new(GASNETI_MYTHREAD);
 
@@ -293,7 +293,7 @@ int gasnete_ratomic_post_nbi(const int length,
       GASNETE_UCX_RATOMIC_PREP_INC(op_idx);                       \
       return gasnete_ratomic_post_nb(sizeof(type), ad->_tm,       \
                                      tgt_rank, tgt_addr, op, inc, \
-                                     flags GASNETI_THREAD_FARG);  \
+                                     flags GASNETI_THREAD_PASS);  \
       return GEX_EVENT_INVALID;                                   \
     }                                                             \
     GASNETI_INLINE(prefix##_NB_N1)                                \
@@ -307,7 +307,7 @@ int gasnete_ratomic_post_nbi(const int length,
       GASNETE_UCX_RATOMIC_PREP_OP(op_idx);                        \
       return gasnete_ratomic_post_nb(sizeof(type), ad->_tm,       \
                                      tgt_rank, tgt_addr, op, op1, \
-                                     flags GASNETI_THREAD_FARG);  \
+                                     flags GASNETI_THREAD_PASS);  \
     }                                                             \
     GASNETI_INLINE(prefix##_NB_N2)                                \
     gex_Event_t prefix##_NB_N2(                                   \
@@ -403,7 +403,7 @@ int gasnete_ratomic_post_nbi(const int length,
       GASNETE_UCX_RATOMIC_PREP_INC(op_idx);                       \
       return gasnete_ratomic_post_nbi(sizeof(type), ad->_tm,      \
                                       tgt_rank, tgt_addr, op, inc,\
-                                      flags GASNETI_THREAD_FARG); \
+                                      flags GASNETI_THREAD_PASS); \
     }                                                             \
     GASNETI_INLINE(prefix##_NBI_N1)                               \
     int prefix##_NBI_N1(                                          \
@@ -416,7 +416,7 @@ int gasnete_ratomic_post_nbi(const int length,
       GASNETE_UCX_RATOMIC_PREP_OP(op_idx);                        \
       return gasnete_ratomic_post_nbi(sizeof(type), ad->_tm,      \
                                       tgt_rank, tgt_addr, op, op1,\
-                                      flags GASNETI_THREAD_FARG); \
+                                      flags GASNETI_THREAD_PASS); \
     }                                                             \
     GASNETI_INLINE(prefix##_NBI_N2)                               \
     int prefix##_NBI_N2(                                          \
