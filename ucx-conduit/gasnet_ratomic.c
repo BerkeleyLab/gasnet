@@ -575,7 +575,7 @@ void gasnete_ucxratomic_create_hook(
         return;
   switch(dt) {
       GASNETE_DT_INT_APPLY(GASNETE_UCXRATOMIC_TBL_CASE)
-      default: gasneti_unreachable();
+      default: ((void)0); // FLT and DBL fall-through to 'use_am' below
   }
 #undef GASNETE_UCXRATOMIC_TBL_CASE
 
