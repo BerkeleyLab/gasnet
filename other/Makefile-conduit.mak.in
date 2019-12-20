@@ -155,18 +155,14 @@ run-tests do-run-testexit: check-run-tests-deps
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS) ; \
 	 $(MAKE) TESTINSTANCE=$(TESTINSTANCE) TESTLOG=$(TESTLOG) do-end-tests
 
+RUN_TESTS_TARGETS= \
+   run-tests-seq run-tests-par run-tests-parsync \
+   run-tests-installed-seq run-tests-installed-par run-tests-installed-parsync \
+   run-tests-mpi run-tests-mpi2
 # these are separate make commands to ensure they can be composed 
 # and still get multiple run-tests invocations
-run-tests-seq: tests-clean
-	$(MAKE) tests-seq run-tests
-run-tests-par: tests-clean
-	@$(MAKE) tests-par run-tests
-run-tests-parsync: tests-clean 
-	@$(MAKE) tests-parsync run-tests
-run-tests-mpi: tests-clean 
-	@$(MAKE) tests-mpi run-tests
-run-tests-mpi2: tests-clean 
-	@$(MAKE) tests-mpi2 run-tests
+$(RUN_TESTS_TARGETS): tests-clean
+	@$(MAKE) `echo "$@" | sed 's/^run-//'` run-tests
 
 .PRECIOUS: run-testexit
 run-testexit: force
