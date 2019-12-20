@@ -18,7 +18,7 @@
 #define TEST_GASNETEX 1
 #define SHORT_REQ_BASE GEX_AM_INDEX_BASE
 test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
-#include <other/amx/testam.h>
+#include <testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
 #undef TESTGASNET_NO_SPLIT
