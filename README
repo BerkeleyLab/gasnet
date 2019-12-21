@@ -215,6 +215,8 @@ normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.g
       build all the GASNet tests in a given mode
     make run-tests-{seq,par,parsync}  
       build and run all the GASNet tests in a given mode
+    make (run-)tests-installed-{seq,par,parsync}
+      use the installed library to build (and run) all the GASNet tests
     make run-tests
       run whatever tests are already built in the conduit directories
     make run-tests TESTS="test1 test2..."
@@ -232,6 +234,8 @@ normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.g
       build just testXXX, in a given mode
     make run-tests-{seq,par,parsync}  
       build and run the conduit tests in a given mode
+    make (run-)tests-installed-{seq,par,parsync}
+      use the installed library to build (and run) all the GASNet tests
     make run-tests
       run whatever tests are already built in the conduit directory
     make run-tests TESTS="test1 test2..."
