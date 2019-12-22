@@ -353,7 +353,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
     for (i = 0; i < gasneti_nodes; i += 1) {
       gex_Rank_t peer = gasnetc_pmi_allgather_order[i];
       gasneti_assert_always(peer < gasneti_nodes);
-      memcpy((void *) ((uintptr_t) dest + (peer * len)), &unsorted[i * len], len);
+      GASNETI_MEMCPY((void *) ((uintptr_t) dest + (peer * len)), &unsorted[i * len], len);
     }
 
     gasneti_free(unsorted);
@@ -385,7 +385,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         ++counter;
     }
 
-    memcpy((uint8_t*)dest + len*gasneti_mynode, src, len);
+    GASNETI_MEMCPY((uint8_t*)dest + len*gasneti_mynode, src, len);
 #endif
 }
 
@@ -421,7 +421,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
         ++counter;
     }
 
-    memcpy((uint8_t*)dest + len*gasneti_mynode, (uint8_t*)src + len*gasneti_mynode, len);
+    GASNETI_MEMCPY((uint8_t*)dest + len*gasneti_mynode, (uint8_t*)src + len*gasneti_mynode, len);
 }
 
 /* bootstrapBroadcast
@@ -455,7 +455,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     }
 
     if (gasneti_mynode == rootnode) {
-        memcpy(dest, src, len);
+        GASNETI_MEMCPY_SAFE_IDENTICAL(dest, src, len);
     }
 #endif
 }
@@ -475,7 +475,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
     for (i = 0; i < gasneti_nodes; i += 1) {
         gex_Rank_t peer = gasnetc_pmi_allgather_order[i];
         if (peer == rootnode) {
-            memcpy(dest, &tmp[i * len], len);
+            GASNETI_MEMCPY(dest, &tmp[i * len], len);
             break;
         }
     }
