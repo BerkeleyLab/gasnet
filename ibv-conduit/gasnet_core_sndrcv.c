@@ -194,7 +194,7 @@ gasneti_auxseg_request_t gasnetc_fence_auxseg_alloc(gasnet_seginfo_t *auxseg_inf
   if (gasnetc_use_fenced_puts && auxseg_info) { /* auxseg granted */
     gasneti_assert(!gasnetc_fence_auxseg);
     gasnetc_fence_auxseg = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    memcpy(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+    GASNETI_MEMCPY(gasnetc_fence_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
   }
 
   return retval;
@@ -715,7 +715,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 	  gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG);
 	  gasneti_assert((nbytes <= gasnetc_packedlong_limit) ||
 			 (!GASNETC_PIN_SEGMENT && !isreq));
-	  memcpy(data, GASNETC_MSG_LONG_DATA(buf, full_numargs), (size_t)nbytes);
+	  GASNETI_MEMCPY(data, GASNETC_MSG_LONG_DATA(buf, full_numargs), (size_t)nbytes);
 	}
         GASNETI_RUN_HANDLER_LONG(isreq,handler_id,handler_fn,token,args,user_numargs,data,(size_t)nbytes);
       }
@@ -892,7 +892,7 @@ static int gasnetc_snd_reap(int limit) {
 	    gasneti_assert(sreq->bb_buff != NULL);
 	    gasneti_assert(sreq->bb_addr != NULL);
 	    gasneti_assert(sreq->bb_len > 0);
-	    memcpy(sreq->bb_addr, sreq->bb_buff, sreq->bb_len);
+	    GASNETI_MEMCPY(sreq->bb_addr, sreq->bb_buff, sreq->bb_len);
 	    sreq->comp.cb(sreq->comp.data);
 	    GASNETC_COLLECT_BBUF(sreq->bb_buff);
 	    break;
@@ -1208,7 +1208,7 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
        * message to a temporary (non-pinned) buffer so we can repost rbuf.
        */
       gasnetc_buffer_t *buf = gasneti_malloc(sizeof(gasnetc_buffer_t));
-      memcpy(buf, (void *)(uintptr_t)rbuf->rr_sg.addr, sizeof(gasnetc_buffer_t));
+      GASNETI_MEMCPY(buf, (void *)(uintptr_t)rbuf->rr_sg.addr, sizeof(gasnetc_buffer_t));
       emergency_spare.rr_sg.addr = (uintptr_t)buf;
       emergency_spare.rr_is_rdma = 0;
       emergency_spare.rr_ep = rbuf->rr_ep;
@@ -2061,7 +2061,7 @@ void gasnetc_do_put_bounce(const gasnetc_epid_t epid, int rkey_index,
     const size_t count = MIN(GASNETC_BUFSZ, nbytes);
 
     sreq->bb_buff = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
-    memcpy(sreq->bb_buff, (void *)src, count);
+    GASNETI_MEMCPY(sreq->bb_buff, (void *)src, count);
     if (remote_cnt) {
       ++(*remote_cnt);
       sreq->comp.data = remote_cnt;
@@ -2246,7 +2246,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
   while (nbytes > GASNETC_BUFSZ) {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_BOUNCE GASNETI_THREAD_PASS);
     sreq->fh_bbuf = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
-    memcpy(sreq->fh_bbuf, (void *)src, GASNETC_BUFSZ);
+    GASNETI_MEMCPY(sreq->fh_bbuf, (void *)src, GASNETC_BUFSZ);
     sreq->fh_count = 0;
 
     sr_desc->opcode      = IBV_WR_RDMA_WRITE;
@@ -2273,7 +2273,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
   gasneti_assert(nbytes <= GASNETC_BUFSZ);
 
   orig_sreq->fh_bbuf = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
-  memcpy(orig_sreq->fh_bbuf, (void *)src, nbytes);
+  GASNETI_MEMCPY(orig_sreq->fh_bbuf, (void *)src, nbytes);
   if_pf (orig_sreq->fh_lc_cb) orig_sreq->fh_lc_cb(orig_sreq->fh_lc); /* locally complete */
 
   sr_desc->opcode      = IBV_WR_RDMA_WRITE;
@@ -2453,7 +2453,7 @@ static size_t gasnetc_fh_put_args_fn(void * context, firehose_remotecallback_arg
 
     args->addr = (void *)(sreq->fh_rem_addr);
     sreq->fh_putinmove = args->len = len;
-    memcpy(args->data, (void *)(sreq->fh_loc_addr), len);
+    GASNETI_MEMCPY(args->data, (void *)(sreq->fh_loc_addr), len);
 
     return gasneti_offsetof(firehose_remotecallback_args_t, data[len]);
 }

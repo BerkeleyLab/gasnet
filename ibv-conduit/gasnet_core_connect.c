@@ -1134,7 +1134,7 @@ conn_send_data(gasnetc_conn_t *conn, uint32_t flags)
   } else
 #endif
   {
-    memcpy(buf, conn_info->local_qpn, conn_ud_msg_sz);
+    GASNETI_MEMCPY(buf, conn_info->local_qpn, conn_ud_msg_sz);
   }
     
   desc->sg.length = conn_ud_msg_sz;
@@ -1847,7 +1847,7 @@ gasnetc_conn_rcv_wc(struct ibv_wc *comp)
       } else
     #endif
       {
-        memcpy(conn_info->remote_qpn, payload, conn_ud_msg_sz);
+        GASNETI_MEMCPY(conn_info->remote_qpn, payload, conn_ud_msg_sz);
       }
     }
     gasnetc_rcv_post_ud(desc);
@@ -2440,7 +2440,7 @@ dump_conn_outln(int fd)
   }
 
   len = strlen(dump_conn_line+1);
-  memcpy(fullline+taglen, dump_conn_line+1, len);
+  GASNETI_MEMCPY(fullline+taglen, dump_conn_line+1, len);
 
   len += taglen;
   fullline[len] = '\n';
