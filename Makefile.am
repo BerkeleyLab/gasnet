@@ -155,6 +155,8 @@ if CONDUIT_MODE
 test: tests-$(DEFAULT_TEST_MODE)
 tests: tests-$(DEFAULT_TEST_MODE)
 tests-installed: tests-installed-$(DEFAULT_TEST_MODE)
+# automake name, used by distcheck:
+installcheck-local: tests-installed-$(DEFAULT_TEST_MODE)
 # xSDK alias:
 test_install: run-tests-installed-$(DEFAULT_TEST_MODE)
 
