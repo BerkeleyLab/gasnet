@@ -91,7 +91,7 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
   void *tmp = gasneti_malloc(len * gasneti_nodes);
   gasneti_assert(NULL != src);
   gasnetc_bootstrapExchange(src, len, tmp);
-  memcpy(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
+  GASNETI_MEMCPY(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
   gasneti_free(tmp);
 }
 #endif
