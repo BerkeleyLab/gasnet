@@ -679,6 +679,7 @@ extern int gasneti_VerboseErrors;
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
+extern uint64_t gasneti_hosthash(void);
 extern uint32_t gasneti_gethostid(void);
 
 extern gex_Rank_t *gasneti_nodemap;

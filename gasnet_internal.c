@@ -1363,6 +1363,33 @@ void gasneti_nodemap_trivial(void) {
   for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
 }
 
+// gasneti_hosthash(): 64-bit hash of hostname
+//
+// NOTE: gasneti_checksum() is not suitable
+// e.g. "4001.0004" and "1001.0001" hash the same, and when
+// we fold down to 32-bits the problem would get even worse.
+// At 32-bits the cancellation is at period 4, so that names
+// "c03-00", "c13-01" and "c23-02" share the same hash, as
+// would the pair "172.16.0.6" and "172.18.0.8".
+extern uint64_t gasneti_hosthash(void) {
+  const char *myname = gasneti_gethostname();
+  const uint8_t *buf = (uint8_t *)myname;
+  size_t len = strlen(myname);
+  uint64_t csum = 0;
+  for (int i=0;i<len;i++) {
+    uint8_t c = *(buf++);
+    /* The "c = ..." squeezes ASCII down to 6 bits, while encoding
+     * all chars valid in hostnames and IP addresses (IPV4 and IPV6).
+     * A unique value is assigned to each of the digits, the lower
+     * case letters, '-', '.' and ':'.  The upper case letters map
+     * to the same values as the corresponding lower-case.
+     */
+    c = ((c & 0x40) >> 1) | (c & 0x1f);
+    csum = ((csum << 6) | ((csum >> 58) & 0x3F)) ^ c;
+  }
+  return csum;
+}
+
 /* Wrapper around gethostid() */
 extern uint32_t gasneti_gethostid(void) {
     static uint32_t myid = 0;
@@ -1388,29 +1415,7 @@ extern uint32_t gasneti_gethostid(void) {
           || (myid == 0x0000017f)
           || (myid == 0x0001007f)
           || (myid == 0x0100007f)) {
-        /* NOTE: gasneti_checksum() is too weak
-         * e.g. "4001.0004" and "1001.0001" hash the same, and when
-         * we fold down to 32-bits the problem would get even worse.
-         * At 32-bits the cancellation is at period 4, so that names
-         * "c03-00", "c13-01" and "c23-02" share the same hash, as
-         * would the pair "172.16.0.6" and "172.18.0.8".
-         */
-        const char *myname = gasneti_gethostname();
-        const uint8_t *buf = (uint8_t *)myname;
-        size_t len = strlen(myname);
-        uint64_t csum = 0;
-        int i;
-        for (i=0;i<len;i++) {
-          uint8_t c = *(buf++);
-          /* The "c = ..." squeezes ASCII down to 6 bits, while encoding
-           * all chars valid in hostnames and IP addresses (IPV4 and IPV6).
-           * A unique value is assigned to each of the digits, the lower
-           * case letters, '-', '.' and ':'.  The upper case letters map
-           * to the same values as the corresponding lower-case.
-           */
-          c = ((c & 0x40) >> 1) | (c & 0x1f);
-          csum = ((csum << 6) | ((csum >> 58) & 0x3F)) ^ c;
-        }
+        uint64_t csum = gasneti_hosthash();
         myid = GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum);
       }
     }
@@ -1594,16 +1599,27 @@ extern void gasneti_nodemapParse(void) {
  *     This results in the trivial [0,1,2,...] nodemap.
  *     The 'sz' and 'stride' arguments are unused.
  *   Case 4: exchangefn != NULL  and  ids != NULL
- *     This case is not supported.
+ *     The conduit has provided an exchange function and a *local* ID:
+ *       'ids' is address of the local ID
+ *       'sz' is length of an ID in bytes
+ *     The 'stride' argument is unused.
  */
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride) {
   gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gex_Rank_t));
 
   if (ids) {
-    /* Case 1: conduit-provided vector of IDs */
-    gasneti_assert(!exchangefn); /* Prohibit 'Case 4' */
+    /* Cases 1 or 4: conduit-provided vector of all IDs or a single local ID*/
+    void *tmp = NULL;
+    if (exchangefn) {
+      // Perform exchange for 'Case 4'
+      tmp = gasneti_malloc(gasneti_nodes * sz);
+      (*exchangefn)((void*)ids, sz, tmp);
+      ids = tmp;
+      stride = sz;
+    }
     gasneti_nodemap_helper(ids, sz, stride);
+    gasneti_free(tmp);
   } else if (exchangefn) {
     /* Case 2: conduit-provided exchange fn, platform-default IDs */
     gasneti_nodemap_dflt(exchangefn);
