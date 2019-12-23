@@ -285,6 +285,12 @@ install-data-local:
 	if test -f $(top_srcdir)/extended-ref/README ; then \
 	  $(INSTALL_DATA) $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
 	fi
+	@: Automake 1.4 correct handling of headers given by relative path: ensure nested ext-ref headers get correctly installed in top-level include
+	@for file in $(include_HEADERS) ; do \
+	  if test -f "$(srcdir)/$$file" ; then ( b=`basename $$file` ; set -x ;  \
+            $(INSTALL_DATA) "$(srcdir)/$$file" "$(DESTDIR)$(includedir)/$$b" ) || exit $$?; \
+	  fi; \
+	done
 	for file in $(INSTALL_DOCS) ; do \
 	    $(INSTALL_DATA) $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
 	done
