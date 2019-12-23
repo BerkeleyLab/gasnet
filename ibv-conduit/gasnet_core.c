@@ -4339,9 +4339,10 @@ int gasnetc_am_long_put(
                   GASNETI_THREAD_FARG)
 {
   int rc;
+  const int qpi = gasnetc_epid2qpi(epid);
+  const gex_Rank_t jobrank = gasnetc_epid2node(epid);
 #if GASNETC_PIN_SEGMENT
-  /* Queue the RDMA.  We can count on point-to-point ordering to deliver payload before header */
-  rc = gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, flags,
+  rc = gasnetc_rdma_put(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
                         local_cnt, local_cb, NULL, NULL
                         GASNETI_THREAD_PASS);
 #else
@@ -4353,7 +4354,7 @@ int gasnetc_am_long_put(
    * that would lead to deadlock if we hold the resources needed to queue the RDMA.
    */
   gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
-  rc = gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, flags,
+  rc = gasnetc_rdma_put_fh(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
                            local_cnt, local_cb, NULL, NULL, &am_oust
                            GASNETI_THREAD_PASS);
   if (!rc) gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);
