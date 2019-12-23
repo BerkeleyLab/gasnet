@@ -419,6 +419,11 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
 static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
 
+extern const char *gasnett_release_version_str(void) { // motivated by xSDK Community Policy M8
+  return _STRINGIFY(GASNET_RELEASE_VERSION_MAJOR) "." 
+         _STRINGIFY(GASNET_RELEASE_VERSION_MINOR) "." 
+         _STRINGIFY(GASNET_RELEASE_VERSION_PATCH);
+}
 
 extern const char *gasnett_performance_warning_str(void) {
   static const char *result =

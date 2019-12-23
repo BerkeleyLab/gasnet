@@ -372,6 +372,9 @@ GASNETI_BEGIN_NOWARN
 /* return a (possibly empty) string of any configuration options that might negtively impact performance */
 extern const char *gasnett_performance_warning_str(void);
 
+/* return a string representation of the compiled library's package version */
+extern const char *gasnett_release_version_str(void);
+
 #define gasnett_sched_yield     gasneti_sched_yield 
 #define gasnett_cpu_count       gasneti_cpu_count
 #define gasnett_flush_streams   gasneti_flush_streams

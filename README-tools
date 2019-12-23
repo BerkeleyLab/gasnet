@@ -1109,6 +1109,11 @@ const char *gasnett_performance_warning_str(void);
   of settings determined at configure time). If there are no such warnings, the
   resulting string is empty.
 
+const char *gasnett_release_version_str(void);
+
+  Returns a human-readable string containing the package release version number.
+  Also see GASNETT_RELEASE_VERSION_* below.
+
 -------------------
 Miscellaneous tools
 -------------------
