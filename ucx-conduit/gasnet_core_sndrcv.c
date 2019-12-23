@@ -415,6 +415,7 @@ int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
     gasneti_fatalerror("rkey cannot found");
   }
   if (local_cnt) (*local_cnt)++;
+  
   req = gasnetc_putget_fn(is_put, ep, buffer, nbytes, remote_addr,
                           minfo->rkey, gasnetc_ucx_rma_cb);
   if (NULL == req) {
@@ -635,7 +636,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
       if (buffer) {
         gasnetc_buffer_release(buffer);
       }
-      return NULL;
+      goto exit;
   }
   if_pf (UCS_PTR_IS_ERR(request)) {
     gasnetc_am_req_release(am_req);
@@ -644,7 +645,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
     }
     gasneti_fatalerror("UCX recv request failed: %s",
                        ucs_status_string(UCS_PTR_STATUS(request)));
-    return NULL;
+    /* Doesn't return */
   }
 
   request->am_req = am_req;
@@ -653,6 +654,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
   request->status = GASNETC_UCX_ACTIVE;
   gasneti_list_enq(&gasneti_ucx_module.send_list, request);
 
+exit:
   return request;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -865,6 +867,7 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
     } else {
       buf_ptr = buffer->data;
     }
+    
     request = (gasnetc_ucx_request_t*)
         ucp_tag_msg_recv_nb(gasneti_ucx_module.ucp_worker, buf_ptr,
                             info_tag.length, ucp_dt_make_contig(1), msg_tag,
@@ -873,10 +876,11 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
       gasnetc_buffer_release(buffer);
       gasneti_fatalerror("UCX recv request failed: %s",
                          ucs_status_string(UCS_PTR_STATUS(request)));
-      return;
+      /* gasneti_fatalerror doesn't return */
     }
     /* fill in the info for the request*/
     request->buffer = buffer;
+    
     if (GASNETC_UCX_COMPLETE == request->status) {
       /* request was completed in place
        * and wasn't added to the receiving pool in the UCX recv handler,

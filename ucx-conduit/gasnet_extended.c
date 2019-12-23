@@ -124,10 +124,12 @@ gex_Event_t gasnete_get_nb(
 
   gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-
+  
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   gasnetc_ucx_putget_inner(0, jobrank, dest, nbytes, src,
                            &eop->initiated_cnt, gasnetc_cb_eop_get,
                            NULL, NULL);
+  GASNETC_LOCK_RELEASE_REGULAR();
   return (gex_Event_t)eop;
 }
 
@@ -144,7 +146,7 @@ gex_Event_t gasnete_put_nb(
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
 
-
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
     gasnetc_ucx_putget_inner(1, jobrank, src, nbytes, dest,
@@ -169,6 +171,8 @@ gex_Event_t gasnete_put_nb(
       *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
     }
   }
+  GASNETC_LOCK_RELEASE_REGULAR();
+
   return (gex_Event_t)eop;
 }
 
@@ -189,16 +193,20 @@ int gasnete_get_nbi (gex_TM_t tm, void *dest, gex_Rank_t rank, void *src,
                      size_t nbytes, gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(tm,dest,rank,src,nbytes);
+  int ret;
 
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
 
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
-  return gasnetc_ucx_putget_inner(
+  GASNETC_LOCK_ACQUIRE_REGULAR();
+  ret = gasnetc_ucx_putget_inner(
         0, jobrank, dest, nbytes, src, &op->initiated_get_cnt,
         op->next ? gasnetc_cb_nar_get : gasnetc_cb_iop_get,
         NULL, NULL);
+  GASNETC_LOCK_RELEASE_REGULAR();
+  return ret;
 }
 
 extern
@@ -228,9 +236,13 @@ int gasnete_put_nbi (gex_TM_t tm, gex_Rank_t rank, void *dest,
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
+  
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   gasnetc_ucx_putget_inner(1, jobrank, src, nbytes, dest,
                            local_cnt, local_cb, &op->initiated_put_cnt,
                            op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put);
+  GASNETC_LOCK_RELEASE_REGULAR();
+
   if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_counter_wait(&counter, 1 GASNETI_THREAD_PASS);
   }
