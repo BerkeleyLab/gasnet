@@ -1114,6 +1114,11 @@ const char *gasnett_release_version_str(void);
   Returns a human-readable string containing the package release version number.
   Also see GASNETT_RELEASE_VERSION_* below.
 
+uint64_t gasnett_release_version(void);
+
+  Return an monotonically advancing integral representation of the compiled library's package version.
+  Also see GASNETT_RELEASE_VERSION_* below.
+
 -------------------
 Miscellaneous tools
 -------------------
