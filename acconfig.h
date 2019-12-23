@@ -476,6 +476,7 @@
 /* Support for pmi-spawner */
 #undef HAVE_PMI_H
 #undef HAVE_PMI2_H
+#undef GASNETI_PMIX_HACK
 #undef GASNETI_PMI2_FENCE_IS_BARRIER
 #undef HAVE_PMIX_H
 

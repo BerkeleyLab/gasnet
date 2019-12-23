@@ -4219,17 +4219,24 @@ elif test "$enable_pmi" != 'no'; then
   # TODO: fragile if multiple PMI libs are installed
   # TODO: add a link test for a working PMI configuration
   if test "$have_pmi" = yes; then
-    if test -f "$PMI_HOME/include/slurm/pmi${pmi_suffix}.h"; then
-      PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include/slurm"
-    elif test -f "$PMI_HOME/include/portals4/pmi${pmi_suffix}.h"; then
-      PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include/portals4"
-    elif test -f "$PMI_HOME/include/pmi${pmi_suffix}.h"; then
-      if test "$PMI_HOME" != '/usr'; then
-        PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include"
-      fi
-    else
+    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals" "$PMI_HOME/include" 'no'; do
+      test -f "${pmi_headers}/pmi${pmi_suffix}.h" && break
+    done
+    if test "${pmi_headers}" = no; then
       have_pmi=no
+    elif test "$PMI_HOME" != '/usr'; then
+      PMI_SPAWNER_CFLAGS="-I${pmi_headers}"
     fi
+  fi
+
+  # Look for use of malloc/free in the corresponding PMIx header if any
+  if test "$have_pmi" = yes; then
+    AC_MSG_CHECKING(for PMIx headers)
+    AC_EGREP_HEADER([\<malloc\>],[${pmi_headers}/pmix_common.h],
+      [ AC_DEFINE([GASNETI_PMIX_HACK])
+        AC_MSG_RESULT(yes) ],
+      [ AC_MSG_RESULT(no) ]
+    )
   fi
 fi
 

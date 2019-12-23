@@ -6,6 +6,12 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 
+#if GASNETI_PMIX_HACK
+// PMIx uses malloc() and free() within its pmi.h and pmi2.h headers
+#  undef malloc
+#  undef free
+#endif
+
 #if HAVE_PMI_CRAY_H
 #  include <pmi_cray.h>
 #  define USE_PMI2_API 1
