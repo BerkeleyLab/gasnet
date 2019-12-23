@@ -156,10 +156,8 @@ gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
   gasneti_progressfn_t gasneti_debug_progressfn_counted = gasneti_disabled_progressfn;
 #endif
 
-#ifdef _GASNETI_SEGINFO_DEFAULT
-  gasnet_seginfo_t *gasneti_seginfo = NULL;
-  gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
-#endif
+gasnet_seginfo_t *gasneti_seginfo = NULL;
+gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */

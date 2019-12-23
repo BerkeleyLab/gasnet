@@ -1147,12 +1147,8 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 #endif
 extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
-#ifndef _GASNETI_SEGINFO
-#define _GASNETI_SEGINFO
-#define _GASNETI_SEGINFO_DEFAULT
-  extern gasnet_seginfo_t *gasneti_seginfo;
-  extern gasnet_seginfo_t *gasneti_seginfo_aux;
-#endif
+extern gasnet_seginfo_t *gasneti_seginfo;
+extern gasnet_seginfo_t *gasneti_seginfo_aux;
 
 // TODO-EX: override?
 #if 1
