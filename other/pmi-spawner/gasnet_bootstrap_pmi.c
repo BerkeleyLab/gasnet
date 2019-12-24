@@ -7,8 +7,9 @@
 #include <gasnet_core_internal.h>
 
 #if GASNETI_PMIX_HACK
-// PMIx uses malloc() and free() within its pmi.h and pmi2.h headers
+// PMIx uses [mc]alloc() and free() within its pmi.h and pmi2.h headers
 #  undef malloc
+#  undef calloc
 #  undef free
 #endif
 
