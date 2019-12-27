@@ -540,7 +540,8 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
 #else
   #if GASNET_DEBUG
     #define GASNET_POST_THREADINFO(info)   \
-      static uint8_t _gasneti_threadinfo_dummy = sizeof(_gasneti_threadinfo_dummy) /* diagnose duplicate POST in a scope */
+      static uint8_t _gasneti_threadinfo_dummy = /* diagnose duplicate POST in a scope */ \
+         ( &_gasneti_threadinfo_dummy ? sizeof(_gasneti_threadinfo_dummy) : 0 )
   #else
     #define GASNET_POST_THREADINFO(info) ((void)0)
   #endif
