@@ -336,7 +336,7 @@ void doit(int partner, int *partnerseg) {
     assert_always((void*)&u.v1 == (void*)&u.v2);       \
     assert_always(sizeof(u.v1.f1) == sizeof(u.v2.f2)); \
     assert_always(&u.v1.f1 == &u.v2.f2);               \
-    v1.f1 == v2.f2; v2.f2 = v1.f1;                     \
+    v1.f1 = v2.f2; v2.f2 = v1.f1;                      \
   } while (0)
 
   // types
@@ -868,6 +868,7 @@ void doit7(int partner, int *partnerseg) {
   } while(0)
   {
     gasnett_atomic_sval_t stmp = gasnett_atomic_signed((gasnett_atomic_val_t)0);
+    test_mark_used(stmp);
     TEST_ATOMICS(gasnett_atomic_val_t, atomic);
     TEST_ATOMICS(gasnett_atomic_val_t, strongatomic);
     TEST_ATOMICS(uint32_t, atomic32);
