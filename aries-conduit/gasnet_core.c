@@ -1256,12 +1256,6 @@ int gasnetc_general_am_send_reply(gasnetc_post_descriptor_t *gpd, gex_Token_t t)
              : gasnetc_general_am_send_common(gpd);
 }
 
-GASNETI_INLINE(reply_jobrank)
-gex_Rank_t reply_jobrank(gex_Token_t t)
-{
-    return(((gasnetc_token_t *)t)->source);
-}
-
 /*------------------- header formatting ------------------ */
 GASNETI_INLINE(gasnetc_format_short)
 void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
@@ -1433,7 +1427,7 @@ void gasnetc_commit_medium(
 /*------------------- long payloads ------------------ */
 
 GASNETI_INLINE(gasnetc_put_long_payload)
-void gasnetc_put_long_payload(gex_Rank_t jobrank,
+void gasnetc_put_long_payload(gex_TM_t tm, gex_Rank_t rank,
                               void *dst_addr,
                               void *src_addr,
                               size_t nbytes,
@@ -1444,7 +1438,7 @@ void gasnetc_put_long_payload(gex_Rank_t jobrank,
                               GASNETC_DIDX_FARG)
 {
   gasneti_suspend_spinpollers();
-  gasnetc_rdma_put_long(jobrank, dst_addr, src_addr, nbytes,
+  gasnetc_rdma_put_long(tm, rank, dst_addr, src_addr, nbytes,
                         gpd_flags, completion, nonce GASNETC_DIDX_PASS);
   gasneti_resume_spinpollers();
 
@@ -1554,7 +1548,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
         gpd_flags = GC_POST_COMPLETION_FLAG;
         completion = (void *) &done_flag;
       }
-      gasnetc_put_long_payload(jobrank, dest_addr, source_addr, nbytes,
+      gasnetc_put_long_payload(tm, rank, dest_addr, source_addr, nbytes,
                                gpd_flags, completion, nonce, 1 GASNETC_DIDX_PASS);
     }
 
@@ -1795,7 +1789,12 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
         gpd_flags = GC_POST_COMPLETION_FLAG;
         completion = (void *) &done_flag;
       }
-      gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr, nbytes,
+
+      // TODO-EX: multi-EP support
+      gasnetc_token_t *real_token = (gasnetc_token_t *)token;
+      gex_TM_t tm = gasneti_THUNK_TM;
+      gex_Rank_t rank = real_token->source;
+      gasnetc_put_long_payload(tm, rank, dest_addr, source_addr, nbytes,
                                gpd_flags, completion, nonce, 0 GASNETC_DIDX_PASS);
     }
 
