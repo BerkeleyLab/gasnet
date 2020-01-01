@@ -2030,7 +2030,9 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_attach_done && gasneti_in_segment(NULL/*tm*/,gasneti_mynode,ptr,1))
+        // TODO-EX: multi-segment equivalent?
+        gasneti_EP_t i_ep = gasneti_import_ep(gasneti_THUNK_EP);
+        if (gasneti_attach_done && gasneti_in_local_segment(i_ep,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif
