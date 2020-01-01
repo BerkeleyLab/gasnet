@@ -311,7 +311,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
 
     /* allocate and attach an aux segment */
 
-    gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange);
+    (void) gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange);
 
     /* determine Max{Local,GLobal}SegmentSize */
     gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);
@@ -346,6 +346,7 @@ extern int gasnetc_amregister(gex_AM_Index_t index, gex_AM_Entry_t *entry) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+static gasnet_seginfo_t myseg;
 static int gasnetc_attach_primary(void) {
   int retval = GASNET_OK;
 
@@ -410,51 +411,18 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_Flags_t                   flags) {
     int retval = GASNET_OK;
 
-    // TODO-EX: crude detection of multiple calls until we support them
-    gasneti_assert(NULL == gasneti_seginfo[0].addr);
-
     /* ------------------------------------------------------------------------------------ */
-    /*  register segment  */
+    /*  register client segment  */
 
-    gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
-
-    void *segbase = gasneti_seginfo[gasneti_mynode].addr;
-    segsize = gasneti_seginfo[gasneti_mynode].size;
-
-    gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
-    gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
-
-    gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-    ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
-    gasneti_legacy_segment_attach_hook(ep);
-    *segment_p = gasneti_export_segment(ep->_segment);
-  
-    /* After local segment is attached, call optional client-provided hook
-       (###) should call BEFORE any conduit-specific pinning/registration of the segment
-     */
-    if (gasnet_client_attach_hook) {
-      gasnet_client_attach_hook(segbase, segsize);
-    }
+    gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, tm, segsize, exchangefn, flags);
 
 #if !GASNETC_MOCK_EVERYTHING
     /*  AMUDP allows arbitrary registration with no further action  */
     if (segsize) {
-      retval = AM_SetSeg(gasnetc_endpoint, segbase, segsize);
+      retval = AM_SetSeg(gasnetc_endpoint, myseg.addr, myseg.size);
       if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
     }
 #endif
-
-    /* ------------------------------------------------------------------------------------ */
-    /*  gather segment information */
-
-    /* (###) add code here to gather the segment assignment info into
-             gasneti_seginfo on each node (may be possible to use AMShortRequest here)
-             If gasneti_segmentAttach() was used above, this is already done.
-       Done in gasneti_segmentAttach(), above.
-     */
-
-    gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
-                   gasneti_seginfo[gasneti_mynode].size == segsize);
 
 done:
     GASNETI_RETURN(retval);
@@ -1252,9 +1220,7 @@ int gasnet_checkpoint(const char *dir) {
 #if GASNETC_MOCK_EVERYTHING
     i = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
 #else
-    i = AM_SetSeg(gasnetc_endpoint,
-                  gasneti_seginfo[gasneti_mynode].addr,
-                  gasneti_seginfo[gasneti_mynode].size);
+    i = AM_SetSeg(gasnetc_endpoint, myseg.addr, myseg.size);
 #endif
     /* BLCR-TODO: error-checking */
 
