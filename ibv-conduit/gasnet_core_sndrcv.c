@@ -3064,7 +3064,7 @@ extern int gasnetc_rdma_put(
 #if GASNET_ALIGNED_SEGMENTS
   uintptr_t offset = dst - gasnetc_seg_start;
 #else
-  uintptr_t offset = dst - (uintptr_t)gasneti_seginfo[jobrank].addr;
+  uintptr_t offset = dst - (uintptr_t)gasneti_client_seginfo(tm, rank)->addr;
 #endif
 
   // TODO-EX:
@@ -3075,7 +3075,7 @@ extern int gasnetc_rdma_put(
   const int loc_auxseg = gasneti_in_local_auxsegment(ep, src_ptr, nbytes);
   const int rem_auxseg = gasneti_in_auxsegment(tm, rank, dst_ptr, nbytes);
 
-  gasneti_assert(offset < gasneti_seginfo[jobrank].size || rem_auxseg);
+  gasneti_assert(offset < gasneti_client_seginfo(tm, rank)->size || rem_auxseg);
   gasneti_assert(nbytes != 0);
   
   sr_desc->wr.rdma.remote_addr = dst;
@@ -3188,7 +3188,7 @@ extern int gasnetc_rdma_get(
 #if GASNET_ALIGNED_SEGMENTS
   uintptr_t offset = src - gasnetc_seg_start;
 #else
-  uintptr_t offset = src - (uintptr_t)gasneti_seginfo[jobrank].addr;
+  uintptr_t offset = src - (uintptr_t)gasneti_client_seginfo(tm, rank)->addr;
 #endif
 
   // TODO-EX:
@@ -3199,7 +3199,7 @@ extern int gasnetc_rdma_get(
   const int loc_auxseg = gasneti_in_local_auxsegment(ep, dst_ptr, nbytes);
   const int rem_auxseg = gasneti_in_auxsegment(tm, rank, src_ptr, nbytes);
 
-  gasneti_assert(offset < gasneti_seginfo[jobrank].size || rem_auxseg);
+  gasneti_assert(offset < gasneti_client_seginfo(tm, rank)->size || rem_auxseg);
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
 

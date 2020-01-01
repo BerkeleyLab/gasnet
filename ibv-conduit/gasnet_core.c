@@ -2679,10 +2679,13 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
     gasnetc_seg_start = (uintptr_t)myseg.addr;
     gasnetc_seg_len   = myseg.size;
 
-    /* Find largest the segment requested */
+    // Find the largest segment requested
+    // TODO-EX: to avoid densely populating seginfo table, this should be a reduction
+    // OR drop the pin_maxsz (multi-registration) behavior which may no longer be necessary?
     gasnetc_seg_maxsz = 0;
     for (gex_Rank_t i=0; i<gasneti_nodes; ++i) {
-      gasnetc_seg_maxsz = MAX(gasnetc_seg_maxsz, gasneti_seginfo[i].size);
+      const gasnet_seginfo_t *si = gasneti_client_seginfo(tm, i);
+      gasnetc_seg_maxsz = MAX(gasnetc_seg_maxsz, si->size);
     }
 
     /* Setup gasnetc_pin_maxsz{_shift,_mask} and gasnetc_max_regs.
@@ -3219,8 +3222,8 @@ void gasnetc_post_checkpoint(int is_restart) {
       for (i=0; i<nbytes; ++i) buffer0[i] = (char)(i ^ gasneti_mynode);
     }
   #else
-    loc_addr = gasneti_seginfo_client[gasneti_mynode].addr;
-    rem_addr = gasneti_seginfo_client[peer].addr;
+    loc_addr = gasneti_client_seginfo(gasneti_THUNK_TM, gasneti_mynode)->addr;
+    rem_addr = gasneti_client_seginfo(gasneti_THUNK_TM, peer)->addr;
   #endif
 
     GASNETI_MEMCPY(buffer1, loc_addr, nbytes);
