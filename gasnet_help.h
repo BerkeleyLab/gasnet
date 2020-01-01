@@ -117,6 +117,32 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 extern const char *gasnet_max_segsize_str; // client-overrideable max segment size
 extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segment size
 
+#if GASNET_DEBUG
+  extern void gasneti_checkinit(void);
+  extern void gasneti_checkattach(void);
+  #define GASNETI_CHECKINIT()    gasneti_checkinit()
+  #define GASNETI_CHECKATTACH()  gasneti_checkattach()
+#else
+  #define GASNETI_CHECKINIT()    ((void)0)
+  #define GASNETI_CHECKATTACH()  ((void)0)
+#endif
+
+#ifndef _GASNET_MYNODE
+  extern gex_Rank_t gasneti_mynode;
+  #define gex_System_QueryJobRank() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
+#else
+  #error "Unsupported define of _GASNET_MYNODE"
+#endif
+
+// TODO-EX: rename (or remove?) the override
+#ifndef _GASNET_NODES
+  extern gex_Rank_t gasneti_nodes;
+  #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
+#else
+  #error "Unsupported define of _GASNET_NODES"  
+#endif
+
+
 // We can detect TM0 by its better alignment than other tm's
 #ifdef GASNETI_TM0_ALIGN
   // Keep existing value
@@ -158,7 +184,15 @@ gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
 #define gasneti_e_tm_rank_to_jobrank(e_tm,rank) \
         gasneti_i_tm_rank_to_jobrank(gasneti_import_tm(e_tm),rank)
 
-// NOTE: gasneti_[ei]_tm_jobrank_to_rank() appear later, after defn of gasneti_nodes
+GASNETI_INLINE(gasneti_i_tm_jobrank_to_rank)
+gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank) {
+  gasneti_assert(_i_tm);
+  gasneti_assert_uint(_jobrank ,<, gex_System_QueryJobSize());
+  if (gasneti_is_tm0(_i_tm)) return _jobrank;
+  return gasneti_tm_rev_lookup(_i_tm, _jobrank);
+}
+#define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
+        gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)
 
 // Variants to allow tm=NULL to substitute for TM0
 // TODO-EX: These will necessarily be superceeded when multi-{EP,segment}
@@ -276,16 +310,6 @@ gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _r
         gasnet_ErrorName(_retcode), _retcode, #fncall, gasneti_current_loc); \
    }                                                                         \
  } while (0)
-#endif
-
-#if GASNET_DEBUG
-  extern void gasneti_checkinit(void);
-  extern void gasneti_checkattach(void);
-  #define GASNETI_CHECKINIT()    gasneti_checkinit()
-  #define GASNETI_CHECKATTACH()  gasneti_checkattach()
-#else
-  #define GASNETI_CHECKINIT()    ((void)0)
-  #define GASNETI_CHECKATTACH()  ((void)0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -1089,32 +1113,6 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   extern int gasneti_set_waitmode(int wait_mode);
   #define gasnet_set_waitmode(wait_mode) gasneti_set_waitmode(wait_mode)
 #endif
-
-#ifndef _GASNET_MYNODE
-  extern gex_Rank_t gasneti_mynode;
-  #define gex_System_QueryJobRank() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
-#else
-  #error "Unsupported define of _GASNET_MYNODE"
-#endif
-
-// TODO-EX: rename (or remove?) the override
-#ifndef _GASNET_NODES
-  extern gex_Rank_t gasneti_nodes;
-  #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
-#else
-  #error "Unsupported define of _GASNET_NODES"  
-#endif
-
-// This is not the naturual place for these, but they must follow defn of gex_System_QueryJobSize()
-GASNETI_INLINE(gasneti_i_tm_jobrank_to_rank)
-gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank) {
-  gasneti_assert(_i_tm);
-  gasneti_assert_uint(_jobrank ,<, gex_System_QueryJobSize());
-  if (gasneti_is_tm0(_i_tm)) return _jobrank;
-  return gasneti_tm_rev_lookup(_i_tm, _jobrank);
-}
-#define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
-        gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)
 
 #ifndef _GASNET_GETMAXSEGMENTSIZE
 #define _GASNET_GETMAXSEGMENTSIZE
