@@ -351,7 +351,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 typedef struct {
   GASNETE_RMDBARRIER_LOCK(barrier_lock) /* no semicolon */
   struct {
-    gex_Rank_t node;
+    gex_Rank_t    jobrank;
     uintptr_t     addr;
   } *barrier_peers;           /*  precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
@@ -394,7 +394,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
   gasneti_assert(state < barrier_data->barrier_goal);
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
-    const gex_Rank_t jobrank = barrier_data->barrier_peers[step].node;
+    const gex_Rank_t jobrank = barrier_data->barrier_peers[step].jobrank;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
     if (gasneti_pshm_jobrank_in_supernode(jobrank)) {
@@ -768,12 +768,12 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
     gasneti_leak(barrier_data->barrier_peers);
   
     for (step = 0; step < steps; ++step) {
-      gex_Rank_t node = peers->fwd[step];
-      void *addr = gasnete_rdmabarrier_auxseg[node].addr;
-      barrier_data->barrier_peers[1+step].node = node;
+      gex_Rank_t jobrank = peers->fwd[step]; // is always a jobrank
+      void *addr = gasnete_rdmabarrier_auxseg[jobrank].addr;
+      barrier_data->barrier_peers[1+step].jobrank = jobrank;
     #if GASNET_PSHM
-      if (gasneti_pshm_jobrank_in_supernode(node)) {
-        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_jobrank_addr2local(node, addr);
+      if (gasneti_pshm_jobrank_in_supernode(jobrank)) {
+        barrier_data->barrier_peers[1+step].addr = (uintptr_t)gasneti_pshm_jobrank_addr2local(jobrank, addr);
       } else
     #endif
       barrier_data->barrier_peers[1+step].addr = (uintptr_t)addr;
