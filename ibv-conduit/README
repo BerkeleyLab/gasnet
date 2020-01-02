@@ -646,16 +646,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     If enabled when using only a single HCA a warning will be issued.
     This setting defaults to 0 (disabled).
 
-   + GASNET_PIN_MAXSZ
-    This controls the maximum size of a pinned memory region.  The value must
-    be a power-of-two, and no less than the page size.  If the value is larger
-    than the HCA(s) can support, it will be reduced (with a warning).
-    When a GASNet-level transfer spans multiple pinned regions, multiple
-    operations are required at the Verbs layer.  However, some older Mellanox
-    HCAs performed poorly with large pinned regions.  In general there is no
-    need to adjust this parameter.
-    The default is to use largest size supported by the HCA(s).
-
   Resource usage parameters:
   -------------------------
   The following environment variables control how much memory is
@@ -685,9 +675,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     from the send completion queue.  This value is the depth of each
     send work queue.  This limit is on the number of ibv-level ops
     in-flight, and the number of GASNet-level operations may be less
-    (for example, when the remote range of a PUT or GET covers more
-    than one pinned region, due to GASNET_PIN_MAXSZ, or because an AM
-    Long uses separate ops for the payload and header).
+    (for example, when the length of a PUT or GET is larger than the
+    HCA's maximum message length, or because an AM Long uses separate
+    ops for the payload and header).
     The default value is 24.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
@@ -1309,11 +1299,8 @@ Notes for myself for extended API:
     implementation, and uses thread-local data to avoid locks.
 
 + The memsets can be more efficiently implemented as a _local_ memset
-  followed by a PUT, for small enough sizes.  The cutoff is
-  presently the size of one bounce buffer, but has not been tuned.
-
-  This was disabled when GASNET_PIN_MAXSZ was introduced.  Therefore,
-  all memsets are currently done by Active Messages.
+  followed by a PUT, for small enough sizes.  This is not currently
+  implemented.
   
 
 @ Section: Graceful exits @
