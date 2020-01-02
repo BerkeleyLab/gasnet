@@ -178,10 +178,13 @@ gex_Event_t gasnete_ratomic_fetch_nb(const int length, void *result_p,
   gex_Rank_t rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
   ucp_ep_h ep = GASNETC_UCX_GET_EP(rank);
 
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   // TODO: add support GEX_FLAG_IMMEDIATE flag
   gasnete_ratomic_fetch_inner(rank, length, tgt_addr, op, op_cnt,
                               result_p, operand1, operand2,
                               &eop->initiated_cnt, gasnetc_cb_eop_get);
+  GASNETC_LOCK_RELEASE_REGULAR();
+
   return (gex_Event_t) eop;
 }
 
@@ -195,10 +198,12 @@ int gasnete_ratomic_fetch_nbi(const int length, void *result_p,
   gasnete_iop_t * const iop = mythread->current_iop;
   gex_Rank_t rank = gasnete_ratomic_jobrank(i_tm, tgt_rank, flags);
 
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   // TODO: add support GEX_FLAG_IMMEDIATE flag
   gasnete_ratomic_fetch_inner(rank, length, tgt_addr, op, op_cnt, result_p,
                               operand1, operand2, &iop->initiated_rmw_cnt,
                               iop->next ? gasnetc_cb_nar_rmw : gasnetc_cb_iop_rmw);
+  GASNETC_LOCK_RELEASE_REGULAR();
   return 0;
 }
 
@@ -252,10 +257,12 @@ gex_Event_t gasnete_ratomic_post_nb(const int length,
 {
   gasnete_eop_t * const eop = gasnete_eop_new(GASNETI_MYTHREAD);
 
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   // TODO: add support GEX_FLAG_IMMEDIATE flag
   gasnete_ratomic_post_inner(length, i_tm, tgt_rank, tgt_addr, op,
                              operand, &eop->initiated_cnt,
                              gasnetc_cb_eop_put, flags);
+  GASNETC_LOCK_RELEASE_REGULAR();
   return (gex_Event_t) eop;
 }
 
@@ -269,11 +276,13 @@ int gasnete_ratomic_post_nbi(const int length,
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const iop = mythread->current_iop;
 
+  GASNETC_LOCK_ACQUIRE_REGULAR();
   // TODO: add support GEX_FLAG_IMMEDIATE flag
   gasnete_ratomic_post_inner(length, i_tm, tgt_rank, tgt_addr, op,
                              operand, &iop->initiated_rmw_cnt,
                              iop->next ? gasnetc_cb_nar_rmw : gasnetc_cb_iop_rmw,
                              flags);
+  GASNETC_LOCK_RELEASE_REGULAR();
   return 0;
 }
 
