@@ -133,26 +133,6 @@ GASNET_IF_ENABLED(conservative-local-copy, [enable use of conservative (slower) 
 
 ########################################################################
 ##
-##  Supporting Command-Line Tools
-##
-
-dnl     Store full paths, so we find right ones even if users have
-dnl     some other version in their path
-GASNET_PATH_PROGS(GMAKE, gmake make $MAKE, GNU make)
-AC_MSG_CHECKING(for GNU make)
-if $GMAKE --version | grep GNU ; then
-  AC_MSG_RESULT(yes)
-else
-# We don't actually require GNU Make at the moment
-#  AC_MSG_ERROR(cannot find a version of GNU make - please install GNU make and/or set \$GMAKE to indicate where it's located)
-  GASNET_MSG_WARN([cannot find a version of GNU make - if you encounter make problems, install GNU make and/or set \$GMAKE to indicate where it's located])
-fi
-AC_SUBST(GMAKE)
-
-dnl Other tools checked later, after PROG_CC check sets cross_compiling
-
-########################################################################
-##
 ##  Perl
 ##
 ## We do this early so we can use "$PERL -e" for complex configure tests.
@@ -161,6 +141,33 @@ AC_SUBST(PERL)
 PERLSTART=$TOP_BUILDDIR/other/perlstart
 AC_SUBST_FILE(PERLSTART)
 
+
+########################################################################
+##
+##  Supporting Command-Line Tools
+##
+
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
+GASNET_PATH_PROGS(GMAKE, gmake make $MAKE, GNU make)
+AC_MSG_CHECKING(for GNU make)
+GMAKE_VERSTR=`$GMAKE --version | grep GNU 2> /dev/null`
+if test "$GMAKE_VERSTR" = "" ; then
+  AC_MSG_RESULT(no)
+  AC_MSG_ERROR(cannot find a version of GNU make - please install GNU make and/or set \$GMAKE to indicate where it's located)
+else
+  GMAKE_VER=`echo "$GMAKE_VERSTR" | $PERL -n -e 'if (/([[0-9]]+)\.([[0-9]]+)(\.[[0-9]]+)?/) { $maj=$1; $min=$2; $pat=$3; printf "%i%03i%03i",($maj,$min,($pat?$pat=~s/\.//:0)) }'`
+  # Currently require 3.79 or newer
+  if test $GMAKE_VER -lt 3079000 ; then
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR([This software requires GNU make version 3.79 or newer, and you appear to be running: "$GMAKE_VERSTR" - please install GNU make and/or set \$GMAKE to indicate where it's located])
+  else
+    AC_MSG_RESULT($GMAKE_VERSTR)
+  fi
+fi
+AC_SUBST(GMAKE)
+
+dnl Other tools checked later, after PROG_CC check sets cross_compiling
 
 ########################################################################
 ##
