@@ -611,8 +611,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_USE_ODP
     This boolean setting controls whether IBV On-Demand Paging (ODP) support
-    is used.  However, it is ignored if GASNet was configured with
-    --disable-ibv-odp, or if ODP support was not found at configure time.
+    should be used.  If true, then ibv-conduit uses ODP on any compute nodes
+    where the IBV library reports support is available.  When ODP is NOT
+    available on one or more compute nodes, a warning is issued.  See
+    GASNET_ODP_VERBOSE for information on controlling this warning.
+    This setting is ignored if GASNet was configured with --disable-ibv-odp,
+    or if ODP support was not found at configure time.
     This setting defaults to 1 if ODP support was enabled at configure time.
 
   + GASNET_ODP_VERBOSE
