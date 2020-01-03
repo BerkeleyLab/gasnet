@@ -46,8 +46,6 @@
 #endif
 
 #if GASNETC_BUILD_GNIRATOMIC
-  #define GASNETE_HAVE_RATOMIC_EXTRA_H 1
-
   #define GASNETI_AD_CREATE_HOOK gasnete_gniratomic_create_hook
 
   /* stats needed by the GNI-specific atomics implementation */
