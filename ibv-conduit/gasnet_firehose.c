@@ -114,7 +114,6 @@ firehose_remote_callback(gex_Rank_t node,
 	gasneti_assert(args != NULL);
 	gasneti_assert(args->addr != NULL);
 	gasneti_assert(args->len > 0);
-	gasneti_assert(args->len <= gasnetc_putinmove_limit);
 	GASNETI_MEMCPY(args->addr, args->data, args->len);
 	gasneti_sync_writes();
 	return 0;
