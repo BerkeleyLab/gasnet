@@ -22,6 +22,10 @@ PENDING: GASNet-EX Work-In-Progress
 * IBM PAMI (pami-conduit)
   - This conduit, deprecated since 2019.9.0, has been removed.
 
+* Portable UDP support (udp-conduit)
+  - Provide more robust default detection of shared-memory peers
+    (see GASNET_USE_GETHOSTID in udp-conduit/README for details).
+
 * Platform support/portability
   - Support for IBM BlueGene/Q has been removed.
   - Support for native atomics on IBM XL compilers for big-endian PPC has been
