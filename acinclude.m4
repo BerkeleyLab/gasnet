@@ -2591,7 +2591,9 @@ AC_DEFUN([GASNET_PROG_PERL],[
   MIN_PERL_VERSION="5.005"
   AC_MSG_CHECKING(for perl version $MIN_PERL_VERSION or later)
   if $PERL -e "require $MIN_PERL_VERSION;" 2>/dev/null; then
-    AC_MSG_RESULT(yes)
+    dnl NOTE: unused $x below avoids unbalanced square brackets
+    PERL_VERSION=[`$PERL -e 'my $x="["; print (defined $^V ? $^V : $])'`]
+    AC_MSG_RESULT(yes: $PERL_VERSION)
   else
     AC_MSG_ERROR(cannot find perl $MIN_PERL_VERSION or later)
   fi
