@@ -4989,11 +4989,14 @@ int gasnetc_AMRequestMedium(gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                    flags, numargs, local_cnt, local_cb, NULL,
                                    argptr GASNETI_THREAD_PASS);
 
-    if (eop && (start_cnt == eop->initiated_alc)) {
-      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
-      GASNETE_EOP_LC_FINISH(eop);
-      *lc_opt = GEX_EVENT_INVALID;
-      gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    if (eop) {
+      gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
+      if (start_cnt == eop->initiated_alc) {
+        // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+        GASNETE_EOP_LC_FINISH(eop);
+        *lc_opt = GEX_EVENT_INVALID;
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+      }
     } else if (lc_opt == GEX_EVENT_NOW) {
 #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
       /* block for local completion of payload transfer */
@@ -5074,12 +5077,15 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
     if (lc_opt == GEX_EVENT_NOW) {
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
-    } else if (eop && (start_cnt == eop->initiated_alc)) {
-      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
-      GASNETE_EOP_LC_FINISH(eop);
-      *lc_opt = GEX_EVENT_INVALID;
-      if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    } else if (eop) {
+      gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
+      if (start_cnt == eop->initiated_alc) {
+        // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+        GASNETE_EOP_LC_FINISH(eop);
+        *lc_opt = GEX_EVENT_INVALID;
+        if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+          gasnete_eop_free(eop GASNETI_THREAD_PASS);
+        }
       }
     }
   }
@@ -5156,11 +5162,14 @@ int gasnetc_AMReplyMedium(  gex_Token_t token, gex_AM_Index_t handler,
                                    argptr GASNETI_THREAD_PASS);
     gasneti_assert(!rbuf->rbuf_needReply || (flags & GEX_FLAG_IMMEDIATE));
 
-    if (eop && (start_cnt == eop->initiated_alc)) {
-      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
-      GASNETE_EOP_LC_FINISH(eop);
-      *lc_opt = GEX_EVENT_INVALID;
-      gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    if (eop) {
+      gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
+      if (start_cnt == eop->initiated_alc) {
+        // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+        GASNETE_EOP_LC_FINISH(eop);
+        *lc_opt = GEX_EVENT_INVALID;
+        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+      }
     } else if (lc_opt == GEX_EVENT_NOW) {
     #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
       /* block for local completion of payload transfer */
@@ -5241,12 +5250,15 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
     if (lc_opt == GEX_EVENT_NOW) {
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
-    } else if (eop && (start_cnt == eop->initiated_alc)) {
-      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
-      GASNETE_EOP_LC_FINISH(eop);
-      *lc_opt = GEX_EVENT_INVALID;
-      if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-        gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    } else if (eop) {
+      gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
+      if (start_cnt == eop->initiated_alc) {
+        // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+        GASNETE_EOP_LC_FINISH(eop);
+        *lc_opt = GEX_EVENT_INVALID;
+        if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+          gasnete_eop_free(eop GASNETI_THREAD_PASS);
+        }
       }
     }
   #else
@@ -5379,11 +5391,14 @@ void gasnetc_commit_medium(
                      !is_Fixed, sd->_have_flow, sd->_nargs,
                      local_cnt, local_cb, NULL, argptr GASNETI_THREAD_PASS);
 
-  if (eop && (start_cnt == eop->initiated_alc)) {
-    // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
-    GASNETE_EOP_LC_FINISH(eop);
-    *lc_opt = GEX_EVENT_INVALID;
-    gasnete_eop_free(eop GASNETI_THREAD_PASS);
+  if (eop) {
+    gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
+    if (start_cnt == eop->initiated_alc) {
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
+      GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GEX_EVENT_INVALID;
+      gasnete_eop_free(eop GASNETI_THREAD_PASS);
+    }
   } else if (lc_opt == GEX_EVENT_NOW) {
 #if 0 // Currently always synchronous LC when (local_cb == gasnetc_cb_counter)
     /* block for local completion of payload transfer */
