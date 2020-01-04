@@ -119,6 +119,7 @@ static uint32_t notify_ring_mask; /* ring size minus 1 */
 static unsigned int am_slotsz;
 static unsigned int am_slot_bits;
 static unsigned int am_maxcredit;
+static unsigned int request_bits;
 
 static int have_auxseg = 0;
 static int have_segment = 0;
@@ -1041,7 +1042,6 @@ uintptr_t gasnetc_init_messaging(void)
   am_rvous_enabled = (am_rvous_val && (gasneti_nodes >= am_rvous_val));
 
   /* Determine space/credits for AM Requests */
-  int request_bits;
   if (am_rvous_enabled) {
     /* Rendezvous: GASNET_NETWORKDEPTH */
     GASNETI_TRACE_PRINTF(I, ("Using Rendezvous protocol for AM Requests"));
@@ -1863,6 +1863,9 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
   unsigned int remote_slot;
   reply_pool_t *r;
   gex_Flags_t imm_flag = flags & GEX_FLAG_IMMEDIATE;
+#if GASNET_PAR
+  int request_lock_held;
+#endif
 
 #if GASNETC_IMMEDIATE_AMPOLLS
   // BUSYWAIT may AMPoll at most once when IMMEDIATE flag is set
@@ -1889,6 +1892,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
     } while (peer->remote_request_lock);
   }
   peer->remote_request_lock = 1;
+  request_lock_held = 1;
 #endif
 
   if (isLong) { // Honor LONG_DEPTH
@@ -1918,7 +1922,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
     length = max_length;
   } else if (isFixed || (min_length == max_length)) { // Fixed Payload (or effectively so)
-    gasneti_assert(slots <= am_maxcredit/2);
+    gasneti_assert_uint(slots ,<=, request_bits/2);
     mask = (((uint64_t)1 << slots) - 1);
 
     BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
@@ -1952,6 +1956,7 @@ gasnetc_post_descriptor_t *request_post_descriptor_inner(gex_Rank_t dest,
 
 #if GASNET_PAR
   peer->remote_request_lock = 0;
+  request_lock_held = 0;
 #endif
 
   BUSYWAIT(((r = reply_freelist) == NULL), 
@@ -1987,14 +1992,13 @@ out_immediate_4:
 out_immediate_3:
     // Restore bits corresponding to remote buffer allocation
     peer->remote_request_map ^= mask;
-    goto out_immediate_1; // peer->remote_request_lock=0 would be erroneous
 out_immediate_2:
     // LONG_DEPTH credit, if any
     peer->long_credits += isLong;
 out_immediate_1_5:
   #if GASNET_PAR
-    // Release our lock on the per-peer remote buffer allocator
-    peer->remote_request_lock = 0;
+    // Possibly release our lock on the per-peer remote buffer allocator
+    if (request_lock_held) peer->remote_request_lock = 0;
   #endif
 out_immediate_1:
   GASNETC_UNLOCK_AM_BUFFER();
@@ -2099,7 +2103,7 @@ void gasnetc_recv_am_unlocked(peer_struct_t * const peer, gasnetc_packet_t * con
           const size_t head_len = GASNETC_HEADLEN(long, numargs);
           uint8_t * data = (uint8_t *)packet + head_len;
           gasneti_assert(head_len + packet->galp.data_length <= GASNETC_MSG_MAXSIZE);
-          memcpy(packet->galp.data, data, packet->galp.data_length);
+          GASNETI_MEMCPY(packet->galp.data, data, packet->galp.data_length);
       }
       GASNETI_FALLTHROUGH
   case GC_CMD_AM_LONG:
@@ -2644,12 +2648,12 @@ again:
         gasneti_sync_writes(); /* sync memcpy */
       } else
       if (gpd_flags & GC_POST_COPY_IMM) {
-        memcpy((void *) gpd->gpd_get_dst, (void *) gpd->u.immediate, gpd->pd.length);
+        GASNETI_MEMCPY((void *) gpd->gpd_get_dst, (void *) gpd->u.immediate, gpd->pd.length);
         gasneti_sync_writes(); /* sync memcpy */
       } else
       if (gpd_flags & GC_POST_COPY) {
         const size_t length = gpd->pd.length - (gpd_flags & GC_POST_COPY_TRIM);
-        memcpy((void *) gpd->gpd_get_dst, (void *) gpd->gpd_get_src, length);
+        GASNETI_MEMCPY((void *) gpd->gpd_get_dst, (void *) gpd->gpd_get_src, length);
         gasneti_sync_writes(); /* sync memcpy */
       }
 
@@ -2902,7 +2906,8 @@ size_t gasnetc_rdma_put_bulk(gex_Rank_t node,
           // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
            (pd->length = nbytes = gasnetc_put_bounce_register_cutover))) {
         void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
-        pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
+        GASNETI_MEMCPY(buffer, source_addr, nbytes);
+        pd->local_addr = (uint64_t) buffer;
         pd->local_mem_hndl = my_aux_handle;
         gpd->gpd_flags |= GC_POST_UNBOUNCE;
       } else {
@@ -2971,7 +2976,8 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
        gpd->gpd_flags |= GC_POST_UNBOUNCE;
        buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
     }
-    pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
+    GASNETI_MEMCPY(buffer, source_addr, nbytes);
+    pd->local_addr = (uint64_t) buffer;
     pd->type = GNI_POST_FMA_PUT;
     status = myPostFma(peer->ep_handle, gpd, last_eop_chunk);
   } else {
@@ -2987,7 +2993,8 @@ gasnetc_rdma_put_lc(gex_Rank_t node,
           // Case 3: Registration failed.  Use bounce buffer, reducing xfer length accordingly.
           ((last_eop_chunk = 0), (pd->length = nbytes = gasnetc_put_bounce_register_cutover)))) {
         void * const buffer = gasnetc_alloc_bounce_buffer(0 GASNETC_DIDX_PASS);
-        pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
+        GASNETI_MEMCPY(buffer, source_addr, nbytes);
+        pd->local_addr = (uint64_t) buffer;
         gpd->gpd_flags |= GC_POST_UNBOUNCE;
         pd->local_mem_hndl = my_aux_handle;
         goto post_rdma;

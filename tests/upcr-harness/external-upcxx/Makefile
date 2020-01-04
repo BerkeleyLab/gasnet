@@ -7,7 +7,8 @@ UPCXX_BACKEND    ?= gasnet_seq
 UPCXX_INSTDIR    ?= $(HARNESS_WORKDIR)/upcxx-inst
 UPCXX_TMPDIR     ?= $(HARNESS_WORKDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
-UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers, may be set by pushbuild/end-user
+UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers for lib and tests, may be set by pushbuild/end-user
+UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user. Ignored for UPCXX_TESTMODE=nobs.
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 export UPCXX_BACKEND
 
@@ -24,24 +25,28 @@ export UPCXX_BACKEND
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
   NOBS_GASNET:=$(UPCXX_GASNET)
-else ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
+else 
+ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
   NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet
   UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
   UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
-else ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
+else 
+ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
   UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
   # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the nobs gasnet builddir
   # Don't pollute nobs configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
-  # use meta to prevent a spurious second configure
-  UPCXX_TESTMODE = meta
+  # forbid TESTMODE=nobs to prevent a spurious second configure
+  UPCXX_TESTMODE = wrap
 else # default to using builddir
   NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
+endif
+endif
 UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
-UPCXX_TESTMODE  ?= meta
+UPCXX_TESTMODE  ?= wrap
 
 HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
@@ -190,7 +195,9 @@ _upcxx: force
 	$(MAKE) launcher launcher-mpi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
 	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
-	@-( set -x; $(DO_ENV) ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( $(DO_ENV) ; set -x ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( $(DO_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( $(DO_ENV) ; set -x ; $(CMAKE) --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
 	@( echo ======== Prebuild UPCXX RT libs ========; \
 	  for f in $(RUNTIME_TARGETS); do \
              echo '$(DO_NOBS) exe '$$f ; \
@@ -230,7 +237,7 @@ upcxx-wrap: upcxx-built
 	   cp -f "$(UPCXX_BLDDIR)/utils/upcxx.sh" $$BINDIR && chmod +x $$BINDIR/upcxx.sh && \
 	   echo "#!/bin/bash" > $$BINDIR/upcxx && \
 	   echo "export UPCXX_META='$$BINDIR/upcxx-meta'" >> $$BINDIR/upcxx && \
-	   echo "exec $$BINDIR/upcxx.sh" '"$$@"' >> $$BINDIR/upcxx && \
+	   echo "source $$BINDIR/upcxx.sh" '"$$@"' >> $$BINDIR/upcxx && \
 	   chmod +x $$BINDIR/upcxx && \
 	   exit 0 ; \
 	 else \
@@ -245,37 +252,35 @@ nobs_test: upcxx-built
 # Build a single test from the installed UPCXX directory
 inst_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
-	META_CXX=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXX` && \
-	CXXFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta CXXFLAGS` && \
-	PPFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta PPFLAGS` && \
-	LDFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LDFLAGS` && \
-	LIBFLAGS=`$(UPCXX_INSTDIR_FULL)/bin/upcxx-meta LIBFLAGS` && \
-	$$META_CXX $$CXXFLAGS $$PPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) $$LIBFLAGS
+	source $(UPCXX_INSTDIR_FULL)/bin/upcxx-meta SET ; \
+	$$CXX $$CXXFLAGS $$CPPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBS
 
 # Build a single test using the upcxx wrapper
 wrap_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
-	$(UPCXX_INSTDIR_FULL)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)
+	$(UPCXX_INSTDIR_FULL)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
 
 # Pattern rule builds tests, using logic dependent on their location
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator
+VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
-	case "$<" in \
-         *$(UPCXX_BLDDIR)/test/*) set -x ; \
-	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS)' ;; \
-	 *) \
-	if test "$(strip $(UPCXX_TESTMODE))" = "meta" ; then set -x ; \
+	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
+	if test -z "$(strip $(UPCXX_TESTMODE_FORCE))" ; then \
+	  if test "$$UPCXX_TESTMODE" = nobs && \
+	    ( test -n "$(strip $(UPCXX_TEST_FLAGS))" || test -n "$(strip $(UPCXX_EXTRA_TEST_FLAGS))" ) ; then \
+	    UPCXX_TESTMODE="meta" ; \
+	  fi ; \
+        fi ; \
+	if test "$$UPCXX_TESTMODE" = "meta" ; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
-	elif test "$(strip $(UPCXX_TESTMODE))" = "wrap" ; then set -x ; \
+	elif test "$$UPCXX_TESTMODE" = "wrap" ; then set -x ; \
 	  $(MAKE) wrap_test TEST_PATH=$< TEST_EXE=$@ ; \
-	elif test "$(strip $(UPCXX_TESTMODE))" = "nobs" ; then set -x ; \
-	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_TEST_FLAGS) $(UPCXX_EXTRA_FLAGS) '-DUPCXX_BACKEND=$$UPCXX_BACKEND ; \
+	elif test "$$UPCXX_TESTMODE" = "nobs" ; then set -x ; \
+	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) $(UPCXX_TEST_FLAGS)' ; \
 	else \
-	  echo "Unrecognized UPCXX_TESTMODE=$(UPCXX_TESTMODE)" ; exit 100; \
-	fi ;; \
-	esac
+	  echo "Unrecognized UPCXX_TESTMODE=$$UPCXX_TESTMODE" ; exit 100; \
+	fi 
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
@@ -322,6 +327,26 @@ cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $(<D) UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean cuda_vecadd
 	mv $(<D)/cuda_vecadd $@
+
+CMAKE ?= cmake
+CMAKE_ARGS ?=
+ifeq ($(shell uname -s),Darwin)
+  # Apple CMake is a special snowflake and ignores $CC/$CXX, so force them via cmd-line
+  # CMake cannot handle embedded arguments when passed this way, so strip them and hope for the best..
+  CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" $(CMAKE_ARGS)
+endif
+
+cmake-%:
+	-rm -Rf cmake
+	cp -r $(UPCXX_BLDDIR)/utils/cmake .
+	cd cmake && ( set -x ; \
+	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
+	       UPCXX_INSTALL=$(UPCXX_INSTDIR)-gasnet_$* ; \
+	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
+	cmake --version ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=. $(CMAKE_ARGS) . )
+	$(MAKE) -C cmake all VERBOSE=1
+	mv cmake/upcxx_test $@
 
 force:
 

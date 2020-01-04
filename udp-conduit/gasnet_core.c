@@ -91,7 +91,7 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
   void *tmp = gasneti_malloc(len * gasneti_nodes);
   gasneti_assert(NULL != src);
   gasnetc_bootstrapExchange(src, len, tmp);
-  memcpy(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
+  GASNETI_MEMCPY(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
   gasneti_free(tmp);
 }
 #endif
@@ -266,7 +266,21 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
         gasneti_mynode, gasneti_nodes); fflush(stderr);
     #endif
 
-    gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
+    void *mynodeid;
+    uint64_t local_id;
+    if (gasneti_getenv_yesno_withdefault("GASNET_USE_GETHOSTID", 0)) {
+      // Use gasneti_gethostid() to construct the nodemap
+      mynodeid = NULL;
+    } else {
+      // Use (hash of) hostname and the local IP address to construct the nodemap
+      en_t my_name;
+      GASNETI_AM_SAFE( AM_GetTranslationName(gasnetc_endpoint, gasneti_mynode, &my_name) );
+      uint64_t csum = gasneti_hosthash();
+      local_id = GASNETI_MAKEWORD(GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum),
+                                  *(uint32_t *)(&my_name.sin_addr));
+      mynodeid = &local_id;
+    }
+    gasneti_nodemapInit(&gasnetc_bootstrapExchange, mynodeid, sizeof(local_id), 0);
 
     #if GASNET_PSHM
       gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);

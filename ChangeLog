@@ -10,12 +10,36 @@ GASNet-EX ChangeLog
   GASNet-EX currently implements the following conduits:
   - InfiniBand Verbs (ibv-conduit)
   - Cray uGNI (aries-conduits)
-  - IBM PAMI (pami-conduit) *DEPRECATED*
   - Shared-memory (smp-conduit)
   - Portable UDP (udp-conduit)
   - Portable MPI (mpi-conduit)
   Users wishing to use other conduits are recommended to download the GASNet v1.x
   distribution from https://gasnet.lbl.gov.
+
+----------------------------------------------------------------------
+PENDING: GASNet-EX Work-In-Progress
+
+* IBM PAMI (pami-conduit)
+  - This conduit, deprecated since 2019.9.0, has been removed.
+
+* Portable UDP support (udp-conduit)
+  - Provide more robust default detection of shared-memory peers
+    (see GASNET_USE_GETHOSTID in udp-conduit/README for details).
+
+* Platform support/portability
+  - Support for IBM BlueGene/Q has been removed.
+  - Support for native atomics on IBM XL compilers for big-endian PPC has been
+    removed.  These platforms now default to compiler-provided atomics.
+    Little-endian PPC platforms remain unchanged.
+
+* General and Misc.
+  - New make targets (run-)tests-installed-{seq,par,parsync} have been
+    added for use in post-install validation of the library.
+
+* Notable bugs fixed in this release:
+  - bug4022: rare resource leak in aries-conduit AM Long protocol
+  - bug4024: erroneous behavior from `testam -async-req -np-cb`
+  - bug4025: erroneous assertion failure from loopback NPAM
 
 ----------------------------------------------------------------------
 09-14-2019: GASNet-EX 2019.9.0 Release

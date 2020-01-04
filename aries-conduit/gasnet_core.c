@@ -240,7 +240,7 @@ static void gasnetc_sys_exchange_reqh(gex_Token_t token, void *buf,
   uint8_t *dest = gasnetc_sys_exchange_addr(phase, elemsz)
                   + offset + (seq * GASNETC_SYS_EXCHANGE_MAX);
 
-  memcpy(dest, buf, nbytes);
+  GASNETI_MEMCPY(dest, buf, nbytes);
   ++gasnetc_sys_exchange_rcvd[phase][step];
 }
 
@@ -259,7 +259,7 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
     if (gasneti_nodemap_local_rank) goto end_network_comms;
 #else
     /* Copy in local contribution */
-    memcpy(temp, src, len);
+    GASNETI_MEMCPY(temp, src, len);
 #endif
 
     if (pre_attach) gasneti_attach_done = 1; /* to use AMs before attach */
@@ -304,13 +304,13 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
       gex_Rank_t n;
       for (n = 0; n < gasneti_nodes; ++n) {
         const gex_Rank_t peer = gasnetc_exchange_permute[n];
-        memcpy((uint8_t*) dest + len * peer, temp + len * n, len);
+        GASNETI_MEMCPY((uint8_t*) dest + len * peer, temp + len * n, len);
       }
     } else
 #endif
     {
-      memcpy(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
-      memcpy((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+      GASNETI_MEMCPY_SAFE_EMPTY(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
+      GASNETI_MEMCPY((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
     }
 
 #if GASNET_PSHM
@@ -1072,7 +1072,7 @@ extern void gasnetc_exit(int exitcode) {
   #else
     #define _GASNETC_CLOBBER_LOCK(pl) do {                     \
           gasneti_mutex_t dummy_lock = GASNETI_MUTEX_INITIALIZER; \
-          memcpy((pl), &dummy_lock, sizeof(gasneti_mutex_t));     \
+          GASNETI_MEMCPY((pl), &dummy_lock, sizeof(gasneti_mutex_t));     \
         } while (0)
   #endif
   #if GASNET_DEBUG && !GASNETC_USE_SPINLOCK
@@ -1437,7 +1437,8 @@ void gasnetc_put_long_payload(gex_Rank_t jobrank,
                               size_t nbytes,
                               uint32_t gpd_flags,
                               void *completion,
-                              uint32_t nonce
+                              uint32_t nonce,
+                              int is_req
                               GASNETC_DIDX_FARG)
 {
   gasneti_suspend_spinpollers();
@@ -1449,10 +1450,20 @@ void gasnetc_put_long_payload(gex_Rank_t jobrank,
     // stall for local completion (GEX_EVENT_NOW)
     volatile int *done_p = (volatile int *) completion;
     if (! *done_p) {
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-      while (! *done_p) {
-        GASNETI_WAITHOOK();
+      if (is_req) {
+        // May safely progress everything, including AMs and progress functions
+        gasneti_AMPoll();
+        while (! *done_p) {
+          GASNETI_WAITHOOK();
+          gasneti_AMPoll();
+        }
+      } else {
+        // Running in handler context and thus may safely only progress local queue
         gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        while (! *done_p) {
+          GASNETI_WAITHOOK();
+          gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        }
       }
     }
   }
@@ -1542,7 +1553,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
         completion = (void *) &done_flag;
       }
       gasnetc_put_long_payload(jobrank, dest_addr, source_addr, nbytes,
-                               gpd_flags, completion, nonce GASNETC_DIDX_PASS);
+                               gpd_flags, completion, nonce, 1 GASNETC_DIDX_PASS);
     }
 
     retval = 0;
@@ -1783,7 +1794,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
         completion = (void *) &done_flag;
       }
       gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr, nbytes,
-                               gpd_flags, completion, nonce GASNETC_DIDX_PASS);
+                               gpd_flags, completion, nonce, 0 GASNETC_DIDX_PASS);
     }
 
     retval = 0;

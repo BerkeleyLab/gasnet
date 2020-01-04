@@ -43,7 +43,7 @@ pmi_deps = $(pmi_srcdir)/*.[ch]
 endif
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = .
+SUBDIRS = contrib
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -92,7 +92,7 @@ CONDUIT_SPECIAL_OBJS = $(mpi_special_objs)
 #   %Q = program arguments w/ an extra level of quotes
 #   %D = the current working directory
 #   %H = hostfile (if any)
-CONDUIT_RUNCMD = mpirun -np %N %P %A
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/ucx-conduit/contrib/gasnetrun_ucx -np %N %P %A
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =

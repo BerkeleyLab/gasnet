@@ -109,7 +109,6 @@ GASNet Release Procedure
 * Test the release candidate on all directly supported systems and conduits,
   with both debug+stats+trace and ndebug configs, and all supported backend
   C compilers:
-   IBM BG/Q: pami (and mpi if time/allocation allows)
    Cray XC: aries (and mpi if time/allocation allows)
    Linux-Ethernet: mpi, udp, ofi
    Linux-InfiniBand: mpi, ibv

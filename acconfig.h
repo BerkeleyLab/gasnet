@@ -164,9 +164,6 @@
 
 /* Which inline asm style(s) are supported - these are defined only
    where we use configure to determine what a compiler supports */
-#undef GASNETI_HAVE_CC_XLC_ASM
-#undef GASNETI_HAVE_CXX_XLC_ASM
-#undef GASNETI_HAVE_MPI_CC_XLC_ASM
 #undef GASNETI_HAVE_CC_GCC_ASM
 #undef GASNETI_HAVE_CXX_GCC_ASM
 #undef GASNETI_HAVE_MPI_CC_GCC_ASM
@@ -269,7 +266,6 @@
 #undef GASNETI_PSHM_SYSV
 #undef GASNETI_PSHM_FILE
 #undef GASNETI_PSHM_XPMEM
-#undef GASNETI_PSHM_GHEAP
 
 /* How many cores/node must we support (255 is default) */
 #undef GASNETI_CONFIG_PSHM_MAX_NODES
@@ -409,9 +405,6 @@
 /* platform is a Linux cluster running IBM PE software */
 #undef GASNETI_ARCH_IBMPE
 
-/* platform is an IBM BlueGene/Q multiprocessor */
-#undef GASNETI_ARCH_BGQ
-
 /* platform is Microsoft Windows Subsystem for Linux */
 #undef GASNETI_ARCH_WSL
 
@@ -470,9 +463,6 @@
 #undef GASNETC_IBV_MAX_HCAS
 #undef GASNETC_IBV_PHYSMEM_MAX_CONFIGURE
 #undef GASNETC_IBV_PHYSMEM_PROBE_CONFIGURE
-
-/* GASNet pami-conduit settings */
-#undef GASNETI_SIZEOF_PAMI_TASK_T
 
 /* GASNet bug1389 detection/work-around */
 #undef GASNETI_BUG1389_WORKAROUND

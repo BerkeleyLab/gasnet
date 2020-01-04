@@ -12,7 +12,7 @@ Currently, the ucx-conduit only includes the implementation of GASNet
 Active Messages and should not be used for performance measurements.
 
 Ucx-conduit is a work-in-progress and currently disabled by default.
-If you’re interested in trying it, please email gasnet-staff@lbl.gov for instructions.
+If you're interested in trying it, please email gasnet-staff@lbl.gov for instructions.
 
 Where this conduit runs:
 -----------------------

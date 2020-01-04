@@ -510,7 +510,7 @@ static void gasnetc_sys_exchange_reqh(gex_Token_t token, void *buf,
   uint8_t *dest = gasnetc_sys_exchange_addr(phase, elemsz)
                   + offset + (seq * GASNETC_SYS_EXCHANGE_MAX);
 
-  memcpy(dest, buf, nbytes);
+  GASNETI_MEMCPY(dest, buf, nbytes);
   gasnetc_sys_exchange_inc(phase, step);
 }
 
@@ -527,7 +527,7 @@ static void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
     if (gasneti_nodemap_local_rank) goto end_network_comms;
 #else
     /* Copy in local contribution */
-    memcpy(temp, src, len);
+    GASNETI_MEMCPY(temp, src, len);
 #endif
 
     /* Bruck's concatenation algorithm: */
@@ -568,13 +568,13 @@ static void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
       gex_Rank_t n;
       for (n = 0; n < gasneti_nodes; ++n) {
         const gex_Rank_t peer = gasnetc_exchange_permute[n];
-        memcpy((uint8_t*) dest + len * peer, temp + len * n, len);
+        GASNETI_MEMCPY((uint8_t*) dest + len * peer, temp + len * n, len);
       }
     } else
 #endif
     {
-      memcpy(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
-      memcpy((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+      GASNETI_MEMCPY_SAFE_EMPTY(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
+      GASNETI_MEMCPY((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
     }
 
 #if GASNET_PSHM
@@ -3289,7 +3289,7 @@ void gasnetc_post_checkpoint(int is_restart) {
     rem_addr = gasneti_seginfo_client[peer].addr;
   #endif
 
-    memcpy(buffer1, loc_addr, nbytes);
+    GASNETI_MEMCPY(buffer1, loc_addr, nbytes);
     // TODO-EX: replace or remove:
     //gasnet_ get(buffer2, peer, rem_addr, nbytes);
 
@@ -4199,7 +4199,7 @@ static void gasnetc_exit_init(void) {
       gasnetc_exit_children = children;
       gasnetc_exit_child = gasneti_malloc(len);
       gasneti_leak(gasnetc_exit_child);
-      memcpy(gasnetc_exit_child, gasneti_nodemap_local+1, len);
+      GASNETI_MEMCPY(gasnetc_exit_child, gasneti_nodemap_local+1, len);
     }
   }
 #endif

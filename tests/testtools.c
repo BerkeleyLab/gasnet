@@ -130,6 +130,12 @@ int main(int argc, char **argv) {
     int rmin = GASNETT_RELEASE_VERSION_MINOR;
     int rpat = GASNETT_RELEASE_VERSION_PATCH;
     assert_always(smaj > 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
+    uint64_t ver = rmaj * (uint64_t)1000000 + rmin * (uint64_t)10000 + rpat;
+    assert_always(ver == gasnett_release_version());
+    const char *version_str = _STRINGIFY(GASNET_RELEASE_VERSION_MAJOR) "." 
+                              _STRINGIFY(GASNET_RELEASE_VERSION_MINOR) "." 
+                              _STRINGIFY(GASNET_RELEASE_VERSION_PATCH);
+    assert_always(!strcmp(version_str, gasnett_release_version_str()));
   }
 
   #if defined(GASNETT_PAGESIZE) && defined(GASNETT_PAGESHIFT)

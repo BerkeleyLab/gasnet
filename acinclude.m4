@@ -2727,6 +2727,7 @@ case "$$3" in
       ],[__VERSION__],[_gasnet_$2_gcc_version_string])
     case "$_gasnet_$2_gcc_version_string" in
       *gccfss*) $2_SUBFAMILY='GCCFSS';;
+      *Advance-Toolchain*) $2_SUBFAMILY='IBM';;
       *) GASNET_IFDEF(__APPLE_CC__, [$2_SUBFAMILY='APPLE'])
          GASNET_IFDEF(__NVCC__, [$2_SUBFAMILY='NVIDIA'])
          ;;

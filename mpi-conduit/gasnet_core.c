@@ -91,7 +91,7 @@ void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode)
   int retval;
   gasneti_assert(gasneti_nodes > 0);
   gasneti_assert_uint(gasneti_mynode ,<, gasneti_nodes);
-  if (gasneti_mynode == rootnode) memcpy(dest, src, len);
+  if (gasneti_mynode == rootnode) GASNETI_MEMCPY_SAFE_IDENTICAL(dest, src, len);
   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDBroadcast(dest, len, rootnode));
   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapBroadcast()");
 }
@@ -101,7 +101,7 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
   void *tmp = gasneti_malloc(len * gasneti_nodes);
   void *self = src ? src : gasneti_malloc(len); /* Ensure never NULL */
   gasnetc_bootstrapExchange(self, len, tmp);
-  memcpy(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
+  GASNETI_MEMCPY(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
   if (self != src) gasneti_free(self);
   gasneti_free(tmp);
 }
@@ -1067,7 +1067,7 @@ extern int gasnetc_AMReplyLongM(
           gasneti_assert(idx < maxthreads);
           info = &(hsl_errcheck_table[idx]);
           gasneti_assert(!info->inuse);
-          memcpy(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
+          GASNETI_MEMCPY(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
           info->inuse = 1;
         gasneti_mutex_unlock(&hsl_errcheck_tablelock);
         gasneti_threadkey_set(gasnetc_hsl_errcheckinfo, info);
