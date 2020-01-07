@@ -35,6 +35,7 @@ PENDING: GASNet-EX Work-In-Progress
 * General and Misc.
   - New make targets (run-)tests-installed-{seq,par,parsync} have been
     added for use in post-install validation of the library.
+  - Now document and enforce use of GNU make version 3.79 or newer.
 
 * Notable bugs fixed in this release:
   - bug4022: rare resource leak in aries-conduit AM Long protocol

@@ -123,7 +123,7 @@ The minimum system requirements are:
    + The free 'Cygwin' toolkit (https://www.cygwin.com/)
    + Windows 10 Subsystem for Linux, a.k.a. WSL
      (https://docs.microsoft.com/en-us/windows/wsl/)
- * Make (we recommend GNU make version 3.79 or newer).
+ * GNU make (version 3.79 or newer).
  * Perl (version 5.005 or newer).
  * The following standard Unix tools: 'awk', 'sed', 'env', 'basename', 'dirname',
    and a Bourne-compatible shell (e.g. bash).
