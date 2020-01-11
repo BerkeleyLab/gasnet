@@ -143,12 +143,10 @@ upcxx-unpack-tgz:   force
 # Symlink or simple script that corresponds to
 #    RunCmd = ./launcher -np %N %P %A
 launcher:
-	@UPCXXRUN=$(UPCXX_BLDDIR)/utils/upcxx-run ; \
+	-rm -f $@
+	@UPCXXRUN=$(UPCXX_INSTDIR)/bin/upcxx-run; \
 	 if test -f $$UPCXXRUN ; then set -x ; \
-	   rm -f $@ ; \
-	   echo '#!/bin/sh' > $@ ; \
-	   echo "exec env GASNET_PREFIX='$(UPCXX_LAUNCHERS)' $$UPCXXRUN"' "$$@"' >> $@ ; \
-	   chmod +x $@ ; \
+	   ln -s $$UPCXXRUN $@ ; \
 	 else \
 	   echo "ERROR: $$UPCXXRUN is missing" ; exit 1 ; \
 	 fi 
@@ -184,7 +182,6 @@ _upcxx: force
 	else \
 	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
-	$(MAKE) launcher launcher-mpi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
 	UPCXX_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(MAKE) do-upcxx 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@touch upcxx-built
@@ -208,6 +205,7 @@ do-upcxx: force
 _upcxx-inst:
 	rm -Rf $(UPCXX_INSTDIR) $@
 	UPCXX_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(MAKE) do-upcxx-inst 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	$(MAKE) launcher launcher-mpi 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 do-upcxx-inst: force
