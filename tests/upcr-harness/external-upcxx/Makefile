@@ -175,8 +175,7 @@ _upcxx: force
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
 	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:tarball ========; set -x; \
-	  $(MAKE) dist -C $(TOP_BUILDDIR)/gasnet && \
-          cp -f $(TOP_BUILDDIR)/gasnet/GASNet-*.tar.gz $(UPCXX_BLDDIR)/gasnet.tar.gz ; \
+	  $(MAKE) dist -C $(TOP_BUILDDIR)/gasnet ; \
 	else \
 	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
@@ -191,8 +190,13 @@ do-upcxx: force  # Runs with PREINSTALL_FRAGMENTS
 	@-( $(DO_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
 	@-( $(DO_ENV) ; set -x ; $(CMAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
 	@( echo ======== Configure UPCXX ========; set -x; \
+	   if test -n "$(UPCXX_TARBALL_GASNET)" ; then \
+	     gasnet=`ls -1t $(TOP_BUILDDIR)/gasnet/GASNet-*.tar.gz | head -1` ; \
+	   else \
+	     gasnet=$(CONFIGURE_GASNET); \
+	   fi ; \
 	   cd $(UPCXX_BLDDIR) && $(DO_ENV) && \
-	     ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$(CONFIGURE_GASNET) \
+	     ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$$gasnet \
 	                 --disable-auto-conduit-detect --with-default-network=$(UPCXX_CONDUIT) \
 	                 --enable-single=$(GASNET_CODEMODE) || exit 1; \
 	)
