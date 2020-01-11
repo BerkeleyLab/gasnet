@@ -8,7 +8,7 @@ UPCXX_INSTDIR    ?= $(HARNESS_WORKDIR)/upcxx-inst
 UPCXX_TMPDIR     ?= $(HARNESS_WORKDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers for lib and tests, may be set by pushbuild/end-user
-UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user. Ignored for UPCXX_TESTMODE=nobs.
+UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 export UPCXX_BACKEND
 
@@ -37,8 +37,6 @@ ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the nobs gasnet builddir
   # Don't pollute nobs configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
-  # forbid TESTMODE=nobs to prevent a spurious second configure
-  UPCXX_TESTMODE = wrap
 else # default to using builddir
   NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
@@ -52,7 +50,7 @@ HARNESS_LOGDIR    ?= .
 LOGFILE = $(HARNESS_LOGDIR)/upcxx.log
 TO_LOG = >> $(LOGFILE) 2>&1
 
-# nobs requires bash
+# Various UPC++ scripts require bash
 SHELL := /bin/bash
 PIPEEXIT := ; ( exit $${PIPESTATUS[0]} ) # bashism to preserve first exit code in a pipe
 
@@ -244,11 +242,6 @@ upcxx-wrap: upcxx-built
 	   echo "upcxx-wrap: ERROR missing prereqs" ; exit 10 ; \
 	 fi
 
-# Build a single test from the nobs build directory
-nobs_test: upcxx-built
-	$(DO_NOBS) exe $(TEST_PATH)
-	OUTPUT=`$(DO_NOBS) exe $(TEST_PATH)` && cp $$OUTPUT $(TEST_EXE)
-
 # Build a single test from the installed UPCXX directory
 inst_test: upcxx-install-$(UPCXX_BACKEND)
 	@set -x ; $(DO_ENV) && \
@@ -266,18 +259,10 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
 	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
-	if test -z "$(strip $(UPCXX_TESTMODE_FORCE))" ; then \
-	  if test "$$UPCXX_TESTMODE" = nobs && \
-	    ( test -n "$(strip $(UPCXX_TEST_FLAGS))" || test -n "$(strip $(UPCXX_EXTRA_TEST_FLAGS))" ) ; then \
-	    UPCXX_TESTMODE="meta" ; \
-	  fi ; \
-        fi ; \
 	if test "$$UPCXX_TESTMODE" = "meta" ; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
 	elif test "$$UPCXX_TESTMODE" = "wrap" ; then set -x ; \
 	  $(MAKE) wrap_test TEST_PATH=$< TEST_EXE=$@ ; \
-	elif test "$$UPCXX_TESTMODE" = "nobs" ; then set -x ; \
-	  $(MAKE) nobs_test TEST_PATH=$< TEST_EXE=$@ UPCXX_EXTRA_FLAGS='$(UPCXX_EXTRA_FLAGS) $(UPCXX_TEST_FLAGS)' ; \
 	else \
 	  echo "Unrecognized UPCXX_TESTMODE=$$UPCXX_TESTMODE" ; exit 100; \
 	fi 
@@ -350,4 +335,4 @@ cmake-%:
 
 force:
 
-.PHONY: force nobs_test inst_test
+.PHONY: force inst_test
