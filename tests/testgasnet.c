@@ -921,20 +921,20 @@ void doit0(int partner, int *partnerseg) {
   assert_arr_all_val(gex_TI_t, ti_arr, ti_all); // ALL includes them all
   test_format(gex_TI_t, ti_arr, gasnett_format_ti);
 
-  gex_RMA_Value_t val = 0;
+  gex_RMA_Value_t val = 0; test_mark_used(val);
   test_static_assert(sizeof(gex_RMA_Value_t) == SIZEOF_GEX_RMA_VALUE_T);
   test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(void *));
   test_static_assert(sizeof(gex_RMA_Value_t) >= sizeof(long));
   assert_unsigned(gex_RMA_Value_t);
 
-  gex_AM_Index_t ind = 0;
+  gex_AM_Index_t ind = 0; test_mark_used(ind);
   assert_unsigned(gex_AM_Index_t);
 
-  gex_AM_Arg_t arg = 0;
+  gex_AM_Arg_t arg = 0; test_mark_used(arg);
   test_static_assert(sizeof(gex_AM_Arg_t) >= 4);
   assert_signed(gex_AM_Arg_t);
   
-  gex_AM_SrcDesc_t sd = 0;
+  gex_AM_SrcDesc_t sd = 0; test_mark_used(sd);
   CHECK_ZERO_CONSTANT(gex_AM_SrcDesc_t, GEX_AM_SRCDESC_NO_OP);
 
   assert_inttype(gex_DT_t);

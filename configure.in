@@ -2822,6 +2822,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   GASNET_ID_OTHER_COMPILER_FAMILY([CXX], [C++])
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
+  DEVWARN_CXXFLAGS=
   GASNET_UDP_LIBS=""
   gxx_flag_prefix=''
   gxx_flag_delim=' '
@@ -2848,13 +2849,22 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
        CXXDEBUGFLAGS="$CXXFLAGS"
        GASNET_POPVAR(CXXFLAGS)
     ;;
-    PGI)   MISC_CXXFLAGS="-w -Masmkeyword -Msignextend" # apparently has no way to indep control warnings
+    PGI)   MISC_CXXFLAGS="-Masmkeyword -Msignextend"
            case "$GASNETI_PTR_BITS$target_os" in
              64darwin*) # PGI seems to have a different ABI
                GASNET_TRY_CXXFLAG([-Mllalign], [MISC_CXXFLAGS="$MISC_CXXFLAGS -Mllalign"])
                ;;
            esac
            GASNET_PGI_VERSION_CHECK(CXX)
+           # DOB: don't force this in client flags by default. The payoff is small and it has potential to break clients
+           # because it's not a valid option for PGI C compilation.
+           GASNET_TRY_CXXFLAG([--display_error_number], [DEVWARN_CXXFLAGS="--display_error_number"])
+
+           GASNET_TRY_CXXFLAG([--diag_suppress177], [ 
+             # Intentionally empty - this is just to test whether surgical warning suppresion is available
+           ], [
+             MISC_CXXFLAGS="-w $MISC_CXXFLAGS" # old versions of pgc++ have no way to indep control warnings
+           ])
            ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],
@@ -2904,7 +2914,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   AC_SUBST(GASNET_OPT_CXXFLAGS)
 
   # Add GNU-style warning enable/suppression flags to MISC_CXXFLAGS
-  DEVWARN_CXXFLAGS=
   case "$CXX_FAMILY" in
     GNU | Pathscale | Open64 | Clang)
       GASNET_PUSHVAR(CXXFLAGS,"$MISC_CXXFLAGS")

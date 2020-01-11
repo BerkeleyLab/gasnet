@@ -273,7 +273,7 @@
     gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(S)
 #else 
   #define GASNETI_TRACE_WAITSYNC_BEGIN() \
-    static char _dummy_WAITSYNC = (char)sizeof(_dummy_WAITSYNC)
+    static char _dummy_WAITSYNC = (&_dummy_WAITSYNC ? (char)sizeof(_dummy_WAITSYNC) : 0)
 #endif
 
 #if GASNET_STATS
