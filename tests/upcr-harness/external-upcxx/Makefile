@@ -12,30 +12,29 @@ UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
 
 # Options for providing GASNET:
-# 1. set UPCXX_GASNET to an existing build path to use, which must remain
-#    valid during compile but is not used at run time.
+# 1. set UPCXX_GASNET to an existing build path to use.
 # The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
 # 2. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
-#    This one notably implies this CI will configure and build GASNet,
-#    although still uses the GASNet build dir up though 'make install'.
-# 3. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build,
-#    which must remain valid during compile but is not used at run time.
+#    This one notably implies this CI will configure and build GASNet.
+# 3. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build.
+#
+# All three options will use the provided build directory only in the
+# '_upcxx' test (the UPC++ configure step) and not after.
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
   CONFIGURE_GASNET:=$(UPCXX_GASNET)
 else 
 ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
-  CONFIGURE_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
-  PREINSTALL_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+  CONFIGURE_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz  # actual filename will vary
+  CONFIGURE_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
   # Don't pollute configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
 else # default to using builddir
   CONFIGURE_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
 endif
-PREINSTALL_FRAGMENTS ?= $(CONFIGURE_GASNET)
-UPCXX_FRAGMENTS ?= $(UPCXX_INSTDIR)/gasnet.$(GASNET_CODEMODE)
-UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
+CONFIGURE_FRAGMENTS ?= $(CONFIGURE_GASNET)
+UPCXX_LAUNCHERS ?= $(UPCXX_INSTDIR)/gasnet.$(GASNET_CODEMODE)
 UPCXX_TESTMODE  ?= wrap
 
 HARNESS_LOGDIR    ?= .
@@ -69,19 +68,21 @@ endif
 GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(UPCXX_CONDUIT)))
 FRAGMENT=#empty by default
 ifneq ($(FRAGMENT),) # use any fragment we can find
--include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
--include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
+-include $(CONFIGURE_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
+-include $(CONFIGURE_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
 echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
 .PHONY: echovars
 endif
 
-COMMON_ENV = \
-        $(GASNET_VARS) \
-        DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) ASSERT=$(ASSERT) UPCXX_CODEMODE=$(UPCXX_CODEMODE) \
-	TERM=dumb PAGER=cat 
-DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && \
-         export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
-DO_MAKE = cd $(UPCXX_BLDDIR) && $(DO_ENV) && $(MAKE) $(UPCXX_MAKE_J)
+ifneq ($(strip $(UPCXX_TEST_ENV)),)
+DO_ENV := export $(UPCXX_TEST_ENV)
+else
+DO_ENV := : # empty
+endif
+
+CONFIGURE_ENV = \
+	export $(GASNET_VARS) && $(DO_ENV) && \
+        export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
 
 # Parametrized support for download/unpack
 UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
@@ -169,7 +170,7 @@ _upcxx: force
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_EXTRAS_URL) GIT_REPO=$(UPCXX_EXTRAS_GIT_REPO) GIT_COMMIT=$(UPCXX_EXTRAS_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR)/extras ) 2>&1 | tee -a $(LOGFILE) ; exit 0 # deliberately ignore failures
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) $(TO_LOG)
-	@echo CONFIGURE_GASNET=$(CONFIGURE_GASNET) PREINSTALL_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(TO_LOG)
+	@echo CONFIGURE_GASNET=$(CONFIGURE_GASNET) CONFIGURE_FRAGMENTS=$(CONFIGURE_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
 	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
@@ -179,40 +180,34 @@ _upcxx: force
 	  echo ======== UPCXX_GASNET:builddir ========; set -x; \
 	fi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
-	UPCXX_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(MAKE) do-upcxx 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
-	@touch upcxx-built
-	@echo '#!/bin/sh' > $@ ; chmod +x $@
-
-do-upcxx: force  # Runs with PREINSTALL_FRAGMENTS
-	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning
-	@-( $(DO_ENV) ; set -x ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning
-	@-( $(DO_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
-	@-( $(DO_ENV) ; set -x ; $(CMAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
+	@-( set -x; $(CONFIGURE_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( $(CONFIGURE_ENV) ; set -x ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( $(CONFIGURE_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
+	@-( $(CONFIGURE_ENV) ; set -x ; $(CMAKE) --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
 	@( echo ======== Configure UPCXX ========; set -x; \
 	   if test -n "$(UPCXX_TARBALL_GASNET)" ; then \
 	     gasnet=`ls -1t $(TOP_BUILDDIR)/gasnet/GASNet-*.tar.gz | head -1` ; \
 	   else \
 	     gasnet=$(CONFIGURE_GASNET); \
 	   fi ; \
-	   cd $(UPCXX_BLDDIR) && $(DO_ENV) && \
+	   cd $(UPCXX_BLDDIR) && $(CONFIGURE_ENV) && \
 	     ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$$gasnet \
 	                 --disable-auto-conduit-detect --with-default-network=$(UPCXX_CONDUIT) \
 	                 --enable-single=$(GASNET_CODEMODE) || exit 1; \
-	)
+	) $(TO_LOG)
 	@( echo ======== Build UPCXX RT libs ========; set -x; \
-	   $(DO_MAKE) all || exit 1; \
-	)
+	   $(MAKE) $(UPCXX_MAKE_J) -C $(UPCXX_BLDDIR) all || exit 1; \
+	) $(TO_LOG)
+	@touch upcxx-built
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 _upcxx-inst:
 	rm -Rf $(UPCXX_INSTDIR) $@
-	UPCXX_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(MAKE) do-upcxx-inst 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	@( echo ======== UPCXX install ========; set -x; \
+	   $(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) install || exit 1; ) $(TO_LOG)
+	/bin/ls -alR $(UPCXX_INSTDIR) $(TO_LOG)
 	$(MAKE) launcher launcher-mpi 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
-
-do-upcxx-inst: force  # Runs with PREINSTALL_FRAGMENTS
-	@echo ======== UPCXX install ========; set -x; \
-	 $(DO_MAKE) install
-	/bin/ls -alR $(UPCXX_INSTDIR)
 
 # Build a single test from the installed UPCXX directory
 inst_test: _upcxx-inst
