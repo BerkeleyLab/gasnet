@@ -264,7 +264,7 @@ jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
 extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; 
+	 set -x ; \
 	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
 	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
 	 UPCXX_EXTENDADD_EXTRA=$${UPCXX_EXTENDADD_EXTRA:--Wno-unknown-pragmas} ; \
