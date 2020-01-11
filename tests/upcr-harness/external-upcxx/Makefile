@@ -3,7 +3,6 @@ UPCXX_EXTRAS_GIT_REPO   ?=# Set to a git repo address to enable git-based fetch
 UPCXX_GIT_COMMIT        ?= develop
 UPCXX_EXTRAS_GIT_COMMIT ?= develop
 UPCXX_BLDDIR     ?= $(HARNESS_WORKDIR)/upcxx
-UPCXX_BACKEND    ?= gasnet_seq
 UPCXX_INSTDIR    ?= $(HARNESS_WORKDIR)/upcxx-inst
 UPCXX_TMPDIR     ?= $(HARNESS_WORKDIR)/upcxx-tmp
 UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harness run
@@ -11,7 +10,6 @@ UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers for lib and tests, ma
 UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
-export UPCXX_BACKEND
 
 # Options for providing GASNET:
 # 1. set UPCXX_GASNET to an existing build path to use
@@ -228,8 +226,8 @@ wrap_test: _upcxx-inst
 # Pattern rule builds tests, using logic dependent on their location
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
 %-seq %-par :: %.cpp force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
 	if test "$$UPCXX_TESTMODE" = "meta" ; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
@@ -241,22 +239,22 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 
 # upcxx-examples guppie
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) clean guppie-$*
 	mv $</guppie-$* $@
 
 # upcxx-examples jac3d
 jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) clean jac3d
 	mv $</jac3d $@
 
 # upcxx-examples extend-add
 extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; 
 	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
 	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
@@ -269,8 +267,8 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 
 # UPC interop
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
 	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
@@ -280,8 +278,8 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 
 # misc make-based examples
 cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
-	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $(<D) UPCXX_INSTALL=$(UPCXX_INSTDIR) clean cuda_vecadd
 	mv $(<D)/cuda_vecadd $@
 
