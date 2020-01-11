@@ -10,9 +10,10 @@ UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harnes
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers for lib and tests, may be set by pushbuild/end-user
 UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
+UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
 export UPCXX_BACKEND
 
-# Options for providing GASNET to nobs:
+# Options for providing GASNET:
 # 1. set UPCXX_GASNET to an existing build path to use
 # The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
 # 2. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
@@ -22,19 +23,19 @@ export UPCXX_BACKEND
 #    which must remain valid during both compile and run
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
-  NOBS_GASNET:=$(UPCXX_GASNET)
+  CONFIGURE_GASNET:=$(UPCXX_GASNET)
 else 
 ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
-  NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
+  CONFIGURE_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
   UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
-  # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the nobs gasnet builddir
-  # Don't pollute nobs configure with harness flags
+  # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the gasnet builddir
+  # Don't pollute configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
 else # default to using builddir
-  NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
+  CONFIGURE_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
 endif
-UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
+UPCXX_FRAGMENTS ?= $(CONFIGURE_GASNET)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
 UPCXX_TESTMODE  ?= wrap
 
@@ -54,6 +55,12 @@ UNZIP             ?= unzip
 P7ZIP             ?= 7za
 GIT               ?= git
 
+# GASNET_CODEMODE
+ifeq ($(strip $(UPCXX_CODEMODE)),O3)
+GASNET_CODEMODE=opt
+else
+GASNET_CODEMODE=debug
+endif
 
 # Logic to extract GASNet's compiler variables.
 # nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
@@ -70,15 +77,14 @@ echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
 .PHONY: echovars
 endif
 
-RUNTIME_TARGETS = test/hello_gasnet.cpp test/hello_upcxx.cpp
 COMMON_ENV = \
         $(GASNET_VARS) \
         DBGSYM=$(DBGSYM) OPTLEV=$(OPTLEV) ASSERT=$(ASSERT) UPCXX_CODEMODE=$(UPCXX_CODEMODE) \
-	GASNET="$(NOBS_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
+	GASNET="$(CONFIGURE_GASNET)" GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	TERM=dumb PAGER=cat 
 DO_ENV = unset $(UNSET_VARS) ; export $(COMMON_ENV) $(UPCXX_TEST_ENV) && \
          export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
-DO_NOBS = cd $(UPCXX_BLDDIR) && source ./sourceme && $(DO_ENV) && nobs
+DO_MAKE = cd $(UPCXX_BLDDIR) && $(DO_ENV) && $(MAKE) $(UPCXX_MAKE_J)
 
 # Parametrized support for download/unpack
 UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
@@ -167,7 +173,7 @@ _upcxx: force
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_EXTRAS_URL) GIT_REPO=$(UPCXX_EXTRAS_GIT_REPO) GIT_COMMIT=$(UPCXX_EXTRAS_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR)/extras ) 2>&1 | tee -a $(LOGFILE) ; exit 0 # deliberately ignore failures
-	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
+	@echo UPCXX_GASNET=$(UPCXX_GASNET) CONFIGURE_GASNET=$(CONFIGURE_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
 	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
@@ -179,72 +185,52 @@ _upcxx: force
 	fi $(TO_LOG)
 	$(MAKE) launcher launcher-mpi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
-	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
-	@-( $(DO_ENV) ; set -x ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
-	@-( $(DO_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
-	@-( $(DO_ENV) ; set -x ; $(CMAKE) --version ) 2>&1 | egrep -i -v -e error -e warning $(TO_LOG)
-	@( echo ======== Prebuild UPCXX RT libs ========; \
-	  for f in $(RUNTIME_TARGETS); do \
-             echo '$(DO_NOBS) exe '$$f ; \
-                   $(DO_NOBS) exe $$f || exit 1; \
-             echo ; \
-          done; \
-	) $(TO_LOG)
+	$(MAKE) do-upcxx 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@touch upcxx-built
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-_upcxx-inst-SEQ:
-	$(MAKE) upcxx-inst-gasnet_seq UPCXX_BACKEND=gasnet_seq 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+do-upcxx: force
+	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning
+	@-( $(DO_ENV) ; set -x ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning
+	@-( $(DO_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
+	@-( $(DO_ENV) ; set -x ; $(CMAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
+	@( echo ======== Configure UPCXX ========; set -x; \
+	   cd $(UPCXX_BLDDIR) && $(DO_ENV) && \
+	     ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$(CONFIGURE_GASNET) \
+	                 --disable-auto-conduit-detect --with-default-network=$(UPCXX_CONDUIT) \
+	                 --enable-single=$(GASNET_CODEMODE) || exit 1; \
+	)
+	@( echo ======== Build UPCXX RT libs ========; set -x; \
+	   $(DO_MAKE) all || exit 1; \
+	)
+
+_upcxx-inst:
+	rm -Rf $(UPCXX_INSTDIR) $@
+	$(MAKE) do-upcxx-inst 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-_upcxx-inst-PAR:
-	$(MAKE) upcxx-inst-gasnet_par UPCXX_BACKEND=gasnet_par 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
-	@echo '#!/bin/sh' > $@ ; chmod +x $@
-
-UPCXX_INSTDIR_FULL  := $(UPCXX_INSTDIR)-$(UPCXX_BACKEND)
-
-upcxx-inst-$(UPCXX_BACKEND): upcxx-built
-	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) UPCXX_BACKEND=$(UPCXX_BACKEND)
-	rm -Rf $(UPCXX_INSTDIR_FULL) $@
-	@echo ======== UPCXX install $(UPCXX_BACKEND) ========; set -x; \
-	 cd $(UPCXX_BLDDIR) && $(DO_ENV) && ./install --single $(UPCXX_INSTDIR_FULL)
-	$(MAKE) upcxx-wrap
-	/bin/ls -alR $(UPCXX_INSTDIR_FULL)
-	@touch upcxx-install-$(UPCXX_BACKEND)
-
-# This fakes the upcxx compiler wrapper, which is currently not generated for -single installs
-upcxx-wrap: upcxx-built
-	@BINDIR="$(UPCXX_INSTDIR_FULL)/bin" ; \
-	 if test -x "$$BINDIR/upcxx" ; then \
-	   echo "upcxx-wrap: Using provided upcxx" ; exit 0 ; \
-	 elif test -x "$$BINDIR/upcxx-meta" && test -f "$(UPCXX_BLDDIR)/utils/upcxx.sh" ; then \
-	   set -x ; \
-	   cp -f "$(UPCXX_BLDDIR)/utils/upcxx.sh" $$BINDIR && chmod +x $$BINDIR/upcxx.sh && \
-	   echo "#!/bin/bash" > $$BINDIR/upcxx && \
-	   echo "export UPCXX_META='$$BINDIR/upcxx-meta'" >> $$BINDIR/upcxx && \
-	   echo "source $$BINDIR/upcxx.sh" '"$$@"' >> $$BINDIR/upcxx && \
-	   chmod +x $$BINDIR/upcxx && \
-	   exit 0 ; \
-	 else \
-	   echo "upcxx-wrap: ERROR missing prereqs" ; exit 10 ; \
-	 fi
+do-upcxx-inst: force
+	@echo ======== UPCXX install ========; set -x; \
+	 $(DO_MAKE) install
+	/bin/ls -alR $(UPCXX_INSTDIR)
 
 # Build a single test from the installed UPCXX directory
-inst_test: upcxx-install-$(UPCXX_BACKEND)
+inst_test: _upcxx-inst
 	@set -x ; $(DO_ENV) && \
-	source $(UPCXX_INSTDIR_FULL)/bin/upcxx-meta SET ; \
+	source $(UPCXX_INSTDIR)/bin/upcxx-meta SET ; \
 	$$CXX $$CXXFLAGS $$CPPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBS
 
 # Build a single test using the upcxx wrapper
-wrap_test: upcxx-install-$(UPCXX_BACKEND)
+wrap_test: _upcxx-inst
 	@set -x ; $(DO_ENV) && \
-	$(UPCXX_INSTDIR_FULL)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
+	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
 
 # Pattern rule builds tests, using logic dependent on their location
 VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
 %-seq %-par :: %.cpp force
-	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ;; *-par) UPCXX_BACKEND=gasnet_par ;; esac; \
+	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
+	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
 	UPCXX_TESTMODE="$(strip $(UPCXX_TESTMODE))" ; \
 	if test "$$UPCXX_TESTMODE" = "meta" ; then set -x ; \
 	  $(MAKE) inst_test TEST_PATH=$< TEST_EXE=$@ ; \
@@ -258,14 +244,14 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean guppie-$*
+	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) clean guppie-$*
 	mv $</guppie-$* $@
 
 # upcxx-examples jac3d
 jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean jac3d
+	 set -x ; $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) clean jac3d
 	mv $</jac3d $@
 
 # upcxx-examples extend-add
@@ -276,7 +262,7 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
 	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
 	 UPCXX_EXTENDADD_EXTRA=$${UPCXX_EXTENDADD_EXTRA:--Wno-unknown-pragmas} ; \
-	 $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND \
+	 $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) \
                        SCALAPACK_LIBS="$$SCALAPACK_LIBS" \
                        OPTIMIZATION="$(OPT) $$UPCXX_EXTENDADD_EXTRA" \
                        clean extend-add_$*
@@ -289,7 +275,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
 	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
-	             UPCXX=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND/bin/upcxx \
+	             UPCXX=$(UPCXX_INSTDIR)/bin/upcxx \
 	             clean $*
 	mv $</$* $@
 
@@ -297,7 +283,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
 	@case "$@" in *-seq) UPCXX_BACKEND=gasnet_seq ; export UPCXX_THREADMODE=seq ;; \
 	              *-par) UPCXX_BACKEND=gasnet_par ; export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $(<D) UPCXX_INSTALL=$(UPCXX_INSTDIR)-$$UPCXX_BACKEND clean cuda_vecadd
+	 set -x ; $(MAKE) -C $(<D) UPCXX_INSTALL=$(UPCXX_INSTDIR) clean cuda_vecadd
 	mv $(<D)/cuda_vecadd $@
 
 CMAKE ?= cmake
@@ -313,7 +299,7 @@ cmake-%:
 	cp -r $(UPCXX_BLDDIR)/utils/cmake .
 	cd cmake && ( set -x ; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
-	       UPCXX_INSTALL=$(UPCXX_INSTDIR)-gasnet_$* ; \
+	       UPCXX_INSTALL=$(UPCXX_INSTDIR) ; \
 	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
 	cmake --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=. $(CMAKE_ARGS) . )
