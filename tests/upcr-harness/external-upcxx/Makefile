@@ -27,15 +27,15 @@ ifneq ($(strip $(UPCXX_GASNET)),)
 else 
 ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   CONFIGURE_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
-  UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
-  # UPCXX_LAUNCHERS default to TOP_BUILDDIR to avoid finding the gasnet builddir
+  PREINSTALL_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
   # Don't pollute configure with harness flags
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
 else # default to using builddir
   CONFIGURE_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
 endif
-UPCXX_FRAGMENTS ?= $(CONFIGURE_GASNET)
+PREINSTALL_FRAGMENTS ?= $(CONFIGURE_GASNET)
+UPCXX_FRAGMENTS ?= $(UPCXX_INSTDIR)/gasnet.$(GASNET_CODEMODE)
 UPCXX_LAUNCHERS ?= $(UPCXX_FRAGMENTS)
 UPCXX_TESTMODE  ?= wrap
 
@@ -173,7 +173,8 @@ _upcxx: force
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_EXTRAS_URL) GIT_REPO=$(UPCXX_EXTRAS_GIT_REPO) GIT_COMMIT=$(UPCXX_EXTRAS_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR)/extras ) 2>&1 | tee -a $(LOGFILE) ; exit 0 # deliberately ignore failures
-	@echo UPCXX_GASNET=$(UPCXX_GASNET) CONFIGURE_GASNET=$(CONFIGURE_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
+	@echo UPCXX_GASNET=$(UPCXX_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) $(TO_LOG)
+	@echo CONFIGURE_GASNET=$(CONFIGURE_GASNET) PREINSTALL_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
 	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
@@ -185,7 +186,7 @@ _upcxx: force
 	fi $(TO_LOG)
 	$(MAKE) launcher launcher-mpi $(TO_LOG)
 	-echo PATH="$$PATH" $(TO_LOG)
-	$(MAKE) do-upcxx 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	UPCXX_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(MAKE) do-upcxx 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@touch upcxx-built
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
@@ -206,7 +207,7 @@ do-upcxx: force
 
 _upcxx-inst:
 	rm -Rf $(UPCXX_INSTDIR) $@
-	$(MAKE) do-upcxx-inst 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	UPCXX_FRAGMENTS=$(PREINSTALL_FRAGMENTS) $(MAKE) do-upcxx-inst 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 do-upcxx-inst: force
