@@ -12,13 +12,14 @@ UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
 
 # Options for providing GASNET:
-# 1. set UPCXX_GASNET to an existing build path to use
+# 1. set UPCXX_GASNET to an existing build path to use, which must remain
+#    valid during compile but is not used at run time.
 # The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
 # 2. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
 #    This one notably implies this CI will configure and build GASNet,
-#    although still uses the GASNet build dir during compile and run. 
+#    although still uses the GASNet build dir up though 'make install'.
 # 3. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build,
-#    which must remain valid during both compile and run
+#    which must remain valid during compile but is not used at run time.
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
   CONFIGURE_GASNET:=$(UPCXX_GASNET)
@@ -61,7 +62,6 @@ GASNET_CODEMODE=debug
 endif
 
 # Logic to extract GASNet's compiler variables.
-# nobs does not yet automatically pickup GASNET_CC/CXX for external GASNET
 # intentionally ignore the environment here because it is set by harness
 # use UPCXX_TEST_ENV to override if necessary.
 # We use a sub-shell to avoid pulling in the entire makefile fragment.
@@ -185,7 +185,7 @@ _upcxx: force
 	@touch upcxx-built
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-do-upcxx: force
+do-upcxx: force  # Runs with PREINSTALL_FRAGMENTS
 	@-( set -x; $(DO_ENV) ; $$CC  --version ) 2>&1 | egrep -i -v -e error -e warning
 	@-( $(DO_ENV) ; set -x ; $$CXX --version ) 2>&1 | egrep -i -v -e error -e warning
 	@-( $(DO_ENV) ; set -x ; $(MAKE) --version ) 2>&1 | egrep -i -v -e error -e warning
@@ -206,7 +206,7 @@ _upcxx-inst:
 	$(MAKE) launcher launcher-mpi 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-do-upcxx-inst: force
+do-upcxx-inst: force  # Runs with PREINSTALL_FRAGMENTS
 	@echo ======== UPCXX install ========; set -x; \
 	 $(DO_MAKE) install
 	/bin/ls -alR $(UPCXX_INSTDIR)
