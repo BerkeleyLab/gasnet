@@ -13,23 +13,16 @@ UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 export UPCXX_BACKEND
 
 # Options for providing GASNET to nobs:
-# 1. set UPCXX_GASNET to an existing build or install path to use
+# 1. set UPCXX_GASNET to an existing build path to use
 # The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
-# 2. set UPCXX_INSTALL_GASNET=1 to perform a GASNet install and use it
-#    This one only uses the GASNet build dir during compile but not run.
-# 3. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
-#    This one notably implies nobs will configure and build GASNet,
+# 2. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
+#    This one notably implies this CI will configure and build GASNet,
 #    although still uses the GASNet build dir during compile and run. 
-# 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build,
+# 3. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build,
 #    which must remain valid during both compile and run
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
   NOBS_GASNET:=$(UPCXX_GASNET)
-else 
-ifneq ($(strip $(UPCXX_INSTALL_GASNET)),)
-  NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet
-  UPCXX_LAUNCHERS:=$(UPCXX_BLDDIR)/gasnet
-  UPCXX_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
 else 
 ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   NOBS_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz
@@ -39,7 +32,6 @@ ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
 else # default to using builddir
   NOBS_GASNET:=$(TOP_BUILDDIR)/gasnet
-endif
 endif
 endif
 UPCXX_FRAGMENTS ?= $(NOBS_GASNET)
@@ -71,11 +63,9 @@ GIT               ?= git
 # TODO: may want to handle LDFLAGS here as well?
 GASNET_VARS = $(shell $(MAKE) --no-print-directory echovars FRAGMENT=$(strip $(UPCXX_CONDUIT)))
 FRAGMENT=#empty by default
-ifneq ($(FRAGMENT),) # handle build or install dir, use any fragment we can find
+ifneq ($(FRAGMENT),) # use any fragment we can find
 -include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
 -include $(UPCXX_FRAGMENTS)/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
--include $(UPCXX_FRAGMENTS)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-seq.mak
--include $(UPCXX_FRAGMENTS)/include/$(FRAGMENT)-conduit/$(FRAGMENT)-par.mak
 echovars: force; @echo "CC='$(GASNET_CC)' CXX='$(GASNET_CXX)'"
 .PHONY: echovars
 endif
@@ -180,9 +170,6 @@ _upcxx: force
 	@echo UPCXX_GASNET=$(UPCXX_GASNET) NOBS_GASNET=$(NOBS_GASNET) UPCXX_BLDDIR=$(UPCXX_BLDDIR) UPCXX_FRAGMENTS=$(UPCXX_FRAGMENTS) $(TO_LOG)
 	@if test -n "$(UPCXX_EXTERNAL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:external ========; set -x; \
-	elif test -n "$(UPCXX_INSTALL_GASNET)" ; then \
-	  echo ======== UPCXX_GASNET:install ========; set -x; \
-	  $(MAKE) install -C $(TOP_BUILDDIR)/gasnet prefix="$(UPCXX_BLDDIR)/gasnet"; \
 	elif test -n "$(UPCXX_TARBALL_GASNET)" ; then \
 	  echo ======== UPCXX_GASNET:tarball ========; set -x; \
 	  $(MAKE) dist -C $(TOP_BUILDDIR)/gasnet && \
