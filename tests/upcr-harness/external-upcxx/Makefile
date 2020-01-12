@@ -34,7 +34,6 @@ else # default to using builddir
 endif
 endif
 CONFIGURE_FRAGMENTS ?= $(CONFIGURE_GASNET)
-UPCXX_LAUNCHERS ?= $(UPCXX_INSTDIR)/gasnet.$(GASNET_CODEMODE)
 UPCXX_TESTMODE  ?= wrap
 
 HARNESS_LOGDIR    ?= .
@@ -52,6 +51,7 @@ TAR               ?= tar
 UNZIP             ?= unzip
 P7ZIP             ?= 7za
 GIT               ?= git
+PERL              ?= perl  # only used as a launcher-mpi fallback
 
 # GASNET_CODEMODE
 ifeq ($(strip $(UPCXX_CODEMODE)),O3)
@@ -149,18 +149,36 @@ launcher:
 	   echo "ERROR: $$UPCXXRUN is missing" ; exit 1 ; \
 	 fi 
 
-# similar for MPI progs (best-effort when missing mpi-conduit)
+# similar for MPI progs
+# best-effort when missing mpi-conduit:
+# 1. leverage conduit's launcher
+#    a. some conduit's gasnetrun_ may be a valid mpi launcher
+#    b. other conduit's may support mpi-spawner
+# 2. final fallback is mpirun
 launcher-mpi:
 	-rm -f $@
-	@if test -x $(UPCXX_LAUNCHERS)/bin/gasnetrun_mpi ; then \
-	  set -x ; ln -s $(UPCXX_LAUNCHERS)/bin/gasnetrun_mpi $@ ; \
-	elif test -x $(UPCXX_LAUNCHERS)/mpi-conduit/contrib/gasnetrun_mpi ; then \
-	  set -x ; ln -s $(UPCXX_LAUNCHERS)/mpi-conduit/contrib/gasnetrun_mpi $@ ; \
-	else \
-	  echo '#!/bin/sh' > $@ ; \
-	  echo 'exec mpirun "$$@"' >> $@ ; \
-	  echo 'echo "ERROR: mpirun and gasnetrun_mpi not found." ; exit 1' >> $@ ; \
-	  chmod +x $@ ; \
+	@gasnet_bindir=$(UPCXX_INSTDIR)/gasnet.$(GASNET_CODEMODE)/bin; \
+	 if test -x $$gasnet_bindir/gasnetrun_mpi ; then \
+	  set -x ; ln -s $$gasnet_bindir/gasnetrun_mpi $@ ; \
+	 else \
+	  conduit_launcher=$$gasnet_bindir/gasnetrun_$(UPCXX_CONDUIT); \
+	  case "$(UPCXX_CONDUIT)" in \
+	    aries) \
+	      set -x ; ln -s $$conduit_launcher $@ \
+	      ;; \
+	    *) \
+	      if test -r $$conduit_launcher-mpi.pl ; then \
+	        mpi_launcher="$(PERL) $$conduit_launcher-mpi.pl"; \
+	      else \
+	        mpi_launcher=mpirun; \
+	      fi; \
+	      set -x; \
+	      echo '#!/bin/sh' > $@ ; \
+	      echo "exec $$mpi_launcher" '$$@' >> $@ ; \
+	      echo 'echo "ERROR: failed to find mpirun, gasnetrun_mpi or a conduit-specific alternative." ; exit 1' >> $@ ; \
+	      chmod +x $@ \
+	      ;; \
+	  esac; \
 	fi
 
 _upcxx: force
