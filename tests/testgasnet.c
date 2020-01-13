@@ -27,6 +27,11 @@ test_static_assert_file(GEX_AM_INDEX_BASE <= 128);
 #error Missing GASNET_HIDDEN_AM_CONCURRENCY_LEVEL definition
 #endif
 
+#if PLATFORM_COMPILER_PGI_CXX
+  // suppress warnings on PGI C++ 19.10/macos about intentional constant controlling expressions
+  #pragma diag_suppress 236
+#endif
+
 TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
