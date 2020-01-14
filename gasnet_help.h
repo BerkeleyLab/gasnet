@@ -485,7 +485,13 @@ void gasneti_leaf_finish(gex_Event_t *opt_val) {
       and discard the unused variables
      We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
    */
-  #define _GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
+  #if PLATFORM_COMPILER_PGI_CXX
+    // Add a redundant value use to avoid a 550 set-but-not-used warning 
+    #define _GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1 \
+                                    && !_gasneti_threadinfo_available)
+  #else
+    #define _GASNETI_THREAD_POSTED (sizeof(_gasneti_threadinfo_available) > 1)
+  #endif
   static gasnet_threadinfo_t _gasneti_threadinfo_cache = 0;
   static uint8_t             _gasneti_threadinfo_available = 
     sizeof(_gasneti_threadinfo_cache) + sizeof(_gasneti_threadinfo_available);
