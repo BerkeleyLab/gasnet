@@ -94,8 +94,8 @@
      has the numargs argument even in an NDEBUG build (it is always passed in
      DEBUG builds).
    */
-//#define GASNETC_AM_COMMIT_REQ_MEDIUM_NARGS 1
-//#define GASNETC_AM_COMMIT_REP_MEDIUM_NARGS 1
+#define GASNETC_AM_COMMIT_REQ_MEDIUM_NARGS 1
+#define GASNETC_AM_COMMIT_REP_MEDIUM_NARGS 1
 //#define GASNETC_AM_COMMIT_REQ_LONG_NARGS 1
 //#define GASNETC_AM_COMMIT_REP_LONG_NARGS 1
 

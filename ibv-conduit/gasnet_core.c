@@ -5309,7 +5309,6 @@ int gasnetc_prepare_medium(
   }
 
   sd->_void_p = buf;
-  sd->_nargs = nargs;
   sd->_lc_opt = lc_opt;
   sd->_size = nbytes;
   sd->_buf_alloc = buf_alloc;
@@ -5331,6 +5330,7 @@ void gasnetc_commit_medium(
                        const int               is_reply,
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
+                       unsigned int            nargs,
                        va_list                 argptr
                        GASNETI_THREAD_FARG)
 {
@@ -5383,12 +5383,12 @@ void gasnetc_commit_medium(
     copy_len = nbytes;
   }
 
-  size_t head_len = GASNETC_MSG_MED_ARGSEND(sd->_nargs + sd->_have_flow);
+  size_t head_len = GASNETC_MSG_MED_ARGSEND(nargs + sd->_have_flow);
   gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
                      gasneti_Medium, is_reply, token, sd->_cep,
                      handler, sd->_addr, nbytes, NULL,
                      head_len, copy_len, gath_len,
-                     !is_Fixed, sd->_have_flow, sd->_nargs,
+                     !is_Fixed, sd->_have_flow, nargs,
                      local_cnt, local_cb, NULL, argptr GASNETI_THREAD_PASS);
 
   if (eop) {
@@ -5567,21 +5567,19 @@ extern void gasnetc_AM_CommitRequestMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes
                        GASNETI_THREAD_FARG,
-                     #if GASNET_DEBUG
-                       unsigned int            nargs_arg,
-                     #endif
+                       unsigned int            nargs,
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REQ(sd,handler,nbytes,NULL,nargs,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
     if (sd->_is_nbrhd) {
         gasnetc_nbrhd_CommitRequest(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
-        gasnetc_commit_medium(sd,0,handler,nbytes,argptr GASNETI_THREAD_PASS);
+        gasnetc_commit_medium(sd,0,handler,nbytes,nargs,argptr GASNETI_THREAD_PASS);
     }
     va_end(argptr);
 
@@ -5719,14 +5717,12 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 extern void gasnetc_AM_CommitReplyMediumM(
                        gex_AM_Index_t          handler,
                        size_t                  nbytes,
-                     #if GASNET_DEBUG
-                       unsigned int            nargs_arg,
-                     #endif
+                       unsigned int            nargs,
                        gex_AM_SrcDesc_t        sd_arg, ...)
 {
     gasneti_AM_SrcDesc_t sd = gasneti_import_srcdesc(sd_arg);
 
-    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs_arg,Medium);
+    GASNETI_COMMON_COMMIT_REP(sd,handler,nbytes,NULL,nargs,Medium);
 
     va_list argptr;
     va_start(argptr, sd_arg);
@@ -5734,7 +5730,7 @@ extern void gasnetc_AM_CommitReplyMediumM(
         gasnetc_nbrhd_CommitReply(sd, gasneti_Medium, handler, nbytes, NULL, argptr);
     } else {
         GASNET_POST_THREADINFO(sd->_thread);
-        gasnetc_commit_medium(sd,1,handler,nbytes,argptr GASNETI_THREAD_PASS);
+        gasnetc_commit_medium(sd,1,handler,nbytes,nargs,argptr GASNETI_THREAD_PASS);
     }
     va_end(argptr);
 
