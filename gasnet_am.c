@@ -450,6 +450,7 @@ gex_AM_SrcDesc_t gasneti_export_srcdesc(gasneti_AM_SrcDesc_t _real_srcdesc) {
 }
 #endif
 
+#if GASNETI_NEED_INIT_SRCDESC
 void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
   gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
@@ -469,6 +470,7 @@ void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE)
 
   mythread->sd_is_init = 1;
 }
+#endif // GASNETI_NEED_INIT_SRCDESC
 #endif // _GEX_AM_SRCDESC_T
 
 #ifndef GASNETC_HAVE_NP_REQ_MEDIUM

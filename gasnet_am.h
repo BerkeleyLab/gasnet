@@ -370,13 +370,18 @@ void gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
     sd->_gex_buf = sd->_tofree = sd->_addr = gasneti_malloc(size);
 }
 
+#if GASNETI_NEED_INIT_SRCDESC
 void gasneti_init_srcdesc(GASNETI_THREAD_FARG_ALONE);
+#endif
 
-// Get the thread-specfic SD for Requests, initializing on first call
+// Get the thread-specfic SD for Requests
+// Initializing on first call if necessary (DEBUG or when using THREADINFO_OPT)
 GASNETI_INLINE(gasneti_init_request_srcdesc)
 gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
+#if GASNETI_NEED_INIT_SRCDESC
   if_pf (! GASNETI_MYTHREAD->sd_is_init) gasneti_init_srcdesc(GASNETI_THREAD_PASS_ALONE);
+#endif
   gasneti_AM_SrcDesc_t sd = &GASNETI_MYTHREAD->request_sd;
 #if GASNET_DEBUG
   if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {
@@ -389,11 +394,14 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
   return sd;
 }
 
-// Get the thread-specfic SD for Replies, initializing on first call
+// Get the thread-specfic SD for Replies
+// Initializing on first call if necessary (DEBUG or when using THREADINFO_OPT)
 GASNETI_INLINE(gasneti_init_reply_srcdesc)
 gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
 {
+#if GASNETI_NEED_INIT_SRCDESC
   if_pf (! GASNETI_MYTHREAD->sd_is_init) gasneti_init_srcdesc(GASNETI_THREAD_PASS_ALONE);
+#endif
   gasneti_AM_SrcDesc_t sd = &GASNETI_MYTHREAD->reply_sd;
 #if GASNET_DEBUG
   if (sd->_magic._u == GASNETI_AM_SRCDESC_MAGIC) {

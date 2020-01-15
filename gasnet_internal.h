@@ -766,7 +766,10 @@ typedef struct _gasneti_threaddata_t {
   // Active Message fields
   // Owned by gasnet_am.[ch]
   //
+#if GASNET_DEBUG || GASNETI_THREADINFO_OPT
+  #define GASNETI_NEED_INIT_SRCDESC 1
   int sd_is_init;
+#endif
   struct gasneti_AM_SrcDesc request_sd, reply_sd;
   void *loopback_requestBuf, *loopback_replyBuf;
 
