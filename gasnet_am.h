@@ -359,7 +359,7 @@ extern int gasneti_amregister_legacy(gex_AM_Entry_t *output,
 #ifndef _GEX_AM_SRCDESC_T
 // Allocate a buffer (use IFF client_buf is NULL)
 GASNETI_INLINE(gasneti_prepare_alloc_buffer)
-void gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
+void *gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
 {
     size_t size = sd->_size;
 #if GASNET_DEBUG
@@ -367,7 +367,7 @@ void gasneti_prepare_alloc_buffer(gasneti_AM_SrcDesc_t sd)
     // returns NULL which then leads to ambiguity in argument checking.
     if (!size) size = 1;
 #endif
-    sd->_gex_buf = sd->_tofree = sd->_addr = gasneti_malloc(size);
+    return (sd->_gex_buf = sd->_addr = gasneti_malloc(size));
 }
 
 #if GASNETI_NEED_INIT_SRCDESC
@@ -390,7 +390,7 @@ gasneti_AM_SrcDesc_t gasneti_init_request_srcdesc(GASNETI_THREAD_FARG_ALONE)
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
 #endif
-  sd->_gex_buf = sd->_tofree = NULL;
+  sd->_gex_buf = NULL;
   return sd;
 }
 
@@ -410,16 +410,14 @@ gasneti_AM_SrcDesc_t gasneti_init_reply_srcdesc(GASNETI_THREAD_FARG_ALONE)
   GASNETI_CHECK_MAGIC(sd, GASNETI_AM_SRCDESC_BAD_MAGIC);
   GASNETI_INIT_MAGIC(sd, GASNETI_AM_SRCDESC_MAGIC);
 #endif
-  sd->_gex_buf = sd->_tofree = NULL;
+  sd->_gex_buf = NULL;
   return sd;
 }
 
 // Return a thread-specfic SD to its "inactive" state
-// Will free sd->_tofree
 GASNETI_INLINE(gasneti_reset_srcdesc)
 void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 {
-  gasneti_free(sd->_tofree);
 #if GASNET_DEBUG
   if (sd->_magic._u == GASNETI_AM_SRCDESC_BAD_MAGIC) {
     gasneti_fatalerror("Bad state - likely due to back-to-back gex_AM_Commit%s*() calls",
@@ -430,8 +428,8 @@ void gasneti_reset_srcdesc(gasneti_AM_SrcDesc_t sd)
 #endif
 }
 
-GASNETI_INLINE(gasneti_prepare_common)
-void gasneti_prepare_common(
+GASNETI_INLINE(gasneti_prepare_common) GASNETI_WARN_UNUSED_RESULT
+void *gasneti_prepare_common(
                        gasneti_AM_SrcDesc_t sd,
                        const void          *client_buf,
                        size_t               size,
@@ -446,13 +444,14 @@ void gasneti_prepare_common(
     sd->_size   = size;
     if (client_buf) {
         sd->_addr = (/*non-const*/void *)client_buf;
+        return NULL;
     } else {
-        gasneti_prepare_alloc_buffer(sd);
+        return gasneti_prepare_alloc_buffer(sd);
     }
 }
 
-GASNETI_INLINE(gasneti_prepare_request_common)
-void gasneti_prepare_request_common(
+GASNETI_INLINE(gasneti_prepare_request_common) GASNETI_WARN_UNUSED_RESULT
+void *gasneti_prepare_request_common(
                        gasneti_AM_SrcDesc_t sd,
                        gex_TM_t             tm,
                        gex_Rank_t           rank,
@@ -464,11 +463,11 @@ void gasneti_prepare_request_common(
 {
     sd->_dest._request._tm   = tm;
     sd->_dest._request._rank = rank;
-    gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
+    return gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
 }
 
-GASNETI_INLINE(gasneti_prepare_reply_common)
-void gasneti_prepare_reply_common(
+GASNETI_INLINE(gasneti_prepare_reply_common) GASNETI_WARN_UNUSED_RESULT
+void *gasneti_prepare_reply_common(
                        gasneti_AM_SrcDesc_t sd,
                        gex_Token_t          token,
                        const void          *client_buf,
@@ -478,7 +477,7 @@ void gasneti_prepare_reply_common(
                        unsigned int         nargs)
 {
     sd->_dest._reply._token = token;
-    gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
+    return gasneti_prepare_common(sd, client_buf, size, lc_opt, flags, nargs);
 }
 #endif // _GEX_AM_SRCDESC_T
 
@@ -701,6 +700,7 @@ int gasnetc_loopback_prepare_inner(
     sd->_void_p = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
   }
 
+  gasneti_assert(sd->_tofree == NULL);
   if (isFixed) {
     sd->_addr = (/*non-const*/void *)client_buf;
   } else {
@@ -717,7 +717,7 @@ int gasnetc_loopback_prepare_inner(
       // Long can use medium buffer at less cost than calling malloc
       sd->_addr = sd->_gex_buf = gasneti_loopback_alloc_medium_buffer(isReq GASNETI_THREAD_PASS);
     } else {
-      gasneti_prepare_alloc_buffer(sd);
+      sd->_tofree = gasneti_prepare_alloc_buffer(sd);
     }
   }
 
@@ -797,6 +797,9 @@ void gasnetc_loopback_commit_inner(
   } else if(!isFixed && sd->_gex_buf && (sd->_size <= GASNETC_MAX_MEDIUM_NBRHD)) {
     gasneti_assert(category == gasneti_Long);
     gasneti_loopback_free_medium_buffer(sd->_gex_buf, isReq GASNETI_THREAD_PASS);
+  } else if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
+    gasneti_free(sd->_tofree);
+    sd->_tofree = NULL;
   }
 }
 
@@ -814,10 +817,12 @@ int gasnetc_loopback_ReqRepGeneric(
                          GASNETI_THREAD_FARG)
 {
   struct gasneti_AM_SrcDesc the_sd;
+  the_sd._tofree = NULL;
 
   gasnetc_loopback_prepare_inner(&the_sd, 1, isReq, category, source_addr, 0, 0,
                                  dest_addr, NULL, flags, numargs GASNETI_THREAD_PASS);
 
+  gasneti_assume(the_sd._tofree == NULL); // in case the optimizer lost track
   gasnetc_loopback_commit_inner(&the_sd, 1, isReq, category, handler, nbytes,
                                 dest_addr, argptr GASNETI_THREAD_PASS);
 
@@ -971,6 +976,10 @@ gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareRequest(
                                   dest_addr, lc_opt, flags, nargs);
 #endif
   if (imm) {
+    if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
+      gasneti_free(sd->_tofree);
+      sd->_tofree = NULL;
+    }
     gasneti_reset_srcdesc(sd);
     sd = NULL; // GEX_AM_SRCDESC_NO_OP
   } else {
@@ -1041,6 +1050,10 @@ gasneti_AM_SrcDesc_t gasnetc_nbrhd_PrepareReply(
 #endif
   gasnetc_token_post_reply_checks(token, imm);
   if (imm) {
+    if (sd->_tofree) { // Branch to avoid free(NULL) library call overhead for NPAM/cb
+      gasneti_free(sd->_tofree);
+      sd->_tofree = NULL;
+    }
     gasneti_reset_srcdesc(sd);
     sd = NULL; // GEX_AM_SRCDESC_NO_OP
   } else {
