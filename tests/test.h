@@ -60,7 +60,11 @@ GASNETT_BEGIN_EXTERNC
 #endif
 
 // this macro is for annotating variables as "used" so compilers don't warn
-#define test_mark_used(var) ((void)(&var?0:0))
+#if PLATFORM_COMPILER_OPEN64
+  #define test_mark_used(var) ((void)var)
+#else
+  #define test_mark_used(var) ((void)(&var?0:0))
+#endif
 
 #if HAVE_SRAND_DETERMINISTIC
   /* OpenBSD "breaks" rand() by design */
