@@ -92,7 +92,6 @@
 
 #define GASNETI_AM_SRCDESC_EXTRA \
         int                 _have_flow;         \
-        size_t              _head_len;          \
         void *              _buf_alloc;         \
         void *              _cep;               \
         uint8_t             _inline_buf[128+8];

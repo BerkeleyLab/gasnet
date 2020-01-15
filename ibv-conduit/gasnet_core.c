@@ -5313,7 +5313,6 @@ int gasnetc_prepare_medium(
   sd->_lc_opt = lc_opt;
   sd->_size = nbytes;
   sd->_buf_alloc = buf_alloc;
-  sd->_head_len = head_len;
   sd->_have_flow = have_flow;
   sd->_cep = cep;
   if (client_buf) {
@@ -5384,10 +5383,11 @@ void gasnetc_commit_medium(
     copy_len = nbytes;
   }
 
+  size_t head_len = GASNETC_MSG_MED_ARGSEND(sd->_nargs + sd->_have_flow);
   gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
                      gasneti_Medium, is_reply, token, sd->_cep,
                      handler, sd->_addr, nbytes, NULL,
-                     sd->_head_len, copy_len, gath_len,
+                     head_len, copy_len, gath_len,
                      !is_Fixed, sd->_have_flow, sd->_nargs,
                      local_cnt, local_cb, NULL, argptr GASNETI_THREAD_PASS);
 
