@@ -72,11 +72,6 @@
 //#define GASNETI_DIRECT_BLOCKING_GET 1
 //#define GASNETI_DIRECT_BLOCKING_PUT 1
 
-/* Configure use of AM-based implementation of get/put */
-/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_GET      1
-#define GASNETE_USING_REF_EXTENDED_PUT      1
-
 /* Implement all "base" operations directly via amref: */
 /*#define gasnete_amref_get_nb        gasnete_get_nb
 #define gasnete_amref_put_nb        gasnete_put_nb
