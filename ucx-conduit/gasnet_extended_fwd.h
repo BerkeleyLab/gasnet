@@ -22,8 +22,8 @@
 
 /* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_GET      1
-#define GASNETE_USING_REF_EXTENDED_PUT      1
+#define GASNETE_USING_REF_EXTENDED_GET      0
+#define GASNETE_USING_REF_EXTENDED_PUT      0
 
 /* this can be used to add statistical collection values
    specific to the extended API implementation (see gasnet_help.h) */
