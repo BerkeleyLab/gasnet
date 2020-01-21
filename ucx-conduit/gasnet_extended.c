@@ -142,17 +142,16 @@ gex_Event_t gasnete_put_nb(
                      gex_Flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(tm,rank,dest,src,nbytes);
+  gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
 
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
 
   GASNETC_LOCK_ACQUIRE_REGULAR();
   if (lc_opt == GEX_EVENT_NOW) {
-    gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
     gasnetc_ucx_putget_inner(1, jobrank, src, nbytes, dest,
                              &counter.initiated, gasnetc_cb_counter,
                              &eop->initiated_cnt, gasnetc_cb_eop_put);
-    gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   } else if (lc_opt == GEX_EVENT_DEFER) {
     gasnetc_ucx_putget_inner(1, jobrank, src, nbytes, dest,
                              NULL, NULL,
@@ -173,6 +172,9 @@ gex_Event_t gasnete_put_nb(
   }
   GASNETC_LOCK_RELEASE_REGULAR();
 
+  if (lc_opt == GEX_EVENT_NOW) {
+    gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+  }
   return (gex_Event_t)eop;
 }
 
