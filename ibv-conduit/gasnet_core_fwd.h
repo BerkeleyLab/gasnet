@@ -85,10 +85,25 @@
      your conduit must provide the V-suffixed functions for any of these that
      are not defined.
    */
-/* #define GASNETC_HAVE_NP_REQ_MEDIUM 1 */
-/* #define GASNETC_HAVE_NP_REP_MEDIUM 1 */
+#define GASNETC_HAVE_NP_REQ_MEDIUM 1
+#define GASNETC_HAVE_NP_REP_MEDIUM 1
 /* #define GASNETC_HAVE_NP_REQ_LONG 1 */
 /* #define GASNETC_HAVE_NP_REP_LONG 1 */
+
+  /* uncomment for each GASNETC_HAVE_NP_* enabled above if the Commit function
+     has the numargs argument even in an NDEBUG build (it is always passed in
+     DEBUG builds).
+   */
+#define GASNETC_AM_COMMIT_REQ_MEDIUM_NARGS 1
+#define GASNETC_AM_COMMIT_REP_MEDIUM_NARGS 1
+//#define GASNETC_AM_COMMIT_REQ_LONG_NARGS 1
+//#define GASNETC_AM_COMMIT_REP_LONG_NARGS 1
+
+#define GASNETI_AM_SRCDESC_EXTRA \
+        int                 _have_flow;         \
+        void *              _buf_alloc;         \
+        void *              _cep;               \
+        uint8_t             _inline_buf[128+8];
 
   /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()
      include a call to gasneti_AMPoll (or equivalent) for progress.
@@ -162,12 +177,6 @@
 #if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
-#endif
-
-#if GASNETC_IBV_AMRDMA
-extern void gasnetc_amrdma_balance(void);
-#define GASNETC_PROGRESSFNS_LIST(FN) \
-  FN(gasnetc_pf_amrdma, COUNTED, gasnetc_amrdma_balance)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

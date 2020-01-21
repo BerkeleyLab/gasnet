@@ -3553,11 +3553,6 @@ if test "$enabled_ibv" = yes; then
         AC_DEFINE(GASNETC_IBV_CONN_THREAD)
       fi
 
-    GASNET_IF_ENABLED(ibv-amrdma, [See ibv-conduit/README (disabled by default)], enabled_ibv_amrdma=yes, enabled_ibv_amrdma=no)
-    if test "$enabled_ibv_amrdma" = yes; then
-      AC_DEFINE(GASNETC_IBV_AMRDMA)
-    fi
-
     CONDUIT_SPAWNER
 
     gasnetc_ibv_max_hcas=2
