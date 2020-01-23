@@ -18,6 +18,7 @@
 #undef GASNET_PAR
 #undef GASNET_PARSYNC
 
+#define GASNETT_BUILDING_TOOLS 1
 #include <gasnet_tools.h>
 
 #include <unistd.h>
@@ -622,6 +623,7 @@ extern double gasneti_tick_metric(int idx) {
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_MAYBE_TRACEFILE
   #if GASNET_TRACE
+    GASNETT_TENTATIVE_EXTERN
     FILE *gasneti_tracefile; // intentional tentative defn
     #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
   #else
@@ -1642,6 +1644,7 @@ static const char *gasneti_backtrace_list = 0;
 static int gasneti_backtrace_prctl = -2;
 GASNETT_TENTATIVE_EXTERN
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
+GASNETT_TENTATIVE_EXTERN
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
 extern void gasneti_backtrace_init(const char *exename) {
   static int user_is_init = 0;
