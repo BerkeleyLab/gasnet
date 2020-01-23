@@ -141,6 +141,8 @@ static void _AMX_free(void *ptr, const char *curloc) {
 }
 #if __cplusplus
   #define AMX_TENTATIVE_EXTERN extern
+#elif PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_GT(10,0,0)
+  #define AMX_TENTATIVE_EXTERN __attribute__((__common__))
 #else
   #define AMX_TENTATIVE_EXTERN 
 #endif
