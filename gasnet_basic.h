@@ -161,7 +161,7 @@
  * This includes C++ clients where tentative definitions are not supported.
  */
 #if defined(GASNETT_BUILDING_TOOLS)
-  #define GASNETI_TENTATIVE_EXTERN /*empty*/
+  #define GASNETI_TENTATIVE_EXTERN GASNETI_COMMON
 #else
   #define GASNETI_TENTATIVE_EXTERN extern
 #endif
