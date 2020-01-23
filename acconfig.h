@@ -184,6 +184,9 @@
 #undef GASNETI_ATOMIC32_IMPL_CONFIGURE
 #undef GASNETI_ATOMIC64_IMPL_CONFIGURE
 
+/* Decoration, if any, needed for in-library tentative definitions */
+#undef GASNETI_COMMON
+
 /* Does CXX support C99 __VA_ARGS__ */
 #undef GASNETI_CXX_HAS_VA_ARGS
 

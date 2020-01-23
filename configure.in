@@ -1169,6 +1169,62 @@ GASNET_GET_PLATFORM_ID([COMPILER])
 
 GASNET_IFDEF([__PIC__],[AC_DEFINE(GASNETI_CONFIGURED_PIC)])
 
+dnl Check for the historically behavior with respect to tentative
+dnl definitions, and seek means to restore this behavior when it
+dnl is lacking.
+dnl
+dnl This is only probing CC, this is only applicable to GASNet
+dnl library builds, not clients.
+dnl
+CHECK_TENTATIVE_BASE=conftest_tent
+CHECK_TENTATIVE_SRC=$CHECK_TENTATIVE_BASE.c
+CHECK_TENTATIVE_OBJ=$CHECK_TENTATIVE_BASE.o
+dnl helper:  GASNET_CHECK_TENTATIVE_TRY_RUN(msg,cv_var,extra,on_success)
+AC_DEFUN([GASNET_CHECK_TENTATIVE_TRY_RUN],[
+  GASNET_PUSHVAR(LIBS,"$CHECK_TENTATIVE_OBJ $LIBS")
+  GASNET_TRY_CACHE_RUN_WITHCC($1, $2, [
+    $3 int tentative;
+    extern void increment(void);
+  ], [
+    tentative = 1;
+    increment();
+    return (tentative != 2);
+  ],[
+    $4
+  ])
+  GASNET_POPVAR(LIBS)
+])
+AC_MSG_CHECKING([building tentative definition helper object])
+cat >$CHECK_TENTATIVE_SRC <<_GASNET_EOF
+  int tentative;
+  void increment(void) { tentative += 1; }
+_GASNET_EOF
+compile="$CC $CFLAGS $CPPFLAGS -c $CHECK_TENTATIVE_SRC -o $CHECK_TENTATIVE_OBJ"
+eval echo "$compile" >&5
+if eval $compile 2>&5 && test -s $CHECK_TENTATIVE_OBJ ; then
+  AC_MSG_RESULT(ok)
+else
+  GASNET_MSG_ERROR(failed while building tentative definition helper object)
+fi
+unset GASNETI_COMMON
+GASNET_CHECK_TENTATIVE_TRY_RUN(
+  [for tentative definition support],
+  have_tentative_normal, [],
+  [GASNETI_COMMON=''])
+if test "${GASNETI_COMMON+set}" != set; then
+  GASNET_CHECK_TENTATIVE_TRY_RUN(
+    [for tentative definition support via "common" attribute],
+    have_tentative_common_attribute,
+    [__attribute__((__common__))],
+    [GASNETI_COMMON='__attribute__((__common__))'])
+fi
+rm -f $CHECK_TENTATIVE_OBJ
+if test "${GASNETI_COMMON+set}" = set; then
+  AC_DEFINE_UNQUOTED(GASNETI_COMMON,$GASNETI_COMMON)
+else
+  AC_MSG_ERROR(could not determine how to use tentative definitions)
+fi
+
 ########################################################################
 # hunt for 16-, 32-, and 64-bit integer types
 
