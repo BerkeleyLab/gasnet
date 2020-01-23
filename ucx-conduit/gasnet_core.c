@@ -350,7 +350,9 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
                          ucs_status_string(status));
   }
   ucp_params.features        = UCP_FEATURE_TAG |
-                               UCP_FEATURE_RMA;
+                               UCP_FEATURE_RMA |
+                               UCP_FEATURE_AMO32 |
+                               UCP_FEATURE_AMO64;
   ucp_params.request_size    = sizeof(gasnetc_ucx_request_t);
   ucp_params.request_init    = gasnetc_req_init;
   ucp_params.request_cleanup = NULL;
@@ -765,6 +767,9 @@ extern void gasnetc_exit(int exitcode) {
 
   /* waiting to completion all requests */
   gasnetc_send_list_wait(GASNETC_LOCK_MODE_REGULAR);
+
+  /* doing a poll of the receive queue while there are unreceived requests */
+  while(gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR));
 
   gasneti_flush_streams();
   gasneti_trace_finish();

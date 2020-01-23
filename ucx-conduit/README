@@ -50,11 +50,15 @@ Recognized environment variables:
 ---------------------------------
 
 * All the standard GASNet environment variables (see top-level README)
-* UCX environment parameters
+* UCX behavior can be controlled through environment variables.
     - Most commonly used variables are described by the following link
       https://github.com/openucx/ucx/wiki/UCX-environment-parameters
     - See also the output of `ucx_info -f` for the full list of parameters
       supported by a particular UCX version.
+    - For software stacks allowing concurrent use of UCX library in its
+      different components or layers, UCX conduit supports personalized prefixes
+      (i.e. "UCX_GASNET_TLS", "UCX_GASNET_NET_DEVICES") that override default
+      parameters (i.e. "UCX_TLS", "UCX_NET_DEVICES").
 
 Known problems:
 ---------------
@@ -67,15 +71,66 @@ Known problems:
 Future work:
 ------------
 
-The following features are planned of the next version of the UCX conduit:
-* Address the high memory consumption issue (See the "Known problems" section).
-* HW accelerated one-sided operations
-* HW accelerated atomics operations
+* Further performance optimizations related to buffer management.
+* Graceful exits
+* Implement support for local completion options ("lc_opt").
 
 ==============================================================================
 
 Design Overview:
 ----------------
+The UCX conduit implements GASNet core and extended API for UCX-compatible
+network adapters. Where:
+(a) Core API includes conduit resource initialization and cleanup functionality
+along with Active Message communication;
+(b) Extended API includes one-sided and atomic operations support.
 
-### Provide overview of the design for your conduit
+References:
+* UCX API documentation:
+  http://openucx.github.io/ucx/api/v1.6/html/index.html
 
+Resource allocation and initialization:
+During GASNet initialization, every process creates a UCX worker, participates
+in the exchange of worker addresses (with Allgather communication pattern), and
+creates UCP endpoints representing connections to all other processes in the
+GASNet job. In addition, a set of service buffers for Active Messages is
+allocated and all required UCP memory registrations and memory key exchanges
+are performed.
+
+Active Message:
+UCX conduit implementation is using a pool of pre-allocated AM header buffers
+that are used for all types of AMs.
+For Medium size messages, for both sends and recvs, the payload is transferred
+through the bounce buffers to reduce the latency in absence of local completion
+options ("lc_opt") support. This behavior will be reconsidered in future.
+For Large AMs payload transfer is implemented using RDMA Put operation.
+
+RDMA/AMO:
+Implementation of RDMA Put and Atomic operations is a thin layer on top of UCP
+primitives. In addition, "ucp_ep_flush_nb" is used to implement remote completion
+tracking for single-rail configurations. Currently, UCX conduit doesn't support
+multi-rail configurations.
+
+UCX directly supports a fixed set of atomic operations, unsupported operations
+are handled by generic GASNet implementation. The status of atomic operation
+support is described in the table below:
+
+                I32/U32/I64/U64
+    ---         ---------------
+    SET:        Y
+    GET:        Y
+    SWAP:       Y
+    (F)CAS:     Y
+    (F)ADD:     Y
+    (F)SUB:     Y
+    (F)INC:     Y
+    (F)DEC:     Y
+    (F)MULT:    N
+    (F)MIN:     N
+    (F)MAX:     N
+    (F)AND:     Y
+    (F)OR:      Y
+    (F)XOR:     Y
+
+    Y = offload is supported
+    N = offload is not supported
