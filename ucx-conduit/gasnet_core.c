@@ -286,6 +286,9 @@ static void gasnetc_unpin_segment(void)
 
 static void gasnetc_fini(void)
 {
+  /* doing a poll of the receive queue while there are unreceived requests */
+  while(gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR));
+
   gasnetc_ucx_worker_flush();
   gasneti_bootstrapFini();
   gasnetc_sreq_list_free();

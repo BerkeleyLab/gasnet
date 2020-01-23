@@ -893,8 +893,9 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
   GASNETC_LOCK_RELEASE();
 }
 
-void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
+int gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
 {
+  int recv_list_size = 0;
   gasnetc_ucx_request_t *request = NULL;
   gasneti_list_t local_recv_list;
 
@@ -903,7 +904,8 @@ void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
   gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_INLINE);
   gasnetc_ucx_progress();
 
-  if (!gasneti_list_size(&gasneti_ucx_module.recv_list)) {
+  recv_list_size = gasneti_list_size(&gasneti_ucx_module.recv_list);
+  if (!recv_list_size) {
     goto exit;
   }
   gasneti_list_init(&local_recv_list);
@@ -929,7 +931,7 @@ void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
 
 exit:
   GASNETC_LOCK_RELEASE();
-  return;
+  return recv_list_size;
 }
 
 void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE)
