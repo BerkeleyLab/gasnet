@@ -4351,7 +4351,6 @@ int gasnetc_am_long_put(
    * that would lead to deadlock if we hold the resources needed to queue the RDMA.
    */
   gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
-  gasneti_assert(!is_reply);  // Replies MUST take the packedlong path instead
   rc = gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, flags,
                            local_cnt, local_cb, NULL, NULL, &am_oust
                            GASNETI_THREAD_PASS);
@@ -4688,6 +4687,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
          * so we MUST do any RDMA before getting credits.  It can't hurt to queue
          * the Long RDMA as early as possible even when firehose is not in use.
          */
+        gasneti_assert(!is_reply);  // Replies MUST take the packedlong path instead
         // TODO-EX: should we pass flags other than 'immediate' to the payload Put
         int rc = gasnetc_am_long_put(cep->epid, src_addr, dst_addr, nbytes, immediate,
                                      local_cnt, local_cb GASNETI_THREAD_PASS);
