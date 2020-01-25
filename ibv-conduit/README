@@ -90,6 +90,12 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   connection requests.  If needed, this can be disabled at configure
   time using '--disable-ibv-conn-thread'.
 
+  By default, ibv-conduit uses 4096-byte buffers for AM Mediums, to yield
+  gasnetc_AM_LUB{Request,Reply}Medium() values tens of bytes smaller due
+  to message headers.  This default can be overridden by passing
+  '--with-ibv-max-medium=N' for 'N' equal to any power-of-two from 1024 to
+  131072, inclusive.
+
   The default spawner to be used by the gasnetrun_ibv utility can be
   selected by configuring '--with-ibv-spawner=VALUE', where VALUE is one
   of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the

@@ -625,6 +625,7 @@ static void gasnetc_check_config(void) {
 
   gasneti_assert_always(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert_always(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
+  gasneti_assert_always(GASNETI_POWEROFTWO(GASNETC_BUFSZ));
 }
 
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {

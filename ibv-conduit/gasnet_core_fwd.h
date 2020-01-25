@@ -23,12 +23,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
-/* If you change GASNETC_BUFSZ then you probably want to also
- * adjust GASNETC_PUTINMOVE_LIMIT_MAX in firehose_fwd.h
- */
-#ifndef GASNETC_BUFSZ
-  #define GASNETC_BUFSZ 4096
-#endif
+// Size of a buffer to contain any AM with all its header, padding and payload
+#define GASNETC_BUFSZ GASNETC_IBV_MAX_MEDIUM
 
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
 /* 64K corresponds to 16 bits used in the AM Header and 16-bit gex_Rank_t */
