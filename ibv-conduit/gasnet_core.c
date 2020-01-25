@@ -4210,39 +4210,6 @@ gasnetc_cep_t *gasnetc_am_select_cep(gasnetc_epid_t dest)
 
 size_t gasnetc_am_inline_limit_sndrcv = 0;
 
-// Helper for initiating RDMA of a Long payload
-// TODO: put-with-imm would allow target-side reassembly
-static
-int gasnetc_am_long_put(
-                  gasnetc_epid_t epid,
-                  void *src_addr, void *dst_addr, size_t nbytes, gex_Flags_t flags,
-                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb
-                  GASNETI_THREAD_FARG)
-{
-  int rc;
-  const int qpi = gasnetc_epid2qpi(epid);
-  const gex_Rank_t jobrank = gasnetc_epid2node(epid);
-#if GASNETC_PIN_SEGMENT
-  rc = gasnetc_rdma_put(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
-                        local_cnt, local_cb, NULL, NULL
-                        GASNETI_THREAD_PASS);
-#else
-  /* Point-to-point ordering still holds, but only once the RDMA is actually queued.
-   * In the case of a firehose hit, the RDMA is already queued before return from
-   * gasnetc_rdma_put_fh().  On a miss, however, we'll need to spin on am_oust to
-   * determine when all the RDMA is actually queued.
-   * It would have been nice to move the wait later in the AM injection, but
-   * that would lead to deadlock if we hold the resources needed to queue the RDMA.
-   */
-  gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
-  rc = gasnetc_rdma_put_fh(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
-                           local_cnt, local_cb, NULL, NULL, &am_oust
-                           GASNETI_THREAD_PASS);
-  if (!rc) gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);
-#endif
-  return rc;
-}
-
 // Common logic for immediate allocation failures
 #if GASNETC_IMMEDIATE_AMPOLLS
   // Perform a full Poll, but only once and only the selected HCA
@@ -4564,8 +4531,12 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
         // Firehose replies MUST take the packedlong path:
         gasneti_assert(GASNETC_PIN_SEGMENT || !is_reply);
         // TODO-EX: should we pass flags other than 'immediate' to the payload Put
-        int rc = gasnetc_am_long_put(cep->epid, src_addr, dst_addr, nbytes, immediate,
-                                     local_cnt, local_cb GASNETI_THREAD_PASS);
+        // TODO-EX: team and rank here
+        gex_Rank_t rank = gasnetc_epid2node(cep->epid);
+        int qpi = gasnetc_epid2qpi(cep->epid);
+        int rc = gasnetc_rdma_long_put(gasneti_THUNK_TM, rank, qpi,
+                                       src_addr, dst_addr, nbytes, immediate,
+                                       local_cnt, local_cb GASNETI_THREAD_PASS);
         if (rc) {
           // TODO-EX: stats/trace for FAIL_IMM case
           fail_type = rc;

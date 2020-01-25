@@ -128,7 +128,7 @@ gex_Event_t gasnete_put_nb(
 
   /* XXX check error returns */
   #define GASNETC_RDMA_PUT(local_cnt, local_cb)              \
-    gasnetc_rdma_put(tm, rank, 0, src, dest, nbytes, flags,  \
+    gasnetc_rdma_put(tm, rank, src, dest, nbytes, flags,     \
                      local_cnt, local_cb,                    \
                      &op->initiated_cnt, gasnetc_cb_eop_put  \
                      GASNETI_THREAD_PASS)
@@ -222,7 +222,7 @@ int gasnete_put_nbi (gex_TM_t tm,
   }
 
   /* XXX check error returns */ 
-  gasnetc_rdma_put(tm, rank, 0, src, dest, nbytes, flags,
+  gasnetc_rdma_put(tm, rank, src, dest, nbytes, flags,
                    local_cnt, local_cb,
                    &op->initiated_put_cnt,
                    op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put
@@ -268,7 +268,7 @@ extern int gasnete_put  (gex_TM_t tm,
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
 
   /* XXX check error returns */ 
-  gasnetc_rdma_put(tm, rank, 0, src, dest, nbytes, flags,
+  gasnetc_rdma_put(tm, rank, src, dest, nbytes, flags,
                    NULL, NULL,
                    &req_oust.initiated, gasnetc_cb_counter
                    GASNETI_THREAD_PASS);
@@ -401,7 +401,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
       *(volatile gasnete_coll_rmdbarrier_inbox_t *)addr = *payload;
     } else
 #endif
-    (void) gasnetc_rdma_put(gasneti_THUNK_TM, jobrank, 0, (void*)payload, addr, sizeof(*payload), 0,
+    (void) gasnetc_rdma_put(gasneti_THUNK_TM, jobrank, (void*)payload, addr, sizeof(*payload), 0,
                             NULL, NULL, NULL, NULL GASNETI_THREAD_PASS);
   }
 }

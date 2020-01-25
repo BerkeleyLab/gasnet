@@ -3015,7 +3015,7 @@ extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_con
 //   Currently we entirely avoid the "bias" of the counter(s) only for the
 //   case of the inline put.
 extern int gasnetc_rdma_put(
-                gex_TM_t tm, gex_Rank_t rank, int qpi,
+                gex_TM_t tm, gex_Rank_t rank,
                 void *src_ptr, void *dst_ptr,
                 size_t nbytes,
                 gex_Flags_t flags,
@@ -3023,9 +3023,9 @@ extern int gasnetc_rdma_put(
                 gasnetc_cb_t local_cb,
                 gasnetc_atomic_val_t *remote_cnt,
                 gasnetc_cb_t remote_cb
-                GASNETI_THREAD_FARG) {
+                GASNETI_THREAD_FARG)
+{
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_epid_t epid = gasnetc_epid(jobrank, qpi-1);
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
 
   // TODO-EX:
@@ -3047,7 +3047,7 @@ extern int gasnetc_rdma_put(
    */
   if (nbytes <= gasnetc_inline_limit)
   {
-    gasnetc_do_put_inline(epid, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
+    gasnetc_do_put_inline(jobrank, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
     return 0;
   }
 
@@ -3068,9 +3068,9 @@ extern int gasnetc_rdma_put(
     size_t to_xfer = nbytes;
     if ((nbytes <= gasnetc_bounce_limit) ||
         (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
-        ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes,
+        ((to_xfer = gasnetc_do_put_zerocp(jobrank, loc_auxseg, rem_auxseg, sr_desc, nbytes,
                                          local_cnt, local_cb GASNETI_THREAD_PASS)))) {
-      gasnetc_do_put_bounce(epid, rem_auxseg, sr_desc, to_xfer,
+      gasnetc_do_put_bounce(jobrank, rem_auxseg, sr_desc, to_xfer,
                             remote_cnt, remote_cb GASNETI_THREAD_PASS);
     }
 
@@ -3079,14 +3079,66 @@ extern int gasnetc_rdma_put(
     // Use bounce buffers if (firehose disabled and src is unpinned) OR zero copy fails
     size_t to_xfer = nbytes;
     if ((!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
-        ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes,
+        ((to_xfer = gasnetc_do_put_zerocp(jobrank, loc_auxseg, rem_auxseg, sr_desc, nbytes,
                                           remote_cnt, remote_cb GASNETI_THREAD_PASS)))) {
-      gasnetc_do_put_bounce(epid, rem_auxseg, sr_desc, to_xfer,
+      gasnetc_do_put_bounce(jobrank, rem_auxseg, sr_desc, to_xfer,
                             remote_cnt, remote_cb GASNETI_THREAD_PASS);
     }
   }
 
   if (bias_remote_cnt) remote_cb(remote_cnt);
+
+  return 0;
+}
+
+// Put specialized for needs of AM Long payload
+// * caller needs to control the qpi
+// * always has local callbacks (never GEX_EVENT_DEFER)
+// * never has remote callbacks
+// * assumed never small enough for inline send (would be packed instead)
+extern int gasnetc_rdma_long_put(
+                gex_TM_t tm, gex_Rank_t rank, int qpi,
+                void *src_ptr, void *dst_ptr,
+                size_t nbytes,
+                gex_Flags_t flags,
+                gasnetc_atomic_val_t *local_cnt,
+                gasnetc_cb_t local_cb
+                GASNETI_THREAD_FARG)
+{
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  gasnetc_epid_t epid = gasnetc_epid(jobrank, qpi-1);
+  GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
+
+  // TODO-EX:
+  //     All uses of {loc,rem_}auxseg are a temporary hack
+  //     This will be replaced by general multi-registration support later
+  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
+  const int loc_auxseg = gasneti_in_local_auxsegment(ep, dst_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(tm, rank, dst_ptr, nbytes);
+
+  gasneti_assert(nbytes != 0);
+  
+  sr_desc->wr.rdma.remote_addr = (uintptr_t)dst_ptr;
+  sr_desc_sg_lst[0].addr = (uintptr_t)src_ptr;
+
+  // May need to do a bit of extra work to prevent premature counter balance
+  const int bias_local_cnt  = (local_cb  == gasnetc_cb_eop_alc);
+  if (bias_local_cnt) ++(*local_cnt);
+
+  // Because IB lacks native indication of local completion (LC), the only ways to
+  // detect LC are to wait for RC, or use bounce buffers to achieve synchronous LC.
+  // So, use bounce buffers for a non-bulk put if "not too large".
+  // Also use bounce buffers if (firehose disabled and src is unpinned) OR zero copy fails
+  size_t to_xfer = nbytes;
+  if ((nbytes <= gasnetc_bounce_limit) ||
+      (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
+      ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes,
+                                        local_cnt, local_cb GASNETI_THREAD_PASS)))) {
+    gasnetc_do_put_bounce(epid, rem_auxseg, sr_desc, to_xfer,
+                          NULL, NULL GASNETI_THREAD_PASS);
+  }
+
+  if (bias_local_cnt) local_cb(local_cnt);
 
   return 0;
 }
@@ -3107,9 +3159,9 @@ extern int gasnetc_rdma_get(
                 gex_Flags_t flags,
                 gasnetc_atomic_val_t *remote_cnt,
                 gasnetc_cb_t remote_cb
-                GASNETI_THREAD_FARG) {
+                GASNETI_THREAD_FARG)
+{
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_epid_t epid = jobrank;
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
 
   // TODO-EX:
@@ -3129,9 +3181,9 @@ extern int gasnetc_rdma_get(
 
   if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !loc_auxseg) {
     /* Firehose disabled.  Use bounce buffers since dst_ptr is out-of-segment */
-    gasnetc_do_get_bounce(epid, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
+    gasnetc_do_get_bounce(jobrank, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
   } else {
-    gasnetc_do_get_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
+    gasnetc_do_get_zerocp(jobrank, loc_auxseg, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
   }
 
   return 0;
@@ -3144,19 +3196,19 @@ extern int gasnetc_rdma_get(
  */
 /* RDMA put */
 // TODO-EX: see comment prior to gasnetc_rdma_put() regarding counters
-extern int gasnetc_rdma_put_fh(
-                gex_TM_t tm, gex_Rank_t rank, int qpi,
+extern int gasnetc_rdma_put(
+                gex_TM_t tm, gex_Rank_t rank,
                 void *src_ptr, void *dst_ptr,
                 size_t nbytes,
                 gex_Flags_t flags,
                 gasnetc_atomic_val_t *local_cnt,
                 gasnetc_cb_t local_cb,
                 gasnetc_atomic_val_t *remote_cnt,
-                gasnetc_cb_t remote_cb,
-                gasnetc_counter_t *am_oust
-                GASNETI_THREAD_FARG) {
+                gasnetc_cb_t remote_cb
+                GASNETI_THREAD_FARG)
+{
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_epid_t epid = gasnetc_epid(jobrank, qpi-1);
+
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 
@@ -3172,15 +3224,15 @@ extern int gasnetc_rdma_put_fh(
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_INVALID GASNETI_THREAD_PASS);
     size_t count;
 
-    sreq->epid = epid;
+    sreq->epid = jobrank;
  
     sreq->comp.cb = remote_cb;
     sreq->comp.data = remote_cnt;
     sreq->fh_lc = local_cnt;
     sreq->fh_lc_cb = local_cb;
-    sreq->fh_oust = am_oust;
+    sreq->fh_oust = NULL;
 
-    count = gasnetc_fh_put_helper(epid, sreq, local_cnt, remote_cnt, src, dst, nbytes GASNETI_THREAD_PASS);
+    count = gasnetc_fh_put_helper(jobrank, sreq, local_cnt, remote_cnt, src, dst, nbytes GASNETI_THREAD_PASS);
 
     src += count;
     dst += count;
@@ -3192,6 +3244,64 @@ extern int gasnetc_rdma_put_fh(
   if (bias_remote_cnt) remote_cb(remote_cnt);
 
   gasnetc_poll_rcv(); /* Progress may depend on firehose AM Reply */
+  return 0;
+}
+
+// Put specialized for needs of AM Long payload
+// * caller needs to control the qpi
+// * always has local callbacks (never GEX_EVENT_DEFER)
+// * never has remote callbacks
+// * must block for firehose movement (if any) to compelte
+extern int gasnetc_rdma_long_put(
+                gex_TM_t tm, gex_Rank_t rank, int qpi,
+                void *src_ptr, void *dst_ptr,
+                size_t nbytes,
+                gex_Flags_t flags,
+                gasnetc_atomic_val_t *local_cnt,
+                gasnetc_cb_t local_cb
+                GASNETI_THREAD_FARG)
+{
+  gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
+  gasnetc_epid_t epid = gasnetc_epid(jobrank, qpi-1);
+
+  uintptr_t src = (uintptr_t)src_ptr;
+  uintptr_t dst = (uintptr_t)dst_ptr;
+
+  gasneti_assert(nbytes != 0);
+
+  // May need to do a bit of extra work to prevent premature counter balance
+  const int bias_local_cnt  = (local_cb  == gasnetc_cb_eop_alc);
+  if (bias_local_cnt) ++(*local_cnt);
+
+  // May need to block for firehose misses to be resolved
+  gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
+
+  do {
+    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_INVALID GASNETI_THREAD_PASS);
+    size_t count;
+
+    sreq->epid = epid;
+ 
+    sreq->comp.cb = NULL;
+    sreq->comp.data = NULL;
+    sreq->fh_lc = local_cnt;
+    sreq->fh_lc_cb = local_cb;
+    sreq->fh_oust = &am_oust;
+
+    count = gasnetc_fh_put_helper(epid, sreq, local_cnt, NULL, src, dst, nbytes GASNETI_THREAD_PASS);
+
+    src += count;
+    dst += count;
+    nbytes -= count;
+  } while (nbytes);
+
+  // Fix the bias, if any, we introduced above
+  if (bias_local_cnt)  local_cb(local_cnt);
+
+  // Stall for outstanding firehose misses
+  // TODO: could eliminate stall when gasnetc_use_rcv_thread by using fh callback to inject header
+  gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);
+
   return 0;
 }
 
@@ -3209,9 +3319,10 @@ extern int gasnetc_rdma_get(
                 gex_Flags_t flags,
                 gasnetc_atomic_val_t *remote_cnt,
                 gasnetc_cb_t remote_cb
-                GASNETI_THREAD_FARG) {
+                GASNETI_THREAD_FARG)
+{
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
-  gasnetc_epid_t epid = jobrank;
+
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 
@@ -3224,12 +3335,12 @@ extern int gasnetc_rdma_get(
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_GET_ZEROCP GASNETI_THREAD_PASS);
     size_t count;
 
-    sreq->epid = epid;
+    sreq->epid = jobrank;
  
     sreq->comp.cb = remote_cb;
     sreq->comp.data = remote_cnt;
 
-    count = gasnetc_fh_get_helper(epid, sreq, dst, src, nbytes, remote_cnt GASNETI_THREAD_PASS);
+    count = gasnetc_fh_get_helper(jobrank, sreq, dst, src, nbytes, remote_cnt GASNETI_THREAD_PASS);
 
     src += count;
     dst += count;
