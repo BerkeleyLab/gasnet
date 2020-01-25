@@ -2669,9 +2669,9 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
       if (0 != gasnetc_pin(hca, myseg.addr, myseg.size, gasneti_seg_access_flags, &memreg)) {
         gasneti_segreg_failed(segsize, "", errno);
       }
-      hca->seg_lkey = memreg.handle->lkey;
+      segment->seg_lkey[hca->hca_index] = memreg.handle->lkey;
     #if GASNETC_IBV_SHUTDOWN
-      hca->seg_reg = memreg;
+      segment->seg_reg[hca->hca_index] = memreg;
     #endif
 
       GASNETI_TRACE_PRINTF(I, ("Attach registered %"PRIuPTR" bytes on HCA %d", segsize, hca->hca_index));
@@ -2905,9 +2905,12 @@ gasnetc_shutdown(void) {
 
   GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_PIN_SEGMENT
-    if (hca->rkeys) {
-      gasnetc_unpin(hca, &hca->seg_reg);
-    }
+    gasneti_mutex_lock(&gasnetc_segment_lock);
+      for (int i = 0; i < gasnetc_segment_count; ++i) {
+        gasnetc_Segment_t seg = gasnetc_segment_table[i];
+        gasnetc_unpin(hca, &seg->seg_reg[hca->hca_index]);
+      }
+    gasneti_mutex_unlock(&gasnetc_segment_lock);
   #endif
   #if GASNETC_IBV_ODP
     if (gasnetc_use_odp) {
@@ -3071,15 +3074,23 @@ void gasnetc_post_checkpoint(int is_restart) {
   /* REregister the segment and exchange the new rkeys */
 #if GASNETC_PIN_SEGMENT
   if (gasnetc_hca[0].rkeys) {
+    gasneti_mutex_lock(&gasnetc_segment_lock);
     GASNETC_FOR_ALL_HCA(hca) {
-      gasnetc_memreg_t *reg = &hca->seg_reg;
-      if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
-        gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
-                           strerror(errno), errno);
-      }
-      hca->seg_lkey = reg->handle->lkey;
+        for (int i = 0; i < gasnetc_segment_count; ++i) {
+          gasnetc_Segment_t seg = gasnetc_segment_table[i];
+          gasnetc_memreg_t *reg = &seg->seg_reg[hca->hca_index];
+          if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
+            gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
+                               strerror(errno), errno);
+          }
+          seg->seg_lkey[hca->hca_index] = reg->handle->lkey;
+        }
+      // TODO-EX: following is insufficient for multi-segment
+      gasnetc_memreg_t *reg = &gasnetc_segment_table[0]->seg_reg[hca->hca_index];
+      gasneti_assert_int(gasnetc_segment_count ,==, 1);
       gasnetc_bootstrapExchange_ib(&reg->handle->rkey, sizeof(uint32_t), hca->rkeys);
     }
+    gasneti_mutex_unlock(&gasnetc_segment_lock);
   }
 #endif
 
@@ -4303,7 +4314,7 @@ void gasnetc_am_put_credit(gasnetc_cep_t *cep)
 
 // Decide if Medium (or Packed Long) payload should be sent using gather-on-send
 GASNETI_INLINE(gasnetc_am_use_gather)
-int gasnetc_am_use_gather(
+int gasnetc_am_use_gather(gasnetc_EP_t ep,
                           void *src_addr, int nbytes,
                           gasnetc_cb_t local_cb)
 {
@@ -4311,7 +4322,7 @@ int gasnetc_am_use_gather(
   return ((nbytes >= gasnetc_am_gather_min) &&   // Big enough to benefit
           (local_cb != gasnetc_cb_counter) &&    // Caller did NOT require synchronous LC
           (gasnetc_use_odp ||                    // Registered via OPD ...
-           !gasnetc_unpinned((uintptr_t)src_addr))); // ... or in-segment
+           gasnetc_in_bound_segment(ep, (uintptr_t)src_addr, nbytes))); // ... or in-segment
 #else
   return 0;
 #endif
@@ -4354,7 +4365,7 @@ int gasnetc_am_get_buffer(size_t buf_len,
 GASNETI_INLINE(gasnetc_am_commit)
 void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
                           const gasneti_category_t category, const int is_reply,
-                          gasnetc_cep_t *cep,
+                          gasnetc_EP_t ep, gasnetc_cep_t *cep,
                           gex_AM_Index_t handler,
                           void *src_addr, size_t nbytes, void *dst_addr,
                           size_t head_len, size_t copy_len, size_t gath_len,
@@ -4452,9 +4463,9 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
         #if GASNETC_IBV_ODP
           sr_desc->sg_list[1].lkey = gasnetc_use_odp
                                          ? cep->hca->implicit_odp.lkey
-                                         : GASNETC_SEG_LKEY(cep);
+                                         : GASNETC_SEG_LKEY(ep, cep);
         #else
-          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(cep);
+          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(ep, cep);
         #endif
         sreq->comp.cb = local_cb;
         sreq->comp.data = local_cnt;
@@ -4507,7 +4518,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     case gasneti_Medium:
       /* XXX: When nbytes == 0 GASNETC_MSG_MED_ARGSEND still rounds up to 8-byte boundary */
       head_len = GASNETC_MSG_MED_ARGSEND(numargs + have_flow);
-      if (gasnetc_am_use_gather(src_addr, nbytes, local_cb)) {
+      if (gasnetc_am_use_gather(ep, src_addr, nbytes, local_cb)) {
         gath_len = nbytes;
       } else {
         copy_len = nbytes;
@@ -4518,7 +4529,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       head_len = GASNETC_MSG_LONG_ARGSEND(numargs + have_flow);
       if ((nbytes <= gasnetc_packedlong_limit) || (!GASNETC_PIN_SEGMENT && is_reply)) {
         /* Small enough to send like a Medium (always true of Reply when using remote firehose) */
-        if (gasnetc_am_use_gather(src_addr, nbytes, local_cb)) {
+        if (gasnetc_am_use_gather(ep, src_addr, nbytes, local_cb)) {
           gath_len = nbytes;
         } else {
           copy_len = nbytes;
@@ -4531,11 +4542,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
         // Firehose replies MUST take the packedlong path:
         gasneti_assert(GASNETC_PIN_SEGMENT || !is_reply);
         // TODO-EX: should we pass flags other than 'immediate' to the payload Put
-        // TODO-EX: team and rank here
-        gex_Rank_t rank = gasnetc_epid2node(cep->epid);
-        int qpi = gasnetc_epid2qpi(cep->epid);
-        int rc = gasnetc_rdma_long_put(gasneti_THUNK_TM, rank, qpi,
-                                       src_addr, dst_addr, nbytes, immediate,
+        int rc = gasnetc_rdma_long_put(ep, cep, src_addr, dst_addr, nbytes, immediate,
                                        local_cnt, local_cb GASNETI_THREAD_PASS);
         if (rc) {
           // TODO-EX: stats/trace for FAIL_IMM case
@@ -4576,7 +4583,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     }
 
     // Build and send the message
-    gasnetc_am_commit(buf, buf_alloc, category, is_reply, cep,
+    gasnetc_am_commit(buf, buf_alloc, category, is_reply, ep, cep,
                       handler, src_addr, nbytes, dst_addr,
                       head_len, copy_len, gath_len, 0, have_flow, numargs,
                       local_cnt, local_cb, counter, argptr
@@ -5215,7 +5222,7 @@ void gasnetc_commit_medium(
       gasneti_fatalerror("Invalid lc_opt argument to Prepare/Commit %sMedium",
                          is_reply?"Reply":"Request");
     }
-    if (gasnetc_am_use_gather(sd->_addr, nbytes, local_cb)) {
+    if (gasnetc_am_use_gather(sd->_ep, sd->_addr, nbytes, local_cb)) {
       gath_len = nbytes;
     } else {
       copy_len = nbytes;
@@ -5229,11 +5236,13 @@ void gasnetc_commit_medium(
 
   size_t head_len = GASNETC_MSG_MED_ARGSEND(nargs + sd->_have_flow);
   gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
-                     gasneti_Medium, is_reply, sd->_cep,
+                     gasneti_Medium, is_reply,
+                     sd->_ep,  sd->_cep,
                      handler, sd->_addr, nbytes, NULL,
                      head_len, copy_len, gath_len,
                      !is_Fixed, sd->_have_flow, nargs,
-                     local_cnt, local_cb, NULL, argptr GASNETI_THREAD_PASS);
+                     local_cnt, local_cb, NULL, argptr
+                     GASNETI_THREAD_PASS);
 
   if (eop) {
     gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
@@ -5381,7 +5390,8 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     } else {
         const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
 
-        gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: multi-EP support
+        gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_tm(tm)->_ep;
+        gasneti_assert(ep == gasnetc_ep0);
         gasnetc_cep_t *cep = gasnetc_am_select_cep(jobrank);
         if (gasnetc_am_get_credit(ep, cep, immediate GASNETI_THREAD_PASS)) {
             goto out_immediate;
@@ -5394,6 +5404,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         } else {
             gasneti_init_sd_poison(sd);
             sd->_is_nbrhd = 0;
+            sd->_ep = ep;
         }
     }
 
@@ -5547,6 +5558,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         } else {
             gasneti_init_sd_poison(sd);
             sd->_is_nbrhd = 0;
+            sd->_ep = rbuf->rr_ep;
             rbuf->rbuf_needReply = 0;
         }
     }

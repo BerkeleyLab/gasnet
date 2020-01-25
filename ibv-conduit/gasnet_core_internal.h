@@ -453,11 +453,7 @@ typedef struct {
   gasnetc_memreg_t	snd_reg;
   gasnetc_memreg_t      aux_reg;
 #if GASNETC_PIN_SEGMENT
-  uint32_t              seg_lkey;
   uint32_t              *rkeys; // RKeys registered at attach time
-  #if GASNETC_IBV_SHUTDOWN
-    gasnetc_memreg_t    seg_reg;
-  #endif
 #endif
 #if GASNETC_IBV_ODP
   struct {
@@ -518,9 +514,6 @@ struct gasnetc_cep_t_ {
 #if GASNETC_PIN_SEGMENT
   uint32_t      rkey;
 #endif
-#if GASNETC_PIN_SEGMENT && (GASNETC_IB_MAX_HCAS > 1)
-  uint32_t      seg_lkey;
-#endif
 #if (GASNETC_IB_MAX_HCAS > 1)
   uint32_t      rcv_lkey;
   uint32_t      snd_lkey;
@@ -571,6 +564,14 @@ typedef struct gasnetc_Segment_t_ {
   GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
 
   int idx; // location in segment table
+
+#if GASNETC_PIN_SEGMENT
+  // memory registation info (per-HCA)
+  uint32_t            seg_lkey[GASNETC_IB_MAX_HCAS];
+  #if GASNETC_IBV_SHUTDOWN
+    gasnetc_memreg_t  seg_reg[GASNETC_IB_MAX_HCAS];
+  #endif
+#endif
 } *gasnetc_Segment_t;
 
 /* Description of a receive buffer.
@@ -764,11 +765,11 @@ typedef union {
 #if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_SND_LKEY(_cep)         ((_cep)->snd_lkey)
   #define GASNETC_RCV_LKEY(_cep)         ((_cep)->rcv_lkey)
-  #define GASNETC_SEG_LKEY(_cep)         ((_cep)->seg_lkey)
+  #define GASNETC_SEG_LKEY(_ep,_cep)     (((gasnetc_Segment_t)(_ep)->_segment)->seg_lkey[(_cep)->hca_index])
 #else
   #define GASNETC_SND_LKEY(_cep)         (gasnetc_hca[0].snd_reg.handle->lkey)
   #define GASNETC_RCV_LKEY(_cep)         (gasnetc_hca[0].rcv_reg.handle->lkey)
-  #define GASNETC_SEG_LKEY(_cep)         (gasnetc_hca[0].seg_lkey)
+  #define GASNETC_SEG_LKEY(_ep,_cep)     (((gasnetc_Segment_t)(_ep)->_segment)->seg_lkey[0])
 #endif
 #define GASNETC_SEG_RKEY(_cep)           ((_cep)->rkey)
 
@@ -827,7 +828,7 @@ extern int gasnetc_rdma_put(
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
 extern int gasnetc_rdma_long_put(
-                  gex_TM_t tm, gex_Rank_t rank, int qpi,
+                  gasnetc_EP_t ep, gasnetc_cep_t *cep,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb
                   GASNETI_THREAD_FARG);
@@ -990,16 +991,24 @@ gasnetc_cep_t *gasnetc_get_cep(gex_Rank_t node) {
 }
 
 #if GASNETC_PIN_SEGMENT
-/* Test if a given addr is in the local GASNet segment or not.
- * Returns non-zero if address is outside the segment.
+/* Test if a given addr is in a given GASNet segment or not.
+ * Returns non-zero if address is inside the segment.
  * This test is used under the assumption that the client's arguments
  * to Put or Get will always correspond to a region which is entirely
  * IN or entirely OUT of the segment.
  */
-GASNETI_INLINE(gasnetc_unpinned)
-int gasnetc_unpinned(uintptr_t addr) {
-  const uintptr_t offset = (addr - gasnetc_seg_start); /* negative is a LARGE positive */
-  return (offset > gasnetc_seg_len);
+GASNETI_INLINE(gasnetc_in_segment)
+int gasnetc_in_segment(const gasnetc_Segment_t seg, uintptr_t addr, size_t len) {
+  if_pf (!seg) return 0;
+  uint64_t offset = (uint64_t)addr - ((uint64_t)seg->_addr); // negative is a LARGE positive
+  int result = (offset < ((uint64_t)seg->_size));
+  gasneti_assume(!result || (addr+len <= (uintptr_t)seg->_ub)); // single-segment assumption
+  return result;
+}
+GASNETI_INLINE(gasnetc_in_bound_segment)
+int gasnetc_in_bound_segment(const gasnetc_EP_t ep, uintptr_t addr, size_t len) {
+  gasneti_assert(ep);
+  return gasnetc_in_segment((gasnetc_Segment_t)ep->_segment, addr, len);
 }
 #endif
 
