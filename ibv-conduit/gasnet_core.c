@@ -1072,6 +1072,30 @@ static void gasneti_segreg_failed(size_t size, const char *which, int why) {
                      which, hint1, hint2);
 }
 
+//
+// simple container of segments
+//
+static gasnetc_Segment_t *gasnetc_segment_table = NULL;
+static int gasnetc_segment_count = 0;
+static gasneti_mutex_t gasnetc_segment_lock = GASNETI_MUTEX_INITIALIZER;
+
+static void gasnetc_add_segment(gasnetc_Segment_t seg) {
+  gasneti_mutex_lock(&gasnetc_segment_lock);
+  seg->idx = gasnetc_segment_count++;
+  size_t space = gasnetc_segment_count * sizeof(gasnetc_Segment_t);
+  gasnetc_segment_table = gasneti_realloc(gasnetc_segment_table, space);
+  gasnetc_segment_table[seg->idx] = seg;
+  gasneti_mutex_unlock(&gasnetc_segment_lock);
+}
+static void gasnetc_del_segment(gasnetc_Segment_t seg) {
+  gasneti_mutex_lock(&gasnetc_segment_lock);
+  gasnetc_Segment_t last = gasnetc_segment_table[gasnetc_segment_count--];
+  last->idx = seg->idx;
+  gasnetc_segment_table[last->idx] = last;
+  // lack of realloc to shrink is harmless
+  gasneti_mutex_unlock(&gasnetc_segment_lock);
+}
+
 #if GASNET_TRACE
 static const char *mtu_to_str(enum ibv_mtu mtu) {
   switch (mtu) {
@@ -2622,12 +2646,16 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+  gasnetc_Segment_t segment;
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, exchangefn, flags);
+  segment = (gasnetc_Segment_t) gasneti_import_tm(tm)->_ep->_segment;
 
   // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
   {
+    gasnetc_add_segment(segment);
+
     gasnetc_seg_start = (uintptr_t)myseg.addr;
     gasnetc_seg_len   = myseg.size;
 

@@ -566,6 +566,13 @@ typedef struct gasnetc_EP_t_ {
 } *gasnetc_EP_t;
 extern gasnetc_EP_t gasnetc_ep0;
 
+// Conduit-specific Segment type
+typedef struct gasnetc_Segment_t_ {
+  GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
+
+  int idx; // location in segment table
+} *gasnetc_Segment_t;
+
 /* Description of a receive buffer.
  *
  * Note that use of the freelist will overwrite the first sizeof(void *) bytes (linkage).
