@@ -14,24 +14,33 @@ UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
 # Options for providing GASNET:
 # 1. set UPCXX_GASNET to an existing build path to use.
 # The remaining options assume $(TOP_BUILDDIR)/gasnet is a valid build dir
-# 2. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
+# 2. set UPCXX_GASNET to an existing source path to use.
 #    This one notably implies this CI will configure and build GASNet.
-# 3. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build.
+# 3. set UPCXX_TARBALL_GASNET=1 to create a GASNet tarball and use it
+#    This one notably implies this CI will configure and build GASNet.
+# 4. Default is to point at the existing $(TOP_BUILDDIR)/gasnet build.
 #
 # All three options will use the provided build directory only in the
 # '_upcxx' test (the UPC++ configure step) and not after.
 ifneq ($(strip $(UPCXX_GASNET)),)
   UPCXX_EXTERNAL_GASNET:=1
-  CONFIGURE_GASNET:=$(UPCXX_GASNET)
+  CONFIGURE_GASNET:=$(strip $(UPCXX_GASNET))
+ifeq ($(wildcard $(strip $(UPCXX_GASNET))/gasnet_config.h),)
+  UPCXX_GASNET_SOURCES:=1
+endif
 else 
 ifneq ($(strip $(UPCXX_TARBALL_GASNET)),)
   CONFIGURE_GASNET:=$(UPCXX_BLDDIR)/gasnet.tar.gz  # actual filename will vary
-  CONFIGURE_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
-  # Don't pollute configure with harness flags
-  UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
+  UPCXX_GASNET_SOURCES:=1
 else # default to using builddir
   CONFIGURE_GASNET:=$(TOP_BUILDDIR)/gasnet
 endif
+endif
+ifeq ($(UPCXX_GASNET_SOURCES),1)
+  # UPCXX_GASNET=srcdir and UPCXX_TARBALL_GASNET configure GASNet
+  CONFIGURE_FRAGMENTS:=$(TOP_BUILDDIR)/gasnet
+  # Don't pollute configure with harness flags
+  UNSET_VARS = CFLAGS CXXFLAGS CPPFLAGS LDFLAGS LIBS
 endif
 CONFIGURE_FRAGMENTS ?= $(CONFIGURE_GASNET)
 UPCXX_TESTMODE  ?= wrap
