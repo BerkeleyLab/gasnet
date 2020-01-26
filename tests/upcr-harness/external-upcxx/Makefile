@@ -174,7 +174,7 @@ launcher-mpi:
 	      fi; \
 	      set -x; \
 	      echo '#!/bin/sh' > $@ ; \
-	      echo "exec $$mpi_launcher" '$$@' >> $@ ; \
+	      echo "exec $$mpi_launcher" '"$$@"' >> $@ ; \
 	      echo 'echo "ERROR: failed to find mpirun, gasnetrun_mpi or a conduit-specific alternative." ; exit 1' >> $@ ; \
 	      chmod +x $@ \
 	      ;; \
