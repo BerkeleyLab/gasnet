@@ -9,6 +9,7 @@ UPCXX_CONDUIT    ?= $(NETWORK) # Default to same conduit as the enclosing harnes
 UPCXX_EXTRA_FLAGS ?=# extra flags to add to both compilers for lib and tests, may be set by pushbuild/end-user
 UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set by pushbuild/end-user
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
+UPCXX_CONFIGURE_EXTRA ?=# extra flags to add to UPC++ configure command line
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
 
 # Options for providing GASNET:
@@ -220,7 +221,7 @@ _upcxx: force
 	   cd $(UPCXX_BLDDIR) && $(CONFIGURE_ENV) && \
 	     ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$$gasnet \
 	                 --disable-auto-conduit-detect --with-default-network=$(UPCXX_CONDUIT) \
-	                 --enable-single=$(GASNET_CODEMODE) || exit 1; \
+	                 --enable-single=$(GASNET_CODEMODE) $(UPCXX_CONFIGURE_EXTRA) || exit 1; \
 	) $(TO_LOG)
 	@( echo ======== Build UPCXX RT libs ========; set -x; \
 	   $(MAKE) $(UPCXX_MAKE_J) -C $(UPCXX_BLDDIR) all || exit 1; \
