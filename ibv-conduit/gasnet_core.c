@@ -4687,7 +4687,8 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
          * so we MUST do any RDMA before getting credits.  It can't hurt to queue
          * the Long RDMA as early as possible even when firehose is not in use.
          */
-        gasneti_assert(!is_reply);  // Replies MUST take the packedlong path instead
+        // Firehose replies MUST take the packedlong path:
+        gasneti_assert(GASNETC_PIN_SEGMENT || !is_reply);
         // TODO-EX: should we pass flags other than 'immediate' to the payload Put
         int rc = gasnetc_am_long_put(cep->epid, src_addr, dst_addr, nbytes, immediate,
                                      local_cnt, local_cb GASNETI_THREAD_PASS);
