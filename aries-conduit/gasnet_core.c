@@ -24,6 +24,8 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
+GASNETI_IDENT(gasnetc_IdentString_AMMaxMedium, "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_GNI_MAX_MEDIUM) " $");
+
 static void gasnetc_atexit(int exitcode);
 
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
