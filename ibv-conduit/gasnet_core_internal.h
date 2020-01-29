@@ -179,17 +179,11 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define GASNETC_ARGSEND_AUX(s,nargs) gasneti_offsetof(s,args[nargs])
 
 typedef struct {
-#if GASNETI_STATS_OR_TRACE
-  gasneti_tick_t	stamp;
-#endif
   gex_AM_Arg_t	args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 #define GASNETC_MSG_SHORT_ARGSEND(nargs) GASNETC_ARGSEND_AUX(gasnetc_shortmsg_t,nargs)
 
 typedef struct {
-#if GASNETI_STATS_OR_TRACE
-  gasneti_tick_t	stamp;
-#endif
   uint32_t		nBytes;	/* 16 bits would be sufficient if we ever need the space */
   gex_AM_Arg_t	args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
@@ -199,9 +193,6 @@ typedef struct {
 		((void *)((uintptr_t)(msg) + GASNETC_MSG_MED_ARGSEND(nargs)))
 
 typedef struct {
-#if GASNETI_STATS_OR_TRACE
-  gasneti_tick_t	stamp;
-#endif
   uintptr_t		destLoc;
   int32_t		nBytes;
   gex_AM_Arg_t	args[GASNETC_MAX_ARGS];
@@ -211,9 +202,6 @@ typedef struct {
 
 typedef union {
   uint8_t		raw[GASNETC_BUFSZ];
-#if GASNETI_STATS_OR_TRACE
-  gasneti_tick_t	stamp;
-#endif
   gasnetc_shortmsg_t	shortmsg;
   gasnetc_medmsg_t	medmsg;
   gasnetc_longmsg_t	longmsg;

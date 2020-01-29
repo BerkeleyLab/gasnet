@@ -4503,7 +4503,7 @@ int gasnetc_am_get_buffer(size_t buf_len,
 GASNETI_INLINE(gasnetc_am_commit)
 void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
                           const gasneti_category_t category, const int is_reply,
-                          gasnetc_rbuf_t * const token, gasnetc_cep_t *cep,
+                          gasnetc_cep_t *cep,
                           gex_AM_Index_t handler,
                           void *src_addr, size_t nbytes, void *dst_addr,
                           size_t head_len, size_t copy_len, size_t gath_len,
@@ -4571,12 +4571,6 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       args[i] = va_arg(argptr, gex_AM_Arg_t);
     }
   
-    /* Add/forward optional timestamp */
-    #if GASNETI_STATS_OR_TRACE
-      buf->stamp = is_reply ? ((gasnetc_buffer_t *)(uintptr_t)(token->rr_sg.addr))->stamp
-                            : GASNETI_TICKS_NOW_IFENABLED(C);
-    #endif
-  
     /* send the AM */
     {
       GASNETC_DECL_SR_DESC(sr_desc, 2);
@@ -4628,7 +4622,6 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
                           const gasneti_category_t category, const int is_reply,
-                          gasnetc_rbuf_t * const token,
 			  gasnetc_cep_t *cep,
                           gex_AM_Index_t handler,
 			  void *src_addr, size_t nbytes, void *dst_addr,
@@ -4638,8 +4631,6 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
 			  gasnetc_counter_t *counter, va_list argptr
                           GASNETI_THREAD_FARG)
 {
-    gasneti_assume(is_reply == (token != NULL));
-
     gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
     int fail_type = GASNETC_FAIL_IMM;
    
@@ -4729,7 +4720,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     }
 
     // Build and send the message
-    gasnetc_am_commit(buf, buf_alloc, category, is_reply, token, cep,
+    gasnetc_am_commit(buf, buf_alloc, category, is_reply, cep,
                       handler, src_addr, nbytes, dst_addr,
                       head_len, copy_len, gath_len, 0, have_flow, numargs,
                       local_cnt, local_cb, counter, argptr
@@ -4766,7 +4757,7 @@ int gasnetc_RequestGeneric(gasnetc_EP_t ep,
   gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(dest))); // never local
 
   return gasnetc_ReqRepGeneric(
-                        ep, category, 0, NULL, gasnetc_am_select_cep(dest),
+                        ep, category, 0,  gasnetc_am_select_cep(dest),
                         handler, src_addr, nbytes, dst_addr, flags, numargs,
                         local_cnt, local_cb, counter, argptr GASNETI_THREAD_PASS);
 }
@@ -4789,7 +4780,7 @@ int gasnetc_ReplyGeneric(gasnetc_EP_t ep,
   gasneti_assert(token->rbuf_needReply);
 
   int rc = gasnetc_ReqRepGeneric(
-                        ep, category, 1, token, token->cep,
+                        ep, category, 1, token->cep,
                         handler, src_addr, nbytes, dst_addr, flags, numargs,
                         local_cnt, local_cb, counter, argptr GASNETI_THREAD_PASS);
 
@@ -5335,12 +5326,6 @@ void gasnetc_commit_medium(
                        va_list                 argptr
                        GASNETI_THREAD_FARG)
 {
-#if GASNETI_STATS_OR_TRACE
-  gasnetc_rbuf_t * token = is_reply ? (gasnetc_rbuf_t *) sd->_dest._reply._token : NULL;
-#else
-  gasnetc_rbuf_t * token = NULL; // unused
-#endif
-
   gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
   gasnetc_atomic_val_t *local_cnt, start_cnt;
   gasnetc_cb_t         local_cb;
@@ -5386,7 +5371,7 @@ void gasnetc_commit_medium(
 
   size_t head_len = GASNETC_MSG_MED_ARGSEND(nargs + sd->_have_flow);
   gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
-                     gasneti_Medium, is_reply, token, sd->_cep,
+                     gasneti_Medium, is_reply, sd->_cep,
                      handler, sd->_addr, nbytes, NULL,
                      head_len, copy_len, gath_len,
                      !is_Fixed, sd->_have_flow, nargs,
@@ -5694,9 +5679,6 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
 
         sd = gasneti_init_reply_srcdesc(GASNETI_THREAD_PASS_ALONE);
         GASNETI_COMMON_PREP_REP(sd,token,client_buf,least_payload,most_payload,NULL,lc_opt,flags,nargs,Medium);
-        #if GASNETI_STATS_OR_TRACE
-          sd->_dest._reply._token = token;
-        #endif
 
         if (gasnetc_prepare_medium(sd, rbuf->cep, client_buf,
                                    least_payload, most_payload,

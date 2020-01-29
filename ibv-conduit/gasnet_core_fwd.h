@@ -131,7 +131,6 @@
         CNT(C, GET_AMREQ_CREDIT, cnt)             \
 	TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
 	TIME(C, GET_AMREQ_BUFFER_STALL, stalled time) \
-	TIME(C, AM_ROUNDTRIP_TIME, time) \
 	CNT(C, GET_BBUF, cnt)                     \
 	TIME(C, GET_BBUF_STALL, stalled time)     \
 	VAL(C, ALLOC_SREQ, sreqs)                 \
