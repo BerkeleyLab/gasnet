@@ -35,6 +35,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #if GASNETC_IBV_ODP
   GASNETI_IDENT(gasnetc_IdentString_ODP, "$GASNetIbvODP: 1 $");
 #endif
+GASNETI_IDENT(gasneti_IdentString_AMMaxMedium,  "$GASNetAMMaxMedium: " _STRINGIFY(GASNETC_IBV_MAX_MEDIUM) " $");
 
 gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
