@@ -11,6 +11,7 @@ UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 UPCXX_CONFIGURE_EXTRA ?=# extra flags to add to UPC++ configure command line
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
+UPCXX_FC         ?= `which gfortran`
 
 # Options for providing GASNET:
 # 1. set UPCXX_GASNET to an existing build path to use.
@@ -339,6 +340,38 @@ cmake-%:
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) . )
 	$(MAKE) -C cmake all VERBOSE=1
 	mv cmake/upcxx_test $@
+
+SYMPACK_URL=https://github.com/symPACK/symPACK/archive/master.tar.gz
+SYMPACK_GIT_REPO?=#https://github.com/symPACK/symPACK.git # does not support archive?
+SYMPACK_GIT_COMMIT=master
+SYMPACK_INPUT_URL=https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
+SYMPACK_DIR=$(HARNESS_WORKDIR)/sympack
+_sympack:
+	-rm -Rf $(SYMPACK_DIR)
+	( set -x ; $(MAKE) upcxx-download URL=$(SYMPACK_URL) GIT_REPO=$(SYMPACK_GIT_REPO) GIT_COMMIT=$(SYMPACK_GIT_COMMIT) DESTDIR=$(SYMPACK_DIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	( set -x ; $(MAKE) upcxx-download URL=$(SYMPACK_INPUT_URL) GIT_REPO= GIT_COMMIT= DESTDIR=$(SYMPACK_DIR)/input ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	cp $(SYMPACK_DIR)/input/nasa2146.rb .
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
+sympack-%:
+	-rm -Rf $(SYMPACK_DIR)/$*
+	mkdir $(SYMPACK_DIR)/$*
+	cd $(SYMPACK_DIR)/$* && ( set -x ; \
+	case "$*" in seq) export SYMPACK_THREADS=-DENABLE_THREADS=OFF ;; \
+	             par) export SYMPACK_THREADS=-DENABLE_THREADS=ON ;; esac; \
+	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
+	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
+	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
+	$(CMAKE) --version ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) \
+		 -DCMAKE_Fortran_COMPILER="$(UPCXX_FC)" \
+		 $$SYMPACK_THREADS $(SYMPACK_BUILD) \
+	         -DENABLE_PTSCOTCH=OFF -DENABLE_SCOTCH=OFF -DENABLE_PARMETIS=OFF -DENABLE_METIS=OFF \
+		 .. )
+	$(MAKE) -C $(SYMPACK_DIR)/$* all examples VERBOSE=1
+	mv $(SYMPACK_DIR)/$*/run_sympack $@
+
+
 
 force:
 
