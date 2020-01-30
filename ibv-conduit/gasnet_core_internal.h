@@ -65,7 +65,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running, GASNETI_ATOMIC_RMB_PRE)
 
 /* May eventually be a hash? */
-#define GASNETC_NODE2CEP(_node) (gasnetc_node2cep[_node])
+#define GASNETC_NODE2CEP(_ep,_node) ((_ep)->cep_table[_node])
 
 
 /*
@@ -77,7 +77,6 @@ extern gasneti_atomic_t gasnetc_exit_running;
  */
 #if PLATFORM_OS_SOLARIS || GASNET_BLCR || GASNET_DEBUG
   #define GASNETC_IBV_SHUTDOWN 1
-  extern void gasnetc_connect_shutdown(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -555,7 +554,7 @@ typedef struct {
 typedef struct gasnetc_EP_t_ {
   GASNETI_EP_COMMON // conduit-indep part as prefix
 
-  // Per-EP resources will move here from gasnetc_hca_t
+  gasnetc_cep_t     **cep_table;     // QP, flow-control, etc
 } *gasnetc_EP_t;
 extern gasnetc_EP_t gasnetc_ep0;
 
@@ -722,6 +721,7 @@ typedef struct gasnetc_sreq_t_ {
       size_t			putinmove;	/* bytes piggybacked on an Move AM */
       uintptr_t			loc_addr;
       uintptr_t			rem_addr;
+      gasnetc_EP_t              ep;
       gasnetc_buffer_t		*bbuf;
       gasnetc_atomic_t		ready;	/* 0 when loc and rem both ready */
       gasnetc_counter_t		*oust;	/* fh transactions outstanding */
@@ -744,6 +744,7 @@ typedef struct gasnetc_sreq_t_ {
   #define fh_putinmove	u.fh.putinmove
   #define fh_loc_addr	u.fh.loc_addr
   #define fh_rem_addr	u.fh.rem_addr
+  #define fh_ep         u.fh.ep
   #define fh_bbuf	u.fh.bbuf
   #define fh_ready	u.fh.ready
   #define fh_oust	u.fh.oust
@@ -779,11 +780,14 @@ typedef union {
 #if GASNETC_IBV_XRC
 extern int gasnetc_xrc_init(void **shared_mem_p);
 #endif
-extern int gasnetc_connect_init(void);
-extern int gasnetc_connect_fini(void);
+extern int gasnetc_connect_init(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+extern int gasnetc_connect_fini(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+#if GASNETC_IBV_SHUTDOWN
+extern void gasnetc_connect_shutdown(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+#endif
 #if GASNETC_DYNAMIC_CONNECT
-extern gasnetc_cep_t *gasnetc_connect_to(gex_Rank_t node);
-extern void gasnetc_conn_implied_ack(gex_Rank_t node);
+extern gasnetc_cep_t *gasnetc_connect_to(gasnetc_EP_t ep, gex_Rank_t node);
+extern void gasnetc_conn_implied_ack(gasnetc_EP_t ep, gex_Rank_t node);
 extern void gasnetc_conn_rcv_wc(struct ibv_wc *comp);
 extern void gasnetc_conn_snd_wc(struct ibv_wc *comp);
 #endif
@@ -845,13 +849,13 @@ GASNETI_MALLOCP(gasnetc_get_sreq)
 
 extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid);
 #if GASNETC_DYNAMIC_CONNECT
-  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply);
-  #define gasnetc_bind_cep(e,s)       gasnetc_bind_cep_inner((e),(s),0)
-  #define gasnetc_bind_cep_am(e,s,i)  gasnetc_bind_cep_inner((e),(s),(i))
+  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply);
+  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),0)
+  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),(i))
 #else
-  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq);
-  #define gasnetc_bind_cep(e,s)       gasnetc_bind_cep_inner((e),(s))
-  #define gasnetc_bind_cep_am(e,s,i)  gasnetc_bind_cep_inner((e),(s))
+  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq);
+  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s))
+  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s))
 #endif
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
@@ -956,7 +960,6 @@ extern size_t			gasnetc_fh_align_mask;
 extern firehose_info_t		gasnetc_firehose_info;
 extern gasnetc_port_info_t      *gasnetc_port_tbl;
 extern int                      gasnetc_num_ports;
-extern gasnetc_cep_t            **gasnetc_node2cep;
 extern gex_Rank_t            gasnetc_remote_nodes;
 #if GASNETC_DYNAMIC_CONNECT
   extern gasnetc_sema_t         gasnetc_zero_sema;
@@ -980,11 +983,11 @@ void *_gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p
 }
 
 GASNETI_INLINE(gasnetc_get_cep)
-gasnetc_cep_t *gasnetc_get_cep(gex_Rank_t node) {
-  gasnetc_cep_t *result = GASNETC_NODE2CEP(node);
+gasnetc_cep_t *gasnetc_get_cep(gasnetc_EP_t ep, gex_Rank_t node) {
+  gasnetc_cep_t *result = GASNETC_NODE2CEP(ep, node);
 #if GASNETC_DYNAMIC_CONNECT
   if_pf (!result) {
-    result = gasnetc_connect_to(node);
+    result = gasnetc_connect_to(ep, node);
   }
 #endif
   return result;
