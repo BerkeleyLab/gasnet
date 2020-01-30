@@ -330,12 +330,13 @@ endif
 cmake-%:
 	-rm -Rf cmake
 	cp -r $(UPCXX_BLDDIR)/utils/cmake .
+	rm -f cmake/UPCXXConfig*
 	cd cmake && ( set -x ; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
 	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
-	cmake --version ; \
-	$(CMAKE) -DCMAKE_PREFIX_PATH=. $(CMAKE_ARGS) . )
+	$(CMAKE) --version ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) . )
 	$(MAKE) -C cmake all VERBOSE=1
 	mv cmake/upcxx_test $@
 
