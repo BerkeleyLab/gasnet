@@ -947,13 +947,6 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
     gasnetc_cep_t *orig_cep = cep;
     gasnetc_hca_t *hca = cep->hca;
 
-#if GASNETI_STATS_OR_TRACE
-    if (isrep) {
-      gasneti_tick_t _starttime = ((gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr))->stamp;
-      GASNETI_TRACE_EVENT_TIME(C,AM_ROUNDTRIP_TIME,gasneti_ticks_now()-_starttime);
-    }
-#endif
-
     /* SRQ means rbuf->cep is "inexact", so must reconstruct */
     cep = GASNETC_NODE2CEP(GASNETC_MSG_SRCIDX(flags));
     if (!isrep) {
@@ -989,11 +982,6 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
   } else
 #endif
   if (isrep) {
-#if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t _starttime = ((gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr))->stamp;
-    GASNETI_TRACE_EVENT_TIME(C,AM_ROUNDTRIP_TIME,gasneti_ticks_now()-_starttime);
-#endif
-
     /* Now process the packet */
     gasnetc_processPacket(cep, rbuf, flags GASNETI_THREAD_PASS);
 
@@ -2850,10 +2838,6 @@ gasnetc_sndrcv_quiesce(void) {
     gasnetc_rbuf_t rbuf;
   #if GASNETI_THREADINFO_OPT
     rbuf.rbuf_threadinfo = GASNETI_MYTHREAD;
-  #endif
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t stamp = GASNETI_TICK_MIN; /* BLCR-TODO: stats should exclude this */
-    rbuf.rr_sg.addr = (uintptr_t) &stamp;
   #endif
 
     gasnetc_am_credits_slack = 0;

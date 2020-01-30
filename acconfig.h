@@ -455,6 +455,7 @@
 /* GASNet ibv-conduit features and bug work-arounds */
 #undef HAVE_IBV_SRQ
 #undef HAVE_IBV_TRANSPORT_TYPE
+#undef GASNETC_IBV_MAX_MEDIUM
 #undef GASNETC_IBV_ODP
 #undef GASNETC_IBV_ODP_DISABLED
 #undef GASNETC_IBV_RCV_THREAD
