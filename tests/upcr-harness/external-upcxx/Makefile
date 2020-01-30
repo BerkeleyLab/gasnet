@@ -11,6 +11,7 @@ UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 UPCXX_CONFIGURE_EXTRA ?=# extra flags to add to UPC++ configure command line
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
+UPCXX_FC         ?= `which gfortran`
 
 # Options for providing GASNET:
 # 1. set UPCXX_GASNET to an existing build path to use.
@@ -192,7 +193,7 @@ launcher-mpi:
 	fi
 
 _upcxx: force
-	-rm -Rf upcxx-built launcher launcher-mpi $(LOGFILE)
+	-rm -Rf upcxx-built upcxx-install launcher launcher-mpi $(LOGFILE)
 	echo ======== UPCXX download ======== | tee $(LOGFILE) $(PIPEEXIT)
 	( set -x ; $(MAKE) upcxx-download URL=$(UPCXX_URL) GIT_REPO=$(UPCXX_GIT_REPO) GIT_COMMIT=$(UPCXX_GIT_COMMIT) DESTDIR=$(UPCXX_BLDDIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
 	echo ======== UPCXX EXTRAS download ======== | tee -a $(LOGFILE) $(PIPEEXIT)
@@ -229,22 +230,23 @@ _upcxx: force
 	@touch upcxx-built
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-_upcxx-inst:
+_upcxx-inst: upcxx-built
 	rm -Rf $(UPCXX_INSTDIR) $@
 	@( echo ======== UPCXX install ========; set -x; \
 	   $(MAKE) -C $(UPCXX_BLDDIR) $(UPCXX_MAKE_J) install || exit 1; ) $(TO_LOG)
 	/bin/ls -alR $(UPCXX_INSTDIR) $(TO_LOG)
 	$(MAKE) launcher launcher-mpi 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	@touch upcxx-install
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
 # Build a single test from the installed UPCXX directory
-inst_test: _upcxx-inst
+inst_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
 	source $(UPCXX_INSTDIR)/bin/upcxx-meta SET ; \
 	$$CXX $$CXXFLAGS $$CPPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBS
 
 # Build a single test using the upcxx wrapper
-wrap_test: _upcxx-inst
+wrap_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
 	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
@@ -264,7 +266,7 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 	fi 
 
 # upcxx-examples guppie
-guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
+guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< \
@@ -274,7 +276,7 @@ guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx force
 	mv $</guppie-$* $@
 
 # upcxx-examples jac3d
-jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
+jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< \
@@ -284,7 +286,7 @@ jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d force
 	mv $</jac3d $@
 
 # upcxx-examples extend-add
-extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add force
+extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; \
@@ -299,7 +301,7 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 	mv $</bin/extend-add_$* $@
 
 # UPC interop
-upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
+upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
@@ -310,7 +312,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop force
 	mv $</$* $@
 
 # misc make-based examples
-cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile force
+cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
 	 set -x ; $(MAKE) -C $(<D) \
@@ -327,17 +329,50 @@ ifeq ($(shell uname -s),Darwin)
   CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" $(CMAKE_ARGS)
 endif
 
-cmake-%:
+cmake-%: upcxx-install
 	-rm -Rf cmake
 	cp -r $(UPCXX_BLDDIR)/utils/cmake .
+	rm -f cmake/UPCXXConfig*
 	cd cmake && ( set -x ; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
 	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
-	cmake --version ; \
-	$(CMAKE) -DCMAKE_PREFIX_PATH=. $(CMAKE_ARGS) . )
+	$(CMAKE) --version ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) . )
 	$(MAKE) -C cmake all VERBOSE=1
 	mv cmake/upcxx_test $@
+
+SYMPACK_URL=https://github.com/symPACK/symPACK/archive/master.tar.gz
+SYMPACK_GIT_REPO?=#https://github.com/symPACK/symPACK.git # does not support archive?
+SYMPACK_GIT_COMMIT=master
+SYMPACK_INPUT_URL=https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
+SYMPACK_DIR=$(HARNESS_WORKDIR)/sympack
+_sympack:
+	-rm -Rf $(SYMPACK_DIR)
+	( set -x ; $(MAKE) upcxx-download URL=$(SYMPACK_URL) GIT_REPO=$(SYMPACK_GIT_REPO) GIT_COMMIT=$(SYMPACK_GIT_COMMIT) DESTDIR=$(SYMPACK_DIR) ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	( set -x ; $(MAKE) upcxx-download URL=$(SYMPACK_INPUT_URL) GIT_REPO= GIT_COMMIT= DESTDIR=$(SYMPACK_DIR)/input ) 2>&1 | tee -a $(LOGFILE) $(PIPEEXIT)
+	cp $(SYMPACK_DIR)/input/nasa2146.rb .
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
+sympack-%: upcxx-install force
+	-rm -Rf $(SYMPACK_DIR)/$*
+	mkdir $(SYMPACK_DIR)/$*
+	cd $(SYMPACK_DIR)/$* && ( set -x ; \
+	case "$*" in seq) export SYMPACK_THREADS=-DENABLE_THREADS=OFF ;; \
+	             par) export SYMPACK_THREADS=-DENABLE_THREADS=ON ;; esac; \
+	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
+	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
+	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
+	$(CMAKE) --version ; \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) \
+		 -DCMAKE_Fortran_COMPILER="$(UPCXX_FC)" \
+		 $$SYMPACK_THREADS $(SYMPACK_BUILD) \
+	         -DENABLE_PTSCOTCH=OFF -DENABLE_SCOTCH=OFF -DENABLE_PARMETIS=OFF -DENABLE_METIS=OFF \
+		 .. )
+	$(MAKE) -C $(SYMPACK_DIR)/$* all examples VERBOSE=1
+	mv $(SYMPACK_DIR)/$*/run_sympack $@
+
+
 
 force:
 
