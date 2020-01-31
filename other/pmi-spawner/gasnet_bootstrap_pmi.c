@@ -7,10 +7,12 @@
 #include <gasnet_core_internal.h>
 
 #if GASNETI_PMIX_HACK
-// PMIx uses [mc]alloc() and free() within its pmi.h and pmi2.h headers
+// PMIx uses [mc]alloc(), free(), strdup() within its headers (regardless of
+//  whether you use the PMI-1, PMI-2, or PMIx API)
 #  undef malloc
 #  undef calloc
 #  undef free
+#  undef strdup
 #endif
 
 #if HAVE_PMI_CRAY_H
@@ -30,11 +32,6 @@
 #  endif
 #  include <pmix.h>
 #  define USE_PMIX_API 1
-   static pmix_proc_t myproc;
-   /* Allow use of "raw" malloc family calls */
-#  undef free
-#  undef malloc
-#  undef strdup
 #else
 #  error "Unknown path to PMI header"
 #endif
@@ -53,6 +50,9 @@ static gasneti_spawnerfn_t const spawnerfn;
 static char *kvs_name = NULL, *kvs_key = NULL, *kvs_value = NULL;
 static int max_name_len, max_key_len, max_val_len;
 static int max_val_bytes;
+#ifdef USE_PMIX_API
+static pmix_proc_t myproc;
+#endif
 
 /* do_{en,de}code()
  * Use a (minor) variant on Adobe's Ascii85 encoding.
@@ -209,12 +209,12 @@ void do_kvs_get(void *value, size_t sz) {
     proc.rank = PMIX_RANK_UNDEF;
     ret = PMIx_Get(&proc, kvs_key, NULL, 0, &val);
     gasneti_assert(PMIX_SUCCESS == ret);
-    if (NULL != val &&
-        PMIX_STRING == val->type &&
-        NULL != val->data.string) {
-        strcpy(kvs_value, val->data.string);
-        PMIX_VALUE_RELEASE(val);
-    }
+    gasneti_assert(NULL != val &&
+                   PMIX_STRING == val->type &&
+		   NULL != val->data.string);
+    strcpy(kvs_value, val->data.string);
+    size_t len = strlen(kvs_value);
+    PMIX_VALUE_RELEASE(val);
 #elif USE_PMI2_API
     int rc;
     int len;
