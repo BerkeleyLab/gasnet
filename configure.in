@@ -4125,6 +4125,7 @@ have_pmi=no
 if test -n "$have_pmi_cray_h"; then
   with_pmi='no'
   have_pmi='yes'
+  pmi_version=' (Cray)'
 elif test "$enable_pmi" != 'no'; then
   pmi_guess=/usr
   GASNET_ENV_DEFAULT(PMI_HOME, $pmi_guess, [Install prefix of PMI library])
@@ -4171,6 +4172,7 @@ elif test "$enable_pmi" != 'no'; then
     if test "$have_pmi" = 'yes'; then
       use_pmix=yes
       pmi_suffix='x'
+      pmi_version=' (version=x)'
       AC_DEFINE(HAVE_PMIX_H)
       PMI_SPAWNER_LIBS="$LIBS"
       AC_CHECK_HEADERS([stdbool.h])  # TODO: see if bool really works
@@ -4188,6 +4190,7 @@ elif test "$enable_pmi" != 'no'; then
     if test "$have_pmi" = 'yes'; then
       use_pmi2=yes
       pmi_suffix='2'
+      pmi_version=' (version=2)'
       AC_DEFINE(HAVE_PMI2_H)
       PMI_SPAWNER_LIBS="$LIBS"
       GASNET_IF_ENABLED(pmi2-fast-barrier, Use PMI2_KVS_fence as barrier. This may not work with all PMI2 implementations,
@@ -4206,6 +4209,7 @@ elif test "$enable_pmi" != 'no'; then
     if test "$have_pmi" = 'yes'; then
       use_pmi1=yes
       pmi_suffix=''
+      pmi_version=' (version=1)'
       AC_DEFINE(HAVE_PMI_H)
       PMI_SPAWNER_LIBS="$LIBS"
     fi
@@ -5018,7 +5022,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   BLCR support:           $have_blcr
   Atomics support:        $atomics_config
-  PMI support:            $have_pmi (version=$pmi_suffix)
+  PMI support:            $have_pmi$pmi_version
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
