@@ -4235,8 +4235,9 @@ elif test "$enable_pmi" != 'no'; then
 
   # Look for use of malloc/free in the corresponding PMIx header if any
   if test "$have_pmi" = yes; then
-    AC_MSG_CHECKING(for PMIx headers)
-    AC_EGREP_HEADER([\<malloc\>],[${pmi_headers}/pmix_common.h],
+    AC_MSG_CHECKING(for use of malloc in PMIx headers)
+    AC_EGREP_HEADER([\<(malloc|calloc|free|strdup)\>],
+      [${pmi_headers}/pmix_common.h],
       [ AC_DEFINE([GASNETI_PMIX_HACK])
         AC_MSG_RESULT(yes) ],
       [ AC_MSG_RESULT(no) ]
