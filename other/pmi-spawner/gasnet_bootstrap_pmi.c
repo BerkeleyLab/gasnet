@@ -189,13 +189,13 @@ void do_kvs_put(void *value, size_t sz) {
     val.type = PMIX_STRING;
     val.data.string = kvs_value;
     ret = PMIx_Put(PMIX_GLOBAL, kvs_key, &val);
-    gasneti_assert(PMIX_SUCCESS == ret);
+    gasneti_assert_always_int(PMIX_SUCCESS, ==, ret);
 #elif USE_PMI2_API
     rc = PMI2_KVS_Put(kvs_key, kvs_value);
-    gasneti_assert_always(PMI2_SUCCESS == rc);
+    gasneti_assert_always_int(PMI2_SUCCESS, ==, rc);
 #else
     rc = PMI_KVS_Put(kvs_name, kvs_key, kvs_value);
-    gasneti_assert_always(PMI_SUCCESS == rc);
+    gasneti_assert_always_int(PMI_SUCCESS, ==, rc);
 #endif
 }
 
@@ -208,10 +208,10 @@ void do_kvs_get(void *value, size_t sz) {
     (void)strncpy(proc.nspace, myproc.nspace, PMIX_MAX_NSLEN);
     proc.rank = PMIX_RANK_UNDEF;
     ret = PMIx_Get(&proc, kvs_key, NULL, 0, &val);
-    gasneti_assert(PMIX_SUCCESS == ret);
-    gasneti_assert(NULL != val &&
-                   PMIX_STRING == val->type &&
-		   NULL != val->data.string);
+    gasneti_assert_always_int(PMIX_SUCCESS, ==, ret);
+    gasneti_assert_always_ptr(NULL, !=, val);
+    gasneti_assert_always_int(PMIX_STRING, ==, val->type);
+    gasneti_assert_always_ptr(NULL, !=, val->data.string);
     strcpy(kvs_value, val->data.string);
     size_t len = strlen(kvs_value);
     PMIX_VALUE_RELEASE(val);
@@ -219,12 +219,12 @@ void do_kvs_get(void *value, size_t sz) {
     int rc;
     int len;
     rc = PMI2_KVS_Get(kvs_name, PMI2_ID_NULL, kvs_key, kvs_value, max_val_len, &len);
-    gasneti_assert_always(PMI2_SUCCESS == rc);
-    gasneti_assert_always(len > 0); // Negative would mean value larger than max_val_len
+    gasneti_assert_always_int(PMI2_SUCCESS, ==, rc);
+    gasneti_assert_always_int(len, >, 0); // Negative would mean value larger than max_val_len
 #else
     int rc;
     rc = PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len);
-    gasneti_assert_always(PMI_SUCCESS == rc);
+    gasneti_assert_always_int(PMI_SUCCESS, ==, rc);
     size_t len = strlen(kvs_value);
 #endif
     do_decode(value, sz, len);
@@ -247,9 +247,9 @@ void do_kvs_fence(void) {
     info.value.type = PMIX_UNDEF;
     info.value.data.flag = 1;
     rc = PMIx_Commit();
-    gasneti_assert(PMIX_SUCCESS == rc);
+    gasneti_assert_always_int(PMIX_SUCCESS, ==, rc);
     rc = PMIx_Fence(NULL, 0, &info, 1);
-    gasneti_assert(PMIX_SUCCESS == rc);
+    gasneti_assert_always_int(PMIX_SUCCESS, ==, rc);
 #elif USE_PMI2_API
     PMI2_KVS_Fence();
 #else
