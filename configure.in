@@ -4223,12 +4223,12 @@ elif test "$enable_pmi" != 'no'; then
   # TODO: fragile if multiple PMI libs are installed
   # TODO: add a link test for a working PMI configuration
   if test "$have_pmi" = yes; then
-    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals" "$PMI_HOME/include" 'no'; do
+    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" 'no'; do
       test -f "${pmi_headers}/pmi${pmi_suffix}.h" && break
     done
     if test "${pmi_headers}" = no; then
       have_pmi=no
-    elif test "$PMI_HOME" != '/usr'; then
+    elif test "${pmi_headers}" != '/usr/include'; then
       PMI_SPAWNER_CFLAGS="-I${pmi_headers}"
     fi
   fi
