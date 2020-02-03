@@ -39,6 +39,7 @@ PENDING: GASNet-EX Work-In-Progress
     (see GASNET_USE_GETHOSTID in udp-conduit/README for details).
 
 * Platform support/portability
+  - PMI-based spawning now supports PMIx 
   - Support for IBM BlueGene/Q has been removed.
   - Support for native atomics on IBM XL compilers for big-endian PPC has been
     removed.  These platforms now default to compiler-provided atomics.
