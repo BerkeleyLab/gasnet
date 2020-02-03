@@ -103,7 +103,7 @@ purposes:
     that DIR is not in the default shared library search path at run time
     (please note that this example is linker-specific).
 
-  --with-pmi-version=VALUE (where VALUE must be 1 or 2)
+  --with-pmi-version=VALUE (where VALUE must be 1, 2, or x)
     If present, this option forces configure to only accept a client library
     which implements the given version of the PMI specification.  This is
     normally only required if both are available but the PMI server supports
