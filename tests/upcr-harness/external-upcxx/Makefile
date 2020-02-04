@@ -88,12 +88,34 @@ endif
 ifneq ($(strip $(UPCXX_TEST_ENV)),)
 DO_ENV := export $(UPCXX_TEST_ENV)
 else
-DO_ENV := : # empty
+DO_ENV := : # empty command to be safely preceded or followed by '&&' or ';'
 endif
 
 CONFIGURE_ENV = \
 	export $(GASNET_VARS) && $(DO_ENV) && \
         export CC="$$CC $(strip $(UPCXX_EXTRA_FLAGS))" CXX="$$CXX $(strip $(UPCXX_EXTRA_FLAGS))"
+
+# UPCXX_EXTRA_FLAGS must be applied on three distinct paths:
+#
+# 1. When building libupcxx (LIB_BUILD_ENV)
+#    If NOT configuring GASNet, then UPCXX_EXTRA_FLAGS needs to appear
+#    in the MANUAL_{C,CXX}FLAGS when libupcxx is built, otherwise the
+#    setting of CONFIGURE_ENV, above, is sufficient
+ifneq ($(strip $(UPCXX_EXTRA_FLAGS)),)
+ifneq ($(UPCXX_GASNET_SOURCES),1)
+LIB_BUILD_ENV = env MANUAL_CFLAGS="$(strip $(UPCXX_EXTRA_FLAGS))" MANUAL_CXXFLAGS="$(strip $(UPCXX_EXTRA_FLAGS))"
+endif
+endif
+#
+# 2. When building tests via inst-test, wrap-test or using CMake
+#    This is handled by upcxx-meta, which will record the configure-time
+#    values of CC and CXX even when this CI is not configuring GASNet
+#
+# 3. When building make-based tests (MAKE_TEST_ENV)
+#    Handled by setting CC and CXX to their values reported by upcxx-meta
+MAKE_TEST_ENV = \
+	env CC="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CC)" \
+	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS)"
 
 # Parametrized support for download/unpack
 UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
@@ -225,6 +247,7 @@ _upcxx: force
 	                 --enable-single=$(GASNET_CODEMODE) $(UPCXX_CONFIGURE_EXTRA) || exit 1; \
 	) $(TO_LOG)
 	@( echo ======== Build UPCXX RT libs ========; set -x; \
+	   $(LIB_BUILD_ENV) \
 	   $(MAKE) $(UPCXX_MAKE_J) -C $(UPCXX_BLDDIR) all || exit 1; \
 	) $(TO_LOG)
 	@touch upcxx-built
@@ -243,12 +266,12 @@ _upcxx-inst: upcxx-built
 inst_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
 	source $(UPCXX_INSTDIR)/bin/upcxx-meta SET ; \
-	$$CXX $$CXXFLAGS $$CPPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBS
+	$$CXX $$CXXFLAGS $$CPPFLAGS $$LDFLAGS -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS) $$LIBS
 
 # Build a single test using the upcxx wrapper
 wrap_test: upcxx-install
 	@set -x ; $(DO_ENV) && \
-	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_FLAGS) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
+	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
 
 # Pattern rule builds tests, using logic dependent on their location
@@ -269,7 +292,7 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $< \
+	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $< \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             clean guppie-$*
@@ -279,7 +302,7 @@ guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-in
 jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $< \
+	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $< \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             clean jac3d
@@ -293,7 +316,7 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
 	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
 	 UPCXX_EXTENDADD_EXTRA=$${UPCXX_EXTENDADD_EXTRA:--Wno-unknown-pragmas} ; \
-	 $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	 $(MAKE_TEST_ENV) $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	               UPCXX_NETWORK=$(UPCXX_CONDUIT) \
                        SCALAPACK_LIBS="$$SCALAPACK_LIBS" \
                        OPTIMIZATION="$(OPT) $$UPCXX_EXTENDADD_EXTRA" \
@@ -304,7 +327,7 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
+	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
 	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             UPCXX=$(UPCXX_INSTDIR)/bin/upcxx \
@@ -315,7 +338,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE) -C $(<D) \
+	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $(<D) \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             clean cuda_vecadd
