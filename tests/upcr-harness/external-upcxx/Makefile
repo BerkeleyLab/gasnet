@@ -349,7 +349,8 @@ CMAKE_ARGS ?=
 ifeq ($(shell uname -s),Darwin)
   # Apple CMake is a special snowflake and ignores $CC/$CXX, so force them via cmd-line
   # CMake cannot handle embedded arguments when passed this way, so strip them and hope for the best..
-  CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" $(CMAKE_ARGS)
+  export UPCXX_FC
+  CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" -DCMAKE_Fortran_COMPILER="$${UPCXX_FC%% *}" $(CMAKE_ARGS)
 endif
 
 cmake-%: upcxx-install
@@ -385,10 +386,9 @@ sympack-%: upcxx-install force
 	             par) export SYMPACK_THREADS=-DENABLE_THREADS=ON ;; esac; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
-	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
+	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` FC="$(UPCXX_FC)" ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) \
-		 -DCMAKE_Fortran_COMPILER="$(UPCXX_FC)" \
 		 $$SYMPACK_THREADS $(SYMPACK_BUILD) \
 	         -DENABLE_PTSCOTCH=OFF -DENABLE_SCOTCH=OFF -DENABLE_PARMETIS=OFF -DENABLE_METIS=OFF \
 		 .. )
