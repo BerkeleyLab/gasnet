@@ -11,7 +11,7 @@ UPCXX_EXTRA_TEST_FLAGS ?=# extra flags to add to tests (but not lib), may be set
 UPCXX_TEST_FLAGS  ?=# per-test flags reserved for use by harness.conf
 UPCXX_CONFIGURE_EXTRA ?=# extra flags to add to UPC++ configure command line
 UPCXX_MAKE_J     ?= -j4 # concurrency of GNU Make steps
-UPCXX_FC         ?= `which gfortran`
+UPCXX_FC         ?= $(shell which gfortran)
 
 # Options for providing GASNET:
 # 1. set UPCXX_GASNET to an existing build path to use.
@@ -346,11 +346,14 @@ cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile upcxx-install force
 
 CMAKE ?= cmake
 CMAKE_ARGS ?=
+CMAKE_FC_ARGS=
 ifeq ($(shell uname -s),Darwin)
   # Apple CMake is a special snowflake and ignores $CC/$CXX, so force them via cmd-line
   # CMake cannot handle embedded arguments when passed this way, so strip them and hope for the best..
   export UPCXX_FC
-  CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" -DCMAKE_Fortran_COMPILER="$${UPCXX_FC%% *}" $(CMAKE_ARGS)
+  CMAKE_ARGS := -DCMAKE_C_COMPILER="$${CC%% *}" -DCMAKE_CXX_COMPILER="$${CXX%% *}" $(CMAKE_ARGS)
+  # CMake warns when passed a compiler it does not use
+  CMAKE_FC_ARGS := -DCMAKE_Fortran_COMPILER="$${UPCXX_FC%% *}"
 endif
 
 cmake-%: upcxx-install
@@ -366,7 +369,7 @@ cmake-%: upcxx-install
 	$(MAKE) -C cmake all VERBOSE=1
 	mv cmake/upcxx_test $@
 
-SYMPACK_URL=https://github.com/symPACK/symPACK/archive/master.tar.gz
+SYMPACK_URL?=https://github.com/symPACK/symPACK/archive/master.tar.gz
 SYMPACK_GIT_REPO?=#https://github.com/symPACK/symPACK.git # does not support archive?
 SYMPACK_GIT_COMMIT=master
 SYMPACK_INPUT_URL=https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
@@ -388,7 +391,7 @@ sympack-%: upcxx-install force
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
 	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` FC="$(UPCXX_FC)" ; \
 	$(CMAKE) --version ; \
-	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) \
+	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) $(CMAKE_FC_ARGS) \
 		 $$SYMPACK_THREADS $(SYMPACK_BUILD) \
 	         -DENABLE_PTSCOTCH=OFF -DENABLE_SCOTCH=OFF -DENABLE_PARMETIS=OFF -DENABLE_METIS=OFF \
 		 .. )
