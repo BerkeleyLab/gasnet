@@ -40,6 +40,7 @@ PENDING: GASNet-EX Work-In-Progress
 
 * Platform support/portability
   - PMI-based spawning now supports PMIx 
+  - Improve portable_inttypes to be more trusting of C99/C++11 compilers
   - Support for IBM BlueGene/Q has been removed.
   - Support for native atomics on IBM XL compilers for big-endian PPC has been
     removed.  These platforms now default to compiler-provided atomics.
