@@ -363,6 +363,8 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
       [$2]COMPLETE_[]uppername=1
       AC_SUBST([$2]COMPLETE_[]uppername)
       AC_DEFINE([$2]COMPLETE_[]uppername)
+    ],[
+      AC_DEFINE([$2]COMPLETE_[]uppername, 0)
     ])
   else 
     dnl otherwise, build and run the inttypes program to ensure the header values are actually correct
@@ -373,6 +375,8 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
       [$2]COMPLETE_[]uppername=1
       AC_SUBST([$2]COMPLETE_[]uppername)
       AC_DEFINE([$2]COMPLETE_[]uppername)
+    ],[
+      AC_DEFINE([$2]COMPLETE_[]uppername, 0)
     ])
   fi
  fi
