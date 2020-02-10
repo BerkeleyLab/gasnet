@@ -561,6 +561,11 @@ static void gasnetc_ucx_send_handler(void *request, ucs_status_t status)
     req->status = GASNETC_UCX_CANCEL;
     return;
   }
+  if (req->completion.cbfunc) {
+    req->completion.cbfunc(req->completion.cbdata);
+  }
+  req->completion.cbfunc = NULL;
+  req->completion.cbdata = NULL;
   if (req->is_sync) {
     /* No cleanup here, it will be released after `gasnetc_wait_req` */
     return;
@@ -615,7 +620,9 @@ void gasnetc_req_wait(gasnetc_ucx_request_t *req, uint8_t is_request)
 GASNETI_INLINE(gasnetc_send_req)
 gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
                                         gasnetc_buffer_t *buffer,
-                                        uint8_t block)
+                                        uint8_t block,
+                                        gasnetc_atomic_val_t *local_cnt,
+                                        gasnetc_cbfunc_t local_cb)
 {
   gasnetc_ucx_request_t *request = NULL;
   ucp_ep_h server_ep =
@@ -632,6 +639,9 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
                             (ucp_tag_t)gasneti_mynode, gasnetc_ucx_send_handler);
   if (NULL == request) {
       /* request was completed in place */
+      if (local_cb) {
+        local_cb(local_cnt);
+      }
       gasnetc_am_req_release(am_req);
       if (buffer) {
         gasnetc_buffer_release(buffer);
@@ -651,6 +661,8 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
   request->am_req = am_req;
   request->buffer = buffer;
   request->is_sync = block;
+  request->completion.cbdata = local_cnt;
+  request->completion.cbfunc = local_cb;
   request->status = GASNETC_UCX_ACTIVE;
   gasneti_list_enq(&gasneti_ucx_module.send_list, request);
 
@@ -662,18 +674,20 @@ exit:
   Active Message Request Functions
   ================================
 */
-int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
-                             gex_Rank_t jobrank,
-                             gex_AM_Index_t handler,
-                             gex_Event_t *lc_opt,
-                             gex_Flags_t flags,
-                             uint8_t is_request,
-                             int numargs,
-                             va_list argptr,
-                             void *src_addr,
-                             uint32_t nbytes,
-                             void *dst_addr
-                             GASNETI_THREAD_FARG)
+int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
+           gex_Rank_t jobrank,
+           gex_AM_Index_t handler,
+           gex_Flags_t flags,
+           uint8_t is_sync,
+           int numargs,
+           va_list argptr,
+           void *src_addr,
+           uint32_t nbytes,
+           void *dst_addr,
+           gasnetc_atomic_val_t *local_cnt,
+           gasnetc_cbfunc_t local_cb,
+           gasnetc_counter_t *counter
+           GASNETI_THREAD_FARG)
 {
   gasnetc_am_req_t *am_req;
   gasnetc_buffer_t *buffer = NULL;
@@ -684,16 +698,14 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
 #else
       1;
 #endif
-  uint8_t is_sync = is_request;
-
 
   GASNETC_LOCK_ACQUIRE_REGULAR();
   am_req = gasnetc_am_req_get();
   gasneti_assert(am_req);
 
   /* format common data */
-  gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_packed, is_request,
-                        numargs, argptr, nbytes, dst_addr GASNETI_THREAD_PASS);
+  gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_packed, is_sync,
+            numargs, argptr, nbytes, dst_addr GASNETI_THREAD_PASS);
   if (!nbytes) {
     goto send;
   }
@@ -718,60 +730,89 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
     case GASNETC_UCX_AM_LONG:
       gasneti_assert(src_addr);
       gasneti_assert(dst_addr);
-      if_pf (is_packed) {
-        buffer = gasnetc_buffer_get(GASNETC_BUF_SEND_POOL);
-        gasneti_assert(buffer);
-        buffer->long_data_ptr = gasneti_malloc(nbytes);
-        buffer->bytes_used = nbytes;
-        GASNETI_MEMCPY(buffer->long_data_ptr, src_addr, nbytes);
-        gasnetc_req_add_iov(am_req, buffer->long_data_ptr, nbytes);
-        gasneti_leaf_finish(lc_opt); // synchronous local completion
-      } else {
-        gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
-        gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
-        gasnetc_cbfunc_t cbfunc = NULL;
-        gasnetc_atomic_val_t *cnt;
+#if GASNETC_PIN_SEGMENT
+      {
         int status;
-
-        if (gasneti_leaf_is_pointer(lc_opt)) {
-          gasnete_eop_t *eop = gasnete_eop_new(mythread);
-          GASNETE_EOP_LC_START(eop);
-          cnt = &eop->initiated_alc;
-          cbfunc = gasnetc_cb_eop_alc;
-          *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
-          is_sync = 0;
-        } else if (lc_opt == GEX_EVENT_GROUP) {
-          gasnete_iop_t *iop = mythread->current_iop;
-          cnt = &iop->initiated_alc_cnt;
-          cbfunc = iop->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
-          is_sync = 0;
-        } else {
-          gasneti_assert(lc_opt == GEX_EVENT_NOW);
-          cnt = &counter.initiated;
-          cbfunc = gasnetc_cb_counter;
-          is_sync = 1;
-        }
-
         status = gasnetc_ucx_am_put(jobrank, src_addr, nbytes, dst_addr,
-                                     cnt, cbfunc);
+            local_cnt, local_cb);
         /* checking if put status is completed inline */
         if (!status && is_sync) {
+          gasneti_assert(counter);
           GASNETC_LOCK_RELEASE_REGULAR();
-          gasnetc_counter_wait(&counter, is_request GASNETI_THREAD_PASS);
+          gasnetc_counter_wait(counter, is_sync GASNETI_THREAD_PASS);
           GASNETC_LOCK_ACQUIRE_REGULAR();
         }
       }
+#else
+      buffer = gasnetc_buffer_get(GASNETC_BUF_SEND_POOL);
+      gasneti_assert(buffer);
+      buffer->long_data_ptr = gasneti_malloc(nbytes);
+      buffer->bytes_used = nbytes;
+      GASNETI_MEMCPY(buffer->long_data_ptr, src_addr, nbytes);
+      gasnetc_req_add_iov(am_req, buffer->long_data_ptr, nbytes);
+#endif
       break;
   }
 
 send:
-  req = gasnetc_send_req(am_req, buffer, is_sync);
+  req = gasnetc_send_req(am_req, buffer, is_sync, local_cnt, local_cb);
   GASNETC_LOCK_RELEASE_REGULAR();
 
   if (req && is_sync) {
-    gasnetc_req_wait(req, is_request);
+    gasnetc_req_wait(req, is_sync);
   }
   return GASNET_OK;
+}
+
+int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
+                             gex_Rank_t jobrank,
+                             gex_AM_Index_t handler,
+                             gex_Event_t *lc_opt,
+                             gex_Flags_t flags,
+                             uint8_t is_request,
+                             int numargs,
+                             va_list argptr,
+                             void *src_addr,
+                             uint32_t nbytes,
+                             void *dst_addr
+                             GASNETI_THREAD_FARG)
+{
+  int retval;
+  gasnetc_counter_t *counter_ptr = NULL;
+  gasnetc_cbfunc_t cbfunc = NULL;
+  gasnetc_atomic_val_t *local_cnt = NULL;
+
+  if (GASNETC_UCX_AM_LONG == am_type) {
+#if GASNETC_PIN_SEGMENT
+    gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
+    gasneti_threaddata_t * const mythread = GASNETI_MYTHREAD;
+
+    counter_ptr = &counter;
+
+    if (gasneti_leaf_is_pointer(lc_opt)) {
+      gasnete_eop_t *eop = gasnete_eop_new(mythread);
+      GASNETE_EOP_LC_START(eop);
+      local_cnt = &eop->initiated_alc;
+      cbfunc = gasnetc_cb_eop_alc;
+      *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
+    } else if (lc_opt == GEX_EVENT_GROUP) {
+      gasnete_iop_t *iop = mythread->current_iop;
+      local_cnt = &iop->initiated_alc_cnt;
+      cbfunc = iop->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
+    } else {
+      gasneti_assert(lc_opt == GEX_EVENT_NOW);
+      local_cnt = &counter.initiated;
+      cbfunc = gasnetc_cb_counter;
+    }
+#else
+    gasneti_leaf_finish(lc_opt); // synchronous local completion
+#endif
+  }
+  retval = gasnetc_am_reqrep_inner(am_type, jobrank, handler, flags, is_request,
+                                   numargs, argptr, src_addr, nbytes, dst_addr,
+                                   local_cnt, cbfunc,
+                                   counter_ptr GASNETI_THREAD_PASS);
+  return retval;
 }
 
 void gasnetc_ProcessRecv(void *buf, size_t size)

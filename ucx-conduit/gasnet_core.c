@@ -854,6 +854,75 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   Active Message Request Functions
   ================================
 */
+extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
+                                   gasnetc_counter_t *counter,
+                                   gex_AM_Index_t handler,
+                                   int numargs, ...) {
+  int retval;
+  va_list argptr;
+
+  GASNETI_TRACE_AMREQUESTMEDIUM(gasneti_THUNK_TM,jobrank,handler,NULL,0,/*flags*/0,numargs);
+
+  /* ensure AM progress, but NOT progress functions */
+  gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_REGULAR);
+
+  va_start(argptr, numargs);
+  if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
+    retval = gasnetc_nbrhd_RequestGeneric ( gasneti_Short, jobrank, handler,
+                                            NULL, 0, NULL,
+                                            0, numargs, argptr GASNETI_THREAD_PASS);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+  } else {
+    gasnetc_counter_t *counter_ptr = NULL;
+    gasnetc_cbfunc_t cbfunc = NULL;
+    gasnetc_atomic_val_t *local_cnt = NULL;
+    if (counter) {
+      counter_ptr = counter;
+      cbfunc = gasnetc_cb_counter;
+      local_cnt = &counter->initiated;
+    }
+    retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
+                                     0, numargs, argptr, NULL, 0, NULL,
+                                     local_cnt, cbfunc,
+                                     counter_ptr GASNETI_THREAD_PASS);
+  }
+  va_end(argptr);
+  return retval;
+}
+
+extern int gasnetc_ReplySysShort(gex_Token_t token,
+                               gasnetc_counter_t *counter,
+                               gex_AM_Index_t handler,
+                               int numargs, ...) {
+  int retval;
+  va_list argptr;
+  gasneti_assert(token);
+  GASNETI_TRACE_AMREPLYSHORT(token,handler,/*flags*/0,numargs);
+  va_start(argptr, numargs);
+  if_pt (gasnetc_token_in_nbrhd(token)) {
+    retval = gasnetc_nbrhd_ReplyGeneric ( gasneti_Short, token, handler,
+                                          NULL, 0, NULL,
+                                          0, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+  } else {
+    gex_Rank_t jobrank = gasnetc_msgsource(token);
+    gasnetc_counter_t *counter_ptr = NULL;
+    gasnetc_cbfunc_t cbfunc = NULL;
+    gasnetc_atomic_val_t *local_cnt = NULL;
+    if (counter) {
+      counter_ptr = counter;
+      cbfunc = gasnetc_cb_counter;
+      local_cnt = &counter->initiated;
+    }
+    retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
+                                     0, numargs, argptr, NULL, 0, NULL,
+                                     local_cnt, cbfunc,
+                                     counter_ptr GASNETI_THREAD_PASS);
+  }
+
+  va_end(argptr);
+  return retval;
+}
 
 GASNETI_INLINE(gasnetc_AMRequestShort)
 int gasnetc_AMRequestShort( gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler,

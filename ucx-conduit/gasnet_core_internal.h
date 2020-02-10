@@ -334,6 +334,29 @@ extern int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
                                     gasnetc_cbfunc_t local_cb,
                                     gasnetc_atomic_val_t *remote_cnt,
                                     gasnetc_cbfunc_t remote_cb);
+int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
+           gex_Rank_t jobrank,
+           gex_AM_Index_t handler,
+           gex_Flags_t flags,
+           uint8_t is_sync,
+           int numargs,
+           va_list argptr,
+           void *src_addr,
+           uint32_t nbytes,
+           void *dst_addr,
+           gasnetc_atomic_val_t *local_cnt,
+           gasnetc_cbfunc_t local_cb,
+           gasnetc_counter_t *counter
+           GASNETI_THREAD_FARG);
+extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
+                                   gasnetc_counter_t *counter,
+                                   gex_AM_Index_t handler,
+                                   int numargs, ...);
+extern int gasnetc_ReplySysShort(gex_Token_t token,
+                                 gasnetc_counter_t *counter,
+                                 gex_AM_Index_t handler,
+                                 int numargs, ...);
+
 /*
   List functions
   ==============
