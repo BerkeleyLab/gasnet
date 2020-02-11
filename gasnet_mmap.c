@@ -1830,8 +1830,12 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 gasneti_bootstrapExchangefn_t exchangefn,
                 gex_Flags_t                   flags)
 {
-  // TODO-EX: crude detection of multiple calls until we support them
-  gasneti_assert(NULL == gasneti_seginfo[0].addr);
+#if GASNET_DEBUG
+  // TODO-EX: detection of multiple calls until we support them
+  static int called = 0;
+  gasneti_assert(!called);
+  called = 1;
+#endif
 
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
@@ -1841,8 +1845,8 @@ gasnet_seginfo_t gasneti_segmentAttach(
   void *segbase = myseg.addr;
   segsize = myseg.size;
 
-  gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+  gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
+  gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
 
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
@@ -1855,8 +1859,8 @@ gasnet_seginfo_t gasneti_segmentAttach(
   }
 
   // sanity check (but should be true "by construction")
-  gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
-                 gasneti_seginfo[gasneti_mynode].size == segsize);
+  gasneti_assert_ptr(gasneti_seginfo[gasneti_mynode].addr ,==, segbase);
+  gasneti_assert_uint(gasneti_seginfo[gasneti_mynode].size ,==, segsize);
 
   return myseg;
 }
