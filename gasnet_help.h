@@ -127,20 +127,11 @@ extern uint64_t gasnet_max_segsize; // DEPRECATED: client-overrideable max segme
   #define GASNETI_CHECKATTACH()  ((void)0)
 #endif
 
-#ifndef _GASNET_MYNODE
-  extern gex_Rank_t gasneti_mynode;
-  #define gex_System_QueryJobRank() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
-#else
-  #error "Unsupported define of _GASNET_MYNODE"
-#endif
+extern gex_Rank_t gasneti_mynode;
+#define gex_System_QueryJobRank() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_mynode)
 
-// TODO-EX: rename (or remove?) the override
-#ifndef _GASNET_NODES
-  extern gex_Rank_t gasneti_nodes;
-  #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
-#else
-  #error "Unsupported define of _GASNET_NODES"  
-#endif
+extern gex_Rank_t gasneti_nodes;
+#define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 
 
 // We can detect TM0 by its better alignment than other tm's
