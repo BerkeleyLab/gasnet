@@ -115,7 +115,8 @@ endif
 #    Handled by setting CC and CXX to their values reported by upcxx-meta
 MAKE_TEST_ENV = \
 	    CC="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CC)" \
-	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS)"
+	   CXXFLAGS="$(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)" \
+	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)"
 
 # Parametrized support for download/unpack
 UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
@@ -363,7 +364,7 @@ cmake-%: upcxx-install
 	cd cmake && ( set -x ; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
-	export $(MAKE_TEST_ENV) ; 
+	export $(MAKE_TEST_ENV) ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) . )
 	$(MAKE) -C cmake all VERBOSE=1
