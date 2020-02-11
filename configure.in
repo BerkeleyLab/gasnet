@@ -3634,19 +3634,19 @@ if test "$enabled_ibv" = yes; then
       fi
 
     GASNET_WITH(ibv-max-medium,
-       [Specify gasnet_AMMaxMedium() for ibv-conduit (default 4096)],
+       [Specify gasnet_AMMaxMedium() for ibv-conduit (default 65536)],
        [case "$withval" in
-          1024|2048|4096|8192|16384|32768|65536|131072)
+          1024|2048|4096|8192|16384|32768|65536|131072|262144)
              ibv_max_medium="$withval";;
           *)
              GASNET_ERR_SAVE()
-             AC_MSG_ERROR([--with-ibv-max-medium="$withval" is not legal.  Value must be a power-of-two between 1024 and 131072, inclusive.])
+             AC_MSG_ERROR([--with-ibv-max-medium="$withval" is not legal.  Value must be a power-of-two between 1024 and 262144, inclusive.])
              ;;
         esac
        ],
        [GASNET_ERR_SAVE()
-        AC_MSG_ERROR([--with-ibv-max-medium must be a power-of-two between 1024 and 131072, inclusive.])],
-       [ibv_max_medium=4096])
+        AC_MSG_ERROR([--with-ibv-max-medium must be a power-of-two between 1024 and 262144, inclusive.])],
+       [ibv_max_medium=65536])
     AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_MEDIUM, [$ibv_max_medium])
   fi
 fi

@@ -28,6 +28,7 @@ PENDING: GASNet-EX Work-In-Progress
     now applied to out-of-segment sources with using ODP.
   - A new --with-ibv-max-medium= can set the size of AM Medium buffers.
     See details, including supported values, in the conduit README.
+  - The default AM Max Medium is now 64KB minus space for headers (up from 4KB).
   - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
     removed.
 
