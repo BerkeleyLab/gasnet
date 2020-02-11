@@ -61,13 +61,6 @@ int					gasnetc_am_credits_slack;
 int					gasnetc_am_credits_slack_orig;
 int					gasnetc_alloc_qps;
 int					gasnetc_num_qps;
-#if GASNETC_IBV_AMRDMA
-  int                                   gasnetc_amrdma_max_peers;
-  size_t                                gasnetc_amrdma_limit;
-  int                                   gasnetc_amrdma_depth;
-  int                                   gasnetc_amrdma_slot_mask;
-  gasnetc_atomic_val_t                  gasnetc_amrdma_cycle;
-#endif
 gasnetc_cep_t				**gasnetc_node2cep = NULL;
 gex_Rank_t                           gasnetc_remote_nodes = 0;
 
@@ -433,179 +426,6 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   }
 }
 
-#if GASNETC_IBV_AMRDMA
-
-/* gasnetc_do_select
- * See http://en.wikipedia.org/wiki/Selection_algorithm
- * For an overview of algorithms for the Selection problem.
- * Given that gasnetc_amrdma_max_peers is "small", we are ignoring all the good
- * "order statistic" stuff and performing a simple in-place Shell sort under the
- * assumption that the number of peers that passed the floor filter is small
- * enough not to warrant anything more complex.
- * For more on Shell sort see (http://en.wikipedia.org/wiki/Shell_sort) 
- * XXX: for large enough 'size' we should switch algorithms
- */
-static void gasnetc_shell_sort_inner(gasnetc_amrdma_balance_tbl_t *A, int size, int step) {
-  int i;
-
-  #define SORT_CMP(X,Y) ((X).count <= (Y).count)
-
-  for (i = step; i < size; ++i) {
-    gasnetc_amrdma_balance_tbl_t tmp = A[i];
-    int j;
-    for (j = i; ((j >= step) && SORT_CMP(A[j-step], tmp)); j -= step) {
-      A[j] = A[j - step];
-    }
-    A[j] = tmp;
-  }
-}
-static void gasnetc_do_select(gasnetc_hca_t *hca, int size) {
-  struct gasnetc_amrdma_balance_tbl_t_ *A = hca->amrdma_balance.table;
-  if (size >= 93) gasnetc_shell_sort_inner(A, size, 31);
-  if (size >= 51) gasnetc_shell_sort_inner(A, size, 17);
-  if (size >= 27) gasnetc_shell_sort_inner(A, size, 9);
-  if (size >= 15) gasnetc_shell_sort_inner(A, size, 5);
-  if (size >= 9) gasnetc_shell_sort_inner(A, size, 3);
-  gasnetc_shell_sort_inner(A, size, 1);
-}
-
-static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
-  gex_Rank_t node = gasnetc_epid2node(cep->epid);
-  int qpi = gasnetc_epid2qpi(cep->epid);
-
-  if (gasnetc_use_srq) { /* Cross-over keeping in mind that qpi is 1-based */
-    if (qpi > gasnetc_num_qps) {
-      qpi -= gasnetc_num_qps;
-    } else {
-      qpi += gasnetc_num_qps;
-    }
-  }
-
-  GASNETI_TRACE_PRINTF(C,("AMRDMA_GRANT_SND to node=%d qp=%d\n", (int)node, (qpi - 1)));
-
-  gasneti_assert(cep->amrdma_recv == NULL);
-  cep->amrdma_recv = gasnetc_amrdma_recv_alloc(hca);
-  if (cep->amrdma_recv != NULL) {
-    int count = gasnetc_atomic_read(&hca->amrdma_rcv.count, 0);
-    gasneti_assert(count < hca->num_qps);
-    gasneti_assert(count < hca->amrdma_rcv.max_peers);
-    hca->amrdma_rcv.cep[count] = cep;
-    gasnetc_atomic_set(&hca->amrdma_rcv.count, count+1, GASNETI_ATOMIC_REL);
-
-    gex_AM_RequestShort(gasneti_THUNK_TM, node, gasneti_handleridx(gasnetc_amrdma_grant_reqh), 0,
-		            (gex_AM_Arg_t)qpi,
-		            (gex_AM_Arg_t)hca->amrdma_reg.handle->rkey,
-		            PACK(cep->amrdma_recv->addr));
-  }
-}
-
-void gasnetc_amrdma_balance_one(gasnetc_hca_t *hca) {
-    /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
-    #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
-    /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
-    #define GASNETC_AMRDMA_BOOST(FLOOR)	((FLOOR)>>1)
-
-    gasnetc_amrdma_balance_tbl_t *tbl = hca->amrdma_balance.table;
-    int tbl_size = 0;
-    int i;
-
-    /* Pass 1: Collect all peers w/ counts >= floor, while also "decaying" the counters.
-     * This is the only part that should be O(gasneti_nodes) on average.
-     */
-    for (i = 0; i < hca->num_qps; ++i) {
-      gasnetc_atomic_val_t x, y;
-      gasnetc_cep_t *cep = hca->cep[i];
-
-      x = gasnetc_atomic_read(&cep->amrdma_eligable, 0);
-      y = GASNETC_AMRDMA_REDUCE(x);
-      gasnetc_atomic_subtract(&cep->amrdma_eligable, y, 0);
-
-      if (x >= hca->amrdma_balance.floor) {
-        tbl[tbl_size].count = x - y;
-        tbl[tbl_size].cep = cep;
-        tbl_size++;
-      }
-    }
-
-    /* Pass 2: "Select" the top hca->amrdma_rcv.max_peers peers and
-     * find the new floor (the min count from among the selected peers).
-     */
-    if (tbl_size > hca->amrdma_rcv.max_peers) {
-      gasnetc_do_select(hca, tbl_size);
-      tbl_size = hca->amrdma_rcv.max_peers;
-      /* XXX: we know the current selection mechanism will leave the table sorted. */
-      hca->amrdma_balance.floor = tbl[tbl_size-1].count + GASNETC_AMRDMA_BOOST(tbl[tbl_size-1].count);
-    } else if (tbl_size == hca->amrdma_rcv.max_peers) {
-      /* "select" the entire table, and find MIN for new floor */
-      gasnetc_atomic_val_t new_floor = tbl[0].count;
-      for (i = 1; i < tbl_size; ++i) {
-        new_floor = MIN(new_floor, tbl[i].count);
-      }
-      hca->amrdma_balance.floor = new_floor + GASNETC_AMRDMA_BOOST(new_floor);
-    } else {
-      /* "select" the entire table, but leave the floor unchanged */
-    }
-
-    /* Pass 3:
-     * + Grant any newly selected peers
-     * + "Boost" the selected peers to encourage re-selection on the next pass
-     */
-    {
-      gasnetc_atomic_val_t boost = GASNETC_AMRDMA_BOOST(hca->amrdma_balance.floor);
-      for (i = 0; i < tbl_size; ++i) {
-        gasnetc_cep_t *cep = tbl[i].cep;
-        if (!cep->amrdma_recv) {
-          gasnetc_amrdma_grant(hca, cep);
-        }
-        gasnetc_atomic_add(&cep->amrdma_eligable, boost, 0);
-      }
-    }
-
-    if (gasnetc_atomic_read(&hca->amrdma_rcv.count, 0) == hca->amrdma_rcv.max_peers) {
-      /* Disable additional balancing if the limit has been reached (since we lack REVOKE) */
-      hca->amrdma_balance.mask = ~(gasnetc_atomic_val_t)0;
-    }
-}
-
-enum {
-  GASNETC_AMRDMA_STATE_RUN = 0, /* normal state */
-  GASNETC_AMRDMA_STATE_PENDING, /* balance requested */
-  GASNETC_AMRDMA_STATE_LOCKED  /* balance in progress */
-};
-
-void gasnetc_amrdma_balance(void) {
-  gasnetc_hca_t *hca;
-  GASNETC_FOR_ALL_HCA(hca) {
-    if (gasnetc_atomic_compare_and_swap(&hca->amrdma_balance.state,
-                                        GASNETC_AMRDMA_STATE_PENDING,
-                                        GASNETC_AMRDMA_STATE_LOCKED,
-                                        GASNETI_ATOMIC_ACQ_IF_TRUE)) {
-      GASNETI_PROGRESSFNS_DISABLE(gasnetc_pf_amrdma, COUNTED);
-      gasnetc_amrdma_balance_one(hca);
-      gasnetc_atomic_set(&hca->amrdma_balance.state, GASNETC_AMRDMA_STATE_RUN, GASNETI_ATOMIC_REL);
-    }
-  }
-}
-
-void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
-  gasnetc_hca_t * const hca = cep->hca;
-  gasnetc_atomic_val_t interval = gasnetc_atomic_add(&hca->amrdma_balance.count, 1, 0);
-
-  gasnetc_atomic_increment(&cep->amrdma_eligable, 0);
-
-  if_pf (0 == (interval & hca->amrdma_balance.mask)) {
-    GASNETI_PROGRESSFNS_ENABLE(gasnetc_pf_amrdma, COUNTED);
-    if (! gasnetc_atomic_compare_and_swap(&hca->amrdma_balance.state,
-                                          GASNETC_AMRDMA_STATE_RUN,
-                                          GASNETC_AMRDMA_STATE_PENDING,
-                                          GASNETI_ATOMIC_REL)) {
-      /* Lost race on change of amrdma_balance.state */
-      GASNETI_PROGRESSFNS_DISABLE(gasnetc_pf_amrdma, COUNTED);
-    }
-  }
-}
-#endif // GASNETC_IBV_AMRDMA
-
 /* GASNETI_INLINE(gasnetc_processPacket) */
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags GASNETI_THREAD_FARG) {
   gasnetc_EP_t ep = rbuf->rr_ep;
@@ -654,26 +474,13 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     int credits = 0;
 
     if (full_numargs == GASNETC_MAX_ARGS) {
-    #if GASNETC_IBV_AMRDMA
-      int acks = (args[0] >> 8) & 0xff;
-    #endif
       credits = args[0] & 0xff;
       full_numargs = (args[0] >> 16) & 0x1f;
       user_numargs = full_numargs - 1;
 
       gasneti_assert(!gasnetc_use_srq || !credits);
 
-    #if GASNETC_IBV_AMRDMA
-      if (acks) {
-        gasneti_assert(acks <= gasnetc_amrdma_depth);
-        gasneti_assert(acks > 0);
-        gasnetc_atomic_add(&cep->amrdma_send->head, acks, 0);
-      }
-
-      GASNETI_TRACE_PRINTF(C,("RCV_AM_CREDITS credits=%d acks=%d\n", credits, acks));
-    #else
       GASNETI_TRACE_PRINTF(C,("RCV_AM_CREDITS credits=%d\n", credits));
-    #endif
 
       args += 1;
     }
@@ -713,8 +520,6 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 	if (buf->longmsg.nBytes & 0x80000000) {
 	  /* Must relocate the payload which is packed like a Medium. */
 	  gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG);
-	  gasneti_assert((nbytes <= gasnetc_packedlong_limit) ||
-			 (!GASNETC_PIN_SEGMENT && !isreq));
 	  GASNETI_MEMCPY(data, GASNETC_MSG_LONG_DATA(buf, full_numargs), (size_t)nbytes);
 	}
         GASNETI_RUN_HANDLER_LONG(isreq,handler_id,handler_fn,token,args,user_numargs,data,(size_t)nbytes);
@@ -1142,13 +947,6 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
     gasnetc_cep_t *orig_cep = cep;
     gasnetc_hca_t *hca = cep->hca;
 
-#if GASNETI_STATS_OR_TRACE
-    if (isrep) {
-      gasneti_tick_t _starttime = ((gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr))->stamp;
-      GASNETI_TRACE_EVENT_TIME(C,AM_ROUNDTRIP_TIME,gasneti_ticks_now()-_starttime);
-    }
-#endif
-
     /* SRQ means rbuf->cep is "inexact", so must reconstruct */
     cep = GASNETC_NODE2CEP(GASNETC_MSG_SRCIDX(flags));
     if (!isrep) {
@@ -1184,11 +982,6 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
   } else
 #endif
   if (isrep) {
-#if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t _starttime = ((gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr))->stamp;
-    GASNETI_TRACE_EVENT_TIME(C,AM_ROUNDTRIP_TIME,gasneti_ticks_now()-_starttime);
-#endif
-
     /* Now process the packet */
     gasnetc_processPacket(cep, rbuf, flags GASNETI_THREAD_PASS);
 
@@ -1235,12 +1028,6 @@ void gasnetc_rcv_am(const struct ibv_wc *comp, gasnetc_rbuf_t **spare_p GASNETI_
       gasneti_free((void *)(uintptr_t)emergency_spare.rr_sg.addr);
     }
   }
-
-#if GASNETC_IBV_AMRDMA
-  if ((comp->byte_len <= gasnetc_amrdma_limit) && gasneti_attach_done && gasnetc_amrdma_max_peers) {
-    gasnetc_amrdma_eligable(cep);
-  }
-#endif // GASNETC_IBV_AMRDMA
 }
 
 static int gasnetc_rcv_reap(gasnetc_hca_t *hca, const int limit, gasnetc_rbuf_t **spare_p GASNETI_THREAD_FARG) {
@@ -1294,197 +1081,13 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, const int limit, gasnetc_rbuf_t 
   return count;
 }
 
-#if GASNETC_IBV_AMRDMA
-GASNETI_INLINE(gasnetc_rcv_amrdma)
-int gasnetc_rcv_amrdma(gasnetc_EP_t ep, gasnetc_cep_t *cep GASNETI_THREAD_FARG) {
-  gasnetc_amrdma_recv_t *recv_state = cep->amrdma_recv;
-  const int recv_head = gasnetc_atomic_read(&recv_state->head, 0);
-  const int recv_slot = recv_head & gasnetc_amrdma_slot_mask;
-  volatile gasnetc_amrdma_hdr_t * hdr = (volatile gasnetc_amrdma_hdr_t *)recv_state->addr[recv_slot];
-  gasnetc_buffer_t * msg_in;
-  gasnetc_rbuf_t rbuf;
-  uint32_t flags;
-  int length, checksum, zeros;
-#if !GASNETI_USE_ALLOCA
-  void *tmp_buffer = NULL;
-#endif
-
-#if GASNETC_ANY_PAR
-  gasnetc_atomic_t *slot_lock = &recv_state->busy[recv_slot].spinlock;
-
-  /* First try a non-atomic "peek" and then try to acquire the spinlock */
-  if (gasnetc_atomic_read(slot_lock, 0) ||
-      ((length = hdr->length) != hdr->length_again) ||
-      ((checksum = hdr->zeros) != hdr->zeros_again) ||
-      !gasnetc_atomic_compare_and_swap(slot_lock, 0, 1, GASNETI_ATOMIC_ACQ)) {
-    /* Another thread is working on this slot or no AM is waiting */
-    return 0;
-  }
-#else
-  if (((length = hdr->length) != hdr->length_again) ||
-      ((checksum = hdr->zeros) != hdr->zeros_again)) {
-    /* no AM is waiting */
-    return 0;
-  }
-#endif
-  gasneti_assert(GASNETC_ALLOW_0BYTE_MSG ? (length >= 0) : (length > 0));
-  gasneti_assert(length <= gasnetc_amrdma_limit);
-
-  flags = hdr->immediate_data;
-  zeros = gasneti_count0s_uint32_t(flags);
-  msg_in = (gasnetc_buffer_t *)(hdr + 1);
-  if (GASNETC_MSG_CATEGORY(flags) == gasneti_Medium) {
-    /* Relocate the Medium to avoid problems w/ "late zeros" and provide 8-byte alignment */
-    /* Note: no harm here if flags is not correct, since length must by ok */
-#if GASNETI_USE_ALLOCA
-    void *tmp = alloca(length + 8);
-#else
-    /* XXX: Work around bug 2079 ("stack overflow" from alloca() w/ PGI compiler)
-       TODO: Try freelist or thread-specific buffers (of max size)? */
-    void *tmp = tmp_buffer = gasneti_malloc(length + 8);
-#endif
-    tmp = (void*)GASNETI_ALIGNUP(tmp, 8);
-    zeros += gasneti_count0s_copy(tmp, msg_in, length);
-    rbuf.rr_sg.addr = (uintptr_t)tmp;
-  } else {
-    zeros += gasneti_count0s(msg_in, length);
-    rbuf.rr_sg.addr = (uintptr_t)msg_in;
-  }
-
-#if GASNETC_ANY_PAR
-  if ((zeros != checksum) ||
-      !gasnetc_atomic_compare_and_swap(&recv_state->head, recv_head, recv_head+1, 0)) {
-    /* If CAS failed then we've been "left behind" and are looking at the wrong slot */
-    gasnetc_atomic_set(slot_lock, 0, 0); /* No _REL, since nothing global was written */
-    #if !GASNETI_USE_ALLOCA
-      if (tmp_buffer) gasneti_free(tmp_buffer);
-    #endif
-    return 0;
-  }
-#else
-  if (zeros != checksum) {
-    #if !GASNETI_USE_ALLOCA
-      if (tmp_buffer) gasneti_free(tmp_buffer);
-    #endif
-    return 0;
-  }
-  gasnetc_atomic_increment(&recv_state->head, 0);
-#endif
-
-  GASNETC_STAT_EVENT(RCV_AM_RDMA);
-
-  /* Account for any recv buffer that was reserved for the reply, but not used.
-   * Must precede credit processing in gasnetc_processPacket (bug 2359) */
-#if GASNETC_IBV_SRQ
-  if (GASNETC_MSG_ISREPLY(flags) && gasnetc_use_srq) {
-    gasnetc_sema_up(&cep->hca->am_sema);
-  }
-#endif
-
-  /* Process the packet, includes running handler and processing credits/acks */
-  rbuf.cep = cep;
-  rbuf.rr_is_rdma = 1;
-  rbuf.rr_ep = ep;
-  gasnetc_processPacket(cep, &rbuf, flags GASNETI_THREAD_PASS);
-
-  /* Mark slot free locally prior to enabling the ack */
-  hdr->length = 0; hdr->length_again = -1;
-  hdr->zeros = 0;  hdr->zeros_again = -1;
-  hdr->immediate_data = 0;
-  memset(msg_in, 0, length);
-
-#if GASNETC_ANY_PAR
-  gasnetc_atomic_set(slot_lock, 0, GASNETI_ATOMIC_REL);
-
-  /* We must gather acks to keep them in-order even when handler completions are not */
-  /* XXX: could be done lockless via recv_tail and ack_bits packed in gasneti_atomic64_t? */
-  gasneti_mutex_lock(&recv_state->ack_lock);
-  { int count;
-    const int recv_tail = recv_state->tail;
-    uint32_t bits = recv_state->ack_bits | (1 << (recv_head - recv_tail));
-
-    gasneti_assert(bits != 0);
-
-  #if GASNETI_HAVE_CC_BUILTIN_CTZ && \
-      !(PLATFORM_COMPILER_XLC && _ARCH_PWR9) /* bug 3880 */
-    if_pt (~bits) {
-      count = __builtin_ctz(~bits);
-      bits >>= count;
-    } else {
-      count = 32;
-      bits = 0;
-    }
-  #else
-    for (count = 0; bits & 1; ++count) {
-      bits >>= 1;
-    }
-  #endif
-
-    recv_state->ack_bits = bits;
-    if_pt (count) {
-      recv_state->tail += count;
-      gasnetc_atomic_add(&cep->am_flow.ack, count, 0);
-    }
-  }
-  gasneti_mutex_unlock(&recv_state->ack_lock);
-#else
-  gasnetc_atomic_increment(&cep->am_flow.ack, 0);
-#endif
-
-  /* Finalize flow control */
-  if_pf (rbuf.rbuf_needReply) {
-    gasnetc_hidden_ack(&rbuf, cep);
-  }
-  
-  gasneti_assert(gasneti_attach_done && gasnetc_amrdma_max_peers);
-  gasnetc_amrdma_eligable(cep);
-
-#if !GASNETI_USE_ALLOCA
-  if (tmp_buffer) gasneti_free(tmp_buffer);
-#endif
-  return 1;
-}
-#endif // GASNETC_IBV_AMRDMA
-
 void gasnetc_poll_rcv_hca(gasnetc_EP_t ep, gasnetc_hca_t *hca, int limit GASNETI_THREAD_FARG) {
-#if GASNETC_IBV_AMRDMA
-  int count = gasnetc_atomic_read(&hca->amrdma_rcv.count, 0);
-  int limit2 = count + 1;
-
-  /* BUG1652: full solution may require more atomicity when the polling set is changing? */
-
-  /* Poll round-robin over the AMRDMA landing zones and the CQ */
-  while (limit && limit2--) {
-    int index = hca->amrdma_rcv.prev; /* The associated data race is harmless */
-    index = (index == 0) ? count : (index - 1);
-    hca->amrdma_rcv.prev = index;
-
-    gasneti_assert(limit > 0);
-    gasneti_assert(limit2 >= 0);
- 
-    if (index < count) { /* (index > count) is possible if another thread read a higher count */
-      /* Poll for AM-over-RDMA */
-      gasnetc_cep_t * cep;
-      /* cep = (gasnetc_cep_t *)gasneti_atomic_ptr_read(&hca->amrdma_rcv.cep[index]); */
-      cep = hca->amrdma_rcv.cep[index];
-      if (cep && gasnetc_rcv_amrdma(ep, cep GASNETI_THREAD_PASS)) --limit;
-    } else {
-      /* Poll for AM in recv CQ */
-      gasnetc_rbuf_t *spare = NULL;
-      (void)gasnetc_rcv_reap(hca, limit, &spare GASNETI_THREAD_PASS);
-      if (spare) {
-        gasnetc_lifo_push(&hca->rbuf_freelist, spare);
-      }
-    }
-  }
-#else
   // Poll for AM in recv CQ
   gasnetc_rbuf_t *spare = NULL;
   (void)gasnetc_rcv_reap(hca, limit, &spare GASNETI_THREAD_PASS);
   if (spare) {
     gasnetc_lifo_push(&hca->rbuf_freelist, spare);
   }
-#endif // GASNETC_IBV_AMRDMA
 }
 
 void gasnetc_poll_rcv_all(gasnetc_EP_t ep, int limit GASNETI_THREAD_FARG) {
@@ -2967,10 +2570,6 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
     gasneti_assert(act_size >= cqe_count);
     /* We don't set rcv_count = act_size here, as that could nearly double the memory allocated below */
 
-  #if GASNETC_IBV_AMRDMA
-    gasnetc_lifo_init(&hca->amrdma_freelist);
-  #endif
-
     if (gasnetc_remote_nodes) {
       /* Allocated pinned memory for receive buffers */
       size = GASNETI_PAGE_ALIGNUP(rcv_count * sizeof(gasnetc_buffer_t));
@@ -3032,54 +2631,6 @@ extern int gasnetc_sndrcv_init(gasnetc_EP_t ep) {
         gasneti_assert(hca->rcv_thread_priv != NULL);
       }
 #endif
-      
-#if GASNETC_IBV_AMRDMA
-      /* Initialize resources for AM-over-RDMA */
-      if (NULL == hca->cep) {
-        hca->cep = gasneti_calloc(hca->max_qps, sizeof(gasnetc_cep_t *));
-        gasneti_leak(hca->cep);
-      }
-      gasnetc_atomic_set(&hca->amrdma_rcv.count, 0, 0);
-      hca->amrdma_rcv.prev = 0;
-      if (gasnetc_amrdma_max_peers && hca->max_qps) {
-	const int max_peers = hca->amrdma_rcv.max_peers = MIN(gasnetc_amrdma_max_peers, hca->max_qps);
-	size_t alloc_size = GASNETI_PAGE_ALIGNUP(max_peers * (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2) + GASNETC_AMRDMA_PAD);
-	void *buf = gasnetc_mmap(alloc_size);
-
-        if_pf (buf == GASNETC_MMAP_FAILED) {
-          buf = NULL;
-        } else {
-          vstat = gasnetc_pin(hca, buf, alloc_size, (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE), &hca->amrdma_reg);
-          if (vstat != 0) {
-	    gasnetc_munmap(buf, size);
-            buf = NULL;
-          }
-        }
-        if_pf (buf == NULL) {
-	  /* XXX: unwind here? */
-	  gasneti_fatalerror("Unable to allocate pinned memory for AM-over-RDMA");
-        }
-	buf = (void *)((uintptr_t)buf + GASNETC_AMRDMA_PAD);
-	for (i = 0; i < max_peers; ++i) {
-	  gasnetc_lifo_push(&hca->amrdma_freelist, buf);
-	  buf = (void *)((uintptr_t)buf + (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2));
-	}
-
-        if (NULL == hca->amrdma_rcv.cep) {
-          hca->amrdma_rcv.cep = gasneti_calloc(max_peers, sizeof(gasnetc_cep_t *));
-          gasneti_leak(hca->amrdma_rcv.cep);
-        }
-
-        gasnetc_atomic_set(&hca->amrdma_balance.count, 0, 0);
-        hca->amrdma_balance.mask = gasnetc_amrdma_cycle ? (gasnetc_amrdma_cycle - 1) : 0;
-        gasnetc_atomic_set(&hca->amrdma_balance.state, GASNETC_AMRDMA_STATE_RUN, 0);
-        hca->amrdma_balance.floor = 1;
-        if (NULL == hca->amrdma_balance.table) {
-          hca->amrdma_balance.table = gasneti_calloc(hca->max_qps, sizeof(gasnetc_amrdma_balance_tbl_t));
-          gasneti_leak(hca->amrdma_balance.table);
-        }
-      }
-#endif // GASNETC_IBV_AMRDMA
     }
   }
 
@@ -3162,14 +2713,6 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
       cep->snd_lkey = hca->snd_reg.handle->lkey;
     #endif
 
-    #if GASNETC_IBV_AMRDMA
-      /* Initialize local AM-over-RDMA info */
-      gasnetc_atomic_set(&cep->amrdma_eligable, 0, 0);
-      cep->amrdma_send = NULL;
-      cep->amrdma_recv = NULL;
-      hca->cep[hca->num_qps] = cep;
-    #endif
-
       hca->num_qps++;
       gasneti_assert(hca->num_qps <= hca->max_qps);
 
@@ -3194,10 +2737,6 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
       } else {
         gasnetc_sema_init(&cep->am_rem, gasnetc_am_oust_pp, gasnetc_am_oust_pp);
       }
-    #if GASNETC_IBV_AMRDMA
-      gasnetc_atomic_set(&cep->am_flow.credit, 0, 0);
-      gasnetc_atomic_set(&cep->am_flow.ack, 0, 0);
-    #endif
       cep->snd_cq_sema_p = &gasnetc_cq_semas[GASNETC_HCA_IDX(cep)];
     }
   } else {
@@ -3212,19 +2751,12 @@ extern void gasnetc_sndrcv_init_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
     #endif
       gasnetc_sema_init(&cep->am_rem, 0, 0);
       gasnetc_atomic_set(&cep->am_flow.credit, 0, 0);
-    #if GASNETC_IBV_AMRDMA
-      gasnetc_atomic_set(&cep->am_flow.ack, 0, 0);
-      gasnetc_atomic_set(&cep->amrdma_eligable, 0, 0);
-    #endif
     }
   }
 }
 
 extern void gasnetc_sndrcv_init_inline(void) {
   gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
-#if GASNETC_IBV_AMRDMA
-  gasnetc_am_inline_limit_rdma = MAX(GASNETC_AMRDMA_HDRSZ, gasnetc_am_inline_limit_sndrcv) - GASNETC_AMRDMA_HDRSZ;
-#endif
 #if !GASNETC_PIN_SEGMENT
   gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
 	  				? (gasnetc_putinmove_limit + gasnetc_inline_limit)
@@ -3306,10 +2838,6 @@ gasnetc_sndrcv_quiesce(void) {
     gasnetc_rbuf_t rbuf;
   #if GASNETI_THREADINFO_OPT
     rbuf.rbuf_threadinfo = GASNETI_MYTHREAD;
-  #endif
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t stamp = GASNETI_TICK_MIN; /* BLCR-TODO: stats should exclude this */
-    rbuf.rr_sg.addr = (uintptr_t) &stamp;
   #endif
 
     gasnetc_am_credits_slack = 0;
@@ -3425,9 +2953,6 @@ extern int gasnetc_sndrcv_shutdown(void) {
 
     gasnetc_unpin_unmap(hca, &hca->snd_reg);
     gasnetc_unpin_unmap(hca, &hca->rcv_reg);
-  #if GASNETC_IBV_AMRDMA
-    gasnetc_unpin_unmap(hca, &hca->amrdma_reg);
-  #endif
   }
 
   return GASNET_OK;
@@ -3468,52 +2993,6 @@ extern void gasnetc_sndrcv_stop_thread(int block) {
   }
 }
 #endif
-
-#if GASNETC_IBV_AMRDMA
-extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *addr) {
-  gasnetc_amrdma_send_t *result = gasneti_malloc(sizeof(gasnetc_amrdma_send_t));
-  gasneti_leak(result);
-
-  gasnetc_atomic_set(&result->head, gasnetc_amrdma_depth, 0);
-  gasnetc_atomic_set(&result->tail, 0, 0);
-  result->rkey = rkey;
-  result->addr = (uintptr_t)addr;
-  gasneti_sync_writes();
-
-  return result;
-}
-
-extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca) {
-  gasnetc_amrdma_buf_t *addr = gasnetc_lifo_pop(&hca->amrdma_freelist);
-  gasnetc_amrdma_recv_t *result = NULL;
-
-  if (addr != NULL) {
-    int i;
-
-    result = gasneti_malloc(sizeof(gasnetc_amrdma_recv_t));
-    gasneti_leak(result);
-    gasnetc_atomic_set(&result->head, 0, 0);
-    result->addr = addr;
-  #if GASNETC_ANY_PAR
-    gasneti_mutex_init(&result->ack_lock);
-    result->ack_bits = 0;
-    result->tail = 0;
-  #endif
-
-    for (i = 0; i < gasnetc_amrdma_depth; ++i) {
-      gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)addr[i];
-      hdr->length       = hdr->zeros       = 0;
-      hdr->length_again = hdr->zeros_again = ~0;
-      gasneti_assert(gasneti_count0s(hdr, GASNETC_AMRDMA_SZ) == (GASNETC_AMRDMA_SZ - 4));
-  #if GASNETC_ANY_PAR
-      gasnetc_atomic_set(&result->busy[i].spinlock, 0, 0);
-  #endif
-    }
-  }
-
-  return result;
-}
-#endif // GASNETC_IBV_AMRDMA
 
 /* Just gasnetc_AMPoll w/o CHECKATTACH when !handler_context */
 extern void gasnetc_sndrcv_poll(int handler_context) {

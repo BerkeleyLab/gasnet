@@ -19,6 +19,19 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 PENDING: GASNet-EX Work-In-Progress
 
+* InfiniBand Verbs (ibv-conduit)
+  - Negotiated-Payload Active Messages are implemented natively for ibv-conduit,
+    replacing use of a portable reference implementation.
+  - New environment variable GASNET_AM_GATHER_MIN controls use of gather-on-send
+    for AM Medium (and small Long) payloads.  See details in the conduit README.
+  - The gather-on-send optimization for AM Medium (and small Long) payloads is
+    now applied to out-of-segment sources with using ODP.
+  - A new --with-ibv-max-medium= can set the size of AM Medium buffers.
+    See details, including supported values, in the conduit README.
+  - The default AM Max Medium is now 64KB minus space for headers (up from 4KB).
+  - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
+    removed.
+
 * IBM PAMI (pami-conduit)
   - This conduit, deprecated since 2019.9.0, has been removed.
 
@@ -27,6 +40,8 @@ PENDING: GASNet-EX Work-In-Progress
     (see GASNET_USE_GETHOSTID in udp-conduit/README for details).
 
 * Platform support/portability
+  - PMI-based spawning now supports PMIx 
+  - Improve portable_inttypes to be more trusting of C99/C++11 compilers
   - Support for IBM BlueGene/Q has been removed.
   - Support for native atomics on IBM XL compilers for big-endian PPC has been
     removed.  These platforms now default to compiler-provided atomics.
@@ -35,6 +50,7 @@ PENDING: GASNet-EX Work-In-Progress
 * General and Misc.
   - New make targets (run-)tests-installed-{seq,par,parsync} have been
     added for use in post-install validation of the library.
+  - Now document and enforce use of GNU make version 3.79 or newer.
 
 * Notable bugs fixed in this release:
   - bug4022: rare resource leak in aries-conduit AM Long protocol

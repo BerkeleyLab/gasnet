@@ -68,6 +68,7 @@ typedef gasnetc_cons_atomic(val_t)        gasnetc_atomic_val_t;
   gasnetc_atomic_val_t initiated_alc; \
   gasnetc_atomic_t     completed_alc;
 
+typedef void (*gasnetc_cbfunc_t)(gasnetc_atomic_val_t *);
 
 typedef struct {
     gasnetc_atomic_t     completed;
@@ -320,11 +321,19 @@ extern void gasnetc_am_req_pool_alloc(void);
 extern void gasnetc_am_req_pool_free(void);
 extern void gasnetc_buffer_pool_alloc(void);
 extern void gasnetc_buffer_pool_free(void);
-extern void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE);
+extern int gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE);
 extern void gasnetc_ProcessRecv(void *buf, size_t size);
 extern void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE);
-
+extern gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes,
+                                                  gex_Rank_t rank);
+extern int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
+                                    void *buffer, uint32_t nbytes,
+                                    void *remote_addr,
+                                    gasnetc_atomic_val_t *local_cnt,
+                                    gasnetc_cbfunc_t local_cb,
+                                    gasnetc_atomic_val_t *remote_cnt,
+                                    gasnetc_cbfunc_t remote_cb);
 /*
   List functions
   ==============

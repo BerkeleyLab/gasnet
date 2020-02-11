@@ -398,38 +398,53 @@ void gasnetc_ucx_rma_cb(void *request, ucs_status_t status)
   return;
 }
 
-GASNETI_INLINE(gasnetc_ucx_putget_inner)
 int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
                              void *buffer, uint32_t nbytes, void *remote_addr,
-                             gasnetc_atomic_val_t *cnt,
-                             gasnetc_cbfunc_t cbfunc)
+                             gasnetc_atomic_val_t *local_cnt,
+                             gasnetc_cbfunc_t local_cb,
+                             gasnetc_atomic_val_t *remote_cnt,
+                             gasnetc_cbfunc_t remote_cb)
 {
   gasnetc_ucx_request_t *req;
   ucp_ep_h ep = GASNETC_UCX_GET_EP(jobrank);
   gasnetc_mem_info_t * minfo;
+  int immediate = 0;
 
   minfo = gasnetc_find_mem_info(remote_addr, nbytes, jobrank);
   if (NULL == minfo) {
     gasneti_fatalerror("rkey cannot found");
   }
-  (*cnt)++;
+  if (local_cnt) (*local_cnt)++;
+  
   req = gasnetc_putget_fn(is_put, ep, buffer, nbytes, remote_addr,
                           minfo->rkey, gasnetc_ucx_rma_cb);
   if (NULL == req) {
     /* completed inplace */
-    if (cbfunc) {
-      cbfunc(cnt);
+    if (local_cb) {
+      local_cb(local_cnt);
     }
-    return 1;
+    immediate = 1;
+  } else {
+    if_pf (UCS_PTR_IS_ERR(req)) {
+      gasneti_fatalerror("UCX RDMA put failed: %s",
+                         ucs_status_string(UCS_PTR_STATUS(req)));
+    }
+    req->completion.cbdata = local_cnt;
+    req->completion.cbfunc = local_cb;
   }
-  if_pf (UCS_PTR_IS_ERR(req)) {
-    gasneti_fatalerror("UCX RDMA put failed: %s",
-                       ucs_status_string(UCS_PTR_STATUS(req)));
-  }
-  req->completion.cbdata = cnt;
-  req->completion.cbfunc = cbfunc;
 
-  return 0;
+  if (remote_cnt) {
+    (*remote_cnt)++;
+    req = ucp_ep_flush_nb(ep, 0, gasnetc_ucx_rma_cb);
+    if (req == NULL) {
+      remote_cb(remote_cnt);
+    } else {
+      req->completion.cbdata = remote_cnt;
+      req->completion.cbfunc = remote_cb;
+    }
+  }
+
+  return immediate;
 }
 
 GASNETI_INLINE(gasnetc_ucx_am_put)
@@ -438,7 +453,7 @@ int gasnetc_ucx_am_put(gex_Rank_t jobrank, void *src_addr,
                        gasnetc_atomic_val_t *cnt, gasnetc_cbfunc_t cbfunc)
 {
   return gasnetc_ucx_putget_inner(1, jobrank, src_addr, nbytes, dest_addr,
-                                  cnt, cbfunc);
+                                  cnt, cbfunc, NULL, NULL);
 }
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -621,7 +636,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
       if (buffer) {
         gasnetc_buffer_release(buffer);
       }
-      return NULL;
+      goto exit;
   }
   if_pf (UCS_PTR_IS_ERR(request)) {
     gasnetc_am_req_release(am_req);
@@ -630,7 +645,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
     }
     gasneti_fatalerror("UCX recv request failed: %s",
                        ucs_status_string(UCS_PTR_STATUS(request)));
-    return NULL;
+    /* Doesn't return */
   }
 
   request->am_req = am_req;
@@ -639,6 +654,7 @@ gasnetc_ucx_request_t *gasnetc_send_req(gasnetc_am_req_t *am_req,
   request->status = GASNETC_UCX_ACTIVE;
   gasneti_list_enq(&gasneti_ucx_module.send_list, request);
 
+exit:
   return request;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -851,6 +867,7 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
     } else {
       buf_ptr = buffer->data;
     }
+    
     request = (gasnetc_ucx_request_t*)
         ucp_tag_msg_recv_nb(gasneti_ucx_module.ucp_worker, buf_ptr,
                             info_tag.length, ucp_dt_make_contig(1), msg_tag,
@@ -859,10 +876,11 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
       gasnetc_buffer_release(buffer);
       gasneti_fatalerror("UCX recv request failed: %s",
                          ucs_status_string(UCS_PTR_STATUS(request)));
-      return;
+      /* gasneti_fatalerror doesn't return */
     }
     /* fill in the info for the request*/
     request->buffer = buffer;
+    
     if (GASNETC_UCX_COMPLETE == request->status) {
       /* request was completed in place
        * and wasn't added to the receiving pool in the UCX recv handler,
@@ -875,8 +893,9 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
   GASNETC_LOCK_RELEASE();
 }
 
-void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
+int gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
 {
+  int recv_list_size = 0;
   gasnetc_ucx_request_t *request = NULL;
   gasneti_list_t local_recv_list;
 
@@ -885,7 +904,8 @@ void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
   gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_INLINE);
   gasnetc_ucx_progress();
 
-  if (!gasneti_list_size(&gasneti_ucx_module.recv_list)) {
+  recv_list_size = gasneti_list_size(&gasneti_ucx_module.recv_list);
+  if (!recv_list_size) {
     goto exit;
   }
   gasneti_list_init(&local_recv_list);
@@ -911,7 +931,7 @@ void gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
 
 exit:
   GASNETC_LOCK_RELEASE();
-  return;
+  return recv_list_size;
 }
 
 void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE)

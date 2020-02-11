@@ -59,6 +59,13 @@ GASNETT_BEGIN_EXTERNC
   #endif
 #endif
 
+// this macro is for annotating variables as "used" so compilers don't warn
+#if PLATFORM_COMPILER_OPEN64
+  #define test_mark_used(var) ((void)var)
+#else
+  #define test_mark_used(var) ((void)(&var?0:0))
+#endif
+
 #if HAVE_SRAND_DETERMINISTIC
   /* OpenBSD "breaks" rand() by design */
   #define srand(seed) srand_deterministic(seed)
@@ -86,6 +93,7 @@ GASNETT_BEGIN_EXTERNC
 // safe to use multiple times per line (eg in a macro expansion)
 #define test_static_assert(cond) do { \
   static const char *_test_static_assert[ (cond) ?1:-1] = { "Static assertion: " #cond }; \
+  test_mark_used(_test_static_assert); \
 } while (0)
 
 // static assertion at file scope
@@ -1313,8 +1321,8 @@ static void _test_init(const char *testname, int reports_performance, int early,
   
 
 #define TEST_TRACING_MACROS() do {                                                 \
-  const char *file;                                                                \
-  unsigned int line;                                                               \
+  const char *file; test_mark_used(file);                                          \
+  unsigned int line; test_mark_used(line);                                         \
   GASNETT_TRACE_GETSOURCELINE(&file, &line);                                       \
   GASNETT_TRACE_SETSOURCELINE(file, line);                                         \
   GASNETT_TRACE_FREEZESOURCELINE();                                                \

@@ -133,26 +133,6 @@ GASNET_IF_ENABLED(conservative-local-copy, [enable use of conservative (slower) 
 
 ########################################################################
 ##
-##  Supporting Command-Line Tools
-##
-
-dnl     Store full paths, so we find right ones even if users have
-dnl     some other version in their path
-GASNET_PATH_PROGS(GMAKE, gmake make $MAKE, GNU make)
-AC_MSG_CHECKING(for GNU make)
-if $GMAKE --version | grep GNU ; then
-  AC_MSG_RESULT(yes)
-else
-# We don't actually require GNU Make at the moment
-#  AC_MSG_ERROR(cannot find a version of GNU make - please install GNU make and/or set \$GMAKE to indicate where it's located)
-  GASNET_MSG_WARN([cannot find a version of GNU make - if you encounter make problems, install GNU make and/or set \$GMAKE to indicate where it's located])
-fi
-AC_SUBST(GMAKE)
-
-dnl Other tools checked later, after PROG_CC check sets cross_compiling
-
-########################################################################
-##
 ##  Perl
 ##
 ## We do this early so we can use "$PERL -e" for complex configure tests.
@@ -161,6 +141,33 @@ AC_SUBST(PERL)
 PERLSTART=$TOP_BUILDDIR/other/perlstart
 AC_SUBST_FILE(PERLSTART)
 
+
+########################################################################
+##
+##  Supporting Command-Line Tools
+##
+
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
+GASNET_PATH_PROGS(GMAKE, gmake make $MAKE, GNU make)
+AC_MSG_CHECKING(for GNU make)
+GMAKE_VERSTR=`$GMAKE --version | grep GNU 2> /dev/null`
+if test "$GMAKE_VERSTR" = "" ; then
+  AC_MSG_RESULT(no)
+  AC_MSG_ERROR(cannot find a version of GNU make - please install GNU make and/or set \$GMAKE to indicate where it's located)
+else
+  GMAKE_VER=`echo "$GMAKE_VERSTR" | $PERL -n -e 'if (/([[0-9]]+)\.([[0-9]]+)(\.[[0-9]]+)?/) { $maj=$1; $min=$2; $pat=$3; printf "%i%03i%03i",($maj,$min,($pat?$pat=~s/\.//:0)) }'`
+  # Currently require 3.79 or newer
+  if test $GMAKE_VER -lt 3079000 ; then
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR([This software requires GNU make version 3.79 or newer, and you appear to be running: "$GMAKE_VERSTR" - please install GNU make and/or set \$GMAKE to indicate where it's located])
+  else
+    AC_MSG_RESULT($GMAKE_VERSTR)
+  fi
+fi
+AC_SUBST(GMAKE)
+
+dnl Other tools checked later, after PROG_CC check sets cross_compiling
 
 ########################################################################
 ##
@@ -2815,6 +2822,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   GASNET_ID_OTHER_COMPILER_FAMILY([CXX], [C++])
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
+  DEVWARN_CXXFLAGS=
   GASNET_UDP_LIBS=""
   gxx_flag_prefix=''
   gxx_flag_delim=' '
@@ -2841,13 +2849,22 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
        CXXDEBUGFLAGS="$CXXFLAGS"
        GASNET_POPVAR(CXXFLAGS)
     ;;
-    PGI)   MISC_CXXFLAGS="-w -Masmkeyword -Msignextend" # apparently has no way to indep control warnings
+    PGI)   MISC_CXXFLAGS="-Masmkeyword -Msignextend"
            case "$GASNETI_PTR_BITS$target_os" in
              64darwin*) # PGI seems to have a different ABI
                GASNET_TRY_CXXFLAG([-Mllalign], [MISC_CXXFLAGS="$MISC_CXXFLAGS -Mllalign"])
                ;;
            esac
            GASNET_PGI_VERSION_CHECK(CXX)
+           # DOB: don't force this in client flags by default. The payoff is small and it has potential to break clients
+           # because it's not a valid option for PGI C compilation.
+           GASNET_TRY_CXXFLAG([--display_error_number], [DEVWARN_CXXFLAGS="--display_error_number"])
+
+           GASNET_TRY_CXXFLAG([--diag_suppress177], [ 
+             # Intentionally empty - this is just to test whether surgical warning suppresion is available
+           ], [
+             MISC_CXXFLAGS="-w $MISC_CXXFLAGS" # old versions of pgc++ have no way to indep control warnings
+           ])
            ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],
@@ -2897,7 +2914,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   AC_SUBST(GASNET_OPT_CXXFLAGS)
 
   # Add GNU-style warning enable/suppression flags to MISC_CXXFLAGS
-  DEVWARN_CXXFLAGS=
   case "$CXX_FAMILY" in
     GNU | Pathscale | Open64 | Clang)
       GASNET_PUSHVAR(CXXFLAGS,"$MISC_CXXFLAGS")
@@ -3537,11 +3553,6 @@ if test "$enabled_ibv" = yes; then
         AC_DEFINE(GASNETC_IBV_CONN_THREAD)
       fi
 
-    GASNET_IF_ENABLED(ibv-amrdma, [See ibv-conduit/README (disabled by default)], enabled_ibv_amrdma=yes, enabled_ibv_amrdma=no)
-    if test "$enabled_ibv_amrdma" = yes; then
-      AC_DEFINE(GASNETC_IBV_AMRDMA)
-    fi
-
     CONDUIT_SPAWNER
 
     gasnetc_ibv_max_hcas=2
@@ -3621,6 +3632,22 @@ if test "$enabled_ibv" = yes; then
           AC_DEFINE(GASNETC_IBV_ODP)
         fi
       fi
+
+    GASNET_WITH(ibv-max-medium,
+       [Specify gasnet_AMMaxMedium() for ibv-conduit (default 65536)],
+       [case "$withval" in
+          1024|2048|4096|8192|16384|32768|65536|131072|262144)
+             ibv_max_medium="$withval";;
+          *)
+             GASNET_ERR_SAVE()
+             AC_MSG_ERROR([--with-ibv-max-medium="$withval" is not legal.  Value must be a power-of-two between 1024 and 262144, inclusive.])
+             ;;
+        esac
+       ],
+       [GASNET_ERR_SAVE()
+        AC_MSG_ERROR([--with-ibv-max-medium must be a power-of-two between 1024 and 262144, inclusive.])],
+       [ibv_max_medium=65536])
+    AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_MEDIUM, [$ibv_max_medium])
   fi
 fi
 AC_SUBST(IBV_CFLAGS)
@@ -4098,6 +4125,7 @@ have_pmi=no
 if test -n "$have_pmi_cray_h"; then
   with_pmi='no'
   have_pmi='yes'
+  pmi_version=' (Cray)'
 elif test "$enable_pmi" != 'no'; then
   pmi_guess=/usr
   GASNET_ENV_DEFAULT(PMI_HOME, $pmi_guess, [Install prefix of PMI library])
@@ -4118,13 +4146,14 @@ elif test "$enable_pmi" != 'no'; then
   unset PMI_LDFLAGS
 
   # If user specifies one PMI version then disqualify the other
-  GASNET_WITH(pmi-version, [PMI version (1 or 2)] , [
+  GASNET_WITH(pmi-version, [PMI version (x, 1, or 2)] , [
     case "$withval" in
       1) use_pmi1=yes;;
       2) use_pmi2=yes;;
-      *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be '1' or '2']);;
+      x) use_pmix=yes;;
+      *) GASNET_MSG_ERROR([Argument to --with-pmi-version must be 'x', '1' or '2']);;
     esac
-    with_pmi_version="withval"
+    with_pmi_version="$withval"
   ], [
     GASNET_MSG_WARN([Ignoring --without-pmi-version])
   ])
@@ -4132,7 +4161,25 @@ elif test "$enable_pmi" != 'no'; then
   # Check for libs unless disqualifed by --with-pmi-version=
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_ENV_DEFAULT(PMI_LIBS, probe)
-  if test -z "${use_pmi1+set}"; then
+  if test -z "${use_pmi1+set}" && test -z "${use_pmi2+set}"; then
+    GASNET_PUSHVAR(LIBS,"")
+    if test "$PMI_LIBS" = 'probe'; then
+      AC_SEARCH_LIBS(PMIx_Init, [pmix], [have_pmi=yes])
+    else
+      LIBS="$PMI_LIBS"
+      AC_CHECK_FUNC(PMIx_Init, [have_pmi=yes])
+    fi
+    if test "$have_pmi" = 'yes'; then
+      use_pmix=yes
+      pmi_suffix='x'
+      pmi_version=' (version=x)'
+      AC_DEFINE(HAVE_PMIX_H)
+      PMI_SPAWNER_LIBS="$LIBS"
+      AC_CHECK_HEADERS([stdbool.h])  # TODO: see if bool really works
+    fi
+    GASNET_POPVAR(LIBS)
+  fi
+  if test -z "${use_pmi1+set}" && test -z "${use_pmix+set}"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMI2_Init, [pmi2 mpich], [have_pmi=yes])
@@ -4143,6 +4190,7 @@ elif test "$enable_pmi" != 'no'; then
     if test "$have_pmi" = 'yes'; then
       use_pmi2=yes
       pmi_suffix='2'
+      pmi_version=' (version=2)'
       AC_DEFINE(HAVE_PMI2_H)
       PMI_SPAWNER_LIBS="$LIBS"
       GASNET_IF_ENABLED(pmi2-fast-barrier, Use PMI2_KVS_fence as barrier. This may not work with all PMI2 implementations,
@@ -4150,7 +4198,7 @@ elif test "$enable_pmi" != 'no'; then
     fi
     GASNET_POPVAR(LIBS)
   fi
-  if test -z "${use_pmi2+set}"; then
+  if test -z "${use_pmi2+set}" && test -z "${use_pmix+set}"; then
     GASNET_PUSHVAR(LIBS,"")
     if test "$PMI_LIBS" = 'probe'; then
       AC_SEARCH_LIBS(PMI_Init, [pmi mpich portals_runtime], [have_pmi=yes])
@@ -4161,6 +4209,7 @@ elif test "$enable_pmi" != 'no'; then
     if test "$have_pmi" = 'yes'; then
       use_pmi1=yes
       pmi_suffix=''
+      pmi_version=' (version=1)'
       AC_DEFINE(HAVE_PMI_H)
       PMI_SPAWNER_LIBS="$LIBS"
     fi
@@ -4174,17 +4223,25 @@ elif test "$enable_pmi" != 'no'; then
   # TODO: fragile if multiple PMI libs are installed
   # TODO: add a link test for a working PMI configuration
   if test "$have_pmi" = yes; then
-    if test -f "$PMI_HOME/include/slurm/pmi${pmi_suffix}.h"; then
-      PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include/slurm"
-    elif test -f "$PMI_HOME/include/portals4/pmi${pmi_suffix}.h"; then
-      PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include/portals4"
-    elif test -f "$PMI_HOME/include/pmi${pmi_suffix}.h"; then
-      if test "$PMI_HOME" != '/usr'; then
-        PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include"
-      fi
-    else
+    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" 'no'; do
+      test -f "${pmi_headers}/pmi${pmi_suffix}.h" && break
+    done
+    if test "${pmi_headers}" = no; then
       have_pmi=no
+    elif test "${pmi_headers}" != '/usr/include'; then
+      PMI_SPAWNER_CFLAGS="-I${pmi_headers}"
     fi
+  fi
+
+  # Look for use of malloc/free in the corresponding PMIx header if any
+  if test "$have_pmi" = yes; then
+    AC_MSG_CHECKING(for use of malloc in PMIx headers)
+    AC_EGREP_HEADER([\<(malloc|calloc|free|strdup)\>],
+      [${pmi_headers}/pmix_common.h],
+      [ AC_DEFINE([GASNETI_PMIX_HACK])
+        AC_MSG_RESULT(yes) ],
+      [ AC_MSG_RESULT(no) ]
+    )
   fi
 fi
 
@@ -4966,6 +5023,7 @@ cat >>$CONDUIT_LIST <<EOF
   PSHM support:           $with_pshm
   BLCR support:           $have_blcr
   Atomics support:        $atomics_config
+  PMI support:            $have_pmi$pmi_version
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF

@@ -1188,7 +1188,7 @@ void * thread_fn(void *arg) {
       uint64_t const share = MIN((unsigned)iters, (0xffffffffU / NUM_THREADS));
       uint64_t const one = 1;
       uint64_t const incrs[] = { one, one<<32, one + (one<<32) };
-      for (int i = 0; i < sizeof(incrs)/sizeof(incrs[0]); ++i) {
+      for (size_t i = 0; i < sizeof(incrs)/sizeof(incrs[0]); ++i) {
         uint64_t const incr = incrs[i];
         uint64_t const goal = NUM_THREADS * share * incr;
         uint64_t woncnt = 0;
