@@ -1115,7 +1115,7 @@ static int gasnetc_load_settings(void) {
                      i);
              /* fall through to "auto" case: */ GASNETI_FALLTHROUGH
   case    0: /* TODO: "automatic" might be more sophisticated than using the maximum */
-  case   -1: gasnetc_max_mtu = 0; /* Use port's active_mtu */
+  case   -1: gasnetc_max_mtu = (enum ibv_mtu)0; /* Use port's active_mtu */
              break;
   case  256: gasnetc_max_mtu = IBV_MTU_256;
              break;
