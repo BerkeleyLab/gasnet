@@ -815,14 +815,14 @@ extern void gasnetc_sndrcv_stop_thread(int block);
 extern void gasnetc_sndrcv_poll(int handler_context);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
-                  gasnetc_epid_t epid,
+                  gex_TM_t tm, gex_Rank_t rank, int qpi,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
 #else
   extern int gasnetc_rdma_put_fh(
-                  gasnetc_epid_t epid,
+                  gex_TM_t tm, gex_Rank_t rank, int qpi,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb,
@@ -830,19 +830,19 @@ extern void gasnetc_sndrcv_poll(int handler_context);
                   GASNETI_THREAD_FARG);
   GASNETI_INLINE(gasnetc_rdma_put)
   int gasnetc_rdma_put(
-                  gasnetc_epid_t epid,
+                  gex_TM_t tm, gex_Rank_t rank, int qpi,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG)
   {
-    return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,flags,
+    return gasnetc_rdma_put_fh(tm,rank,qpi,src_ptr,dst_ptr,nbytes,flags,
                                local_cnt,local_cb,remote_cnt,remote_cb,
                                NULL GASNETI_THREAD_PASS);
   }
 #endif
 extern int gasnetc_rdma_get(
-                  gasnetc_epid_t epid,
+                  gex_TM_t tm, gex_Rank_t rank,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);

@@ -2463,10 +2463,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
 
   /* allocate and attach an aux segment */
 
-  gasneti_auxsegAttach(gasnetc_pin_maxsz, &gasnetc_bootstrapExchange_ib);
+  gasnet_seginfo_t auxseg = gasneti_auxsegAttach(gasnetc_pin_maxsz, &gasnetc_bootstrapExchange_ib);
 
-  void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
-  uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;
+  void *auxbase = auxseg.addr;
+  uintptr_t auxsize = auxseg.size;
 
   /* The auxseg will be statically pinned even if the segment is not */
   
@@ -2667,44 +2667,25 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   uintptr_t                     segsize,
                                   gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
-  // TODO-EX: crude detection of multiple calls until we support them
-  gasneti_assert(NULL == gasneti_seginfo[0].addr);
-
   /* ------------------------------------------------------------------------------------ */
-  /*  register segment  */
+  /*  register client segment  */
 
-  gasnetc_hca_t *hca;
-  gex_Rank_t i;
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, tm, segsize, exchangefn, flags);
 
-  gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
-
-  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
-  segsize = gasneti_seginfo[gasneti_mynode].size;
-
-  gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
-
-  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
-  gasneti_legacy_segment_attach_hook(ep);
-  *segment_p = gasneti_export_segment(ep->_segment);
-
-  /* After local segment is attached, call optional client-provided hook
-     (###) should call BEFORE any conduit-specific pinning/registration of the segment
-   */
-  if (gasnet_client_attach_hook) {
-    gasnet_client_attach_hook(segbase, segsize);
-  }
+  // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
   {
-    gasnetc_seg_start = (uintptr_t)segbase;
-    gasnetc_seg_len   = segsize;
+    gasnetc_seg_start = (uintptr_t)myseg.addr;
+    gasnetc_seg_len   = myseg.size;
 
-    /* Find largest the segment requested */
+    // Find the largest segment requested
+    // TODO-EX: to avoid densely populating seginfo table, this should be a reduction
+    // OR drop the pin_maxsz (multi-registration) behavior which may no longer be necessary?
     gasnetc_seg_maxsz = 0;
-    for (i=0; i<gasneti_nodes; ++i) {
-      gasnetc_seg_maxsz = MAX(gasnetc_seg_maxsz, gasneti_seginfo[i].size);
+    for (gex_Rank_t i=0; i<gasneti_nodes; ++i) {
+      const gasnet_seginfo_t *si = gasneti_client_seginfo(tm, i);
+      gasnetc_seg_maxsz = MAX(gasnetc_seg_maxsz, si->size);
     }
 
     /* Setup gasnetc_pin_maxsz{_shift,_mask} and gasnetc_max_regs.
@@ -2739,6 +2720,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
     /* pin the segment and exchange the RKeys, once per HCA */
     { uint32_t	*my_rkeys;
       gasnetc_memreg_t  memreg;
+      gasnetc_hca_t    *hca;
       int		vstat;
       int		j;
 
@@ -2786,24 +2768,12 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   #endif
 
   /* Per-endpoint work */
-  for (i = 0; i < gasneti_nodes; i++) {
+  for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
     gasnetc_cep_t *cep = GASNETC_NODE2CEP(i);
     if (cep) {
       gasnetc_sndrcv_attach_peer(i, cep);
     }
   }
-
-  /* ------------------------------------------------------------------------------------ */
-  /*  gather segment information */
-
-  /* (###) add code here to gather the segment assignment info into
-           gasneti_seginfo on each node (may be possible to use AMShortRequest here)
-           If gasneti_segmentAttach() was used above, this is already done.
-     Done in gasneti_segmentAttach(), above.
-   */
-
-  gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
-                 gasneti_seginfo[gasneti_mynode].size == segsize);
 
   return GASNET_OK;
 }
@@ -3252,8 +3222,8 @@ void gasnetc_post_checkpoint(int is_restart) {
       for (i=0; i<nbytes; ++i) buffer0[i] = (char)(i ^ gasneti_mynode);
     }
   #else
-    loc_addr = gasneti_seginfo_client[gasneti_mynode].addr;
-    rem_addr = gasneti_seginfo_client[peer].addr;
+    loc_addr = gasneti_client_seginfo(gasneti_THUNK_TM, gasneti_mynode)->addr;
+    rem_addr = gasneti_client_seginfo(gasneti_THUNK_TM, peer)->addr;
   #endif
 
     GASNETI_MEMCPY(buffer1, loc_addr, nbytes);
@@ -4339,9 +4309,10 @@ int gasnetc_am_long_put(
                   GASNETI_THREAD_FARG)
 {
   int rc;
+  const int qpi = gasnetc_epid2qpi(epid);
+  const gex_Rank_t jobrank = gasnetc_epid2node(epid);
 #if GASNETC_PIN_SEGMENT
-  /* Queue the RDMA.  We can count on point-to-point ordering to deliver payload before header */
-  rc = gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, flags,
+  rc = gasnetc_rdma_put(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
                         local_cnt, local_cb, NULL, NULL
                         GASNETI_THREAD_PASS);
 #else
@@ -4353,7 +4324,7 @@ int gasnetc_am_long_put(
    * that would lead to deadlock if we hold the resources needed to queue the RDMA.
    */
   gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
-  rc = gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, flags,
+  rc = gasnetc_rdma_put_fh(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
                            local_cnt, local_cb, NULL, NULL, &am_oust
                            GASNETI_THREAD_PASS);
   if (!rc) gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);

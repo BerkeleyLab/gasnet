@@ -1787,7 +1787,9 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
 }
 #endif /* GASNET_PSHM */
 
-void gasneti_segmentAttach(uintptr_t segsize,
+static gasnet_seginfo_t
+gasneti_do_attach_segment(
+                           uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags)
@@ -1816,7 +1818,53 @@ void gasneti_segmentAttach(uintptr_t segsize,
   gasneti_segmentAttachRemote(all_segments);
   gasneti_pshm_cs_leave();
 #endif
+
+  return local_segment;
 }
+
+/* ------------------------------------------------------------------------------------ */
+gasnet_seginfo_t gasneti_segmentAttach(
+                gex_Segment_t                 *segment_p,
+                gex_TM_t                      tm,
+                uintptr_t                     segsize,
+                gasneti_bootstrapExchangefn_t exchangefn,
+                gex_Flags_t                   flags)
+{
+#if GASNET_DEBUG
+  // TODO-EX: detection of multiple calls until we support them
+  static int called = 0;
+  gasneti_assert(!called);
+  called = 1;
+#endif
+
+  /* ------------------------------------------------------------------------------------ */
+  /*  register segment  */
+
+  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, exchangefn, flags);
+
+  void *segbase = myseg.addr;
+  segsize = myseg.size;
+
+  gasneti_assert_uint(((uintptr_t)segbase) % GASNET_PAGESIZE ,==, 0);
+  gasneti_assert_uint(segsize % GASNET_PAGESIZE ,==, 0);
+
+  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
+  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
+  gasneti_legacy_segment_attach_hook(ep);
+  *segment_p = gasneti_export_segment(ep->_segment);
+  
+  // After local segment is attached, call optional client-provided hook
+  if (gasnet_client_attach_hook) {
+    gasnet_client_attach_hook(segbase, segsize);
+  }
+
+  // sanity check (but should be true "by construction")
+  gasneti_assert_ptr(gasneti_seginfo[gasneti_mynode].addr ,==, segbase);
+  gasneti_assert_uint(gasneti_seginfo[gasneti_mynode].size ,==, segsize);
+
+  return myseg;
+}
+/* ------------------------------------------------------------------------------------ */
 
 /* Used to pass the nodemap information to the client
  * Similar to gasneti_getSegmentInfo(). 
@@ -2178,8 +2226,9 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
 #endif
 }
 
-/* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-void gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
+/* common case use of gasneti_auxseg_{preinit,attach} for conduits using gasneti_segmentAttach() */
+gasnet_seginfo_t
+gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
 {
   uintptr_t auxsize = gasneti_auxseg_preinit();
   if (auxsize > maxsize) {
@@ -2188,9 +2237,10 @@ void gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchan
                        auxsize, maxsize);
   }
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
-  gasneti_segmentAttach(auxsize, gasneti_seginfo_aux, exchangefn, 0);
+  gasnet_seginfo_t local_segment = gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, exchangefn, 0);
   gasneti_auxseg_attach(gasneti_seginfo_aux);
   gasneti_assert_uint(gasneti_seginfo_aux[gasneti_mynode].size ,==, auxsize);
+  return local_segment;
 }
 
 /* ------------------------------------------------------------------------------------ */
