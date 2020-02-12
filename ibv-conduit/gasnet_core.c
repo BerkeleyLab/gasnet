@@ -4566,6 +4566,8 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     // accessing the shared pool of bounce buffers, which might block).
     char inline_buf[sizeof(gasnetc_am_tmp_buf_t) + 8];
 
+   { // Start of scope: 'buf_alloc'
+
     // Obtain an appropriate buffer in which to build the message
     gasnetc_buffer_t *buf, *buf_alloc = NULL;
     if (gasnetc_am_get_buffer(head_len + copy_len + gath_len, immediate, inline_buf,
@@ -4580,6 +4582,8 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
                       head_len, copy_len, gath_len, 0, have_flow, numargs,
                       local_cnt, local_cb, counter, argptr
                       GASNETI_THREAD_PASS);
+
+   } // End of scope: 'buf_alloc'
 
     GASNETI_RETURN(GASNET_OK); // Normal return
 
