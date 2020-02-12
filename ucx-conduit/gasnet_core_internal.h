@@ -18,6 +18,12 @@
 
 /* ------------------------------------------------------------------------------------ */
 #define _hidx_gasnetc_exchg_reqh              (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_exit_reduce_reqh        (GASNETC_HANDLER_BASE+1)
+#define _hidx_gasnetc_exit_role_reqh          (GASNETC_HANDLER_BASE+2)
+#define _hidx_gasnetc_exit_role_reph          (GASNETC_HANDLER_BASE+3)
+#define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+4)
+#define _hidx_gasnetc_exit_reph               (GASNETC_HANDLER_BASE+5)
+
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
@@ -77,6 +83,7 @@ typedef struct {
 
 #define GASNETC_COUNTER_INITIALIZER   {gasnetc_atomic_init(0), 0}
 
+#define gasnetc_counter_inc(P)		do { (P)->initiated++; } while (0)
 #define gasnetc_counter_done(P)       (((P)->initiated & GASNETI_ATOMIC_MAX) == \
                                            gasnetc_atomic_read(&(P)->completed, 0))
 
