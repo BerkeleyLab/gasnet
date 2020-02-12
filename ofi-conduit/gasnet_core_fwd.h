@@ -49,13 +49,6 @@
 #define GASNETI_CONDUIT_THREADS 1
 #endif
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
-   */
-#if 0
-#define GASNETC_USE_INTERRUPTS 1
-#endif
-
   /* define these to 1 if your conduit cannot use the default implementation
      of gasnetc_amregister() (in gasnet_internal.c)
    */
