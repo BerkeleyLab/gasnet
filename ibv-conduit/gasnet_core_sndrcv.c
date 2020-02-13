@@ -323,22 +323,21 @@ gasnetc_create_cq(struct ibv_context * hca_hndl, int req_size,
 #define GASNETC_FH_RKEY(_cep, _fhptr)	((_fhptr)->client.rkey[GASNETC_HCA_IDX(_cep)])
 #define GASNETC_FH_LKEY(_cep, _fhptr)	((_fhptr)->client.lkey[GASNETC_HCA_IDX(_cep)])
 
-// TODO-EX: following functions are a hack which wrap GASNETC_SEG_[LR]KEY()
-// to map negative index values to the auxseg keys instead, and will be
+// TODO-EX: following functions are a hack for auxseg keys, and will be
 // replaced with more general multi-registration support later.
 #if GASNETC_PIN_SEGMENT
   GASNETI_INLINE(gasnetc_seg_rkey)
-  uint32_t gasnetc_seg_rkey(gasnetc_cep_t *cep, int index)
+  uint32_t gasnetc_seg_rkey(gasnetc_cep_t *cep, int is_aux)
   {
-    return (index >= 0) ? GASNETC_SEG_RKEY(cep, index)
+    return ( ! is_aux ) ? GASNETC_SEG_RKEY(cep)
                         : cep->hca->aux_rkeys[gasnetc_epid2node(cep->epid)];
   }
   #undef GASNETC_SEG_RKEY
   #define GASNETC_SEG_RKEY gasnetc_seg_rkey
   GASNETI_INLINE(gasnetc_seg_lkey)
-  uint32_t gasnetc_seg_lkey(gasnetc_cep_t *cep, int index)
+  uint32_t gasnetc_seg_lkey(gasnetc_cep_t *cep, int is_aux)
   {
-    return (index >= 0) ? GASNETC_SEG_LKEY(cep, index)
+    return ( ! is_aux ) ? GASNETC_SEG_LKEY(cep)
                         : cep->hca->aux_reg.handle->lkey;
   }
   #undef GASNETC_SEG_LKEY
@@ -1487,21 +1486,9 @@ static void gasnetc_rcv_thread(struct ibv_wc *comp_p, void *arg)
  * ###############################################################
  */
 
-/* Test if a given addr is in the local GASNet segment or not.
- * Returns non-zero if address is outside the segment.
- * This test is used under the assumption that the client's arguments
- * to Put or Get will always correspond to a region which is entirely
- * IN or entirely OUT of the segment.
- */
-GASNETI_INLINE(gasnetc_unpinned)
-int gasnetc_unpinned(uintptr_t addr) {
-  const uintptr_t offset = (addr - gasnetc_seg_start); /* negative is a LARGE positive */
-  return (offset > gasnetc_seg_len);
-}
-
 /* Assemble and post a bounce-buffer PUT or GET */
 GASNETI_INLINE(gasnetc_bounce_common)
-void gasnetc_bounce_common(gasnetc_epid_t epid, int rkey_index, struct ibv_send_wr *sr_desc, size_t len, gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_FARG) {
+void gasnetc_bounce_common(gasnetc_epid_t epid, int rem_auxseg, struct ibv_send_wr *sr_desc, size_t len, gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_FARG) {
   gasnetc_cep_t *cep;
 
   sr_desc->opcode      = op;
@@ -1510,53 +1497,36 @@ void gasnetc_bounce_common(gasnetc_epid_t epid, int rkey_index, struct ibv_send_
   sr_desc->sg_list[0].length = len;
 
   cep = gasnetc_bind_cep(epid, sreq);
-  sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rkey_index);
+  sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rem_auxseg);
   sr_desc->sg_list[0].lkey = GASNETC_SND_LKEY(cep);
 
   gasnetc_snd_post(sreq, sr_desc);
   sr_desc->wr.rdma.remote_addr += len;
 }
 
-/* Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkeys table,
- * ODP, or firehose to obtain the lkeys.  All cases delay the bind to a qp until the
- * total xfer len is known.
- */
+// Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkey,
+// ODP, or firehose to obtain the lkeys.  All cases delay the bind to a qp until the
+// total xfer len is known.
+// Returns bytes transferred
 GASNETI_INLINE(gasnetc_zerocp_common)
-size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int loc_auxseg, int rkey_index, struct ibv_send_wr *sr_desc, size_t len, gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_FARG) {
+size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int loc_auxseg, int rem_auxseg, struct ibv_send_wr *sr_desc, size_t len, gasnetc_sreq_t *sreq, enum ibv_wr_opcode op GASNETI_THREAD_FARG) {
   uintptr_t loc_addr = sr_desc->sg_list[0].addr;
   gasnetc_cep_t *cep;
-  size_t remain = len;
 
   sr_desc->opcode = op;
 
+  len = MIN(len, gasnetc_max_msg_sz); // limit how much we can xfer
+  size_t sent = 0;
+
   if_pf (!gasnetc_unpinned(loc_addr) || loc_auxseg) {
-    /* loc_addr is in-segment */
-    const uintptr_t offset = loc_addr - gasnetc_seg_start;
-    const int base = loc_auxseg?-GASNETC_SND_SG: gasnetc_seg_index(offset);
-    size_t count = loc_auxseg?remain: MIN(remain, gasnetc_seg_remain(offset));
-    int seg;
-    sreq->fh_count = 0;
-    for (seg = 0; remain && (seg < GASNETC_SND_SG); ++seg) {
-      gasneti_assert((base + seg) == gasnetc_seg_index(loc_addr - gasnetc_seg_start) || loc_auxseg);
-
-      sr_desc->sg_list[seg].addr = loc_addr;
-      sr_desc->sg_list[seg].length = count;
-
-      loc_addr += count;
-      remain -= count;
-
-      /* 2nd and subsequent (if any) xfers are aligned to start of a registration */
-      count = MIN(remain, gasnetc_pin_maxsz);
-    }
-    gasneti_assert(seg > 0);
-    sr_desc->num_sge = seg;
-    gasneti_assert(remain < len);
-    len -= remain;
+    // loc_addr is in-segment */
     cep = gasnetc_bind_cep(epid, sreq);
-    for (seg = 0; seg < sr_desc->num_sge; ++seg) {
-      /* Xlate index to actual lkey */
-      sr_desc->sg_list[seg].lkey = GASNETC_SEG_LKEY(cep, base+seg);
-    }
+    sr_desc->sg_list[0].lkey = GASNETC_SEG_LKEY(cep, loc_auxseg);
+    gasneti_assert_uint(sr_desc->sg_list[0].addr ,==, loc_addr);
+    sr_desc->sg_list[0].length = len;
+    sr_desc->num_sge = 1;
+    sreq->fh_count = 0;
+    sent = len;
 #if GASNETC_IBV_ODP
   } else if (gasnetc_use_odp) {
     // TODO-EX: older implicit ODP emulation had 128MB limit.  May need to chunk here.
@@ -1566,7 +1536,7 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int loc_auxseg, int rkey_index
     sr_desc->sg_list[0].length = len;
     sr_desc->num_sge = 1;
     sreq->fh_count = 0;
-    remain = 0;
+    sent = len;
 #endif
   } else {
     const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
@@ -1574,6 +1544,7 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int loc_auxseg, int rkey_index
       return 0; // Attempt to xfer un-pinnable memory such as due to bug 3338
     }
     int seg;
+    size_t remain = len;
     for (seg = 0; fh_loc != NULL; ++seg) {
       const size_t count = MIN(remain, (fh_loc->addr + fh_loc->len - loc_addr));
       sreq->fh_ptr[seg] = fh_loc;
@@ -1591,24 +1562,23 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int loc_auxseg, int rkey_index
     }
     gasneti_assert(sreq->fh_count > 0);
     sr_desc->num_sge = sreq->fh_count;
-    gasneti_assert(remain < len);
-    len -= remain;
     cep = gasnetc_bind_cep(epid, sreq);
     for (seg = 0; seg < sr_desc->num_sge; ++seg) {
       /* Xlate to actual lkeys */
       sr_desc->sg_list[seg].lkey = GASNETC_FH_LKEY(cep, sreq->fh_ptr[seg]);
     }
+    sent = len - remain;
   }
 
-  sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rkey_index);
+  sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rem_auxseg);
 
-  gasneti_assert(len > 0);
-  return len;
+  gasneti_assert(sent > 0);
+  return sent;
 }
 
 /* Helper for rdma puts: inline send case */
 GASNETI_INLINE(gasnetc_do_put_inline)
-void gasnetc_do_put_inline(const gasnetc_epid_t epid, int rkey_index,
+void gasnetc_do_put_inline(const gasnetc_epid_t epid, int rem_auxseg,
                                   struct ibv_send_wr *sr_desc,
                                   size_t nbytes,
                                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
@@ -1634,7 +1604,7 @@ void gasnetc_do_put_inline(const gasnetc_epid_t epid, int rkey_index,
   sr_desc->sg_list[0].length = nbytes;
 
   cep = gasnetc_bind_cep(epid, sreq);
-  sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rkey_index);
+  sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rem_auxseg);
 
   gasnetc_snd_post_inline(sreq, sr_desc);
   sr_desc->wr.rdma.remote_addr += nbytes;
@@ -1643,7 +1613,7 @@ void gasnetc_do_put_inline(const gasnetc_epid_t epid, int rkey_index,
       
 /* Helper for rdma puts: bounce buffer case */
 GASNETI_INLINE(gasnetc_do_put_bounce)
-void gasnetc_do_put_bounce(const gasnetc_epid_t epid, int rkey_index,
+void gasnetc_do_put_bounce(const gasnetc_epid_t epid, int rem_auxseg,
                                   struct ibv_send_wr *sr_desc,
                                   size_t nbytes,
                                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
@@ -1665,7 +1635,7 @@ void gasnetc_do_put_bounce(const gasnetc_epid_t epid, int rkey_index,
       sreq->comp.cb = remote_cb;
     }
 
-    gasnetc_bounce_common(epid, rkey_index, sr_desc, count, sreq, IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
+    gasnetc_bounce_common(epid, rem_auxseg, sr_desc, count, sreq, IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
 
     src += count;
     nbytes -= count;
@@ -1677,7 +1647,7 @@ void gasnetc_do_put_bounce(const gasnetc_epid_t epid, int rkey_index,
 // Returns count of unsent bytes, if any
 GASNETI_INLINE(gasnetc_do_put_zerocp)
 size_t gasnetc_do_put_zerocp(     const gasnetc_epid_t epid,
-                                  int loc_auxseg, int rkey_index,
+                                  int loc_auxseg, int rem_auxseg,
                                   struct ibv_send_wr *sr_desc,
                                   size_t nbytes,
                                   gasnetc_atomic_val_t *cnt, gasnetc_cb_t cb
@@ -1686,10 +1656,10 @@ size_t gasnetc_do_put_zerocp(     const gasnetc_epid_t epid,
 
   gasneti_assert(nbytes != 0);
 
-  /* loop over local pinned regions */
+  // loop over max-length xfers
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_ZEROCP GASNETI_THREAD_PASS);
-    size_t count = gasnetc_zerocp_common(epid, loc_auxseg, rkey_index, sr_desc, nbytes, sreq,
+    size_t count = gasnetc_zerocp_common(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes, sreq,
                                          IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
     if_pf (!count) {
       // Failed to register memory, such as for read-only memory (bug 3338)
@@ -1718,7 +1688,7 @@ size_t gasnetc_do_put_zerocp(     const gasnetc_epid_t epid,
 
 /* Helper for rdma gets: bounce buffer case */
 GASNETI_INLINE(gasnetc_do_get_bounce)
-void gasnetc_do_get_bounce(const gasnetc_epid_t epid, int rkey_index,
+void gasnetc_do_get_bounce(const gasnetc_epid_t epid, int rem_auxseg,
                                   struct ibv_send_wr *sr_desc,
                                   size_t nbytes,
                                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
@@ -1743,7 +1713,7 @@ void gasnetc_do_get_bounce(const gasnetc_epid_t epid, int rkey_index,
     sreq->comp.cb = remote_cb;
     sreq->comp.data = remote_cnt;
 
-    gasnetc_bounce_common(epid, rkey_index, sr_desc, count, sreq, IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
+    gasnetc_bounce_common(epid, rem_auxseg, sr_desc, count, sreq, IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
 
     dst += count;
   } while (nbytes);
@@ -1756,7 +1726,7 @@ void gasnetc_do_get_bounce(const gasnetc_epid_t epid, int rkey_index,
 /* Helper for rdma gets: zero copy case */
 GASNETI_INLINE(gasnetc_do_get_zerocp)
 void gasnetc_do_get_zerocp(       const gasnetc_epid_t epid,
-                                  int loc_auxseg, int rkey_index,
+                                  int loc_auxseg, int rem_auxseg,
                                   struct ibv_send_wr *sr_desc,
                                   size_t nbytes,
                                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
@@ -1766,10 +1736,10 @@ void gasnetc_do_get_zerocp(       const gasnetc_epid_t epid,
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
 
-  /* loop over local pinned regions */
+  // loop over max-length xfers
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_GET_ZEROCP GASNETI_THREAD_PASS);
-    size_t count = gasnetc_zerocp_common(epid, loc_auxseg, rkey_index, sr_desc, nbytes, sreq,
+    size_t count = gasnetc_zerocp_common(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes, sreq,
                                          IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
     if_pf (!count) {
       // TODO: idealy we could retry memory registration to tolerate transient read-only
@@ -2762,14 +2732,12 @@ extern void gasnetc_sndrcv_init_inline(void) {
 
 extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep) {
 #if GASNETC_PIN_SEGMENT
-  int i;
-
-  for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
+  for (int i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
     gasnetc_hca_t *hca = cep->hca;
   #if GASNETC_IB_MAX_HCAS > 1
-    cep->seg_lkeys = hca->seg_lkeys;
+    cep->seg_lkey = hca->seg_lkey;
   #endif
-    cep->rkeys   = &hca->rkeys[node * gasnetc_max_regs];
+    cep->rkey = hca->rkeys[node];
   }
 #else
   /* Nothing currently needed */
@@ -3059,37 +3027,27 @@ extern int gasnetc_rdma_put(
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   gasnetc_epid_t epid = gasnetc_epid(jobrank, qpi-1);
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
-  uintptr_t src = (uintptr_t)src_ptr;
-  uintptr_t dst = (uintptr_t)dst_ptr;
-#if GASNET_ALIGNED_SEGMENTS
-  uintptr_t offset = dst - gasnetc_seg_start;
-#else
-  uintptr_t offset = dst - (uintptr_t)gasneti_client_seginfo(tm, rank)->addr;
-#endif
 
   // TODO-EX:
   //     All uses of {loc,rem_}auxseg are a temporary hack
-  //     The idea is to allow a negative [lr]key_index which gets mapped later to aux_reg
   //     This will be replaced by general multi-registration support later
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   const int loc_auxseg = gasneti_in_local_auxsegment(ep, src_ptr, nbytes);
   const int rem_auxseg = gasneti_in_auxsegment(tm, rank, dst_ptr, nbytes);
 
-  gasneti_assert(offset < gasneti_client_seginfo(tm, rank)->size || rem_auxseg);
   gasneti_assert(nbytes != 0);
   
-  sr_desc->wr.rdma.remote_addr = dst;
-  sr_desc_sg_lst[0].addr = src;
+  sr_desc->wr.rdma.remote_addr = (uintptr_t)dst_ptr;
+  sr_desc_sg_lst[0].addr = (uintptr_t)src_ptr;
 
-  /* Use a short-cut for sends that are short enough and target a single registration.
+  /* Use a short-cut for sends that are short enough
    *
-   * Note that we do this based only on the size and alignment, without checking whether
+   * Note that we do this based only on the size, without checking whether
    * the caller cares about local completion, or whether zero-copy is possible.
    */
-  if ((nbytes <= gasnetc_inline_limit) && (nbytes <= gasnetc_seg_remain(offset) || rem_auxseg))
+  if (nbytes <= gasnetc_inline_limit)
   {
-    const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
-    gasnetc_do_put_inline(epid, rkey_index, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
+    gasnetc_do_put_inline(epid, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
     return 0;
   }
 
@@ -3102,60 +3060,30 @@ extern int gasnetc_rdma_put(
   if (local_cb) {
     const int bias_local_cnt  = (local_cb  == gasnetc_cb_eop_alc);
     if (bias_local_cnt) ++(*local_cnt);
-    do {
-      /* Loop over contiguous pinned regions on remote end */
-      const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
-      const size_t rem = gasnetc_seg_remain(offset);
-      const size_t count = rem_auxseg?nbytes: MIN(nbytes, rem);
 
-      // Because IB lacks native indication of local completion (LC), the only ways to
-      // detect LC are to wait for RC, or use bounce buffers to achieve synchronous LC.
-      // So, use bounce buffers for a non-bulk put if "not too large".
-      // Also use bounce buffers if (firehose disabled and src is unpinned) OR zero copy fails
-      size_t to_xfer = count;
-      if ((count <= gasnetc_bounce_limit) ||
-          (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
-          ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rkey_index, sr_desc, count,
-                                           local_cnt, local_cb GASNETI_THREAD_PASS)))) {
-        gasnetc_do_put_bounce(epid, rkey_index, sr_desc, to_xfer,
-                              remote_cnt, remote_cb GASNETI_THREAD_PASS);
-      }
+    // Because IB lacks native indication of local completion (LC), the only ways to
+    // detect LC are to wait for RC, or use bounce buffers to achieve synchronous LC.
+    // So, use bounce buffers for a non-bulk put if "not too large".
+    // Also use bounce buffers if (firehose disabled and src is unpinned) OR zero copy fails
+    size_t to_xfer = nbytes;
+    if ((nbytes <= gasnetc_bounce_limit) ||
+        (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
+        ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes,
+                                         local_cnt, local_cb GASNETI_THREAD_PASS)))) {
+      gasnetc_do_put_bounce(epid, rem_auxseg, sr_desc, to_xfer,
+                            remote_cnt, remote_cb GASNETI_THREAD_PASS);
+    }
 
-      offset += count;
-      nbytes -= count;
-    #if GASNET_DEBUG
-      dst += count;
-      gasneti_assert(sr_desc->wr.rdma.remote_addr == dst);
-      src += count;
-      gasneti_assert(sr_desc_sg_lst[0].addr == src);
-    #endif
-    } while (nbytes);
     if (bias_local_cnt) local_cb(local_cnt);
   } else {
-    do {
-      /* Loop over contiguous pinned regions on remote end */
-      const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
-      const size_t rem = gasnetc_seg_remain(offset);
-      const size_t count = rem_auxseg?nbytes: MIN(nbytes, rem);
-
-      // Use bounce buffers if (firehose disabled and src is unpinned) OR zero copy fails
-      size_t to_xfer = count;
-      if ((!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
-          ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rkey_index, sr_desc, count,
-                                            remote_cnt, remote_cb GASNETI_THREAD_PASS)))) {
-        gasnetc_do_put_bounce(epid, rkey_index, sr_desc, to_xfer,
-                              remote_cnt, remote_cb GASNETI_THREAD_PASS);
-      }
-
-      offset += count;
-      nbytes -= count;
-    #if GASNET_DEBUG
-      dst += count;
-      gasneti_assert(sr_desc->wr.rdma.remote_addr == dst);
-      src += count;
-      gasneti_assert(sr_desc_sg_lst[0].addr == src);
-    #endif
-    } while (nbytes);
+    // Use bounce buffers if (firehose disabled and src is unpinned) OR zero copy fails
+    size_t to_xfer = nbytes;
+    if ((!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) ||
+        ((to_xfer = gasnetc_do_put_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes,
+                                          remote_cnt, remote_cb GASNETI_THREAD_PASS)))) {
+      gasnetc_do_put_bounce(epid, rem_auxseg, sr_desc, to_xfer,
+                            remote_cnt, remote_cb GASNETI_THREAD_PASS);
+    }
   }
 
   if (bias_remote_cnt) remote_cb(remote_cnt);
@@ -3183,55 +3111,28 @@ extern int gasnetc_rdma_get(
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   gasnetc_epid_t epid = jobrank;
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
-  uintptr_t dst = (uintptr_t)dst_ptr;
-  uintptr_t src = (uintptr_t)src_ptr;
-#if GASNET_ALIGNED_SEGMENTS
-  uintptr_t offset = src - gasnetc_seg_start;
-#else
-  uintptr_t offset = src - (uintptr_t)gasneti_client_seginfo(tm, rank)->addr;
-#endif
 
   // TODO-EX:
   //     All uses of {loc,rem_}auxseg are a temporary hack
-  //     The idea is to allow a negative [lr]key_index which gets mapped later to aux_reg
   //     This will be replaced by general multi-registration support later
   gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
   const int loc_auxseg = gasneti_in_local_auxsegment(ep, dst_ptr, nbytes);
   const int rem_auxseg = gasneti_in_auxsegment(tm, rank, src_ptr, nbytes);
 
-  gasneti_assert(offset < gasneti_client_seginfo(tm, rank)->size || rem_auxseg);
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
 
   ++(*remote_cnt);
 
-  sr_desc->wr.rdma.remote_addr = src;
-  sr_desc_sg_lst[0].addr = dst;
-  do {
-    /* Loop over contiguous pinned regions on remote end */
-    const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
-    const size_t rem = gasnetc_seg_remain(offset);
-    const size_t count = rem_auxseg?nbytes: MIN(nbytes, rem);
-    nbytes -= count;
+  sr_desc->wr.rdma.remote_addr = (uintptr_t)src_ptr;
+  sr_desc_sg_lst[0].addr = (uintptr_t)dst_ptr;
 
-    if (nbytes) ++(*remote_cnt); // Do NOT advance prior to the last injection
-
-    if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !loc_auxseg) {
-      /* Firehose disabled.  Use bounce buffers since dst is out-of-segment */
-      gasnetc_do_get_bounce(epid, rkey_index, sr_desc, count, remote_cnt, remote_cb GASNETI_THREAD_PASS);
-    } else
-    {
-      gasnetc_do_get_zerocp(epid, loc_auxseg, rkey_index, sr_desc, count, remote_cnt, remote_cb GASNETI_THREAD_PASS);
-    }
-
-    offset += count;
-  #if GASNET_DEBUG
-    src += count;
-    gasneti_assert(sr_desc->wr.rdma.remote_addr == src);
-    dst += count;
-    gasneti_assert(sr_desc_sg_lst[0].addr == dst);
-  #endif
-  } while (nbytes);
+  if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !loc_auxseg) {
+    /* Firehose disabled.  Use bounce buffers since dst_ptr is out-of-segment */
+    gasnetc_do_get_bounce(epid, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
+  } else {
+    gasnetc_do_get_zerocp(epid, loc_auxseg, rem_auxseg, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
+  }
 
   return 0;
 }

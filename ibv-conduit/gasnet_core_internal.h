@@ -453,10 +453,10 @@ typedef struct {
   gasnetc_memreg_t	snd_reg;
   gasnetc_memreg_t      aux_reg;
 #if GASNETC_PIN_SEGMENT
-  uint32_t        *seg_lkeys;
-  uint32_t	*rkeys;	/* RKey(s) registered at attach time */
+  uint32_t              seg_lkey;
+  uint32_t              *rkeys; // RKeys registered at attach time
   #if GASNETC_IBV_SHUTDOWN
-    gasnetc_memreg_t    *seg_regs;
+    gasnetc_memreg_t    seg_reg;
   #endif
 #endif
 #if GASNETC_IBV_ODP
@@ -516,10 +516,10 @@ struct gasnetc_cep_t_ {
 
   /* Read-only fields - many duplicated from fields in cep->hca */
 #if GASNETC_PIN_SEGMENT
-  uint32_t      *rkeys;	/* RKey(s) registered at attach time */
+  uint32_t      rkey;
 #endif
 #if GASNETC_PIN_SEGMENT && (GASNETC_IB_MAX_HCAS > 1)
-  uint32_t      *seg_lkeys;
+  uint32_t      seg_lkey;
 #endif
 #if (GASNETC_IB_MAX_HCAS > 1)
   uint32_t      rcv_lkey;
@@ -757,13 +757,13 @@ typedef union {
 #if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_SND_LKEY(_cep)         ((_cep)->snd_lkey)
   #define GASNETC_RCV_LKEY(_cep)         ((_cep)->rcv_lkey)
-  #define GASNETC_SEG_LKEY(_cep, _index) ((_cep)->seg_lkeys[_index])
+  #define GASNETC_SEG_LKEY(_cep)         ((_cep)->seg_lkey)
 #else
   #define GASNETC_SND_LKEY(_cep)         (gasnetc_hca[0].snd_reg.handle->lkey)
   #define GASNETC_RCV_LKEY(_cep)         (gasnetc_hca[0].rcv_reg.handle->lkey)
-  #define GASNETC_SEG_LKEY(_cep, _index) (gasnetc_hca[0].seg_lkeys[_index])
+  #define GASNETC_SEG_LKEY(_cep)         (gasnetc_hca[0].seg_lkey)
 #endif
-#define GASNETC_SEG_RKEY(_cep, _index)   ((_cep)->rkeys[_index])
+#define GASNETC_SEG_RKEY(_cep)           ((_cep)->rkey)
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -957,12 +957,8 @@ extern int		gasnetc_num_hcas;
 extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern uintptr_t	gasnetc_max_msg_sz;
 #if GASNETC_PIN_SEGMENT
-  extern int			gasnetc_max_regs; /* max of length of seg_lkeys array over all nodes */
   extern uintptr_t		gasnetc_seg_start;
   extern uintptr_t		gasnetc_seg_len;
-  extern uint64_t		gasnetc_pin_maxsz;
-  extern uint64_t		gasnetc_pin_maxsz_mask;
-  extern unsigned int		gasnetc_pin_maxsz_shift;
 #endif
 extern size_t			gasnetc_fh_align;
 extern size_t			gasnetc_fh_align_mask;
@@ -1004,30 +1000,16 @@ gasnetc_cep_t *gasnetc_get_cep(gex_Rank_t node) {
 }
 
 #if GASNETC_PIN_SEGMENT
-/* Convert from offset to the index of the corresponding registration.
-   In a single registration case this always returns 0.
-   This is independent of node and HCA.
-*/
-GASNETI_INLINE(gasnetc_seg_index)
-int gasnetc_seg_index(uintptr_t offset) {
-  return (offset >> gasnetc_pin_maxsz_shift);
-}
-
-/* Convert from offset to bytes remaining in the corresponding registration.
-   In a single registration case, this returns gasnetc_max_msg_sz.
-   Otherwise we have (gasnetc_pin_maxsz <= gasnetc_max_msg_sz) by construction.
-   This is independent of node and HCA.
-*/
-GASNETI_INLINE(gasnetc_seg_remain)
-int gasnetc_seg_remain(uintptr_t offset) {
-  return (gasnetc_pin_maxsz - (offset & gasnetc_pin_maxsz_mask));
-}
-
-/* Is argument range in-segment within a *single* registration */
-GASNETI_INLINE(gasnetc_seg_one_reg)
-int gasnetc_seg_one_reg(uintptr_t addr, size_t len) {
+/* Test if a given addr is in the local GASNet segment or not.
+ * Returns non-zero if address is outside the segment.
+ * This test is used under the assumption that the client's arguments
+ * to Put or Get will always correspond to a region which is entirely
+ * IN or entirely OUT of the segment.
+ */
+GASNETI_INLINE(gasnetc_unpinned)
+int gasnetc_unpinned(uintptr_t addr) {
   const uintptr_t offset = (addr - gasnetc_seg_start); /* negative is a LARGE positive */
-  return ((offset <= gasnetc_seg_len) && (len <= gasnetc_seg_remain(offset)));
+  return (offset > gasnetc_seg_len);
 }
 #endif
 

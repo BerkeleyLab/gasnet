@@ -31,6 +31,10 @@ PENDING: GASNet-EX Work-In-Progress
   - The default AM Max Medium is now 64KB minus space for headers (up from 4KB).
   - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
     removed.
+  - The environment variable GASNET_PIN_MAXSZ has been removed.  This variable
+    was introduced to help work-around a misbehavior not seen in modern HCAs,
+    and its support added significant complexity to the critical code paths
+    for RMA.
 
 * IBM PAMI (pami-conduit)
   - This conduit, deprecated since 2019.9.0, has been removed.

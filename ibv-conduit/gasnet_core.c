@@ -133,16 +133,11 @@ int		gasnetc_qp_rd_atom;
 gasnetc_port_info_t      *gasnetc_port_tbl = NULL;
 int                      gasnetc_num_ports = 0;
 
+static uint64_t  gasnetc_pin_maxsz;
 #if GASNETC_PIN_SEGMENT
-  int			gasnetc_max_regs;
   uintptr_t		gasnetc_seg_start;
   uintptr_t		gasnetc_seg_len;
-  static uintptr_t      gasnetc_seg_maxsz;
-  uint64_t 		gasnetc_pin_maxsz_mask;
-  unsigned int		gasnetc_pin_maxsz_shift;
-  static int            gasnetc_seg_regs = 0;
 #endif
-uint64_t 		gasnetc_pin_maxsz;
 firehose_info_t	gasnetc_firehose_info;
 static uintptr_t gasnetc_firehose_mem;
 static int       gasnetc_firehose_reg;
@@ -1167,17 +1162,7 @@ static int gasnetc_load_settings(void) {
     gasnetc_am_gather_min = INT_MAX;
   }
 
-  #if GASNETC_PIN_SEGMENT
-    GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, 0, 0, 1);
-    if (!gasnetc_pin_maxsz) {
-      /* 0=automatic (default).  Will setup later */
-    } else if (!GASNETI_POWEROFTWO(gasnetc_pin_maxsz)) {
-      gasneti_fatalerror("GASNET_PIN_MAXSZ (%"PRIu64") is not a power of 2", gasnetc_pin_maxsz);
-    } else if (gasnetc_pin_maxsz < GASNET_PAGESIZE) {
-      gasneti_fatalerror("GASNET_PIN_MAXSZ (%"PRIu64") is less than GASNET_PAGESIZE (%lu)",
-                         gasnetc_pin_maxsz, (unsigned long)GASNET_PAGESIZE);
-    }
-  #else
+  #if !GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_putinmove_limit, GASNET_PUTINMOVE_LIMIT, GASNETC_DEFAULT_PUTINMOVE_LIMIT, 0, 1);
     if_pf (gasnetc_putinmove_limit > GASNETC_PUTINMOVE_LIMIT_MAX) {
       gasneti_fatalerror("GASNET_PUTINMOVE_LIMIT (%"PRIuPTR") is larger than the max permitted (%"PRIuPTR")", (uintptr_t)gasnetc_putinmove_limit, (uintptr_t)GASNETC_PUTINMOVE_LIMIT_MAX);
@@ -1279,10 +1264,6 @@ static int gasnetc_load_settings(void) {
 #endif
 #if GASNETC_IBV_XRC
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_USE_XRC                  = %d", gasnetc_use_xrc));
-#endif
-#if GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PIN_MAXSZ                = %"PRIu64"%s", gasnetc_pin_maxsz,
-				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
 #endif
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
 				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
@@ -2386,6 +2367,12 @@ static int gasnetc_init( gex_Client_t            *client_p,
    */
   gasnetc_sys_coll_init();
 
+  // Determine largest allowable single memory registration supported by the HCA(s)
+  gasnetc_pin_maxsz = ~(uint64_t)0;
+  GASNETC_FOR_ALL_HCA(hca) {
+    gasnetc_pin_maxsz = MIN(gasnetc_pin_maxsz, hca->hca_cap.max_mr_size);
+  }
+
   /* Find max pinnable size before we start carving up memory w/ mmap()s.
    *
    * Take care that only one process per LID (node) performs the probe.
@@ -2443,24 +2430,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
   #endif
   }
 
-  /* Determine largest allowable single memory registration */
-  if (!gasnetc_pin_maxsz) {
-    /* Default to largest registration supported by the HCA(s) */
-    gasnetc_pin_maxsz = ~(uint64_t)0;
-    GASNETC_FOR_ALL_HCA(hca) {
-      gasnetc_pin_maxsz = MIN(gasnetc_pin_maxsz, hca->hca_cap.max_mr_size);
-    }
-  } else if (gasnetc_pin_maxsz > gasnetc_max_msg_sz) {
-    char oldval[16], newval[16];
-    gasneti_format_number(gasnetc_pin_maxsz, oldval, sizeof(oldval), 1);
-    gasneti_format_number(gasnetc_max_msg_sz, newval, sizeof(newval), 1);
-    fprintf(stderr,
-            "WARNING: Requested GASNET_PIN_MAXSZ %s reduced to HCA's max_msg_sz of %s\n",
-            oldval, newval);
-    gasnetc_pin_maxsz = gasnetc_max_msg_sz;
-  }
-
-
   /* allocate and attach an aux segment */
 
   gasnet_seginfo_t auxseg = gasneti_auxsegAttach(gasnetc_pin_maxsz, &gasnetc_bootstrapExchange_ib);
@@ -2497,22 +2466,6 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasneti_init_done = 1;  
   #endif
   gasnetc_bootstrapBarrier_ib();
-
-#if GASNETC_PIN_SEGMENT
-  // TODO-EX: this is a temporary measure to provide (upper bound) values of 
-  //          gasnetc_seg_maxsz and gasnetc_max_regs for use by firehose_init().
-  gasnetc_seg_maxsz = gasneti_MaxLocalSegmentSize;
-  if (gasnetc_pin_maxsz >= gasnetc_seg_maxsz) {
-    gasnetc_max_regs = 1;
-  } else {
-    size_t size = MIN(gasnetc_pin_maxsz, gasnetc_max_msg_sz);
-    int shift;
-    gasneti_assert(size != 0);
-    size >>= 1;
-    for (shift=0; size != 0; ++shift) { size >>= 1; }
-    gasnetc_max_regs = (gasnetc_seg_maxsz + gasnetc_pin_maxsz - 1) >> shift;
-  }
-#endif
 
   return GASNET_OK;
 }
@@ -2589,13 +2542,12 @@ static int gasnetc_attach_primary(void) {
 
       #if GASNETC_PIN_SEGMENT
         /* Adjust for the pinned segment (which is not advertised to firehose as prepinned) */
-        // TODO-EX: Need a replacement for use of gasnetc_seg_maxsz and gasnetc_max_regs
-        //          which lack accurate values until the client segment has been registered.
+        // TODO-EX: Need a replacement for use of gasneti_MaxLocalSegmentSize
+        //          which is grossly inaccurate until the client segment has been registered.
         // TODO: shouldn't we use *local* values rather than max ones?
-        gasneti_assert_always(temp_fh_mem > gasnetc_seg_maxsz);
-        temp_fh_mem -= gasnetc_seg_maxsz;
-        gasneti_assert_always(gasnetc_firehose_reg > gasnetc_max_regs);
-        gasnetc_firehose_reg -= gasnetc_max_regs;
+        gasneti_assert_always(temp_fh_mem > gasneti_MaxLocalSegmentSize);
+        temp_fh_mem -= gasneti_MaxLocalSegmentSize;
+        gasnetc_firehose_reg -= 1;
 
         gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_LOCAL_ONLY;
       #endif
@@ -2679,90 +2631,28 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
     gasnetc_seg_start = (uintptr_t)myseg.addr;
     gasnetc_seg_len   = myseg.size;
 
-    // Find the largest segment requested
-    // TODO-EX: to avoid densely populating seginfo table, this should be a reduction
-    // OR drop the pin_maxsz (multi-registration) behavior which may no longer be necessary?
-    gasnetc_seg_maxsz = 0;
-    for (gex_Rank_t i=0; i<gasneti_nodes; ++i) {
-      const gasnet_seginfo_t *si = gasneti_client_seginfo(tm, i);
-      gasnetc_seg_maxsz = MAX(gasnetc_seg_maxsz, si->size);
-    }
-
-    /* Setup gasnetc_pin_maxsz{_shift,_mask} and gasnetc_max_regs.
-     * If possible, a single registration will be used and these variables will
-     * enforce the max message size instead of max region length.
-     * Otherwise they enforce gasnetc_pin_maxsz (rounded down to a power of two).
-     */
-    if (gasnetc_pin_maxsz >= gasnetc_seg_maxsz) {
-      /* Single registration */
-      gasnetc_pin_maxsz_shift = (8 * SIZEOF_VOID_P) - 1;
-      gasnetc_pin_maxsz_mask = 0;
-      gasnetc_pin_maxsz = gasnetc_max_msg_sz;
-      gasnetc_max_regs = 1;
-      gasnetc_seg_regs = 1;
-    } else {
-      /* Multiple registration */
-      size_t size = MIN(gasnetc_pin_maxsz, gasnetc_max_msg_sz);
-      gasneti_assert(size != 0);
-      size >>= 1;
-      for (gasnetc_pin_maxsz_shift=0; size != 0; ++gasnetc_pin_maxsz_shift) { size >>= 1; }
-      gasnetc_pin_maxsz = ((uint64_t)1) << gasnetc_pin_maxsz_shift;
-      gasnetc_pin_maxsz_mask = (gasnetc_pin_maxsz - 1);
-      gasnetc_max_regs = (gasnetc_seg_maxsz + gasnetc_pin_maxsz - 1) >> gasnetc_pin_maxsz_shift;
-      gasnetc_seg_regs = (segsize + gasnetc_pin_maxsz - 1) >> gasnetc_pin_maxsz_shift;
-    }
-    { uint64_t value = gasnetc_pin_maxsz_mask ? gasnetc_pin_maxsz : gasnetc_seg_maxsz;
-      char valstr[16];
-      gasneti_format_number(value, valstr, sizeof(valstr), 1);
-      GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PIN_MAXSZ = %s", valstr));
-    }
-
     /* pin the segment and exchange the RKeys, once per HCA */
-    { uint32_t	*my_rkeys;
-      gasnetc_memreg_t  memreg;
-      gasnetc_hca_t    *hca;
-      int		vstat;
-      int		j;
+    gasnetc_hca_t *hca;
+    GASNETC_FOR_ALL_HCA(hca) {
+      hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
+      gasneti_leak(hca->rkeys);
 
-      my_rkeys = gasneti_calloc(gasnetc_max_regs, sizeof(uint32_t));
-      GASNETC_FOR_ALL_HCA(hca) {
-        size_t		remain;
-        uintptr_t		addr;
-        hca->rkeys = gasneti_calloc(gasneti_nodes*gasnetc_max_regs, sizeof(uint32_t));
-        gasneti_leak(hca->rkeys);
-        hca->seg_lkeys = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
-                                                gasnetc_max_regs * sizeof(uint32_t));
-        gasneti_leak_aligned(hca->seg_lkeys);
-      #if GASNETC_IBV_SHUTDOWN
-        hca->seg_regs = gasneti_calloc(gasnetc_seg_regs, sizeof(gasnetc_memreg_t));
-        gasneti_leak(hca->seg_regs);
-      #endif
-
-        for (j = 0, addr = gasnetc_seg_start, remain = segsize; remain != 0; ++j) {
-	  size_t len = (gasnetc_max_regs == 1) ? remain : MIN(remain, gasnetc_pin_maxsz);
-          if (0 != gasnetc_pin(hca, (void *)addr, len, gasneti_seg_access_flags, &memreg)) {
-             gasneti_segreg_failed(len, "", errno);
-          }
-	  my_rkeys[j] = memreg.handle->rkey;
-	  hca->seg_lkeys[j] = memreg.handle->lkey;
-	  addr += len;
-	  remain -= len;
-          gasneti_assert(j <= gasnetc_max_regs);
-        #if GASNETC_IBV_SHUTDOWN
-          gasneti_assert(j <= gasnetc_seg_regs);
-          hca->seg_regs[j] = memreg;
-        #endif
-        }
-        GASNETI_TRACE_PRINTF(I, ("Attach registered %p bytes in %d regions",
-                                 (void*)segsize, (int)gasnetc_max_regs));
-
-        /* XXX: hca->rkeys is one of the O(N) storage requirements we might reduce/eliminate.
-         * + When using PSHM we could store rkeys just once per supernode
-         * + When not fully connected, we could utilize sparse storage
-         */
-        (*exchangefn)(my_rkeys, gasnetc_max_regs*sizeof(uint32_t), hca->rkeys);
+      gasnetc_memreg_t memreg;
+      if (0 != gasnetc_pin(hca, myseg.addr, myseg.size, gasneti_seg_access_flags, &memreg)) {
+        gasneti_segreg_failed(segsize, "", errno);
       }
-      gasneti_free(my_rkeys);
+      hca->seg_lkey = memreg.handle->lkey;
+    #if GASNETC_IBV_SHUTDOWN
+      hca->seg_reg = memreg;
+    #endif
+
+      GASNETI_TRACE_PRINTF(I, ("Attach registered %"PRIuPTR" bytes on HCA %d", segsize, hca->hca_index));
+
+      /* XXX: hca->rkeys is one of the O(N) storage requirements we might reduce/eliminate.
+       * + When using PSHM we could store rkeys just once per supernode
+       * + When not fully connected, we could utilize sparse storage
+       */
+      (*exchangefn)(&memreg.handle->rkey, sizeof(uint32_t), hca->rkeys);
     }
   }
   #endif
@@ -2987,10 +2877,8 @@ gasnetc_shutdown(void) {
 
   GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_PIN_SEGMENT
-    if (hca->seg_regs) {
-      for (i=0; i<gasnetc_seg_regs; ++i) {
-        gasnetc_unpin(hca, &hca->seg_regs[i]);
-      }
+    if (hca->rkeys) {
+      gasnetc_unpin(hca, &hca->seg_reg);
     }
   #endif
   #if GASNETC_IBV_ODP
@@ -3154,21 +3042,16 @@ void gasnetc_post_checkpoint(int is_restart) {
 
   /* REregister the segment and exchange the new rkeys */
 #if GASNETC_PIN_SEGMENT
-  if (gasnetc_hca[0].seg_regs) {
-    uint32_t *my_rkeys = gasneti_calloc(gasnetc_max_regs, sizeof(uint32_t));
+  if (gasnetc_hca[0].rkeys) {
     GASNETC_FOR_ALL_HCA(hca) {
-      for (i=0; i<gasnetc_seg_regs; ++i) {
-        gasnetc_memreg_t *reg = &hca->seg_regs[i];
-        if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
-          gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
-                             strerror(errno), errno);
-        }
-	my_rkeys[i] = reg->handle->rkey;
-	hca->seg_lkeys[i] = reg->handle->lkey;
+      gasnetc_memreg_t *reg = &hca->seg_reg;
+      if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
+        gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
+                           strerror(errno), errno);
       }
-      gasnetc_bootstrapExchange_ib(my_rkeys, gasnetc_max_regs*sizeof(uint32_t), hca->rkeys);
+      hca->seg_lkey = reg->handle->lkey;
+      gasnetc_bootstrapExchange_ib(&reg->handle->rkey, sizeof(uint32_t), hca->rkeys);
     }
-    gasneti_free(my_rkeys);
   }
 #endif
 
@@ -4433,7 +4316,7 @@ int gasnetc_am_use_gather(
   return ((nbytes >= gasnetc_am_gather_min) &&   // Big enough to benefit
           (local_cb != gasnetc_cb_counter) &&    // Caller did NOT require synchronous LC
           (gasnetc_use_odp ||                    // Registered via OPD ...
-           gasnetc_seg_one_reg((uintptr_t)src_addr, nbytes))); // ... or *single* in-seg reg
+           !gasnetc_unpinned((uintptr_t)src_addr))); // ... or in-segment
 #else
   return 0;
 #endif
@@ -4568,16 +4451,15 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       }
       #if GASNETC_PIN_SEGMENT
       else if (gath_len) { // Gather-on-send to concatenate header and payload
-        const uintptr_t offset = (uintptr_t)src_addr - gasnetc_seg_start;
         sr_desc->num_sge = 2;
         sr_desc->sg_list[1].length = gath_len;
         sr_desc->sg_list[1].addr   = (uintptr_t)src_addr;
         #if GASNETC_IBV_ODP
           sr_desc->sg_list[1].lkey = gasnetc_use_odp
                                          ? cep->hca->implicit_odp.lkey
-                                         : GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
+                                         : GASNETC_SEG_LKEY(cep);
         #else
-          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(cep, gasnetc_seg_index(offset));
+          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(cep);
         #endif
         sreq->comp.cb = local_cb;
         sreq->comp.data = local_cnt;
