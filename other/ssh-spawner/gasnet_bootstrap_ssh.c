@@ -235,8 +235,8 @@ static gex_Rank_t myrank = 0;
 static int myname = -1;
 static int children = 0;
 static int ctrl_children = 0;
-static gex_Rank_t tree_ranks = (gex_Rank_t)(-1L);
-static gex_Rank_t tree_nodes = (gex_Rank_t)(-1L);
+static gex_Rank_t tree_ranks = GEX_RANK_INVALID;
+static gex_Rank_t tree_nodes = GEX_RANK_INVALID;
 static int mypid;
 static volatile int exit_status = 0;
 static gex_Rank_t nnodes = 0;	/* nodes, as distinct from ranks */
@@ -1642,8 +1642,8 @@ static int do_worker(void) {
     gasneti_free((/*non-const*/ void *)wrapper);
     wrapper = NULL;
   }
-  tree_nodes = -1;
-  tree_ranks = -1;
+  tree_nodes = GEX_RANK_INVALID;
+  tree_ranks = GEX_RANK_INVALID;
 
   (void)fcntl_setfd(parent, FD_CLOEXEC);
 
