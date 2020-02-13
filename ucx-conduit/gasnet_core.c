@@ -25,6 +25,7 @@ enum {
 
 #define GASNETC_ROOT_NODE 0
 
+gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
 static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
 static gasneti_atomic_t gasnetc_exit_dist = gasneti_atomic_init(0);	/* OR of reduce distances */
@@ -392,6 +393,9 @@ static void gasnetc_unpin_segment(void)
 
 static void gasnetc_fini(void)
 {
+  fprintf(stderr, "%d: gasnetc_fini\n", gasneti_mynode);
+  fflush(stderr);
+
   gasnetc_ucx_worker_flush();
   gasneti_bootstrapFini();
   gasnetc_sreq_list_free();
@@ -929,6 +933,8 @@ static void gasnetc_exit_sighandler(int sig) {
 static int gasnetc_exit_head(int exitcode) {
   static gasneti_atomic_t once = gasneti_atomic_init(1);
   int retval;
+
+  gasneti_atomic_set(&gasnetc_exit_running, 1, GASNETI_ATOMIC_WMB_POST);
 
   retval = gasneti_atomic_decrement_and_test(&once, 0);
 
