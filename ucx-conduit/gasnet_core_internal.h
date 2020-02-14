@@ -174,7 +174,26 @@ extern gasneti_spawnerfn_t const *gasneti_spawner;
 
 /* check for exit in progress */
 extern gasneti_atomic_t gasnetc_exit_running;
-#define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running, GASNETI_ATOMIC_RMB_PRE)
+extern gasneti_atomic_t gasnetc_exit_thread;
+
+#if GASNET_PAR
+static inline int gasnetc_is_exiting(void) {
+  int exit_running = gasneti_atomic_read(&gasnetc_exit_running,
+                                         GASNETI_ATOMIC_RMB_PRE);
+  if_pf (exit_running) {
+    gasnete_threadidx_t tidx = (gasnete_threadidx_t)
+        gasneti_atomic_read(&gasnetc_exit_thread, GASNETI_ATOMIC_RMB_PRE);
+    if (tidx == GASNETI_MYTHREAD->threadidx) {
+      return 0;
+    } else {
+      return 1;
+    }
+  }
+  return 0;
+}
+#else
+#define gasnetc_is_exiting(...) ((int)0)
+#endif
 
 #if GASNET_DEBUG_VERBOSE
 #define GASNETC_UCX_DEBUG_PRINT(fmt, ...)                       \

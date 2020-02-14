@@ -884,7 +884,7 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
   ucp_tag_recv_info_t info_tag;
   ucp_tag_message_h msg_tag;
 
-  if (GASNETC_IS_EXITING()) {
+  if (gasnetc_is_exiting()) {
     /* disconnected by another thread */
     gasnetc_exit(0);
   }
@@ -945,7 +945,7 @@ int gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE)
   gasnetc_ucx_request_t *request = NULL;
   gasneti_list_t local_recv_list;
 
-  if (GASNETC_IS_EXITING()) {
+  if (gasnetc_is_exiting()) {
     /* disconnected by another thread */
     gasnetc_exit(0);
   }

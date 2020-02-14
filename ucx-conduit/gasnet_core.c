@@ -23,9 +23,18 @@ enum {
   GASNETC_EXIT_ROLE_SLAVE
 };
 
+#if GASNET_DEBUG
+  static const char * volatile gasnetc_exit_state = "UNKNOWN STATE";
+  #define GASNETC_EXIT_STATE(st) gasnetc_exit_state = st
+#else
+  #define GASNETC_EXIT_STATE(st) do {} while (0)
+#endif
+
 #define GASNETC_ROOT_NODE 0
 
 gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
+gasneti_atomic_t gasnetc_exit_thread  = gasneti_atomic_init(0);		/* int used by GASNETC_IS_EXITING */
+
 static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
 static gasneti_atomic_t gasnetc_exit_dist = gasneti_atomic_init(0);	/* OR of reduce distances */
@@ -391,13 +400,9 @@ static void gasnetc_unpin_segment(void)
 }
 #endif // GASNETC_PIN_SEGMENT
 
-static void gasnetc_fini(void)
+static void gasnetc_ucx_fini(void)
 {
-  fprintf(stderr, "%d: gasnetc_fini\n", gasneti_mynode);
-  fflush(stderr);
-
   gasnetc_ucx_worker_flush();
-  gasneti_bootstrapFini();
   gasnetc_sreq_list_free();
   gasnetc_am_req_pool_free();
 
@@ -905,9 +910,46 @@ static void gasnetc_exit_sighandler(int sig) {
   int exitcode = (int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
   static gasneti_atomic_t once = gasneti_atomic_init(1);
 
+#if GASNET_DEBUG
+  // protect until we reach reentrance check
+  GASNETC_EXIT_STATE("in exit sighandler");
+  gasneti_reghandler(SIGALRM, _exit);
+  gasneti_unblocksig(SIGALRM);
+  alarm(30);
+#endif
+
+#if GASNET_DEBUG
+  if (sig == SIGALRM) {
+    static const char msg[] = "gasnet_exit(): WARNING: timeout during exit... goodbye.  [";
+    const char * state = gasnetc_exit_state;
+    (void) write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, "]\n", 2);
+  } else {
+    static const char msg1[] = "gasnet_exit(): ERROR: signal ";
+    static const char msg2[] = " received during exit... goodbye.  [";
+    const char * state = gasnetc_exit_state;
+    char digit;
+
+    (void) write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
+
+    /* assume sig < 100 */
+    if (sig > 9) {
+      digit = '0' + ((sig / 10) % 10);
+      (void) write(STDERR_FILENO, &digit, 1);
+    }
+    digit = '0' + (sig % 10);
+    (void) write(STDERR_FILENO, &digit, 1);
+
+    (void) write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
+    (void) write(STDERR_FILENO, state, strlen(state));
+    (void) write(STDERR_FILENO, "]\n", 2);
+  }
+#endif
+
   if (gasneti_atomic_decrement_and_test(&once, 0)) {
     /* We ask the bootstrap support to kill us, but only once */
-    //GASNETC_EXIT_STATE("in suicide timer");
+    GASNETC_EXIT_STATE("in suicide timer");
     gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
     gasneti_unblocksig(SIGALRM);
     alarm(5);
@@ -915,7 +957,6 @@ static void gasnetc_exit_sighandler(int sig) {
   } else {
     gasnetc_exit_now(exitcode);
   }
-
   /* NOT REACHED */
 }
 
@@ -935,6 +976,8 @@ static int gasnetc_exit_head(int exitcode) {
   int retval;
 
   gasneti_atomic_set(&gasnetc_exit_running, 1, GASNETI_ATOMIC_WMB_POST);
+  gasneti_atomic_set(&gasnetc_exit_thread, GASNETI_MYTHREAD->threadidx,
+                     GASNETI_ATOMIC_WMB_POST);
 
   retval = gasneti_atomic_decrement_and_test(&once, 0);
 
@@ -956,15 +999,13 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 {
   gasneti_tick_t start_time = gasneti_ticks_now();
   int rc, i;
-  //GASNETC_EXIT_STATE("exitcode reduction");
 
   gasneti_assert(timeout_us > 0);
 
   /* If the remote request has arrived then we've already failed */
   if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
 
-  // TODO:
-  //GASNETC_EXIT_STATE("exitcode reduction: dissemination");
+  GASNETC_EXIT_STATE("exitcode reduction: dissemination");
   for (i = 0; i < gasnetc_dissem_peers; ++i) {
     const uint32_t distance = 1 << i;
     rc = gasnetc_RequestSysShort(gasnetc_dissem_peer[i], NULL,
@@ -1158,8 +1199,10 @@ static void gasnetc_exit_body(void) {
   alarm(2 + (int)gasnetc_exittimeout);
   graceful = (gasnetc_exit_reduce(exitcode, timeout_us) == 0);
 
+  gasnetc_sys_coll_fini();
+
   /* Try to flush out all the output, allowing upto 60s */
-  //GASNETC_EXIT_STATE("flushing output");
+  GASNETC_EXIT_STATE("flushing output");
   alarm(60);
   {
     gasneti_flush_streams();
@@ -1168,15 +1211,16 @@ static void gasnetc_exit_body(void) {
     gasneti_sched_yield();
   }
 
+  alarm(1 + (int)gasnetc_exittimeout);
   if (!graceful) {
     exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
 
-    //GASNETC_EXIT_STATE("performing non-collective exit");
+    GASNETC_EXIT_STATE("performing non-collective exit");
     alarm(10);
     role = gasnetc_get_exit_role();
 
     /* Attempt a coordinated shutdown */
-    //GASNETC_EXIT_STATE("coordinating shutdown");
+    GASNETC_EXIT_STATE("coordinating shutdown");
     alarm(1 + (int)gasnetc_exittimeout);
     switch (role) {
     case GASNETC_EXIT_ROLE_MASTER:
@@ -1189,16 +1233,23 @@ static void gasnetc_exit_body(void) {
     default:
         gasneti_fatalerror("invalid exit role");
     }
+    GASNETC_EXIT_STATE("in gasneti_bootstrapAbort()");
+    gasneti_bootstrapAbort(exitcode);
   } else {
-    alarm(5);
+    /* doing a poll of the receive queue while there are unreceived requests */
+    alarm(10);
     /* waiting to completion all requests */
+    GASNETC_EXIT_STATE("flushing ucx requests");
     gasnetc_send_list_wait(GASNETC_LOCK_MODE_REGULAR);
+    while(gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR));
+
+    alarm(10);
+    GASNETC_EXIT_STATE("ucx finalization");
+    gasnetc_ucx_fini();
+
+    GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
+    gasneti_bootstrapFini();
   }
-
-  /* doing a poll of the receive queue while there are unreceived requests */
-  while(gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR));
-
-  gasnetc_fini();
   alarm(0);
 }
 
