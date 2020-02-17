@@ -44,6 +44,11 @@ static gasneti_atomic_t gasnetc_exit_reps = gasneti_atomic_init(0);	/* count of 
 static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROLE_UNKNOWN);
 static gasnetc_counter_t gasnetc_exit_repl_oust = GASNETC_COUNTER_INITIALIZER; /* track send of our AM reply */
 
+/* If UCX routines are invoked from a signal handler function, the behavior of
+ * the program is undefined. This flag uses to avoid use of UCX communications
+ * in sighandler context.*/
+static gasneti_atomic_t gasnetc_exit_atsighandler = gasneti_atomic_init(0);
+
 static void gasnetc_atexit(int exitcode);
 
 // gex_TM_t used for AM-based bootstrap collectives and exit handling
@@ -639,13 +644,18 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   return GASNET_OK;
 }
 
+static void gasnetc_defaultSignalHandler(int sig) {
+  gasneti_atomic_set(&gasnetc_exit_atsighandler, 1, 0);
+  gasneti_defaultSignalHandler(sig);
+}
+
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
   /* catch fatal signals and convert to SIGQUIT */
-  gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
+  gasneti_registerSignalHandlers(gasnetc_defaultSignalHandler);
 
   /*  (###) register any custom signal handlers required by your conduit 
    *        (e.g. to support interrupt-based messaging)
@@ -1176,6 +1186,14 @@ static void gasnetc_exit_body(void) {
   }
   /* read exit code, stored by first caller to gasnetc_exit_head() */
   exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
+
+  /* checking at sighandler now, ucx shouldn't be used in signal
+   * handler function */
+  if (gasneti_atomic_read(&gasnetc_exit_atsighandler, 0)) {
+    gasneti_bootstrapAbort(exitcode);
+    gasnetc_exit_tail();
+    /* NOT REACHED */
+  }
 
   /* Establish a last-ditch signal handler in case of failure. */
   alarm(0);
