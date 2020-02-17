@@ -32,8 +32,11 @@ enum {
 
 #define GASNETC_ROOT_NODE 0
 
-gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
-gasneti_atomic_t gasnetc_exit_thread  = gasneti_atomic_init(0);		/* int used by GASNETC_IS_EXITING */
+int gasnetc_exit_running = 0;		/* boolean used to identify that exit process is started */
+#if GASNET_PAR
+/* gasnete_threadidx_t used to identify what thread an exit process was started */
+gasnete_threadidx_t gasnetc_exit_thread  = 0 ;
+#endif
 
 static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
@@ -498,11 +501,7 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
   gasneti_mutex_init(&gasneti_ucx_module.ucp_worker_lock);
 
   worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
-#ifdef GASNETC_UCX_THREADS
-  worker_params.thread_mode = UCS_THREAD_MODE_MULTI;
-#else
   worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
-#endif
 
   status = ucp_worker_create(gasneti_ucx_module.ucp_context, &worker_params,
                              &gasneti_ucx_module.ucp_worker);
@@ -982,26 +981,38 @@ static void gasnetc_exit_sighandler(int sig) {
  * returns zero on all subsequent calls
  */
 static int gasnetc_exit_head(int exitcode) {
-  static gasneti_atomic_t once = gasneti_atomic_init(1);
-  int retval;
+  GASNET_BEGIN_FUNCTION();
+  int rc = 0;
 
-  gasneti_atomic_set(&gasnetc_exit_running, 1, GASNETI_ATOMIC_WMB_POST);
-  gasneti_atomic_set(&gasnetc_exit_thread, GASNETI_MYTHREAD->threadidx,
-                     GASNETI_ATOMIC_WMB_POST);
-
-  retval = gasneti_atomic_decrement_and_test(&once, 0);
-
-  if (retval) {
-    /* Store the exit code for later use */
+  GASNETC_LOCK_UCX();
+  if (!gasnetc_exit_running) {
     gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_WMB_POST);
+    gasnetc_exit_running = 1;
+#if GASNET_PAR
+    gasnetc_exit_thread = GASNETI_MYTHREAD->threadidx;
+#endif
+    rc = 1;
   }
+  GASNETC_UNLOCK_UCX();
 
-  return retval;
+  return rc;
 }
 
 static void gasnetc_exit_tail(void) GASNETI_NORETURN;
 static void gasnetc_exit_tail(void) {
   gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE));
+  /* NOT REACHED */
+}
+
+void gasnetc_exit_threads(void) {
+  GASNETC_LOCK_UCX();
+  gasneti_assert(gasnetc_exit_running);
+  GASNETC_UNLOCK_UCX();
+  /* poll until it is time to exit */
+  while (!gasneti_atomic_read(&gasnetc_exit_done, GASNETI_ATOMIC_RMB_PRE)) {
+    gasneti_sched_yield(); /* NOT safe to use sleep() here - conflicts with alarm() */
+  }
+  gasnetc_exit_tail();
   /* NOT REACHED */
 }
 
@@ -1024,7 +1035,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
     if (rc != GASNET_OK) return -1;
     do { /* wait for completion of the proper receive, which might arrive out of order */
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-      gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
+      gasnetc_req_poll(GASNETC_LOCK_REGULAR);
       if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
     } while (!(distance & gasneti_atomic_read(&gasnetc_exit_dist, 0)));
     exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
@@ -1084,7 +1095,7 @@ static int gasnetc_get_exit_role(void)
     start_time = gasneti_ticks_now();
     /* Now spin until somebody tells us what our role is */
     do {
-      gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
+      gasnetc_req_poll(GASNETC_LOCK_REGULAR);
       role = gasneti_atomic_read(&gasnetc_exit_role, 0);
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 >
           timeout_us) {
@@ -1121,7 +1132,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   /* Wait phase - wait for replies from our N-1 peers */
   while (gasneti_atomic_read(&gasnetc_exit_reps, 0) < (gasneti_nodes - 1)) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-    gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
+    gasnetc_req_poll(GASNETC_LOCK_REGULAR);
   }
 
   return 0;
@@ -1146,7 +1157,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
   while (gasneti_atomic_read(&gasnetc_exit_reqs, 0) == 0) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
 
-    gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
+    gasnetc_req_poll(GASNETC_LOCK_REGULAR);
   }
 
   /* wait until our reply has been placed on the wire */
@@ -1166,34 +1177,8 @@ static void gasnetc_exit_body(void) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   (void)gasneti_reghandler(SIGQUIT, SIG_IGN);
 
-  /* Ensure only one thread ever continues past this point.
-   * Others will spin here until time to die.
-   * We can't/shouldn't use mutex code here since it is not signal-safe.
-   */
-  #ifdef GASNETI_USE_GENERIC_ATOMICOPS
-    #error "We need real atomic ops with signal-safety for gasnet_exit..."
-  #endif
-  {
-    static gasneti_atomic_t exit_lock = gasneti_atomic_init(1);
-    if (!gasneti_atomic_decrement_and_test(&exit_lock, 0)) {
-      /* poll until it is time to exit */
-      while (!gasneti_atomic_read(&gasnetc_exit_done, GASNETI_ATOMIC_RMB_PRE)) {
-        gasneti_sched_yield(); /* NOT safe to use sleep() here - conflicts with alarm() */
-      }
-      gasnetc_exit_tail();
-      /* NOT REACHED */
-    }
-  }
   /* read exit code, stored by first caller to gasnetc_exit_head() */
   exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
-
-  /* checking at sighandler now, ucx shouldn't be used in signal
-   * handler function */
-  if (gasneti_atomic_read(&gasnetc_exit_atsighandler, 0)) {
-    gasneti_bootstrapAbort(exitcode);
-    gasnetc_exit_tail();
-    /* NOT REACHED */
-  }
 
   /* Establish a last-ditch signal handler in case of failure. */
   alarm(0);
@@ -1258,8 +1243,8 @@ static void gasnetc_exit_body(void) {
     alarm(10);
     /* waiting to completion all requests */
     GASNETC_EXIT_STATE("flushing ucx requests");
-    gasnetc_send_list_wait(GASNETC_LOCK_MODE_REGULAR);
-    while(gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR));
+    gasnetc_send_list_wait(GASNETC_LOCK_REGULAR);
+    while(gasnetc_req_poll(GASNETC_LOCK_REGULAR));
 
     alarm(10);
     GASNETC_EXIT_STATE("ucx finalization");
@@ -1272,6 +1257,13 @@ static void gasnetc_exit_body(void) {
 }
 
 extern void gasnetc_exit(int exitcode) {
+  /* checking at sighandler now, ucx shouldn't be used in signal
+   * handler function */
+  if (gasneti_atomic_read(&gasnetc_exit_atsighandler, 0)) {
+    gasneti_bootstrapAbort(exitcode);
+    gasnetc_exit_tail();
+    /* NOT REACHED */
+  }
   gasnetc_exit_head(exitcode);
   gasnetc_exit_body();
   gasnetc_exit_tail();
@@ -1464,7 +1456,7 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
   /* protected progress of UCX */
-  gasnetc_req_poll(GASNETC_LOCK_MODE_REGULAR);
+  gasnetc_req_poll(GASNETC_LOCK_REGULAR);
   return GASNET_OK;
 }
 
@@ -1477,13 +1469,14 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
                                    gasnetc_counter_t *counter,
                                    gex_AM_Index_t handler,
                                    int numargs, ...) {
+  GASNET_BEGIN_FUNCTION();
   int retval;
   va_list argptr;
 
   GASNETI_TRACE_AMREQUESTMEDIUM(gasneti_THUNK_TM,jobrank,handler,NULL,0,/*flags*/0,numargs);
 
   /* ensure AM progress, but NOT progress functions */
-  gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_REGULAR);
+  gasnetc_req_poll_rcv(GASNETC_LOCK_REGULAR);
 
   va_start(argptr, numargs);
   if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(jobrank)) {
@@ -1513,6 +1506,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
                                gasnetc_counter_t *counter,
                                gex_AM_Index_t handler,
                                int numargs, ...) {
+  GASNET_BEGIN_FUNCTION();
   int retval;
   va_list argptr;
   gasneti_assert(token);
