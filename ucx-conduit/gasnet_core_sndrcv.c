@@ -936,6 +936,9 @@ void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE)
     }
     request->status = GASNETC_UCX_ACTIVE;
   }
+#if GASNET_PSHM
+  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
+#endif
   GASNETC_LOCK_RELEASE();
 }
 
