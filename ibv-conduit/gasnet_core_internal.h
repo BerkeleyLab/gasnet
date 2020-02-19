@@ -951,6 +951,8 @@ extern int              gasnetc_qp_retry_count;
 extern int		gasnetc_num_hcas;
 extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern uintptr_t	gasnetc_max_msg_sz;
+extern size_t   	gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
+extern size_t   	gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
 #if GASNETC_PIN_SEGMENT
   extern uintptr_t		gasnetc_seg_start;
   extern uintptr_t		gasnetc_seg_len;

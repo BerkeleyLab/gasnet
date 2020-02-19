@@ -87,6 +87,11 @@ gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutd
 size_t gasnetc_am_gather_min;
 #define GASNETC_DEFAULT_AM_GATHER_MIN           1500
 
+#define GASNETC_DEFAULT_PUT_STRIPE_SZ           0 // Disabled by default
+#define GASNETC_DEFAULT_GET_STRIPE_SZ           0 // Disabled by default
+#define GASNETC_MINIMUM_PUT_STRIPE_SZ           4096
+#define GASNETC_MINIMUM_GET_STRIPE_SZ           4096
+
 /* Exit coordination timeouts */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0	/* 6 minutes! */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MIN		2	/* 2 seconds */
@@ -1185,6 +1190,8 @@ static int gasnetc_load_settings(void) {
     // -1 is the documented value to disable this optimization
     gasnetc_am_gather_min = INT_MAX;
   }
+  GASNETC_ENVINT(gasnetc_put_stripe_sz, GASNET_PUT_STRIPE_SZ, GASNETC_DEFAULT_PUT_STRIPE_SZ, 0, 1024);
+  GASNETC_ENVINT(gasnetc_get_stripe_sz, GASNET_GET_STRIPE_SZ, GASNETC_DEFAULT_GET_STRIPE_SZ, 0, 1024);
 
   #if !GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_putinmove_limit, GASNET_PUTINMOVE_LIMIT, GASNETC_DEFAULT_PUTINMOVE_LIMIT, 0, 1);
@@ -2223,6 +2230,40 @@ static int gasnetc_init( gex_Client_t            *client_p,
     gasnetc_max_msg_sz = MIN(gasnetc_max_msg_sz, gasnetc_port_tbl[i].port.max_msg_sz);
   }
   gasnetc_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_bounce_limit);
+  // Determine striping params used in gasnet_core_sndrcv.c:gasnetc_zerocp_common()
+  if (1 == gasnetc_num_ports) {
+    // single path: no striping
+    gasnetc_put_stripe_sz = gasnetc_max_msg_sz;
+    gasnetc_get_stripe_sz = gasnetc_max_msg_sz;
+    GASNETI_TRACE_PRINTF(I, ("RMA striping: disabled for single-path network"));
+  } else {
+    if (! gasnetc_put_stripe_sz) {
+      gasnetc_put_stripe_sz = gasnetc_max_msg_sz;
+    } else if (gasnetc_put_stripe_sz > gasnetc_max_msg_sz) {
+      GASNETI_TRACE_PRINTF(I, ("RMA striping: reduced GASNET_PUT_STRIPE_SZ to HCA max message size"));
+      gasnetc_put_stripe_sz = gasnetc_max_msg_sz;
+    } else if (gasnetc_put_stripe_sz < GASNETC_MINIMUM_PUT_STRIPE_SZ) {
+      if (!gasneti_mynode) {
+        gasneti_console_message("WARNING", "increased GASNET_PUT_STRIPE_SZ to minimum size %d", GASNETC_MINIMUM_PUT_STRIPE_SZ);
+      }
+      gasnetc_put_stripe_sz = GASNETC_MINIMUM_PUT_STRIPE_SZ;
+    }
+    GASNETI_TRACE_PRINTF(I, ("RMA striping: final GASNET_PUT_STRIPE_SZ = %"PRIuSZ, gasnetc_put_stripe_sz));
+    if (! gasnetc_get_stripe_sz) {
+      gasnetc_get_stripe_sz = gasnetc_max_msg_sz;
+    } else if (gasnetc_get_stripe_sz > gasnetc_max_msg_sz) {
+      GASNETI_TRACE_PRINTF(I, ("RMA striping: reduced GASNET_GET_STRIPE_SZ to HCA max message size"));
+      gasnetc_get_stripe_sz = gasnetc_max_msg_sz;
+    } else if (gasnetc_get_stripe_sz < GASNETC_MINIMUM_GET_STRIPE_SZ) {
+      if (!gasneti_mynode) {
+        gasneti_console_message("WARNING", "increased GASNET_GET_STRIPE_SZ to minimum size %d", GASNETC_MINIMUM_GET_STRIPE_SZ);
+      }
+      gasnetc_get_stripe_sz = GASNETC_MINIMUM_GET_STRIPE_SZ;
+    }
+    GASNETI_TRACE_PRINTF(I, ("RMA striping: final GASNET_GET_STRIPE_SZ = %"PRIuSZ, gasnetc_get_stripe_sz));
+  }
+  gasnetc_put_stripe_split = MIN(2*gasnetc_put_stripe_sz, gasnetc_max_msg_sz);
+  gasnetc_get_stripe_split = MIN(2*gasnetc_get_stripe_sz, gasnetc_max_msg_sz);
 
   /* Exchange LIDs */
   local_lid = gasneti_calloc(gasnetc_num_ports, sizeof(uint16_t));
