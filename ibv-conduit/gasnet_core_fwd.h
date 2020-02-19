@@ -99,6 +99,7 @@
         int                 _have_flow;         \
         void *              _buf_alloc;         \
         void *              _cep;               \
+        void *              _ep;                \
         uint8_t             _inline_buf[128+8];
 
   /* uncomment if your conduit's gasnetc_AMRequest{Short,Medium,Long}V()

@@ -29,6 +29,11 @@ PENDING: GASNet-EX Work-In-Progress
   - A new --with-ibv-max-medium= can set the size of AM Medium buffers.
     See details, including supported values, in the conduit README.
   - The default AM Max Medium is now 64KB minus space for headers (up from 4KB).
+  - Code paths for AM Long and RDMA Put have been separated, leading to simpler
+    (faster and more maintainable) logic for each.
+  - Code paths for AM and RMA have been revised to eliminate certain global
+    state in favor of per-endpoint state.  This is work toward multi-endpoint and
+    multi-segment support to appear in a later release.
   - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
     removed.
   - The environment variable GASNET_PIN_MAXSZ has been removed.  This variable

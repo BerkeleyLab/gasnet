@@ -176,7 +176,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  (void) gasneti_segmentAttach(segment_p, tm, segsize, exchangefn, flags);
+  (void) gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
 
   /* (###) do any client-specific pinning/registration of the client segment */
 

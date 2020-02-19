@@ -1072,6 +1072,30 @@ static void gasneti_segreg_failed(size_t size, const char *which, int why) {
                      which, hint1, hint2);
 }
 
+//
+// simple container of segments
+//
+static gasnetc_Segment_t *gasnetc_segment_table = NULL;
+static int gasnetc_segment_count = 0;
+static gasneti_mutex_t gasnetc_segment_lock = GASNETI_MUTEX_INITIALIZER;
+
+static void gasnetc_add_segment(gasnetc_Segment_t seg) {
+  gasneti_mutex_lock(&gasnetc_segment_lock);
+  seg->idx = gasnetc_segment_count++;
+  size_t space = gasnetc_segment_count * sizeof(gasnetc_Segment_t);
+  gasnetc_segment_table = gasneti_realloc(gasnetc_segment_table, space);
+  gasnetc_segment_table[seg->idx] = seg;
+  gasneti_mutex_unlock(&gasnetc_segment_lock);
+}
+static void gasnetc_del_segment(gasnetc_Segment_t seg) {
+  gasneti_mutex_lock(&gasnetc_segment_lock);
+  gasnetc_Segment_t last = gasnetc_segment_table[gasnetc_segment_count--];
+  last->idx = seg->idx;
+  gasnetc_segment_table[last->idx] = last;
+  // lack of realloc to shrink is harmless
+  gasneti_mutex_unlock(&gasnetc_segment_lock);
+}
+
 #if GASNET_TRACE
 static const char *mtu_to_str(enum ibv_mtu mtu) {
   switch (mtu) {
@@ -2351,7 +2375,7 @@ static int gasnetc_init( gex_Client_t            *client_p,
   }
 
   /* Establish static connections and prepare for dynamic ones */
-  i = gasnetc_connect_init();
+  i = gasnetc_connect_init(gasnetc_ep0);
   if (i != GASNET_OK) {
     return i;
   }
@@ -2622,12 +2646,16 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, tm, segsize, exchangefn, flags);
+  gasnetc_Segment_t segment;
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, exchangefn, flags);
+  segment = (gasnetc_Segment_t) gasneti_import_tm(tm)->_ep->_segment;
 
   // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
   {
+    gasnetc_add_segment(segment);
+
     gasnetc_seg_start = (uintptr_t)myseg.addr;
     gasnetc_seg_len   = myseg.size;
 
@@ -2641,9 +2669,9 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
       if (0 != gasnetc_pin(hca, myseg.addr, myseg.size, gasneti_seg_access_flags, &memreg)) {
         gasneti_segreg_failed(segsize, "", errno);
       }
-      hca->seg_lkey = memreg.handle->lkey;
+      segment->seg_lkey[hca->hca_index] = memreg.handle->lkey;
     #if GASNETC_IBV_SHUTDOWN
-      hca->seg_reg = memreg;
+      segment->seg_reg[hca->hca_index] = memreg;
     #endif
 
       GASNETI_TRACE_PRINTF(I, ("Attach registered %"PRIuPTR" bytes on HCA %d", segsize, hca->hca_index));
@@ -2659,7 +2687,7 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
   /* Per-endpoint work */
   for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
-    gasnetc_cep_t *cep = GASNETC_NODE2CEP(i);
+    gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, i);
     if (cep) {
       gasnetc_sndrcv_attach_peer(i, cep);
     }
@@ -2813,7 +2841,8 @@ extern int gasnetc_EP_Create(gex_EP_t           *ep_p,
   if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
 #endif
 
-  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, 0);
+  gasnetc_EP_t conduit_ep;
+  gasneti_EP_t ep = gasneti_alloc_ep(gasneti_import_client(client), flags, sizeof(*conduit_ep));
   *ep_p = gasneti_export_ep(ep);
 
   { /*  core API handlers */
@@ -2868,7 +2897,7 @@ gasnetc_shutdown(void) {
   gasnetc_hca_t *hca;
   int rc, i;
 
-  gasnetc_connect_shutdown();
+  gasnetc_connect_shutdown(gasnetc_ep0);
 
   rc = gasnetc_sndrcv_shutdown();
   if (rc != GASNET_OK) {
@@ -2877,9 +2906,12 @@ gasnetc_shutdown(void) {
 
   GASNETC_FOR_ALL_HCA(hca) {
   #if GASNETC_PIN_SEGMENT
-    if (hca->rkeys) {
-      gasnetc_unpin(hca, &hca->seg_reg);
-    }
+    gasneti_mutex_lock(&gasnetc_segment_lock);
+      for (int i = 0; i < gasnetc_segment_count; ++i) {
+        gasnetc_Segment_t seg = gasnetc_segment_table[i];
+        gasnetc_unpin(hca, &seg->seg_reg[hca->hca_index]);
+      }
+    gasneti_mutex_unlock(&gasnetc_segment_lock);
   #endif
   #if GASNETC_IBV_ODP
     if (gasnetc_use_odp) {
@@ -3027,7 +3059,7 @@ void gasnetc_post_checkpoint(int is_restart) {
   }
 
   /* Establish static connections and prepare for dynamic ones */
-  rc = gasnetc_connect_init();
+  rc = gasnetc_connect_init(gasnetc_ep0);
   if (rc != GASNET_OK) {
     gasneti_fatalerror("Failed post-checkpoint call to gasnetc_connect_init");
   }
@@ -3043,21 +3075,29 @@ void gasnetc_post_checkpoint(int is_restart) {
   /* REregister the segment and exchange the new rkeys */
 #if GASNETC_PIN_SEGMENT
   if (gasnetc_hca[0].rkeys) {
+    gasneti_mutex_lock(&gasnetc_segment_lock);
     GASNETC_FOR_ALL_HCA(hca) {
-      gasnetc_memreg_t *reg = &hca->seg_reg;
-      if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
-        gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
-                           strerror(errno), errno);
-      }
-      hca->seg_lkey = reg->handle->lkey;
+        for (int i = 0; i < gasnetc_segment_count; ++i) {
+          gasnetc_Segment_t seg = gasnetc_segment_table[i];
+          gasnetc_memreg_t *reg = &seg->seg_reg[hca->hca_index];
+          if (0 != gasnetc_pin(hca, (void *)reg->addr, reg->len, gasneti_seg_access_flags, reg)) {
+            gasneti_fatalerror("Unexpected error %s (errno=%d) when (re)registering the segment",
+                               strerror(errno), errno);
+          }
+          seg->seg_lkey[hca->hca_index] = reg->handle->lkey;
+        }
+      // TODO-EX: following is insufficient for multi-segment
+      gasnetc_memreg_t *reg = &gasnetc_segment_table[0]->seg_reg[hca->hca_index];
+      gasneti_assert_int(gasnetc_segment_count ,==, 1);
       gasnetc_bootstrapExchange_ib(&reg->handle->rkey, sizeof(uint32_t), hca->rkeys);
     }
+    gasneti_mutex_unlock(&gasnetc_segment_lock);
   }
 #endif
 
   /* Per-endpoint attach work */
   for (i = 0; i < gasneti_nodes; i++) {
-    gasnetc_cep_t *cep = GASNETC_NODE2CEP(i);
+    gasnetc_cep_t *cep = GASNETC_NODE2CEP(gasnetc_ep0, i);
     if (cep) {
       gasnetc_sndrcv_attach_peer(i, cep);
     }
@@ -3775,7 +3815,7 @@ static void gasnetc_exit_body(void) {
   }
  #endif
 #endif
-  gasnetc_connect_fini(); /* just stats reporting */
+  gasnetc_connect_fini(gasnetc_ep0); /* just stats reporting */
   alarm(0);
 
   /* Try to flush out all the output, allowing upto 60s */
@@ -4135,14 +4175,14 @@ extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
 
 // Helper to select an IB-level cep for AM Request injection
 static
-gasnetc_cep_t *gasnetc_am_select_cep(gasnetc_epid_t dest)
+gasnetc_cep_t *gasnetc_am_select_cep(gasnetc_EP_t ep, gasnetc_epid_t dest)
 {
 #if GASNETC_IBV_SHUTDOWN
   /* Currently only the shutdown code uses dest to specify a "bound" value */
-  gasnetc_cep_t *cep = gasnetc_get_cep(gasnetc_epid2node(dest));
+  gasnetc_cep_t *cep = gasnetc_get_cep(ep, gasnetc_epid2node(dest));
   const gasnetc_epid_t dest_qpi = gasnetc_epid2qpi(dest);
 #else
-  gasnetc_cep_t *cep = gasnetc_get_cep(dest);
+  gasnetc_cep_t *cep = gasnetc_get_cep(ep, dest);
   gasneti_assume(gasnetc_epid2qpi(dest) == 0);
 #endif
 
@@ -4181,39 +4221,6 @@ gasnetc_cep_t *gasnetc_am_select_cep(gasnetc_epid_t dest)
 }
 
 size_t gasnetc_am_inline_limit_sndrcv = 0;
-
-// Helper for initiating RDMA of a Long payload
-// TODO: put-with-imm would allow target-side reassembly
-static
-int gasnetc_am_long_put(
-                  gasnetc_epid_t epid,
-                  void *src_addr, void *dst_addr, size_t nbytes, gex_Flags_t flags,
-                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb
-                  GASNETI_THREAD_FARG)
-{
-  int rc;
-  const int qpi = gasnetc_epid2qpi(epid);
-  const gex_Rank_t jobrank = gasnetc_epid2node(epid);
-#if GASNETC_PIN_SEGMENT
-  rc = gasnetc_rdma_put(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
-                        local_cnt, local_cb, NULL, NULL
-                        GASNETI_THREAD_PASS);
-#else
-  /* Point-to-point ordering still holds, but only once the RDMA is actually queued.
-   * In the case of a firehose hit, the RDMA is already queued before return from
-   * gasnetc_rdma_put_fh().  On a miss, however, we'll need to spin on am_oust to
-   * determine when all the RDMA is actually queued.
-   * It would have been nice to move the wait later in the AM injection, but
-   * that would lead to deadlock if we hold the resources needed to queue the RDMA.
-   */
-  gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
-  rc = gasnetc_rdma_put_fh(gasneti_THUNK_TM, jobrank, qpi, src_addr, dst_addr, nbytes, flags,
-                           local_cnt, local_cb, NULL, NULL, &am_oust
-                           GASNETI_THREAD_PASS);
-  if (!rc) gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);
-#endif
-  return rc;
-}
 
 // Common logic for immediate allocation failures
 #if GASNETC_IMMEDIATE_AMPOLLS
@@ -4308,7 +4315,7 @@ void gasnetc_am_put_credit(gasnetc_cep_t *cep)
 
 // Decide if Medium (or Packed Long) payload should be sent using gather-on-send
 GASNETI_INLINE(gasnetc_am_use_gather)
-int gasnetc_am_use_gather(
+int gasnetc_am_use_gather(gasnetc_EP_t ep,
                           void *src_addr, int nbytes,
                           gasnetc_cb_t local_cb)
 {
@@ -4316,7 +4323,7 @@ int gasnetc_am_use_gather(
   return ((nbytes >= gasnetc_am_gather_min) &&   // Big enough to benefit
           (local_cb != gasnetc_cb_counter) &&    // Caller did NOT require synchronous LC
           (gasnetc_use_odp ||                    // Registered via OPD ...
-           !gasnetc_unpinned((uintptr_t)src_addr))); // ... or in-segment
+           gasnetc_in_bound_segment(ep, (uintptr_t)src_addr, nbytes))); // ... or in-segment
 #else
   return 0;
 #endif
@@ -4359,7 +4366,7 @@ int gasnetc_am_get_buffer(size_t buf_len,
 GASNETI_INLINE(gasnetc_am_commit)
 void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
                           const gasneti_category_t category, const int is_reply,
-                          gasnetc_cep_t *cep,
+                          gasnetc_EP_t ep, gasnetc_cep_t *cep,
                           gex_AM_Index_t handler,
                           void *src_addr, size_t nbytes, void *dst_addr,
                           size_t head_len, size_t copy_len, size_t gath_len,
@@ -4457,9 +4464,9 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
         #if GASNETC_IBV_ODP
           sr_desc->sg_list[1].lkey = gasnetc_use_odp
                                          ? cep->hca->implicit_odp.lkey
-                                         : GASNETC_SEG_LKEY(cep);
+                                         : GASNETC_SEG_LKEY(ep, cep);
         #else
-          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(cep);
+          sr_desc->sg_list[1].lkey = GASNETC_SEG_LKEY(ep, cep);
         #endif
         sreq->comp.cb = local_cb;
         sreq->comp.data = local_cnt;
@@ -4467,7 +4474,7 @@ void gasnetc_am_commit(   gasnetc_buffer_t *buf, gasnetc_buffer_t *buf_alloc,
       }
       #endif
   
-      (void)gasnetc_bind_cep_am(cep->epid, sreq, is_reply);
+      (void)gasnetc_bind_cep_am(ep, cep->epid, sreq, is_reply);
 
       gasnetc_snd_post_common(sreq, sr_desc, !buf_alloc GASNETI_THREAD_PASS);
     }
@@ -4512,7 +4519,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     case gasneti_Medium:
       /* XXX: When nbytes == 0 GASNETC_MSG_MED_ARGSEND still rounds up to 8-byte boundary */
       head_len = GASNETC_MSG_MED_ARGSEND(numargs + have_flow);
-      if (gasnetc_am_use_gather(src_addr, nbytes, local_cb)) {
+      if (gasnetc_am_use_gather(ep, src_addr, nbytes, local_cb)) {
         gath_len = nbytes;
       } else {
         copy_len = nbytes;
@@ -4523,7 +4530,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
       head_len = GASNETC_MSG_LONG_ARGSEND(numargs + have_flow);
       if ((nbytes <= gasnetc_packedlong_limit) || (!GASNETC_PIN_SEGMENT && is_reply)) {
         /* Small enough to send like a Medium (always true of Reply when using remote firehose) */
-        if (gasnetc_am_use_gather(src_addr, nbytes, local_cb)) {
+        if (gasnetc_am_use_gather(ep, src_addr, nbytes, local_cb)) {
           gath_len = nbytes;
         } else {
           copy_len = nbytes;
@@ -4536,8 +4543,8 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
         // Firehose replies MUST take the packedlong path:
         gasneti_assert(GASNETC_PIN_SEGMENT || !is_reply);
         // TODO-EX: should we pass flags other than 'immediate' to the payload Put
-        int rc = gasnetc_am_long_put(cep->epid, src_addr, dst_addr, nbytes, immediate,
-                                     local_cnt, local_cb GASNETI_THREAD_PASS);
+        int rc = gasnetc_rdma_long_put(ep, cep, src_addr, dst_addr, nbytes, immediate,
+                                       local_cnt, local_cb GASNETI_THREAD_PASS);
         if (rc) {
           // TODO-EX: stats/trace for FAIL_IMM case
           fail_type = rc;
@@ -4577,7 +4584,7 @@ int gasnetc_ReqRepGeneric(gasnetc_EP_t ep,
     }
 
     // Build and send the message
-    gasnetc_am_commit(buf, buf_alloc, category, is_reply, cep,
+    gasnetc_am_commit(buf, buf_alloc, category, is_reply, ep, cep,
                       handler, src_addr, nbytes, dst_addr,
                       head_len, copy_len, gath_len, 0, have_flow, numargs,
                       local_cnt, local_cb, counter, argptr
@@ -4616,7 +4623,7 @@ int gasnetc_RequestGeneric(gasnetc_EP_t ep,
   gasneti_assert(!GASNETI_NBRHD_JOBRANK_IS_LOCAL(gasnetc_epid2node(dest))); // never local
 
   return gasnetc_ReqRepGeneric(
-                        ep, category, 0,  gasnetc_am_select_cep(dest),
+                        ep, category, 0,  gasnetc_am_select_cep(ep, dest),
                         handler, src_addr, nbytes, dst_addr, flags, numargs,
                         local_cnt, local_cb, counter, argptr GASNETI_THREAD_PASS);
 }
@@ -5216,7 +5223,7 @@ void gasnetc_commit_medium(
       gasneti_fatalerror("Invalid lc_opt argument to Prepare/Commit %sMedium",
                          is_reply?"Reply":"Request");
     }
-    if (gasnetc_am_use_gather(sd->_addr, nbytes, local_cb)) {
+    if (gasnetc_am_use_gather(sd->_ep, sd->_addr, nbytes, local_cb)) {
       gath_len = nbytes;
     } else {
       copy_len = nbytes;
@@ -5230,11 +5237,13 @@ void gasnetc_commit_medium(
 
   size_t head_len = GASNETC_MSG_MED_ARGSEND(nargs + sd->_have_flow);
   gasnetc_am_commit( sd->_void_p, sd->_buf_alloc,
-                     gasneti_Medium, is_reply, sd->_cep,
+                     gasneti_Medium, is_reply,
+                     sd->_ep,  sd->_cep,
                      handler, sd->_addr, nbytes, NULL,
                      head_len, copy_len, gath_len,
                      !is_Fixed, sd->_have_flow, nargs,
-                     local_cnt, local_cb, NULL, argptr GASNETI_THREAD_PASS);
+                     local_cnt, local_cb, NULL, argptr
+                     GASNETI_THREAD_PASS);
 
   if (eop) {
     gasneti_assume(gasneti_leaf_is_pointer(lc_opt)); // avoid maybe-uninitialized warning (bug 3756)
@@ -5382,8 +5391,9 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
     } else {
         const gex_Flags_t immediate = flags & GEX_FLAG_IMMEDIATE;
 
-        gasnetc_EP_t ep = gasnetc_ep0; // TODO-EX: multi-EP support
-        gasnetc_cep_t *cep = gasnetc_am_select_cep(jobrank);
+        gasnetc_EP_t ep = (gasnetc_EP_t)gasneti_import_tm(tm)->_ep;
+        gasneti_assert(ep == gasnetc_ep0);
+        gasnetc_cep_t *cep = gasnetc_am_select_cep(ep, jobrank);
         if (gasnetc_am_get_credit(ep, cep, immediate GASNETI_THREAD_PASS)) {
             goto out_immediate;
         } else if (gasnetc_prepare_medium(sd, cep, client_buf,
@@ -5395,6 +5405,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareRequestMedium(
         } else {
             gasneti_init_sd_poison(sd);
             sd->_is_nbrhd = 0;
+            sd->_ep = ep;
         }
     }
 
@@ -5548,6 +5559,7 @@ extern gex_AM_SrcDesc_t gasnetc_AM_PrepareReplyMedium(
         } else {
             gasneti_init_sd_poison(sd);
             sd->_is_nbrhd = 0;
+            sd->_ep = rbuf->rr_ep;
             rbuf->rbuf_needReply = 0;
         }
     }
