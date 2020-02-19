@@ -764,7 +764,14 @@ case "$CC_FAMILY" in
          GASNET_TRY_CFLAG([-wd1572],
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
-  PGI) MISC_CFLAGS="-Masmkeyword -Msignextend";; # get inline assembly and sign-extended narrowing
+  PGI) MISC_CFLAGS="-Masmkeyword -Msignextend" # get inline assembly and sign-extended narrowing
+       # The following looks backwards, but is not.
+       # PGI 20.1 introduced fine-grained warning control at the same time as
+       # default-enabling a large number of useless warnings (on the level of
+       # -Wextra in other compilers).
+       GASNET_TRY_CFLAG([--diag_suppress177],
+                        [MISC_CFLAGS="-w $MISC_CFLAGS"])
+       ;;
   Sun) if test "$target_cpu" = "sparc"; then 
          GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
        fi
