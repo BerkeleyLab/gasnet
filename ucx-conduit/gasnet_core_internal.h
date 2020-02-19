@@ -139,6 +139,22 @@ extern int gasnetc_exit_running;
 extern gasnete_threadidx_t gasnetc_exit_thread;
 
 #ifdef GASNETC_UCX_THREADS
+GASNETI_THREADKEY_DECLARE(gasnetc_mythread_idx);
+
+#define GASNETC_MY_THREAD_IDX(__threadidx)                                \
+  do {                                                                    \
+    gasnete_threadidx_t *threadidx_ptr =                                  \
+                          gasneti_threadkey_get(gasnetc_mythread_idx);    \
+    if_pf (NULL == threadidx_ptr) {                                       \
+      GASNET_BEGIN_FUNCTION();                                            \
+      gasneti_threadkey_set(gasnetc_mythread_idx,                         \
+                            &(GASNETI_MYTHREAD->threadidx));              \
+      threadidx_ptr =                                                     \
+        (gasnete_threadidx_t*)gasneti_threadkey_get(gasnetc_mythread_idx);\
+    }                                                                     \
+    (__threadidx) = *threadidx_ptr;                                       \
+  } while (0)
+
 #define GASNETC_LOCK_UCX()                                                \
   do {                                                                    \
     gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);              \
@@ -151,10 +167,11 @@ extern gasnete_threadidx_t gasnetc_exit_thread;
 
 #define GASNETC_LOCK_ACQUIRE_REGULAR()                                    \
   do {                                                                    \
-    GASNET_BEGIN_FUNCTION();                                              \
+    gasnete_threadidx_t threadidx;                                        \
+    GASNETC_MY_THREAD_IDX(threadidx);                                     \
     gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);              \
     if_pf (gasnetc_exit_running) {                                        \
-      if (gasnetc_exit_thread != GASNETI_MYTHREAD->threadidx) {           \
+      if (gasnetc_exit_thread != threadidx) {                             \
               gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock);  \
               gasnetc_exit_threads();                                     \
       }                                                                   \

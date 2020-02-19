@@ -33,9 +33,12 @@ enum {
 #define GASNETC_ROOT_NODE 0
 
 int gasnetc_exit_running = 0;		/* boolean used to identify that exit process is started */
-#if GASNET_PAR
+
 /* gasnete_threadidx_t used to identify what thread an exit process was started */
 gasnete_threadidx_t gasnetc_exit_thread  = 0 ;
+
+#ifdef GASNETC_UCX_THREADS
+GASNETI_THREADKEY_DEFINE(gasnetc_mythread_idx);
 #endif
 
 static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
@@ -981,19 +984,22 @@ static void gasnetc_exit_sighandler(int sig) {
  * returns zero on all subsequent calls
  */
 static int gasnetc_exit_head(int exitcode) {
-  GASNET_BEGIN_FUNCTION();
   int rc = 0;
 
-  GASNETC_LOCK_UCX();
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   if (!gasnetc_exit_running) {
     gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_WMB_POST);
     gasnetc_exit_running = 1;
-#if GASNET_PAR
-    gasnetc_exit_thread = GASNETI_MYTHREAD->threadidx;
+#ifdef GASNETC_UCX_THREADS
+    {
+      gasnete_threadidx_t threadidx;
+      GASNETC_MY_THREAD_IDX(threadidx);
+      gasnetc_exit_thread = threadidx;
+    }
 #endif
     rc = 1;
   }
-  GASNETC_UNLOCK_UCX();
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 
   return rc;
 }
@@ -1005,9 +1011,11 @@ static void gasnetc_exit_tail(void) {
 }
 
 void gasnetc_exit_threads(void) {
+#if GASNET_DEBUG
   GASNETC_LOCK_UCX();
   gasneti_assert(gasnetc_exit_running);
   GASNETC_UNLOCK_UCX();
+#endif
   /* poll until it is time to exit */
   while (!gasneti_atomic_read(&gasnetc_exit_done, GASNETI_ATOMIC_RMB_PRE)) {
     gasneti_sched_yield(); /* NOT safe to use sleep() here - conflicts with alarm() */
@@ -1173,6 +1181,13 @@ static void gasnetc_exit_body(void) {
   int graceful = 0;
   int64_t timeout_us = gasnetc_exittimeout * 1.0e6;
   int role;
+#if GASNET_DEBUG && GASNET_PAR
+  gasnete_threadidx_t threadidx;
+  GASNETC_MY_THREAD_IDX(threadidx);
+  GASNETC_LOCK_UCX();
+  gasneti_assert(threadidx == gasnetc_exit_thread);
+  GASNETC_UNLOCK_UCX();
+#endif
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   (void)gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -1247,11 +1262,12 @@ static void gasnetc_exit_body(void) {
     while(gasnetc_req_poll(GASNETC_LOCK_REGULAR));
 
     alarm(10);
-    GASNETC_EXIT_STATE("ucx finalization");
-    gasnetc_ucx_fini();
-
     GASNETC_EXIT_STATE("in gasneti_bootstrapFini()");
     gasneti_bootstrapFini();
+
+    alarm(10);
+    GASNETC_EXIT_STATE("ucx finalization");
+    gasnetc_ucx_fini();
   }
   alarm(0);
 }
