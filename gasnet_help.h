@@ -154,20 +154,18 @@ extern gex_Rank_t gasneti_tm_fwd_lookup(gasneti_TM_t tm, gex_Rank_t rank);
 extern gex_Rank_t gasneti_tm_rev_lookup(gasneti_TM_t tm, gex_Rank_t jobrank);
 
 #if GASNET_DEBUG
-GASNETI_INLINE(__gasneti_check_tm_rank)
-void __gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank, int _allownull) {
-  if (!_allownull) gasneti_assert(_e_tm);
-  if (_e_tm) gasneti_assert_uint(_rank ,<, gex_TM_QuerySize(_e_tm));
+GASNETI_INLINE(gasneti_check_tm_rank)
+void gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  gasneti_assert(_e_tm);
+  gasneti_assert_uint(_rank ,<, gex_TM_QuerySize(_e_tm));
 }
 #define gasneti_check_jobrank(jobrank) \
   gasneti_assert_uint(jobrank ,<, gex_System_QuerySize());
 #else
-  #define __gasneti_check_tm_rank(tm,rank,allownull) ((void)0)
+  #define gasneti_check_tm_rank(tm,rank) ((void)0)
   #define gasneti_check_jobrank(jobrank) ((void)0)
 #endif
 
-#define gasneti_check_tm_rank(tm,rank) __gasneti_check_tm_rank((tm),(rank),0)
-        
 GASNETI_INLINE(gasneti_i_tm_rank_to_jobrank)
 gex_Rank_t gasneti_i_tm_rank_to_jobrank(gasneti_TM_t _i_tm, gex_Rank_t _rank) {
   gasneti_assert(_i_tm);
@@ -188,22 +186,14 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 #define gasneti_e_tm_jobrank_to_rank(e_tm,jobrank) \
         gasneti_i_tm_jobrank_to_rank(gasneti_import_tm(e_tm),jobrank)
 
-// Variants to allow tm=NULL to substitute for TM0
-// TODO-EX: These will necessarily be superceeded when multi-{EP,segment}
-// support is added.  So, avoid creating new callers.
-#define _gasneti_check_tm_rank_allownull(tm,rank) __gasneti_check_tm_rank(tm,rank,1)
-
 extern gasnet_seginfo_t *gasneti_seginfo;
 extern gasnet_seginfo_t *gasneti_seginfo_aux;
 
 // TODO: generalize for multi-{EP,segment} support
 // TODO: work towards dropping non-scalable seginfo tables
-// TODO: work towards eliminating callers w/ _e_tm == NULL
 GASNETI_INLINE(gasneti_client_seginfo)
 const gasnet_seginfo_t *gasneti_client_seginfo(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gex_Rank_t _jobrank = _e_tm ? gasneti_e_tm_rank_to_jobrank(_e_tm,_rank)
-                              : _rank;
-  return gasneti_seginfo + _jobrank;
+  return gasneti_seginfo + gasneti_e_tm_rank_to_jobrank(_e_tm,_rank);
 }
 GASNETI_INLINE(gasneti_aux_seginfo)
 const gasnet_seginfo_t *gasneti_aux_seginfo(gex_Rank_t _jobrank) {
@@ -226,14 +216,20 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
   return (_uptr >= (uintptr_t)(_i_seg->_addr) && (_uptr + _nbytes) <= (uintptr_t)_i_seg->_ub);
 }
 
-// These in-segment checks accept e_tm=NULL to indicate rank is a jobrank
-// (NULL,gasneti_mynode) is a common case for this.
-// NOTE: This behavior will no longer work when multi-{EP,segment} support is
-// added.  So avoid adding new callers which depend upon it.
 #if GASNET_SEGMENT_EVERYTHING
-  #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes)  (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
-  #define gasneti_in_auxsegment(jobrank,ptr,nbytes)       (gasneti_check_jobrank(jobrank), 1)
-  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes)    (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+  // Do not remove calls to gasneti_inseg_helper() or reduce it to a macro.
+  // The function call ensures ptr and nbytes evaluated exactly once for possible side-effects.
+  GASNETI_INLINE(gasneti_inseg_helper)
+  void gasneti_inseg_helper(const void *_ptr, size_t _nbytes) {
+    gasneti_assert(_nbytes);
+    gasneti_assert(_ptr);
+  }
+  #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) \
+          (gasneti_inseg_helper(ptr,nbytes),gasneti_check_tm_rank(e_tm,rank), 1)
+  #define gasneti_in_auxsegment(jobrank,ptr,nbytes) \
+          (gasneti_inseg_helper(ptr,nbytes),gasneti_check_jobrank(jobrank), 1)
+  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes) \
+          (gasneti_inseg_helper(ptr,nbytes), gasneti_check_tm_rank(e_tm,rank), 1)
 #else
   #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) \
           _gasneti_in_seginfo_t(ptr,nbytes,gasneti_client_seginfo(e_tm,rank))
@@ -282,16 +278,16 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
 #ifdef GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET
   /* in-segment check for internal put/gets that may exploit outofseg support */
   #define gasneti_in_segment_allowoutseg(e_tm,rank,ptr,nbytes) \
-          (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+          (gasneti_check_tm_rank(e_tm,rank), 1)
 #else
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
 #define _gasneti_boundscheck(e_tm,rank,ptr,nbytes,segtest) do {         \
     gex_TM_t _gex_bc_tm = (e_tm);                                              \
+    gasneti_assert(_gex_bc_tm);                                                \
     gex_Rank_t _gex_bc_rank = (rank);                                          \
-    gex_Rank_t _gex_bc_size = _gex_bc_tm ? gex_TM_QuerySize(_gex_bc_tm)        \
-                                         : gasneti_nodes;                      \
+    gex_Rank_t _gex_bc_size = gex_TM_QuerySize(_gex_bc_tm);                    \
     const void *_gex_bc_ptr = (const void *)(ptr);                             \
     size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
     gasneti_assert(_gex_bc_nbytes); /* avoids "fence post" error */            \
@@ -303,9 +299,7 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
            !segtest(_gex_bc_tm,_gex_bc_rank,_gex_bc_ptr,_gex_bc_nbytes)) {     \
       const gasnet_seginfo_t *_gex_bc_client_seg =                             \
                        gasneti_client_seginfo(_gex_bc_tm,_gex_bc_rank);        \
-      gex_Rank_t _gex_bc_jobrank = _gex_bc_tm                                  \
-                    ? gasneti_e_tm_rank_to_jobrank(_gex_bc_tm, _gex_bc_rank)   \
-                    : _gex_bc_rank;                                            \
+      gex_Rank_t _gex_bc_jobrank = gasneti_e_tm_rank_to_jobrank(_gex_bc_tm, _gex_bc_rank); \
       const gasnet_seginfo_t *_gex_bc_aux_seg =                                \
                                          gasneti_aux_seginfo(_gex_bc_jobrank); \
       gasneti_fatalerror("Remote address out of range (" GASNETI_TMRANKFMT     \
@@ -328,10 +322,6 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
 
 
 // gasneti_boundscheck() and gasneti_boundscheck_allowoutseg()
-// both accept e_tm=NULL to indicate rank is a jobrank
-// (NULL,gasneti_mynode) is a common case for this.
-// NOTE: This behavior will no longer work when multi-{EP,segment} support is
-// added.  So avoid adding new callers which depend upon it.
 #if GASNET_NDEBUG
   #define gasneti_boundscheck(e_tm,rank,ptr,nbytes) ((void)0)
   #define gasneti_boundscheck_allowoutseg(e_tm,rank,ptr,nbytes) ((void)0)
