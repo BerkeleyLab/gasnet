@@ -2053,7 +2053,8 @@ gasnetc_alloc_request_post_descriptor_np(
   return gpd;
 #else
   // TODO-EX: cannot negotiate larger than MaxMedium until/unless reply_pool is over-sized too
-  max_length = MIN(max_length, GASNETC_MSG_MAXSIZE);
+  // We cannot send 65536 bytes in a 16-bit field (bug 4042)
+  max_length = MIN(max_length, MIN(GASNETC_MSG_MAXSIZE,65535));
   return request_post_descriptor_inner(dest, 0, 0, min_length, max_length, flags GASNETI_THREAD_PASS);
 #endif
 }
