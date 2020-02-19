@@ -159,8 +159,11 @@ void __gasneti_check_tm_rank(gex_TM_t _e_tm, gex_Rank_t _rank, int _allownull) {
   if (!_allownull) gasneti_assert(_e_tm);
   if (_e_tm) gasneti_assert_uint(_rank ,<, gex_TM_QuerySize(_e_tm));
 }
+#define gasneti_check_jobrank(jobrank) \
+  gasneti_assert_uint(jobrank ,<, gex_System_QuerySize());
 #else
   #define __gasneti_check_tm_rank(tm,rank,allownull) ((void)0)
+  #define gasneti_check_jobrank(jobrank) ((void)0)
 #endif
 
 #define gasneti_check_tm_rank(tm,rank) __gasneti_check_tm_rank((tm),(rank),0)
@@ -189,28 +192,23 @@ gex_Rank_t gasneti_i_tm_jobrank_to_rank(gasneti_TM_t _i_tm, gex_Rank_t _jobrank)
 // TODO-EX: These will necessarily be superceeded when multi-{EP,segment}
 // support is added.  So, avoid creating new callers.
 #define _gasneti_check_tm_rank_allownull(tm,rank) __gasneti_check_tm_rank(tm,rank,1)
-GASNETI_INLINE(_gasneti_e_tm_rank_to_jobrank_allownull)
-gex_Rank_t _gasneti_e_tm_rank_to_jobrank_allownull(gex_TM_t _e_tm, gex_Rank_t _rank) {
-  gasneti_TM_t _i_tm = gasneti_import_tm(_e_tm);
-  if (_i_tm) gasneti_assert_uint(_rank ,<, _i_tm->_size);
-  if (gasneti_is_tm0(_i_tm)) return _rank; // gasneti_is_tm0(NULL) true by construction
-  gasneti_assert(_i_tm);
-  return gasneti_tm_fwd_lookup(_i_tm, _rank);
-}
 
 extern gasnet_seginfo_t *gasneti_seginfo;
 extern gasnet_seginfo_t *gasneti_seginfo_aux;
 
 // TODO: generalize for multi-{EP,segment} support
 // TODO: work towards dropping non-scalable seginfo tables
-GASNETI_INLINE(_gasneti_seginfo_lookup)
-const gasnet_seginfo_t *_gasneti_seginfo_lookup(gex_TM_t _e_tm, gex_Rank_t _rank, int _is_aux) {
-  gex_Rank_t _jobrank = _gasneti_e_tm_rank_to_jobrank_allownull(_e_tm,_rank);
-  gasnet_seginfo_t *_seg_table = _is_aux ? gasneti_seginfo_aux : gasneti_seginfo;
-  return _seg_table + _jobrank;
+// TODO: work towards eliminating callers w/ _e_tm == NULL
+GASNETI_INLINE(gasneti_client_seginfo)
+const gasnet_seginfo_t *gasneti_client_seginfo(gex_TM_t _e_tm, gex_Rank_t _rank) {
+  gex_Rank_t _jobrank = _e_tm ? gasneti_e_tm_rank_to_jobrank(_e_tm,_rank)
+                              : _rank;
+  return gasneti_seginfo + _jobrank;
 }
-#define gasneti_client_seginfo(tm,rank) _gasneti_seginfo_lookup(tm,rank,0)
-#define gasneti_aux_seginfo(tm,rank)    _gasneti_seginfo_lookup(tm,rank,1)
+GASNETI_INLINE(gasneti_aux_seginfo)
+const gasnet_seginfo_t *gasneti_aux_seginfo(gex_Rank_t _jobrank) {
+  return gasneti_seginfo_aux + _jobrank;
+}
 
 GASNETI_INLINE(_gasneti_in_seginfo_t)
 int _gasneti_in_seginfo_t(const void *_ptr, size_t _nbytes, const gasnet_seginfo_t *_seginfo) {
@@ -234,17 +232,17 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
 // added.  So avoid adding new callers which depend upon it.
 #if GASNET_SEGMENT_EVERYTHING
   #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes)  (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
-  #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes)     (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
+  #define gasneti_in_auxsegment(jobrank,ptr,nbytes)       (gasneti_check_jobrank(jobrank), 1)
   #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes)    (_gasneti_check_tm_rank_allownull(e_tm,rank), 1)
 #else
   #define gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) \
           _gasneti_in_seginfo_t(ptr,nbytes,gasneti_client_seginfo(e_tm,rank))
-  #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes) \
-          _gasneti_in_seginfo_t(ptr,nbytes,gasneti_aux_seginfo(e_tm,rank))
+  #define gasneti_in_auxsegment(jobrank,ptr,nbytes) \
+          _gasneti_in_seginfo_t(ptr,nbytes,gasneti_aux_seginfo(jobrank))
   GASNETI_INLINE(gasneti_in_fullsegment)
   int gasneti_in_fullsegment(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_ptr, size_t _nbytes) {
     return gasneti_in_clientsegment(_e_tm, _rank, _ptr, _nbytes) ||
-           gasneti_in_auxsegment(_e_tm, _rank, _ptr, _nbytes);
+           gasneti_in_auxsegment(gasneti_e_tm_rank_to_jobrank(_e_tm, _rank), _ptr, _nbytes);
   }
 #endif
 
@@ -305,8 +303,11 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
            !segtest(_gex_bc_tm,_gex_bc_rank,_gex_bc_ptr,_gex_bc_nbytes)) {     \
       const gasnet_seginfo_t *_gex_bc_client_seg =                             \
                        gasneti_client_seginfo(_gex_bc_tm,_gex_bc_rank);        \
+      gex_Rank_t _gex_bc_jobrank = _gex_bc_tm                                  \
+                    ? gasneti_e_tm_rank_to_jobrank(_gex_bc_tm, _gex_bc_rank)   \
+                    : _gex_bc_rank;                                            \
       const gasnet_seginfo_t *_gex_bc_aux_seg =                                \
-                       gasneti_aux_seginfo(_gex_bc_tm,_gex_bc_rank);           \
+                                         gasneti_aux_seginfo(_gex_bc_jobrank); \
       gasneti_fatalerror("Remote address out of range (" GASNETI_TMRANKFMT     \
          " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"                 \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
