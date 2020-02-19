@@ -241,8 +241,11 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
           _gasneti_in_seginfo_t(ptr,nbytes,gasneti_client_seginfo(e_tm,rank))
   #define gasneti_in_auxsegment(e_tm,rank,ptr,nbytes) \
           _gasneti_in_seginfo_t(ptr,nbytes,gasneti_aux_seginfo(e_tm,rank))
-  #define gasneti_in_fullsegment(e_tm,rank,ptr,nbytes) \
-    (gasneti_in_clientsegment(e_tm,rank,ptr,nbytes) || gasneti_in_auxsegment(e_tm,rank,ptr,nbytes))
+  GASNETI_INLINE(gasneti_in_fullsegment)
+  int gasneti_in_fullsegment(gex_TM_t _e_tm, gex_Rank_t _rank, const void *_ptr, size_t _nbytes) {
+    return gasneti_in_clientsegment(_e_tm, _rank, _ptr, _nbytes) ||
+           gasneti_in_auxsegment(_e_tm, _rank, _ptr, _nbytes);
+  }
 #endif
 
 // Local-only in-segment checks, taking a gasneti_EP_t to name the local endpoint
