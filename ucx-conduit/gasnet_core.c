@@ -1494,7 +1494,7 @@ extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
       local_cnt = &counter->initiated;
     }
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     0, numargs, argptr, NULL, 0, NULL,
+                                     0, 0, numargs, argptr, NULL, 0, NULL,
                                      local_cnt, cbfunc,
                                      counter_ptr GASNETI_THREAD_PASS);
   }
@@ -1528,7 +1528,7 @@ extern int gasnetc_ReplySysShort(gex_Token_t token,
       local_cnt = &counter->initiated;
     }
     retval = gasnetc_am_reqrep_inner(GASNETC_UCX_AM_SHORT, jobrank, handler, 0,
-                                     0, numargs, argptr, NULL, 0, NULL,
+                                     0, 0, numargs, argptr, NULL, 0, NULL,
                                      local_cnt, cbfunc,
                                      counter_ptr GASNETI_THREAD_PASS);
   }

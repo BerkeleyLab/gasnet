@@ -678,6 +678,7 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
            gex_Rank_t jobrank,
            gex_AM_Index_t handler,
            gex_Flags_t flags,
+           uint8_t is_request,
            uint8_t is_sync,
            int numargs,
            va_list argptr,
@@ -704,7 +705,7 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
   gasneti_assert(am_req);
 
   /* format common data */
-  gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_packed, is_sync,
+  gasnetc_am_req_format(am_req, am_type, jobrank, handler, is_packed, is_request,
             numargs, argptr, nbytes, dst_addr GASNETI_THREAD_PASS);
   if (!nbytes) {
     goto send;
@@ -735,11 +736,14 @@ int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
         int status;
         status = gasnetc_ucx_am_put(jobrank, src_addr, nbytes, dst_addr,
             local_cnt, local_cb);
+        /* reset a local completion for next operation, it is already handled */
+        local_cnt = NULL;
+        local_cb = NULL;
         /* checking if put status is completed inline */
         if (!status && is_sync) {
           gasneti_assert(counter);
           GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
-          gasnetc_counter_wait(counter, is_sync GASNETI_THREAD_PASS);
+          gasnetc_counter_wait(counter, is_request GASNETI_THREAD_PASS);
           GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
         }
       }
@@ -759,7 +763,7 @@ send:
   GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 
   if (req && is_sync) {
-    gasnetc_req_wait(req, is_sync);
+    gasnetc_req_wait(req, is_request);
   }
   return GASNET_OK;
 }
@@ -781,6 +785,7 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
   gasnetc_counter_t *counter_ptr = NULL;
   gasnetc_cbfunc_t cbfunc = NULL;
   gasnetc_atomic_val_t *local_cnt = NULL;
+  uint8_t is_sync = is_request;
 
   if (GASNETC_UCX_AM_LONG == am_type) {
 #if GASNETC_PIN_SEGMENT
@@ -795,20 +800,23 @@ int gasnetc_AM_ReqRepGeneric(gasnetc_ucx_am_type_t am_type,
       local_cnt = &eop->initiated_alc;
       cbfunc = gasnetc_cb_eop_alc;
       *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
+      is_sync = 0;
     } else if (lc_opt == GEX_EVENT_GROUP) {
       gasnete_iop_t *iop = mythread->current_iop;
       local_cnt = &iop->initiated_alc_cnt;
       cbfunc = iop->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
+      is_sync = 0;
     } else {
       gasneti_assert(lc_opt == GEX_EVENT_NOW);
       local_cnt = &counter.initiated;
       cbfunc = gasnetc_cb_counter;
+      is_sync = 1;
     }
 #else
     gasneti_leaf_finish(lc_opt); // synchronous local completion
 #endif
   }
-  retval = gasnetc_am_reqrep_inner(am_type, jobrank, handler, flags, is_request,
+  retval = gasnetc_am_reqrep_inner(am_type, jobrank, handler, flags, is_request, is_sync,
                                    numargs, argptr, src_addr, nbytes, dst_addr,
                                    local_cnt, cbfunc,
                                    counter_ptr GASNETI_THREAD_PASS);
