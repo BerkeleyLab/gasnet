@@ -940,10 +940,17 @@ void gasnetc_req_poll_rcv(gasnetc_lock_mode_t lmode)
     }
     request->status = GASNETC_UCX_ACTIVE;
   }
-#if GASNET_PSHM
-  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
-#endif
   GASNETC_LOCK_RELEASE(lmode);
+#if GASNET_PSHM
+  if (lmode == GASNETC_LOCK_REGULAR) {
+    gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
+  } else if (lmode == GASNETC_LOCK_INLINE) {
+    /* `gasneti_AMPSHMPoll` should be called outside the lock */
+    GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
+    gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
+    GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
+  }
+#endif
 }
 
 int gasnetc_req_poll(gasnetc_lock_mode_t lmode)
