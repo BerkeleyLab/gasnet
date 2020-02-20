@@ -37,10 +37,6 @@ int gasnetc_exit_running = 0;		/* boolean used to identify that exit process is 
 /* gasnete_threadidx_t used to identify what thread an exit process was started */
 gasnete_threadidx_t gasnetc_exit_thread  = 0 ;
 
-#ifdef GASNETC_UCX_THREADS
-GASNETI_THREADKEY_DEFINE(gasnetc_mythread_idx);
-#endif
-
 static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
 static gasneti_atomic_t gasnetc_exit_dist = gasneti_atomic_init(0);	/* OR of reduce distances */
