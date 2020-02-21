@@ -2,6 +2,7 @@
  * Description: GASNet header for libfabric (OFI) conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2015, Intel Corporation
+ * Portions copyright 2018-2020, The Regents of the University of California.
  * Terms of use are as specified in license.txt
  */
 
