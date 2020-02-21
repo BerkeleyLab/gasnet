@@ -134,6 +134,15 @@ static int gasnetc_attach_primary(void) {
 
   gasneti_nodemapFini();
 
+  if (! gasneti_mynode) {
+    fflush(NULL);
+    fprintf(stderr,
+      " WARNING: ofi-conduit is experimental and should not be used for\n"
+      "          performance measurements.\n"
+      "          Please see `ofi-conduit/README` for more details.\n");
+    fflush(NULL);
+  }
+
   /* ensure extended API is initialized across nodes */
   gasneti_spawner->Barrier();
 

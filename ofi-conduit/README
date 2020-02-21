@@ -1,6 +1,16 @@
 GASNet ofi-conduit documentation
-Copyright 2015-2017, Intel Corporation
-$Revision: 1.0 $
+Portions copyright 2015-2017, Intel Corporation
+Portions copyright 2018-2020, The Regents of the University of California.
+$Revision: 1.1 $
+
+**** NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE ****
+*                                                               *
+*  This version of ofi-conduit is a work-in-progress port from  *
+*  GASNet-1 to GASNet-EX and is currently disabled by default.  *
+*  Various aspects of this README are either out-of-date or     *
+*  have not been reverified against the current version.        *
+*                                                               *
+**** NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE ****
 
 User Information:
 ----------------
