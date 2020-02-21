@@ -115,6 +115,11 @@ testprograms_par =  \
 	testlockcontend \
 	$(MPI_TESTS_PAR)
 
+# misc files to clean
+clean_files = \
+	testhello \
+	$(TESTEXIT_SCRIPT)
+
 testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par) $(MPI_TESTS) $(CXX_TESTS)
 
 tests-seq: clean $(testprograms_seq)
@@ -128,7 +133,7 @@ tests-mpi: $(MPI1_TESTS)
 tests-mpi2: $(MPI2_TESTS)
 
 clean:
-	rm -f $(testprograms:=@EXESUFFIX@) $(TESTEXIT_SCRIPT)
+	rm -f $(testprograms:=@EXESUFFIX@) $(clean_files)
 
 distclean: 
 	rm -f Makefile
