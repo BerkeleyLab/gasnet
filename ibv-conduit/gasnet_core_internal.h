@@ -1003,7 +1003,7 @@ gasnetc_cep_t *gasnetc_get_cep(gasnetc_EP_t ep, gex_Rank_t node) {
 GASNETI_INLINE(gasnetc_in_segment)
 int gasnetc_in_segment(const gasnetc_Segment_t seg, uintptr_t addr, size_t len) {
   if_pf (!seg) return 0;
-  uint64_t offset = (uint64_t)addr - ((uint64_t)seg->_addr); // negative is a LARGE positive
+  uint64_t offset = (uint64_t)addr - ((uint64_t)(uintptr_t)seg->_addr); // negative is a LARGE positive
   int result = (offset < ((uint64_t)seg->_size));
   gasneti_assume(!result || (addr+len <= (uintptr_t)seg->_ub)); // single-segment assumption
   return result;
