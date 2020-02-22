@@ -409,19 +409,29 @@ static void gasnetc_unpin_segment(void)
 
 static void gasnetc_ucx_fini(void)
 {
+  GASNETC_EXIT_STATE("gasnetc_ucx_fini called");
   gasnetc_ucx_worker_flush();
+  GASNETC_EXIT_STATE("gasnetc_ucx_worker_flush called");
   gasnetc_sreq_list_free();
+  GASNETC_EXIT_STATE("gasnetc_sreq_list_free called");
   gasnetc_am_req_pool_free();
+  GASNETC_EXIT_STATE("gasnetc_am_req_pool_free called");
 
   /* cleanup UCX */
   gasnetc_connect_shutdown();
+  GASNETC_EXIT_STATE("gasnetc_connect_shutdown called");
+
 #if GASNETC_PIN_SEGMENT
   gasnetc_unpin_segment();
 #endif
   ucp_worker_destroy(gasneti_ucx_module.ucp_worker);
+  GASNETC_EXIT_STATE("ucp_worker_destroy called");
   gasnetc_rreq_list_free();
+  GASNETC_EXIT_STATE("gasnetc_rreq_list_free called");
   gasnetc_buffer_pool_free();
+  GASNETC_EXIT_STATE("gasnetc_buffer_pool_free called");
   ucp_cleanup(gasneti_ucx_module.ucp_context);
+  GASNETC_EXIT_STATE("ucp_cleanup called");
 
   gasneti_free(gasneti_ucx_module.ep_tbl);
   gasneti_mutex_destroy(&gasneti_ucx_module.ucp_worker_lock);
@@ -920,7 +930,6 @@ static void gasnetc_exit_sighandler(int sig) {
 
 #if GASNET_DEBUG
   // protect until we reach reentrance check
-  GASNETC_EXIT_STATE("in exit sighandler");
   gasneti_reghandler(SIGALRM, _exit);
   gasneti_unblocksig(SIGALRM);
   alarm(30);
