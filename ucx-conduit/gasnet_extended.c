@@ -125,11 +125,11 @@ gex_Event_t gasnete_get_nb(
   gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   
-  GASNETC_LOCK_ACQUIRE_REGULAR();
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   gasnetc_ucx_putget_inner(0, jobrank, dest, nbytes, src,
                            &eop->initiated_cnt, gasnetc_cb_eop_get,
                            NULL, NULL);
-  GASNETC_LOCK_RELEASE_REGULAR();
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
   return (gex_Event_t)eop;
 }
 
@@ -147,7 +147,7 @@ gex_Event_t gasnete_put_nb(
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
   gasnete_eop_t *eop = gasnete_eop_new(GASNETI_MYTHREAD);
 
-  GASNETC_LOCK_ACQUIRE_REGULAR();
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_ucx_putget_inner(1, jobrank, src, nbytes, dest,
                              &counter.initiated, gasnetc_cb_counter,
@@ -170,7 +170,7 @@ gex_Event_t gasnete_put_nb(
       *lc_opt = gasneti_op_event(eop, gasnete_eop_event_alc);
     }
   }
-  GASNETC_LOCK_RELEASE_REGULAR();
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 
   if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
@@ -202,12 +202,12 @@ int gasnete_get_nbi (gex_TM_t tm, void *dest, gex_Rank_t rank, void *src,
 
   gex_Rank_t jobrank = gasneti_e_tm_rank_to_jobrank(tm, rank);
 
-  GASNETC_LOCK_ACQUIRE_REGULAR();
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   ret = gasnetc_ucx_putget_inner(
         0, jobrank, dest, nbytes, src, &op->initiated_get_cnt,
         op->next ? gasnetc_cb_nar_get : gasnetc_cb_iop_get,
         NULL, NULL);
-  GASNETC_LOCK_RELEASE_REGULAR();
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
   return ret;
 }
 
@@ -239,11 +239,11 @@ int gasnete_put_nbi (gex_TM_t tm, gex_Rank_t rank, void *dest,
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
   
-  GASNETC_LOCK_ACQUIRE_REGULAR();
+  GASNETC_LOCK_ACQUIRE(GASNETC_LOCK_REGULAR);
   gasnetc_ucx_putget_inner(1, jobrank, src, nbytes, dest,
                            local_cnt, local_cb, &op->initiated_put_cnt,
                            op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put);
-  GASNETC_LOCK_RELEASE_REGULAR();
+  GASNETC_LOCK_RELEASE(GASNETC_LOCK_REGULAR);
 
   if (lc_opt == GEX_EVENT_NOW) {
     gasnetc_counter_wait(&counter, 1 GASNETI_THREAD_PASS);
