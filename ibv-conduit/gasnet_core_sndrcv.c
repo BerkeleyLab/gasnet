@@ -708,6 +708,7 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_PUT_BOUNCE:	/* Bounce-buffer PUT */
+	  case GASNETC_OP_LONG_BOUNCE:	/* Bounce-buffer Long payload */
 	    gasneti_assert(comp.opcode == IBV_WC_RDMA_WRITE);
             if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
@@ -735,6 +736,7 @@ static int gasnetc_snd_reap(int limit) {
 	    break;
 
 	  case GASNETC_OP_PUT_ZEROCP:	/* Zero-copy PUT */
+	  case GASNETC_OP_LONG_ZEROCP:	/* Zero-copy Long payload */
 	    gasneti_assert(comp.opcode == IBV_WC_RDMA_WRITE);
 	    if (sreq->comp.cb != NULL) {
               sreq->comp.cb(sreq->comp.data);
@@ -1664,10 +1666,14 @@ void gasnetc_do_put_bounce(
   uintptr_t src = sr_desc->sg_list[0].addr;
   GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BOUNCE, nbytes);
 
+  const int is_long_payload = gasnetc_epid2qpi(epid); // non-zero qpi identifies Long payloads
+  const gasnetc_sreq_opcode_t sreq_op = is_long_payload ? GASNETC_OP_LONG_BOUNCE
+                                                        : GASNETC_OP_PUT_BOUNCE;
+
   gasneti_assert(nbytes != 0);
 
   do {
-    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_BOUNCE GASNETI_THREAD_PASS);
+    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(sreq_op GASNETI_THREAD_PASS);
     const size_t count = MIN(GASNETC_BUFSZ, nbytes);
 
     sreq->bb_buff = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
@@ -1699,11 +1705,15 @@ size_t gasnetc_do_put_zerocp(
 {
   GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, nbytes);
 
+  const int is_long_payload = gasnetc_epid2qpi(epid); // non-zero qpi identified Long payloads
+  const gasnetc_sreq_opcode_t sreq_op = is_long_payload ? GASNETC_OP_LONG_ZEROCP
+                                                        : GASNETC_OP_PUT_ZEROCP;
+
   gasneti_assert(nbytes != 0);
 
   // loop over max-length xfers
   do {
-    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_ZEROCP GASNETI_THREAD_PASS);
+    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(sreq_op GASNETI_THREAD_PASS);
     size_t count = gasnetc_zerocp_common(ep, epid, rem_auxseg, sr_desc, nbytes, sreq,
                                          IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
     if_pf (!count) {
@@ -1857,13 +1867,15 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq GASNETI_THREAD_FARG) {
   uintptr_t src = orig_sreq->fh_loc_addr;
   uintptr_t dst = orig_sreq->fh_rem_addr;
 
+  const gasnetc_sreq_opcode_t sreq_op = orig_sreq->opcode;
+
   gasneti_assert(nbytes != 0);
   gasneti_assert(orig_sreq->fh_rem_addr >= fh_rem->addr);
   gasneti_assert(orig_sreq->fh_rem_addr + (nbytes - 1) <= fh_rem->addr + (fh_rem->len - 1));
 
   /* Use full bounce buffers until just one buffer worth of data remains */
   while (nbytes > GASNETC_BUFSZ) {
-    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_BOUNCE GASNETI_THREAD_PASS);
+    gasnetc_sreq_t * const sreq = gasnetc_get_sreq(sreq_op GASNETI_THREAD_PASS);
     sreq->fh_bbuf = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
     GASNETI_MEMCPY(sreq->fh_bbuf, (void *)src, GASNETC_BUFSZ);
     sreq->fh_count = 0;
@@ -1977,12 +1989,14 @@ static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq GASNETI_THREAD_FARG) {
       break;
 
     case GASNETC_OP_PUT_BOUNCE:
+    case GASNETC_OP_LONG_BOUNCE:
       gasneti_assert(sreq->fh_len > 0);
       GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BOUNCE, sreq->fh_len);
       gasnetc_fh_put_bounce(sreq GASNETI_THREAD_PASS);
       break;
 
     case GASNETC_OP_PUT_ZEROCP:
+    case GASNETC_OP_LONG_ZEROCP:
       gasneti_assert(sreq->fh_len > 0);
       GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, sreq->fh_len);
       gasnetc_fh_post(sreq, IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
@@ -2088,6 +2102,7 @@ size_t gasnetc_fh_put_helper(
                 size_t len
                 GASNETI_THREAD_FARG) {
   const gex_Rank_t node = gasnetc_epid2node(epid);
+  const int is_long_payload = gasnetc_epid2qpi(epid); // non-zero qpi identifies Long payloads
   const firehose_request_t *fh_rem;
   size_t putinmove = sreq->fh_putinmove = 0;
 
@@ -2145,7 +2160,7 @@ size_t gasnetc_fh_put_helper(
     if_pf (!new_len) {
       // Failed to register memory, such as for read-only memory (bug 3338)
       // So, use bounce buffers
-      sreq->opcode = GASNETC_OP_PUT_BOUNCE;
+      sreq->opcode = is_long_payload ? GASNETC_OP_LONG_BOUNCE : GASNETC_OP_PUT_BOUNCE;
       if_pf (fh_rem == NULL) { /* Memory will be copied asynchronously */
 	if (local_cnt) ++(*local_cnt);
       } else { /* Memory will be copied synchronously before return */
@@ -2190,7 +2205,7 @@ size_t gasnetc_fh_put_helper(
       }
     } else if ((nbytes <= gasnetc_bounce_limit) && (local_cnt != NULL)) {
       /* Bounce buffer use for non-bulk puts (upto a limit) */
-      sreq->opcode = GASNETC_OP_PUT_BOUNCE;
+      sreq->opcode = is_long_payload ? GASNETC_OP_LONG_BOUNCE : GASNETC_OP_PUT_BOUNCE;
       if_pf (fh_rem == NULL) { /* Memory will be copied asynchronously */
 	++(*local_cnt);
       } else { /* Memory will be copied synchronously before return */
@@ -2201,7 +2216,7 @@ size_t gasnetc_fh_put_helper(
       }
     } else {
       /* Use the local firehose(s) obtained earlier */
-      sreq->opcode = GASNETC_OP_PUT_ZEROCP;
+      sreq->opcode = is_long_payload ? GASNETC_OP_LONG_ZEROCP : GASNETC_OP_PUT_ZEROCP;
       /* The init or the sync (or neither) might wait on completion, but never both */
       if (local_cnt != NULL) {
 	++(*local_cnt);
