@@ -79,7 +79,7 @@ gasnetc_EP_t gasnetc_ep0; // First EP created.  Used by init, sys AMs, and shutd
 /* Protocol switch points */
 #define GASNETC_DEFAULT_INLINESEND_LIMIT	72
 #define GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT	(64*1024)
-#define GASNETC_DEFAULT_PACKEDLONG_LIMIT	GASNETC_MAX_PACKEDLONG
+#define GASNETC_DEFAULT_PACKEDLONG_LIMIT	4012 // See bug 4044 for discussion re: increasing this
 #if !GASNETC_PIN_SEGMENT
   #define GASNETC_DEFAULT_PUTINMOVE_LIMIT	GASNETC_PUTINMOVE_LIMIT_MAX
 #endif
