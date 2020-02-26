@@ -625,6 +625,9 @@ typedef enum {
 #if !GASNETC_PIN_SEGMENT
 	GASNETC_OP_PUT_INMOVE,
 #endif
+        // Long payload puts do NOT need fencing (see bug 4049)
+	GASNETC_OP_LONG_ZEROCP,
+	GASNETC_OP_LONG_BOUNCE,
         // Following all have GASNETC_OP_NEEDS_FENCE bit set
 	GASNETC_OP_PUT_INLINE = GASNETC_OP_NEEDS_FENCE,
 	GASNETC_OP_PUT_ZEROCP,
