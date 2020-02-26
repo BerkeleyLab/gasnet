@@ -583,6 +583,24 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default value is 3KB (the current maximum value).
     A value of zero disables this optimization.
 
+  + GASNET_PUT_STRIPE_SZ and GASNET_GET_STRIPE_SZ (experimental)
+    When multiple HCA ports are used, the performance of a sufficiently large
+    isolated RMA operation (one not overlapped with other communication) can
+    be increased by subdividing it into multiple pieces striped over more than
+    one path.  These parameters specify the threshold above which striping is
+    applied to RMA Put and Get operations, respectively.
+    Suffixes "K", "M" and "G" can be used to specify units of Kilobytes,
+    Megabytes and Gigabytes, respectively.  The default units are Kilobytes.
+    Use of a too-small value may limit the performance of large RMA operations
+    by subdividing them into stripes too small to saturate the network.
+    Use of a too-large value may limit the performance of RMA operations
+    which are large enough to benefit from striping but below the value.
+    Values exceeding the HCA's maximum transfer size will be silently reduced.
+    These parameters are ignored if only a single HCA/port is in use.
+    A value of zero uses the HCA's maximum transfer size as the stripe size,
+    effectively disabling this optimization.
+    The current default is zero (disabled).
+
   + GASNET_AM_GATHER_MIN
     This parameter sets the minimum payload size at which a multi-segment
     gather may be used to concatenate an AM header and payload.  Below this

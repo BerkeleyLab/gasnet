@@ -38,6 +38,8 @@ size_t					gasnetc_fh_align_mask;
 size_t                                  gasnetc_inline_limit;
 size_t                   		gasnetc_bounce_limit;
 size_t					gasnetc_packedlong_limit; // TODO-EX: adjust w/ nargs?
+size_t                                  gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
+size_t                                  gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
 #if !GASNETC_PIN_SEGMENT
   size_t				gasnetc_putinmove_limit;
 #endif
@@ -1526,7 +1528,28 @@ size_t gasnetc_zerocp_common(
 
   sr_desc->opcode = op;
 
-  len = MIN(len, gasnetc_max_msg_sz); // limit how much we can xfer
+  // Limit how much we can xfer
+  // Note that op is a manifest constant in all callers
+  //
+  // We don't want stripe_sz=N to split a N+1 byte xfer into N-byte and 1-byte xfers.
+  // So, sizes between "stripe_sz" and "stripe_split" are spilt into two equal chunks.
+  // Currently stripe_split = MIN(2*stripe_sz, gasnetc_max_msg_sz), which results in
+  // the logic only ever creating chunks of size in [stripe_sz/2, stripe_sz].
+  switch (op) {
+    case IBV_WR_RDMA_WRITE:
+      if (len > gasnetc_put_stripe_sz) {
+        len = (len > gasnetc_put_stripe_split) ? gasnetc_put_stripe_sz : (len >> 1);
+      }
+      break;
+    case IBV_WR_RDMA_READ:
+      if (len > gasnetc_get_stripe_sz) {
+        len = (len > gasnetc_get_stripe_split) ? gasnetc_get_stripe_sz : (len >> 1);
+      }
+      break;
+    default:
+      gasneti_unreachable_error(("Invalid 'op' in gasnetc_zerocp_common: %d",(int)op));
+  }
+
   size_t sent = 0;
 
   // TODO-EX:
