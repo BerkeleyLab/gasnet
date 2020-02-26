@@ -275,8 +275,19 @@ wrap_test: upcxx-install
 	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
 
+VPATH = \
+	$(UPCXX_BLDDIR)/test \
+	$(UPCXX_BLDDIR)/test/uts \
+	$(UPCXX_BLDDIR)/test/regression \
+	$(UPCXX_BLDDIR)/example/prog-guide \
+	$(UPCXX_BLDDIR)/example/serialization \
+	$(UPCXX_BLDDIR)/bench \
+	$(UPCXX_BLDDIR)/extras/extensions/allocator \
+	$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator \
+	$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples \
+	$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
+
 # Pattern rule builds tests, using logic dependent on their location
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
