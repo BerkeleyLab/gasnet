@@ -583,6 +583,24 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default value is 3KB (the current maximum value).
     A value of zero disables this optimization.
 
+  + GASNET_PUT_STRIPE_SZ and GASNET_GET_STRIPE_SZ (experimental)
+    When multiple HCA ports are used, the performance of a sufficiently large
+    isolated RMA operation (one not overlapped with other communication) can
+    be increased by subdividing it into multiple pieces striped over more than
+    one path.  These parameters specify the threshold above which striping is
+    applied to RMA Put and Get operations, respectively.
+    Suffixes "K", "M" and "G" can be used to specify units of Kilobytes,
+    Megabytes and Gigabytes, respectively.  The default units are Kilobytes.
+    Use of a too-small value may limit the performance of large RMA operations
+    by subdividing them into stripes too small to saturate the network.
+    Use of a too-large value may limit the performance of RMA operations
+    which are large enough to benefit from striping but below the value.
+    Values exceeding the HCA's maximum transfer size will be silently reduced.
+    These parameters are ignored if only a single HCA/port is in use.
+    A value of zero uses the HCA's maximum transfer size as the stripe size,
+    effectively disabling this optimization.
+    The current default is zero (disabled).
+
   + GASNET_AM_GATHER_MIN
     This parameter sets the minimum payload size at which a multi-segment
     gather may be used to concatenate an AM header and payload.  Below this
@@ -646,16 +664,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     If enabled when using only a single HCA a warning will be issued.
     This setting defaults to 0 (disabled).
 
-   + GASNET_PIN_MAXSZ
-    This controls the maximum size of a pinned memory region.  The value must
-    be a power-of-two, and no less than the page size.  If the value is larger
-    than the HCA(s) can support, it will be reduced (with a warning).
-    When a GASNet-level transfer spans multiple pinned regions, multiple
-    operations are required at the Verbs layer.  However, some older Mellanox
-    HCAs performed poorly with large pinned regions.  In general there is no
-    need to adjust this parameter.
-    The default is to use largest size supported by the HCA(s).
-
   Resource usage parameters:
   -------------------------
   The following environment variables control how much memory is
@@ -685,9 +693,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     from the send completion queue.  This value is the depth of each
     send work queue.  This limit is on the number of ibv-level ops
     in-flight, and the number of GASNet-level operations may be less
-    (for example, when the remote range of a PUT or GET covers more
-    than one pinned region, due to GASNET_PIN_MAXSZ, or because an AM
-    Long uses separate ops for the payload and header).
+    (for example, when the length of a PUT or GET is larger than the
+    HCA's maximum message length, or because an AM Long uses separate
+    ops for the payload and header).
     The default value is 24.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
@@ -1309,11 +1317,8 @@ Notes for myself for extended API:
     implementation, and uses thread-local data to avoid locks.
 
 + The memsets can be more efficiently implemented as a _local_ memset
-  followed by a PUT, for small enough sizes.  The cutoff is
-  presently the size of one bounce buffer, but has not been tuned.
-
-  This was disabled when GASNET_PIN_MAXSZ was introduced.  Therefore,
-  all memsets are currently done by Active Messages.
+  followed by a PUT, for small enough sizes.  This is not currently
+  implemented.
   
 
 @ Section: Graceful exits @

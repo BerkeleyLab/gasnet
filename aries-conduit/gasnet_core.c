@@ -692,10 +692,10 @@ static int gasnetc_init( gex_Client_t            *client_p,
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace + gasneti_auxseg_preinit());
 
   /* allocate and attach an aux segment */
-  gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange_gni);
+  gasnet_seginfo_t auxseg = gasneti_auxsegAttach((uintptr_t)-1, &gasnetc_bootstrapExchange_gni);
 
   /* register auxseg and setup subsystems using it */
-  gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);
+  gasnetc_init_gni(auxseg);
 
   /* determine Max{Local,GLobal}SegmentSize */
   gasneti_segmentInit(max_pin, &gasnetc_bootstrapExchange_gni, flags);
@@ -771,46 +771,13 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   uintptr_t                     segsize,
                                   gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
-  // TODO-EX: crude detection of multiple calls until we support them
-  gasneti_assert(NULL == gasneti_seginfo[0].addr);
-
   /* ------------------------------------------------------------------------------------ */
-  /*  register segment  */
+  /*  register client segment  */
 
-  gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
 
-  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
-  segsize = gasneti_seginfo[gasneti_mynode].size;
-
-  gasnetc_assert_aligned(segbase, GASNET_PAGESIZE);
-  gasnetc_assert_aligned(segsize, GASNET_PAGESIZE);
-
-  gasneti_EP_t ep = gasneti_import_tm(tm)->_ep;
-  ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, 0);
-  gasneti_legacy_segment_attach_hook(ep);
-  *segment_p = gasneti_export_segment(ep->_segment);
-
-  /* After local segment is attached, call optional client-provided hook
-     (###) should call BEFORE any conduit-specific pinning/registration of the segment
-   */
-  if (gasnet_client_attach_hook) {
-    gasnet_client_attach_hook(segbase, segsize);
-  }
-
-  /* ------------------------------------------------------------------------------------ */
-  /*  gather segment information */
-
-  /* (###) add code here to gather the segment assignment info into
-           gasneti_seginfo on each node (may be possible to use AMShortRequest here)
-           If gasneti_segmentAttach() was used above, this is already done.
-     (LCS) This was done by segmentAttach above
-   */
-
-  /* Register client segment */
-  gasnetc_init_segment(gasneti_seginfo[gasneti_mynode]);
-
-  gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
-                 gasneti_seginfo[gasneti_mynode].size == segsize);
+  // Register client segment with NIC
+  gasnetc_init_segment(myseg);
 
   return GASNET_OK;
 }
@@ -1256,12 +1223,6 @@ int gasnetc_general_am_send_reply(gasnetc_post_descriptor_t *gpd, gex_Token_t t)
              : gasnetc_general_am_send_common(gpd);
 }
 
-GASNETI_INLINE(reply_jobrank)
-gex_Rank_t reply_jobrank(gex_Token_t t)
-{
-    return(((gasnetc_token_t *)t)->source);
-}
-
 /*------------------- header formatting ------------------ */
 GASNETI_INLINE(gasnetc_format_short)
 void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
@@ -1433,7 +1394,7 @@ void gasnetc_commit_medium(
 /*------------------- long payloads ------------------ */
 
 GASNETI_INLINE(gasnetc_put_long_payload)
-void gasnetc_put_long_payload(gex_Rank_t jobrank,
+void gasnetc_put_long_payload(gex_TM_t tm, gex_Rank_t rank,
                               void *dst_addr,
                               void *src_addr,
                               size_t nbytes,
@@ -1444,7 +1405,7 @@ void gasnetc_put_long_payload(gex_Rank_t jobrank,
                               GASNETC_DIDX_FARG)
 {
   gasneti_suspend_spinpollers();
-  gasnetc_rdma_put_long(jobrank, dst_addr, src_addr, nbytes,
+  gasnetc_rdma_put_long(tm, rank, dst_addr, src_addr, nbytes,
                         gpd_flags, completion, nonce GASNETC_DIDX_PASS);
   gasneti_resume_spinpollers();
 
@@ -1554,7 +1515,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
         gpd_flags = GC_POST_COMPLETION_FLAG;
         completion = (void *) &done_flag;
       }
-      gasnetc_put_long_payload(jobrank, dest_addr, source_addr, nbytes,
+      gasnetc_put_long_payload(tm, rank, dest_addr, source_addr, nbytes,
                                gpd_flags, completion, nonce, 1 GASNETC_DIDX_PASS);
     }
 
@@ -1795,7 +1756,12 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
         gpd_flags = GC_POST_COMPLETION_FLAG;
         completion = (void *) &done_flag;
       }
-      gasnetc_put_long_payload(reply_jobrank(token), dest_addr, source_addr, nbytes,
+
+      // TODO-EX: multi-EP support
+      gasnetc_token_t *real_token = (gasnetc_token_t *)token;
+      gex_TM_t tm = gasneti_THUNK_TM;
+      gex_Rank_t rank = real_token->source;
+      gasnetc_put_long_payload(tm, rank, dest_addr, source_addr, nbytes,
                                gpd_flags, completion, nonce, 0 GASNETC_DIDX_PASS);
     }
 

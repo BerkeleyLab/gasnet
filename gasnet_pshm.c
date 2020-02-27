@@ -1139,7 +1139,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq GASNE
   void *msg;
   size_t msgsz;
   gasneti_pshm_rank_t from;
-  int category;
+  gasneti_category_t category;
   gex_AM_Index_t handler_id;
   gex_AM_Fn_t handler_fn;
   int numargs;
@@ -1151,7 +1151,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq GASNE
     return -1;
 
   handler_id = GASNETI_AMPSHM_MSG_HANDLERID(msg);
-  category = GASNETI_AMPSHM_MSG_CATEGORY(msg);
+  category = (gasneti_category_t) GASNETI_AMPSHM_MSG_CATEGORY(msg);
   gasneti_assert((category == gasneti_Short) || 
                  (category == gasneti_Medium) || 
                  (category == gasneti_Long));
@@ -1410,7 +1410,7 @@ void ampshm_commit_inner(
 // First 1 params (category, isReq) will be manifest constants
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(gasnetc_AMPSHM_ReqRepGeneric)
-int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t jobrank,
+int gasnetc_AMPSHM_ReqRepGeneric(gasneti_category_t category, int isReq, gex_Rank_t jobrank,
                                  gex_AM_Index_t handler, void *source_addr, size_t nbytes,
                                  void *dest_addr, gex_Flags_t flags, int numargs, va_list argptr
                                  GASNETI_THREAD_FARG)
@@ -1440,7 +1440,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gex_Rank_t jobrank,
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(ampshm_prepare)
 int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
-                   const int isReq, const int category,
+                   const int isReq, const gasneti_category_t category,
                    gex_Rank_t jobrank, const void *client_buf,
                    size_t least_payload, size_t most_payload,
                    void *dest_addr, gex_Event_t *lc_opt,
@@ -1465,7 +1465,7 @@ int ampshm_prepare(gasneti_AM_SrcDesc_t sd,
 // which should lead to specialization of the code upon inlining.
 GASNETI_INLINE(ampshm_comit)
 void ampshm_commit(gasneti_AM_SrcDesc_t sd,
-                   const int isReq, const int category,
+                   const int isReq, const gasneti_category_t category,
                    gex_AM_Index_t handler, size_t nbytes,
                    void *dest_addr, va_list argptr)
 {

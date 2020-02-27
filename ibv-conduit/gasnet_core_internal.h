@@ -65,7 +65,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running, GASNETI_ATOMIC_RMB_PRE)
 
 /* May eventually be a hash? */
-#define GASNETC_NODE2CEP(_node) (gasnetc_node2cep[_node])
+#define GASNETC_NODE2CEP(_ep,_node) ((_ep)->cep_table[_node])
 
 
 /*
@@ -77,7 +77,6 @@ extern gasneti_atomic_t gasnetc_exit_running;
  */
 #if PLATFORM_OS_SOLARIS || GASNET_BLCR || GASNET_DEBUG
   #define GASNETC_IBV_SHUTDOWN 1
-  extern void gasnetc_connect_shutdown(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -453,11 +452,7 @@ typedef struct {
   gasnetc_memreg_t	snd_reg;
   gasnetc_memreg_t      aux_reg;
 #if GASNETC_PIN_SEGMENT
-  uint32_t        *seg_lkeys;
-  uint32_t	*rkeys;	/* RKey(s) registered at attach time */
-  #if GASNETC_IBV_SHUTDOWN
-    gasnetc_memreg_t    *seg_regs;
-  #endif
+  uint32_t              *rkeys; // RKeys registered at attach time
 #endif
 #if GASNETC_IBV_ODP
   struct {
@@ -516,10 +511,7 @@ struct gasnetc_cep_t_ {
 
   /* Read-only fields - many duplicated from fields in cep->hca */
 #if GASNETC_PIN_SEGMENT
-  uint32_t      *rkeys;	/* RKey(s) registered at attach time */
-#endif
-#if GASNETC_PIN_SEGMENT && (GASNETC_IB_MAX_HCAS > 1)
-  uint32_t      *seg_lkeys;
+  uint32_t      rkey;
 #endif
 #if (GASNETC_IB_MAX_HCAS > 1)
   uint32_t      rcv_lkey;
@@ -562,9 +554,24 @@ typedef struct {
 typedef struct gasnetc_EP_t_ {
   GASNETI_EP_COMMON // conduit-indep part as prefix
 
-  // Per-EP resources will move here from gasnetc_hca_t
+  gasnetc_cep_t     **cep_table;     // QP, flow-control, etc
 } *gasnetc_EP_t;
 extern gasnetc_EP_t gasnetc_ep0;
+
+// Conduit-specific Segment type
+typedef struct gasnetc_Segment_t_ {
+  GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
+
+  int idx; // location in segment table
+
+#if GASNETC_PIN_SEGMENT
+  // memory registation info (per-HCA)
+  uint32_t            seg_lkey[GASNETC_IB_MAX_HCAS];
+  #if GASNETC_IBV_SHUTDOWN
+    gasnetc_memreg_t  seg_reg[GASNETC_IB_MAX_HCAS];
+  #endif
+#endif
+} *gasnetc_Segment_t;
 
 /* Description of a receive buffer.
  *
@@ -618,6 +625,9 @@ typedef enum {
 #if !GASNETC_PIN_SEGMENT
 	GASNETC_OP_PUT_INMOVE,
 #endif
+        // Long payload puts do NOT need fencing (see bug 4049)
+	GASNETC_OP_LONG_ZEROCP,
+	GASNETC_OP_LONG_BOUNCE,
         // Following all have GASNETC_OP_NEEDS_FENCE bit set
 	GASNETC_OP_PUT_INLINE = GASNETC_OP_NEEDS_FENCE,
 	GASNETC_OP_PUT_ZEROCP,
@@ -714,6 +724,7 @@ typedef struct gasnetc_sreq_t_ {
       size_t			putinmove;	/* bytes piggybacked on an Move AM */
       uintptr_t			loc_addr;
       uintptr_t			rem_addr;
+      gasnetc_EP_t              ep;
       gasnetc_buffer_t		*bbuf;
       gasnetc_atomic_t		ready;	/* 0 when loc and rem both ready */
       gasnetc_counter_t		*oust;	/* fh transactions outstanding */
@@ -736,6 +747,7 @@ typedef struct gasnetc_sreq_t_ {
   #define fh_putinmove	u.fh.putinmove
   #define fh_loc_addr	u.fh.loc_addr
   #define fh_rem_addr	u.fh.rem_addr
+  #define fh_ep         u.fh.ep
   #define fh_bbuf	u.fh.bbuf
   #define fh_ready	u.fh.ready
   #define fh_oust	u.fh.oust
@@ -757,13 +769,13 @@ typedef union {
 #if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_SND_LKEY(_cep)         ((_cep)->snd_lkey)
   #define GASNETC_RCV_LKEY(_cep)         ((_cep)->rcv_lkey)
-  #define GASNETC_SEG_LKEY(_cep, _index) ((_cep)->seg_lkeys[_index])
+  #define GASNETC_SEG_LKEY(_ep,_cep)     (((gasnetc_Segment_t)(_ep)->_segment)->seg_lkey[(_cep)->hca_index])
 #else
   #define GASNETC_SND_LKEY(_cep)         (gasnetc_hca[0].snd_reg.handle->lkey)
   #define GASNETC_RCV_LKEY(_cep)         (gasnetc_hca[0].rcv_reg.handle->lkey)
-  #define GASNETC_SEG_LKEY(_cep, _index) (gasnetc_hca[0].seg_lkeys[_index])
+  #define GASNETC_SEG_LKEY(_ep,_cep)     (((gasnetc_Segment_t)(_ep)->_segment)->seg_lkey[0])
 #endif
-#define GASNETC_SEG_RKEY(_cep, _index)   ((_cep)->rkeys[_index])
+#define GASNETC_SEG_RKEY(_cep)           ((_cep)->rkey)
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -771,11 +783,14 @@ typedef union {
 #if GASNETC_IBV_XRC
 extern int gasnetc_xrc_init(void **shared_mem_p);
 #endif
-extern int gasnetc_connect_init(void);
-extern int gasnetc_connect_fini(void);
+extern int gasnetc_connect_init(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+extern int gasnetc_connect_fini(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+#if GASNETC_IBV_SHUTDOWN
+extern void gasnetc_connect_shutdown(gasnetc_EP_t ep0); // TODO-EX: multi-ep support?
+#endif
 #if GASNETC_DYNAMIC_CONNECT
-extern gasnetc_cep_t *gasnetc_connect_to(gex_Rank_t node);
-extern void gasnetc_conn_implied_ack(gex_Rank_t node);
+extern gasnetc_cep_t *gasnetc_connect_to(gasnetc_EP_t ep, gex_Rank_t node);
+extern void gasnetc_conn_implied_ack(gasnetc_EP_t ep, gex_Rank_t node);
 extern void gasnetc_conn_rcv_wc(struct ibv_wc *comp);
 extern void gasnetc_conn_snd_wc(struct ibv_wc *comp);
 #endif
@@ -813,36 +828,19 @@ extern void gasnetc_sndrcv_attach_peer(gex_Rank_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_start_thread(void);
 extern void gasnetc_sndrcv_stop_thread(int block);
 extern void gasnetc_sndrcv_poll(int handler_context);
-#if GASNETC_PIN_SEGMENT
-  extern int gasnetc_rdma_put(
-                  gasnetc_epid_t epid,
+extern int gasnetc_rdma_put(
+                  gex_TM_t tm, gex_Rank_t rank,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
-#else
-  extern int gasnetc_rdma_put_fh(
-                  gasnetc_epid_t epid,
+extern int gasnetc_rdma_long_put(
+                  gasnetc_EP_t ep, gasnetc_cep_t *cep,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
-                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
-                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb,
-                  gasnetc_counter_t *am_oust
+                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb
                   GASNETI_THREAD_FARG);
-  GASNETI_INLINE(gasnetc_rdma_put)
-  int gasnetc_rdma_put(
-                  gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
-                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
-                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
-                  GASNETI_THREAD_FARG)
-  {
-    return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,flags,
-                               local_cnt,local_cb,remote_cnt,remote_cb,
-                               NULL GASNETI_THREAD_PASS);
-  }
-#endif
 extern int gasnetc_rdma_get(
-                  gasnetc_epid_t epid,
+                  gex_TM_t tm, gex_Rank_t rank,
                   void *src_ptr, void *dst_ptr, size_t nbytes, gex_Flags_t flags,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
@@ -854,13 +852,13 @@ GASNETI_MALLOCP(gasnetc_get_sreq)
 
 extern gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid);
 #if GASNETC_DYNAMIC_CONNECT
-  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply);
-  #define gasnetc_bind_cep(e,s)       gasnetc_bind_cep_inner((e),(s),0)
-  #define gasnetc_bind_cep_am(e,s,i)  gasnetc_bind_cep_inner((e),(s),(i))
+  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq, int is_reply);
+  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s),0)
+  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s),(i))
 #else
-  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq);
-  #define gasnetc_bind_cep(e,s)       gasnetc_bind_cep_inner((e),(s))
-  #define gasnetc_bind_cep_am(e,s,i)  gasnetc_bind_cep_inner((e),(s))
+  extern gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_EP_t ep, gasnetc_epid_t epid, gasnetc_sreq_t *sreq);
+  #define gasnetc_bind_cep(ep,id,s)       gasnetc_bind_cep_inner((ep),(id),(s))
+  #define gasnetc_bind_cep_am(ep,id,s,i)  gasnetc_bind_cep_inner((ep),(id),(s))
 #endif
 extern void gasnetc_snd_post_common(
                   gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc,
@@ -956,20 +954,17 @@ extern int              gasnetc_qp_retry_count;
 extern int		gasnetc_num_hcas;
 extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern uintptr_t	gasnetc_max_msg_sz;
+extern size_t   	gasnetc_put_stripe_sz, gasnetc_put_stripe_split;
+extern size_t   	gasnetc_get_stripe_sz, gasnetc_get_stripe_split;
 #if GASNETC_PIN_SEGMENT
-  extern int			gasnetc_max_regs; /* max of length of seg_lkeys array over all nodes */
   extern uintptr_t		gasnetc_seg_start;
   extern uintptr_t		gasnetc_seg_len;
-  extern uint64_t		gasnetc_pin_maxsz;
-  extern uint64_t		gasnetc_pin_maxsz_mask;
-  extern unsigned int		gasnetc_pin_maxsz_shift;
 #endif
 extern size_t			gasnetc_fh_align;
 extern size_t			gasnetc_fh_align_mask;
 extern firehose_info_t		gasnetc_firehose_info;
 extern gasnetc_port_info_t      *gasnetc_port_tbl;
 extern int                      gasnetc_num_ports;
-extern gasnetc_cep_t            **gasnetc_node2cep;
 extern gex_Rank_t            gasnetc_remote_nodes;
 #if GASNETC_DYNAMIC_CONNECT
   extern gasnetc_sema_t         gasnetc_zero_sema;
@@ -993,41 +988,35 @@ void *_gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p
 }
 
 GASNETI_INLINE(gasnetc_get_cep)
-gasnetc_cep_t *gasnetc_get_cep(gex_Rank_t node) {
-  gasnetc_cep_t *result = GASNETC_NODE2CEP(node);
+gasnetc_cep_t *gasnetc_get_cep(gasnetc_EP_t ep, gex_Rank_t node) {
+  gasnetc_cep_t *result = GASNETC_NODE2CEP(ep, node);
 #if GASNETC_DYNAMIC_CONNECT
   if_pf (!result) {
-    result = gasnetc_connect_to(node);
+    result = gasnetc_connect_to(ep, node);
   }
 #endif
   return result;
 }
 
 #if GASNETC_PIN_SEGMENT
-/* Convert from offset to the index of the corresponding registration.
-   In a single registration case this always returns 0.
-   This is independent of node and HCA.
-*/
-GASNETI_INLINE(gasnetc_seg_index)
-int gasnetc_seg_index(uintptr_t offset) {
-  return (offset >> gasnetc_pin_maxsz_shift);
+/* Test if a given addr is in a given GASNet segment or not.
+ * Returns non-zero if address is inside the segment.
+ * This test is used under the assumption that the client's arguments
+ * to Put or Get will always correspond to a region which is entirely
+ * IN or entirely OUT of the segment.
+ */
+GASNETI_INLINE(gasnetc_in_segment)
+int gasnetc_in_segment(const gasnetc_Segment_t seg, uintptr_t addr, size_t len) {
+  if_pf (!seg) return 0;
+  uint64_t offset = (uint64_t)addr - ((uint64_t)(uintptr_t)seg->_addr); // negative is a LARGE positive
+  int result = (offset < ((uint64_t)seg->_size));
+  gasneti_assume(!result || (addr+len <= (uintptr_t)seg->_ub)); // single-segment assumption
+  return result;
 }
-
-/* Convert from offset to bytes remaining in the corresponding registration.
-   In a single registration case, this returns gasnetc_max_msg_sz.
-   Otherwise we have (gasnetc_pin_maxsz <= gasnetc_max_msg_sz) by construction.
-   This is independent of node and HCA.
-*/
-GASNETI_INLINE(gasnetc_seg_remain)
-int gasnetc_seg_remain(uintptr_t offset) {
-  return (gasnetc_pin_maxsz - (offset & gasnetc_pin_maxsz_mask));
-}
-
-/* Is argument range in-segment within a *single* registration */
-GASNETI_INLINE(gasnetc_seg_one_reg)
-int gasnetc_seg_one_reg(uintptr_t addr, size_t len) {
-  const uintptr_t offset = (addr - gasnetc_seg_start); /* negative is a LARGE positive */
-  return ((offset <= gasnetc_seg_len) && (len <= gasnetc_seg_remain(offset)));
+GASNETI_INLINE(gasnetc_in_bound_segment)
+int gasnetc_in_bound_segment(const gasnetc_EP_t ep, uintptr_t addr, size_t len) {
+  gasneti_assert(ep);
+  return gasnetc_in_segment((gasnetc_Segment_t)ep->_segment, addr, len);
 }
 #endif
 

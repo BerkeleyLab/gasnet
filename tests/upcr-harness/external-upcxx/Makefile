@@ -114,8 +114,9 @@ endif
 # 3. When building make-based tests (MAKE_TEST_ENV)
 #    Handled by setting CC and CXX to their values reported by upcxx-meta
 MAKE_TEST_ENV = \
-	env CC="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CC)" \
-	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS)"
+	    CC="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CC)" \
+	   CXXFLAGS="$(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)" \
+	   CXX="$$($(UPCXX_INSTDIR)/bin/upcxx-meta CXX) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)"
 
 # Parametrized support for download/unpack
 UPCXX_DOWNLOAD ?=# one of "unzip", "p7zip" or "tgz", default to auto-detect from downloaded archive suffix
@@ -274,8 +275,19 @@ wrap_test: upcxx-install
 	$(UPCXX_INSTDIR)/bin/upcxx -o $(TEST_EXE) $(TEST_PATH) $(UPCXX_EXTRA_TEST_FLAGS) $(UPCXX_TEST_FLAGS)
 
 
+VPATH = \
+	$(UPCXX_BLDDIR)/test \
+	$(UPCXX_BLDDIR)/test/uts \
+	$(UPCXX_BLDDIR)/test/regression \
+	$(UPCXX_BLDDIR)/example/prog-guide \
+	$(UPCXX_BLDDIR)/example/serialization \
+	$(UPCXX_BLDDIR)/bench \
+	$(UPCXX_BLDDIR)/extras/extensions/allocator \
+	$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator \
+	$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples \
+	$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
+
 # Pattern rule builds tests, using logic dependent on their location
-VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regression:$(UPCXX_BLDDIR)/example/prog-guide:$(UPCXX_BLDDIR)/bench:$(UPCXX_BLDDIR)/extras/extensions/allocator:$(UPCXX_BLDDIR)/extras/extensions/padded_cuda_allocator:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/examples:$(UPCXX_BLDDIR)/extras/tutorials/2019-12/solutions
 %-seq %-par :: %.cpp force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
@@ -292,17 +304,28 @@ VPATH=$(UPCXX_BLDDIR)/test:$(UPCXX_BLDDIR)/test/uts:$(UPCXX_BLDDIR)/test/regress
 guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             clean guppie-$*
 	mv $</guppie-$* $@
 
+# upcxx-examples dist_array
+DA-%-seq DA-%-par :: $(UPCXX_BLDDIR)/extras/extensions/dist_array upcxx-install force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
+	             clean bin/DA-$*
+	-ln -sf $</examples . # for examples/input file
+	mv $</bin/DA-$* $@
+
 # upcxx-examples jac3d
 jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             clean jac3d
@@ -316,7 +339,7 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 	 SCALAPACK_HOME=$${SCALAPACK_HOME:-/usr/scalapack} ; \
 	 SCALAPACK_LIBS=$${SCALAPACK_LIBS:--L$$SCALAPACK_HOME/lib -lscalapack -Wl,--rpath=$$SCALAPACK_HOME/lib} ; \
 	 UPCXX_EXTENDADD_EXTRA=$${UPCXX_EXTENDADD_EXTRA:--Wno-unknown-pragmas} ; \
-	 $(MAKE_TEST_ENV) $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	 env $(MAKE_TEST_ENV) $(MAKE) -C $< UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	               UPCXX_NETWORK=$(UPCXX_CONDUIT) \
                        SCALAPACK_LIBS="$$SCALAPACK_LIBS" \
                        OPTIMIZATION="$(OPT) $$UPCXX_EXTENDADD_EXTRA" \
@@ -327,7 +350,7 @@ extend-add_%-seq extend-add_%-par :: $(UPCXX_BLDDIR)/extras/examples/extend-add 
 upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< OPTLVL= UPCC='$(UPCC)' \
 	             UPCXX_GASNET_CONDUIT=$(UPCXX_CONDUIT) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             UPCXX=$(UPCXX_INSTDIR)/bin/upcxx \
@@ -338,7 +361,7 @@ upc-%-seq upc-%-par :: $(UPCXX_BLDDIR)/test/interop upcxx-install force
 cuda_vecadd% :: $(UPCXX_BLDDIR)/example/cuda_vecadd/Makefile upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
 	              *-par) export UPCXX_THREADMODE=par ;; esac; \
-	 set -x ; $(MAKE_TEST_ENV) $(MAKE) -C $(<D) \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $(<D) \
 	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
 	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
 	             clean cuda_vecadd
@@ -363,7 +386,7 @@ cmake-%: upcxx-install
 	cd cmake && ( set -x ; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
-	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` ; \
+	export $(MAKE_TEST_ENV) ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) . )
 	$(MAKE) -C cmake all VERBOSE=1
@@ -389,7 +412,7 @@ sympack-%: upcxx-install force
 	             par) export SYMPACK_THREADS=-DENABLE_THREADS=ON ;; esac; \
 	export UPCXX_THREADMODE=$* UPCXX_CODEMODE=$(UPCXX_CODEMODE) UPCXX_VERBOSE=1 \
 	       UPCXX_INSTALL=$(UPCXX_INSTDIR) UPCXX_NETWORK=$(UPCXX_CONDUIT); \
-	export CXX=`$$UPCXX_INSTALL/bin/upcxx-meta CXX` CC=`$$UPCXX_INSTALL/bin/upcxx-meta CC` FC="$(UPCXX_FC)" ; \
+	export $(MAKE_TEST_ENV) FC="$(UPCXX_FC)" ; \
 	$(CMAKE) --version ; \
 	$(CMAKE) -DCMAKE_PREFIX_PATH=$(UPCXX_INSTDIR) $(CMAKE_ARGS) $(CMAKE_FC_ARGS) \
 		 $$SYMPACK_THREADS $(SYMPACK_BUILD) \

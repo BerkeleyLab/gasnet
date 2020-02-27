@@ -18,6 +18,12 @@
 
 /* ------------------------------------------------------------------------------------ */
 #define _hidx_gasnetc_exchg_reqh              (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_exit_reduce_reqh        (GASNETC_HANDLER_BASE+1)
+#define _hidx_gasnetc_exit_role_reqh          (GASNETC_HANDLER_BASE+2)
+#define _hidx_gasnetc_exit_role_reph          (GASNETC_HANDLER_BASE+3)
+#define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+4)
+#define _hidx_gasnetc_exit_reph               (GASNETC_HANDLER_BASE+5)
+
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
@@ -77,6 +83,7 @@ typedef struct {
 
 #define GASNETC_COUNTER_INITIALIZER   {gasnetc_atomic_init(0), 0}
 
+#define gasnetc_counter_inc(P)		do { (P)->initiated++; } while (0)
 #define gasnetc_counter_done(P)       (((P)->initiated & GASNETI_ATOMIC_MAX) == \
                                            gasnetc_atomic_read(&(P)->completed, 0))
 
@@ -127,42 +134,70 @@ extern gasneti_spawnerfn_t const *gasneti_spawner;
 #define GASNETC_UCX_THREADS
 #endif
 
+/* check for exit in progress */
+extern int gasnetc_exit_running;
+extern gasnete_threadidx_t gasnetc_exit_thread;
+
 #ifdef GASNETC_UCX_THREADS
-#define GASNETC_LOCK_MODE_ARG_ALONE gasnetc_lock_mode_t __lkmod
-#define GASNETC_LOCK_MODE_ARG       , GASNETC_LOCK_MODE_ARG_ALONE
-#define GASNETC_LOCK_MODE_VALUE     __lkmod
-#define GASNETC_LOCK_MODE_REGULAR   GASNETC_LOCK_REGULAR
-#define GASNETC_LOCK_MODE_INLINE    GASNETC_LOCK_INLINE
-#define GASNETC_LOCK_ACQUIRE()                                  \
-  do {                                                          \
-    if (GASNETC_LOCK_REGULAR == GASNETC_LOCK_MODE_VALUE) {      \
-      gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);   \
-    }                                                           \
-  } while(0)
-#define GASNETC_LOCK_RELEASE()                                  \
-  do {                                                          \
-    if (GASNETC_LOCK_REGULAR == GASNETC_LOCK_MODE_VALUE) {      \
-      gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock); \
-    }                                                           \
-  } while(0)
-#define GASNETC_LOCK_ACQUIRE_REGULAR()                          \
-  do {                                                          \
-    gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);     \
+#define GASNETC_MY_THREAD_IDX(__threadidx)                                \
+  do {                                                                    \
+    GASNET_BEGIN_FUNCTION();                                              \
+    (__threadidx) = GASNETI_MYTHREAD->threadidx;                          \
+  } while (0)
+
+#define GASNETC_LOCK_UCX()                                                \
+  do {                                                                    \
+    gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);              \
+  } while (0)
+
+#define GASNETC_UNLOCK_UCX()                                              \
+  do {                                                                    \
+    gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock);            \
+  } while (0)
+
+#define GASNETC_LOCK_ACQUIRE_REGULAR()                                    \
+  do {                                                                    \
+    gasneti_mutex_lock(&gasneti_ucx_module.ucp_worker_lock);              \
+    if_pf (gasnetc_exit_running) {                                        \
+      gasnete_threadidx_t threadidx;                                      \
+      GASNETC_MY_THREAD_IDX(threadidx);                                   \
+      if (gasnetc_exit_thread != threadidx) {                             \
+              gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock);  \
+              gasnetc_exit_threads();                                     \
+      }                                                                   \
+    }                                                                     \
   } while(0)
 #define GASNETC_LOCK_RELEASE_REGULAR()                          \
   do {                                                          \
-    gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock);   \
+    gasneti_mutex_unlock(&gasneti_ucx_module.ucp_worker_lock);  \
+  } while(0)
+
+#define GASNETC_LOCK_ACQUIRE(mode)                              \
+  do {                                                          \
+    switch(mode) {                                              \
+    case GASNETC_LOCK_REGULAR:                                  \
+      GASNETC_LOCK_ACQUIRE_REGULAR();                           \
+      break;                                                    \
+    case GASNETC_LOCK_INLINE:                                   \
+      break;                                                    \
+    }                                                           \
+  } while(0)
+
+#define GASNETC_LOCK_RELEASE(mode)                              \
+  do {                                                          \
+    switch(mode) {                                              \
+    case GASNETC_LOCK_REGULAR:                                  \
+      GASNETC_LOCK_RELEASE_REGULAR();                           \
+      break;                                                    \
+    case GASNETC_LOCK_INLINE:                                   \
+      break;                                                    \
+    }                                                           \
   } while(0)
 #else
-#define GASNETC_LOCK_MODE_ARG_ALONE
-#define GASNETC_LOCK_MODE_ARG
-#define GASNETC_LOCK_MODE_VALUE
-#define GASNETC_LOCK_ACQUIRE()            ((void)0)
-#define GASNETC_LOCK_RELEASE()            ((void)0)
-#define GASNETC_LOCK_ACQUIRE_REGULAR()    ((void)0)
-#define GASNETC_LOCK_RELEASE_REGULAR()    ((void)0)
-#define GASNETC_LOCK_MODE_REGULAR
-#define GASNETC_LOCK_MODE_INLINE
+#define GASNETC_LOCK_ACQUIRE(lmode)           ((void)0)
+#define GASNETC_LOCK_RELEASE(lmode)           ((void)0)
+#define GASNETC_LOCK_UCX()                    ((void)0)
+#define GASNETC_UNLOCK_UCX()                  ((void)0)
 #endif
 
 #if GASNET_DEBUG_VERBOSE
@@ -321,10 +356,10 @@ extern void gasnetc_am_req_pool_alloc(void);
 extern void gasnetc_am_req_pool_free(void);
 extern void gasnetc_buffer_pool_alloc(void);
 extern void gasnetc_buffer_pool_free(void);
-extern int gasnetc_req_poll(GASNETC_LOCK_MODE_ARG_ALONE);
-extern void gasnetc_req_poll_rcv(GASNETC_LOCK_MODE_ARG_ALONE);
+extern int gasnetc_req_poll(gasnetc_lock_mode_t lmode);
+extern void gasnetc_req_poll_rcv(gasnetc_lock_mode_t lmode);
 extern void gasnetc_ProcessRecv(void *buf, size_t size);
-extern void gasnetc_send_list_wait(GASNETC_LOCK_MODE_ARG_ALONE);
+extern void gasnetc_send_list_wait(gasnetc_lock_mode_t lmode);
 extern gasnetc_mem_info_t * gasnetc_find_mem_info(void *addr, int nbytes,
                                                   gex_Rank_t rank);
 extern int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
@@ -334,6 +369,30 @@ extern int gasnetc_ucx_putget_inner(int is_put, gex_Rank_t jobrank,
                                     gasnetc_cbfunc_t local_cb,
                                     gasnetc_atomic_val_t *remote_cnt,
                                     gasnetc_cbfunc_t remote_cb);
+int gasnetc_am_reqrep_inner(gasnetc_ucx_am_type_t am_type,
+           gex_Rank_t jobrank,
+           gex_AM_Index_t handler,
+           gex_Flags_t flags,
+           uint8_t is_request,
+           uint8_t is_sync,
+           int numargs,
+           va_list argptr,
+           void *src_addr,
+           uint32_t nbytes,
+           void *dst_addr,
+           gasnetc_atomic_val_t *local_cnt,
+           gasnetc_cbfunc_t local_cb,
+           gasnetc_counter_t *counter
+           GASNETI_THREAD_FARG);
+extern int gasnetc_RequestSysShort(gex_Rank_t jobrank,
+                                   gasnetc_counter_t *counter,
+                                   gex_AM_Index_t handler,
+                                   int numargs, ...);
+extern int gasnetc_ReplySysShort(gex_Token_t token,
+                                 gasnetc_counter_t *counter,
+                                 gex_AM_Index_t handler,
+                                 int numargs, ...);
+extern void gasnetc_exit_threads(void);
 /*
   List functions
   ==============

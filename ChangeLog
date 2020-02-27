@@ -25,12 +25,21 @@ PENDING: GASNet-EX Work-In-Progress
   - New environment variable GASNET_AM_GATHER_MIN controls use of gather-on-send
     for AM Medium (and small Long) payloads.  See details in the conduit README.
   - The gather-on-send optimization for AM Medium (and small Long) payloads is
-    now applied to out-of-segment sources with using ODP.
+    now applied to out-of-segment sources when using ODP.
   - A new --with-ibv-max-medium= can set the size of AM Medium buffers.
     See details, including supported values, in the conduit README.
   - The default AM Max Medium is now 64KB minus space for headers (up from 4KB).
+  - Code paths for AM Long and RDMA Put have been separated, leading to simpler
+    (faster and more maintainable) logic for each.
+  - Code paths for AM and RMA have been revised to eliminate certain global
+    state in favor of per-endpoint state.  This is work toward multi-endpoint and
+    multi-segment support to appear in a later release.
   - AM-over-RDMA support (not compiled by default since 2019.6.0) has been
     removed.
+  - The environment variable GASNET_PIN_MAXSZ has been removed.  This variable
+    was introduced to help work-around a misbehavior not seen in modern HCAs,
+    and its support added significant complexity to the critical code paths
+    for RMA.
 
 * IBM PAMI (pami-conduit)
   - This conduit, deprecated since 2019.9.0, has been removed.
@@ -56,6 +65,7 @@ PENDING: GASNet-EX Work-In-Progress
   - bug4022: rare resource leak in aries-conduit AM Long protocol
   - bug4024: erroneous behavior from `testam -async-req -np-cb`
   - bug4025: erroneous assertion failure from loopback NPAM
+  - bug4042: errors when configured using --with-aries-max-medium=65472
 
 ----------------------------------------------------------------------
 09-14-2019: GASNet-EX 2019.9.0 Release

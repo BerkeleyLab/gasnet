@@ -764,7 +764,14 @@ case "$CC_FAMILY" in
          GASNET_TRY_CFLAG([-wd1572],
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
-  PGI) MISC_CFLAGS="-Masmkeyword -Msignextend";; # get inline assembly and sign-extended narrowing
+  PGI) MISC_CFLAGS="-Masmkeyword -Msignextend" # get inline assembly and sign-extended narrowing
+       # The following looks backwards, but is not.
+       # PGI 20.1 introduced fine-grained warning control at the same time as
+       # default-enabling a large number of useless warnings (on the level of
+       # -Wextra in other compilers).
+       GASNET_TRY_CFLAG([--diag_suppress177],
+                        [MISC_CFLAGS="-w $MISC_CFLAGS"])
+       ;;
   Sun) if test "$target_cpu" = "sparc"; then 
          GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
        fi
@@ -3834,10 +3841,11 @@ if test "$enabled_ofi" = yes; then
 
     ofi_provider=""
     ofi_define_mr_scalable="no"
+    ofi_known_provider="yes"
     detected_ofi_provider=""
     ofi_use_thread_domain=0
     # List of supported providers in order of preference.
-    supported_providers="psm2 gni sockets"
+    supported_providers="psm2 gni sockets tcp;ofi_rxm verbs;ofi_rxm"
     
     GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
         ofi_provider="$withval", )
@@ -3847,7 +3855,7 @@ if test "$enabled_ofi" = yes; then
         if command -v fi_info > /dev/null 2>&1; then # Only do this if fi_info is in the $PATH
             for word in $supported_providers 
             do
-                if fi_info --provider=$word > /dev/null 2>&1; then
+                if fi_info --provider="$word" > /dev/null 2>&1; then
                     detected_ofi_provider="$word"
                     break
                 fi
@@ -3864,17 +3872,30 @@ if test "$enabled_ofi" = yes; then
         gni)
             ofi_define_mr_scalable=0
         ;;
+        verbs\;ofi_rxm)
+            ofi_define_mr_scalable=0
+        ;;
+        tcp\;ofi_rxm)  # Reports MR_SCALABLE support, but see bug 3867
+            ofi_define_mr_scalable=0
+        ;;
         sockets)
             ofi_define_mr_scalable=1
         ;;
         default|"")
+            ofi_known_provider="no"
         ;;
         *)
         GASNET_MSG_WARN([
 WARNING: Invalid or unsupported OFI provider specified via the --with-ofi-provider flag. 
 Defaulting to runtime provider feature detection for ofi-conduit.])
+            ofi_known_provider="no"
         ;;
     esac
+    if test "$ofi_known_provider" = "yes"; then
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$ofi_provider"])
+    else
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_PROVIDER_LIST, ["$supported_providers"])
+    fi
 
     GASNET_IF_ENABLED_WITH_AUTO(ofi-thread-domain, [Indicates if the conduit should use the FI_THREAD_DOMAIN threading model(advanced users only)],
                  [ofi_use_thread_domain="1"], [ofi_use_thread_domain="0"], [])

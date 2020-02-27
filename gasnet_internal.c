@@ -156,10 +156,8 @@ gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark = NULL;
   gasneti_progressfn_t gasneti_debug_progressfn_counted = gasneti_disabled_progressfn;
 #endif
 
-#ifdef _GASNETI_SEGINFO_DEFAULT
-  gasnet_seginfo_t *gasneti_seginfo = NULL;
-  gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
-#endif
+gasnet_seginfo_t *gasneti_seginfo = NULL;
+gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
@@ -422,10 +420,12 @@ gex_Client_t gasneti_export_client(gasneti_Client_t _real_client) {
 gasneti_Client_t gasneti_alloc_client(
                        const char *name,
                        gex_Flags_t flags,
-                       size_t alloc_size)
+                       size_t requested_sz)
 {
-  gasneti_Client_t client = gasneti_malloc(alloc_size ? alloc_size : sizeof(*client));
-  if (alloc_size) gasneti_assert_uint(alloc_size ,>=, sizeof(*client));
+  gasneti_Client_t client;
+  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*client));
+  size_t alloc_size = requested_sz ? requested_sz : sizeof(*client);
+  client = gasneti_malloc(alloc_size);
   GASNETI_INIT_MAGIC(client, GASNETI_CLIENT_MAGIC);
   client->_tm0 = NULL;
   client->_name = gasneti_strdup(name);
@@ -433,6 +433,8 @@ gasneti_Client_t gasneti_alloc_client(
   client->_flags = flags;
 #ifdef GASNETI_CLIENT_ALLOC_EXTRA
   GASNETI_CLIENT_ALLOC_EXTRA(client);
+#else
+  if (requested_sz) memset(client + 1, 0, alloc_size - sizeof(*client));
 #endif
   return client;
 }
@@ -471,10 +473,12 @@ gasneti_Segment_t gasneti_alloc_segment(
                        void *addr,
                        uintptr_t size,
                        gex_Flags_t flags,
-                       size_t alloc_size)
+                       size_t requested_sz)
 {
-  gasneti_Segment_t segment = gasneti_malloc(alloc_size ? alloc_size : sizeof(*segment));
-  if (alloc_size) gasneti_assert_uint(alloc_size ,>=, sizeof(*segment));
+  gasneti_Segment_t segment;
+  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*segment));
+  size_t alloc_size = requested_sz ? requested_sz : sizeof(*segment);
+  segment = gasneti_malloc(alloc_size);
   GASNETI_INIT_MAGIC(segment, GASNETI_SEGMENT_MAGIC);
   segment->_client = client;
   segment->_cdata = NULL;
@@ -484,6 +488,8 @@ gasneti_Segment_t gasneti_alloc_segment(
   segment->_size = size;
 #ifdef GASNETI_SEGMENT_ALLOC_EXTRA
   GASNETI_SEGMENT_ALLOC_EXTRA(segment);
+#else
+  if (requested_sz) memset(segment + 1, 0, alloc_size - sizeof(*segment));
 #endif
   return segment;
 }
@@ -519,10 +525,12 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
                        gex_Flags_t flags,
-                       size_t alloc_size)
+                       size_t requested_sz)
 {
-  gasneti_EP_t endpoint = gasneti_malloc(alloc_size ? alloc_size : sizeof(*endpoint));
-  if (alloc_size) gasneti_assert_uint(alloc_size ,>=, sizeof(*endpoint));
+  gasneti_EP_t endpoint;
+  if (requested_sz) gasneti_assert_uint(requested_sz ,>=, sizeof(*endpoint));
+  size_t alloc_size = requested_sz ? requested_sz : sizeof(*endpoint);
+  endpoint = gasneti_malloc(alloc_size);
   GASNETI_INIT_MAGIC(endpoint, GASNETI_EP_MAGIC);
   endpoint->_client = client;
   endpoint->_cdata = NULL;
@@ -531,6 +539,8 @@ extern gasneti_EP_t gasneti_alloc_ep(
   gasneti_amtbl_init(endpoint->_amtbl);
 #ifdef GASNETI_EP_ALLOC_EXTRA
   GASNETI_EP_ALLOC_EXTRA(endpoint);
+#else
+  if (requested_sz) memset(endpoint + 1, 0, alloc_size - sizeof(*endpoint));
 #endif
   return endpoint;
 }
@@ -593,6 +603,8 @@ extern gasneti_TM_t gasneti_alloc_tm(
   tm->_coll_team = NULL;
 #ifdef GASNETI_TM_ALLOC_EXTRA
   GASNETI_TM_ALLOC_EXTRA(tm);
+#else
+  if (requested_sz) memset(tm + 1, 0, (actual_sz - disalign) - sizeof(*tm));
 #endif
   
   if (is_tm0) {
@@ -2032,7 +2044,9 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_attach_done && gasneti_in_segment(NULL/*tm*/,gasneti_mynode,ptr,1))
+        // TODO-EX: multi-segment equivalent?
+        gasneti_EP_t i_ep = gasneti_import_ep(gasneti_THUNK_EP);
+        if (gasneti_attach_done && gasneti_in_local_segment(i_ep,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif
