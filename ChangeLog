@@ -25,7 +25,7 @@ PENDING: GASNet-EX Work-In-Progress
   - New environment variable GASNET_AM_GATHER_MIN controls use of gather-on-send
     for AM Medium (and small Long) payloads.  See details in the conduit README.
   - The gather-on-send optimization for AM Medium (and small Long) payloads is
-    now applied to out-of-segment sources with using ODP.
+    now applied to out-of-segment sources when using ODP.
   - A new --with-ibv-max-medium= can set the size of AM Medium buffers.
     See details, including supported values, in the conduit README.
   - The default AM Max Medium is now 64KB minus space for headers (up from 4KB).
