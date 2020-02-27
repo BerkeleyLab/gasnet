@@ -310,6 +310,17 @@ guppie-%-seq guppie-%-par :: $(UPCXX_BLDDIR)/extras/examples/gups/upcxx upcxx-in
 	             clean guppie-$*
 	mv $</guppie-$* $@
 
+# upcxx-examples dist_array
+DA-%-seq DA-%-par :: $(UPCXX_BLDDIR)/extras/extensions/dist_array upcxx-install force
+	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
+	              *-par) export UPCXX_THREADMODE=par ;; esac; \
+	 set -x ; env $(MAKE_TEST_ENV) $(MAKE) -C $< \
+	             UPCXX_INSTALL=$(UPCXX_INSTDIR) \
+	             UPCXX_NETWORK=$(UPCXX_CONDUIT) \
+	             clean bin/DA-$*
+	-ln -sf $</examples . # for examples/input file
+	mv $</bin/DA-$* $@
+
 # upcxx-examples jac3d
 jac3d% :: $(UPCXX_BLDDIR)/extras/examples/jac3d upcxx-install force
 	@case "$@" in *-seq) export UPCXX_THREADMODE=seq ;; \
