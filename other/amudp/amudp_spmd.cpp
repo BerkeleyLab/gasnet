@@ -717,6 +717,28 @@ pollentry:
               allList.remove(AMUDP_SPMDListenSocket);
               AMUDP_SPMDListenSocket = INVALID_SOCKET;
 
+              // sanity check: look for conflicting networks which prevent inter-slave comms
+              int saw_local = 0, saw_nonlocal = 0;
+              en_t worker_subnet;
+              bool force_output = false;
+              for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
+                if (SockAddr(&AMUDP_SPMDTranslation_name[i]).IP() == LOCALHOST) saw_local++;
+                else {
+                  saw_nonlocal++;
+                  worker_subnet = AMUDP_SPMDTranslation_name[i];
+                }
+              }
+              if (saw_local && saw_nonlocal) {
+                worker_subnet.sin_addr.s_addr &= 0x0000FFFFu;
+                AMX_Warn("Detected that %i of %i workers are using the localhost network, "
+                         "which may prevent communication between ranks.\n"
+                         "    This might indicate a DNS misconfiguration on those nodes.\n"
+                         "    You may be able to workaround this by requesting a particular subnet for worker comms, "
+                         "ex: " AMX_ENV_PREFIX_STR "_WORKERIP=%s",
+                         saw_local, AMUDP_SPMDNUMPROCS, SockAddr(&worker_subnet).IPStr());
+                force_output = true;
+              }
+
               int32_t bootstrapinfosz_nb = hton32(sizeof(bootstrapinfo));
               // transmit bootstrapping info
               for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
@@ -730,7 +752,7 @@ pollentry:
                 sendAll(AMUDP_SPMDSlaveSocket[i], AMUDP_SPMDTranslation_tag, AMUDP_SPMDNUMPROCS*sizeof(tag_t));
                 sendAll(AMUDP_SPMDSlaveSocket[i], AMUDP_SPMDMasterEnvironment, ntoh32(bootstrapinfo.environtablesz));
               }
-              if (!AMX_SilentMode) {
+              if (!AMX_SilentMode || force_output) {
                 AMX_Info("Endpoint table (nproc=%i):", AMUDP_SPMDNUMPROCS);
                 for (int j=0; j < AMUDP_SPMDNUMPROCS; j++) {
                   char temp1[80], temp2[80];
