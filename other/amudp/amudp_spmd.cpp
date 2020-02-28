@@ -938,6 +938,7 @@ pollentry:
       }
     }
 
+    char *master_localhost_warning = NULL;
     { // extract master's address
       if (strchr(slave_args,',')) {
         masterAddr = SockAddr(slave_args);
@@ -957,6 +958,13 @@ pollentry:
         (*portStr) = '\0';
         try {
           masterAddr = SockAddr((uint32_t)DNSLookup(IPStr).IP(), (uint16_t)masterPort);
+          if (masterAddr.IP() == LOCALHOST) {
+              // we resolved master to 127.0.0.1, which may cause problems..
+              master_localhost_warning = (char *)AMX_malloc(1024);
+              sprintf(master_localhost_warning, "slave %s resolved master hostname '%s' to the localhost network. "
+                        "You may need to set " AMX_ENV_PREFIX_STR "_MASTERIP to the master's external IP address.", 
+                        getMyHostName(), IPStr);
+          }
         } catch (xSocket &exn) {
           AMX_RETURN_ERRFR(RESOURCE, AMUDP_SPMDStartup, "slave failed DNSLookup on master host name");
         }
@@ -967,7 +975,13 @@ pollentry:
     try {
       if (!AMX_SilentMode) AMX_Info("slave connecting to %s:%i", masterAddr.IPStr(), masterAddr.port());
 
-      AMUDP_SPMDControlSocket = connect_socket(masterAddr);
+      try {
+          AMUDP_SPMDControlSocket = connect_socket(masterAddr);
+      } catch (xSocket& exn) { // check for common failure mode
+          if (master_localhost_warning) AMX_Warn(master_localhost_warning);
+          throw; // re-throw
+      }
+      AMX_free(master_localhost_warning);
 
       #if USE_COORD_KEEPALIVE
       { // make sure we get connection termination notification in a timely manner
