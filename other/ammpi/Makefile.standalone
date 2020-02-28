@@ -75,8 +75,10 @@ tests-clean:
 apputils.o : $(amxdir)/apputils.c $(amxdir)/apputils.h $(headers)
 	$(Ccompile) -DAMMPI -I$(amxdir) $(amxdir)/apputils.c -o apputils.o
 
-%.o : $(srcdir)/%.c $(headers)
+%.o : $(srcdir)/%.c $(headers) $(amxdir)/*.h
 	$(Ccompile) $< -o $@
+
+ammpi_ep.o: $(amxdir)/amx_internal.c
 
 # delete compiling byproducts
 clean:

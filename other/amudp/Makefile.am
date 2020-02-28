@@ -133,11 +133,13 @@ apputils.o : $(amxdir)/apputils.c $(amxdir)/apputils.h $(allheaders)
 amudprun$(EXEEXT): amudprun.o $(headers) libamudp.a
 	$(link) -o $@ $< -L. -lamudp $(linkend)
 
-%.o: %.c $(allheaders)
+%.o: %.c $(allheaders) $(amxdir)/*.h
 	$(compile) -o $@ -c `test -f $(srcdir)/$< && echo "$(srcdir)/"`$<
 
-%.o: %.cpp $(allheaders) $(top_builddir)/libgasnet_tools-seq.a
+%.o: %.cpp $(allheaders) $(amxdir)/*.h $(top_builddir)/libgasnet_tools-seq.a
 	$(cxxcompile) -o $@ -c `test -f $(srcdir)/$< && echo "$(srcdir)/"`$<
+
+amudp_cdefs.o: $(amxdir)/amx_internal.c
 
 $(top_builddir)/libgasnet_tools-seq.a: force
 	@cd $(top_builddir) && $(MAKE) libgasnet_tools-seq.a
