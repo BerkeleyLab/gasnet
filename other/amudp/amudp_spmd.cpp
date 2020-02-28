@@ -551,7 +551,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       } catch (xBase &exn) {
         AMX_Warn("Master %s failed to resolve its own hostname: %s%s",
           getMyHostName(),exn.why(),
-          (USE_NUMERIC_MASTER_ADDR?"\nTry setting AMUDP_MASTERIP":"")); 
+          (USE_NUMERIC_MASTER_ADDR?"":"\nTry setting " AMX_ENV_PREFIX_STR "_MASTERIP")); 
         AMX_RETURN_ERRFR(RESOURCE, AMUDP_SPMDStartup, exn.why());
       }
     }
