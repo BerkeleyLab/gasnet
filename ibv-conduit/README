@@ -721,7 +721,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     Reply has not yet been processed for AM flow control (described in
     another section of this README).  This is the number of buffers which
     must be preposted to each receive work queue for AM Requests.
-    The default value is 12 (48KB*(N-1) allocated for Request buffers).
+    The default value is 12 (12*MaxMedium*(N-1) allocated for Request buffers).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value.
@@ -762,7 +762,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     GASNET_RBUF_COUNT or a value computed from the GASNET_AM_* and
     GASNET_NETWORKDEPTH_* parameters described above.
     If set to zero, the value is limited only by the HCA's capabilities.
-    The default value is 1024 (up to 4MB for buffers).
+    The default value is 1024 (up to 1024*MaxMedium for buffers).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
@@ -777,7 +777,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     network depth bounds the number of in-flight operations that might
     need these buffers.
     If set to zero, the value is set to GASNET_NETWORKDEPTH_TOTAL.
-    The default value is 1024 (up to 4MB for buffers).
+    The default value is 1024 (up to 1024*MaxMedium for buffers).
     Reducing this parameter limits the number of in-flight operations
     which consume bounce buffers.  This includes AMs too large for an
     inline send and PUTs subject to the GASNET_NONBULKPUT_BOUNCE_LIMIT.
