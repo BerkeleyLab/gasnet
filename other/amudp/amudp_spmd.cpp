@@ -1000,7 +1000,7 @@ pollentry:
       try {
           AMUDP_SPMDControlSocket = connect_socket(masterAddr);
       } catch (xSocket& exn) { // check for common failure mode
-          if (master_localhost_warning) AMX_Warn(master_localhost_warning);
+          if (master_localhost_warning) AMX_Warn("%s",master_localhost_warning);
           throw; // re-throw
       }
       AMX_free(master_localhost_warning);
