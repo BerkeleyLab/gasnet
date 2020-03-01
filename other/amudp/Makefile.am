@@ -157,7 +157,7 @@ amudprun-host$(EXEEXT): force
 	ln -sf $$srcdir/../portable_inttypes.h . && \
 	ln -sf $$srcdir/../gasnet_portable_platform.h amx_portable_platform.h && \
 	ln -sf $$srcdir/../amx/*.[ch] . && \
-	$(MAKE) amudprun -f Makefile.standalone srcdir=$$srcdir altincdir=. MANUAL_DEFINES="-DAMX_ENV_PREFIX=GASNET $(MANUAL_DEFINES)" && \
+	$(MAKE) amudprun -f Makefile.standalone srcdir=$$srcdir amxdir=. altincdir=. MANUAL_DEFINES="-DAMX_ENV_PREFIX=GASNET $(MANUAL_DEFINES)" && \
 	mv amudprun ../amudprun-host && \
 	cd .. && rm -Rf .host
 
