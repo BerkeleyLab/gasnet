@@ -3473,7 +3473,7 @@ AM_CONDITIONAL(USE_SMP_CONDUIT, test "$enabled_smp" = yes)
 # UCX configuration
 #
 
-CONDUIT_BEGIN(ucx,no,[Unified Communication X conduit (ucx)])
+CONDUIT_BEGIN(ucx,exp,[Unified Communication X conduit (ucx)])
 if test "$enabled_ucx" = no; then
     :
 elif test "$have_fork" = no; then
