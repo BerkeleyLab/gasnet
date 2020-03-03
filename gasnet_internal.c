@@ -906,7 +906,7 @@ extern size_t gasneti_decodestr(char *dst, const char *src) {
   #undef IS_HEX_DIGIT
 }
 
-static const char *gasneti_decode_envval(const char *val) {
+extern const char *gasneti_decode_envval(const char *val) {
   static struct _gasneti_envtable_S {
     const char *pre;
     char *post;
@@ -951,15 +951,14 @@ static const char *gasneti_decode_envval(const char *val) {
   }
   return val;
 }
-/* expose environment decode to external packages in case we ever need it */
-extern const char * (*gasnett_decode_envval_fn)(const char *);
-const char * (*gasnett_decode_envval_fn)(const char *) = &gasneti_decode_envval;
 
-/* expression that defines whether the given process should report to the console
+/* gasneti_verboseenv_fn returns an expression that defines whether the given process should report to the console
    on env queries - needs to work before gasnet_init
    1 = yes, 0 = no, -1 = not yet / don't know
  */
+#ifndef GASNETI_ENV_OUTPUT_NODE
 #define GASNETI_ENV_OUTPUT_NODE()  (gasneti_mynode == 0)
+#endif
 extern int _gasneti_verboseenv_fn(void) {
   static int verboseenv = -1;
   if (verboseenv == -1) {
@@ -974,14 +973,14 @@ extern int _gasneti_verboseenv_fn(void) {
   } else gasneti_sync_reads();
   return verboseenv;
 }
+extern int (*gasneti_verboseenv_fn)(void);
 int (*gasneti_verboseenv_fn)(void) = &_gasneti_verboseenv_fn;
 
-extern const char * _gasneti_backtraceid_fn(void) {
+extern const char * gasneti_backtraceid(void) {
   static char myid[255];
   sprintf(myid, "[%i] ", (int)gasneti_mynode);
   return myid;
 }
-const char *(*gasneti_backtraceid_fn)(void) = &_gasneti_backtraceid_fn;
 
 extern void gasneti_decode_args(int *argc, char ***argv) {
   static int firsttime = 1;
@@ -1036,9 +1035,7 @@ extern void gasneti_propagate_env_helper(const char *environ, const char * keyna
       char *var = gasneti_strdup(p);
       char *val = strchr(var, '=');
       *(val++) = '\0';
-      if (gasnett_decode_envval_fn) {
-        val = (char *)((*gasnett_decode_envval_fn)(val));
-      }
+      val = (char *)gasneti_decode_envval(val);
       gasnett_setenv(var, val);
       GASNETI_TRACE_PRINTF(I,("gasneti_propagate_env(%s) => '%s'", var, val));
       gasneti_free(var);
