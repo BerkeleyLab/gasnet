@@ -65,6 +65,7 @@ PENDING: GASNet-EX Work-In-Progress
   - bug4022: rare resource leak in aries-conduit AM Long protocol
   - bug4024: erroneous behavior from `testam -async-req -np-cb`
   - bug4025: erroneous assertion failure from loopback NPAM
+  - bug4035: link failures with GCC 10 or -fno-common
   - bug4042: errors when configured using --with-aries-max-medium=65472
 
 ----------------------------------------------------------------------
