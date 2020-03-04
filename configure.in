@@ -775,6 +775,9 @@ case "$CC_FAMILY" in
   Sun) if test "$target_cpu" = "sparc"; then 
          GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
        fi
+       # Try to suppress warnings about __attribute__(__common__):
+       GASNET_TRY_CFLAG([-erroff=E_ATTRIBUTE_NOT_FUNC],
+                        [MISC_CFLAGS="$MISC_CFLAGS -erroff=E_ATTRIBUTE_NOT_FUNC"])
        MISC_CFLAGS="$MISC_CFLAGS -errtags" ;; # show warning tag ids in warnings
   XLC) GASNET_GET_PPC64_FLAGS(C)
        # Try to suppress certain warnings:
