@@ -26,8 +26,7 @@ Artem Y. Polyakov <artemp@mellanox.com>
   A performance assessment and fine-tuning is planned for the next release.
 
   As this is an initial version of the conduit, it is disabled by default.
-  In order to enable it, one needs to explicitly enable it duging GASNet configuration
-  with "--with-ucx" parameter.
+  It can be enabled at GASNet configure time using the `--enable-ucx` option.
 
 @ Section: Where this conduit runs @
 

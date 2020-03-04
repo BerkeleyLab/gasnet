@@ -422,6 +422,11 @@ mpi-conduit: MPI (Message Passing Interface)
  Intended as a reference implementation for systems lacking native conduit support.
  Rigorously tested and supported on most current platforms (see below).
 
+ucx-conduit: Unified Communication X framework [EXPERIMENTAL]
+ GASNet over the Unified Communication X framework (UCX).
+ This conduit is currently experimental, and is not yet carefully tuned for performance.
+ It has only been validated on Mellanox InfiniBand devices starting from ConnectX-5.
+
 ofi-conduit: Open Fabrics Interfaces (*TEMPORARILY DISABLED*)
  GASNet over the Open Fabrics Interface framework (libfabric).
  This conduit is currently being re-implemented for GASNet-EX.

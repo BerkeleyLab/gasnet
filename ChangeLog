@@ -41,6 +41,12 @@ PENDING: GASNet-EX Work-In-Progress
     and its support added significant complexity to the critical code paths
     for RMA.
 
+* Unified Communication X framework (ucx-conduit) [EXPERIMENTAL]
+  - This NEW conduit is now available for experimental use on Mellanox
+    InfiniBand devices including ConnectX-5 or newer.
+    The ucx-conduit code was contributed by Mellanox Technologies Ltd.
+  - For details, see ucx-conduit/README
+
 * IBM PAMI (pami-conduit)
   - This conduit, deprecated since 2019.9.0, has been removed.
 
