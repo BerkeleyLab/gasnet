@@ -156,14 +156,32 @@
   #define GASNETI_END_EXTERNC 
 #endif
 
-/* Some symbols need a tentative definition when building libgasnet_tools-*.a.
- * However we want an extern definition in libgasnet-*.a and all clients.
- * This includes C++ clients where tentative definitions are not supported.
+/* Tentative definition declaration specifier macros
+ *
+ * GASNETI_TENTATIVE_CLIENT - a symbol that is tentative in the client, 
+ *                            and is optionally defined in the library
+ * GASNETI_TENTATIVE_LIBRARY - a symbol that is tentative in the library,
+ *                            and is optionally defined in the client
+ *
+ * Where tentative these expand to a common-block annotation, if appropriate.
+ * Where not tentative, these expand to extern.
+ * C++ clients where tentative definitions are not supported always see these as extern.
  */
-#if defined(GASNETT_BUILDING_TOOLS)
-  #define GASNETI_TENTATIVE_EXTERN /*empty*/
-#else
-  #define GASNETI_TENTATIVE_EXTERN extern
+#if defined(__cplusplus)
+  #define GASNETI_TENTATIVE_CLIENT   extern
+  #define GASNETI_TENTATIVE_LIBRARY  extern
+#elif GASNETI_BUILDING_TOOLS || GASNETI_BUILDING_CONDUIT
+  #if !GASNETI_COMPILER_IS_CC
+  #error Attempted to build libgasnet with an unrecognized different compiler - please re-run configure.
+  #endif
+  #define GASNETI_TENTATIVE_CLIENT   extern
+  #define GASNETI_TENTATIVE_LIBRARY  GASNETI_COMMON
+#elif GASNETI_COMPILER_HAS_ATTRIBUTE(COMMON,__common__)
+  #define GASNETI_TENTATIVE_CLIENT   __attribute__((__common__))
+  #define GASNETI_TENTATIVE_LIBRARY  extern
+#else // client C code with mismatched compiler and no attribute support
+  #define GASNETI_TENTATIVE_CLIENT   /* empty (be conservative) */
+  #define GASNETI_TENTATIVE_LIBRARY  extern
 #endif
 
 /* pick up restrict keyword (or empty) appropriate for compiler in use
