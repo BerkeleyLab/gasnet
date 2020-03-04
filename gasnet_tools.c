@@ -14,6 +14,11 @@
   #error Missing threading definition
 #endif
 
+// this file is built for exactly one of libgasnet/tools or libgasnet/conduit
+#if (GASNETI_BUILDING_TOOLS && GASNETI_BUILDING_CONDUIT) || (!GASNETI_BUILDING_TOOLS && !GASNETI_BUILDING_CONDUIT)
+#error Invalid GASNETI_BUILDING_ macro
+#endif
+
 #undef GASNET_SEQ
 #undef GASNET_PAR
 #undef GASNET_PARSYNC
@@ -136,7 +141,7 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 /* ------------------------------------------------------------------------------------ */
 /* rwlock support */
 
-#if GASNET_DEBUG || GASNETT_BUILDING_TOOLS
+#if GASNET_DEBUG || GASNETI_BUILDING_TOOLS
   /* Use a thread-specific list of locks held, to avoid the need for extra synchronization.
    * If a thread exits with locks held we currently leak this list, although if it ever matters
    * this could be fixed using a destructor function in pthread_key_create.
@@ -621,8 +626,8 @@ extern double gasneti_tick_metric(int idx) {
 }
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_MAYBE_TRACEFILE
-  #if GASNET_TRACE
-    FILE *gasneti_tracefile; // intentional tentative defn
+  #if GASNET_TRACE && GASNETI_BUILDING_CONDUIT
+    extern FILE *gasneti_tracefile;
     #define GASNETI_MAYBE_TRACEFILE gasneti_tracefile
   #else
     #define GASNETI_MAYBE_TRACEFILE ((FILE *)NULL)
@@ -1635,13 +1640,13 @@ static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
 
 static int gasneti_backtrace_isinit = 0;
 static int gasneti_backtrace_userenabled = 0;
-#ifndef GASNETT_BUILDING_TOOLS
+#if GASNETI_BUILDING_CONDUIT
 static int gasneti_backtrace_userdisabled = 0;
+extern const char *gasneti_backtraceid(void); // allow conduit to provide [NODE] line prefix
 #endif
 static const char *gasneti_backtrace_list = 0;
 static int gasneti_backtrace_prctl = -2;
-GASNETT_TENTATIVE_EXTERN
-const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
+GASNETI_TENTATIVE_LIBRARY
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
 extern void gasneti_backtrace_init(const char *exename) {
   static int user_is_init = 0;
@@ -1655,7 +1660,7 @@ extern void gasneti_backtrace_init(const char *exename) {
   gasneti_qualify_path(gasneti_exename_bt, exename);
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
-#ifndef GASNETT_BUILDING_TOOLS
+#if GASNETI_BUILDING_CONDUIT
   if (gasneti_backtrace_userenabled && !gasneti_check_node_list("GASNET_BACKTRACE_NODES")) {
     gasneti_backtrace_userdisabled = 1;
   }
@@ -1746,12 +1751,15 @@ extern int gasneti_print_backtrace(int fd) {
       char *linep = linebuf;
       int linelen = sizeof(linebuf);
       const char *btid;
-      if (gasneti_backtraceid_fn && (btid = (*gasneti_backtraceid_fn)())) {
+      *linep = '\0';
+    #if GASNETI_BUILDING_CONDUIT
+      if ((btid = gasneti_backtraceid())) {
         strncpy(linebuf, btid, 80);
         linebuf[80] = '\0';
         linelen -= strlen(linebuf);
         linep += strlen(linebuf);
-      } else *linep = '\0';
+      }
+    #endif
 
       while (*plist) { /* Loop over selections until success or end */
         int i;
@@ -1898,7 +1906,7 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
   #else
     #define GASNETI_NDEBUG_ADVISORY() ((void)0)
   #endif
-#ifndef GASNETT_BUILDING_TOOLS
+#if GASNETI_BUILDING_CONDUIT
   if (gasneti_backtrace_userdisabled) {
     return 1; /* User turned off backtrace, so don't whine */
   } else
@@ -2133,10 +2141,10 @@ extern void gasneti_unsetenv(const char *key) {
   #endif
 }
 /* ------------------------------------------------------------------------------------ */
-GASNETT_TENTATIVE_EXTERN
-const char * (*gasnett_decode_envval_fn)(const char *);
-GASNETT_TENTATIVE_EXTERN
-int (*gasneti_verboseenv_fn)(void);
+#if GASNETI_BUILDING_CONDUIT
+extern const char * gasneti_decode_envval(const char *);
+extern int (*gasneti_verboseenv_fn)(void);
+#endif
 gasneti_getenv_fn_t *gasneti_getenv_hook = NULL;
 char *gasneti_globalEnv = NULL;
 
@@ -2173,11 +2181,13 @@ static char *gasneti_getenv_early(const char *keyname) {
 extern char *gasneti_getenv(const char *keyname) {
   char *retval = gasneti_getenv_early(keyname);
 
-  if (retval && gasnett_decode_envval_fn && /* check if environment value needs decoding */
+  #if GASNETI_BUILDING_CONDUIT
+  if (retval && /* check if environment value needs decoding */
       strcmp(keyname, "GASNET_DISABLE_ENVDECODE") &&
       strcmp(keyname, "GASNET_VERBOSEENV")) { /* prevent inf recursion */ 
-    retval = (char *)((*gasnett_decode_envval_fn)(retval));
+    retval = (char *)gasneti_decode_envval(retval);
   }
+  #endif
 
   GASNETT_TRACE_PRINTF("gasnet_getenv(%s) => '%s'",
                           (keyname?keyname:"NULL"),(retval?retval:"NULL"));
@@ -2189,8 +2199,11 @@ extern char *gasneti_getenv(const char *keyname) {
    1 = yes, 0 = no, -1 = not yet / don't know
 */
 extern int gasneti_verboseenv(void) {
+#if GASNETI_BUILDING_CONDUIT
   if (gasneti_verboseenv_fn) return (*gasneti_verboseenv_fn)();
-  else return !!gasneti_getenv("GASNET_VERBOSEENV");
+  else 
+#endif
+    return !!gasneti_getenv("GASNET_VERBOSEENV");
 }
 
 typedef struct gasneti_verboseenv_S {

@@ -1864,6 +1864,8 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
             [__attribute__((__cold__)) int dummy(void) { return 1; }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__deprecated__],
             [__attribute__((__deprecated__)) int dummy(void) { return 0; }])
+  GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__common__],
+            [__attribute__((__common__)) int x;])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__fallthrough__],
             [int dummy(int x) {
                int result = 0;
