@@ -92,6 +92,8 @@ Contributors to GASNet-EX include:
 
  * Boris I. Karasev <boriska@mellanox.com>
  * Artem Y. Polyakov <artemp@mellanox.com>
+ * Sean Treichler <sean@nvidia.com>
+ * Ralph Castain <rhc@open-mpi.org>
 
 The authors/contributors of GASNet-1 (upon which GASNet-EX is based) include:
 
