@@ -722,7 +722,7 @@ pollentry:
               en_t worker_subnet;
               bool force_output = false;
               for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
-                if (SockAddr(&AMUDP_SPMDTranslation_name[i]).IP() == LOCALHOST) saw_local++;
+                if (SockAddr(&AMUDP_SPMDTranslation_name[i]).is_localhost()) saw_local++;
                 else {
                   saw_nonlocal++;
                   worker_subnet = AMUDP_SPMDTranslation_name[i];
@@ -980,8 +980,8 @@ pollentry:
         (*portStr) = '\0';
         try {
           masterAddr = SockAddr((uint32_t)DNSLookup(IPStr).IP(), (uint16_t)masterPort);
-          if (masterAddr.IP() == LOCALHOST) {
-              // we resolved master to 127.0.0.1, which may cause problems..
+          if (masterAddr.is_localhost()) {
+              // we resolved master to 127.x.y.z localhost network, which may cause problems..
               master_localhost_warning = (char *)AMX_malloc(1024);
               sprintf(master_localhost_warning, "slave %s resolved master hostname '%s' to the localhost network. "
                         "You may need to set " AMX_ENV_PREFIX_STR "_MASTERIP to the master's external IP address.", 
