@@ -48,6 +48,9 @@ PENDING: GASNet-EX Work-In-Progress
   - Provide more robust default detection of shared-memory peers
     (see GASNET_USE_GETHOSTID in udp-conduit/README for details).
 
+* GASNet tools (spec v1.15)
+  - Add runtime version queries gasnett_release_version*()
+
 * Platform support/portability
   - PMI-based spawning now supports PMIx 
   - Improve portable_inttypes to be more trusting of C99/C++11 compilers
