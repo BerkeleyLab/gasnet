@@ -246,16 +246,6 @@ typedef union {
   #define GASNETC_HONOR_RLIMIT_MEMLOCK 1
 #endif
 
-/* Use alloca()?  (e.g. to work-around bug 2079) */
-#ifdef GASNETI_USE_ALLOCA
-  /* Keep defn */
-#elif HAVE_ALLOCA && !PLATFORM_COMPILER_PGI
-  #define GASNETI_USE_ALLOCA 1
-#endif
-#if GASNETI_USE_ALLOCA && HAVE_ALLOC_H
-  #include <alloca.h>
-#endif
-
 /* Can one send a 0-byte payload?
  * TODO: autoconf or runtime probe if/when we can determine which systems need this
  */
