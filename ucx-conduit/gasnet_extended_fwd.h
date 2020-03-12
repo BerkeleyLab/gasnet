@@ -1,7 +1,7 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/pami-conduit/gasnet_extended_fwd.h $
- * Description: GASNet Extended API Header (forward decls)
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/ucx-conduit/gasnet_extended_fwd.h $
+ * Description: GASNet Extended API Header for ucx Conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Copyright 2012, Lawrence Berkeley National Laboratory
+ * Copyright 2019, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
 
@@ -12,37 +12,30 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      2.0
-#define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
-#define GASNET_EXTENDED_NAME         PAMI
-#define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
-/* Addition(s) to barrier-types enum: */
-#define GASNETE_COLL_CONDUIT_BARRIERS \
-	GASNETE_COLL_BARRIER_PAMIALLREDUCE, \
-	GASNETE_COLL_BARRIER_PAMIDISSEM
+#define GASNET_EXTENDED_VERSION      0.1
+#define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
+#define GASNET_EXTENDED_NAME         UCX
+#define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 #define GASNETI_EOP_IS_HANDLE 1
 
-  /* if conduit-internal threads may call the Extended API and/or they may run
-     progress functions, then define GASNETE_CONDUIT_THREADS_USING_TD to the
-     maximum COUNT of such threads to allocate space for their threaddata
-   */
-#if 0
-  #define GASNETE_CONDUIT_THREADS_USING_TD ###
-#endif
+/* Configure use of AM-based implementation of get/put */
+/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
+#define GASNETE_USING_REF_EXTENDED_GET      0
+#define GASNETE_USING_REF_EXTENDED_PUT      0
 
-  /* this can be used to add statistical collection values 
-     specific to the extended API implementation (see gasnet_help.h) */
+/* this can be used to add statistical collection values
+   specific to the extended API implementation (see gasnet_help.h) */
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
-        GASNETI_VIS_STATS(CNT,VAL,TIME)      \
-        GASNETI_COLL_STATS(CNT,VAL,TIME)     \
-        GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
-        CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
+      GASNETI_VIS_STATS(CNT,VAL,TIME)      \
+      GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+      GASNETI_RATOMIC_STATS(CNT,VAL,TIME)  \
+      CNT(C, DYNAMIC_THREADLOOKUP, cnt)
 
 #define GASNETE_AUXSEG_DECLS \
     extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
+#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc,
 
 /*
  * When implementing a conduit-specific implementation of the Extended API, one
@@ -75,24 +68,15 @@
  *   set: conduit provides own gasnete_get_val() as an inline
  */
 
-/* The following using an ON-STACK eop to avoid alloc/free overheads: */
-#define GASNETI_DIRECT_BLOCKING_GET 1
-#define GASNETI_DIRECT_BLOCKING_PUT 1
+/* We perform these blocking ops w/o the overhead of eop alloc/free: */
+//#define GASNETI_DIRECT_BLOCKING_GET 1
+//#define GASNETI_DIRECT_BLOCKING_PUT 1
 
-/* Configure use of AM-based implementation of get/put */
-/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-
-/* Conduit-specific collective overrides in gasnet_core_internal: */
-#if !defined(GASNET_NO_PAMI_COLL)
-#define GASNETE_COLL_NEEDS_CORE 1
-#endif
-
-// Configure default VIS tuning knobs
-// 12/15/17: Measurements on ALCF Cetus (BG/Q) show the ideal MAXCHUNK for I+S to be:
-//   ~512 for puts and ~256 for gets
-#if PLATFORM_OS_BGQ
-  #define GASNETE_VIS_MAXCHUNK_DEFAULT 256
-#endif
+/* Implement all "base" operations directly via amref: */
+/*#define gasnete_amref_get_nb        gasnete_get_nb
+#define gasnete_amref_put_nb        gasnete_put_nb
+#define gasnete_amref_get_nbi       gasnete_get_nbi
+#define gasnete_amref_put_nbi       gasnete_put_nbi
+*/
 
 #endif
-
