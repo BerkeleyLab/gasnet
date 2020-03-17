@@ -18,6 +18,12 @@ GASNet-EX ChangeLog
   the GASNet v1.x distribution from https://gasnet.lbl.gov.
 
 ----------------------------------------------------------------------
+20XX.YY.ZZ: PENDING
+
+* Notable bugs fixed in this release:
+  - bugX: ...
+
+----------------------------------------------------------------------
 03-12-2020: GASNet-EX 2020.3.0 Release
 
 * InfiniBand Verbs (ibv-conduit)
