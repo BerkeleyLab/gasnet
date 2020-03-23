@@ -117,7 +117,7 @@ check-exports: libammpi.a
             grep -v -e ' [\._]*ammpi_' -e ' [\._]*AMMPI_' -e ' [\._]*AM_'           \
 	            -e ' [\._]*amx_' -e ' [\._]*AMX_'                               \
                     -e ' [\._]*gasnett_' -e ' [\._]*gasneti_'                       \
-                    -e ' [\._][\._]*debug_' -e 'get_pc_thunk'                       \
+                    -e ' [\._][\._]*debug_' -e 'get_pc_thunk' -e ' smpi_'           \
                     -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e debug_info_seg |      \
             @PERL@ -n -e 'print if /^[0-9a-fA-F]+\s+[A-Z]\s+/' > .$$lib.exp;        \
           if test -s .$$lib.exp ; then                                              \
