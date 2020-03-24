@@ -2856,7 +2856,7 @@ gni_mem_handle_t gasnetc_local_mh(gasneti_EP_t i_ep, void *addr) {
 }
 GASNETI_INLINE(gasnetc_remote_mh)
 gni_mem_handle_t gasnetc_remote_mh(peer_struct_t * const peer, void *addr) {
-  return  gasneti_in_auxsegment(gasneti_THUNK_TM,peer->pe,addr,1) ? peer->aux_handle : peer->mem_handle;
+  return  gasneti_in_auxsegment(peer->pe,addr,1) ? peer->aux_handle : peer->mem_handle;
 }
 
 /* Perform an rdma/fma Put with no concern for local completion.

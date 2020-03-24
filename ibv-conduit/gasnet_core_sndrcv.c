@@ -3099,7 +3099,7 @@ extern int gasnetc_rdma_put(
   // TODO-EX:
   //     All uses of rem_auxseg are a temporary hack
   //     This will be replaced by general multi-registration support later
-  const int rem_auxseg = gasneti_in_auxsegment(tm, rank, dst_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(jobrank, dst_ptr, nbytes);
 
   gasneti_assert(nbytes != 0);
   
@@ -3181,9 +3181,7 @@ extern int gasnetc_rdma_long_put(
   // TODO-EX:
   //     All uses of rem_auxseg are a temporary hack
   //     This will be replaced by general multi-registration support later
-  //     XXX: this use is particularly problematic since in a Reply we don't
-  //     anticipate having a TM for the sender (which may not be in THUNK_TM).
-  const int rem_auxseg = gasneti_in_auxsegment(/*tm*/NULL, gasnetc_epid2node(epid), dst_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(gasnetc_epid2node(epid), dst_ptr, nbytes);
 
   gasneti_assert(nbytes != 0);
   
@@ -3240,7 +3238,7 @@ extern int gasnetc_rdma_get(
   //     All uses of {loc,rem_}auxseg are a temporary hack
   //     This will be replaced by general multi-registration support later
   const int loc_auxseg = gasneti_in_local_auxsegment((gasneti_EP_t)ep, dst_ptr, nbytes);
-  const int rem_auxseg = gasneti_in_auxsegment(tm, rank, src_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(jobrank, src_ptr, nbytes);
 
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
