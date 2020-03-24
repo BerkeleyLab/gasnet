@@ -1761,7 +1761,7 @@ static int gasnetc_hca_report(void) {
     GASNETI_TRACE_PRINTF(I,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_cap.vendor_id));
     GASNETI_TRACE_PRINTF(I,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_cap.vendor_part_id));
     GASNETI_TRACE_PRINTF(I,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_cap.hw_ver));
-    GASNETI_TRACE_PRINTF(I,("  HCA firmware version     = %0.64s", hca->hca_cap.fw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA firmware version     = %.64s", hca->hca_cap.fw_ver));
     GASNETI_TRACE_PRINTF(I,("  max_num_qp               = %u", (unsigned int)hca->hca_cap.max_qp));
     GASNETI_TRACE_PRINTF(I,("  max_qp_ous_wr            = %u", (unsigned int)hca->hca_cap.max_qp_wr));
     GASNETI_TRACE_PRINTF(I,("  max_num_sg_ent           = %u", (unsigned int)hca->hca_cap.max_sge));
