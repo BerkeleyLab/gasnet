@@ -479,7 +479,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #endif
   return; 
 }
-#if defined(GASNET_TRACE) && !GASNETI_BUILDING_TOOLS && !defined(__cplusplus)
+#if defined(GASNET_TRACE) && !GASNETI_BUILDING_TOOLS && (defined(_INCLUDED_GASNETEX_H) || !defined(__cplusplus))
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf,1,2,
   GASNETI_TENTATIVE_CLIENT void (*_gasnett_trace_printf)(const char *_format, ...));
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf_force,1,2,
