@@ -346,6 +346,10 @@
 #define _gasneti_scalar_atomic_set(p,v)              (*(p) = (v))
 #define _gasneti_scalar_atomic_read(p)               (*(p))
 
+# NOTE: _gasneti_scalar_atomic_compare_and_swap evaluates `p` either once
+# or twice, depending on the initial value.
+# However, it is used only in the body of inline functions in which `p` is
+# a function argument (and thus free of side-effects).
 #define _gasneti_scalar_atomic_compare_and_swap(p,oval,nval) \
                                                      (*(p) == (oval) ? (*(p) = (nval), 1) : 0)
 
