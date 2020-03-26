@@ -345,16 +345,39 @@
 #define _gasneti_scalar_atomic_init(v)               (v)
 #define _gasneti_scalar_atomic_set(p,v)              (*(p) = (v))
 #define _gasneti_scalar_atomic_read(p)               (*(p))
-#define _gasneti_scalar_atomic_increment(p)          ((*(p))++)
-#define _gasneti_scalar_atomic_decrement(p)          ((*(p))--)
-#define _gasneti_scalar_atomic_decrement_and_test(p) ((--(*(p))) == 0)
+
+# NOTE: _gasneti_scalar_atomic_compare_and_swap evaluates `p` either once
+# or twice, depending on the initial value.
+# However, it is used only in the body of inline functions in which `p` is
+# a function argument (and thus free of side-effects).
 #define _gasneti_scalar_atomic_compare_and_swap(p,oval,nval) \
                                                      (*(p) == (oval) ? (*(p) = (nval), 1) : 0)
-#define _gasneti_scalar_atomic_addfetch(p,op)        (*(p) += (op))
-#define _gasneti_scalar_atomic_add(p,op)             (*(p) += (op))
-#define _gasneti_scalar_atomic_subtract(p,op)        (*(p) -= (op))
 
-/* Swap, as above, but not typless due to need for a temporary */
+#if __cplusplus >= 202000L
+  // Bug 4060: C++20 deprecates certain "rmw" operations on volatile types
+  #define _gasneti_scalar_atomic_increment(p) \
+    (([=](auto _p) { auto _tmp = *_p; _tmp++; *_p = _tmp; } )(p))
+  #define _gasneti_scalar_atomic_decrement(p) \
+    (([=](auto _p) { auto _tmp = *_p; _tmp--; *_p = _tmp; } )(p))
+  #define _gasneti_scalar_atomic_add(p,op) \
+    (([=](auto _p, auto _op) { auto _tmp = *_p; _tmp += _op; *_p = _tmp; return _tmp;} )(p,op))
+  #define _gasneti_scalar_atomic_subtract(p,op) \
+    (([=](auto _p, auto _op) { auto _tmp = *_p; _tmp -= _op; *_p = _tmp; return _tmp;} )(p,op))
+  #define _gasneti_scalar_atomic_decrement_and_test(p) \
+    (_gasneti_scalar_atomic_subtract(p,1) == 0)
+#else
+  // C or C++ prior to 20
+  #define _gasneti_scalar_atomic_increment(p)          ((*(p))++)
+  #define _gasneti_scalar_atomic_decrement(p)          ((*(p))--)
+  #define _gasneti_scalar_atomic_decrement_and_test(p) ((--(*(p))) == 0)
+  #define _gasneti_scalar_atomic_add(p,op)             (*(p) += (op))
+  #define _gasneti_scalar_atomic_subtract(p,op)        (*(p) -= (op))
+#endif
+
+#define _gasneti_scalar_atomic_addfetch(p,op) \
+        _gasneti_scalar_atomic_add(p,op)
+
+/* Swap, as above, but not typeless due to need for a temporary */
 #define GASNETI_SCALAR_ATOMIC_SWAP_DEFN(func,stem)                      \
   GASNETI_INLINE(func) stem##val_t func(stem##t *_p, stem##val_t _val) {\
     const stem##val_t _retval = *_p; *_p = _val; return _retval;        \
