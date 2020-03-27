@@ -1551,6 +1551,30 @@ AC_DEFUN([GASNET_PACKAGE_LDFLAGS],[
 
 ########################################################################
 ##
+## Modify CRAY_[LIB]_POST_LINK_OPTS envvars to reference the 'default'
+##
+AC_DEFUN([GASNET_CRAY_POST_LINK_OPTS],[
+  pushdef([varname],CRAY_[]translit($1,'a-z','A-Z')[]_POST_LINK_OPTS)
+  if test -n x"$varname"; then
+    cplo_tmp=`$PERL -e "\\\$_='$varname'; s,/$1/[[^/]]*/lib,/$1/default/lib,; print;"`
+    cplo_dir=`$PERL -e "\\\$_='$cplo_tmp'; m,-L(/opt/cray/$1/[[^ ]]*),; print \\\$[]1;"`
+    if test -d "$cplo_dir/."; then
+      varname="$cplo_tmp"
+    else
+      GASNET_MSG_WARN([Directory $cplo_dir missing - disabling rewrite of varname])
+    fi
+  fi
+  popdef([varname])
+])
+GASNET_IF_DISABLED_NOHELP(cray-post-link-rewrite,[],[
+  GASNET_CRAY_POST_LINK_OPTS([pmi])
+  GASNET_CRAY_POST_LINK_OPTS([udreg])
+  GASNET_CRAY_POST_LINK_OPTS([ugni])
+  GASNET_CRAY_POST_LINK_OPTS([xpmem])
+])
+
+########################################################################
+##
 ##  Multithreading Libraries
 ##
 
