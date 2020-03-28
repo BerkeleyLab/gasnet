@@ -3784,15 +3784,37 @@ if test "$enabled_aries" = yes; then
   GNI_LIBS=
 
   # Look for pmi_cray.h, allowing for the possibility we are not using the wrapper compiler
-  # Setting $have_pmi_cray squashes a later probe for pmi.h:
+  # Setting $have_pmi_cray squashes a later probe for pmi.h.
+  # Therefore we perform the equivalent (but not quite identical) work here
+  pushdef([with_expanded_PMI_HOME],1)    dnl suppress help here, but permit later
+  pushdef([with_expanded_PMI_LDFLAGS],1)
+  pushdef([with_expanded_PMI_LIBS],1)
+  GASNET_ENV_DEFAULT(PMI_HOME, )
+  if test -n "$PMI_HOME"; then
+    GASNET_PACKAGE_CFLAGS(PMI, [], noenv)
+    GASNET_PACKAGE_LDFLAGS(PMI, pmi, [], noenv)
+  else
+    GASNET_ENV_DEFAULT(PMI_LDFLAGS, "$CRAY_PMI_POST_LINK_OPTS")
+  fi
+  GASNET_ENV_DEFAULT(PMI_LIBS, "-lpmi")
+  popdef([with_expanded_PMI_LIBS])
+  popdef([with_expanded_PMI_LDFLAGS])
+  popdef([with_expanded_PMI_HOME])
+
+  PMI_SPAWNER_CFLAGS=$PMI_CFLAGS;    unset PMI_CFLAGS
+  PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS;  unset PMI_LDFLAGS
+  PMI_SPAWNER_LIBS=$PMI_LIBS;        unset PMI_LIBS
+  GASNET_SPLIT_LINKER_OPTS(PMI_SPAWNER_LDFLAGS, PMI_SPAWNER_LIBS)
+
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $PMI_SPAWNER_CFLAGS")
   GASNET_CHECK_CRAY_HEADER([pmi_cray.h],[CRAY_PMI_INCLUDE_OPTS],[
       have_pmi_cray_h=yes
+      # Found in header search path (possibly due to PMI_SPAWNER_CFLAGS)
     ],[
       have_pmi_cray_h=yes
-      GNI_CFLAGS="$GNI_CFLAGS $CRAY_PMI_INCLUDE_OPTS"
+      PMI_SPAWNER_CFLAGS="$PMI_SPAWNER_CFLAGS $CRAY_PMI_INCLUDE_OPTS"
     ])
-  GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_PMI_POST_LINK_OPTS"
-  GNI_LIBS="$GNI_LIBS -lpmi"
+  GASNET_POPVAR(CPPFLAGS)
 
   # Look for gni_pub.h, allowing for the possibility we are not using the wrapper compiler
   GASNET_CHECK_CRAY_HEADER([gni_pub.h],[CRAY_GNI_HEADERS_INCLUDE_OPTS],[:],[
@@ -3824,9 +3846,9 @@ if test "$enabled_aries" = yes; then
 
   if test $have_aries = yes; then
     GASNET_SPLIT_LINKER_OPTS(GNI_LDFLAGS,GNI_LIBS)
-    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS}")
-    GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS}")
-    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $GNI_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS} $PMI_SPAWNER_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS} $PMI_SPAWNER_LIBS")
+    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $GNI_CFLAGS $PMI_SPAWNER_CFLAGS")
     GASNET_TRY_CACHE_LINK(for working Aries configuration, aries_works, [
       #include <stddef.h>
       #include <stdint.h>
