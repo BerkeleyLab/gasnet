@@ -1123,7 +1123,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
   GASNETI_INLINE(_gasnet_AMPoll)
   int _gasnet_AMPoll(GASNETI_THREAD_FARG_ALONE) {
-    GASNETI_TRACE_EVENT(I, AMPOLL);
+    GASNETI_TRACE_EVENT(X, AMPOLL);
     return _gasneti_AMPoll(GASNETI_THREAD_PASS_ALONE);
   }
   #define gasnet_AMPoll() _gasnet_AMPoll(GASNETI_THREAD_GET_ALONE)

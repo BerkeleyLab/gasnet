@@ -786,7 +786,7 @@ extern void gasneti_trace_finish(void);
         CNT(A, AMREPLY_MEDIUM_HANDLER, cnt)               \
         CNT(A, AMREPLY_LONG_HANDLER, cnt)                 \
                                                           \
-        CNT(I, AMPOLL, cnt)                               \
+        CNT(X, AMPOLL, cnt)                               \
                                                           \
         VAL(I, GASNET_MALLOC, sz)                         \
         VAL(I, GASNET_FREE, sz)                           \
