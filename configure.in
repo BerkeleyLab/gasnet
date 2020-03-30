@@ -1504,7 +1504,11 @@ AC_DEFUN([GASNET_PACKAGE_CFLAGS],[
   dnl TODO - strengthen this if we can determine compiler's default search path:
   case "$the_home" in
     /usr|/) the_guess='$2';;
-         *) the_guess="-I$the_home/include[]extra_flags";;
+         *) if test -d "$the_home/include/."; then
+              the_guess="-I$the_home/include[]extra_flags"
+            else
+              the_guess='$2'
+            fi;;
   esac
   ifelse(len([$3]),[0],[GASNET_ENV_DEFAULT(the_var, $the_guess)],[the_var=$the_guess])
   unset the_guess
