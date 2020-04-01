@@ -335,7 +335,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
 #if USE_PMIX_API
     max_name_len = PMIX_MAX_NSLEN + 1;
     max_key_len = PMIX_MAX_KEYLEN + 1;
-    max_val_len = 2048;  /* totally arbitrary here */
+    max_val_len = 4096;  /* totally arbitrary here */
 #elif USE_PMI2_API
     max_name_len = 1024; /* XXX: can almost certainly be shorter than this! */
     max_key_len = PMI2_MAX_KEYLEN;
@@ -351,6 +351,10 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
         gasneti_fatalerror("PMI_KVS_Get_value_length_max() failed");
     }
 #endif
+
+    // Bound allocation to reasonable sizes
+    max_key_len  = MIN(max_key_len,  1024);
+    max_val_len  = MIN(max_val_len,  4096);
 
     kvs_name = (char*) gasneti_malloc(max_name_len);
     kvs_key = (char*) gasneti_malloc(max_key_len);
