@@ -43,6 +43,15 @@
 #  define PMI_FALSE    0
 #endif
 
+// We really don't want to use PMI "point-to-point" on a Cray.
+// So, if the configure probe for PMI_Allgather() failed, we force
+// it here.  We rather this results in an application link failure
+// than the alternative: use of the non-scalable bootstrapExchange().
+// TODO: revisit if/when we have a more scalable PMI based Exchange.
+#if HAVE_PMI_CRAY_H && !defined(HAVE_PMI_ALLGATHER)
+  #define HAVE_PMI_ALLGATHER 1
+#endif
+
 GASNETI_IDENT(gasnetc_IdentString_HavePMISpawner, "$GASNetPMISpawner: 1 $");
 
 static gasneti_spawnerfn_t const spawnerfn;
