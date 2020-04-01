@@ -4381,7 +4381,7 @@ if test "$have_pmi" = yes; then
   # These have not bee seen outside of Cray PMI, but we can hope:
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS $PMI_SPAWNER_LIBS")
-  AC_CHECK_FUNCS([PMI_Allgather PMI_Bcast])
+  AC_CHECK_FUNCS([PMI_Allgather PMI_Allgather_on_smp PMI_Bcast])
   GASNET_POPVAR(LIBS)
   GASNET_POPVAR(LDFLAGS)
 

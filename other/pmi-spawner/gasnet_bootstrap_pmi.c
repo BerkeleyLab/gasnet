@@ -563,8 +563,42 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
 #endif
 }
 
+#if HAVE_PMI_ALLGATHER_ON_SMP
+static gex_Rank_t *gasnetc_pmi_allgather_on_smp_order = NULL;
+GASNETI_INLINE(gasnetc_pmi_allgather_on_smp_init)
+void gasnetc_pmi_allgather_on_smp_init(void) {
+    /* perform (just once) an Allgather_on_smp of node number to establish the order */
+    if_pf (!gasnetc_pmi_allgather_on_smp_order) {
+        int count = gasneti_myhost.node_count;
+        gasnetc_pmi_allgather_on_smp_order = gasneti_malloc(count * sizeof(gex_Rank_t));
+        int rc = PMI_Allgather_on_smp(&gasneti_mynode, gasnetc_pmi_allgather_on_smp_order, sizeof(gex_Rank_t));
+        gasneti_assert_always(PMI_SUCCESS == rc);
+    }
+}
+#endif
+
 static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
-#if HAVE_PMI_ALLGATHER
+#if HAVE_PMI_ALLGATHER_ON_SMP
+    const int count = gasneti_myhost.node_count;
+    uint8_t *tmp = gasneti_malloc(len * count);
+
+    /* Allgather_on_smp the callers data to a temporary array */
+    gasnetc_pmi_allgather_on_smp_init();
+    int rc = PMI_Allgather_on_smp(src ? src : dest, tmp, len);
+    gasneti_assert_always(PMI_SUCCESS == rc);
+
+    /* Extract the right piece */
+    int i;
+    for (i = 0; i < count; ++i) {
+      if (rootnode == gasnetc_pmi_allgather_on_smp_order[i]) {
+        GASNETI_MEMCPY(dest, &tmp[i * len], len);
+        break;
+      }
+    }
+    gasneti_assert_always(i != count);
+
+    gasneti_free(tmp);
+#elif HAVE_PMI_ALLGATHER
     /* TODO: test our assumption that PMI_Allgather it better than the Put/Get code below */
     uint8_t *tmp = gasneti_malloc(len * gasneti_nodes);
     int rc, i;
@@ -596,6 +630,11 @@ static void bootstrapCleanup(void) {
     gasneti_free(gasnetc_pmi_allgather_order);
     gasnetc_pmi_allgather_order = NULL;
   #endif
+  #if HAVE_PMI_ALLGATHER_ON_SMP
+    gasneti_free(gasnetc_pmi_allgather_on_smp_order);
+    gasnetc_pmi_allgather_on_smp_order = NULL;
+  #endif
+
     gasneti_free(kvs_name);  kvs_name = NULL;
     gasneti_free(kvs_key);   kvs_key = NULL;
     gasneti_free(kvs_value); kvs_value = NULL;
