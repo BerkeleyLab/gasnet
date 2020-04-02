@@ -416,10 +416,11 @@ static void bootstrapBarrier(void) {
     PMI2_KVS_Fence();
 #else
     static unsigned counter;
+    unsigned int phase = counter & 1;
     char v[16];
     int i;
 
-    snprintf(kvs_key, max_key_len, "B%u-%u", counter, (unsigned)gasneti_mynode);
+    snprintf(kvs_key, max_key_len, "B%u-%u", phase, (unsigned)gasneti_mynode);
     snprintf(v, sizeof(v), "%u", counter);
 
     do_kvs_put(v, sizeof(v));
@@ -427,7 +428,7 @@ static void bootstrapBarrier(void) {
 
     for (i = 0; i < gasneti_nodes; ++i) {
         if (i == gasneti_mynode) continue;
-        snprintf(kvs_key, max_key_len, "B%u-%u", counter, (unsigned)i);
+        snprintf(kvs_key, max_key_len, "B%u-%u", phase, (unsigned)i);
         do_kvs_get(v, sizeof(v));
         if (atoi(v) != counter) gasneti_fatalerror("barrier failed: exp %u got %s\n", counter, v);
     }
@@ -474,7 +475,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
 
     gasneti_free(unsorted);
 #else
-    static unsigned int counter = 0;
+    static unsigned int phase = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -484,21 +485,21 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         uint8_t *p;
         gex_Rank_t i;
 
-        snprintf(kvs_key, max_key_len, "GNE%x-%x", counter, (unsigned int)gasneti_mynode);
+        snprintf(kvs_key, max_key_len, "GNE%x-%x", phase, (unsigned int)gasneti_mynode);
         do_kvs_put(s, chunk);
 
         do_kvs_fence();
 
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            snprintf(kvs_key, max_key_len, "GNE%x-%x", counter, (unsigned int)i);
+            snprintf(kvs_key, max_key_len, "GNE%x-%x", phase, (unsigned int)i);
             do_kvs_get(p, chunk);
         }
 
         s += chunk;
         d += chunk;
         remain -= chunk;
-        ++counter;
+        phase ^= 1;
     }
 
     GASNETI_MEMCPY((uint8_t*)dest + len*gasneti_mynode, src, len);
@@ -508,7 +509,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
 /* bootstrapAlltoall
  */
 static void bootstrapAlltoall(void *src, size_t len, void *dest) {
-    static unsigned int counter = 0;
+    static unsigned int phase = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -519,7 +520,8 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
         gex_Rank_t i;
 
         for (i = 0, p = s; i < gasneti_nodes; ++i, p += len) {
-            snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", counter, (unsigned int)gasneti_mynode, (unsigned int)i);
+            if (i == gasneti_mynode) continue;
+            snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", phase, (unsigned int)gasneti_mynode, (unsigned int)i);
             do_kvs_put(p, chunk);
         }
 
@@ -527,14 +529,14 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
 
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", counter, (unsigned int)i, (unsigned int)gasneti_mynode);
+            snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", phase, (unsigned int)i, (unsigned int)gasneti_mynode);
             do_kvs_get(p, chunk);
         }
 
         s += chunk;
         d += chunk;
         remain -= chunk;
-        ++counter;
+        phase ^= 1;
     }
 
     GASNETI_MEMCPY((uint8_t*)dest + len*gasneti_mynode, (uint8_t*)src + len*gasneti_mynode, len);
@@ -546,7 +548,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
 #if HAVE_PMI_BCAST && 0
     /* TODO */
 #else
-    static unsigned int counter = 0;
+    static unsigned int phase = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -554,7 +556,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
 
-        snprintf(kvs_key, max_key_len, "GNB%x-%x", counter, rootnode);
+        snprintf(kvs_key, max_key_len, "GNB%x-%x", phase, rootnode);
 
         if (gasneti_mynode == rootnode) {
             do_kvs_put(s, chunk);
@@ -567,7 +569,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
         s += chunk;
         d += chunk;
         remain -= chunk;
-        ++counter;
+        phase ^= 1;
     }
 
     if (gasneti_mynode == rootnode) {
