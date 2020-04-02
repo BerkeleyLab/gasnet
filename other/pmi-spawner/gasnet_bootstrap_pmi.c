@@ -595,8 +595,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
 
-        // encoding rootnode allows this to serve as SNodeBcast as well
-        do_kvs_key1('B', phase, rootnode);
+        do_kvs_key0('B', phase);
 
         if (gasneti_mynode == rootnode) {
             do_kvs_put(s, chunk);
@@ -676,7 +675,34 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
 #elif HAVE_PMI_BCAST && 0
     /* TODO - Need something here if Broadcast is ever implemented in terms of PMI_Bcast */
 #else
-    bootstrapBroadcast(src, len, dest, rootnode);
+    static unsigned int phase = 0;
+    size_t remain = len;
+    uint8_t *s = src;
+    uint8_t *d = dest;
+
+    while (remain) {
+        size_t chunk = MIN(remain, max_val_bytes);
+
+        // encoding rootnode allows all SNode's bcast concurrently
+        do_kvs_key1('S', phase, rootnode);
+
+        if (gasneti_mynode == rootnode) {
+            do_kvs_put(s, chunk);
+            do_kvs_fence();
+        } else {
+            do_kvs_fence();
+            do_kvs_get(d, chunk);
+        }
+
+        s += chunk;
+        d += chunk;
+        remain -= chunk;
+        phase ^= 1;
+    }
+
+    if (gasneti_mynode == rootnode) {
+        GASNETI_MEMCPY_SAFE_IDENTICAL(dest, src, len);
+    }
 #endif
 }
 
