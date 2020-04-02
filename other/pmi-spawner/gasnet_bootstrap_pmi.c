@@ -181,6 +181,32 @@ void do_decode(uint8_t *out, size_t len, size_t in_len) {
     gasneti_assert_always_uint(decoded ,==, in_len);
 }
 
+/* Key generation helpers
+ *
+ * Stem - a single upper case char
+ * Phase - least significant bit determines upper/lower case use of Stem
+ * X,Y - 32-bit numbers expressed in hex w/ a single-char separator
+ * Resulting max: 1 + 8 + 1 + 8 = 18 char
+ *
+ * TODO: base85 could reduce X and Y to max 5 chars each.
+ */
+
+static void do_kvs_key1(char stem, unsigned int phase, unsigned int x) {
+  gasneti_assert(isupper(stem));
+  char c = (phase&1) ? stem : tolower(stem);
+  int rc = snprintf(kvs_key, max_key_len, "%c%x", c, x);
+  gasneti_assert_always_int(rc ,>, 0);
+  gasneti_assert_always_int(rc ,<, max_key_len);
+}
+
+static void do_kvs_key2(char stem, unsigned int phase, unsigned int x, unsigned int y) {
+  gasneti_assert(isupper(stem));
+  char c = (phase&1) ? stem : tolower(stem);
+  int rc = snprintf(kvs_key, max_key_len, "%c%x.%x", c, x, y);
+  gasneti_assert_always_int(rc ,>, 0);
+  gasneti_assert_always_int(rc ,<, max_key_len);
+}
+
 /* Put/Get/Fence wrappers */
 
 GASNETI_INLINE(do_kvs_put)
@@ -210,6 +236,7 @@ void do_kvs_put(void *value, size_t sz) {
 
 GASNETI_INLINE(do_kvs_get)
 void do_kvs_get(void *value, size_t sz) {
+    // TODO: specifying source id might improve performance in PMIx and PMI2
 #if USE_PMIX_API
     pmix_status_t ret;
     pmix_proc_t proc;
@@ -353,7 +380,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
 #endif
 
     // Bound allocation to reasonable sizes
-    max_key_len  = MIN(max_key_len,  1024);
+    max_key_len  = MIN(max_key_len,  24);  // 18+1 should be sufficient
     max_val_len  = MIN(max_val_len,  4096);
 
     kvs_name = (char*) gasneti_malloc(max_name_len);
@@ -416,11 +443,15 @@ static void bootstrapBarrier(void) {
     PMI2_KVS_Fence();
 #else
     static unsigned counter;
-    unsigned int phase = counter & 1;
     char v[16];
     int i;
 
-    snprintf(kvs_key, max_key_len, "B%u-%u", phase, (unsigned)gasneti_mynode);
+    // TODO: this barrier assumes a worst-case "lazy" fence
+    // In fact, it is probably doing O(N^2) work where O(N) would be sufficient
+
+    // TODO: encoding/checking of the counter could be debug-only
+
+    do_kvs_key1('X', counter, gasneti_mynode);
     snprintf(v, sizeof(v), "%u", counter);
 
     do_kvs_put(v, sizeof(v));
@@ -428,7 +459,7 @@ static void bootstrapBarrier(void) {
 
     for (i = 0; i < gasneti_nodes; ++i) {
         if (i == gasneti_mynode) continue;
-        snprintf(kvs_key, max_key_len, "B%u-%u", phase, (unsigned)i);
+        do_kvs_key1('X', counter, i);
         do_kvs_get(v, sizeof(v));
         if (atoi(v) != counter) gasneti_fatalerror("barrier failed: exp %u got %s\n", counter, v);
     }
@@ -485,14 +516,14 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         uint8_t *p;
         gex_Rank_t i;
 
-        snprintf(kvs_key, max_key_len, "GNE%x-%x", phase, (unsigned int)gasneti_mynode);
+        do_kvs_key1('E', phase, gasneti_mynode);
         do_kvs_put(s, chunk);
 
         do_kvs_fence();
 
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            snprintf(kvs_key, max_key_len, "GNE%x-%x", phase, (unsigned int)i);
+            do_kvs_key1('E', phase, i);
             do_kvs_get(p, chunk);
         }
 
@@ -521,7 +552,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
 
         for (i = 0, p = s; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", phase, (unsigned int)gasneti_mynode, (unsigned int)i);
+            do_kvs_key2('A', phase, gasneti_mynode, i);
             do_kvs_put(p, chunk);
         }
 
@@ -529,7 +560,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
 
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", phase, (unsigned int)i, (unsigned int)gasneti_mynode);
+            do_kvs_key2('A', phase, i, gasneti_mynode);
             do_kvs_get(p, chunk);
         }
 
@@ -556,7 +587,8 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
 
-        snprintf(kvs_key, max_key_len, "GNB%x-%x", phase, rootnode);
+        // encoding rootnode allows this to serve as SNodeBcast as well
+        do_kvs_key1('B', phase, rootnode);
 
         if (gasneti_mynode == rootnode) {
             do_kvs_put(s, chunk);
