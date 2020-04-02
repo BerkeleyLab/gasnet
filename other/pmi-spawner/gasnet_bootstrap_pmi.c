@@ -191,6 +191,12 @@ void do_decode(uint8_t *out, size_t len, size_t in_len) {
  * TODO: base85 could reduce X and Y to max 5 chars each.
  */
 
+static void do_kvs_key0(char stem, unsigned int phase) {
+  gasneti_assert(isupper(stem));
+  kvs_key[0] = (phase&1) ? stem : tolower(stem);
+  kvs_key[1] = '\0';
+}
+
 static void do_kvs_key1(char stem, unsigned int phase, unsigned int x) {
   gasneti_assert(isupper(stem));
   char c = (phase&1) ? stem : tolower(stem);
@@ -256,7 +262,7 @@ void do_kvs_get(void *value, size_t sz) {
     int len;
     rc = PMI2_KVS_Get(kvs_name, PMI2_ID_NULL, kvs_key, kvs_value, max_val_len, &len);
     gasneti_assert_always_int(PMI2_SUCCESS, ==, rc);
-    gasneti_assert_always_int(len, >, 0); // Negative would mean value larger than max_val_len
+    gasneti_assert_always_int(len, >=, 0); // Negative would mean value larger than max_val_len
 #else
     int rc;
     rc = PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len);
@@ -443,26 +449,28 @@ static void bootstrapBarrier(void) {
     PMI2_KVS_Fence();
 #else
     static unsigned counter;
-    char v[16];
-    int i;
+    char v[16] = "";
 
-    // TODO: this barrier assumes a worst-case "lazy" fence
-    // In fact, it is probably doing O(N^2) work where O(N) would be sufficient
+    // This barrier assumes a worst-case "lazy" fence implementation.
+    // TODO: is it possible to do even less than 1 Get per rank here?
 
-    // TODO: encoding/checking of the counter could be debug-only
+    do_kvs_key0('X', counter);
 
-    do_kvs_key1('X', counter, gasneti_mynode);
+  #if GASNET_DEBUG
     snprintf(v, sizeof(v), "%u", counter);
+  #endif
 
-    do_kvs_put(v, sizeof(v));
+    if (!gasneti_mynode) {
+      do_kvs_put(v, strlen(v));
+    }
+
     do_kvs_fence();
 
-    for (i = 0; i < gasneti_nodes; ++i) {
-        if (i == gasneti_mynode) continue;
-        do_kvs_key1('X', counter, i);
-        do_kvs_get(v, sizeof(v));
-        if (atoi(v) != counter) gasneti_fatalerror("barrier failed: exp %u got %s\n", counter, v);
-    }
+    do_kvs_get(v, strlen(v));
+  #if GASNET_DEBUG
+    if (atoi(v) != counter) gasneti_fatalerror("barrier failed: exp %u got %s\n", counter, v);
+  #endif
+
     counter++;
 #endif
 #else
