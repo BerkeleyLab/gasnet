@@ -216,15 +216,14 @@ static void do_kvs_key2(char stem, unsigned int phase, unsigned int x, unsigned 
 /* Put/Get/Fence wrappers */
 
 GASNETI_INLINE(do_kvs_put)
-void do_kvs_put(void *value, size_t sz) {
+void do_kvs_put(void *value, size_t sz, int is_local) {
 #if USE_PMIX_API
-    // TODO: current API doesn't pass scope, requiring us to assume GLOBAL
     pmix_value_t val;
     pmix_status_t ret;
     val.type = PMIX_BYTE_OBJECT;
     val.data.bo.bytes = value;
     val.data.bo.size = sz;
-    ret = PMIx_Put(PMIX_GLOBAL, kvs_key, &val);
+    ret = PMIx_Put(is_local ? PMIX_LOCAL : PMIX_GLOBAL, kvs_key, &val);
     gasneti_assert_always_int(PMIX_SUCCESS, ==, ret);
 #elif USE_PMI2_API
     do_encode(value, sz);
@@ -457,7 +456,7 @@ static void bootstrapBarrier(void) {
   #endif
 
     if (!gasneti_mynode) {
-      do_kvs_put(v, strlen(v));
+      do_kvs_put(v, strlen(v), 0);
     }
 
     do_kvs_fence();
@@ -521,7 +520,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         gex_Rank_t i;
 
         do_kvs_key1('E', phase, gasneti_mynode);
-        do_kvs_put(s, chunk);
+        do_kvs_put(s, chunk, 0);
 
         do_kvs_fence();
 
@@ -541,6 +540,19 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
 #endif
 }
 
+#if USE_PMIX_API // only case that consumes is_local
+static int peer_is_local(gex_Rank_t peer) {
+    if (gasneti_myhost.nodes) { // could be called before nodemap has been initialized
+        for (int i = 0; i < gasneti_myhost.node_count; ++i) {
+            if (gasneti_myhost.nodes[i] == peer) return 1;
+        }
+    }
+    return 0;
+}
+#else
+  #define peer_is_local(peer) 0
+#endif
+
 /* bootstrapAlltoall
  */
 static void bootstrapAlltoall(void *src, size_t len, void *dest) {
@@ -557,7 +569,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
         for (i = 0, p = s; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
             do_kvs_key2('A', phase, gasneti_mynode, i);
-            do_kvs_put(p, chunk);
+            do_kvs_put(p, chunk, peer_is_local(i));
         }
 
         do_kvs_fence();
@@ -594,7 +606,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
         do_kvs_key0('B', phase);
 
         if (gasneti_mynode == rootnode) {
-            do_kvs_put(s, chunk);
+            do_kvs_put(s, chunk, 0);
             do_kvs_fence();
         } else {
             do_kvs_fence();
@@ -683,7 +695,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
         do_kvs_key1('S', phase, rootnode);
 
         if (gasneti_mynode == rootnode) {
-            do_kvs_put(s, chunk);
+            do_kvs_put(s, chunk, 1);
             do_kvs_fence();
         } else {
             do_kvs_fence();
