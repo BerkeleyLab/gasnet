@@ -241,14 +241,13 @@ void do_kvs_put(void *value, size_t sz) {
 }
 
 GASNETI_INLINE(do_kvs_get)
-void do_kvs_get(void *value, size_t sz) {
-    // TODO: specifying source id might improve performance in PMIx and PMI2
+void do_kvs_get(void *value, size_t sz, gex_Rank_t src) {
 #if USE_PMIX_API
     pmix_status_t ret;
     pmix_proc_t proc;
     pmix_value_t *val;
     (void)strncpy(proc.nspace, myproc.nspace, PMIX_MAX_NSLEN);
-    proc.rank = PMIX_RANK_UNDEF;
+    proc.rank = (src == GEX_RANK_INVALID) ? PMIX_RANK_UNDEF : src;
     ret = PMIx_Get(&proc, kvs_key, NULL, 0, &val);
     gasneti_assert_always_int(PMIX_SUCCESS, ==, ret);
     gasneti_assert_always_ptr(NULL, !=, val);
@@ -260,7 +259,8 @@ void do_kvs_get(void *value, size_t sz) {
 #elif USE_PMI2_API
     int rc;
     int len;
-    rc = PMI2_KVS_Get(kvs_name, PMI2_ID_NULL, kvs_key, kvs_value, max_val_len, &len);
+    if (src == GEX_RANK_INVALID) src = PMI2_ID_NULL;
+    rc = PMI2_KVS_Get(kvs_name, src, kvs_key, kvs_value, max_val_len, &len);
     gasneti_assert_always_int(PMI2_SUCCESS, ==, rc);
     gasneti_assert_always_int(len, >=, 0); // Negative would mean value larger than max_val_len
 #else
@@ -466,7 +466,7 @@ static void bootstrapBarrier(void) {
 
     do_kvs_fence();
 
-    do_kvs_get(v, strlen(v));
+    do_kvs_get(v, strlen(v), 0);
   #if GASNET_DEBUG
     if (atoi(v) != counter) gasneti_fatalerror("barrier failed: exp %u got %s\n", counter, v);
   #endif
@@ -532,7 +532,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
             do_kvs_key1('E', phase, i);
-            do_kvs_get(p, chunk);
+            do_kvs_get(p, chunk, i);
         }
 
         s += chunk;
@@ -569,7 +569,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
             do_kvs_key2('A', phase, i, gasneti_mynode);
-            do_kvs_get(p, chunk);
+            do_kvs_get(p, chunk, i);
         }
 
         s += chunk;
@@ -602,7 +602,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
             do_kvs_fence();
         } else {
             do_kvs_fence();
-            do_kvs_get(d, chunk);
+            do_kvs_get(d, chunk, rootnode);
         }
 
         s += chunk;
@@ -691,7 +691,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
             do_kvs_fence();
         } else {
             do_kvs_fence();
-            do_kvs_get(d, chunk);
+            do_kvs_get(d, chunk, rootnode);
         }
 
         s += chunk;
