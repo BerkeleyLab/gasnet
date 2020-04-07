@@ -217,25 +217,22 @@ static void do_kvs_key2(char stem, unsigned int phase, unsigned int x, unsigned 
 
 GASNETI_INLINE(do_kvs_put)
 void do_kvs_put(void *value, size_t sz) {
-    int rc;
-    do_encode(value, sz);
 #if USE_PMIX_API
-    /* PMIx does not need to encode data - however,
-     * the current API doesn't allow us to avoid it,
-     * nor does it pass scope, so we'll have to assume
-     * global scope for now and pass encoded strings
-     *  - hopefully optimize this later */
+    // TODO: current API doesn't pass scope, requiring us to assume GLOBAL
     pmix_value_t val;
     pmix_status_t ret;
-    val.type = PMIX_STRING;
-    val.data.string = kvs_value;
+    val.type = PMIX_BYTE_OBJECT;
+    val.data.bo.bytes = value;
+    val.data.bo.size = sz;
     ret = PMIx_Put(PMIX_GLOBAL, kvs_key, &val);
     gasneti_assert_always_int(PMIX_SUCCESS, ==, ret);
 #elif USE_PMI2_API
-    rc = PMI2_KVS_Put(kvs_key, kvs_value);
+    do_encode(value, sz);
+    int rc = PMI2_KVS_Put(kvs_key, kvs_value);
     gasneti_assert_always_int(PMI2_SUCCESS, ==, rc);
 #else
-    rc = PMI_KVS_Put(kvs_name, kvs_key, kvs_value);
+    do_encode(value, sz);
+    int rc = PMI_KVS_Put(kvs_name, kvs_key, kvs_value);
     gasneti_assert_always_int(PMI_SUCCESS, ==, rc);
 #endif
 }
@@ -244,17 +241,15 @@ GASNETI_INLINE(do_kvs_get)
 void do_kvs_get(void *value, size_t sz, gex_Rank_t src) {
 #if USE_PMIX_API
     pmix_status_t ret;
-    pmix_proc_t proc;
     pmix_value_t *val;
-    (void)strncpy(proc.nspace, myproc.nspace, PMIX_MAX_NSLEN);
-    proc.rank = (src == GEX_RANK_INVALID) ? PMIX_RANK_UNDEF : src;
-    ret = PMIx_Get(&proc, kvs_key, NULL, 0, &val);
+    myproc.rank = (src == GEX_RANK_INVALID) ? PMIX_RANK_UNDEF : src;
+    ret = PMIx_Get(&myproc, kvs_key, NULL, 0, &val);
     gasneti_assert_always_int(PMIX_SUCCESS, ==, ret);
     gasneti_assert_always_ptr(NULL, !=, val);
-    gasneti_assert_always_int(PMIX_STRING, ==, val->type);
-    gasneti_assert_always_ptr(NULL, !=, val->data.string);
-    strcpy(kvs_value, val->data.string);
-    size_t len = strlen(kvs_value);
+    gasneti_assert_always_int(PMIX_BYTE_OBJECT, ==, val->type);
+    gasneti_assert_always_ptr(NULL, !=, val->data.bo.bytes);
+    gasneti_assert_always_uint(sz, ==, val->data.bo.size);
+    memcpy(value, val->data.bo.bytes, sz);
     PMIX_VALUE_RELEASE(val);
 #elif USE_PMI2_API
     int rc;
@@ -263,13 +258,14 @@ void do_kvs_get(void *value, size_t sz, gex_Rank_t src) {
     rc = PMI2_KVS_Get(kvs_name, src, kvs_key, kvs_value, max_val_len, &len);
     gasneti_assert_always_int(PMI2_SUCCESS, ==, rc);
     gasneti_assert_always_int(len, >=, 0); // Negative would mean value larger than max_val_len
+    do_decode(value, sz, len);
 #else
     int rc;
     rc = PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len);
     gasneti_assert_always_int(PMI_SUCCESS, ==, rc);
     size_t len = strlen(kvs_value);
-#endif
     do_decode(value, sz, len);
+#endif
 }
 
 GASNETI_INLINE(do_kvs_fence)
@@ -366,7 +362,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
     *nodes_p = size;
 
 #if USE_PMIX_API
-    max_name_len = PMIX_MAX_NSLEN + 1;
+    max_name_len = 0; // myproc used in place of kvs_name
     max_key_len = PMIX_MAX_KEYLEN + 1;
     max_val_len = 4096;  /* totally arbitrary here */
 #elif USE_PMI2_API
@@ -395,7 +391,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
     max_val_bytes = 4 * (max_val_len / 5);
 
 #if USE_PMIX_API
-    (void)strncpy(kvs_name, myproc.nspace, PMIX_MAX_NSLEN);
+    // nothing to do
 #elif USE_PMI2_API
     if (PMI2_SUCCESS != PMI2_Job_GetId(kvs_name, max_name_len)) {
         gasneti_fatalerror("PMI2_Job_GetId() failed");
