@@ -63,6 +63,12 @@ static int max_val_bytes;
 static pmix_proc_t myproc;
 #endif
 
+// op "maps":
+//   bit0 (value 1) set if phase 0 key used
+//   bit1 (value 2) set if phase 1 key used
+#define OP_INC_MAP(stem,phase) op_##stem##_map |= (((phase)&1)+1)
+static unsigned int op_X_map, op_E_map, op_A_map, op_B_map, op_S_map;
+
 /* do_{en,de}code()
  * Use a (minor) variant on Adobe's Ascii85 encoding.
  *   See http://en.wikipedia.org/wiki/Ascii85
@@ -456,6 +462,7 @@ static void bootstrapBarrier(void) {
   #endif
 
     if (!gasneti_mynode) {
+      OP_INC_MAP(X, counter);
       do_kvs_put(v, strlen(v), 0);
     }
 
@@ -533,6 +540,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         s += chunk;
         d += chunk;
         remain -= chunk;
+        OP_INC_MAP(E, phase);
         phase ^= 1;
     }
 
@@ -583,6 +591,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
         s += chunk;
         d += chunk;
         remain -= chunk;
+        OP_INC_MAP(A, phase);
         phase ^= 1;
     }
 
@@ -606,6 +615,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
         do_kvs_key0('B', phase);
 
         if (gasneti_mynode == rootnode) {
+            OP_INC_MAP(B, phase);
             do_kvs_put(s, chunk, 0);
             do_kvs_fence();
         } else {
@@ -695,6 +705,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
         do_kvs_key1('S', phase, rootnode);
 
         if (gasneti_mynode == rootnode) {
+            OP_INC_MAP(S, phase);
             do_kvs_put(s, chunk, 1);
             do_kvs_fence();
         } else {
@@ -714,6 +725,43 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
 #endif
 }
 
+// Put zero-length keys to free up space in KVS
+static void bootstrapGC(void) {
+    char value[] = "";
+    size_t sz = 0;
+    int phase;
+
+    // First a barrier to ensure we cannot clobber keys being read by another proc
+    // Consequently, we don't RESET_KVS(X,...) below.
+    bootstrapBarrier();
+
+    #define RESET_KVS(stem, key_gen, is_local) \
+        do { \
+            unsigned int map = op_##stem##_map; \
+            if (map & 1) { phase = 0; key_gen; do_kvs_put(value, sz, is_local); } \
+            if (map & 2) { phase = 1; key_gen; do_kvs_put(value, sz, is_local); } \
+        } while (0)
+    // RESET_KVS(X, do_kvs_key0('X', phase), 0); - omit to avoid interference w/ barrier above
+    RESET_KVS(E, do_kvs_key1('E', phase, gasneti_mynode), 0);
+    RESET_KVS(B, do_kvs_key0('B', phase), 0);
+    RESET_KVS(S, do_kvs_key1('S', phase, gasneti_mynode), 1);
+    #undef RESET_KVS
+    if (op_A_map & 1) {
+        for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+            if (i == gasneti_mynode) continue;
+            do_kvs_key2('A', 0, gasneti_mynode, i);
+            do_kvs_put(value, sz, peer_is_local(i));
+        }
+    }
+    if (op_A_map & 2) {
+        for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
+            if (i == gasneti_mynode) continue;
+            do_kvs_key2('A', 1, gasneti_mynode, i);
+            do_kvs_put(value, sz, peer_is_local(i));
+        }
+    }
+}
+
 static void bootstrapCleanup(void) {
   #if HAVE_PMI_ALLGATHER
     gasneti_free(gasnetc_pmi_allgather_order);
@@ -723,6 +771,8 @@ static void bootstrapCleanup(void) {
     gasneti_free(gasnetc_pmi_allgather_on_smp_order);
     gasnetc_pmi_allgather_on_smp_order = NULL;
   #endif
+
+    bootstrapGC();
 
     gasneti_free(kvs_name);  kvs_name = NULL;
     gasneti_free(kvs_key);   kvs_key = NULL;
