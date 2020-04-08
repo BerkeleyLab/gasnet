@@ -326,9 +326,7 @@ static void gasnetc_sys_coll_init(void)
 done:
   gasneti_assert(! gasneti_bootstrap_native_coll);
   gasneti_bootstrap_native_coll = 1;
-#if !GASNETC_IBV_SHUTDOWN
-  gasneti_spawner->Cleanup(); /* No futher use of ssh/mpi/pmi collectives */
-#endif
+  gasneti_spawner->Cleanup(); // No use of ssh/mpi/pmi collectives until possible shutdown
 }
 
 static void gasnetc_sys_coll_fini(void)
