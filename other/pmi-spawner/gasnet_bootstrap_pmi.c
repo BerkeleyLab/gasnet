@@ -318,7 +318,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
     /* we will have been given our job size during init,
      * so retrieve it from the local cache here */
     memset(proc.nspace, 0, PMIX_MAX_NSLEN+1);
-    (void)strncpy(proc.nspace, myproc.nspace, PMIX_MAX_NSLEN);
+    (void)strncpy(proc.nspace, myproc.nspace, PMIX_MAX_NSLEN+1);
     proc.rank = PMIX_RANK_WILDCARD;
 
     if (PMIX_SUCCESS != PMIx_Get(&proc, PMIX_JOB_SIZE,
