@@ -63,6 +63,8 @@ static int max_val_bytes;
 static pmix_proc_t myproc;
 #endif
 
+static int kvs_is_init = 0;  // Gates lazy initialization
+
 // op "maps":
 //   bit0 (value 1) set if phase 0 key used
 //   bit1 (value 2) set if phase 1 key used
@@ -390,13 +392,24 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
     max_key_len  = MIN(max_key_len,  24);  // 18+1 should be sufficient
     max_val_len  = MIN(max_val_len,  4096);
 
-    kvs_name = (char*) gasneti_malloc(max_name_len);
-    kvs_key = (char*) gasneti_malloc(max_key_len);
-    kvs_value = (char*) gasneti_malloc(max_val_len);
     max_val_bytes = 4 * (max_val_len / 5);
 
+    return &spawnerfn;
+}
+
+#define do_kvs_init() \
+    do { if_pf(!kvs_is_init) do_kvs_init_inner(); } while (0)
+static void do_kvs_init_inner(void) {
+    gasneti_assert(! kvs_is_init);
+
+    if (max_name_len) {
+        kvs_name = (char*) gasneti_malloc(max_name_len);
+    }
+    kvs_key = (char*) gasneti_malloc(max_key_len);
+    kvs_value = (char*) gasneti_malloc(max_val_len);
+
 #if USE_PMIX_API
-    // nothing to do
+    // nothing else to do
 #elif USE_PMI2_API
     if (PMI2_SUCCESS != PMI2_Job_GetId(kvs_name, max_name_len)) {
         gasneti_fatalerror("PMI2_Job_GetId() failed");
@@ -407,7 +420,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
     }
 #endif
 
-    return &spawnerfn;
+    kvs_is_init = 1;
 }
 
 /* bootstrapFini
@@ -451,6 +464,8 @@ static void bootstrapBarrier(void) {
 #else
     static unsigned counter;
     char v[16] = "";
+
+    do_kvs_init();
 
     // This barrier assumes a worst-case "lazy" fence implementation.
     // TODO: is it possible to do even less than 1 Get per rank here?
@@ -521,6 +536,8 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
     uint8_t *s = src;
     uint8_t *d = dest;
 
+    do_kvs_init();
+
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
         uint8_t *p;
@@ -569,6 +586,8 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
     uint8_t *s = src;
     uint8_t *d = dest;
 
+    do_kvs_init();
+
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
         uint8_t *p;
@@ -608,6 +627,8 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
+
+    do_kvs_init();
 
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
@@ -698,6 +719,8 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
     uint8_t *s = src;
     uint8_t *d = dest;
 
+    do_kvs_init();
+
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
 
@@ -738,6 +761,7 @@ static void bootstrapGC(void) {
     #define RESET_KVS(stem, key_gen, is_local) \
         do { \
             unsigned int map = op_##stem##_map; \
+            op_##stem##_map = 0; \
             if (map & 1) { phase = 0; key_gen; do_kvs_put(value, sz, is_local); } \
             if (map & 2) { phase = 1; key_gen; do_kvs_put(value, sz, is_local); } \
         } while (0)
@@ -760,6 +784,7 @@ static void bootstrapGC(void) {
             do_kvs_put(value, sz, peer_is_local(i));
         }
     }
+    op_A_map = 0;
 }
 
 static void bootstrapCleanup(void) {
@@ -772,11 +797,18 @@ static void bootstrapCleanup(void) {
     gasnetc_pmi_allgather_on_smp_order = NULL;
   #endif
 
-    bootstrapGC();
+    if (op_X_map | op_E_map | op_A_map | op_B_map | op_S_map) {
+        bootstrapGC();
+    }
+    do_kvs_fence();
 
-    gasneti_free(kvs_name);  kvs_name = NULL;
-    gasneti_free(kvs_key);   kvs_key = NULL;
-    gasneti_free(kvs_value); kvs_value = NULL;
+    if (kvs_is_init) {
+        gasneti_free(kvs_name);  kvs_name = NULL;
+        gasneti_free(kvs_key);   kvs_key = NULL;
+        gasneti_free(kvs_value); kvs_value = NULL;
+
+        kvs_is_init = 0;
+    }
 }
 
 static gasneti_spawnerfn_t const spawnerfn = {
