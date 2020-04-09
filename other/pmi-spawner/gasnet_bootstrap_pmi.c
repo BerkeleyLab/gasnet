@@ -43,6 +43,23 @@
 #  define PMI_FALSE    0
 #endif
 
+// The ANL, Cray and Open PMIx PMI servers do not behave "well" for multiple
+// Puts to the same key (though the behaviors differ).  We cannot currently
+// determine if we are using a server which does behave nicely (currently
+// only SLURM that we are aware of) because the servers and clients from
+// multiple projects are (intentionally) implementing the same wire
+// protocols.  Notably SLURM adopts others' wire protocols to launch
+// unmodified MPICH and Open MPI applications.
+#if defined(GASNETI_PMI_DUP_KEYS)
+  // enforce 1 or undef
+  #if GASNETI_PMI_DUP_KEYS
+    #undef GASNETI_PMI_DUP_KEYS
+    #define GASNETI_PMI_DUP_KEYS 1
+  #else
+    #undef GASNETI_PMI_DUP_KEYS
+  #endif
+#endif
+
 // We really don't want to use PMI "point-to-point" on a Cray.
 // So, if the configure probe for PMI_Allgather() failed, we force
 // it here.  We rather this results in an application link failure
@@ -65,11 +82,15 @@ static pmix_proc_t myproc;
 
 static int kvs_is_init = 0;  // Gates lazy initialization
 
-// op "maps":
-//   bit0 (value 1) set if phase 0 key used
-//   bit1 (value 2) set if phase 1 key used
-#define OP_INC_MAP(stem,phase) op_##stem##_map |= (((phase)&1)+1)
-static unsigned int op_X_map, op_E_map, op_A_map, op_B_map, op_S_map;
+#if GASNETI_PMI_DUP_KEYS
+  // op "maps" used for GC of *only* previously-used keys
+  //   bit0 (value 1) set if phase 0 key used
+  //   bit1 (value 2) set if phase 1 key used
+  #define OP_INC_MAP(stem,phase) op_##stem##_map |= (((phase)&1)+1)
+  static unsigned int op_X_map, op_E_map, op_A_map, op_B_map, op_S_map;
+#else
+  #define OP_INC_MAP(stem,phase) ((void)0)
+#endif
 
 /* do_{en,de}code()
  * Use a (minor) variant on Adobe's Ascii85 encoding.
@@ -191,32 +212,53 @@ void do_decode(uint8_t *out, size_t len, size_t in_len) {
 
 /* Key generation helpers
  *
+ * Default:
  * Stem - a single upper case char
- * Phase - least significant bit determines upper/lower case use of Stem
+ * Counter - 32-bit hex w/ a single-char separator
+ * X,Y - 32-bit numbers expressed in hex w/ a single-char separator
+ * Resulting max: 1 + 8 + 1 + 8 + 1 + 8 = 27 char
+ *
+ * GASNETI_PMI_DUP_KEYS:
+ * Stem - a single upper case char
+ * Counter - least significant bit determines upper/lower case use of Stem
  * X,Y - 32-bit numbers expressed in hex w/ a single-char separator
  * Resulting max: 1 + 8 + 1 + 8 = 18 char
  *
- * TODO: base85 could reduce X and Y to max 5 chars each.
+ * TODO: base85 could reduce the 8-char fields to max 5 chars each.
  */
 
-static void do_kvs_key0(char stem, unsigned int phase) {
+static void do_kvs_key0(char stem, unsigned int counter) {
   gasneti_assert(isupper(stem));
-  kvs_key[0] = (phase&1) ? stem : tolower(stem);
+#if GASNETI_PMI_DUP_KEYS
+  kvs_key[0] = (counter&1) ? stem : tolower(stem);
   kvs_key[1] = '\0';
+#else
+  int rc = snprintf(kvs_key, max_key_len, "%c%x", stem, counter);
+  gasneti_assert_always_int(rc ,>, 0);
+  gasneti_assert_always_int(rc ,<, max_key_len);
+#endif
 }
 
-static void do_kvs_key1(char stem, unsigned int phase, unsigned int x) {
+static void do_kvs_key1(char stem, unsigned int counter, unsigned int x) {
   gasneti_assert(isupper(stem));
-  char c = (phase&1) ? stem : tolower(stem);
+#if GASNETI_PMI_DUP_KEYS
+  char c = (counter&1) ? stem : tolower(stem);
   int rc = snprintf(kvs_key, max_key_len, "%c%x", c, x);
+#else
+  int rc = snprintf(kvs_key, max_key_len, "%c%x.%x", stem, counter, x);
+#endif
   gasneti_assert_always_int(rc ,>, 0);
   gasneti_assert_always_int(rc ,<, max_key_len);
 }
 
-static void do_kvs_key2(char stem, unsigned int phase, unsigned int x, unsigned int y) {
+static void do_kvs_key2(char stem, unsigned int counter, unsigned int x, unsigned int y) {
   gasneti_assert(isupper(stem));
-  char c = (phase&1) ? stem : tolower(stem);
+#if GASNETI_PMI_DUP_KEYS
+  char c = (counter&1) ? stem : tolower(stem);
   int rc = snprintf(kvs_key, max_key_len, "%c%x.%x", c, x, y);
+#else
+  int rc = snprintf(kvs_key, max_key_len, "%c%x.%x.%x", stem, counter, x, y);
+#endif
   gasneti_assert_always_int(rc ,>, 0);
   gasneti_assert_always_int(rc ,<, max_key_len);
 }
@@ -389,7 +431,11 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_pmi(
 #endif
 
     // Bound allocation to reasonable sizes
+#if GASNETI_PMI_DUP_KEYS
     max_key_len  = MIN(max_key_len,  24);  // 18+1 should be sufficient
+#else
+    max_key_len  = MIN(max_key_len,  32);  // 29+1 should be sufficient
+#endif
     max_val_len  = MIN(max_val_len,  4096);
 
     max_val_bytes = 4 * (max_val_len / 5);
@@ -531,7 +577,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
 
     gasneti_free(unsorted);
 #else
-    static unsigned int phase = 0;
+    static unsigned int counter = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -543,22 +589,22 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         uint8_t *p;
         gex_Rank_t i;
 
-        do_kvs_key1('E', phase, gasneti_mynode);
+        do_kvs_key1('E', counter, gasneti_mynode);
         do_kvs_put(s, chunk, 0);
 
         do_kvs_fence();
 
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            do_kvs_key1('E', phase, i);
+            do_kvs_key1('E', counter, i);
             do_kvs_get(p, chunk, i);
         }
 
         s += chunk;
         d += chunk;
         remain -= chunk;
-        OP_INC_MAP(E, phase);
-        phase ^= 1;
+        OP_INC_MAP(E, counter);
+        ++counter;
     }
 
     GASNETI_MEMCPY_SAFE_IDENTICAL((uint8_t*)dest + len*gasneti_mynode, src, len);
@@ -581,7 +627,7 @@ static int peer_is_local(gex_Rank_t peer) {
 /* bootstrapAlltoall
  */
 static void bootstrapAlltoall(void *src, size_t len, void *dest) {
-    static unsigned int phase = 0;
+    static unsigned int counter = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -595,7 +641,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
 
         for (i = 0, p = s; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            do_kvs_key2('A', phase, gasneti_mynode, i);
+            do_kvs_key2('A', counter, gasneti_mynode, i);
             do_kvs_put(p, chunk, peer_is_local(i));
         }
 
@@ -603,15 +649,15 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
 
         for (i = 0, p = d; i < gasneti_nodes; ++i, p += len) {
             if (i == gasneti_mynode) continue;
-            do_kvs_key2('A', phase, i, gasneti_mynode);
+            do_kvs_key2('A', counter, i, gasneti_mynode);
             do_kvs_get(p, chunk, i);
         }
 
         s += chunk;
         d += chunk;
         remain -= chunk;
-        OP_INC_MAP(A, phase);
-        phase ^= 1;
+        OP_INC_MAP(A, counter);
+        ++counter;
     }
 
     GASNETI_MEMCPY_SAFE_IDENTICAL((uint8_t*)dest + len*gasneti_mynode, (uint8_t*)src + len*gasneti_mynode, len);
@@ -623,7 +669,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
 #if HAVE_PMI_BCAST && 0
     /* TODO */
 #else
-    static unsigned int phase = 0;
+    static unsigned int counter = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -633,10 +679,10 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
 
-        do_kvs_key0('B', phase);
+        do_kvs_key0('B', counter);
 
         if (gasneti_mynode == rootnode) {
-            OP_INC_MAP(B, phase);
+            OP_INC_MAP(B, counter);
             do_kvs_put(s, chunk, 0);
             do_kvs_fence();
         } else {
@@ -647,7 +693,7 @@ static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) 
         s += chunk;
         d += chunk;
         remain -= chunk;
-        phase ^= 1;
+        ++counter;
     }
 
     if (gasneti_mynode == rootnode) {
@@ -714,7 +760,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
 #elif HAVE_PMI_BCAST && 0
     /* TODO - Need something here if Broadcast is ever implemented in terms of PMI_Bcast */
 #else
-    static unsigned int phase = 0;
+    static unsigned int counter = 0;
     size_t remain = len;
     uint8_t *s = src;
     uint8_t *d = dest;
@@ -725,10 +771,10 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
         size_t chunk = MIN(remain, max_val_bytes);
 
         // encoding rootnode allows all SNode's bcast concurrently
-        do_kvs_key1('S', phase, rootnode);
+        do_kvs_key1('S', counter, rootnode);
 
         if (gasneti_mynode == rootnode) {
-            OP_INC_MAP(S, phase);
+            OP_INC_MAP(S, counter);
             do_kvs_put(s, chunk, 1);
             do_kvs_fence();
         } else {
@@ -739,7 +785,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
         s += chunk;
         d += chunk;
         remain -= chunk;
-        phase ^= 1;
+        ++counter;
     }
 
     if (gasneti_mynode == rootnode) {
@@ -748,6 +794,7 @@ static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootn
 #endif
 }
 
+#if GASNETI_PMI_DUP_KEYS
 // Put zero-length keys to free up space in KVS
 static void bootstrapGC(void) {
     char value[] = "";
@@ -785,7 +832,12 @@ static void bootstrapGC(void) {
         }
     }
     op_A_map = 0;
+
+    do_kvs_fence();
 }
+#else
+#define bootstrapGC() ((void)0)
+#endif
 
 static void bootstrapCleanup(void) {
   #if HAVE_PMI_ALLGATHER
@@ -797,10 +849,7 @@ static void bootstrapCleanup(void) {
     gasnetc_pmi_allgather_on_smp_order = NULL;
   #endif
 
-    if (op_X_map | op_E_map | op_A_map | op_B_map | op_S_map) {
-        bootstrapGC();
-    }
-    do_kvs_fence();
+    bootstrapGC();
 
     if (kvs_is_init) {
         gasneti_free(kvs_name);  kvs_name = NULL;
