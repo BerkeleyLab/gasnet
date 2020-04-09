@@ -561,7 +561,7 @@ static void bootstrapExchange(void *src, size_t len, void *dest) {
         phase ^= 1;
     }
 
-    GASNETI_MEMCPY((uint8_t*)dest + len*gasneti_mynode, src, len);
+    GASNETI_MEMCPY_SAFE_IDENTICAL((uint8_t*)dest + len*gasneti_mynode, src, len);
 #endif
 }
 
@@ -614,7 +614,7 @@ static void bootstrapAlltoall(void *src, size_t len, void *dest) {
         phase ^= 1;
     }
 
-    GASNETI_MEMCPY((uint8_t*)dest + len*gasneti_mynode, (uint8_t*)src + len*gasneti_mynode, len);
+    GASNETI_MEMCPY_SAFE_IDENTICAL((uint8_t*)dest + len*gasneti_mynode, (uint8_t*)src + len*gasneti_mynode, len);
 }
 
 /* bootstrapBroadcast
