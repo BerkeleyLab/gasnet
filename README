@@ -492,8 +492,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
     * Linux/x86-Mellanox/gcc/32:     smp, mpi, udp, ibv
     * Linux/x86/IntelC/32:           smp, mpi, udp
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp
-    * Linux/x86_64-Ethernet/{gcc,clang,PGI,SunC}/{32,64}: smp, mpi, udp, ofi
-    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,IntelC,SunC}/64: smp, mpi, udp, ibv
+    * Linux/x86_64-Ethernet/{gcc,clang,PGI}/{32,64}: smp, mpi, udp, ofi
+    * Linux/x86_64-Mellanox/{gcc,clang,PathScale,IntelC}/64: smp, mpi, udp, ibv
     * Linux/x86_64-OmniPath/gcc/64: smp, mpi, udp, ofi
     * Linux/x86_64/x86-Open64/64:   smp, udp, #
 
@@ -508,11 +508,11 @@ Platforms where GASNet and Berkeley UPC have been successfully tested include:
     * OpenBSD/{x86,amd64}/{gcc,clang}/{32,64}: smp, mpi, udp
     * NetBSD/{x86,amd64}/{gcc,clang}/{32,64}:  smp, mpi, udp
 
-    * Solaris10/SPARC/gcc,SunProC/{32,64}: smp, udp, mpi
-    * Solaris10/x86/gcc,SunProC/{32,64}:   smp, udp, mpi
-    * OpenSolaris/x86/gcc,SunStudio12/{32,64}: smp, udp, #
-    * Solaris11Express/x86/gcc,SunStudio12/{32,64}: smp, udp, mpi, ibv
-    * Solaris11/x86/gcc,SunStudio12/{32,64}: smp, udp, mpi, ibv
+    * Solaris10/SPARC/gcc/{32,64}: smp, udp, mpi
+    * Solaris10/x86/gcc/{32,64}:   smp, udp, mpi
+    * OpenSolaris/x86/gcc/{32,64}: smp, udp, #
+    * Solaris11Express/x86/gcc/{32,64}: smp, udp, mpi, ibv
+    * Solaris11/x86/gcc/{32,64}: smp, udp, mpi, ibv
 
     * MSWindows-Cygwin/{x86,x86_64}/{gcc,clang}/{32,64}: smp, udp, mpi (OpenMPI)
     * MSWindows10-Linux(WSL)/{gcc,clang}/64: smp, udp, mpi
