@@ -547,6 +547,11 @@ just the systems we've personally tested. Several of the systems listed using a
 vendor-specific C compiler can also use gcc as the underlying C compiler,
 although we generally recommend the vendor C compiler for performance reasons.
 
+The following compilers are believed to work on platforms listed above, 
+with the provided minimum version:
+Gnu (gcc 3.0+), LLVM (clang 3.6+), Apple (Xcode 7.1+), Intel (icc 16+), 
+PGI (pgcc 10.9+), IBM XL (xlc 13+), Cray (CCE 8.6+)
+
 Recognized Environment Variables
 ================================
 
