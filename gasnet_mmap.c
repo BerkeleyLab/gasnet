@@ -1802,6 +1802,19 @@ int gasneti_segment_map_primordial(
   return gasneti_segment_map_inner(segment_p, segsize, exchangefn, 1);
 }
 
+//  Map a "non-promodial" segment
+int gasneti_segment_map(
+                        gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        int pshm_compat,
+                        gex_Flags_t flags)
+{
+  // TODO-EX: support for PSHM cross-mapping of segments not created initially
+  gasneti_assert(! pshm_compat);
+
+  return gasneti_segment_map_inner(segment_p, segsize, pshm_compat);
+}
+
 #if GASNET_PSHM
 // Cross-map the remote shared segments
 // TODO-EX: need scalable data structures in place of seginfo and gasneti_nodeinfo

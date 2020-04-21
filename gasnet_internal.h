@@ -433,6 +433,15 @@ uintptr_t gasneti_max_segsize();
   #endif
 #endif
 
+// Map memory intended for use as segment
+// Called non-collectively, as by gex_Segment_Create()
+// Boolean 'pshm_compat' requests allocation of memory which
+// is compatible with cross-mapping [UNIMPLMENTED]
+int gasneti_segment_map(gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        int pshm_compat,
+                        gex_Flags_t flags);
+
 #ifndef GASNETI_USE_HIGHSEGMENT
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
