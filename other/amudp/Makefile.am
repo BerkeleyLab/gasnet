@@ -16,14 +16,6 @@ else
   BUILDCONFIG_DEFINES = -DAMUDP_NDEBUG=1
 endif
 
-if BLCR_ENABLED
-  blcr_defines = -DAMUDP_BLCR_ENABLED=1 -DBLCR_BINDIR=\"@BLCR_BINDIR@\" @BLCR_CFLAGS@
-  blcr_ldflags = @BLCR_LDFLAGS@ @BLCR_LIBS@
-else
-  blcr_defines =
-  blcr_ldflags =
-endif
-
 CC  = @CC@
 CFLAGS = @GASNET_OPT_CFLAGS@ @DEVWARN_CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags)
 CXX = @CXX@
@@ -32,9 +24,9 @@ LDFLAGS = @LDFLAGS@ @cxxLDFLAGS@ $(MANUAL_LDFLAGS)
 
 PERL = @PERL@
 
-platform_defines = @GASNET_EXTRA_DEFINES@ $(BUILDCONFIG_DEFINES) @INTTYPES_DEFINES@ -DAMX_ENV_PREFIX=GASNET $(blcr_defines) $(MANUAL_DEFINES)
+platform_defines = @GASNET_EXTRA_DEFINES@ $(BUILDCONFIG_DEFINES) @INTTYPES_DEFINES@ -DAMX_ENV_PREFIX=GASNET $(MANUAL_DEFINES)
 
-platform_libraries = -L$(top_builddir) -lgasnet_tools-seq @LIBS@ @GASNET_UDP_LIBS@ $(blcr_ldflags)
+platform_libraries = -L$(top_builddir) -lgasnet_tools-seq @LIBS@ @GASNET_UDP_LIBS@
 
 VPATH = $(srcdir)
 amxdir = $(srcdir)/../amx

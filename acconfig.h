@@ -282,9 +282,6 @@
 /* hugetlbfs support enabled */
 #undef GASNETI_USE_HUGETLBFS
 
-/* BLCR support, path and features */
-#undef GASNETI_BLCR_ENABLED
-
 /* support for backtracing */
 #undef HAVE_EXECINFO_H
 #undef HAVE_BACKTRACE

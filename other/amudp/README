@@ -68,6 +68,9 @@ AMUDP has a few notable departures from the AM-2 specification:
 
 Change Log
 ----------
+PENDING
+- Remove BLCR support
+
 AMUDP 3.16 (03/2020)
 - Improved startup error checking and reporting for DNS misconfigurations
 

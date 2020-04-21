@@ -394,11 +394,6 @@ typedef struct {
   void (*Abort)(int exitcode);
   void (*Cleanup)(void);
   void (*Fini)(void);
-#if GASNET_BLCR
-  int (*PreCheckpoint)(int fd);
-  int (*PostCheckpoint)(int fd, int is_restart);
-  int (*Rollback)(const char *dir);
-#endif
 } gasneti_spawnerfn_t;
 
 extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,

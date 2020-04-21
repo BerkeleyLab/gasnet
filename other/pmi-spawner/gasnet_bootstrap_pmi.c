@@ -869,10 +869,5 @@ static gasneti_spawnerfn_t const spawnerfn = {
   bootstrapAbort,
   bootstrapCleanup,
   bootstrapFini,
-#if GASNET_BLCR && 0 // BLCR-TODO
-  bootstrapPreCheckpoint,
-  bootstrapPostCheckpoint,
-  bootstrapRollback,
-#endif
 };
 
