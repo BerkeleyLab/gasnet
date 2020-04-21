@@ -1693,14 +1693,28 @@ int gasneti_segment_map_inner(
 {
   void *segbase = NULL;
 
-  // TODO: private (non-PSHM) allocation
-  gasneti_assert_always(use_shared);
-
   #ifdef GASNETI_MMAP_OR_PSHM
   {
+    // Different (un)map ops to support shared (cross-mappable via PSHM) and private mappings
+    void* (*mmap_fn)(uintptr_t);
+    void* (*mmap_fixed_fn)(void *, uintptr_t, int);
+    void  (*munmap_fn)(void *, uintptr_t);
+    #if GASNET_PSHM
+    if (use_shared) {
+      mmap_fn       = gasneti_mmap_shared;
+      mmap_fixed_fn = gasneti_mmap_shared_fixed;
+      munmap_fn     = gasneti_pshm_munmap;
+    } else
+    #endif
+    {
+      mmap_fn       = gasneti_mmap;
+      mmap_fixed_fn = gasneti_mmap_fixed;
+      munmap_fn     = gasneti_munmap;
+    }
+
     if (segsize == 0) { /* no segment */
       if (segment_p->addr && segment_p->size) {
-        gasneti_do_munmap(segment_p->addr, segment_p->size);
+        munmap_fn(segment_p->addr, segment_p->size);
       }
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
@@ -1711,17 +1725,17 @@ int gasneti_segment_map_inner(
     #endif
       gasneti_assert_uint(segsize ,<=, segment_p->size);
       if (GASNET_PSHM || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
-        gasneti_do_munmap(segment_p->addr, segment_p->size);
-        gasneti_bug3480_fence(exchangefn);
+        munmap_fn(segment_p->addr, segment_p->size);
+        if (exchangefn) gasneti_bug3480_fence(exchangefn);
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segbase =
 #endif
-        gasneti_do_mmap_fixed(segbase, segsize, 0);
+        mmap_fixed_fn(segbase, segsize, 0);
       } else {
-        gasneti_bug3480_fence(exchangefn);
+        if (exchangefn) gasneti_bug3480_fence(exchangefn);
       }
     } else { /* need segment from scratch */
-      segbase = gasneti_do_mmap(segsize);
+      segbase = mmap_fn(segsize);
       if (MAP_FAILED == segbase) {
         // TODO-EX: improve error handling here (e.g. ENOMEM might be returned to caller)
         int mmap_errno = errno;
