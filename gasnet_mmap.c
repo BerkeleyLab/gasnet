@@ -1678,11 +1678,23 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
 /* ------------------------------------------------------------------------------------ */
 
-static // TODO-EX: static for now, at least
-void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
-                                gasneti_bootstrapExchangefn_t exchangefn)
+// Allocate/map memory for a GASNet segment
+//
+// NOTE: exchangefn is used as a expedient node-scoped barrier ONLY when
+// GASNETI_BUG3480_WORKAROUND is defined and only for the legacy attach.
+// Therefore, there is no need for subset teams support.
+//
+static
+int gasneti_segment_map_inner(
+                        gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        gasneti_bootstrapExchangefn_t exchangefn,
+                        int use_shared)
 {
   void *segbase = NULL;
+
+  // TODO: private (non-PSHM) allocation
+  gasneti_assert_always(use_shared);
 
   #ifdef GASNETI_MMAP_OR_PSHM
   {
@@ -1744,13 +1756,43 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
 
   segment_p->addr = segbase;
   segment_p->size = segsize;
+
+  return GASNET_OK;
+}
+
+//  Map a "promodial" segment
+//  + Aux segment via gex_Client_Init() or gasnet_init()
+//  + Client segment via gex_Segment_Attach() or gasnet_attach()
+static // TODO-EX: static for now, at least
+int gasneti_segment_map_primordial(
+                        gasnet_seginfo_t *segment_p,
+                        uintptr_t segsize,
+                        gasneti_bootstrapExchangefn_t exchangefn,
+                        gex_Flags_t flags)
+{
+  gasneti_assert(exchangefn);
+
+#ifdef GASNETI_MMAP_OR_PSHM
+  if (flags & GASNETI_FLAG_INIT_LEGACY) {
+    /* in "legacy_mode" we consume the presegment */
+    gasneti_assert(exchangefn);
+    *segment_p = gasneti_presegment;
+  } else
+#endif
+  {
+    /* otherwise, we are working from scratch */
+    segment_p->size = 0;
+    segment_p->addr = NULL;
+  }
+
+  return gasneti_segment_map_inner(segment_p, segsize, exchangefn, 1);
 }
 
 #if GASNET_PSHM
-/* Map the remote shared segments */
-// TODO-EX: need scalable data structure in place of gasneti_nodeinfo
+// Cross-map the remote shared segments
+// TODO-EX: need scalable data structures in place of seginfo and gasneti_nodeinfo
 static // TODO-EX: static for now, at least
-void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
+void gasneti_segment_cross_map(gasnet_seginfo_t *seginfo)
 {
     gasneti_nodeinfo[gasneti_mynode].offset = 0;
     gasneti_pshm_rank_t local_rank = 0;
@@ -1794,28 +1836,24 @@ gasneti_do_attach_segment(
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags)
 {
-  gasneti_assert(all_segments);
-  gasneti_assert(exchangefn);
-
 #if GASNET_PSHM
   /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
   gasneti_pshmnet_bootstrapBarrier();
 #endif
 
-  gasnet_seginfo_t local_segment = {0,0};
-#ifdef GASNETI_MMAP_OR_PSHM
-  /* in "legacy_mode" we consume the presegment, otherwise working from scratch */
-  if (flags & GASNETI_FLAG_INIT_LEGACY) local_segment = gasneti_presegment;
-#endif
-  
-  gasneti_segmentAttachLocal(&local_segment, segsize, exchangefn);
+  gasnet_seginfo_t local_segment;
+
+  int rc = gasneti_segment_map_primordial(&local_segment, segsize, exchangefn, flags);
+  if (rc != GASNET_OK) {
+    gasneti_fatalerror("Unexpected failure return from gasneti_segment_map()");
+  }
 
   /*  gather segment information */   // TODO-EX: need scalable replacement
   (*exchangefn)(&local_segment, sizeof(gasnet_seginfo_t), all_segments);
 
 #if GASNET_PSHM
-  gasneti_segmentAttachRemote(all_segments);
+  gasneti_segment_cross_map(all_segments);
   gasneti_pshm_cs_leave();
 #endif
 
