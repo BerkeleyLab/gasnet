@@ -136,10 +136,6 @@ gasnetc_port_info_t      *gasnetc_port_tbl = NULL;
 int                      gasnetc_num_ports = 0;
 
 static uint64_t  gasnetc_pin_maxsz;
-#if GASNETC_PIN_SEGMENT
-  uintptr_t		gasnetc_seg_start;
-  uintptr_t		gasnetc_seg_len;
-#endif
 firehose_info_t	gasnetc_firehose_info;
 static uintptr_t gasnetc_firehose_mem;
 static int       gasnetc_firehose_reg;
@@ -2680,16 +2676,13 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
 
   gasnetc_Segment_t segment;
   gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, exchangefn, flags);
-  segment = (gasnetc_Segment_t) gasneti_import_tm(tm)->_ep->_segment;
+  segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
 
   // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
   {
     gasnetc_add_segment(segment);
-
-    gasnetc_seg_start = (uintptr_t)myseg.addr;
-    gasnetc_seg_len   = myseg.size;
 
     /* pin the segment and exchange the RKeys, once per HCA */
     gasnetc_hca_t *hca;
