@@ -775,10 +775,15 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+  gasnetc_Segment_t segment;
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, exchangefn, flags);
 
   // Register client segment with NIC
-  gasnetc_init_segment(myseg);
+  segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+  gasnetc_segment_register(segment);
+
+  // Exchange registration info
+  gasnetc_segment_exchange(segment);
 
   return GASNET_OK;
 }
