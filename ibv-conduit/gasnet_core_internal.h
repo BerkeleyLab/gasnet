@@ -554,9 +554,7 @@ typedef struct gasnetc_Segment_t_ {
 #if GASNETC_PIN_SEGMENT
   // memory registation info (per-HCA)
   uint32_t            seg_lkey[GASNETC_IB_MAX_HCAS];
-  #if GASNETC_IBV_SHUTDOWN
-    gasnetc_memreg_t  seg_reg[GASNETC_IB_MAX_HCAS];
-  #endif
+  gasnetc_memreg_t    seg_reg[GASNETC_IB_MAX_HCAS];
 #endif
 } *gasnetc_Segment_t;
 

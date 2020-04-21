@@ -2642,6 +2642,34 @@ static int gasnetc_attach_primary(void) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+
+// Purely local memory registration and conduit-specific segment tracking
+// Applicable to both primordial and non-primordial segments
+static int gasnetc_segment_register(gasnetc_Segment_t segment)
+{
+#if GASNETC_PIN_SEGMENT
+    gasnetc_hca_t *hca;
+    GASNETC_FOR_ALL_HCA(hca) {
+      // Register page-aligned bounding-box (since client-provided need not be aligned).
+      gasnetc_memreg_t memreg;
+      uintptr_t lb = GASNETI_PAGE_ALIGNDOWN(segment->_addr);
+      uintptr_t ub = GASNETI_PAGE_ALIGNUP(segment->_ub);
+      uintptr_t bb_size = ub - lb;
+      int rc = gasnetc_pin(hca, (void*)lb, ub - lb, gasneti_seg_access_flags, &memreg);
+
+      if (rc) {
+        gasneti_segreg_failed(segment->_size, "", errno);
+      }
+      GASNETI_TRACE_PRINTF(I, ("Registered %"PRIuPTR" byte segment on HCA %d", segment->_size, hca->hca_index));
+
+      segment->seg_lkey[hca->hca_index] = memreg.handle->lkey;
+      segment->seg_reg[hca->hca_index] = memreg;
+    }
+#endif
+
+  return GASNET_OK;
+}
+
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
@@ -2656,32 +2684,25 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   // Register client segment with NIC
 
   #if GASNETC_PIN_SEGMENT
-  {
-    /* pin the segment and exchange the RKeys, once per HCA */
+    // pin the segment 
     segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+    int rc = gasnetc_segment_register(segment);
+    if (rc) {
+      gasneti_fatalerror("Unexpected failure return from gasnetc_segment_register()");
+    }
+
+    // exchange the RKeys
     gasnetc_hca_t *hca;
     GASNETC_FOR_ALL_HCA(hca) {
       hca->rkeys = gasneti_calloc(gasneti_nodes, sizeof(uint32_t));
       gasneti_leak(hca->rkeys);
 
-      gasnetc_memreg_t memreg;
-      if (0 != gasnetc_pin(hca, myseg.addr, myseg.size, gasneti_seg_access_flags, &memreg)) {
-        gasneti_segreg_failed(segsize, "", errno);
-      }
-      segment->seg_lkey[hca->hca_index] = memreg.handle->lkey;
-    #if GASNETC_IBV_SHUTDOWN
-      segment->seg_reg[hca->hca_index] = memreg;
-    #endif
-
-      GASNETI_TRACE_PRINTF(I, ("Attach registered %"PRIuPTR" bytes on HCA %d", segsize, hca->hca_index));
-
       /* XXX: hca->rkeys is one of the O(N) storage requirements we might reduce/eliminate.
        * + When using PSHM we could store rkeys just once per supernode
        * + When not fully connected, we could utilize sparse storage
        */
-      (*exchangefn)(&memreg.handle->rkey, sizeof(uint32_t), hca->rkeys);
+      (*exchangefn)(&segment->seg_reg[hca->hca_index].handle->rkey, sizeof(uint32_t), hca->rkeys);
     }
-  }
   #endif
 
   /* Per-endpoint work */
