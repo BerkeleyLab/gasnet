@@ -4251,6 +4251,19 @@ AM_CONDITIONAL(HAVE_BOOTSTRAP_SSH, test "$have_fork" = yes)
 GASNET_IF_ENABLED_WITH_AUTO(pmi, [Enable/disable PMI support for job spawning],
   [enable_pmi=yes; force_pmi=yes], [enable_pmi=no], [enable_pmi=probe])
 
+# Check for header matching the selected lib
+# TODO: fragile if multiple PMI libs are installed
+AC_DEFUN([GASNET_PMI_SPAWNER_CFLAGS], [
+    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" 'no'; do
+      test -f "${pmi_headers}/$1" && break
+    done
+    if test "${pmi_headers}" = no; then
+      have_pmi=no
+    elif test "${pmi_headers}" != '/usr/include'; then
+      PMI_SPAWNER_CFLAGS="-I${pmi_headers}"
+    fi
+])
+
 have_pmi=no
 if test -n "$have_pmi_cray_h"; then
   with_pmi='no'
@@ -4300,12 +4313,37 @@ elif test "$enable_pmi" != 'no'; then
       AC_CHECK_FUNC(PMIx_Init, [have_pmi=yes])
     fi
     if test "$have_pmi" = 'yes'; then
+      GASNET_PMI_SPAWNER_CFLAGS([pmix.h])
+    fi
+    if test "$have_pmi" = 'yes'; then
+      AC_CHECK_HEADERS([stdbool.h])
+      # We support PMIx API versions 2 and 3
+      # At least some version 1 headers did not define PMIX_VERSION_MAJOR at all
+      GASNET_PUSHVAR(CFLAGS,"$PMI_SPAWNER_CFLAGS")
+      GASNET_TRY_CACHE_CHECK(for PMIx API version 2 or newer,PMIX_API,[
+        #include <sys/time.h>
+        #include <sys/types.h>
+        #include <unistd.h>
+        #if HAVE_STDBOOL_H
+          #include <stdbool.h>
+        #endif
+        #include <pmix.h>
+        #ifndef PMIX_VERSION_MAJOR
+          #error not defined
+        #elif PMIX_VERSION_MAJOR < 2
+          #error too old
+        #endif
+      ],[],[],[
+        GASNET_MSG_WARN([Ignoring libpmix implementing API version 1 because version 2 or newer is required.])
+        have_pmi=no
+      ])
+      GASNET_POPVAR(CFLAGS)
+    fi
+    if test "$have_pmi" = 'yes'; then
       use_pmix=yes
-      pmi_suffix='x'
       pmi_version=' (version=x)'
       AC_DEFINE(HAVE_PMIX_H)
       PMI_SPAWNER_LIBS="$LIBS"
-      AC_CHECK_HEADERS([stdbool.h])  # TODO: see if bool really works
     fi
     GASNET_POPVAR(LIBS)
   fi
@@ -4318,8 +4356,10 @@ elif test "$enable_pmi" != 'no'; then
       AC_CHECK_FUNC(PMI2_Init, [have_pmi=yes])
     fi
     if test "$have_pmi" = 'yes'; then
+      GASNET_PMI_SPAWNER_CFLAGS([pmi2.h])
+    fi
+    if test "$have_pmi" = 'yes'; then
       use_pmi2=yes
-      pmi_suffix='2'
       pmi_version=' (version=2)'
       AC_DEFINE(HAVE_PMI2_H)
       PMI_SPAWNER_LIBS="$LIBS"
@@ -4337,8 +4377,10 @@ elif test "$enable_pmi" != 'no'; then
       AC_CHECK_FUNC(PMI_Init, [have_pmi=yes])
     fi
     if test "$have_pmi" = 'yes'; then
+      GASNET_PMI_SPAWNER_CFLAGS([pmi.h])
+    fi
+    if test "$have_pmi" = 'yes'; then
       use_pmi1=yes
-      pmi_suffix=''
       pmi_version=' (version=1)'
       AC_DEFINE(HAVE_PMI_H)
       PMI_SPAWNER_LIBS="$LIBS"
@@ -4349,19 +4391,7 @@ elif test "$enable_pmi" != 'no'; then
   GASNET_POPVAR(LDFLAGS)
   GASNET_SPLIT_LINKER_OPTS(PMI_SPAWNER_LDFLAGS,PMI_SPAWNER_LIBS)
 
-  # Check for header matching the selected lib
-  # TODO: fragile if multiple PMI libs are installed
   # TODO: add a link test for a working PMI configuration
-  if test "$have_pmi" = yes; then
-    for pmi_headers in "$PMI_HOME/include/slurm" "$PMI_HOME/include/portals4" "$PMI_HOME/include" 'no'; do
-      test -f "${pmi_headers}/pmi${pmi_suffix}.h" && break
-    done
-    if test "${pmi_headers}" = no; then
-      have_pmi=no
-    elif test "${pmi_headers}" != '/usr/include'; then
-      PMI_SPAWNER_CFLAGS="-I${pmi_headers}"
-    fi
-  fi
 
   # Look for use of malloc/free in the corresponding PMIx header if any
   if test "$have_pmi" = yes; then
@@ -4381,7 +4411,7 @@ if test "$have_pmi" = yes; then
   # These have not bee seen outside of Cray PMI, but we can hope:
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS $PMI_SPAWNER_LIBS")
-  AC_CHECK_FUNCS([PMI_Allgather PMI_Bcast])
+  AC_CHECK_FUNCS([PMI_Allgather PMI_Allgather_on_smp PMI_Bcast])
   GASNET_POPVAR(LIBS)
   GASNET_POPVAR(LDFLAGS)
 

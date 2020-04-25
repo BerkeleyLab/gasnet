@@ -147,6 +147,11 @@ static int gasnetc_attach_primary(void) {
   /* ensure extended API is initialized across nodes */
   gasneti_spawner->Barrier();
 
+  /* (###) Optionally (but recommended) free spawner's idle resources.
+   * Safe even if spawner collectives are used after attach
+   */
+  gasneti_spawner->Cleanup();
+
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
