@@ -131,6 +131,7 @@ extern gasnete_coll_eop_t gasnete_coll_eop_create(GASNETI_THREAD_FARG_ALONE) {
   } else {
     /* XXX: allocate in large chunks and scatter across cache lines (and update gasnete_coll_cleanup_threaddata) */
     result = (gasnete_coll_eop_t)gasneti_malloc(sizeof(*result));
+    GASNETI_STAT_EVENT_VAL(W, COLL_EOP_ALLOC, sizeof(*result));
   }
 
     result->next = NULL;
@@ -336,27 +337,37 @@ gasnete_coll_active_fini(void) {
 #endif
 
 /*---------------------------------------------------------------------------------*/
-static void gasnete_coll_cleanup_freelist(void **head) {
+static int gasnete_coll_cleanup_freelist(void **head) {
   void **next;
+  int count = 0;
   while ((next = (void **)*head) != NULL) {
     *head = *next;
     gasneti_free(next);
+    count++;
   }
+  return count;
 }
 static void gasnete_coll_cleanup_threaddata(void *_td) {
+  int count;
+
   gasnete_coll_threaddata_t *td = (gasnete_coll_threaddata_t *)_td;
 
   /* these free lists are all linked by initial pointer */
-  gasnete_coll_cleanup_freelist((void **)&(td->op_freelist));
-  gasnete_coll_cleanup_freelist((void **)&(td->generic_data_freelist));
+  count = gasnete_coll_cleanup_freelist((void **)&(td->op_freelist));
+  GASNETI_STAT_EVENT_VAL(W, COLL_OP_FREE, count * sizeof(gasnete_coll_op_t));
+  count = gasnete_coll_cleanup_freelist((void **)&(td->generic_data_freelist));
+  GASNETI_STAT_EVENT_VAL(W, COLL_GDATA_FREE, count * sizeof(gasnete_coll_generic_data_t));
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
 #if GASNET_PAR
+  count = 0;
   while (td->eop_freelist) {
     gasnete_coll_eop_t next = td->eop_freelist->next;
     gasneti_free((void *)td->eop_freelist);
     td->eop_freelist = next;
+    count++;
   }
+  GASNETI_STAT_EVENT_VAL(W, COLL_EOP_FREE, count * sizeof(gasnete_coll_eop_t));
 #endif
 #endif
 
@@ -417,6 +428,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, int flags GA
     /* XXX: allocate in chunks and scatter across cache lines */
     /* XXX: destroy freelist at exit */
     op = (gasnete_coll_op_t *)gasneti_malloc(sizeof(gasnete_coll_op_t));
+    GASNETI_STAT_EVENT_VAL(W, COLL_OP_ALLOC, sizeof(gasnete_coll_op_t));
   }
 
     gasnete_coll_active_new(op);
@@ -772,7 +784,10 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
       /* Round to 8-byte alignment of entry array */
       size_t alloc_size = GASNETI_ALIGNUP(sizeof(gasnete_coll_p2p_t) + statesz + countersz,8)
         + gasnete_coll_p2p_eager_buffersz;
-      uintptr_t p = (uintptr_t)gasneti_malloc(alloc_size);
+      void *alloc_ptr = gasneti_malloc(alloc_size);
+      gasneti_leak(alloc_ptr);
+      uintptr_t p = (uintptr_t)alloc_ptr;
+      GASNETI_STAT_EVENT_VAL(W, COLL_P2P_ALLOC, alloc_size);
           
       p2p = (gasnete_coll_p2p_t *)p;
       p += sizeof(gasnete_coll_p2p_t);
@@ -1326,6 +1341,7 @@ extern gasnete_coll_generic_data_t *gasnete_coll_generic_alloc(GASNETI_THREAD_FA
     /* XXX: allocate in chunks and scatter across cache lines */
     /* XXX: destroy freelist at exit */
     result = (gasnete_coll_generic_data_t *)gasneti_calloc(1, sizeof(gasnete_coll_generic_data_t));
+    GASNETI_STAT_EVENT_VAL(W, COLL_GDATA_ALLOC, sizeof(gasnete_coll_generic_data_t));
   }
 
   memset(result, 0, sizeof(*result));
