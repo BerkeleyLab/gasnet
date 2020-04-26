@@ -176,6 +176,7 @@ TEST_PARAMS=                    					\
    testvisperf_args="$(TEST_INOUT) -maxdata 131072 -maxcontig 512 10"; 	\
    testslice_args="1024000 10 10";			 		\
    testcollperf_args="-szfactor 4 16384 2 50 0";			\
+   testinternal_env="PMI_MAX_KVS_ENTRIES=$${PMI_MAX_KVS_ENTRIES:-1000000}";\
    $(CONDUIT_TESTPARAMS) dummy=1 ; 					\
    $(MANUAL_TESTPARAMS) dummy=1 ;
 
