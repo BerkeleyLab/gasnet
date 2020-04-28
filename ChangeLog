@@ -20,6 +20,9 @@ GASNet-EX ChangeLog
 ----------------------------------------------------------------------
 20XX.YY.ZZ: PENDING
 
+* General and Misc.
+  - BLCR integration, deprecated since 1.32.0 (July 2018), has been removed.
+
 * Notable bugs fixed in this release:
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression

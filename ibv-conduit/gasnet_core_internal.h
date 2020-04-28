@@ -73,9 +73,8 @@ extern gasneti_atomic_t gasnetc_exit_running;
  * However, a least Solaris 11.2 has been seen to eventually begin returning
  * ENOSPC from ibv_create_cq() after a few thousand tests have run.
  * So, we will make a best-effort to at least destroy QPs and CQs.
- * This is also needed for BLCR-based checkpoint/restart suport.
  */
-#if PLATFORM_OS_SOLARIS || GASNET_BLCR || GASNET_DEBUG
+#if PLATFORM_OS_SOLARIS || GASNET_DEBUG
   #define GASNETC_IBV_SHUTDOWN 1
 #endif
 

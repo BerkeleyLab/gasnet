@@ -2923,7 +2923,6 @@ gasnetc_sndrcv_quiesce(void) {
       gex_Rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
                                                         : gasneti_mynode + (gasneti_nodes - distance);
       if (GASNETI_NBRHD_JOBRANK_IS_LOCAL(peer)) {
-        /* BLCR-TODO: this might be a problem between init and attach? */
         gex_AM_RequestShort0(gasneti_THUNK_TM, peer, gasneti_handleridx(gasnetc_sys_close_reqh), 0);
       } else {
         static gasnetc_counter_t dummy = GASNETC_COUNTER_INITIALIZER; /* So PFs don't run */

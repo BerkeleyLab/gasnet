@@ -471,10 +471,6 @@ extern char *AMUDP_getenv_prefixed_withdefault(const char *basekey, const char *
   #define ASYNC_TCP_DISABLE_IGNOREERR()  ((void)0)
 #endif
 //------------------------------------------------------------------------------------
-// checkpoint/restart
-extern int AMUDP_SPMDRestartActive;
-
-//------------------------------------------------------------------------------------
 
 AMUDP_END_EXTERNC
 
