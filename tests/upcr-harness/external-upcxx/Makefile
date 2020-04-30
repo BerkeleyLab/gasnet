@@ -243,7 +243,7 @@ _upcxx: force
 	     gasnet=$(CONFIGURE_GASNET); \
 	   fi ; \
 	   cd $(UPCXX_BLDDIR) && $(CONFIGURE_ENV) && \
-	     ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$$gasnet \
+	     $(UPCXX_BASH) ./configure --prefix=$(UPCXX_INSTDIR) --with-gasnet=$$gasnet \
 	                 --disable-auto-conduit-detect --with-default-network=$(UPCXX_CONDUIT) \
 	                 --enable-single=$(GASNET_CODEMODE) $(UPCXX_CONFIGURE_EXTRA) || exit 1; \
 	) $(TO_LOG)
