@@ -128,6 +128,15 @@ uint8_t a85_dec(uint8_t c) {
 
 static
 void do_encode(uint8_t *in, size_t len) {
+  #if HAVE_PMI_CRAY_H
+    // Cray PMI erroneously encodes a zero-length argument as the 6-char string "(null)"
+    if (!len) {
+      kvs_value[0] = 'z';
+      kvs_value[1] = '\0';
+      return;
+    }
+  #endif
+
     char *p = kvs_value;
     gasneti_assert_always(5 * ((len + 3) / 4) <= max_val_len);
     while (len) {
@@ -168,6 +177,15 @@ void do_encode(uint8_t *in, size_t len) {
 
 static
 void do_decode(uint8_t *out, size_t len, size_t in_len) {
+  #if HAVE_PMI_CRAY_H
+    // Cray PMI erroneously encodes a zero-length argument as the 6-char string "(null)"
+    if (!len) {
+      gasneti_assert_always(in_len == 1);
+      gasneti_assert_always(kvs_value[0] == 'z');
+      return;
+    }
+  #endif
+
     const char *p = kvs_value;
     while (len) {
         uint32_t x;
