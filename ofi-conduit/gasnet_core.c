@@ -168,9 +168,15 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+  gasnetc_Segment_t segment;
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, sizeof(*segment), tm, segsize, exchangefn, flags);
 
-  gasnetc_ofi_attach(myseg.addr, myseg.size);
+  // Register memory
+  segment = (gasnetc_Segment_t) gasneti_import_segment(*segment_p);
+  GASNETI_SAFE_PROPAGATE( gasnetc_segment_register(segment) );
+
+  // Exchange memory keys
+  gasnetc_segment_exchange(segment);
 
   return GASNET_OK;
 }
