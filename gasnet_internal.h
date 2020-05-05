@@ -815,6 +815,35 @@ typedef struct _gasneti_threaddata_t {
 } gasneti_threaddata_t;
 
 /* ------------------------------------------------------------------------------------ */
+/* Simple container of segments
+ */
+
+// Hidden state
+extern gasneti_mutex_t _gasneti_segtbl_lock;
+extern gasneti_Segment_t *_gasneti_segtbl;
+extern int _gasneti_segtbl_count;
+
+// Public access to the lock
+#define GASNETI_SEGTBL_LOCK()   gasneti_mutex_lock(&_gasneti_segtbl_lock)
+#define GASNETI_SEGTBL_UNLOCK() gasneti_mutex_unlock(&_gasneti_segtbl_lock)
+
+// Simple iterator.
+// Caller must hold lock and must not call add or del (which acquire the lock).
+// This macro provides a loop header and the caller provides the iteration
+// variable and the loop body:
+//   gasneti_Segment_t p;
+//   GASNETI_SEGTBL_FOR_EACH(p) { visit(p); }
+#define GASNETI_SEGTBL_FOR_EACH(segvar) \
+  for (int _gasneti_segtbl_iter = (segvar = _gasneti_segtbl[0], 0); \
+       (gasneti_mutex_assertlocked(&_gasneti_segtbl_lock), \
+        _gasneti_segtbl_iter < _gasneti_segtbl_count);     \
+       segvar = _gasneti_segtbl[++_gasneti_segtbl_iter])
+
+// Add and Del
+extern void gasneti_segtbl_add(gasneti_Segment_t seg);
+extern void gasneti_segtbl_del(gasneti_Segment_t seg);
+
+/* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 

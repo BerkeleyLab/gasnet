@@ -1776,6 +1776,42 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* Simple container of segments
+ *
+ * Current implementation is a array, with deletions moving the last element
+ * into the vacated slot to retain a dense table.  This design choice favors
+ * simple/efficient iteration.
+ *
+ * The field `_opaque_container_use` in gasneti_Segment_t stores the index
+ * of the segment in this table, to provide for O(1) deletion (w/o a search)
+ * and is not inteded to be used (for instance) as an identifer on the wire.
+ */
+
+// State, protected by _gasneti_segtbl_lock
+gasneti_mutex_t _gasneti_segtbl_lock = GASNETI_MUTEX_INITIALIZER;
+gasneti_Segment_t *_gasneti_segtbl = NULL;
+int _gasneti_segtbl_count = 0;
+
+void gasneti_segtbl_add(gasneti_Segment_t seg) {
+  gasneti_mutex_lock(&_gasneti_segtbl_lock);
+  seg->_opaque_container_use = _gasneti_segtbl_count++;
+  size_t space = _gasneti_segtbl_count * sizeof(gasneti_Segment_t);
+  _gasneti_segtbl = gasneti_realloc(_gasneti_segtbl, space);
+  gasneti_leak(_gasneti_segtbl);
+  _gasneti_segtbl[seg->_opaque_container_use] = seg;
+  gasneti_mutex_unlock(&_gasneti_segtbl_lock);
+}
+
+void gasneti_segtbl_del(gasneti_Segment_t seg) {
+  gasneti_mutex_lock(&_gasneti_segtbl_lock);
+  gasneti_Segment_t last = _gasneti_segtbl[_gasneti_segtbl_count--];
+  last->_opaque_container_use = seg->_opaque_container_use;
+  _gasneti_segtbl[last->_opaque_container_use] = last;
+  // TODO: realloc to shrink if we think this would lead to significant savings?
+  gasneti_mutex_unlock(&_gasneti_segtbl_lock);
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* Buffer management
  */
 #if GASNET_DEBUGMALLOC || GASNET_DEBUG

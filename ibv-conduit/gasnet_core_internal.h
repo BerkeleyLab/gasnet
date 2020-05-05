@@ -551,8 +551,6 @@ extern gasnetc_EP_t gasnetc_ep0;
 typedef struct gasnetc_Segment_t_ {
   GASNETI_SEGMENT_COMMON // conduit-indep part as prefix
 
-  int idx; // location in segment table
-
 #if GASNETC_PIN_SEGMENT
   // memory registation info (per-HCA)
   uint32_t            seg_lkey[GASNETC_IB_MAX_HCAS];

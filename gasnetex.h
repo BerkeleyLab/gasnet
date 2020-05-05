@@ -381,7 +381,8 @@ struct gasneti_team_member_internal_s;
     gasneti_Client_t   _client;        \
     void *             _addr;          \
     void *             _ub;            \
-    uintptr_t          _size;
+    uintptr_t          _size;          \
+    unsigned int       _opaque_container_use;
   typedef struct { GASNETI_SEGMENT_COMMON } *gasneti_Segment_t;
   #if GASNET_DEBUG
     extern gasneti_Segment_t gasneti_import_segment(gex_Segment_t _segment);

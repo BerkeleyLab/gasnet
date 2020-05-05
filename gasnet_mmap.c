@@ -1918,6 +1918,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   ep->_segment = gasneti_alloc_segment(ep->_client, segbase, segsize, flags, allocsz);
   gasneti_legacy_segment_attach_hook(ep);
   *segment_p = gasneti_export_segment(ep->_segment);
+  gasneti_segtbl_add(ep->_segment);
   
   // After local segment is attached, call optional client-provided hook
   if (gasnet_client_attach_hook) {
