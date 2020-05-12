@@ -354,7 +354,7 @@
 #define _gasneti_scalar_atomic_compare_and_swap(p,oval,nval) \
                                                      (*(p) == (oval) ? (*(p) = (nval), 1) : 0)
 
-#if __cplusplus >= 202000L
+#if __cplusplus > 201703L
   // Bug 4060: C++20 deprecates certain "rmw" operations on volatile types
   #define _gasneti_scalar_atomic_increment(p) \
     (([=](auto _p) { auto _tmp = *_p; _tmp++; *_p = _tmp; } )(p))
