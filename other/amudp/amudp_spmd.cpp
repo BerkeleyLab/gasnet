@@ -64,7 +64,7 @@ static int AMUDP_SPMDShutdown(int exitcode);
   SOCKET AMUDP_SPMDControlSocket = INVALID_SOCKET; 
   static ep_t AMUDP_SPMDEndpoint = NULL;
   static eb_t AMUDP_SPMDBundle = NULL;
-  static en_t AMUDP_SPMDName = {0};
+  static en_t AMUDP_SPMDName; // = {0};
   volatile int AMUDP_SPMDIsActiveControlSocket = 0; 
   static SOCKET newstd[3] = { INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET };
   static int AMUDP_SPMDMYPROC = AMUDP_PROCID_NEXT; /* -1 requests next avail procid */
