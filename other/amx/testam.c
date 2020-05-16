@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
   }
 
 #if defined(AMUDP)
-  for (size_t i=0; i < sizeof(envvars)/sizeof(envvars[0]); i++) {
+  for (i=0; i < (int)(sizeof(envvars)/sizeof(envvars[0])); i++) {
     const char *key = envvars[i][0];
     const char *val = envvars[i][1];
     const char *actual = AMX_SPMDgetenvMaster(key);
