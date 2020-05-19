@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     DEFVAR("ABC","ABC")
     DEFVAR("AReallyLongEnvironmentName","A Really Long Environment Value")
   };
-  for (size_t i=0; i < sizeof(envvars)/sizeof(envvars[0]); i++) {
+  for (i=0; i < (int)(sizeof(envvars)/sizeof(envvars[0])); i++) {
     putenv((char*)(envvars[i][2]));
   }
 #endif
