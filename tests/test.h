@@ -119,7 +119,7 @@ GASNETT_BEGIN_EXTERNC
 #define test_makeMsg(baseformatargs, msgpred, isfatal, msgeval)     \
   BUG3343_WORKAROUND(                                               \
   ( _test_makeErrMsg baseformatargs ,                               \
-    ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
+    ( (msgpred) ? (void)(msgeval) : (_test_squashmsg = 1, (void)0) ) , \
     _test_doErrMsg##isfatal ) )
 
 #ifdef _INCLUDED_GASNET_H
