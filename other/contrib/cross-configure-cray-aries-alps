@@ -48,6 +48,10 @@ if test -n `echo ":$LOADEDMODULES" | grep ':PrgEnv-[a-z]*/[6-9]' 2>/dev/null`; t
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --enable-bug3480-workaround"
 fi
 
+if test x"$CRAY_CPU_TARGET" = x"mic-knl" ; then
+  EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --enable-large-pshm"
+fi
+
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine
 TARGET_ID='x86_64-cnl-linux-gnu'
