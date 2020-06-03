@@ -395,7 +395,8 @@ cmake-%: upcxx-install
 SYMPACK_URL?=https://github.com/symPACK/symPACK/archive/master.tar.gz
 SYMPACK_GIT_REPO?=#https://github.com/symPACK/symPACK.git # does not support archive?
 SYMPACK_GIT_COMMIT=master
-SYMPACK_INPUT_URL=https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
+#SYMPACK_INPUT_URL=https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
+SYMPACK_INPUT_URL=https://bitbucket.org/berkeleylab/upcxx-extras/downloads/nasa2146.tar.gz
 SYMPACK_DIR=$(HARNESS_WORKDIR)/sympack
 _sympack:
 	-rm -Rf $(SYMPACK_DIR)
