@@ -240,6 +240,8 @@ int main(int argc, char **argv) {
     MSG("*** ERROR - FAILED EP NO-SEGMENT TEST!!!!!");
   }
 
+  assert_always(gex_EP_QueryIndex(myep) == 0);
+
   myrank = gex_TM_QueryRank(myteam);
   numranks = gex_TM_QuerySize(myteam);
 
@@ -679,6 +681,15 @@ void doit(int partner, int *partnerseg) {
   assert_always(myrank < numranks);
   assert_always(numranks < GEX_RANK_INVALID);
 
+  /* ep_index/ep_location tests */
+  assert_unsigned(gex_EP_Index_t);
+  for (gex_Rank_t i = 0; i < numranks; ++i) {
+    gex_EP_Location_t ep_loc = gex_TM_TranslateRankToEP(myteam, i, 0);
+    assert_always(ep_loc.gex_rank == i);
+    assert_always(ep_loc.gex_rank == gex_TM_TranslateRankToJobrank(myteam,i));
+    assert_always(ep_loc.gex_ep_index == 0);
+  }
+
   /* AM limit tests */
   assert_always(gex_AM_MaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));
   assert_always(gex_AM_LUBRequestMedium() >= 512);
@@ -1041,6 +1052,9 @@ void doit0(int partner, int *partnerseg) {
   assert_field_int_unspec(gex_Token_Info_t, gex_is_long);
 
   assert_field_constint(gex_RankInfo_t, gex_Rank_t, gex_jobrank, typeisunsigned);
+
+  assert_field_int(gex_EP_Location_t, gex_Rank_t,     gex_rank,     typeisunsigned);
+  assert_field_int(gex_EP_Location_t, gex_EP_Index_t, gex_ep_index, typeisunsigned);
 
   MSG("*** passed object test!!");
 

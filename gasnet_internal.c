@@ -432,6 +432,8 @@ gasneti_Client_t gasneti_alloc_client(
   client->_name = gasneti_strdup(name);
   client->_cdata = NULL;
   client->_flags = flags;
+  gasneti_assert_always(sizeof(client->_next_ep_index) >= sizeof(gex_EP_Index_t));
+  gasneti_weakatomic32_set(&client->_next_ep_index, 0, 0);
 #ifdef GASNETI_CLIENT_ALLOC_EXTRA
   GASNETI_CLIENT_ALLOC_EXTRA(client);
 #else
@@ -523,6 +525,7 @@ gex_EP_t gasneti_export_ep(gasneti_EP_t _real_ep) {
 #endif
 
 // TODO-EX: probably need to add to a per-client container of some sort
+// at which time _next_ep_index could be non-atomic, protected by same lock.
 extern gasneti_EP_t gasneti_alloc_ep(
                        gasneti_Client_t client,
                        gex_Flags_t flags,
@@ -537,6 +540,8 @@ extern gasneti_EP_t gasneti_alloc_ep(
   endpoint->_cdata = NULL;
   endpoint->_segment = NULL;
   endpoint->_flags = flags;
+  endpoint->_index = gasneti_weakatomic32_add(&client->_next_ep_index, 1, 0) - 1;
+  gasneti_assert_always_uint(endpoint->_index ,<, GASNET_MAXEPS);
   gasneti_amtbl_init(endpoint->_amtbl);
 #ifdef GASNETI_EP_ALLOC_EXTRA
   GASNETI_EP_ALLOC_EXTRA(endpoint);

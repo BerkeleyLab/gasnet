@@ -33,6 +33,16 @@ typedef uint32_t gex_Rank_t;
 #define GEX_RANK_INVALID (~(gex_Rank_t)0)
 
 //================================================
+// gex_EP_Index_t and gex_EP_Location_t
+//================================================
+
+typedef uint16_t gex_EP_Index_t;
+typedef struct {
+  gex_Rank_t     gex_rank;
+  gex_EP_Index_t gex_ep_index;
+} gex_EP_Location_t;
+
+//================================================
 // gex_Event_t
 //================================================
 
