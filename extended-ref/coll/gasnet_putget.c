@@ -1159,14 +1159,14 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETI_THREAD_
       
       for(i=0; i<num_segs - 1; i++) {
         /*ignore the handle returned*/
-        handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, GASNETE_COLL_REL2ACT(op->team, dstproc), gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , 
+        handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes),
                                                            gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                            seg_size, args->nbytes, flags, impl, op->sequence+i+1 GASNETI_THREAD_PASS);   
         gasnete_coll_save_event(&handle_vec->handles[i]);
         sent_bytes += seg_size;
       }
       
-      handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, GASNETE_COLL_REL2ACT(op->team, dstproc), gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , 
+      handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes),
                                                          gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
                                                          args->nbytes-sent_bytes, args->nbytes, flags, impl, op->sequence+i+1 GASNETI_THREAD_PASS);   
       gasnete_coll_save_event(&handle_vec->handles[i]);
