@@ -430,17 +430,18 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
           break;
         }
         if(op->team->myrank != args->dstnode) {
-          gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), data->p2p->data,
-                                     args->nbytes*geom->mysubtree_size, args->nbytes, (geom->sibling_offset+1), 0);
+          gasnete_tm_p2p_counting_eager_put(op, parent, data->p2p->data,
+                                            args->nbytes*geom->mysubtree_size, args->nbytes,
+                                            (geom->sibling_offset+1), 0 GASNETI_THREAD_PASS);
         } else {
           gasneti_assert(geom->num_rotations==1);
           gasnete_coll_local_rotate_right(args->dst,data->p2p->data, 
                                           args->nbytes, op->team->total_ranks, geom->rotation_points[0]);
         }
       } else if(op->team->myrank !=args->dstnode){
-
-        gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), args->src,
-                                   args->nbytes, args->nbytes, (geom->sibling_offset+1),0);
+        gasnete_tm_p2p_counting_eager_put(op, parent, args->src,
+                                          args->nbytes, args->nbytes,
+                                          (geom->sibling_offset+1), 0 GASNETI_THREAD_PASS);
       } else {
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       }
@@ -513,13 +514,13 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETI_THREA
       {
         for(dst=op->team->myrank+1; dst<op->team->total_ranks; dst++) {
           /* send to threads above me*/
-          gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, dst), args->src,
-                                              args->nbytes, args->nbytes, op->team->myrank, 0);
+          gasnete_tm_p2p_counting_eager_put(op, dst, args->src, args->nbytes,
+                                            args->nbytes, op->team->myrank, 0 GASNETI_THREAD_PASS);
         }
         for(dst=0; dst<op->team->myrank; dst++) {
           /*send to threads below me*/
-          gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, dst), args->src,
-                                              args->nbytes, args->nbytes, op->team->myrank, 0);          
+          gasnete_tm_p2p_counting_eager_put(op, dst, args->src, args->nbytes,
+                                            args->nbytes, op->team->myrank, 0 GASNETI_THREAD_PASS);
         }
       }
     }
@@ -604,8 +605,8 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETI_THREAD
     
     if(data->state % 2 == 0) {
       /* send in this phase */
-      gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, dstnode), data->p2p->data,
-                                          curr_len, 1, curr_len, phase);
+      gasnete_tm_p2p_counting_eager_put(op, dstnode, data->p2p->data,
+                                        curr_len, 1, curr_len, phase GASNETI_THREAD_PASS);
       data->state++;
     } 
     if(data->state % 2 == 1){
@@ -622,8 +623,8 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETI_THREAD
     size_t nblk = op->team->total_ranks - (1<<phase); 
     size_t curr_len = args->nbytes*(nblk);
     gex_Rank_t dstnode = (GASNETE_COLL_DISSEM_GET_BEHIND_PEERS_PHASE(dissem, phase))[0];
-    gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, dstnode), data->p2p->data,
-                                        curr_len, args->nbytes, (1<<phase), phase);
+    gasnete_tm_p2p_counting_eager_put(op, dstnode, data->p2p->data, curr_len,
+                                      args->nbytes, (1<<phase), phase GASNETI_THREAD_PASS);
 
     data->state++;
   }

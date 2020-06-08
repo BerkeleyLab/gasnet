@@ -1254,11 +1254,13 @@ int gasnete_tm_p2p_memcpy(gasnete_coll_op_t *op, gex_Rank_t rank, void *dst,
 }
 
 
-extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                                void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx){
+extern void gasnete_tm_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                              void *src, size_t nbytes, size_t offset_size,
+                                              uint32_t offset, uint32_t idx GASNETI_THREAD_FARG)
+{
   const uint32_t team_id = op->team->team_id;
   
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
+  gex_AM_RequestMedium(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
                            src, nbytes, GEX_EVENT_NOW, 0, team_id, op->sequence, offset, idx, offset_size);
 }
 
