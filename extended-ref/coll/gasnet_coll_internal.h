@@ -500,27 +500,19 @@ struct gasnete_tm_p2p_send_struct { void *addr; size_t sent; };
 GASNETI_INLINE(gasnete_tm_p2p_change_states)
 int gasnete_tm_p2p_change_states(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         gex_Flags_t flags,
                         uint32_t count, uint32_t offset, uint32_t state
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestShort5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_short_reqh), flags,
+  int rc = gex_AM_RequestShort5(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_short_reqh), flags,
                               op->team->team_id, op->sequence, count, offset, state);
+  gasneti_assert(!rc || (flags & GEX_FLAG_IMMEDIATE));
+  return rc;
 }
-#define gasnete_tm_p2p_change_state(op,tm,rank,flags,offset,stateTI) \
-        gasnete_tm_p2p_change_states(op,tm,rank,flags,1,offset,stateTI)
-
-// TODO-EX: deprecate and remove:
-#define gasnete_coll_p2p_change_states(op,node,count,offset,state) \
-        gasneti_assert_zeroret(                                \
-        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
-                                     0,count,offset,state GASNETI_THREAD_GET))
-#define gasnete_coll_p2p_change_state(op,node,offset,state) \
-        gasneti_assert_zeroret(                                \
-        gasnete_tm_p2p_change_states(op,gasneti_THUNK_TM,node, \
-                                     0,1,offset,state GASNETI_THREAD_GET))
+#define gasnete_tm_p2p_change_state(op,rank,flags,offset,stateTI) \
+        gasnete_tm_p2p_change_states(op,rank,flags,1,offset,stateTI)
 
 /* Advance counter[idx] */
 GASNETI_INLINE(gasnete_tm_p2p_advance)

@@ -1459,7 +1459,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FAR
       for(j=0; j<h; j++) {
         gasnete_tm_p2p_advance(op, in_nodes[j], 0, phase*2 GASNETI_THREAD_PASS);
         /*XXX: switch to counting put for higher radices*/ 
-        /*gasnete_coll_p2p_change_states(op,  GASNETE_COLL_REL2ACT(op->team, in_nodes[j]), 1, phase*2, 1);*/
+        /*gasnete_tm_p2p_change_states(op, in_nodes[j], 1, phase*2, 1 GASNETI_THREAD_PASS);*/
       }
       data->state++;
     }

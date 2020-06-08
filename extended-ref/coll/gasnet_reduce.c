@@ -592,7 +592,6 @@ GASNETE_TM_DECLARE_REDUCE_ALG(TreePut)
 //
 // All comms are attempted once with GEX_FLAG_IMMEDIATE.
 static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_THREAD_FARG) {
-  gex_TM_t const tm = op->e_tm;
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_tm_reduce_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, tm_reduce);
   gasnete_coll_p2p_t *p2p = data->p2p;
@@ -655,7 +654,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       if (!gasnete_coll_scratch_alloc_nb(op GASNETI_THREAD_PASS)) {
         break;
       }
-      const gex_Rank_t myrank = gex_TM_QueryRank(tm);
+      const gex_Rank_t myrank = gex_TM_QueryRank(op->e_tm);
       pdata->myscratch = (void*)(op->myscratchpos + (uintptr_t)op->team->scratch_segs[myrank].addr);
       if (parent != GEX_RANK_INVALID) {
         pdata->upscratch = (void*)(op->scratchpos[0] + (uintptr_t)op->team->scratch_segs[parent].addr);
@@ -747,7 +746,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
         volatile uint32_t *state_plus1 = p2p->state + 1;
         gex_Rank_t r;
         for (r = 0; r < (child_cnt - 1); ++r) {
-          if (gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+          if (gasnete_tm_p2p_change_state(op, children[r], flags,
                                           0, r GASNETI_THREAD_PASS)) {
             state_plus1[r] = 2;  // mark for retry
             comms_done = 0;
@@ -755,7 +754,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
         }
         // Need to alternate location of last child's contribution with phase
         gasneti_assert(r == child_cnt - 1);
-        if (gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+        if (gasnete_tm_p2p_change_state(op, children[r], flags,
                                         0, (r + next_phase) GASNETI_THREAD_PASS)) {
           state_plus1[r] = 2;  // mark for retry
           comms_done = 0;
@@ -794,14 +793,14 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
         gex_Rank_t r;
         for (r = 0; r < (child_cnt - 1); ++r) {
           if (state_plus1[r] == 2) {
-            gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+            gasnete_tm_p2p_change_state(op, children[r], flags,
                                         0, r GASNETI_THREAD_PASS);
           }
         }
         // Need to alternate location of last child's contribution with phase
         gasneti_assert(r == child_cnt - 1);
         if (state_plus1[r] == 2) {
-          gasnete_tm_p2p_change_state(op, tm, children[r], flags,
+          gasnete_tm_p2p_change_state(op, children[r], flags,
                                       0, (r + next_phase) GASNETI_THREAD_PASS);
         }
       }
