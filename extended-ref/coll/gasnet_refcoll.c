@@ -1183,14 +1183,15 @@ void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank,
   Takes a Segment ID as an argument and sends the message such that it will be put in the right location
   and update the list of active intervals indicating which chunk of the message has arrived
 */
-void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                  void *src, size_t nbytes, size_t seg_id) {
+void gasnete_tm_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                void *src, size_t nbytes, size_t seg_id GASNETI_THREAD_FARG)
+ {
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
       
-  gex_AM_RequestLong(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
+  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, seg_id);
 }
 
