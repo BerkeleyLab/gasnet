@@ -22,11 +22,6 @@ gex_AM_Entry_t const *gasnetc_get_handlertable(void);
 
 gex_AM_Entry_t *gasnetc_handler; // TODO-EX: will be replaced with per-EP tables
 
-// TODO-EX: This is a hack to support multiple segments w/ a single AM EP
-#ifndef GASNETC_MOCK_EVERYTHING
-#define GASNETC_MOCK_EVERYTHING 1
-#endif
-
 static void gasnetc_traceoutput(int);
 
 static uint64_t gasnetc_networkpid;
@@ -369,10 +364,10 @@ static int gasnetc_attach_primary(void) {
           gasnetc_enteringHandler_hook, gasnetc_leavingHandler_hook));
     #endif
 
-    #if GASNETC_MOCK_EVERYTHING
-      retval = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
-      if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
-    #endif
+    // register all of memory as the AMX-level segment
+    // this is needed for multi-segment support (aux + client at a minimum)
+    retval = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
+    if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
 
     /* ------------------------------------------------------------------------------------ */
     /*  primary attach complete */
@@ -403,24 +398,16 @@ static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
                                   gasneti_bootstrapExchangefn_t exchangefn,
-                                  gex_Flags_t                   flags) {
-    int retval = GASNET_OK;
-
+                                  gex_Flags_t                   flags)
+{
     /* ------------------------------------------------------------------------------------ */
     /*  register client segment  */
 
     gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
 
-#if !GASNETC_MOCK_EVERYTHING
-    /*  AMUDP allows arbitrary registration with no further action  */
-    if (segsize) {
-      retval = AM_SetSeg(gasnetc_endpoint, myseg.addr, myseg.size);
-      if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
-    }
-#endif
+    // Have called AM_SetSeg() previously w/ an "everything" segment
 
-done:
-    GASNETI_RETURN(retval);
+    return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
@@ -892,12 +879,7 @@ int gasnetc_AMRequestLong(  gex_TM_t tm, gex_Rank_t rank, gex_AM_Index_t handler
                                              source_addr, nbytes, dest_addr,
                                              flags, numargs, argptr GASNETI_THREAD_PASS);
   } else {
-    uintptr_t dest_offset;
-#if GASNETC_MOCK_EVERYTHING
-    dest_offset = (uintptr_t)dest_addr;
-#else
-    dest_offset = ((uintptr_t)dest_addr) - (uintptr_t)gasneti_client_seginfo(tm, rank)->addr;
-#endif
+    uintptr_t dest_offset = (uintptr_t)dest_addr;
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
@@ -1031,14 +1013,7 @@ int gasnetc_AMReplyLong(    gex_Token_t token, gex_AM_Index_t handler,
                                            source_addr, nbytes, dest_addr,
                                            flags, numargs, argptr);
   } else {
-    uintptr_t dest_offset;
-
-#if GASNETC_MOCK_EVERYTHING
-    dest_offset = (uintptr_t)dest_addr;
-#else
-    gex_Rank_t dest = gasnetc_msgsource(token);
-    dest_offset = ((uintptr_t)dest_addr) - (uintptr_t)gasneti_client_seginfo(gasneti_THUNK_TM, dest)->addr;
-#endif
+    uintptr_t dest_offset = (uintptr_t)dest_addr;
 
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
