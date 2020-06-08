@@ -93,13 +93,13 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   /* Bounds check any local portion of dst which user claims is in-segment */
   gasneti_assert(dstlen > 0);
   if ((dstrank == team->myrank) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
-      gasneti_boundscheck(gasneti_THUNK_TM, gasneti_mynode, dst, dstlen);
+      gasneti_boundscheck(team->e_tm, dstrank, dst, dstlen);
   }
 
   /* Bounds check any local portion of src which user claims is in-segment */
   gasneti_assert(srclen > 0);
   if ((srcrank == team->myrank) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
-      gasneti_boundscheck(gasneti_THUNK_TM, gasneti_mynode, src, srclen);
+      gasneti_boundscheck(team->e_tm, srcrank, src, srclen);
   }
 
   /* XXX: TO DO
