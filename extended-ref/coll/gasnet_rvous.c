@@ -115,7 +115,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
     
   case 1:       /* Optional IN barrier over the SAME tree */
     if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
-        !gasnete_coll_generic_upsync(op, args->srcnode, 0, child_count)) {
+        !gasnete_coll_generic_upsync(op, args->srcnode, 0, child_count GASNETI_THREAD_PASS)) {
       break;
     }
     data->state = 2; GASNETI_FALLTHROUGH
@@ -150,7 +150,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
         in the case of out all sync the out barrier takes care of the synchronization 
       */
       if(op->flags & GASNET_COLL_OUT_MYSYNC) {
-        gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(geom)),1);
+        gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(geom), 0, 1 GASNETI_THREAD_PASS);
       }
       for(child=0; child<child_count; child++) {
         gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(op->team, children[child]), args->dst, 0, 1);	/* broadcast src address to all the children*/

@@ -526,20 +526,14 @@ int gasnete_tm_p2p_change_states(
 GASNETI_INLINE(gasnete_tm_p2p_advance)
 int gasnete_tm_p2p_advance(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         gex_Flags_t flags, uint32_t idx
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestShort3(tm, rank, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), flags,
+  return gex_AM_RequestShort3(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_advance_reqh), flags,
                               op->team->team_id, op->sequence, idx);
 }
-
-// TODO-EX: deprecate and remove:
-#define gasnete_coll_p2p_advance(op,node,idx) \
-        gasneti_assert_zeroret(                                \
-        gasnete_tm_p2p_advance(op,gasneti_THUNK_TM,node,0,idx GASNETI_THREAD_GET))
-
 
 /* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
 GASNETI_INLINE(gasnete_tm_p2p_signalling_put)
@@ -1104,11 +1098,13 @@ int gasnete_coll_generic_outsync(gasnete_coll_team_t team, gasnete_coll_generic_
  * No memory fences. */
 GASNETI_INLINE(gasnete_coll_generic_upsync)
 int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootnode,
-                                    const int counter, const int count) {
+                                    const int counter, const int count
+                                    GASNETI_THREAD_FARG)
+{
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootnode) {
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
+      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, 0 GASNETI_THREAD_PASS);
     }
     return 1;
   }
@@ -1121,12 +1117,14 @@ int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gex_Rank_t rootnode,
  * needs of a "push" based broadcast or scatter. */
 GASNETI_INLINE(gasnete_coll_generic_upsync_acq)
 int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gex_Rank_t rootnode,
-                                    const int counter, const int count) {
+                                    const int counter, const int count
+                                    GASNETI_THREAD_FARG)
+{
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
     if (op->team->myrank != rootnode) {
       gasneti_local_wmb();
-      gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom)),0);
+      gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(data->tree_geom), 0, 0 GASNETI_THREAD_PASS);
     } else {
       gasneti_local_rmb();
     }

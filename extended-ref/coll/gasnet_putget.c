@@ -49,7 +49,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETI_TH
 
       case 2:   /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
-          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
+          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count GASNETI_THREAD_PASS)) {
         break;
       }
       data->state = 3; GASNETI_FALLTHROUGH
@@ -377,7 +377,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETI_THREAD_FAR
       
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
-          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
+          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count GASNETI_THREAD_PASS)) {
         break;
       }
       data->state = 3; GASNETI_FALLTHROUGH
@@ -558,7 +558,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETI_THRE
       
       case 2:    /* Optional IN barrier over the SAME tree */
       if ((op->flags & GASNET_COLL_IN_ALLSYNC) &&
-          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count)) {
+          !gasnete_coll_generic_upsync_acq(op, args->srcnode, 0, child_count GASNETI_THREAD_PASS)) {
         break;
       }
       data->state = 3; GASNETI_FALLTHROUGH
@@ -920,7 +920,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETI_THREAD_FAR
       }
       /*send clear signal to all the other nodes*/
       for(child=0; child<child_count; child++) {
-        gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[child]),0);
+        gasnete_tm_p2p_advance(op, children[child], 0, 0 GASNETI_THREAD_PASS);
       }
     }
     data->state = 6; GASNETI_FALLTHROUGH
@@ -1082,7 +1082,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETI_THRE
       }
       /*send clear signal to all the other nodes*/
       for(child=0; child<child_count; child++) {
-        gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[child]),1);
+        gasnete_tm_p2p_advance(op, children[child], 0, 1 GASNETI_THREAD_PASS);
       }
     }
     data->state = 6; GASNETI_FALLTHROUGH
@@ -1454,8 +1454,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETI_THREAD_FAR
       /*send the ok to send signal*/
       gasneti_sync_writes();
       for(j=0; j<h; j++) {
-        
-        gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team,in_nodes[j]), phase*2);
+        gasnete_tm_p2p_advance(op, in_nodes[j], 0, phase*2 GASNETI_THREAD_PASS);
         /*XXX: switch to counting put for higher radices*/ 
         /*gasnete_coll_p2p_change_states(op,  GASNETE_COLL_REL2ACT(op->team, in_nodes[j]), 1, phase*2, 1);*/
       }
