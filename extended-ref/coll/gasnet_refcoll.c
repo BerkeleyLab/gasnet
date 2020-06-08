@@ -669,9 +669,8 @@ void gasnete_coll_consensus_do_notify(gasnete_coll_team_t team) {
 
 extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id) {
 #if GASNET_DEBUG
-  // This function is neither thread-safe nor recursion-safe
-  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-  gasneti_assert_always_int(gasneti_mutex_trylock(&lock) ,==, GASNET_OK);
+  // With respect to any given team, this function is neither thread-safe nor recursion-safe
+  gasneti_assert_always_int(gasneti_mutex_trylock(&team->barrier_lock) ,==, GASNET_OK);
 #endif
 
   gasneti_assert(! (id & 1)); // always even
@@ -710,7 +709,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_con
   int done = GASNETE_COLL_SEQ32_GE(team->consensus_id, id + 2);
 
 #if GASNET_DEBUG
-  gasneti_mutex_unlock(&lock);
+  gasneti_mutex_unlock(&team->barrier_lock);
 #endif
 
   return done ? GASNET_OK : GASNET_ERR_NOT_READY;

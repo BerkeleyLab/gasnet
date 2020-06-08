@@ -50,6 +50,9 @@ static void initialize_team_fields(gasnete_coll_team_t team,
 #if GASNET_PAR && GASNET_DEBUG
   gasneti_mutex_init(&team->threads_mutex);
 #endif
+#if GASNET_DEBUG
+  gasneti_mutex_init(&team->barrier_lock);
+#endif
   
   team->tree_geom_cache_head = NULL;
   team->tree_geom_cache_tail = NULL;
