@@ -20,7 +20,7 @@
 
 static gex_Client_t  myclient;
 static gex_EP_t      myep;
-static gex_TM_t      myteam;
+static gex_TM_t      myteam, rowtm, coltm;
 static gex_Segment_t mysegment;
 static gex_Rank_t    myrank;
 
@@ -59,6 +59,56 @@ gex_AM_Entry_t htable[] = {
   { hidx_rank_medlonghandler, rank_medlonghandler, GEX_FLAG_AM_REQUEST|GEX_FLAG_AM_MEDLONG, 2 }
  };
 #define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gex_AM_Entry_t))
+
+// Singleton team (also tests a 2nd-level split, of coltm):
+static gex_TM_t onetm;
+static void *one_scratch;
+static size_t one_scratch_sz;
+static void do_singleton(void) {
+  onetm = coltm; // init just to check whether overwritten
+  gex_TM_Split(&onetm, coltm, myrank, 0, one_scratch, one_scratch_sz, 0);
+  assert_always(onetm != coltm);
+  assert_always(gex_TM_QueryRank(onetm) == 0);
+  assert_always(gex_TM_QuerySize(onetm) == 1);
+  assert_always(gex_TM_TranslateRankToJobrank(onetm, 0) == myrank);
+  assert_always(gex_TM_TranslateJobrankToRank(onetm, myrank) == 0);
+}
+
+// Odds only team (exercise new_tmp_p = NULL case):
+static gex_TM_t oddtm;
+static void *odd_scratch;
+static size_t odd_scratch_sz;
+static void do_odds(void) {
+  oddtm = rowtm; // init just to check whether overwritten
+  int odd = myrank & 1;
+  gex_TM_t *new_tm_p = odd ? &oddtm : NULL;
+  gex_TM_Split(new_tm_p, rowtm, 0, 0, odd_scratch, odd_scratch_sz, 0);
+  if (odd) {
+    assert_always(oddtm != rowtm);
+    gex_Rank_t size = gex_TM_QuerySize(oddtm);
+    assert_always(size <= gex_TM_QuerySize(rowtm));
+    // Check that tie-breaks on key==0 respect order in parent team.
+    // Taking a short-cut here knowning parent (rowtm) is in jobrank order and contiguous.
+    gex_Rank_t first = gex_TM_TranslateRankToJobrank(oddtm, 0);
+    for (gex_Rank_t rank = 1; rank < size; ++rank) {
+      gex_Rank_t jobrank = gex_TM_TranslateRankToJobrank(oddtm, rank);
+      assert_always(jobrank == first + 2*rank);
+    }
+    // Check gex_TM_TranslateJobrankToRank() for a guaranteed non-member
+    assert_always(GEX_RANK_INVALID == gex_TM_TranslateJobrankToRank(oddtm,0));
+  } else {
+    assert_always(oddtm == rowtm); // Should be unchanged
+  }
+}
+
+static void *threadmain(void *id) {
+  if (id) {
+    do_singleton();
+  } else {
+    do_odds();
+  }
+  return NULL;
+}
 
 int main(int argc, char **argv)
 {
@@ -108,7 +158,7 @@ int main(int argc, char **argv)
   assert_always(scratch_sz == 0);
 
   // Row team:
-  gex_TM_t rowtm = myteam; // init just to check whether overwritten
+  rowtm = myteam; // init just to check whether overwritten
   scratch_sz = gex_TM_Split(&rowtm, myteam, myrow, 1+2*mycol, 0, 0, SCRATCH_QUERY_FLAG);
   assert_always((scratch_addr + scratch_sz) <= scratch_end);
   gex_TM_Split(&rowtm, myteam, myrow, 1+2*mycol, (void*)scratch_addr, scratch_sz, 0);
@@ -123,7 +173,7 @@ int main(int argc, char **argv)
   }
 
   // Column team:
-  gex_TM_t coltm = myteam; // init just to check whether overwritten
+  coltm = myteam; // init just to check whether overwritten
   scratch_sz = gex_TM_Split(&coltm, myteam, mycol, myrow, 0, 0, SCRATCH_QUERY_FLAG);
   assert_always((scratch_addr + scratch_sz) <= scratch_end);
   gex_TM_Split(&coltm, myteam, mycol, myrow, (void*)scratch_addr, scratch_sz, 0);
@@ -137,42 +187,24 @@ int main(int argc, char **argv)
     assert_always(gex_TM_TranslateJobrankToRank(coltm, jobrank) == rank);
   }
 
-  // Singleton team (also tests a 2nd-level split, of coltm):
-  gex_TM_t onetm = coltm; // init just to check whether overwritten
-  scratch_sz = gex_TM_Split(&onetm, coltm, myrank, 0, 0, 0, SCRATCH_QUERY_FLAG);
-  assert_always((scratch_addr + scratch_sz) <= scratch_end);
-  gex_TM_Split(&onetm, coltm, myrank, 0, (void*)scratch_addr, scratch_sz, 0);
-  scratch_addr += scratch_sz;
-  assert_always(onetm != coltm);
-  assert_always(gex_TM_QueryRank(onetm) == 0);
-  assert_always(gex_TM_QuerySize(onetm) == 1);
-  assert_always(gex_TM_TranslateRankToJobrank(onetm, 0) == myrank);
-  assert_always(gex_TM_TranslateJobrankToRank(onetm, myrank) == 0);
+  // Allocate scratch for Singleton and Odds teams
+  one_scratch = (void*)scratch_addr;
+  one_scratch_sz = gex_TM_Split(&onetm, coltm, myrank, 0, 0, 0, SCRATCH_QUERY_FLAG);
+  assert_always((scratch_addr + one_scratch_sz) <= scratch_end);
+  scratch_addr += one_scratch_sz;
+  odd_scratch = (void*)scratch_addr;
+  odd_scratch_sz = gex_TM_Split((myrank & 1) ? &oddtm : NULL, rowtm, 0, 0, 0, 0, SCRATCH_QUERY_FLAG);
+  assert_always((scratch_addr + odd_scratch_sz) <= scratch_end);
+  scratch_addr += odd_scratch_sz;
 
-  // Odds only team (exercise new_tmp_p = NULL case):
-  gex_TM_t oddtm = rowtm; // init just to check whether overwritten
-  int odd = myrank & 1;
-  gex_TM_t *new_tm_p = odd ? &oddtm : NULL;
-  scratch_sz = gex_TM_Split(new_tm_p, rowtm, 0, 0, 0, 0, SCRATCH_QUERY_FLAG);
-  assert_always((scratch_addr + scratch_sz) <= scratch_end);
-  gex_TM_Split(new_tm_p, rowtm, 0, 0, (void*)scratch_addr, scratch_sz, 0);
-  scratch_addr += scratch_sz;
-  if (odd) {
-    assert_always(oddtm != rowtm);
-    gex_Rank_t size = gex_TM_QuerySize(oddtm);
-    assert_always(size <= gex_TM_QuerySize(rowtm));
-    // Check that tie-breaks on key==0 respect order in parent team.
-    // Taking a short-cut here knowning parent (rowtm) is in jobrank order and contiguous.
-    gex_Rank_t first = gex_TM_TranslateRankToJobrank(oddtm, 0);
-    for (gex_Rank_t rank = 1; rank < size; ++rank) {
-      gex_Rank_t jobrank = gex_TM_TranslateRankToJobrank(oddtm, rank);
-      assert_always(jobrank == first + 2*rank);
-    }
-    // Check gex_TM_TranslateJobrankToRank() for a guaranteed non-member
-    assert_always(GEX_RANK_INVALID == gex_TM_TranslateJobrankToRank(oddtm,0));
-  } else {
-    assert_always(oddtm == rowtm); // Should be unchanged
-  }
+#if GASNET_PAR
+  // Singleton and Odds team tests concurrently
+  test_createandjoin_pthreads(2, threadmain, NULL, 0);
+#else
+  // Singleton and Odds team tests sequentially
+  do_singleton();
+  do_odds();
+#endif
 
   // "Rev" team reversing order of TM0
   gex_TM_t revtm = myteam; // init just to check whether overwritten
