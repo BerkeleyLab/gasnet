@@ -185,7 +185,7 @@ static int gasnete_coll_pf_tm_reduce_BinomialEager(gasnete_coll_op_t *op GASNETI
       gex_Rank_t offset = gasnete_tm_binom_age(tm, rel_rank);
       payload = data->private_data;
       // TODO-EX: use lc_opt for async injection
-      if (gasnete_tm_p2p_eager_put(op, tm, parent, payload, nbytes,
+      if (gasnete_tm_p2p_eager_put(op, parent, payload, nbytes,
                                    GEX_EVENT_NOW, flags, offset, 1
                                    GASNETI_THREAD_PASS)) {
         break; // back pressure

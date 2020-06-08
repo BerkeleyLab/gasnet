@@ -1196,7 +1196,7 @@ void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, voi
 /* Send data to be buffered by the recipient */
 int gasnete_tm_p2p_eager_putM(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         const void *src, uint32_t count, size_t size,
                         gex_Event_t *lc_opt, gex_Flags_t flags,
                         uint32_t offset, uint32_t state
@@ -1211,7 +1211,7 @@ int gasnete_tm_p2p_eager_putM(
     flags &= ~GEX_FLAG_IMMEDIATE; // TODO-EX: support maybe IMMEDIATE for multi-AM case?
     do {
       gasneti_assert_zeroret(
-         gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+         gex_AM_RequestMedium6(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                (void*)src, nbytes, GEX_EVENT_NOW, flags,
                                team_id, sequence, chunk, offset, state, size));
       offset += chunk;
@@ -1219,7 +1219,7 @@ int gasnete_tm_p2p_eager_putM(
       count -= chunk;
     } while (count > chunk);
   }
-  return gex_AM_RequestMedium6(tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+  return gex_AM_RequestMedium6(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
                                (void*)src, count * size, lc_opt, flags,
                                team_id, sequence, count, offset, state, size);
 }
@@ -1273,7 +1273,7 @@ int gasnete_tm_p2p_send_rtr(
   tmp.sent = 0;
   /* TODO: we send addr+"0", when only the addr is needed (need custom AM instead of eager_put). */
   int retval =
-    gasnete_tm_p2p_eager_put(op, op->e_tm, rank, &tmp, sizeof(tmp),
+    gasnete_tm_p2p_eager_put(op, rank, &tmp, sizeof(tmp),
                              GEX_EVENT_NOW, flags, offset, 1 GASNETI_THREAD_PASS);
   if (retval) {
     // back pressure

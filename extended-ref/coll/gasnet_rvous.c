@@ -30,7 +30,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETI_THREAD_FARG
 
     case 1:	/* Data movement */
       if (op->team->myrank == args->srcnode) {
-        gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1, op->team);	/* broadcast src address */
+        gasnete_tm_p2p_eager_addr_all(op, args->src, 0, 1, op->team GASNETI_THREAD_PASS);	/* broadcast src address */
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
@@ -123,7 +123,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
   case 2:	/* Data movement */
     if (op->team->myrank == args->srcnode) {
       for(child=0; child<child_count; child++) {
-        gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(op->team, children[child]), args->src, 0, 1);	/* broadcast src address to all the children*/
+        gasnete_tm_p2p_eager_addr(op, children[child], args->src, 0, 1 GASNETI_THREAD_PASS);	/* broadcast src address to all the children*/
       }
       
       GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
@@ -153,7 +153,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
         gasnete_tm_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(geom), 0, 1 GASNETI_THREAD_PASS);
       }
       for(child=0; child<child_count; child++) {
-        gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(op->team, children[child]), args->dst, 0, 1);	/* broadcast src address to all the children*/
+        gasnete_tm_p2p_eager_addr(op, children[child], args->dst, 0, 1 GASNETI_THREAD_PASS);	/* broadcast src address to all the children*/
       }
       
     }
@@ -334,7 +334,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
-	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1, op->team);	/* broadcast src address */
+	gasnete_tm_p2p_eager_addr_all(op, args->src, 0, 1, op->team GASNETI_THREAD_PASS);	/* broadcast src address */
 	GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, 
 				      gasnete_coll_scale_ptr(args->src, op->team->myrank, args->nbytes),
 				      args->nbytes);
@@ -487,7 +487,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 
     case 1:	/* Initiate data movement */
       if (op->team->myrank == args->dstnode) {
-	gasnete_coll_p2p_eager_addr_all(op, args->dst, 0, 1, op->team);	/* broadcast dst address */
+	gasnete_tm_p2p_eager_addr_all(op, args->dst, 0, 1, op->team GASNETI_THREAD_PASS);	/* broadcast dst address */
 	GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
 				      args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
@@ -628,7 +628,7 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETI_THREAD_FARG
     data->state = 1; GASNETI_FALLTHROUGH
     
   case 1: /* send out all the destination addresses addresses*/
-    gasnete_coll_p2p_eager_addr_all(op, args->dst, op->team->myrank, 1, op->team);	
+    gasnete_tm_p2p_eager_addr_all(op, args->dst, op->team->myrank, 1, op->team GASNETI_THREAD_PASS);
     data->state = 2; GASNETI_FALLTHROUGH
     
   case 2: /*wait for all addresses to arrive*/

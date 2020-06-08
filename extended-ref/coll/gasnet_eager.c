@@ -36,11 +36,11 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG
       if (op->team->myrank == args->srcnode) {
         int i;
         for (i = op->team->myrank + 1; i < op->team->total_ranks; ++i) {
-          gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, i), args->src, args->nbytes, 0, 1);
+          gasnete_tm_p2p_eager_put(op, i, args->src, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
         }
         /* Send to nodes to the "left" of ourself */
         for (i = 0; i < op->team->myrank; ++i) {
-          gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, i), args->src, args->nbytes, 0, 1);
+          gasnete_tm_p2p_eager_put(op, i, args->src, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
         }
         
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
@@ -184,12 +184,12 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
         /* Send to nodes to the "right" of ourself */
         src_addr = (uintptr_t)args->src + args->nbytes * ((op->team->myrank) + 1);
         for (i = op->team->myrank + 1; i < op->team->total_ranks; ++i, src_addr += args->nbytes) {
-          gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, i), (void *)src_addr, args->nbytes, 0,1);
+          gasnete_tm_p2p_eager_put(op, i, (void *)src_addr, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
         }
         /* Send to nodes to the "left" of ourself */
         src_addr = (uintptr_t)args->src;
         for (i = 0; i < op->team->myrank; ++i, src_addr += args->nbytes) {
-          gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, i), (void *)src_addr, args->nbytes, 0, 1);
+          gasnete_tm_p2p_eager_put(op, i, (void *)src_addr, args->nbytes, GEX_EVENT_NOW, 0, 0, 1 GASNETI_THREAD_PASS);
         }
         
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst,
@@ -336,7 +336,7 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
       
       /* Initiate data movement */
       if (op->team->myrank != args->dstnode) {
-        gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team, args->dstnode), args->src, args->nbytes, op->team->myrank, 1);
+        gasnete_tm_p2p_eager_put(op, args->dstnode, args->src, args->nbytes, GEX_EVENT_NOW, 0, op->team->myrank, 1 GASNETI_THREAD_PASS);
       } else {
         GASNETI_MEMCPY_SAFE_IDENTICAL(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
                                             args->src, args->nbytes);
