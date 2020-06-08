@@ -1229,15 +1229,15 @@ int gasnete_tm_p2p_eager_putM(
 /* a simplification for eager putM so that we send less bits on the wire*/ 
 /* we hardcode the assumption that we want to send to state 0 and set a value of 1*/
 /* for cases in which we are just sending down the tree (such as a broadcast) this is sufficient*/
-void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
-                                     void *src, size_t size) {
+void gasnete_tm_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstrank,
+                                   void *src, size_t size GASNETI_THREAD_FARG)
+{
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(size <= gex_AM_LUBRequestMedium());
-  gex_AM_RequestMedium(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_med_tree_reqh),
+  gex_AM_RequestMedium(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_med_tree_reqh),
                            src, size, GEX_EVENT_NOW, 0, team_id, seq_num);
-      
 }
 
 /* Memcpy up to gex_AM_LUBRequestMedium() bytes, signalling the recipient */

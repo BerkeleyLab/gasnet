@@ -109,7 +109,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_
       case 2:	/* Data movement */
       if (op->team->myrank == args->srcnode) {
         for (child=0;child<child_count; child++){
-          gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]), args->src, args->nbytes);
+          gasnete_tm_p2p_eager_put_tree(op, children[child], args->src, args->nbytes GASNETI_THREAD_PASS);
         }
         
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
@@ -118,7 +118,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_
         gasneti_sync_reads();
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
         for (child=0;child<child_count;child++) {
-          gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]), args->dst, args->nbytes);
+          gasnete_tm_p2p_eager_put_tree(op, children[child], args->dst, args->nbytes GASNETI_THREAD_PASS);
         }
       } else {
         break;	/* Stalled until data arrives */
@@ -262,8 +262,8 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
         }
         for (child=0;child<child_count; child++){
           int8_t *send_arr = gasnete_coll_scale_ptr(src,(geom->child_offset[child]+1),args->nbytes);
-          gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]),
-                                          send_arr, args->nbytes*geom->subtree_sizes[child]);
+          gasnete_tm_p2p_eager_put_tree(op, children[child], send_arr,
+                                        args->nbytes*geom->subtree_sizes[child] GASNETI_THREAD_PASS);
         }
         
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, src, args->nbytes);
@@ -272,8 +272,8 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETI_THREAD_F
         gasneti_sync_reads();
         for (child=0;child<child_count;child++) {
           src = gasnete_coll_scale_ptr(data->p2p->data,(geom->child_offset[child]+1), args->nbytes);
-          gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]), 
-                                          src, args->nbytes*geom->subtree_sizes[child]);
+          gasnete_tm_p2p_eager_put_tree(op, children[child], src,
+                                        args->nbytes*geom->subtree_sizes[child] GASNETI_THREAD_PASS);
         }
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
 
