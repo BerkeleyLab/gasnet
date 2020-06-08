@@ -470,12 +470,12 @@ struct gasnete_coll_p2p_t_ {
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                          void *src, size_t nbytes, uint32_t idx);
+extern void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                        void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
 extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gex_Rank_t dstnode,
                                                 void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx);
-extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                               void *src, size_t nbytes, uint32_t idx);
+extern void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                             void *src, size_t nbytes, uint32_t idx GASNETI_THREAD_FARG);
 extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gex_Rank_t dstnode,
                                             void *src, size_t size);
 

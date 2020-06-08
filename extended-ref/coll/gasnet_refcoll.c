@@ -1150,29 +1150,31 @@ MEDIUM_HANDLER(gasnete_coll_p2p_memcpy_reqh,4,5,
 
 /* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
 /* Returns as soon as local buffer is reusable */
-void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                   void *src, size_t nbytes, uint32_t idx) {
-      
+void gasnete_tm_p2p_counting_put(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                 void *src, size_t nbytes, uint32_t idx
+                                 GASNETI_THREAD_FARG)
+{
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
 
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
   
-  gex_AM_RequestLong(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
 /* Put up to gex_AM_LUBRequestLong() bytes, signalling the recipient */
 /* Returns immediately even if the local buffer is not yet reusable */
-void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstnode, void *dst,
-                                        void *src, size_t nbytes, uint32_t idx) {
-  
+void gasnete_tm_p2p_counting_putAsync(gasnete_coll_op_t *op, gex_Rank_t dstrank, void *dst,
+                                      void *src, size_t nbytes, uint32_t idx
+                                      GASNETI_THREAD_FARG)
+{
   uint32_t seq_num = op->sequence;
   const uint32_t team_id = op->team->team_id;
   
   gasneti_assert(nbytes <= gex_AM_LUBRequestLong());
   
   // TODO-EX: restore "Async"
-  gex_AM_RequestLong(gasneti_THUNK_TM, dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+  gex_AM_RequestLong(op->e_tm, dstrank, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                          src, nbytes, dst, GEX_EVENT_NOW, 0, team_id, seq_num, idx);
 }
     
