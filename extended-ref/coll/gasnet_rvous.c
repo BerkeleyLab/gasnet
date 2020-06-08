@@ -34,7 +34,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETI_THREAD_FARG
         GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
-        data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode),
+        data->handle = gasnete_get_nb(op->e_tm, args->dst, args->srcnode,
                                            *(void **)data->p2p->data,
                                            args->nbytes, 0 GASNETI_THREAD_PASS);
         gasnete_coll_save_event(&data->handle);
@@ -129,7 +129,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETI_THREAD_
       GASNETI_MEMCPY_SAFE_IDENTICAL(args->dst, args->src, args->nbytes);
     } else if (data->p2p->state[0]) {
       gasneti_sync_reads();
-      data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, GASNETE_COLL_TREE_GEOM_PARENT(geom)),
+      data->handle = gasnete_get_nb(op->e_tm, args->dst, GASNETE_COLL_TREE_GEOM_PARENT(geom),
                                          *(void **)data->p2p->data,
                                          args->nbytes, 0 GASNETI_THREAD_PASS);
       gasnete_coll_save_event(&data->handle);
@@ -340,7 +340,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 				      args->nbytes);
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
-	data->handle = gasnete_get_nb(gasneti_THUNK_TM, args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode),
+	data->handle = gasnete_get_nb(op->e_tm, args->dst, args->srcnode,
 					   gasnete_coll_scale_ptr(*(void **)data->p2p->data,
 								  op->team->myrank, args->nbytes),
 					   args->nbytes, 0 GASNETI_THREAD_PASS);
@@ -492,7 +492,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETI_THREAD_FARG)
 				      args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
-	data->handle = gasnete_put_nb(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team, args->dstnode),
+	data->handle = gasnete_put_nb(op->e_tm, args->dstnode,
 					   gasnete_coll_scale_ptr(*(void **)data->p2p->data,
 								  op->team->myrank, args->nbytes),
 					   args->src, args->nbytes, GEX_EVENT_DEFER, 0
@@ -642,11 +642,11 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETI_THREAD_FARG
     gasnete_begin_nbi_accessregion(0,1 GASNETI_THREAD_PASS);
     /*put to the left of me*/
     for(i=op->team->myrank+1; i<op->team->total_ranks; i++) {
-      gasnete_put_nbi(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
+      gasnete_put_nbi(op->e_tm, i, (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
     } 
     /*put to the right of me*/
     for(i=0; i<op->team->myrank; i++) {
-      gasnete_put_nbi(gasneti_THUNK_TM, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
+      gasnete_put_nbi(op->e_tm, i, (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GEX_EVENT_DEFER, 0 GASNETI_THREAD_PASS);
     }
     data->handle = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     gasnete_coll_save_event(&data->handle);
