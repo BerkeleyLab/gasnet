@@ -420,7 +420,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   for (i=0; i < new_total_ranks; i++) {
     j = members[i].parent_rank;
     if (j == team->myrank) new_myrank = i;
-    rel2act_map[i] = GASNETE_COLL_REL2ACT(team, j);
+    rel2act_map[i] = team->team_id ? team->rel2act_map[j] : j;
     segments[i] = all_args[j].segment;
   }
   gasneti_assert(new_myrank != GEX_RANK_INVALID);

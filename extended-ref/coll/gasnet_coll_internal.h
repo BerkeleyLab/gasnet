@@ -362,8 +362,6 @@ struct gasnete_coll_team_t_ {
 #endif
 };
 
-#define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
-
 /*---------------------------------------------------------------------------------*/
 
 /* Serialization of polling collective ops: */
