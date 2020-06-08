@@ -324,6 +324,9 @@ struct gasnete_coll_team_t_ {
   gasneti_mutex_t threads_mutex;
 #endif
   
+  /*Stuff for split*/
+  volatile uint32_t new_team_id; // TODO_EX: generalize for multi-EP
+
   /*Stuff for consensus*/
   uint32_t consensus_issued_id;
   uint32_t consensus_id;
