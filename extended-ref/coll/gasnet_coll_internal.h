@@ -539,26 +539,17 @@ int gasnete_tm_p2p_advance(
 GASNETI_INLINE(gasnete_tm_p2p_signalling_put)
 int gasnete_tm_p2p_signalling_put(
                         gasnete_coll_op_t *op,
-                        gex_TM_t tm, gex_Rank_t rank,
+                        gex_Rank_t rank,
                         void *dst, const void *src, size_t nbytes,
                         gex_Event_t *lc_opt, gex_Flags_t flags,
                         uint32_t offset, uint32_t state
                         GASNETI_THREAD_FARG)
 {
   // TODO-EX: flags |= INTERNAL to prevent tracing
-  return gex_AM_RequestLong5(tm, rank, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+  return gex_AM_RequestLong5(op->e_tm, rank, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
                              (void*)src, nbytes, dst, lc_opt, flags,
                              op->team->team_id, op->sequence, 1, offset, state);
 }
-
-
-// TODO-EX: deprecate and remove:
-#define gasnete_coll_p2p_signalling_put(op,node,dst,src,nbytes,pos,state)            \
-        gasneti_assert_zeroret(                                                      \
-        gasnete_tm_p2p_signalling_put(op,gasneti_THUNK_TM,node,dst,src,nbytes,       \
-                                      GEX_EVENT_NOW,0,pos,state GASNETI_THREAD_GET))
-// NOTE: this has *not* been Async since the loss of LongAsync
-#define gasnete_coll_p2p_signalling_putAsync gasnete_coll_p2p_signalling_put
 
 
 /* Treat the eager buffer space at dstnode as an array of elements of length 'size'.

@@ -499,7 +499,7 @@ static int gasnete_coll_pf_tm_reduce_TreePut(gasnete_coll_op_t *op GASNETI_THREA
       void* destaddr = gasnete_coll_scale_ptr(parent_scratch, offset, nbytes);
       payload = data->private_data;
       // TODO-EX: use lc_opt for async injection
-      if (gasnete_tm_p2p_signalling_put(op, tm, parent,
+      if (gasnete_tm_p2p_signalling_put(op, parent,
                                         destaddr, payload, nbytes,
                                         GEX_EVENT_NOW, flags, offset, 1
                                         GASNETI_THREAD_PASS)) {
@@ -729,7 +729,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       // Send partial result to parent (if any)
       if (parent != GEX_RANK_INVALID) {
         gex_Rank_t index = 1 + GASNETE_COLL_TREE_GEOM_SIBLING_ID(geom);
-        if (gasnete_tm_p2p_signalling_put(op, tm, parent,
+        if (gasnete_tm_p2p_signalling_put(op, parent,
                                           pdata->put_dst, pdata->put_src, pdata->curr_len,
                                           &pdata->ev, flags, index, next_phase
                                           GASNETI_THREAD_PASS)) {
@@ -778,7 +778,7 @@ static int gasnete_coll_pf_tm_reduce_TreePutSeg(gasnete_coll_op_t *op GASNETI_TH
       if (pdata->ev == GEX_EVENT_NO_OP) {
         gasneti_assert(parent != GEX_RANK_INVALID);
         gex_Rank_t index = 1 + GASNETE_COLL_TREE_GEOM_SIBLING_ID(geom);
-        gasnete_tm_p2p_signalling_put(op, tm, parent,
+        gasnete_tm_p2p_signalling_put(op, parent,
                                       pdata->put_dst, pdata->put_src, pdata->curr_len,
                                       &pdata->ev, flags, index, next_phase
                                       GASNETI_THREAD_PASS);
