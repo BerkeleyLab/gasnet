@@ -1276,9 +1276,7 @@ extern int  gasnetc_hsl_trylock(gex_HSL_t *hsl) {
   ================
 */
 static gex_AM_Entry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_COMMON_HANDLERS
-    GASNETC_COMMON_HANDLERS(),
-  #endif
+  GASNETC_COMMON_HANDLERS(),
 
   /* ptr-width independent handlers */
 

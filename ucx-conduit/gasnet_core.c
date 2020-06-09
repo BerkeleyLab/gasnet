@@ -2309,9 +2309,7 @@ static void gasnetc_exit_reduce_reqh(gex_Token_t token,
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gex_AM_Entry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_COMMON_HANDLERS
-    GASNETC_COMMON_HANDLERS(),
-  #endif
+  GASNETC_COMMON_HANDLERS(),
 
   /* ptr-width independent handlers */
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reduce_reqh,2,REQUEST,SHORT,0),

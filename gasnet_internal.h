@@ -736,13 +736,10 @@ extern void gasneti_nodemapFini(void);
 // Currently wraps legacy gasnet_coll_* but should use gex_Coll_* eventually.
 void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
 
-// An AM-based gasneti_bootstrapExchangefn_t
-// TODO-EX: any/all uses should hopefully use real collectives eventually
-void gasneti_defaultExchange(void *src, size_t len, void *dest);
-extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
-                               gex_AM_Arg_t arg0, gex_AM_Arg_t len);
+// An AM-based host-scoped barrier
+extern void gasnetc_hbarr_reqh(gex_Token_t token, gex_AM_Arg_t arg0);
 #define GASNETC_COMMON_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,REQUEST,MEDIUM,0)
+    gasneti_handler_tableentry_no_bits(gasnetc_hbarr_reqh,1,REQUEST,SHORT,0)
 
 /* ------------------------------------------------------------------------------------ */
 
