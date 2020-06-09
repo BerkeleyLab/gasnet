@@ -26,6 +26,7 @@ GASNet-EX ChangeLog
 * Notable bugs fixed in this release:
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
+  - bug4076: valgrind 'invalid read' errors on GASNet/UPC++ startup
 
 ----------------------------------------------------------------------
 03-12-2020: GASNet-EX 2020.3.0 Release

@@ -822,6 +822,7 @@ static void gasneti_argv_from_proc(int **ppargc, char ****ppargv) {
   }
   cmdline = gasneti_realloc(cmdline, len);
   gasneti_leak(cmdline);
+  if (len > 0) cmdline[len-1] = 0; // bug 4076: defensively ensure null-termination
 
   /* Parse the cmdline on '\0' separators */
   {
