@@ -30,6 +30,10 @@ static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 static int gasnetc_exit_init(void);
 
+#if GASNET_PAR
+struct gasnetc_ofi_locks_ gasnetc_ofi_locks;
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
