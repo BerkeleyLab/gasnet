@@ -304,12 +304,17 @@ gasnetc_segment_register(void *seg_start, size_t segsize)
 }
 
 static int
-gasnetc_segment_exchange(gasnetc_mem_info_t* mem_info, gasneti_bootstrapExchangefn_t exchangefn)
+gasnetc_segment_exchange(gasnetc_mem_info_t* mem_info, gex_TM_t tm)
 {
+  gasneti_assert(!tm || tm == gasneti_THUNK_TM); // Unless/until this is generalized
+  #define DO_EXCHANGE(src, len, dst) \
+          (tm ? gasneti_blockingExchange(tm, src, len, dst) \
+              : gasneti_bootstrapExchange(src, len, dst))
+       
   /* identify max rkey size */
   size_t rkey_max_size = mem_info->bsize;
   size_t *rkey_sizes = gasneti_calloc(gasneti_nodes, sizeof(size_t));
-  (*exchangefn)(&rkey_max_size, sizeof(rkey_max_size), rkey_sizes);
+  DO_EXCHANGE(&rkey_max_size, sizeof(rkey_max_size), rkey_sizes);
   for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
     if (i == gasneti_mynode) {
       continue;
@@ -342,7 +347,7 @@ gasnetc_segment_exchange(gasnetc_mem_info_t* mem_info, gasneti_bootstrapExchange
   * + When using PSHM we could store rkeys just once per supernode
   * + When not fully connected, we could utilize sparse storage
   */
-  (*exchangefn)(mem_info_buf, mem_info_len, recv_buf);
+  DO_EXCHANGE(mem_info_buf, mem_info_len, recv_buf);
 
   info_offset = 0;
   for (gex_Rank_t i = 0; i < gasneti_nodes; i++) {
@@ -375,6 +380,8 @@ gasnetc_segment_exchange(gasnetc_mem_info_t* mem_info, gasneti_bootstrapExchange
   gasneti_free(recv_buf);
 
   return GASNET_OK;
+
+  #undef DO_EXCHANGE
 }
 
 static void gasnetc_unpin_segment(void)
@@ -637,7 +644,7 @@ static int gasnetc_init(gex_Client_t *client_p, gex_EP_t *ep_p,
 #if GASNETC_PIN_SEGMENT
   /* pin the aux segment and exchange the RKeys */
   gasnetc_mem_info_t *mem_info = gasnetc_segment_register(auxbase, auxsize);
-  gasnetc_segment_exchange(mem_info, &gasneti_bootstrapExchange);
+  gasnetc_segment_exchange(mem_info, NULL);
 #endif
 
   if (0 == gasneti_mynode) {
@@ -695,17 +702,16 @@ static int gasnetc_attach_primary(void) {
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
-                                  gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags) {
   /* ------------------------------------------------------------------------------------ */
   /*  register client segment  */
 
-  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+  gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, flags);
 
 #if GASNETC_PIN_SEGMENT
   /* pin the segment and exchange the RKeys */
   gasnetc_mem_info_t *mem_info = gasnetc_segment_register(myseg.addr, myseg.size);
-  gasnetc_segment_exchange(mem_info, exchangefn);
+  gasnetc_segment_exchange(mem_info, tm);
 #endif
 
   return GASNET_OK;
@@ -744,8 +750,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
 #if GASNETC_PIN_SEGMENT
     /*  register client segment  */
     gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-    /*  (###) may replace gasneti_defaultExchange with a conduit-specific exchange if available */
-    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
+    if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
 
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 #endif // GASNETC_PIN_SEGMENT
@@ -828,7 +833,7 @@ extern int gasnetc_Segment_Attach(
   #endif
 
   /* (###) add code to create a segment collectively */
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;

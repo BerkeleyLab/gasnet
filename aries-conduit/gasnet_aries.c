@@ -829,16 +829,13 @@ void gasnetc_segment_register(gasnetc_Segment_t segment)
 
 /*-------------------------------------------------*/
 // set the local memory handle the client segment and exchange with other procs
-void gasnetc_segment_exchange(gasnetc_Segment_t segment)
+void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
 {
+  gasneti_assert(tm == gasneti_THUNK_TM); // Unless/until this is generalized
+
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
-  #if 0// Cannot use gni-specific bootstrap collectives this late
-    gasnetc_bootstrapExchange_gni(&segment->mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-  #else
-    // TODO-EX: but we want real collectives here eventually anyway
-    gasneti_defaultExchange(&segment->mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
-  #endif
+    gasneti_blockingExchange(tm, &segment->mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
     for (gex_Rank_t i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].mem_handle = all_mem_handle[i];
     }

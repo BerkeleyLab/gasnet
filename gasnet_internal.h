@@ -461,7 +461,6 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
-                gasneti_bootstrapExchangefn_t exchangefn,
                 gex_Flags_t                   flags);
 
 extern void gasneti_legacy_segment_attach_hook(gasneti_EP_t ep);
@@ -730,9 +729,15 @@ extern void gasneti_nodemapFini(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Collective comms helpers
+
+// Convience wrapper for a blocking gather-to-all of elements of size 'len' bytes.
+// In-place (src == (uint8_t*)dst + len*myrank) is permitted.
+// Currently wraps legacy gasnet_coll_* but should use gex_Coll_* eventually.
+void gasneti_blockingExchange(gex_TM_t tm, void *src, size_t len, void *dst);
+
 // An AM-based gasneti_bootstrapExchangefn_t
 // TODO-EX: any/all uses should hopefully use real collectives eventually
-
 void gasneti_defaultExchange(void *src, size_t len, void *dest);
 extern void gasnetc_exchg_reqh(gex_Token_t token, void *buf, size_t nbytes,
                                gex_AM_Arg_t arg0, gex_AM_Arg_t len);

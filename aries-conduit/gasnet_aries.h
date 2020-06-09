@@ -386,7 +386,7 @@ int gasnetc_get_domain_idx(gasnete_threadidx_t tidx);
 
 void gasnetc_init_gni(gasnet_seginfo_t seginfo);
 void gasnetc_segment_register(gasnetc_Segment_t segment);
-void gasnetc_segment_exchange(gasnetc_Segment_t segment);
+void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm);
 uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
 

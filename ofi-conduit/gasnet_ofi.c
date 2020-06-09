@@ -1003,12 +1003,18 @@ int gasnetc_segment_register(gasnetc_Segment_t segment)
 }
 
 // Exchange memory keys with other nodes.
-void gasnetc_segment_exchange(gasnetc_Segment_t segment)
+void gasnetc_segment_exchange(gasnetc_Segment_t segment, gex_TM_t tm)
 {
+  gasneti_assert(!tm || tm == gasneti_THUNK_TM); // Unless/until this is generalized
+
   if (!GASNETC_OFI_HAS_MR_SCALABLE) {
       uint64_t local_mr_key = fi_mr_key(segment->mrfd);
-      gasneti_bootstrapExchange(&local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
-  }
+      if (tm) { // Use collectives if available
+        gasneti_blockingExchange(tm, &local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
+      } else {
+        gasneti_bootstrapExchange(&local_mr_key, sizeof(uint64_t), gasnetc_ofi_target_keys);
+      }
+    }
 }
 
 /*------------------------------------------------

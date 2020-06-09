@@ -1218,13 +1218,15 @@ uintptr_t gasneti_max_segsize() {
   // This is a bit of a hack, but is the most expedient way to get a barrier
   // with compute-node scope, since gasneti_pshmnet_bootstrapBarrier() may
   // have a narrower scope when env var GASNET_SUPERNODE_MAXSIZE is set.
-  static void gasneti_bug3480_fence(gasneti_bootstrapExchangefn_t exchangefn) {
+  // TODO: Since this is the last remaining use of gasneti_defaultExchange(),
+  // is now time to construct something better then just "most expedient".
+  static void gasneti_bug3480_fence(void) {
     char a = 0; char *b = gasneti_malloc(gasneti_nodes);
-    (*exchangefn)(&a, sizeof(char), b);
+    gasneti_defaultExchange(&a, sizeof(char), b);
     gasneti_free(b);
   }
 #else
-  #define gasneti_bug3480_fence(_e) ((void)0)
+  #define gasneti_bug3480_fence() ((void)0)
 #endif
 
 // gasneti_sharedLimit()
@@ -1679,16 +1681,10 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 /* ------------------------------------------------------------------------------------ */
 
 // Allocate/map memory for a GASNet segment
-//
-// NOTE: exchangefn is used as a expedient node-scoped barrier ONLY when
-// GASNETI_BUG3480_WORKAROUND is defined and only for the legacy attach.
-// Therefore, there is no need for subset teams support.
-//
 static
 int gasneti_segment_map_inner(
                         gasnet_seginfo_t *segment_p,
                         uintptr_t segsize,
-                        gasneti_bootstrapExchangefn_t exchangefn,
                         int use_shared)
 {
   void *segbase = NULL;
@@ -1726,13 +1722,13 @@ int gasneti_segment_map_inner(
       gasneti_assert_uint(segsize ,<=, segment_p->size);
       if (GASNET_PSHM || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
         munmap_fn(segment_p->addr, segment_p->size);
-        if (exchangefn) gasneti_bug3480_fence(exchangefn);
+        gasneti_bug3480_fence();
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segbase =
 #endif
         mmap_fixed_fn(segbase, segsize, 0);
       } else {
-        if (exchangefn) gasneti_bug3480_fence(exchangefn);
+        gasneti_bug3480_fence();
       }
     } else { /* need segment from scratch */
       segbase = mmap_fn(segsize);
@@ -1781,15 +1777,11 @@ static // TODO-EX: static for now, at least
 int gasneti_segment_map_primordial(
                         gasnet_seginfo_t *segment_p,
                         uintptr_t segsize,
-                        gasneti_bootstrapExchangefn_t exchangefn,
                         gex_Flags_t flags)
 {
-  gasneti_assert(exchangefn);
-
 #ifdef GASNETI_MMAP_OR_PSHM
   if (flags & GASNETI_FLAG_INIT_LEGACY) {
     /* in "legacy_mode" we consume the presegment */
-    gasneti_assert(exchangefn);
     *segment_p = gasneti_presegment;
   } else
 #endif
@@ -1799,7 +1791,7 @@ int gasneti_segment_map_primordial(
     segment_p->addr = NULL;
   }
 
-  return gasneti_segment_map_inner(segment_p, segsize, exchangefn, 1);
+  return gasneti_segment_map_inner(segment_p, segsize, 1);
 }
 
 //  Map a "non-promodial" segment
@@ -1812,6 +1804,8 @@ int gasneti_segment_map(
   // TODO-EX: support for PSHM cross-mapping of segments not created initially
   gasneti_assert(! pshm_compat);
 
+  segment_p->size = 0;
+  segment_p->addr = NULL;
   return gasneti_segment_map_inner(segment_p, segsize, pshm_compat);
 }
 
@@ -1860,6 +1854,7 @@ static gasnet_seginfo_t
 gasneti_do_attach_segment(
                            uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
+                           gex_TM_t tm,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gex_Flags_t flags)
 {
@@ -1871,13 +1866,24 @@ gasneti_do_attach_segment(
 
   gasnet_seginfo_t local_segment;
 
-  int rc = gasneti_segment_map_primordial(&local_segment, segsize, exchangefn, flags);
+  int rc = gasneti_segment_map_primordial(&local_segment, segsize, flags);
   if (rc != GASNET_OK) {
     gasneti_fatalerror("Unexpected failure return from gasneti_segment_map()");
   }
 
-  /*  gather segment information */   // TODO-EX: need scalable replacement
-  (*exchangefn)(&local_segment, sizeof(gasnet_seginfo_t), all_segments);
+  //  Exchange segment information
+  // TODO-EX: need scalable replacement for full seginfo arrays
+  if (tm) { // Use collectives if available
+    gasneti_blockingExchange(tm, &local_segment, sizeof(gasnet_seginfo_t), all_segments);
+#if GASNET_PSHM
+    // Needed if a pshm bootstrap operation may follow use of AMs
+    gasneti_pshmnet_bootstrapBarrierPoll();
+#endif
+  } else {
+    // gasneti_assert(all_segments == gasneti_seginfo_aux); // Eventually only auxseg should use exchangefn
+    gasneti_assert(exchangefn);
+    (*exchangefn)(&local_segment, sizeof(gasnet_seginfo_t), all_segments);
+  }
 
 #if GASNET_PSHM
   gasneti_segment_cross_map(all_segments);
@@ -1893,7 +1899,6 @@ gasnet_seginfo_t gasneti_segmentAttach(
                 size_t                        allocsz,
                 gex_TM_t                      tm,
                 uintptr_t                     segsize,
-                gasneti_bootstrapExchangefn_t exchangefn,
                 gex_Flags_t                   flags)
 {
 #if GASNET_DEBUG
@@ -1906,7 +1911,7 @@ gasnet_seginfo_t gasneti_segmentAttach(
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
-  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, exchangefn, flags);
+  gasnet_seginfo_t myseg = gasneti_do_attach_segment(segsize, gasneti_seginfo, tm, NULL, flags);
 
   void *segbase = myseg.addr;
   segsize = myseg.size;
@@ -2310,7 +2315,7 @@ gasneti_auxsegAttach(uint64_t maxsize, gasneti_bootstrapExchangefn_t exchangefn)
                        auxsize, maxsize);
   }
   gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
-  gasnet_seginfo_t local_segment = gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, exchangefn, 0);
+  gasnet_seginfo_t local_segment = gasneti_do_attach_segment(auxsize, gasneti_seginfo_aux, NULL, exchangefn, 0);
   gasneti_auxseg_attach(gasneti_seginfo_aux);
   gasneti_assert_uint(gasneti_seginfo_aux[gasneti_mynode].size ,==, auxsize);
   return local_segment;

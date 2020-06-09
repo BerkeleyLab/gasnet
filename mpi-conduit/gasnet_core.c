@@ -303,13 +303,12 @@ done: /*  error return while locked */
 static int gasnetc_attach_segment(gex_Segment_t                 *segment_p,
                                   gex_TM_t                      tm,
                                   uintptr_t                     segsize,
-                                  gasneti_bootstrapExchangefn_t exchangefn,
                                   gex_Flags_t                   flags)
 {
     /* ------------------------------------------------------------------------------------ */
     /*  register client segment  */
 
-    gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, exchangefn, flags);
+    gasnet_seginfo_t myseg = gasneti_segmentAttach(segment_p, 0, tm, segsize, flags);
 
     // Have called AM_SetSeg() previously w/ an "everything" segment
 
@@ -364,7 +363,7 @@ extern int gasnetc_attach( gex_TM_t               _tm,
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       /*  register client segment  */
       gex_Segment_t seg; // g2ex segment is automatically saved by a hook
-      if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
+      if (GASNET_OK != gasnetc_attach_segment(&seg, _tm, segsize, GASNETI_FLAG_INIT_LEGACY))
         GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
     #endif
 
@@ -460,9 +459,8 @@ extern int gasnetc_Segment_Attach(
 
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*
-  // TODO-EX: should be using the team's exchange function if possible
   // TODO-EX: need to pass proper flags (e.g. pshm and bind) instead of 0
-  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, gasneti_defaultExchange, 0))
+  if (GASNET_OK != gasnetc_attach_segment(segment_p, tm, length, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   return GASNET_OK;
