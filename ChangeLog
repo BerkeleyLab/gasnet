@@ -27,6 +27,7 @@ GASNet-EX ChangeLog
   - bug4060: tools atomics using constructs deprecated in C++20
   - bug4061: aries-conduit startup time regression
   - bug4076: valgrind 'invalid read' errors on GASNet/UPC++ startup
+  - bug4079: udp-conduit localhost spawn fails to search PATH for wrappers
 
 ----------------------------------------------------------------------
 03-12-2020: GASNet-EX 2020.3.0 Release
