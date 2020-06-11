@@ -33,32 +33,30 @@ void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in){
 
 
 static int split_string(char ***split_strs, const char *str, const char *delim) {
-  char *temp;
-  int ret=0;
-  size_t malloc_len = 8;
+  const int max_params = 8;
   static gasneti_mutex_t lock= GASNETI_MUTEX_INITIALIZER;
 
-  /*since the strtok function is desructive we have to
-    create a copy of the string first to preserve the orignal*/
-  char *copy = gasneti_strdup(str);
+  size_t strsz = strlen(str)+1;
 
   gasneti_mutex_lock(&lock);
-  *split_strs = (char **) gasneti_malloc(sizeof(char*) * malloc_len);
-  temp = strtok(copy, delim);
+  char *base = gasneti_malloc(sizeof(char*) * max_params + strsz);
+  *split_strs = (char **) base;
+  // since the strtok function is desructive we have to
+  // create a copy of the string first to preserve the original
+  // store the temp str in the high bytes of the same object to prevent leaks
+  char *copy = base + sizeof(char*) * max_params;
+  strcpy(copy, str);
+  char *temp = strtok(copy, delim);
+  int ret=0;
   while(temp != NULL) {
-    if(ret == malloc_len) {
-      /*we've run out of space so grow the array by another factor*/
-      malloc_len +=malloc_len;
-      *split_strs = (char**) gasneti_realloc(*split_strs, sizeof(char*) * malloc_len);
-      gasneti_fatalerror("more than 8 params not yet supported");
+    if(ret == max_params) 
+        gasneti_fatalerror("more than %i params not yet supported",max_params);
 
-    }
     (*split_strs)[ret] = temp;
     
     ret++;
     temp=strtok(NULL, delim);
   }
-  *split_strs = (char**) gasneti_realloc(*split_strs, sizeof(char*) * ret);
   gasneti_mutex_unlock(&lock);
 
   return ret;
