@@ -1936,6 +1936,7 @@ int main(int argc, char **argv) {
   if (halfduplex && mynode % 2 == 1) runtests = 0; /* odd nodes passive */
 
   doit(iters, runtests);
+  test_free(heapseg);
   MSG("done.");
 
   gasnet_exit(0);
