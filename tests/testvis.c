@@ -1823,7 +1823,7 @@ void doit(int iters, int runtests) {
           assert(ops[i].xdesc);
           verify_xpose_desc_data(ops[i].xdesc, "gasnet_puts_bulk/gasnet_gets_bulk test");
 
-          test_free(ops[i].sdesc);
+          test_free(ops[i].xdesc);
         }
       }
       test_free(events);
