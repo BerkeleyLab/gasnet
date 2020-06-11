@@ -23,13 +23,7 @@ static
 gasnete_hashtable_t *team_dir = NULL;
 
 static
-volatile uint32_t my_team_seq = 1;
-static
-volatile uint32_t new_team_id = 0; /* new_team_id is for communication
-                                      between the AM handler
-                                      (gasnete_coll_teamid_reqh) and
-                                      the main thread, 0 means the new
-                                      team id is not set. */
+gasneti_weakatomic32_t my_team_seq = gasneti_weakatomic32_init(0);
 
 /*called by only one thread*/
 static void initialize_team_fields(gasnete_coll_team_t team,  
@@ -50,6 +44,9 @@ static void initialize_team_fields(gasnete_coll_team_t team,
 #if GASNET_PAR && GASNET_DEBUG
   gasneti_mutex_init(&team->threads_mutex);
 #endif
+#if GASNET_DEBUG
+  gasneti_mutex_init(&team->barrier_lock);
+#endif
   
   team->tree_geom_cache_head = NULL;
   team->tree_geom_cache_tail = NULL;
@@ -66,6 +63,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->consensus_id = team->consensus_issued_id = 0xfffffff8;  // Intentionally near to wrap-around
   gasnete_coll_alloc_new_scratch_status(team);
   team->scratch_free_list = NULL;
+  team->new_team_id = 0;
   
 #ifndef GASNETE_COLL_P2P_OVERRIDE
   gex_HSL_Init(&team->p2p_lock);
@@ -258,9 +256,14 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
 }
 
 void gasnete_coll_teamid_reqh(gex_Token_t token,
-                              gex_AM_Arg_t team_id)
+                              gex_AM_Arg_t parent_team_id,
+                              gex_AM_Arg_t new_team_id)
 {
-  new_team_id=(uint32_t)team_id;
+  gasnet_team_handle_t parent = gasnete_coll_team_lookup(parent_team_id);
+  gasneti_assert(parent);
+  gasneti_assert_uint(parent->new_team_id ,==, 0);
+  gasneti_assert_uint(new_team_id ,!=, 0);
+  parent->new_team_id = new_team_id;
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_teamid_reqh: new_team_id %x\n", new_team_id);
   fflush(stderr);
@@ -268,12 +271,17 @@ void gasnete_coll_teamid_reqh(gex_Token_t token,
 }
 
 /* collective function that should be called by all participating nodes */
-gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
-                                              gex_Rank_t myrank,
-                                              gex_Rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETI_THREAD_FARG)
+gasnet_team_handle_t gasnete_coll_team_create(
+                        gasnet_team_handle_t parent,
+                        uint32_t total_ranks,
+                        gex_Rank_t myrank,
+                        gex_Rank_t *rel2act_map,
+                        gasnet_seginfo_t* scratch_segs
+                        GASNETI_THREAD_FARG)
 {
   gasnet_team_handle_t team;
   gex_Rank_t team_lead = rel2act_map[0];
+  uint32_t new_team_id;
   uint32_t i;
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_create: team_lead %u, total_ranks %u, myrank %u\n", team_lead, total_ranks, myrank);
@@ -284,27 +292,31 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
   }
 #endif
 
-  /* need to lock for thread safety */
-
   if (myrank == 0) {
-    /* the team leader (rank 0) computes the new team_id */
-    /* gasneti_atomic_increment(&(my_team_seq), GASNETI_ATOMIC_NONE); */
-    my_team_seq++; /* need to be an atomic operation */
+    /* the team leader (rank 0) allocates the new team_id */
+    gasneti_assert(! parent->new_team_id);
+
+    uint32_t tmp = gasneti_weakatomic32_add(&my_team_seq, 1, GASNETI_ATOMIC_NONE);
+
     /* limitation: each root node can only allocate team sequence id
        4096 times */
-    gasneti_assert(my_team_seq < 0xfff);
-    new_team_id = ((team_lead << 12) | (my_team_seq & 0xfff));
+    gasneti_assert(tmp < 0xfff);
+    new_team_id = ((team_lead << 12) | (tmp & 0xfff));
     
-    /* send out team_id */
+    // send out team_id via point-to-point comms over the parent team
+    // TODO: more efficient comms or communication-free allocation of team_id?
+    gex_TM_t parent_tm = parent->e_tm;
     for(i=1; i<total_ranks; i++) {
-      gex_AM_RequestShort(gasneti_THUNK_TM, rel2act_map[i],
-                                  gasneti_handleridx(gasnete_coll_teamid_reqh), 0,
-                                  new_team_id);
+      gex_Rank_t rank = gex_TM_TranslateJobrankToRank(parent_tm, rel2act_map[i]);
+      gex_AM_RequestShort(parent_tm, rank,
+                          gasneti_handleridx(gasnete_coll_teamid_reqh), 0,
+                          parent->team_id, new_team_id);
     }
   } else {
     /* wait for team_id from the team leader */
-    while (new_team_id == 0)
-      gasneti_AMPoll();
+    gasneti_polluntil (parent->new_team_id != 0);
+    new_team_id = parent->new_team_id;
+    parent->new_team_id = 0;
 
 #ifdef DEBUG_TEAM
     fprintf(stderr, "myrank %u, get new_team_id %x\n", myrank, new_team_id);
@@ -315,7 +327,6 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
   /* create the team locally */
   team = (gasnet_team_handle_t)gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
   gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETI_THREAD_PASS);
-  new_team_id = 0;
   
   /* unlock */
 #ifdef DEBUG_TEAM
@@ -380,7 +391,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   if (mycolor == -1) {
     gasneti_free(all_args);
     gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
-    gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
     return NULL;
   }
 
@@ -418,8 +428,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   /* It would be better to add some sanity check for team correctness here. */
   
   /* create a team */
-  new_team_id = 0;
-  gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);
 
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_split: new_total_ranks %u, new_myrank %u.\n",
@@ -428,7 +436,8 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   fflush(stderr);
 #endif
 
-  newteam = gasnete_coll_team_create(new_total_ranks, new_myrank, rel2act_map, segments GASNETI_THREAD_PASS);
+  newteam = gasnete_coll_team_create(team, new_total_ranks, new_myrank, rel2act_map, segments GASNETI_THREAD_PASS);
+  gasneti_assert(! team->new_team_id); // ensure zero for next split
   
   gasneti_free(rel2act_map);
   gasnete_coll_consensus_barrier(team GASNETI_THREAD_PASS);

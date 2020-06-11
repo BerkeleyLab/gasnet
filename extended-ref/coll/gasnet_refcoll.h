@@ -49,8 +49,8 @@ SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 2);
 #endif
 
 #ifndef GASNETE_COLL_TEAM_OVERRIDE
-SHORT_HANDLER_NOBITS_DECL(gasnete_coll_teamid_reqh, 1);
-#define GASNETE_COLL_TEAM_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_teamid_reqh,1,REQUEST,SHORT,0),
+SHORT_HANDLER_NOBITS_DECL(gasnete_coll_teamid_reqh, 2);
+#define GASNETE_COLL_TEAM_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_teamid_reqh,2,REQUEST,SHORT,0),
 #endif
 
 #define GASNETE_REFCOLL_HANDLERS()                           \

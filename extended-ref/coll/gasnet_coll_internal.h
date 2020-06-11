@@ -324,6 +324,9 @@ struct gasnete_coll_team_t_ {
   gasneti_mutex_t threads_mutex;
 #endif
   
+  /*Stuff for split*/
+  volatile uint32_t new_team_id; // TODO_EX: generalize for multi-EP
+
   /*Stuff for consensus*/
   uint32_t consensus_issued_id;
   uint32_t consensus_id;
@@ -337,6 +340,10 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier barrier;
   gasnete_all_barrier_result barrier_result;
   gasneti_progressfn_t barrier_pf;
+
+#if GASNET_DEBUG
+  gasneti_mutex_t barrier_lock;
+#endif
   
 #ifndef GASNETE_COLL_P2P_OVERRIDE
   /* Default implementation of point-to-point syncs */
