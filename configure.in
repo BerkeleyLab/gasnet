@@ -4905,6 +4905,8 @@ GASNET_TRY_CACHE_LINK(for ptmalloc, malloc_is_ptmalloc,
     mallopt(M_MMAP_MAX, 0);
   ],[ AC_DEFINE(HAVE_PTMALLOC) ])
 
+AC_CHECK_FUNCS(posix_memalign)
+
 DEBUGMALLOC_VAR=GASNET_unused
 DEBUGMALLOC_VAL=0
 case "$target" in

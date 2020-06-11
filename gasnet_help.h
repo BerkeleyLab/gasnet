@@ -79,16 +79,28 @@ GASNETI_MALLOCP(_gasneti_extern_strndup)
 
 /* aligned malloc - allocated size bytes with given power-of-2 alignment
    may only be freed using gasneti_free_aligned */
+#if HAVE_POSIX_MEMALIGN && !GASNET_DEBUGMALLOC
+  // when debug mallocator is disabled, posix_memalign is friendlier
+  // for use with heap analysis tools like valgrind
+  #define GASNETI_USE_POSIX_MEMALIGN 1
+#endif
 GASNETI_INLINE(_gasneti_malloc_aligned) GASNETI_MALLOC
 void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG) {
+  gasneti_assert(GASNETI_POWEROFTWO(alignment));
+#if GASNETI_USE_POSIX_MEMALIGN
+  if_pf(alignment < sizeof(void*)) alignment = sizeof(void*);
+  void *result = NULL; // init to avoid -Wmaybe-uninitialized warnings
+  gasneti_assert_zeroret(posix_memalign(&result, alignment, size));
+#else
   size_t alloc_size = size + sizeof(void *) + alignment;
   void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
   void **result = (void **)GASNETI_ALIGNUP((uintptr_t)base + sizeof(void *), alignment);
   *(result - 1) = base; /* hidden base ptr for free() */
-  gasneti_assert(GASNETI_POWEROFTWO(alignment));
-  gasneti_assert_ptr(result ,==, (void **)GASNETI_ALIGNUP(result, alignment));
   gasneti_assert_ptr((void *)(result - 1) ,>=, base);
   gasneti_assert_ptr(((uint8_t *)result + size) ,<=, ((uint8_t *)base + alloc_size));
+#endif
+  gasneti_assume(result);
+  gasneti_assert_ptr(result ,==, (void **)GASNETI_ALIGNUP(result, alignment));
   return (void *)result;
 }
 GASNETI_MALLOCP(_gasneti_malloc_aligned)
@@ -96,21 +108,25 @@ GASNETI_MALLOCP(_gasneti_malloc_aligned)
 
 GASNETI_INLINE(_gasneti_free_aligned)
 void _gasneti_free_aligned(void *ptr GASNETI_CURLOCFARG) {
-  void *base;
   gasneti_assert(ptr);
-  base = *((void **)ptr - 1);
+#if GASNETI_USE_POSIX_MEMALIGN
+  free(ptr);
+#else
+  void *base = *((void **)ptr - 1);
   gasneti_assert(base);
   _gasneti_extern_free(base GASNETI_CURLOCPARG);
+#endif
 }
 #define gasneti_free_aligned(ptr) _gasneti_free_aligned((ptr) GASNETI_CURLOCAARG)
 
 GASNETI_INLINE(_gasneti_leak_aligned)
 void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
-  void *base;
   gasneti_assert(ptr);
-  base = *((void **)ptr - 1);
+#if !GASNETI_USE_POSIX_MEMALIGN
+  void *base = *((void **)ptr - 1);
   gasneti_assert(base);
   _gasneti_extern_leak(base GASNETI_CURLOCPARG);
+#endif
 }
 #define gasneti_leak_aligned(ptr) _gasneti_leak_aligned((ptr) GASNETI_CURLOCAARG)
 

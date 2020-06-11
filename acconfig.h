@@ -245,6 +245,9 @@
 /* have ptmalloc's mallopt() options */
 #undef HAVE_PTMALLOC
 
+/* has posix_memalign() */
+#undef HAVE_POSIX_MEMALIGN
+
 /* have declarations/definitions */
 #undef HAVE_SETENV_DECL
 #undef HAVE_UNSETENV_DECL
