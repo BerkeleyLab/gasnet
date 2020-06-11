@@ -153,18 +153,19 @@ extern gex_Rank_t gasneti_nodes;
 #define gex_System_QueryJobSize() (GASNETI_CHECKINIT(), (gex_Rank_t)gasneti_nodes)
 
 
+#if GASNETI_TM0_ALIGN
 // We can detect TM0 by its better alignment than other tm's
-#ifdef GASNETI_TM0_ALIGN
-  // Keep existing value
-#elif (GASNETI_CACHE_LINE_BYTES < 8)
-  #define GASNETI_TM0_ALIGN 16
-#else
-  #define GASNETI_TM0_ALIGN (2*GASNETI_CACHE_LINE_BYTES)
-#endif
 GASNETI_INLINE(gasneti_is_tm0)
 int gasneti_is_tm0(gasneti_TM_t _i_tm) {
+  gasneti_static_assert(GASNETI_POWEROFTWO(GASNETI_TM0_ALIGN));
+  gasneti_static_assert(GASNETI_TM0_ALIGN > 1);
   return (!((uintptr_t)(_i_tm) & (GASNETI_TM0_ALIGN-1)));
 }
+#else
+// Cannot use alignment to distinguish TM0
+extern gasneti_TM_t gasneti_thing_that_goes_thunk_in_the_dark;
+#define gasneti_is_tm0(_i_tm) ((_i_tm) == gasneti_thing_that_goes_thunk_in_the_dark)
+#endif
 
 // Given (tm,rank) return the jobrank or ep_location
 extern GASNETI_PURE gex_Rank_t        gasneti_tm_fwd_rank(gasneti_TM_t tm, gex_Rank_t rank);
