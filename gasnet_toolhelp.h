@@ -230,10 +230,12 @@ GASNETI_NORETURNP(_gasneti_assert_fail)
  */
 #if GASNET_DEBUG
   #define gasneti_assume(cond) gasneti_assert_always(cond)
+#elif GASNETT_USE_ASSUME
+  // prefer __assume to the __builtin_assume when both are available,
+  // because the former is more permissive of argument type on Intel
+  #define gasneti_assume(cond) ((void)__assume(cond))
 #elif GASNETT_USE_BUILTIN_ASSUME
   #define gasneti_assume(cond) ((void)__builtin_assume(cond))
-#elif GASNETT_USE_ASSUME
-  #define gasneti_assume(cond) ((void)__assume(cond))
 #else
   #define gasneti_assume(cond) (GASNETT_PREDICT_TRUE(cond) ? (void)0 : gasneti_unreachable())
 #endif
