@@ -437,6 +437,7 @@
 #undef GASNET_DEBUGMALLOC
 #undef GASNET_SRCLINES
 #undef GASNET_DEBUG_VERBOSE
+#undef GASNETI_VALGRIND
 
 /* GASNet segment definition */
 #undef GASNET_SEGMENT_FAST

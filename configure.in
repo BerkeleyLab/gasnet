@@ -908,6 +908,15 @@ GASNET_MSG_WARN([
     enabled_debug=no])
 AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
 
+GASNET_IF_ENABLED(valgrind, [Build a valgrind-friendly library, disabling some optimizations. Implies --disable-debug-malloc], [
+    if test -z "$GASNET_SUPPRESS_DEBUG_WARNING" ; then
+       GASNET_MSG_WARN([Enabling valgrind-friendly codegen, disabling some optimizations.])
+    fi
+    AC_DEFINE(GASNETI_VALGRIND)
+    enable_debug_malloc=no # debug mallocator obfuscates heap activity and confuses valgrind
+    enabled_valgrind=yes
+])
+
 GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler warnings for the library and tests (default: yes), 
   enabled_dev_warnings=yes, enabled_dev_warnings=no, enabled_dev_warnings=yes)
 
@@ -1735,9 +1744,8 @@ case "$CACHE_LINE_BYTES" in
 esac
 AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_SHIFT,$GASNETI_CACHE_LINE_SHIFT)
           
-if false; then
-  : # Future valgrind support
-  GASNETI_TM0_ALIGN=0
+if test x"$enabled_valgrind" = x"yes" ; then
+  GASNETI_TM0_ALIGN=0 # team disalignment optimization leads to "possible leak" reports for every non-primordial gex_TM_t
 elif test $CACHE_LINE_BYTES -lt 8; then
   GASNETI_TM0_ALIGN=16
 else

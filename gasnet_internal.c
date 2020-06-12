@@ -84,6 +84,10 @@ GASNETI_IDENT(gasneti_IdentString_SegConfig, "$GASNetSegment: GASNET_SEGMENT_" G
   GASNETI_IDENT(gasneti_IdentString_ThreadInfoOpt, "$GASNetThreadInfoOpt: " _STRINGIFY(GASNETI_THREADINFO_OPT) " $");
 #endif
 
+#if GASNETI_SWIZZLE
+  GASNETI_IDENT(gasneti_IdentString_Swizzle, "$GASNetSwizzle: 1 $");
+#endif
+
 /* embed a string with complete configuration info to support versioning checks */
 GASNETI_IDENT(gasneti_IdentString_libraryConfig, "$GASNetConfig: (libgasnet.a) " GASNET_CONFIG_STRING " $");
 /* the canonical conduit name */
