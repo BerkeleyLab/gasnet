@@ -21,6 +21,9 @@ GASNet-EX ChangeLog
 20XX.YY.ZZ: PENDING
 
 * General and Misc.
+  - NEW: Improved compatability with heap analysis tools like Valgrind
+    using new configure option --enable-valgrind. GASNet's valgrind
+    suppression file now lives in other/valgrind/gasnet.supp.
   - GASNet trace/stats now categorize AMPoll calls in tracemask category 'X'
   - BLCR integration, deprecated since 1.32.0 (July 2018), has been removed.
 
