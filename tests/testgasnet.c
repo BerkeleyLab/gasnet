@@ -719,6 +719,7 @@ void doit(int partner, int *partnerseg) {
       if (d == numranks) r = GEX_RANK_INVALID; // min of maxes
       else r = (myrank + d) % numranks;
       amsz_t max;
+      memset(&max,0,sizeof(max)); // avoid a valgrind warning for uninit bytes
       for (int lci = 0; lci < AM_LCOPT_CNT; lci++) {
         for (int flagsi = 0; flagsi < AM_FLAGS_CNT; flagsi++) {
           #define GET_MAX(cat) do {                                                              \
