@@ -929,7 +929,8 @@ GASNET_IF_ENABLED(valgrind, [Build a valgrind-friendly library, disabling some o
       esac
     fi
     enabled_valgrind=yes
-])
+], [ enabled_valgrind=no ])
+AM_CONDITIONAL(VALGRIND, test "$enabled_valgrind" = yes)
 
 GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler warnings for the library and tests (default: yes), 
   enabled_dev_warnings=yes, enabled_dev_warnings=no, enabled_dev_warnings=yes)
