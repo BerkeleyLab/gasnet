@@ -86,6 +86,10 @@ void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
 static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
   void *tmp = gasneti_malloc(len * gasneti_nodes);
   gasneti_assert(NULL != src);
+  if (gasneti_mynode != rootnode) {
+     // silence a harmless valgrind error caused by sending potentially uninitialized bytes
+     memset(src, 0, len);
+  }
   gasnetc_bootstrapExchange(src, len, tmp);
   GASNETI_MEMCPY(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
   gasneti_free(tmp);
