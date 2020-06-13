@@ -843,7 +843,7 @@ extern void gasneti_setupGlobalEnvironment(gex_Rank_t numnodes, gex_Rank_t mynod
   uint8_t *myenv; 
   int sz; 
   uint64_t checksum;
-  gasneti_envdesc_t myenvdesc;
+  gasneti_envdesc_t myenvdesc = {0};
   gasneti_envdesc_t *allenvdesc;
 
   gasneti_assert(exchangefn);
