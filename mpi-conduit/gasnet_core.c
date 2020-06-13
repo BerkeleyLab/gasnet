@@ -1079,8 +1079,10 @@ extern void gasnetc_hsl_init   (gex_HSL_t *hsl) {
   GASNETI_CHECKATTACH();
   #if GASNETC_HSL_ERRCHECK
   {
+  #if !GASNETI_VALGRIND // this test causes valgrind uninit read warnings for newly allocated space
     if (hsl->tag == GASNETC_HSL_ERRCHECK_TAGINIT)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to gex_HSL_Init() a statically-initialized HSL");
+  #endif
   #if 0
     /* this causes false errors in Titanium, because object destructors aren't implemented */
     if (hsl->tag == GASNETC_HSL_ERRCHECK_TAGDYN)
