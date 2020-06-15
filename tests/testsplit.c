@@ -7,7 +7,7 @@
 #define SCRATCH_SIZE (2*1024*1024)
 
 #ifndef TEST_SEGSZ
-#define TEST_SEGSZ (PAGESZ + 5*SCRATCH_SIZE) // 5 teams's scratch + page for comms
+#define TEST_SEGSZ (PAGESZ + 6*SCRATCH_SIZE) // 6 teams's scratch + page for comms
 #endif
 
 #include <math.h> /* for sqrt() */
@@ -224,6 +224,31 @@ int main(int argc, char **argv)
   assert_always(gex_TM_QuerySize(revtm) == nranks);
   assert_always(gex_TM_QueryRank(revtm) == (nranks - (myrank + 1)));
 
+  // Test create
+  gex_TM_t team01 = myteam; // init just to check whether overwritten
+  {
+    gex_EP_Location_t members[2] = {{0,0}, {1,0}};
+    const int i_am_member = (myrank < 2);
+    const gex_Rank_t nmembers = i_am_member ? MIN(2, nranks) : 0;
+    scratch_sz = gex_TM_Create(NULL, 1, myteam, members, nmembers, NULL, 0, SCRATCH_QUERY_FLAG);
+    assert_always((scratch_addr + scratch_sz) <= scratch_end);
+    gex_Addr_t scratch_arg[2];
+    if (i_am_member) {
+      uintptr_t offset = scratch_addr - (uintptr_t)TEST_MYSEG();
+      scratch_arg[0] = (void*)((uintptr_t)TEST_SEG(0) + offset);
+      scratch_arg[1] = (void*)((uintptr_t)TEST_SEG(1) + offset);
+    } else {
+      assert_always(scratch_sz == 0);
+    }
+    gex_TM_Create(&team01, 1, myteam, members, nmembers, scratch_arg, scratch_sz, GEX_FLAG_TM_GLOBAL_SCRATCH);
+    if (i_am_member) {
+      scratch_addr += scratch_sz;
+      assert_always(team01 != myteam);
+      assert_always(gex_TM_QuerySize(team01) == nmembers);
+      assert_always(gex_TM_QueryRank(team01) == myrank);
+    }
+  }
+ 
   //
   // Some basic validation by communicating w/i the new teams
   //
@@ -291,6 +316,11 @@ int main(int argc, char **argv)
                       (gex_AM_Arg_t)myrank, (gex_AM_Arg_t)myrank);
   GASNET_BLOCKUNTIL(gasnett_atomic_read(&am_cntr,0) == 3);
   BARRIER();
+
+  // Barrier over ranks 0 and 1
+  if (myrank < 2) {
+    gex_Event_Wait(gex_Coll_BarrierNB(team01, 0));
+  }
 
   MSG("done.");
 

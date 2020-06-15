@@ -451,9 +451,9 @@ typedef [some integer type] gex_Flags_t;
 //   SYMMETRIC: single gex_Addr_t used for all members of the output team
 //          NO: no gex_Addr_t (and no scratch space is allocated).
 //
-#define GEX_FLAG_TM_GLOBAL_SCRATCH     ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_TM_LOCAL_SCRATCH      ((gex_Flags_t)???) [UNIMPLEMENTED]
-#define GEX_FLAG_TM_SYMMETRIC_SCRATCH  ((gex_Flags_t)???) [UNIMPLEMENTED]
+#define GEX_FLAG_TM_GLOBAL_SCRATCH     ((gex_Flags_t)???) // gex_TM_Create only
+#define GEX_FLAG_TM_LOCAL_SCRATCH      ((gex_Flags_t)???) // gex_TM_Create only
+#define GEX_FLAG_TM_SYMMETRIC_SCRATCH  ((gex_Flags_t)???) // gex_TM_Create only
 #define GEX_FLAG_TM_NO_SCRATCH         ((gex_Flags_t)???) [UNIMPLEMENTED]
 //
 // SCRATCH_SEG_OFFSET
@@ -3112,6 +3112,32 @@ gex_Event_t gex_Coll_ReduceToAllNB(
 
 
 // End of section describing APIs provided by gasnet_coll.h
+//----------------------------------------------------------------------
+
+// [PROPOSED]
+// The remainder of this document is for APIs descibed in more detail in
+//   GASNet-EX API Proposal: Multi-EP, Revision 2020.6.1
+// Only prototypes and supported flags are provided here.
+
+size_t gex_TM_Create(
+            gex_TM_t *new_tms,         // OUT
+            size_t num_new_tms,        // Length of new_tms
+            gex_TM_t parent_tm,
+            gex_EP_Location_t *args,   // IN
+            size_t numargs,            // single-valued over output team
+            gex_Addr_t *scratch_addrs, // IN
+            size_t scratch_size        // single-valued over output team
+            gex_Flags_t flags);        // Flags (partially single-valued)
+      // Valid flags:
+      //   GEX_FLAG_RANK_IS_JOBRANK
+      //   GEX_FLAG_SCRATCH_SEG_OFFSET
+      //   GEX_FLAG_TM_SYMMETRIC_SCRATCH \
+      //   GEX_FLAG_TM_LOCAL_SCRATCH     | mutually-exclusive group
+      //   GEX_FLAG_TM_GLOBAL_SCRATCH    |
+      //   GEX_FLAG_TM_NO_SCRATCH        /
+      //   GEX_FLAG_TM_SCRATCH_SIZE_MIN         \
+      //   GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED / mutually-exclusive pair
+
 //----------------------------------------------------------------------
 
 // vim: syntax=c

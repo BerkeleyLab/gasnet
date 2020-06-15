@@ -146,6 +146,149 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   return 1; // return is documented as undefined
 }
 
+// TODO-EX: implement full generality given in specification
+// MISSING support for:
+//   + non-primordial EPs
+//     - (num_new_tms > 1)
+//     - non-zero gex_ep_index
+//     - caller's EP not in members[]
+//   + GEX_FLAG_TM_LOCAL_SCRATCH
+//   + GEX_FLAG_SCRATCH_SEG_OFFSET
+size_t gasneti_TM_Create(
+            gex_TM_t *new_tms,
+            size_t num_new_tms,
+            gex_TM_t e_parent,
+            gex_EP_Location_t *members,
+            size_t nmembers,
+            gex_Addr_t *scratch_addrs,
+            size_t scratch_size,
+            gex_Flags_t flags
+            GASNETI_THREAD_FARG)
+{
+  size_t result = 0;
+  gasneti_TM_t i_parent = gasneti_import_tm(e_parent);
+
+  // NOTE: we can simplify things by observing that ranks in TM0 are always jobranks
+  flags |=  gasneti_is_tm0(i_parent) ? GEX_FLAG_RANK_IS_JOBRANK : 0;
+
+  gasneti_EP_t ep = i_parent->_ep;
+  int is_jobrank = (flags & GEX_FLAG_RANK_IS_JOBRANK);
+
+  // For now 0 or 1 are the only valid numbers of outputs.
+  gasneti_assert(!nmembers || num_new_tms == 1);
+
+#if GASNET_DEBUG
+  if ((flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) &&
+      (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
+    gasneti_fatalerror("Call to gex_TM_Split() with mutually-exclusive "
+                       "GEX_FLAG_TM_SCRATCH_SIZE_MIN and "
+                       "GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED both set in flags argument");
+  }
+#endif
+  if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
+    return nmembers ? get_scratch_size(i_parent, nmembers, flags) : 0;
+  }
+
+  if (! nmembers) {
+    GASNETI_TRACE_PRINTF(W,("Create: parent="GASNETI_TMSELFFMT" [No team created]",
+                            GASNETI_TMSELFSTR(e_parent)));
+    goto done;
+  }
+
+  // TODO: missing sanity checks on args, especially single-valued assertions
+
+  // Find self in members[]
+  gex_Rank_t my_member_rank = is_jobrank
+                              ? gasneti_i_tm_rank_to_jobrank(i_parent, i_parent->_rank)
+                              : i_parent->_rank;
+  gex_Rank_t my_new_rank = GEX_RANK_INVALID;
+  for (gex_Rank_t r = 0; r < nmembers; ++r) {
+    if (members[r].gex_rank == my_member_rank && members[r].gex_ep_index == ep->_index) {
+      my_new_rank = r;
+      break;
+    }
+  }
+  if (my_new_rank == GEX_RANK_INVALID) { // TODO-EX: not the right test or message in multi-EP case
+    gasneti_fatalerror("Call to gex_TM_Create with nmembers=%"PRIuSZ" but 0 local members found in in members[]",
+                       nmembers);
+  }
+
+  // Generate rel2act_map[], which the new team will copy
+  gex_Rank_t *rel2act_map = gasneti_malloc(nmembers * sizeof(gex_Rank_t));
+  for (gex_Rank_t r = 0; r < nmembers; ++r) {
+    gasneti_assert_always_uint(members[r].gex_ep_index ,==, 0);
+    gex_Rank_t tmp = members[r].gex_rank;
+    rel2act_map[r] = is_jobrank ? tmp : gasneti_i_tm_rank_to_jobrank(i_parent, tmp);
+  }
+
+  // Generate "global" scratch_addrs[], which new team will "own"
+  // TODO-EX: this logic should probably be pushed down a level
+  gex_Addr_t *global_scratch_addrs = NULL;
+  gex_Flags_t scratch_mask = GEX_FLAG_TM_GLOBAL_SCRATCH    |
+                             GEX_FLAG_TM_LOCAL_SCRATCH     |
+                             GEX_FLAG_TM_SYMMETRIC_SCRATCH |
+                             GEX_FLAG_TM_NO_SCRATCH;
+  switch (flags & scratch_mask) {
+    case GEX_FLAG_TM_GLOBAL_SCRATCH:
+      global_scratch_addrs = gasneti_malloc(nmembers * sizeof(gex_Addr_t));
+      memcpy(global_scratch_addrs, scratch_addrs, nmembers * sizeof(gex_Addr_t));
+      break;
+
+    case GEX_FLAG_TM_LOCAL_SCRATCH:
+      gasneti_fatalerror("GEX_FLAG_TM_LOCAL_SCRATCH unimplemented");
+      break;
+
+    case GEX_FLAG_TM_SYMMETRIC_SCRATCH:
+     global_scratch_addrs = gasneti_malloc(nmembers * sizeof(gex_Addr_t));
+      for (gex_Rank_t r = 0; r < nmembers; ++r) {
+        global_scratch_addrs = scratch_addrs[0];
+      }
+      break;
+
+    case GEX_FLAG_TM_NO_SCRATCH:
+      scratch_size = 0;
+      break;
+
+    case 0:
+      gasneti_fatalerror("No GEX_FLAG_TM_*_SCRATCH flags provided");
+      break;
+
+    default:
+      gasneti_fatalerror("Multiple GEX_FLAG_TM_*_SCRATCH flags provided");
+      break;
+  }
+
+  gasnete_coll_team_t team = gasnete_coll_team_create(
+                        i_parent->_coll_team, nmembers,
+                        my_new_rank, rel2act_map,
+                        scratch_size, scratch_addrs,
+                        (flags & ~scratch_mask) | GEX_FLAG_TM_GLOBAL_SCRATCH
+                        GASNETI_THREAD_PASS);
+
+  gasneti_free(rel2act_map);
+
+  // TODO-EX: use of a conduit-specific hook is needed here
+  gasneti_TM_t i_tm = gasneti_alloc_tm(ep, my_new_rank, nmembers, flags, 0);
+  i_tm->_coll_team = team;
+  gex_TM_t e_tm = gasneti_export_tm(i_tm);
+  team->e_tm = e_tm;
+  new_tms[0] = e_tm;
+
+  i_tm->_rank_map = team->rel2act_map;
+  i_tm->_index_map = NULL; // TODO-EX: provide this for teams w/ non-primordial EPs
+
+  GASNETI_TRACE_PRINTF(W,("Create: parent="GASNETI_TMSELFFMT" rank=%d size=%d result="GASNETI_TMSELFFMT,
+                          GASNETI_TMSELFSTR(e_parent), my_new_rank, (int)nmembers, GASNETI_TMSELFSTR(e_tm)));
+
+  result = 1; // return is documented as undefined
+
+done:
+  // TODO: barrier over only the NEW team if any
+  gasnete_coll_consensus_barrier(i_parent->_coll_team GASNETI_THREAD_PASS);
+  return result;
+}
+
+
 /* ------------------------------------------------------------------------------------ */
 /* TM trace formatting - legal even without STATS/TRACE */
 
