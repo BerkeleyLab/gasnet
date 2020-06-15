@@ -307,7 +307,7 @@ static void malloc_test(int id) {
 
   for (i = 0; i < iters/num_threads; i++) {
     int alignsz;
-    for (alignsz = 1; alignsz < 64*1024; alignsz *= 2) {
+    for (alignsz = 1; alignsz < MIN(GASNET_PAGESIZE,64*1024); alignsz *= 2) {
       size_t sz = TEST_RAND(1,alignsz*2);
       char * p = gasneti_malloc_aligned(alignsz,sz);
       gasneti_assert_always(p);

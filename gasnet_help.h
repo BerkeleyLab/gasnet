@@ -87,6 +87,7 @@ GASNETI_MALLOCP(_gasneti_extern_strndup)
 GASNETI_INLINE(_gasneti_malloc_aligned) GASNETI_MALLOC
 void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG) {
   gasneti_assert(GASNETI_POWEROFTWO(alignment));
+  gasneti_assert(alignment <= GASNET_PAGESIZE);
 #if GASNETI_USE_POSIX_MEMALIGN
   if_pf(alignment < sizeof(void*)) alignment = sizeof(void*);
   void *result = NULL; // init to avoid -Wmaybe-uninitialized warnings
