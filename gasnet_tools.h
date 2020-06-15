@@ -572,6 +572,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
     #define gasnett_debug_memcheck_all()  gasneti_memcheck_all()
     #define gasnett_heapstats_t           gasneti_heapstats_t
     #define gasnett_getheapstats(pstat)   gasneti_getheapstats(pstat)
+    #define gasnett_heapinfo_dump(f,o)    gasneti_heapinfo_dump(f,o)
   #endif
 
   /* VIS string formatting */

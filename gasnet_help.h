@@ -46,6 +46,7 @@ typedef struct {
   #define gasneti_memcheck_one() _gasneti_memcheck_one(__FILE__ ":" _STRINGIFY(__LINE__))
   #define gasneti_memcheck_all() _gasneti_memcheck_all(__FILE__ ":" _STRINGIFY(__LINE__))
   extern int gasneti_getheapstats(gasneti_heapstats_t *pstat);
+  extern void gasneti_heapinfo_dump(const char *filename, int show_live_objects);
 #else
   #define GASNETI_CURLOCFARG 
   #define GASNETI_CURLOCAARG 
@@ -54,6 +55,7 @@ typedef struct {
   #define gasneti_memcheck_one()  ((void)0)
   #define gasneti_memcheck_all()  ((void)0)
   #define gasneti_getheapstats(pstat) (memset(pstat, 0, sizeof(gasneti_heapstats_t)),1)
+  #define gasneti_heapinfo_dump(f,s) ((void)0)
 #endif
 
 /* extern versions of gasnet malloc fns for use in public headers */

@@ -654,6 +654,8 @@ typedef struct {
 extern void gasneti_trace_init(int *_argc, char ***_argv);
 extern void gasneti_trace_finish(void);
 
+extern FILE *gasneti_open_outputfile(const char *_filename, const char *_desc);
+
 /* defines all the types */
 #define GASNETI_ALLTYPES "GPRSWXBLAICDNH"
 

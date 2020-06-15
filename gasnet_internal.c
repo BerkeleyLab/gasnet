@@ -2282,6 +2282,62 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
   }
 
+  extern void gasneti_heapinfo_dump(const char *filename, int show_live_objects) {
+    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+    gasneti_mutex_lock(&lock);
+    FILE *fp = gasneti_open_outputfile(filename, "debugmalloc heap report");
+    if (fp) {
+      time_t ltime;
+      char temp[1024];
+      time(&ltime);
+      strcpy(temp, ctime(&ltime));
+      if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
+
+      gasnett_heapstats_t stats;
+      gasnett_getheapstats(&stats);
+      fprintf(fp, "# GASNet Debug Mallocator Report\n");
+      fprintf(fp, "#\n");
+      fprintf(fp, "# program: %s\n",gasneti_exename);
+      fprintf(fp, "# date:    %s\n",temp);
+      fprintf(fp, "# host:    %s\n",gasnett_gethostname());
+      fprintf(fp, "# pid:     %i\n",(int)getpid());
+      fprintf(fp, "# node:    %i / %i\n", (int)gasneti_mynode, (int)gasneti_nodes);
+      fprintf(fp, "#\n");
+      fprintf(fp, "# Private memory utilization:\n");
+      fprintf(fp, "# ---------------------------\n");
+      fprintf(fp, "#\n");
+      fprintf(fp, "# malloc() space total:        %10"PRIu64" bytes, in %10"PRIu64" objects\n",
+                  stats.allocated_bytes, stats.allocated_objects);
+      fprintf(fp, "# malloc() space in-use:       %10"PRIu64" bytes, in %10"PRIu64" objects\n",
+                  stats.live_bytes, stats.live_objects);
+      fprintf(fp, "# malloc() space freed:        %10"PRIu64" bytes, in %10"PRIu64" objects\n",
+                  stats.freed_bytes, stats.freed_objects);
+      fprintf(fp, "# malloc() space peak usage:   %10"PRIu64" bytes,    %10"PRIu64" objects\n",
+                  stats.live_bytes_max, stats.live_objects_max);
+      fprintf(fp, "# malloc() system overhead: >= %10"PRIu64" bytes\n",
+                  stats.overhead_bytes);
+      fprintf(fp, "#\n");
+    
+      gasneti_memcheck_all(); /* check ring sanity */
+   
+      if (show_live_objects) { 
+        fprintf(fp, "# Live objects\n");
+        fprintf(fp, "# ------------\n");
+        fprintf(fp, "#\n");
+        fprintf(fp, "# Table below shows objects allocated, but not freed.\n");
+        fprintf(fp, "# Note that GASNet does not free most of its internal permanent data structures,\n");
+        fprintf(fp, "# in order to streamline job shutdown.  An asterisk (*) following the size\n");
+        fprintf(fp, "# identifies objects known to correspond to these permanent allocations.\n");
+        fprintf(fp, "#\n");
+        fprintf(fp, "# Object size     Location Allocated\n");
+        fprintf(fp, "# ==================================\n");
+    
+        gasneti_malloc_dump_liveobjects(fp);
+      }
+      if (fp != stdout && fp != stderr) fclose(fp);
+    }
+    gasneti_mutex_unlock(&lock);
+  }
 #endif
 /* extern versions of gasnet malloc fns for use in public headers */
 extern void *_gasneti_extern_malloc(size_t sz GASNETI_CURLOCFARG) {
