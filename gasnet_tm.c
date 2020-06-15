@@ -47,12 +47,10 @@ gex_Rank_t gasneti_tm_rev_rank(gasneti_TM_t tm, gex_Rank_t jobrank) {
   return GEX_RANK_INVALID;
 }
 
-static size_t split_scratch_size(gex_TM_t *new_tm_p, gasneti_TM_t i_parent,
-                                 int color, int key, gex_Flags_t flags)
+static size_t
+get_scratch_size(gasneti_TM_t i_parent, gex_Rank_t new_tm_size, gex_Flags_t flags)
 {
-  if (!new_tm_p) {
-    return 0;
-  }
+  if (!new_tm_size) return 0;
 
   static size_t minimum, recommended;
   static int is_init = 0;
@@ -72,12 +70,10 @@ static size_t split_scratch_size(gex_TM_t *new_tm_p, gasneti_TM_t i_parent,
      gasneti_sync_reads();
   }
 
+  // The current true minimum is one byte for every member in the new team.
+  // TODO-EX: is this really the value we want to advertise?
   if (flags & GEX_FLAG_TM_SCRATCH_SIZE_MIN) {
-    // The current true minimum is one byte for every member in the new team.
-    // However, performing a collective to size the teams seems unnecessary.
-    // So, we take the size of the parent, and round up to cache line size.
-    // TODO-EX: is this really the value we want to advertise?
-    return MAX(minimum, GASNETI_ALIGNUP(i_parent->_size, GASNETI_CACHE_LINE_BYTES));
+    return MAX(minimum, GASNETI_ALIGNUP(new_tm_size, GASNETI_CACHE_LINE_BYTES));
   }
 
   if (flags & GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED) {
@@ -104,7 +100,10 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
   }
 #endif
   if (flags & (GEX_FLAG_TM_SCRATCH_SIZE_MIN | GEX_FLAG_TM_SCRATCH_SIZE_RECOMMENDED)) {
-    return split_scratch_size(new_tm_p, i_parent, color, key, flags);
+    // The MINIMUM scratch requirement scales as size of new team, not the parent.
+    // However, performing a collective to size the teams seems unnecessary.
+    // So, we are passing the size of the parent.
+    return new_tm_p ? get_scratch_size(i_parent, i_parent->_size, flags) : 0;
   }
 
   if (!new_tm_p) {
@@ -116,8 +115,8 @@ size_t gasneti_TM_Split(gex_TM_t *new_tm_p, gex_TM_t e_parent, int color, int ke
     gasneti_assert_ptr(addr     ,>=, ep->_segment->_addr);
     gasneti_assert_ptr((uint8_t*)addr+len ,<=, ep->_segment->_ub);
 #endif
-    gasneti_assert_uint(len ,>=, split_scratch_size(new_tm_p, i_parent, color, key,
-                                             flags | GEX_FLAG_TM_SCRATCH_SIZE_MIN));
+    gasneti_assert_uint(len ,>=, get_scratch_size(i_parent, i_parent->_size,
+                                                  flags | GEX_FLAG_TM_SCRATCH_SIZE_MIN));
   }
 
   gasnet_seginfo_t scratch;
