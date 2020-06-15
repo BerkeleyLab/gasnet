@@ -2401,8 +2401,11 @@ GASNET_TRY_CACHE_CHECK(for clock_gettime(), cc_has_clock_gettime, [
                  ], AC_MSG_RESULT(entry point not found - disabled)))
 
 # Timer configuration
-# No current exceptions
 use_timers=native
+if test x"$enabled_valgrind" = x"yes" ; then
+  # valgrind emulation degrades timer calibration and reliability, default to posixrt
+  use_timers=posixrt
+fi
 
 AC_DEFUN([GASNET_CHECK_TIMER_OPTION],[
   if test -n "$force_timers" ; then
