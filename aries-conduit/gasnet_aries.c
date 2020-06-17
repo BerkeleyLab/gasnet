@@ -1129,6 +1129,24 @@ uintptr_t gasnetc_init_messaging(void)
                       remote_nodes * am_maxcredit + // for Request headers
                       remote_nodes * am_long_depth, // for Request Long payloads
                       2);                           // need it to be even
+  if (gasneti_getenv("GASNET_GNI_AM_MAX_CQE")) {
+    // GASNET_GNI_AM_MAX_CQE provides for an UNDOCUMENTED ceiling.
+    // This setting may be used to artificially lower the size of the AM CQ below
+    // the minimum "safe" level.  Therefore, use may lead to hangs or crashes
+    // under some AM traffic patterns.  You have been warned.
+    int am_max_cqe = gasneti_getenv_int_withdefault("GASNET_GNI_AM_MAX_CQE", 0, 0);
+    if (am_max_cqe) { // zero means no limit
+      am_max_cqe = GASNETI_ALIGNUP(am_max_cqe,2); // must be even
+      if (am_max_cqe < am_num_cqe) {
+        if (!gasneti_mynode) {
+          gasneti_console_message("WARNING",
+                                  "Unsupported GASNET_GNI_AM_MAX_CQE reducing AM CQ length from %d to %d",
+                                  am_num_cqe, am_max_cqe);
+        }
+        am_num_cqe = am_max_cqe;
+      }
+    }
+  }
   status = GNI_CqCreate(nic_handle,am_num_cqe,0,GNI_CQ_NOBLOCK,NULL,NULL,&am_cq_handle);
   if (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_CqCreate returned error %s", gasnetc_gni_rc_string(status));
