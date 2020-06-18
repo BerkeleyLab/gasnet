@@ -505,9 +505,8 @@ extern void gasneti_coll_progressfn(void) {
 }
 #endif
 
-static gasnet_seginfo_t *gasnete_coll_auxseg_save = NULL;
-
-
+size_t gasnete_coll_auxseg_size = 0;
+size_t gasnete_coll_auxseg_offset = 0;
 
 /* AuxSeg setup for distributed scratch space*/
 gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
@@ -521,10 +520,10 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
     return retval; /* initial query */
   }	
   else { /* auxseg granted */
-    gasneti_assert(!gasnete_coll_auxseg_save);
-    gasnete_coll_auxseg_save = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    gasneti_leak(gasnete_coll_auxseg_save);
-    memcpy(gasnete_coll_auxseg_save, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+    gasneti_assert(!gasnete_coll_auxseg_size);
+    gasnete_coll_auxseg_size   = auxseg_info[0].size;
+    gasnete_coll_auxseg_offset = (uintptr_t)auxseg_info[0].addr -
+                                 (uintptr_t)gasneti_seginfo_aux[0].addr;
   }
 
   return retval;
@@ -552,8 +551,7 @@ extern void gasnete_coll_init_subsystem(void)
 
     /* setup information for TM0 */
     gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode,
-                           NULL, gasnete_coll_auxseg_save,
-                           NULL GASNETI_THREAD_PASS);
+                           NULL, NULL, NULL GASNETI_THREAD_PASS);
     gasneti_import_tm(gasneti_THUNK_TM)->_coll_team = GASNET_TEAM_ALL;
     GASNET_TEAM_ALL->e_tm = gasneti_THUNK_TM;
 

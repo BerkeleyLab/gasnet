@@ -120,6 +120,34 @@ void gasnete_coll_scratch_free_inlines(gasnete_coll_scratch_req_t *req)
   }
 }
 
+
+GASNETI_INLINE(gasnete_coll_scratch_mysize)
+size_t gasnete_coll_scratch_mysize(gasnete_coll_team_t team) {
+  return team->symmetric_scratch_size ? team->symmetric_scratch_size
+                                      : team->scratch_segs[team->myrank].size;
+}
+GASNETI_INLINE(gasnete_coll_scratch_myaddr)
+void* gasnete_coll_scratch_myaddr(gasnete_coll_op_t *op, uintptr_t byte_offset) {
+  const gasnete_coll_team_t team = op->team;
+  return (void *)(byte_offset + op->myscratchpos +
+                  team->symmetric_scratch_offset +
+                  (uintptr_t)team->scratch_segs[team->myrank].addr);
+}
+
+GASNETI_INLINE(gasnete_coll_scratch_size)
+size_t gasnete_coll_scratch_size(gasnete_coll_team_t team, gex_Rank_t rank) {
+  return team->symmetric_scratch_size ? team->symmetric_scratch_size
+                                      : team->scratch_segs[rank].size;
+}
+GASNETI_INLINE(gasnete_coll_scratch_addr)
+void* gasnete_coll_scratch_addr(gasnete_coll_op_t *op, gex_Rank_t rank, int index, uintptr_t byte_offset) {
+  const gasnete_coll_team_t team = op->team;
+  return (void *)(byte_offset + op->scratchpos[index] +
+                  team->symmetric_scratch_offset +
+                  (uintptr_t)team->scratch_segs[rank].addr);
+}
+
+
 /* try to allocate scratch space*/
 /* returns 1 on success or zero on failure*/
 int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETI_THREAD_FARG);
