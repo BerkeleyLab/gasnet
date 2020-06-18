@@ -32,7 +32,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
 
   size_t image_size = num_members*sizeof(gasnet_image_t);
   int i;
-  static size_t smallest_scratch_seg;
+  size_t smallest_scratch_seg;
 
   team->sequence = 0xfffffff8;  // Intentionally near to wrap-around
 
