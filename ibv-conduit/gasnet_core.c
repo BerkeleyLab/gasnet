@@ -997,7 +997,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     if (gasneti_mynode == first_local) {
       uintptr_t size = gasnetc_trypin(limit, step);
       if_pf (!size) {
-        gasneti_fatalerror("ERROR: Failure to determine the max pinnable memory.  IBV may be misconfigured.");
+        gasneti_fatalerror("Failure to determine the max pinnable memory.  IBV may be misconfigured.");
       }
       gasnetc_pin_info.memory = size;
     }

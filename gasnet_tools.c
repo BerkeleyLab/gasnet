@@ -3532,7 +3532,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     int64_t cpuspeed = 0;
     size_t len = sizeof(cpuspeed);
     if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1)
-      gasneti_fatalerror("*** ERROR: Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
+      gasneti_fatalerror("Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
     // ensure it looks reasonable
     gasneti_assert_dbl(cpuspeed ,>, 1E6); 
     gasneti_assert_dbl(cpuspeed ,<, 1E11); 
@@ -3544,7 +3544,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
     mib[0] = CTL_HW;
     mib[1] = HW_CPUSPEED;
     if (sysctl(mib, 2, &MHz, &len, NULL, 0))
-      gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
+      gasneti_fatalerror("Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
     // ensure it looks reasonable
     gasneti_assert_int(MHz ,>, 1);
     gasneti_assert_int(MHz ,<, 100000); 
@@ -3552,7 +3552,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
   #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
     FILE *fp = fopen("/proc/cpuinfo","r");
     char input[255];
-    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
     while (!feof(fp) && fgets(input, sizeof(input), fp)) {
       if (strstr(input,"itc MHz")) {
         char *p = strchr(input,':');
@@ -3572,7 +3572,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
   double MHz = 0.0;
 
   fp = fopen("/proc/cpuinfo","r");
-  if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+  if (!fp) gasneti_fatalerror("Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
 
   /* First pass gets speed from /proc/cpuinfo */
   while (!feof(fp) && fgets(input, sizeof(input), fp)) {

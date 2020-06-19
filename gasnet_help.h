@@ -342,9 +342,8 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
     size_t _gex_bc_nbytes = (size_t)(nbytes);                                  \
     gasneti_assert(_gex_bc_nbytes); /* avoids "fence post" error */            \
     if_pf (_gex_bc_rank >= _gex_bc_size)                                       \
-      gasneti_fatalerror("Rank out of range (%lu >= %lu) at %s",               \
-              (unsigned long)_gex_bc_rank, (unsigned long)(_gex_bc_size),      \
-              gasneti_current_loc);                                            \
+      gasneti_fatalerror("Rank out of range (%lu >= %lu)",                     \
+              (unsigned long)_gex_bc_rank, (unsigned long)(_gex_bc_size));     \
     if_pf (_gex_bc_ptr == NULL ||                                              \
            !segtest(_gex_bc_tm,_gex_bc_rank,_gex_bc_ptr,_gex_bc_nbytes)) {     \
       const gasnet_seginfo_t *_gex_bc_client_seg =                             \
@@ -353,13 +352,12 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
       const gasnet_seginfo_t *_gex_bc_aux_seg =                                \
                                          gasneti_aux_seginfo(_gex_bc_jobrank); \
       gasneti_fatalerror("Remote address out of range (" GASNETI_TMRANKFMT     \
-         " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ") at %s"                 \
+         " ptr=" GASNETI_LADDRFMT" nbytes=%" PRIuPTR ")"                       \
          "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
          "\n     auxsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")",      \
          GASNETI_TMRANKSTR(_gex_bc_tm,_gex_bc_rank),                           \
          GASNETI_LADDRSTR(_gex_bc_ptr),                                        \
          (uintptr_t)_gex_bc_nbytes,                                            \
-         gasneti_current_loc,                                                  \
          GASNETI_LADDRSTR(_gex_bc_client_seg->addr),                           \
          GASNETI_LADDRSTR((uintptr_t)_gex_bc_client_seg->addr +                \
                                      _gex_bc_client_seg->size),                \
@@ -388,9 +386,8 @@ int _gasneti_in_segment_t(const void *_ptr, size_t _nbytes, const gex_Segment_t 
    int _retcode = (fncall);                                                  \
    if_pf (_retcode != (int)GASNET_OK) {                                      \
      gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"            \
-        "  while calling: %s\n"                                              \
-        "  at %s",                                                           \
-        gasnet_ErrorName(_retcode), _retcode, #fncall, gasneti_current_loc); \
+        "  while calling: %s",                                               \
+        gasnet_ErrorName(_retcode), _retcode, #fncall);                      \
    }                                                                         \
  } while (0)
 #endif
