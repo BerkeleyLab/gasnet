@@ -13,6 +13,41 @@
    fun:gasneti_plpa_*
 }
 
+# aries-conduit: suppress Cray NIC device accesses unrecognized by valgrind
+{
+   GNI-bad-ioctl
+   Memcheck:Param
+   ioctl(generic)
+   fun:ioctl
+   obj:*/libugni.so*
+}
+{
+   GNI-bad-device-PIO8
+   Memcheck:Addr8
+   obj:*/libugni.so*
+}
+{
+   GNI-bad-device-PIO4
+   Memcheck:Addr4
+   obj:*/libugni.so*
+}
+{
+   GNI-bad-device-PIO2
+   Memcheck:Addr2
+   obj:*/libugni.so*
+}
+{
+   GNI-bad-device-PIO1
+   Memcheck:Addr1
+   obj:*/libugni.so*
+}
+{
+   UDREG-bad-device-PIO8
+   Memcheck:Addr8
+   obj:*/libudreg.so*
+}
+
+
 #
 # The following are suppressions for known-benign memory leaks.
 # They are only useful in a debug build, both because of the
