@@ -914,6 +914,20 @@ GASNET_IF_ENABLED(valgrind, [Build a valgrind-friendly library, disabling some o
     fi
     AC_DEFINE(GASNETI_VALGRIND)
     enable_debug_malloc=no # debug mallocator obfuscates heap activity and confuses valgrind
+    if test x"$enable_pshm_xpmem" = xyes && test x"$enable_pshm" != xno; then 
+      # valgrind fundamentally incompatible with XPMEM, issuing errors on every access
+      case "$target" in
+        *-cnl-*) 
+           GASNET_MSG_WARN([Valgrind (--enable-valgrind) does not interoperate with XPMEM (--enable-pshm-xpmem).
+               This appears to be a Cray, so converting to --enable-pshm-hugetlbfs instead])
+           enable_pshm_xpmem=no
+           enable_pshm_hugetlbfs=yes
+        ;;
+        *) GASNET_MSG_ERROR([Valgrind (--enable-valgrind) does not interoperate with XPMEM (--enable-pshm-xpmem).
+               Please select a different PSHM protocol (e.g. --disable-pshm-xpmem --enable-pshm-posix) or disable PSHM (--disable-pshm) ])
+        ;;
+      esac
+    fi
     enabled_valgrind=yes
 ])
 
