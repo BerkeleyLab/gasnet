@@ -2511,6 +2511,9 @@ gasnete_tm_reduce_nb_default(
       alg = &gasnete_tm_reduce_TreePut;
     } else if ((dt_sz * (max_radix + 1) <= smallest_scratch) && (dt_sz <= gex_AM_LUBRequestLong())) {
       alg = &gasnete_tm_reduce_TreePutSeg;
+    } else if ((dt_sz * binomial_root_radix <= gasnete_coll_p2p_eager_buffersz) &&
+               (dt_sz <= gex_AM_LUBRequestMedium())) {
+      alg = &gasnete_tm_reduce_BinomialEagerSeg;
     } else {
       gasneti_assert(dt == GEX_DT_USER);
       gasneti_fatalerror("gex_Coll_ReduceToOneNB: (dt_sz == %"PRIuSZ") is TOO LARGE for this implementation",
