@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  printf("Slave %i done.\n", MYPROC);
+  printf("Worker %i done.\n", MYPROC);
   fflush(stdout);
 
   /* barrier */

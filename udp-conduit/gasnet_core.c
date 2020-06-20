@@ -239,7 +239,7 @@ static int gasnetc_init(int *argc, char ***argv, gex_Flags_t flags) {
     retval = AMUDP_SPMDStartup(argc, argv, 
       0, 0, NULL, /* dummies */
       &gasnetc_networkpid, &gasnetc_bundle, &gasnetc_endpoint);
-    if (retval != AM_OK) INITERR(RESOURCE, "slave AMUDP_SPMDStartup() failed");
+    if (retval != AM_OK) INITERR(RESOURCE, "worker AMUDP_SPMDStartup() failed");
     gasneti_init_done = 1; /* enable early to allow tracing */
 
     gasneti_getenv_hook = (/* cast drops const */ gasneti_getenv_fn_t*)&AMUDP_SPMDgetenvMaster;
