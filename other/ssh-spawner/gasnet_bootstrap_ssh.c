@@ -2381,7 +2381,7 @@ static void do_master(const char *spawn_args, int *argc_p, char ***argv_p) {
   } else {
     /* Format of spawn_args: "fd:N:[M]:[W]"
      *  :   indicates the delimiter character
-     *  fd  is an integer file descriptor to provide he command line
+     *  fd  is an integer file descriptor to provide the command line
      *  N   is the positive integer process count
      *  M   is the positive node count, or empty
      *  W   is the "wrapper" and is everything (possibly empty) after the last delimiter

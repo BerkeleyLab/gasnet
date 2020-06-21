@@ -67,7 +67,7 @@ Interface notes:
   OS-appropriate mechanisms. (shm_open()+mmap(), shmget()+shmat(), etc.).
 * Nodes on a supernode typically have different virtual address map of the
   segments on that supernode.  They are typically not contiguous either.
-* Client calls gasnet_getSegmentInfo() to get the location of his segment and
+* Client calls gasnet_getSegmentInfo() to get the location of their segment and
   those of other nodes (as always)
 * Client calls gasnet_getNodeInfo() to get the compute node rank, and the
   supernode rank (which need not be the same when GASNET_SUPERNODE_MAXSIZE
