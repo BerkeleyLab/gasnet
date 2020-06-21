@@ -1123,7 +1123,7 @@ XLC)
 GNU|Intel|Pathscale|Open64|Clang|PGI|TINY)
     # Currently believe all of these support GCC-style inline ASM on all CPUs
     # where we use it.  If that is ever *not* the case then one should split
-    # off the case for the relevant compiler and apply blacklists or probes.
+    # off the case for the relevant compiler and apply banlists or probes.
     # NOTE: be sure to keep gasnet_asm.h in-sync with any changes made here.
     AC_DEFINE(GASNETI_HAVE_[]uppername[]_GCC_ASM)
   ;;

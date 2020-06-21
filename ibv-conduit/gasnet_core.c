@@ -2992,8 +2992,8 @@ extern void gasnetc_fatalsignal_callback(int sig) {
 
 enum {
   GASNETC_EXIT_ROLE_UNKNOWN,
-  GASNETC_EXIT_ROLE_MASTER,
-  GASNETC_EXIT_ROLE_SLAVE
+  GASNETC_EXIT_ROLE_LEADER,
+  GASNETC_EXIT_ROLE_MEMBER
 };
 
 static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROLE_UNKNOWN);
@@ -3140,7 +3140,7 @@ static void gasnetc_exit_reduce_reqh(gex_Token_t token,
  * gasnetc_exit_role_reqh()
  *
  * This request handler (invoked only on the "root" node) handles the election
- * of a single exit "master", who will coordinate an orderly shutdown.
+ * of a single exit "leader", who will coordinate an orderly shutdown.
  */
 static void gasnetc_exit_role_reqh(gex_Token_t token) {
   gex_Rank_t src = gasnetc_msgsource(token);
@@ -3149,13 +3149,13 @@ static void gasnetc_exit_role_reqh(gex_Token_t token) {
   gasneti_assert(gasneti_mynode == GASNETC_ROOT_NODE);	/* May only send this request to the root node */
 
   
-  /* What role would the local node get if the requester is made the master? */
+  /* What role would the local node get if the requester is made the leader? */
   
-  local_role = (src == GASNETC_ROOT_NODE) ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
+  local_role = (src == GASNETC_ROOT_NODE) ? GASNETC_EXIT_ROLE_LEADER : GASNETC_EXIT_ROLE_MEMBER;
 
   /* Try atomically to assume the proper role.  Result determines role of requester */
   result = gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, local_role, 0)
-                ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
+                ? GASNETC_EXIT_ROLE_LEADER : GASNETC_EXIT_ROLE_MEMBER;
 
   /* Inform the requester of the outcome. */
   GASNETI_SAFE(gasnetc_ReplySysShort(token, NULL, gasneti_handleridx(gasnetc_exit_role_reph),
@@ -3165,7 +3165,7 @@ static void gasnetc_exit_role_reqh(gex_Token_t token) {
 /*
  * gasnetc_exit_role_reph()
  *
- * This reply handler receives the result of the election of an exit "master".
+ * This reply handler receives the result of the election of an exit "leader".
  * The reply contains the exit "role" this node should assume.
  */
 static void gasnetc_exit_role_reph(gex_Token_t token, gex_AM_Arg_t arg0) {
@@ -3176,7 +3176,7 @@ static void gasnetc_exit_role_reph(gex_Token_t token, gex_AM_Arg_t arg0) {
 
   /* What role has this node been assigned? */
   role = (int)arg0;
-  gasneti_assert((role == GASNETC_EXIT_ROLE_MASTER) || (role == GASNETC_EXIT_ROLE_SLAVE));
+  gasneti_assert((role == GASNETC_EXIT_ROLE_LEADER) || (role == GASNETC_EXIT_ROLE_MEMBER));
 
   /* Set the role if not yet set.  Then assert that the assigned role has been assumed.
    * This way the assertion is checking that if the role was obtained by other means
@@ -3196,7 +3196,7 @@ static void gasnetc_exit_role_reph(gex_Token_t token, gex_AM_Arg_t arg0) {
  * is not responsive.
  *
  * Note that if we get here as a result of a remote exit request then our role has already been
- * set to "slave" and we won't touch the network from inside the request handler.
+ * set to "member" and we won't touch the network from inside the request handler.
  */
 static int gasnetc_get_exit_role(void)
 {
@@ -3356,7 +3356,7 @@ static void gasnetc_exit_sighandler(int sig) {
   /* NOT REACHED */
 }
 
-/* gasnetc_exit_master
+/* gasnetc_exit_leader
  *
  * We say a polite goodbye to our peers and then listen for their replies.
  * This forms the root node's portion of a barrier for graceful shutdown.
@@ -3371,7 +3371,7 @@ static void gasnetc_exit_sighandler(int sig) {
  *
  * Returns 0 on success, non-zero on any sort of failure including timeout.
  */
-static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
+static int gasnetc_exit_leader(int exitcode, int64_t timeout_us) {
   int i, rc;
   gasneti_tick_t start_time;
 
@@ -3401,22 +3401,22 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   return 0;
 }
 
-/* gasnetc_exit_slave
+/* gasnetc_exit_member
  *
- * We wait for a polite goodbye from the exit master.
+ * We wait for a polite goodbye from the exit leader.
  *
  * Takes a timeout in us as an argument
  *
  * Returns 0 on success, non-zero on timeout.
  */
-static int gasnetc_exit_slave(int64_t timeout_us) {
+static int gasnetc_exit_member(int64_t timeout_us) {
   gasneti_tick_t start_time;
 
   gasneti_assert(timeout_us > 0); 
 
   start_time = gasneti_ticks_now();
 
-  /* wait until the exit request is received from the master */
+  /* wait until the exit request is received from the leader */
   while (gasneti_atomic_read(&gasnetc_exit_reqs, 0) == 0) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
 
@@ -3439,7 +3439,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
  * If the exitcode reduction does not complete within gasnetc_exittimeout seconds, then we
  * assume that this is a NON-collective exit and that additional coordination is needed.  In that
  * case, to coordinate a graceful shutdown gasnetc_get_exit_role() will select one node as
- * the "master".  That master node will then send a remote exit request to each of its peers to
+ * the "leader".  That leader node will then send a remote exit request to each of its peers to
  * ensure they know that it is time to exit.  If we fail to coordinate the shutdown, we ask the
  * bootstrap to shut us down agressively.  Otherwise we return to our caller.  Unless our caller
  * is the at-exit handler, we are typically followed by a call to gasnetc_exit_tail() to perform
@@ -3556,7 +3556,7 @@ static void gasnetc_exit_body(void) {
 
   exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
 
-  /* Determine our role (master or slave) in the coordination of this shutdown */
+  /* Determine our role (leader or member) in the coordination of this shutdown */
   GASNETC_EXIT_STATE("performing non-collective exit");
   alarm(10);
   role = gasnetc_get_exit_role();
@@ -3565,14 +3565,14 @@ static void gasnetc_exit_body(void) {
   GASNETC_EXIT_STATE("coordinating shutdown");
   alarm(1 + (int)gasnetc_exittimeout);
   switch (role) {
-  case GASNETC_EXIT_ROLE_MASTER:
+  case GASNETC_EXIT_ROLE_LEADER:
     /* send all the remote exit requests and wait for the replies */
-    graceful = (gasnetc_exit_master(exitcode, timeout_us) == 0);
+    graceful = (gasnetc_exit_leader(exitcode, timeout_us) == 0);
     break;
 
-  case GASNETC_EXIT_ROLE_SLAVE:
+  case GASNETC_EXIT_ROLE_MEMBER:
     /* wait for the exit request and reply before proceeding */
-    graceful = (gasnetc_exit_slave(timeout_us) == 0);
+    graceful = (gasnetc_exit_member(timeout_us) == 0);
     break;
 
   default:
@@ -3645,29 +3645,29 @@ static void gasnetc_exit_body(void) {
  *
  * This is a core AM handler and is therefore available as soon as gasnet_init()
  * returns, even before gasnet_attach().  This handler is responsible for receiving the
- * remote exit requests from the master node and replying.  We call gasnetc_exit_head()
+ * remote exit requests from the leader node and replying.  We call gasnetc_exit_head()
  * with the exitcode seen in the remote exit request.  If this remote request is seen before
  * any local exit requests (normal or signal), then we are also responsible for starting the
  * exit procedure, via gasnetc_exit_{body,tail}().  Additionally, we are responsible for
  * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
  */
 static void gasnetc_exit_reqh(gex_Token_t token, gex_AM_Arg_t arg0) {
-  /* The master will send this AM, but should _never_ receive it */
-  gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) != GASNETC_EXIT_ROLE_MASTER);
+  /* The leader will send this AM, but should _never_ receive it */
+  gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) != GASNETC_EXIT_ROLE_LEADER);
 
   /* We should never receive this AM multiple times */
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_reqs, 0) == 0);
 
-  /* If we didn't already know, we are now certain our role is "slave" */
-  (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE, 0);
+  /* If we didn't already know, we are now certain our role is "member" */
+  (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_MEMBER, 0);
 
-  /* Send a reply so the master knows we are reachable */
+  /* Send a reply so the leader knows we are reachable */
   gasnetc_counter_inc(&gasnetc_exit_repl_oust);
   GASNETI_SAFE(gasnetc_ReplySysShort(token, &gasnetc_exit_repl_oust,
 				   gasneti_handleridx(gasnetc_exit_reph), /* no args */ 0));
   gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
 
-  /* Count the exit requests, so gasnetc_exit_slave() knows when to return */
+  /* Count the exit requests, so gasnetc_exit_member() knows when to return */
   gasneti_atomic_increment(&gasnetc_exit_reqs, 0);
 
   /* Initiate an exit IFF this is the first we've heard of it */
